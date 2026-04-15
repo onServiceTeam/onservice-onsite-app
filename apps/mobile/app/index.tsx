@@ -1,0 +1,84 @@
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuthStore } from '@/stores/auth.store';
+import { colors, typography, spacing } from '@/config/theme';
+import { storage } from '@/services/api';
+
+export default function SplashScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { isAuthenticated, isLoading, user } = useAuthStore();
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const timer = setTimeout(() => {
+      if (isAuthenticated) {
+        if (user?.role === 'provider') {
+          router.replace('/(provider-tabs)/dashboard');
+        } else {
+          router.replace('/(tabs)/home');
+        }
+      } else {
+        const hasOnboarded = storage.getBoolean('hasOnboarded');
+        if (hasOnboarded) {
+          router.replace('/auth/login');
+        } else {
+          router.replace('/onboarding');
+        }
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [isLoading, isAuthenticated, user, router]);
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.logoContainer}>
+        <View style={styles.logoCircle}>
+          <Text style={styles.logoText}>oS</Text>
+        </View>
+        <Text style={styles.appName}>onService</Text>
+        <Text style={styles.tagline}>Home services, done right.</Text>
+      </View>
+      <ActivityIndicator size="large" color="#FFFFFF" style={styles.loader} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoContainer: { alignItems: 'center' },
+  logoCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  logoText: {
+    fontSize: 40,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  appName: {
+    ...typography.h1,
+    color: '#FFFFFF',
+    fontSize: 36,
+    marginBottom: spacing.sm,
+  },
+  tagline: {
+    ...typography.body,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  loader: { position: 'absolute', bottom: 80 },
+});

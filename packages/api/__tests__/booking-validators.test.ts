@@ -1,0 +1,156 @@
+import {
+  createBookingSchema,
+  updateBookingStatusSchema,
+  submitQuoteSchema,
+} from '../src/validators/booking.validators';
+
+describe('Booking Validators', () => {
+  describe('createBookingSchema', () => {
+    const validBooking = {
+      categoryId: '550e8400-e29b-41d4-a716-446655440000',
+      bookingType: 'fixed_price' as const,
+      description: 'Need aircon cleaning for 2 split-type units in my condo.',
+      address: '123 Ayala Avenue',
+      barangay: 'Legaspi Village',
+      city: 'Makati',
+      province: 'Metro Manila',
+      scheduledAt: '2026-04-20T09:00:00.000Z',
+      servicePrice: 130000,
+    };
+
+    it('should accept a valid fixed_price booking', () => {
+      const result = createBookingSchema.safeParse(validBooking);
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept a valid quote_based booking without price', () => {
+      const result = createBookingSchema.safeParse({
+        ...validBooking,
+        bookingType: 'quote_based',
+        servicePrice: undefined,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept optional lat/lng coordinates', () => {
+      const result = createBookingSchema.safeParse({
+        ...validBooking,
+        latitude: 14.5547,
+        longitude: 121.0244,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject missing description', () => {
+      const { description: _, ...noDesc } = validBooking;
+      const result = createBookingSchema.safeParse(noDesc);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject too-short description', () => {
+      const result = createBookingSchema.safeParse({ ...validBooking, description: 'short' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing address', () => {
+      const { address: _, ...noAddr } = validBooking;
+      const result = createBookingSchema.safeParse(noAddr);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing barangay', () => {
+      const { barangay: _, ...noBrgy } = validBooking;
+      const result = createBookingSchema.safeParse(noBrgy);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject invalid categoryId (not UUID)', () => {
+      const result = createBookingSchema.safeParse({ ...validBooking, categoryId: 'not-uuid' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject invalid bookingType', () => {
+      const result = createBookingSchema.safeParse({ ...validBooking, bookingType: 'hourly' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject invalid scheduledAt format', () => {
+      const result = createBookingSchema.safeParse({ ...validBooking, scheduledAt: 'next tuesday' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject latitude out of range', () => {
+      const result = createBookingSchema.safeParse({ ...validBooking, latitude: 91 });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('updateBookingStatusSchema', () => {
+    it('should accept valid status', () => {
+      const result = updateBookingStatusSchema.safeParse({ status: 'matched' });
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept cancellation with reason', () => {
+      const result = updateBookingStatusSchema.safeParse({
+        status: 'cancelled_by_customer',
+        cancellationReason: 'Schedule conflict',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid status', () => {
+      const result = updateBookingStatusSchema.safeParse({ status: 'invalid_status' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing status', () => {
+      const result = updateBookingStatusSchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('submitQuoteSchema', () => {
+    it('should accept valid quote (₱100 minimum)', () => {
+      const result = submitQuoteSchema.safeParse({
+        quotedPrice: 150000,
+        description: 'I can do this job. Will bring all tools and materials needed.',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject quote below ₱100 minimum', () => {
+      const result = submitQuoteSchema.safeParse({
+        quotedPrice: 5000,
+        description: 'Too cheap to be real.',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject too-short description', () => {
+      const result = submitQuoteSchema.safeParse({
+        quotedPrice: 150000,
+        description: 'ok',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should accept optional estimated duration', () => {
+      const result = submitQuoteSchema.safeParse({
+        quotedPrice: 250000,
+        description: 'Full kitchen cabinet set. Will take about 2 days.',
+        estimatedDurationMinutes: 960,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject duration less than 15 minutes', () => {
+      const result = submitQuoteSchema.safeParse({
+        quotedPrice: 150000,
+        description: 'Quick job, no problem.',
+        estimatedDurationMinutes: 5,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+});

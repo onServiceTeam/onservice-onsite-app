@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgis/postgis:18-3.5
+    restart: unless-stopped
+    ports:
+      - "${DB_PORT:-7383}:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER:-onservice}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-onservice_dev}
+      POSTGRES_DB: ${DB_NAME:-onservice_dev}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-onservice} -d ${DB_NAME:-onservice_dev}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-7385}:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  redisdata:

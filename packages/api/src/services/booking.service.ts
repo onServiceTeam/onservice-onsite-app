@@ -1,0 +1,882 @@
+import { db } from '../models/db';
+import { BookingStatus, canTransition, VALID_TRANSITIONS } from '../types/booking.types';
+import { platformConfig } from '../config/platform.config';
+import { createAppError } from '../middleware/error.middleware';
+import { logger } from '../utils/logger';
+import * as pricingService from './pricing.service';
+import * as slotWaitlistService from './slot-waitlist.service';
+
+interface BookingRow {
+  id: string;
+  customer_id: string;
+  provider_id: string | null;
+  category_id: string;
+  subcategory_id: string | null;
+  booking_type: string;
+  status: string;
+  escrow_status: string;
+  service_price: number;
+  service_fee: number;
+  total_amount: number;
+  description: string;
+  address: string;
+  barangay: string;
+  city: string;
+  province: string;
+  latitude: string | null;
+  longitude: string | null;
+  scheduled_at: Date;
+  completed_at: Date | null;
+  confirmed_at: Date | null;
+  cancelled_at: Date | null;
+  cancellation_reason: string | null;
+  payment_method: string | null;
+  payment_intent_id: string | null;
+  surge_multiplier: string;
+  surge_amount: number;
+  pricing_rule_id: string | null;
+  rebooked_from_id: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface CountRow {
+  count: string;
+}
+
+interface CreateBookingParams {
+  customerId: string;
+  categoryId: string;
+  subcategoryId?: string;
+  bookingType: 'fixed_price' | 'quote_based';
+  description: string;
+  address: string;
+  barangay: string;
+  city: string;
+  province: string;
+  latitude?: number;
+  longitude?: number;
+  scheduledAt: string;
+  servicePrice?: number;
+  rebookedFromId?: string;
+  waitlistId?: string;
+}
+
+function calculateServiceFee(servicePrice: number): number {
+  const fee = Math.round(servicePrice * platformConfig.serviceFeeRate);
+  return Math.max(
+    platformConfig.minimumServiceFee,
+    Math.min(fee, platformConfig.maximumServiceFee),
+  );
+}
+
+export async function createBooking(params: CreateBookingParams): Promise<BookingRow> {
+  const baseServicePrice = params.servicePrice ?? 0;
+
+  let surgeMultiplier = 1.0;
+  let surgeAmount = 0;
+  let pricingRuleId: string | null = null;
+
+  if (params.bookingType === 'fixed_price' && baseServicePrice > 0) {
+    const pricing = await pricingService.calculatePricing(
+      baseServicePrice,
+      new Date(params.scheduledAt),
+      params.categoryId,
+      params.city,
+    );
+    surgeMultiplier = pricing.surgeMultiplier;
+    surgeAmount = pricing.surgeAmount;
+    pricingRuleId = pricing.appliedRule?.id ?? null;
+  }
+
+  const servicePrice = baseServicePrice + surgeAmount;
+  const serviceFee = params.bookingType === 'fixed_price' ? calculateServiceFee(servicePrice) : 0;
+  const totalAmount = servicePrice + serviceFee;
+
+  const result = await db.query<BookingRow>(
+    `INSERT INTO bookings (
+      customer_id, category_id, subcategory_id, booking_type,
+      description, address, barangay, city, province,
+      latitude, longitude, scheduled_at,
+      service_price, service_fee, total_amount,
+      surge_multiplier, surge_amount, pricing_rule_id, rebooked_from_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+    RETURNING *`,
+    [
+      params.customerId,
+      params.categoryId,
+      params.subcategoryId ?? null,
+      params.bookingType,
+      params.description,
+      params.address,
+      params.barangay,
+      params.city,
+      params.province,
+      params.latitude ?? null,
+      params.longitude ?? null,
+      params.scheduledAt,
+      servicePrice,
+      serviceFee,
+      totalAmount,
+      surgeMultiplier,
+      surgeAmount,
+      pricingRuleId,
+      params.rebookedFromId ?? null,
+    ],
+  );
+
+  const newBooking = result.rows[0]!;
+
+  logger.info('Booking created', {
+    bookingId: newBooking.id,
+    customerId: params.customerId,
+    surgeMultiplier,
+    surgeAmount,
+  });
+
+  if (params.waitlistId) {
+    try {
+      await slotWaitlistService.markWaitlistAsBooked(params.waitlistId, newBooking.id);
+    } catch (wlErr) {
+      logger.error('Failed to mark waitlist entry as booked', {
+        waitlistId: params.waitlistId,
+        bookingId: newBooking.id,
+        error: wlErr instanceof Error ? wlErr.message : 'Unknown',
+      });
+    }
+  }
+
+  return newBooking;
+}
+
+export async function getBookingById(bookingId: string, userId: string): Promise<BookingRow> {
+  const result = await db.query<BookingRow>(
+    `SELECT b.*,
+       c.name AS category_name,
+       sc.name AS subcategory_name,
+       CASE WHEN pu.id IS NOT NULL
+         THEN CONCAT(pu.first_name, ' ', pu.last_name)
+         ELSE NULL END AS provider_name
+     FROM bookings b
+     LEFT JOIN providers p ON b.provider_id = p.id
+     LEFT JOIN users pu ON p.user_id = pu.id
+     LEFT JOIN service_categories c ON b.category_id = c.id
+     LEFT JOIN service_subcategories sc ON b.subcategory_id = sc.id
+     WHERE b.id = $1 AND (b.customer_id = $2 OR p.user_id = $2)`,
+    [bookingId, userId],
+  );
+
+  if (result.rows.length === 0) {
+    throw createAppError('Booking not found.', 404);
+  }
+
+  return result.rows[0]!;
+}
+
+export async function getBookingByIdAdmin(bookingId: string): Promise<BookingRow> {
+  const result = await db.query<BookingRow>(
+    `SELECT * FROM bookings WHERE id = $1`,
+    [bookingId],
+  );
+
+  if (result.rows.length === 0) {
+    throw createAppError('Booking not found.', 404);
+  }
+
+  return result.rows[0]!;
+}
+
+export async function listBookings(
+  userId: string,
+  role: string,
+  filters: { page: number; pageSize: number; status?: string },
+): Promise<{ bookings: BookingRow[]; total: number; page: number; pageSize: number }> {
+  const { page, pageSize, status } = filters;
+  const offset = (page - 1) * pageSize;
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let paramIdx = 1;
+
+  if (role === 'customer') {
+    conditions.push(`b.customer_id = $${paramIdx++}`);
+    params.push(userId);
+  } else if (role === 'provider') {
+    conditions.push(`p.user_id = $${paramIdx++}`);
+    params.push(userId);
+  }
+
+  const ACTIVE_STATUSES = [
+    'requested', 'quoted', 'matched', 'payment_pending', 'paid',
+    'provider_en_route', 'provider_arrived', 'in_progress', 'completed_by_provider',
+  ];
+  const COMPLETED_STATUSES = ['confirmed', 'payout_ready', 'paid_out'];
+  const CANCELLED_STATUSES = ['cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin'];
+
+  if (status === 'active') {
+    const placeholders = ACTIVE_STATUSES.map((_, i) => `$${paramIdx + i}`).join(', ');
+    conditions.push(`b.status IN (${placeholders})`);
+    params.push(...ACTIVE_STATUSES);
+    paramIdx += ACTIVE_STATUSES.length;
+  } else if (status === 'completed') {
+    const placeholders = COMPLETED_STATUSES.map((_, i) => `$${paramIdx + i}`).join(', ');
+    conditions.push(`b.status IN (${placeholders})`);
+    params.push(...COMPLETED_STATUSES);
+    paramIdx += COMPLETED_STATUSES.length;
+  } else if (status === 'cancelled') {
+    const placeholders = CANCELLED_STATUSES.map((_, i) => `$${paramIdx + i}`).join(', ');
+    conditions.push(`b.status IN (${placeholders})`);
+    params.push(...CANCELLED_STATUSES);
+    paramIdx += CANCELLED_STATUSES.length;
+  } else if (status) {
+    conditions.push(`b.status = $${paramIdx++}`);
+    params.push(status);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const countResult = await db.query<CountRow>(
+    `SELECT COUNT(*)::text as count FROM bookings b
+     LEFT JOIN providers p ON b.provider_id = p.id
+     ${whereClause}`,
+    params,
+  );
+
+  const total = Number(countResult.rows[0]?.count ?? 0);
+
+  const dataParams = [...params, pageSize, offset];
+  const result = await db.query<BookingRow>(
+    `SELECT b.*,
+       c.name AS category_name,
+       sc.name AS subcategory_name,
+       CASE WHEN pu.id IS NOT NULL
+         THEN CONCAT(pu.first_name, ' ', pu.last_name)
+         ELSE NULL END AS provider_name
+     FROM bookings b
+     LEFT JOIN providers p ON b.provider_id = p.id
+     LEFT JOIN users pu ON p.user_id = pu.id
+     LEFT JOIN service_categories c ON b.category_id = c.id
+     LEFT JOIN service_subcategories sc ON b.subcategory_id = sc.id
+     ${whereClause}
+     ORDER BY b.created_at DESC
+     LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
+    dataParams,
+  );
+
+  return { bookings: result.rows, total, page, pageSize };
+}
+
+export async function transitionBookingStatus(
+  bookingId: string,
+  userId: string,
+  role: string,
+  newStatus: BookingStatus,
+  cancellationReason?: string,
+): Promise<BookingRow> {
+  return db.transaction(async (client) => {
+    const lockResult = await client.query<BookingRow>(
+      `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
+      [bookingId],
+    );
+
+    if (lockResult.rows.length === 0) {
+      throw createAppError('Booking not found.', 404);
+    }
+
+    const booking = lockResult.rows[0]!;
+    const currentStatus = booking.status as BookingStatus;
+
+    if (!canTransition(currentStatus, newStatus)) {
+      const allowed = VALID_TRANSITIONS[currentStatus] ?? [];
+      throw createAppError(
+        `Cannot transition from "${currentStatus}" to "${newStatus}". ` +
+        `Allowed transitions: ${allowed.length > 0 ? allowed.join(', ') : 'none (terminal state)'}.`,
+        409,
+      );
+    }
+
+    await validateRoleForTransition(role, currentStatus, newStatus, booking, userId);
+
+    const updates: string[] = [`status = $2`, `updated_at = NOW()`];
+    const params: unknown[] = [bookingId, newStatus];
+    let paramIdx = 3;
+
+    if (newStatus === 'completed_by_provider') {
+      updates.push(`completed_at = NOW()`);
+    } else if (newStatus === 'confirmed') {
+      updates.push(`confirmed_at = NOW()`);
+      updates.push(`escrow_status = 'released'`);
+    } else if (newStatus.startsWith('cancelled_')) {
+      updates.push(`cancelled_at = NOW()`);
+      if (cancellationReason) {
+        updates.push(`cancellation_reason = $${paramIdx}`);
+        params.push(cancellationReason);
+      }
+    } else if (newStatus === 'paid') {
+      updates.push(`escrow_status = 'held'`);
+    } else if (newStatus === 'disputed') {
+      updates.push(`escrow_status = 'pending'`);
+    }
+
+    const result = await client.query<BookingRow>(
+      `UPDATE bookings SET ${updates.join(', ')} WHERE id = $1 RETURNING *`,
+      params,
+    );
+
+    const updated = result.rows[0]!;
+
+    logger.info('Booking status transitioned', {
+      bookingId,
+      from: currentStatus,
+      to: newStatus,
+      userId,
+    });
+
+    if (newStatus === 'cancelled_by_provider' || newStatus === 'cancelled_by_admin') {
+      const dateStr = updated.scheduled_at.toISOString().split('T')[0]!;
+      slotWaitlistService.processSlotAvailability(
+        updated.category_id,
+        updated.city,
+        dateStr,
+      ).catch((err: unknown) => {
+        logger.error('Slot waitlist notification failed after cancellation', {
+          bookingId,
+          error: err instanceof Error ? err.message : 'Unknown',
+        });
+      });
+    }
+
+    return updated;
+  });
+}
+
+async function validateRoleForTransition(
+  role: string,
+  _currentStatus: BookingStatus,
+  newStatus: BookingStatus,
+  booking: BookingRow,
+  userId: string,
+): Promise<void> {
+  if (role === 'admin' || role === 'super_admin') return;
+
+  if (newStatus === 'cancelled_by_admin') {
+    throw createAppError('Only admins can cancel bookings as admin.', 403);
+  }
+
+  if (role === 'customer') {
+    if (booking.customer_id !== userId) {
+      throw createAppError('You can only manage your own bookings.', 403);
+    }
+
+    const customerAllowed: BookingStatus[] = [
+      'cancelled_by_customer', 'confirmed', 'disputed', 'payment_pending',
+    ];
+    if (!customerAllowed.includes(newStatus)) {
+      throw createAppError('Customers cannot perform this action.', 403);
+    }
+  }
+
+  if (role === 'provider') {
+    const providerAllowed: BookingStatus[] = [
+      'quoted', 'matched', 'provider_en_route', 'provider_arrived',
+      'in_progress', 'completed_by_provider', 'cancelled_by_provider',
+    ];
+    if (!providerAllowed.includes(newStatus)) {
+      throw createAppError('Providers cannot perform this action.', 403);
+    }
+
+    if (booking.provider_id) {
+      interface ProviderRow { user_id: string }
+      const providerResult = await db.query<ProviderRow>(
+        `SELECT user_id FROM providers WHERE id = $1`,
+        [booking.provider_id],
+      );
+      if (providerResult.rows[0]?.user_id !== userId) {
+        throw createAppError('You are not assigned to this booking.', 403);
+      }
+    }
+  }
+}
+
+interface QuoteRow {
+  id: string;
+  booking_id: string;
+  provider_id: string;
+  quoted_price: number;
+  description: string;
+  estimated_duration_minutes: number | null;
+  is_accepted: boolean;
+  expires_at: Date;
+  created_at: Date;
+}
+
+export async function submitQuote(
+  bookingId: string,
+  providerUserId: string,
+  quotedPrice: number,
+  description: string,
+  estimatedDurationMinutes?: number,
+): Promise<QuoteRow> {
+  interface ProviderRow { id: string }
+
+  const providerResult = await db.query<ProviderRow>(
+    `SELECT id FROM providers WHERE user_id = $1 AND status = 'approved'`,
+    [providerUserId],
+  );
+
+  if (providerResult.rows.length === 0) {
+    throw createAppError('Provider profile not found or not approved.', 403);
+  }
+
+  const providerId = providerResult.rows[0]!.id;
+
+  const booking = await getBookingByIdAdmin(bookingId);
+  if (booking.booking_type !== 'quote_based') {
+    throw createAppError('This booking does not accept quotes.', 400);
+  }
+
+  if (booking.status !== 'requested' && booking.status !== 'quoted') {
+    throw createAppError('This booking is no longer accepting quotes.', 409);
+  }
+
+  interface QuoteCountRow { count: string }
+  const existingQuote = await db.query<QuoteCountRow>(
+    `SELECT COUNT(*)::text as count FROM booking_quotes
+     WHERE booking_id = $1 AND provider_id = $2`,
+    [bookingId, providerId],
+  );
+
+  if (Number(existingQuote.rows[0]?.count) > 0) {
+    throw createAppError('You have already submitted a quote for this booking.', 409);
+  }
+
+  interface TotalQuoteCountRow { count: string }
+  const totalQuotes = await db.query<TotalQuoteCountRow>(
+    `SELECT COUNT(*)::text as count FROM booking_quotes WHERE booking_id = $1`,
+    [bookingId],
+  );
+  if (Number(totalQuotes.rows[0]?.count) >= platformConfig.maxQuotesPerBooking) {
+    throw createAppError(`This booking already has the maximum of ${platformConfig.maxQuotesPerBooking} quotes.`, 409);
+  }
+
+  const expiresAt = new Date(Date.now() + platformConfig.quoteExpiryHours * 60 * 60 * 1000);
+
+  const result = await db.query<QuoteRow>(
+    `INSERT INTO booking_quotes (booking_id, provider_id, quoted_price, description, estimated_duration_minutes, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING *`,
+    [bookingId, providerId, quotedPrice, description, estimatedDurationMinutes ?? null, expiresAt],
+  );
+
+  if (booking.status === 'requested') {
+    await db.query(
+      `UPDATE bookings SET status = 'quoted', updated_at = NOW() WHERE id = $1`,
+      [bookingId],
+    );
+  }
+
+  logger.info('Quote submitted', { bookingId, providerId, quotedPrice });
+  return result.rows[0]!;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Enhanced quote flow (Sprint 9)
+// ────────────────────────────────────────────────────────────────────
+
+interface LineItemInput {
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  itemType?: string;
+}
+
+export async function submitStructuredQuote(
+  bookingId: string,
+  providerUserId: string,
+  data: {
+    quotedPrice: number;
+    description: string;
+    estimatedDurationMinutes?: number;
+    estimatedDays?: number;
+    notes?: string;
+    portfolioPhotos?: string[];
+    lineItems?: LineItemInput[];
+  },
+): Promise<Record<string, unknown>> {
+  const quote = await submitQuote(
+    bookingId,
+    providerUserId,
+    data.quotedPrice,
+    data.description,
+    data.estimatedDurationMinutes,
+  );
+
+  const laborAmount = data.lineItems
+    ?.filter(i => i.itemType === 'labor' || !i.itemType)
+    .reduce((s, i) => s + Math.round(i.quantity * i.unitPrice), 0) ?? 0;
+  const materialsAmount = data.lineItems
+    ?.filter(i => i.itemType === 'materials')
+    .reduce((s, i) => s + Math.round(i.quantity * i.unitPrice), 0) ?? 0;
+
+  await db.query(
+    `UPDATE booking_quotes
+     SET labor_amount = $2, materials_amount = $3, estimated_days = $4,
+         notes = $5, portfolio_photos = $6, updated_at = NOW()
+     WHERE id = $1`,
+    [
+      quote.id,
+      laborAmount,
+      materialsAmount,
+      data.estimatedDays ?? null,
+      data.notes ?? '',
+      data.portfolioPhotos ?? [],
+    ],
+  );
+
+  if (data.lineItems && data.lineItems.length > 0) {
+    const values: unknown[] = [];
+    const placeholders: string[] = [];
+    let idx = 1;
+    for (const item of data.lineItems) {
+      const lineTotal = Math.round(item.quantity * item.unitPrice);
+      placeholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`);
+      values.push(quote.id, item.description, item.quantity, item.unit, item.unitPrice, lineTotal, item.itemType ?? 'labor');
+    }
+    await db.query(
+      `INSERT INTO quote_line_items (quote_id, description, quantity, unit, unit_price, line_total, item_type)
+       VALUES ${placeholders.join(', ')}`,
+      values,
+    );
+  }
+
+  return { ...quote, laborAmount, materialsAmount, estimatedDays: data.estimatedDays ?? null, notes: data.notes ?? '', lineItems: data.lineItems ?? [] };
+}
+
+interface QuoteDetailRow extends QuoteRow {
+  status: string;
+  labor_amount: number;
+  materials_amount: number;
+  estimated_days: number | null;
+  notes: string;
+  portfolio_photos: string[];
+  updated_at: Date;
+  provider_name?: string;
+  provider_rating?: string;
+  provider_total_jobs?: number;
+}
+
+interface LineItemRow {
+  id: string;
+  quote_id: string;
+  description: string;
+  quantity: string;
+  unit: string;
+  unit_price: number;
+  line_total: number;
+  item_type: string;
+}
+
+export async function getBookingQuotes(bookingId: string) {
+  const quotes = await db.query<QuoteDetailRow>(
+    `SELECT bq.*,
+       CONCAT(u.first_name, ' ', u.last_name) as provider_name,
+       p.rating::text as provider_rating,
+       p.total_jobs as provider_total_jobs
+     FROM booking_quotes bq
+     JOIN providers p ON p.id = bq.provider_id
+     JOIN users u ON u.id = p.user_id
+     WHERE bq.booking_id = $1
+     ORDER BY bq.created_at ASC`,
+    [bookingId],
+  );
+
+  const quoteIds = quotes.rows.map(q => q.id);
+  let lineItemsMap: Record<string, LineItemRow[]> = {};
+  if (quoteIds.length > 0) {
+    const lineItems = await db.query<LineItemRow>(
+      `SELECT * FROM quote_line_items WHERE quote_id = ANY($1) ORDER BY created_at ASC`,
+      [quoteIds],
+    );
+    lineItemsMap = lineItems.rows.reduce<Record<string, LineItemRow[]>>((acc, li) => {
+      (acc[li.quote_id] ??= []).push(li);
+      return acc;
+    }, {});
+  }
+
+  return quotes.rows.map(q => ({
+    id: q.id,
+    bookingId: q.booking_id,
+    providerId: q.provider_id,
+    quotedPrice: q.quoted_price,
+    description: q.description,
+    estimatedDurationMinutes: q.estimated_duration_minutes,
+    status: q.status ?? (q.is_accepted ? 'accepted' : 'submitted'),
+    laborAmount: q.labor_amount ?? 0,
+    materialsAmount: q.materials_amount ?? 0,
+    estimatedDays: q.estimated_days,
+    notes: q.notes ?? '',
+    portfolioPhotos: q.portfolio_photos ?? [],
+    expiresAt: q.expires_at,
+    createdAt: q.created_at,
+    providerName: q.provider_name ?? null,
+    providerRating: q.provider_rating ? Number(q.provider_rating) : null,
+    providerTotalJobs: q.provider_total_jobs ?? 0,
+    lineItems: (lineItemsMap[q.id] ?? []).map(li => ({
+      id: li.id,
+      description: li.description,
+      quantity: Number(li.quantity),
+      unit: li.unit,
+      unitPrice: li.unit_price,
+      lineTotal: li.line_total,
+      itemType: li.item_type,
+    })),
+  }));
+}
+
+export async function acceptQuote(bookingId: string, quoteId: string, customerId: string) {
+  const booking = await getBookingByIdAdmin(bookingId);
+  if (booking.customer_id !== customerId) {
+    throw createAppError('Not authorized.', 403);
+  }
+  if (booking.status !== 'quoted' && booking.status !== 'requested') {
+    throw createAppError('Booking is not in a state to accept quotes.', 409);
+  }
+
+  interface QuoteAcceptRow { id: string; provider_id: string; quoted_price: number }
+  const quoteResult = await db.query<QuoteAcceptRow>(
+    `SELECT id, provider_id, quoted_price FROM booking_quotes
+     WHERE id = $1 AND booking_id = $2 AND expires_at > NOW()`,
+    [quoteId, bookingId],
+  );
+  if (quoteResult.rows.length === 0) {
+    throw createAppError('Quote not found or expired.', 404);
+  }
+
+  const quote = quoteResult.rows[0]!;
+  const serviceFee = Math.max(
+    Math.min(Math.round(quote.quoted_price * platformConfig.serviceFeeRate), platformConfig.maximumServiceFee),
+    platformConfig.minimumServiceFee,
+  );
+  const totalAmount = quote.quoted_price + serviceFee;
+
+  await db.query(
+    `UPDATE booking_quotes SET is_accepted = TRUE, status = 'accepted', updated_at = NOW()
+     WHERE id = $1`,
+    [quoteId],
+  );
+
+  await db.query(
+    `UPDATE booking_quotes SET status = 'declined', updated_at = NOW()
+     WHERE booking_id = $1 AND id != $2 AND status = 'submitted'`,
+    [bookingId, quoteId],
+  );
+
+  await db.query(
+    `UPDATE bookings SET
+       provider_id = $2,
+       service_price = $3,
+       service_fee = $4,
+       total_amount = $5,
+       status = 'payment_pending',
+       updated_at = NOW()
+     WHERE id = $1`,
+    [bookingId, quote.provider_id, quote.quoted_price, serviceFee, totalAmount],
+  );
+
+  logger.info('Quote accepted', { bookingId, quoteId, providerId: quote.provider_id });
+  return { quoteId, providerId: quote.provider_id, totalAmount };
+}
+
+export async function declineQuote(bookingId: string, quoteId: string, customerId: string) {
+  const booking = await getBookingByIdAdmin(bookingId);
+  if (booking.customer_id !== customerId) {
+    throw createAppError('Not authorized.', 403);
+  }
+
+  const result = await db.query(
+    `UPDATE booking_quotes SET status = 'declined', updated_at = NOW()
+     WHERE id = $1 AND booking_id = $2 AND status = 'submitted'
+     RETURNING id`,
+    [quoteId, bookingId],
+  );
+  if (result.rowCount === 0) {
+    throw createAppError('Quote not found or already resolved.', 404);
+  }
+
+  logger.info('Quote declined', { bookingId, quoteId });
+  return { quoteId };
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Job Requests (custom quote bookings)
+// ────────────────────────────────────────────────────────────────────
+
+export async function createJobRequest(
+  customerId: string,
+  data: {
+    categoryId: string;
+    subcategoryId?: string;
+    description: string;
+    address: string;
+    barangay: string;
+    city: string;
+    province: string;
+    latitude?: number;
+    longitude?: number;
+    urgency: string;
+    budgetMin?: number;
+    budgetMax?: number;
+    jobPhotos?: string[];
+    jobVideoUrl?: string;
+  },
+) {
+  const scheduledAt = new Date();
+  if (data.urgency === 'same_day') {
+    scheduledAt.setHours(scheduledAt.getHours() + 4);
+  } else if (data.urgency === 'within_3_days') {
+    scheduledAt.setDate(scheduledAt.getDate() + 2);
+  } else if (data.urgency === 'within_a_week') {
+    scheduledAt.setDate(scheduledAt.getDate() + 5);
+  } else {
+    scheduledAt.setDate(scheduledAt.getDate() + 7);
+  }
+
+  const result = await db.query<BookingRow>(
+    `INSERT INTO bookings
+       (customer_id, category_id, subcategory_id, booking_type, description,
+        address, barangay, city, province, latitude, longitude,
+        scheduled_at, urgency, budget_min, budget_max, job_photos, job_video_url)
+     VALUES ($1, $2, $3, 'quote_based', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+     RETURNING *`,
+    [
+      customerId, data.categoryId, data.subcategoryId ?? null, data.description,
+      data.address, data.barangay, data.city, data.province,
+      data.latitude ?? null, data.longitude ?? null,
+      scheduledAt, data.urgency,
+      data.budgetMin ?? null, data.budgetMax ?? null,
+      data.jobPhotos ?? [], data.jobVideoUrl ?? null,
+    ],
+  );
+
+  logger.info('Job request created', { bookingId: result.rows[0]!.id, customerId });
+  return result.rows[0]!;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Change Orders
+// ────────────────────────────────────────────────────────────────────
+
+interface ChangeOrderRow {
+  id: string;
+  booking_id: string;
+  provider_id: string;
+  description: string;
+  additional_amount: number;
+  photos: string[];
+  status: string;
+  customer_responded_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export async function createChangeOrder(
+  bookingId: string,
+  providerUserId: string,
+  data: { description: string; additionalAmount: number; photos?: string[] },
+) {
+  interface ProviderIdRow { id: string }
+  const providerResult = await db.query<ProviderIdRow>(
+    `SELECT id FROM providers WHERE user_id = $1 AND status = 'approved'`,
+    [providerUserId],
+  );
+  if (providerResult.rows.length === 0) {
+    throw createAppError('Provider not found or not approved.', 403);
+  }
+  const providerId = providerResult.rows[0]!.id;
+
+  const booking = await getBookingByIdAdmin(bookingId);
+  if (booking.provider_id !== providerId) {
+    throw createAppError('You are not the assigned provider for this booking.', 403);
+  }
+  if (booking.status !== 'in_progress') {
+    throw createAppError('Change orders can only be submitted during active jobs.', 409);
+  }
+
+  if (data.additionalAmount > booking.service_price * 0.5) {
+    logger.warn('Change order exceeds 50% of original — may require admin approval', {
+      bookingId, additionalAmount: data.additionalAmount, originalPrice: booking.service_price,
+    });
+  }
+
+  const result = await db.query<ChangeOrderRow>(
+    `INSERT INTO change_orders (booking_id, provider_id, description, additional_amount, photos)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [bookingId, providerId, data.description, data.additionalAmount, data.photos ?? []],
+  );
+
+  logger.info('Change order created', { bookingId, changeOrderId: result.rows[0]!.id });
+  return formatChangeOrder(result.rows[0]!);
+}
+
+export async function respondToChangeOrder(
+  changeOrderId: string,
+  customerId: string,
+  approved: boolean,
+) {
+  const coResult = await db.query<ChangeOrderRow>(
+    `SELECT co.* FROM change_orders co
+     JOIN bookings b ON b.id = co.booking_id
+     WHERE co.id = $1 AND b.customer_id = $2 AND co.status = 'pending'`,
+    [changeOrderId, customerId],
+  );
+  if (coResult.rows.length === 0) {
+    throw createAppError('Change order not found or already resolved.', 404);
+  }
+
+  const co = coResult.rows[0]!;
+  const newStatus = approved ? 'approved' : 'declined';
+
+  await db.query(
+    `UPDATE change_orders SET status = $2, customer_responded_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    [changeOrderId, newStatus],
+  );
+
+  if (approved) {
+    await db.query(
+      `UPDATE bookings SET
+         service_price = service_price + $2,
+         total_amount = total_amount + $2,
+         updated_at = NOW()
+       WHERE id = $1`,
+      [co.booking_id, co.additional_amount],
+    );
+    logger.info('Change order approved — booking amount updated', { changeOrderId, additionalAmount: co.additional_amount });
+  } else {
+    logger.info('Change order declined', { changeOrderId });
+  }
+
+  return { id: changeOrderId, status: newStatus };
+}
+
+export async function getChangeOrders(bookingId: string) {
+  const result = await db.query<ChangeOrderRow>(
+    `SELECT * FROM change_orders WHERE booking_id = $1 ORDER BY created_at ASC`,
+    [bookingId],
+  );
+  return result.rows.map(formatChangeOrder);
+}
+
+function formatChangeOrder(co: ChangeOrderRow) {
+  return {
+    id: co.id,
+    bookingId: co.booking_id,
+    providerId: co.provider_id,
+    description: co.description,
+    additionalAmount: co.additional_amount,
+    photos: co.photos ?? [],
+    status: co.status,
+    customerRespondedAt: co.customer_responded_at,
+    createdAt: co.created_at,
+  };
+}

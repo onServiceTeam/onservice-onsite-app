@@ -1,0 +1,110 @@
+import { Router, Response, NextFunction } from 'express';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { validationMiddleware } from '../middleware/validation.middleware';
+import { createTemplateSchema, updateTemplateSchema } from '../validators/notification-template.validators';
+import * as templateService from '../services/notification-template.service';
+import { createAppError } from '../middleware/error.middleware';
+
+const router = Router();
+
+function requireAdmin(req: AuthenticatedRequest): void {
+  if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
+    throw createAppError('Admin access required.', 403);
+  }
+}
+
+router.get(
+  '/',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
+      const type = typeof req.query.type === 'string' ? req.query.type : undefined;
+      const channel = typeof req.query.channel === 'string' ? req.query.channel : undefined;
+      const isActive = req.query.isActive === 'true' ? true : req.query.isActive === 'false' ? false : undefined;
+
+      const { templates, total } = await templateService.listTemplates({
+        type, channel, isActive, page, pageSize,
+      });
+
+      res.json({
+        success: true,
+        data: templates.map(templateService.formatTemplate),
+        pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/:id',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const id = req.params['id'];
+      if (typeof id !== 'string' || !id) throw createAppError('Template ID is required.', 400);
+
+      const template = await templateService.getTemplateById(id);
+      res.json({ success: true, data: templateService.formatTemplate(template) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/',
+  authMiddleware,
+  validationMiddleware(createTemplateSchema),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const template = await templateService.createTemplate(req.user!.userId, req.body);
+      res.status(201).json({ success: true, data: templateService.formatTemplate(template) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.put(
+  '/:id',
+  authMiddleware,
+  validationMiddleware(updateTemplateSchema),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const id = req.params['id'];
+      if (typeof id !== 'string' || !id) throw createAppError('Template ID is required.', 400);
+
+      const template = await templateService.updateTemplate(id, req.user!.userId, req.body);
+      res.json({ success: true, data: templateService.formatTemplate(template) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.delete(
+  '/:id',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const id = req.params['id'];
+      if (typeof id !== 'string' || !id) throw createAppError('Template ID is required.', 400);
+
+      await templateService.deleteTemplate(id);
+      res.json({ success: true, data: { message: 'Template deleted.' } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+export default router;

@@ -1,0 +1,504 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import api, { getErrorMessage } from '@/lib/api';
+
+type TabId = 'ab-tests' | 'cohorts' | 'churn' | 'quality' | 'commission';
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'ab-tests', label: 'A/B Tests' },
+  { id: 'cohorts', label: 'Cohort Analysis' },
+  { id: 'churn', label: 'Churn Prediction' },
+  { id: 'quality', label: 'Quality Scores' },
+  { id: 'commission', label: 'Commission' },
+];
+
+function formatCurrency(cents: number): string {
+  return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+}
+
+// ─── A/B Tests Tab ──────────────────────────────────────────────────
+
+interface AbTest {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  variantAName: string;
+  variantBName: string;
+  targetMetric: string;
+  trafficSplit: number;
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+}
+
+function AbTestsTab() {
+  const queryClient = useQueryClient();
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ name: '', description: '', targetMetric: 'conversion_rate', trafficSplit: 0.5 });
+  const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin', 'ab-tests'],
+    queryFn: async () => {
+      const res = await api.get('/api/v1/admin/analytics/ab-tests');
+      return res.data as { data: AbTest[]; pagination: { total: number } };
+    },
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: typeof form) => api.post('/api/v1/admin/analytics/ab-tests', body),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'ab-tests'] }); setShowCreate(false); setForm({ name: '', description: '', targetMetric: 'conversion_rate', trafficSplit: 0.5 }); },
+  });
+
+  const statusMut = useMutation({
+    mutationFn: (args: { testId: string; status: string }) => api.patch(`/api/v1/admin/analytics/ab-tests/${args.testId}/status`, { status: args.status }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'ab-tests'] }); queryClient.invalidateQueries({ queryKey: ['admin', 'ab-test-results'] }); },
+  });
+
+  const { data: resultsData } = useQuery({
+    queryKey: ['admin', 'ab-test-results', selectedTestId],
+    queryFn: async () => {
+      const res = await api.get(`/api/v1/admin/analytics/ab-tests/${selectedTestId}/results`);
+      return res.data.data as {
+        test: AbTest;
+        variantA: { users: number; conversions: number; conversionRate: number; totalValue: number };
+        variantB: { users: number; conversions: number; conversionRate: number; totalValue: number };
+        winner: string;
+        confidence: number;
+      };
+    },
+    enabled: !!selectedTestId,
+  });
+
+  if (isLoading) return <p className="text-sm text-slate-500">Loading...</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold">A/B Tests ({data?.pagination.total ?? 0})</h3>
+        <button onClick={() => setShowCreate(!showCreate)} className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded-md hover:opacity-90">
+          {showCreate ? 'Cancel' : '+ New Test'}
+        </button>
+      </div>
+
+      {showCreate && (
+        <div className="bg-slate-50 p-4 rounded-lg border space-y-3">
+          <input className="w-full px-3 py-2 border rounded text-sm" placeholder="Test name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <textarea className="w-full px-3 py-2 border rounded text-sm" placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} />
+          <div className="flex gap-3">
+            <select className="px-3 py-2 border rounded text-sm" value={form.targetMetric} onChange={(e) => setForm({ ...form, targetMetric: e.target.value })}>
+              <option value="conversion_rate">Conversion Rate</option>
+              <option value="average_order_value">Avg Order Value</option>
+              <option value="booking_count">Booking Count</option>
+              <option value="revenue">Revenue</option>
+            </select>
+            <input type="number" step="0.05" min="0.1" max="0.9" className="w-32 px-3 py-2 border rounded text-sm" value={form.trafficSplit} onChange={(e) => setForm({ ...form, trafficSplit: Number(e.target.value) })} />
+          </div>
+          <button onClick={() => createMut.mutate(form)} disabled={!form.name || createMut.isPending} className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
+            {createMut.isPending ? 'Creating...' : 'Create Test'}
+          </button>
+          {createMut.isError && <p className="text-red-500 text-xs">{getErrorMessage(createMut.error)}</p>}
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="text-left px-3 py-2 font-medium text-slate-600">Name</th>
+              <th className="text-left px-3 py-2 font-medium text-slate-600">Status</th>
+              <th className="text-left px-3 py-2 font-medium text-slate-600">Metric</th>
+              <th className="text-left px-3 py-2 font-medium text-slate-600">Split</th>
+              <th className="text-left px-3 py-2 font-medium text-slate-600">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data?.data.map((test) => (
+              <tr key={test.id} className="border-t hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedTestId(test.id === selectedTestId ? null : test.id)}>
+                <td className="px-3 py-2 font-medium">{test.name}</td>
+                <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs font-medium ${test.status === 'active' ? 'bg-green-100 text-green-700' : test.status === 'completed' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>{test.status}</span></td>
+                <td className="px-3 py-2 text-slate-600">{test.targetMetric}</td>
+                <td className="px-3 py-2 text-slate-600">{Math.round(test.trafficSplit * 100)}%</td>
+                <td className="px-3 py-2">
+                  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                    {test.status === 'draft' && <button onClick={() => statusMut.mutate({ testId: test.id, status: 'active' })} className="px-2 py-1 text-xs bg-green-500 text-white rounded">Start</button>}
+                    {test.status === 'active' && <button onClick={() => statusMut.mutate({ testId: test.id, status: 'paused' })} className="px-2 py-1 text-xs bg-yellow-500 text-white rounded">Pause</button>}
+                    {test.status === 'active' && <button onClick={() => statusMut.mutate({ testId: test.id, status: 'completed' })} className="px-2 py-1 text-xs bg-blue-500 text-white rounded">End</button>}
+                    {test.status === 'paused' && <button onClick={() => statusMut.mutate({ testId: test.id, status: 'active' })} className="px-2 py-1 text-xs bg-green-500 text-white rounded">Resume</button>}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {resultsData && selectedTestId && (
+        <div className="bg-white border rounded-lg p-4 space-y-3">
+          <h4 className="font-semibold">Results: {resultsData.test.name}</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-blue-50 p-3 rounded">
+              <p className="text-xs font-medium text-blue-600 mb-1">{resultsData.test.variantAName}</p>
+              <p className="text-lg font-bold">{resultsData.variantA.conversionRate}%</p>
+              <p className="text-xs text-slate-500">{resultsData.variantA.conversions} / {resultsData.variantA.users} users</p>
+            </div>
+            <div className="bg-purple-50 p-3 rounded">
+              <p className="text-xs font-medium text-purple-600 mb-1">{resultsData.test.variantBName}</p>
+              <p className="text-lg font-bold">{resultsData.variantB.conversionRate}%</p>
+              <p className="text-xs text-slate-500">{resultsData.variantB.conversions} / {resultsData.variantB.users} users</p>
+            </div>
+          </div>
+          <div className="flex gap-4 text-sm">
+            <span>Winner: <strong className={resultsData.winner === 'none' ? 'text-slate-400' : 'text-green-600'}>{resultsData.winner === 'none' ? 'No clear winner yet' : `Variant ${resultsData.winner}`}</strong></span>
+            <span>Confidence: <strong>{resultsData.confidence}%</strong></span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Cohort Analysis Tab ────────────────────────────────────────────
+
+interface CohortRow {
+  cohort: string;
+  cohortSize: number;
+  periods: Array<{ period: number; value: number; percentage: number }>;
+}
+
+function CohortTab() {
+  const [months, setMonths] = useState(6);
+  const [metric, setMetric] = useState<'retention' | 'revenue'>('retention');
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin', 'cohorts', months, metric],
+    queryFn: async () => {
+      const res = await api.get('/api/v1/admin/analytics/cohorts', { params: { months, metric } });
+      return res.data.data as CohortRow[];
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4">
+        <select className="px-3 py-1.5 border rounded text-sm" value={metric} onChange={(e) => setMetric(e.target.value as 'retention' | 'revenue')}>
+          <option value="retention">Retention</option>
+          <option value="revenue">Revenue</option>
+        </select>
+        <select className="px-3 py-1.5 border rounded text-sm" value={months} onChange={(e) => setMonths(Number(e.target.value))}>
+          {[3, 6, 9, 12].map((m) => <option key={m} value={m}>{m} months</option>)}
+        </select>
+      </div>
+
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50">
+                <th className="px-3 py-2 text-left font-medium text-slate-600 border">Cohort</th>
+                <th className="px-3 py-2 text-center font-medium text-slate-600 border">Size</th>
+                {Array.from({ length: Math.min(months, 12) }, (_, i) => (
+                  <th key={i} className="px-3 py-2 text-center font-medium text-slate-600 border">M{i}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data?.map((row) => (
+                <tr key={row.cohort} className="border-t">
+                  <td className="px-3 py-1.5 font-medium border">{row.cohort}</td>
+                  <td className="px-3 py-1.5 text-center border">{row.cohortSize}</td>
+                  {Array.from({ length: Math.min(months, 12) }, (_, i) => {
+                    const p = row.periods.find((pp) => pp.period === i);
+                    const pct = p?.percentage ?? 0;
+                    const opacity = metric === 'retention' ? Math.max(0.1, pct / 100) : Math.min(1, Math.max(0.1, pct / 10));
+                    return (
+                      <td key={i} className="px-3 py-1.5 text-center border" style={{ backgroundColor: p ? `rgba(59,130,246,${opacity})` : undefined, color: p && opacity > 0.5 ? 'white' : undefined }}>
+                        {p ? (metric === 'retention' ? `${pct}%` : formatCurrency(p.value)) : '—'}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Churn Prediction Tab ───────────────────────────────────────────
+
+interface ChurnCustomer {
+  userId: string;
+  name: string;
+  phone: string;
+  lastBookingDate: string | null;
+  daysSinceLastBooking: number;
+  totalBookings: number;
+  totalSpent: number;
+  riskScore: number;
+  riskLevel: string;
+}
+
+function ChurnTab() {
+  const [riskLevel, setRiskLevel] = useState('');
+  const [page, setPage] = useState(1);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin', 'churn', riskLevel, page],
+    queryFn: async () => {
+      const params: Record<string, unknown> = { page, pageSize: 20 };
+      if (riskLevel) params.riskLevel = riskLevel;
+      const res = await api.get('/api/v1/admin/analytics/churn', { params });
+      return res.data as { data: ChurnCustomer[]; pagination: { total: number; totalPages: number } };
+    },
+  });
+
+  const riskColors: Record<string, string> = {
+    critical: 'bg-red-100 text-red-700',
+    high: 'bg-orange-100 text-orange-700',
+    medium: 'bg-yellow-100 text-yellow-700',
+    low: 'bg-green-100 text-green-700',
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4">
+        <select className="px-3 py-1.5 border rounded text-sm" value={riskLevel} onChange={(e) => { setRiskLevel(e.target.value); setPage(1); }}>
+          <option value="">All Risk Levels</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <span className="text-sm text-slate-500">{data?.pagination.total ?? 0} customers</span>
+      </div>
+
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : (
+        <>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium text-slate-600">Customer</th>
+                <th className="text-left px-3 py-2 font-medium text-slate-600">Phone</th>
+                <th className="text-center px-3 py-2 font-medium text-slate-600">Last Booking</th>
+                <th className="text-center px-3 py-2 font-medium text-slate-600">Total Bookings</th>
+                <th className="text-center px-3 py-2 font-medium text-slate-600">Total Spent</th>
+                <th className="text-center px-3 py-2 font-medium text-slate-600">Risk Score</th>
+                <th className="text-center px-3 py-2 font-medium text-slate-600">Level</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.data.map((c) => (
+                <tr key={c.userId} className="border-t">
+                  <td className="px-3 py-2 font-medium">{c.name || '—'}</td>
+                  <td className="px-3 py-2 text-slate-600">{c.phone}</td>
+                  <td className="px-3 py-2 text-center text-slate-600">{c.lastBookingDate ? new Date(c.lastBookingDate).toLocaleDateString() : 'Never'}</td>
+                  <td className="px-3 py-2 text-center">{c.totalBookings}</td>
+                  <td className="px-3 py-2 text-center">{formatCurrency(c.totalSpent)}</td>
+                  <td className="px-3 py-2 text-center font-bold">{c.riskScore}</td>
+                  <td className="px-3 py-2 text-center"><span className={`px-2 py-0.5 rounded text-xs font-medium ${riskColors[c.riskLevel] ?? 'bg-slate-100'}`}>{c.riskLevel}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {(data?.pagination.totalPages ?? 0) > 1 && (
+            <div className="flex justify-center gap-2">
+              <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1 text-sm border rounded disabled:opacity-30">Prev</button>
+              <span className="px-3 py-1 text-sm">{page} / {data?.pagination.totalPages}</span>
+              <button disabled={page >= (data?.pagination.totalPages ?? 1)} onClick={() => setPage(page + 1)} className="px-3 py-1 text-sm border rounded disabled:opacity-30">Next</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Quality Scores Tab ─────────────────────────────────────────────
+
+interface QualityScore {
+  providerId: string;
+  providerName: string;
+  businessName: string;
+  tier: string;
+  overallScore: number;
+  ratingScore: number;
+  completionScore: number;
+  timelinessScore: number;
+  cancellationScore: number;
+  responseScore: number;
+  totalJobsScored: number;
+  computedAt: string;
+}
+
+function QualityTab() {
+  const queryClient = useQueryClient();
+  const [sortBy, setSortBy] = useState('overall');
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin', 'quality-scores', sortBy],
+    queryFn: async () => {
+      const res = await api.get('/api/v1/admin/analytics/quality-scores', { params: { sortBy, pageSize: 50 } });
+      return res.data as { data: QualityScore[]; pagination: { total: number } };
+    },
+  });
+
+  const computeMut = useMutation({
+    mutationFn: () => api.post('/api/v1/admin/analytics/quality-scores/compute', { periodDays: 90 }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'quality-scores'] }),
+  });
+
+  const scoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-600';
+    if (score >= 60) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-slate-500">{data?.pagination.total ?? 0} scored providers</span>
+          <select className="px-3 py-1.5 border rounded text-sm" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="overall">Sort by Overall</option>
+            <option value="rating">Sort by Rating</option>
+            <option value="completion">Sort by Completion</option>
+            <option value="timeliness">Sort by Timeliness</option>
+          </select>
+        </div>
+        <button onClick={() => computeMut.mutate()} disabled={computeMut.isPending} className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
+          {computeMut.isPending ? 'Computing...' : 'Recompute Scores'}
+        </button>
+      </div>
+
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : (
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="text-left px-3 py-2 font-medium text-slate-600">Provider</th>
+              <th className="text-left px-3 py-2 font-medium text-slate-600">Tier</th>
+              <th className="text-center px-3 py-2 font-medium text-slate-600">Overall</th>
+              <th className="text-center px-3 py-2 font-medium text-slate-600">Rating</th>
+              <th className="text-center px-3 py-2 font-medium text-slate-600">Completion</th>
+              <th className="text-center px-3 py-2 font-medium text-slate-600">Timeliness</th>
+              <th className="text-center px-3 py-2 font-medium text-slate-600">Cancel</th>
+              <th className="text-center px-3 py-2 font-medium text-slate-600">Jobs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data?.data.map((s) => (
+              <tr key={s.providerId} className="border-t">
+                <td className="px-3 py-2">
+                  <p className="font-medium">{s.providerName || s.businessName}</p>
+                  {s.businessName && s.providerName && <p className="text-xs text-slate-400">{s.businessName}</p>}
+                </td>
+                <td className="px-3 py-2"><span className="px-2 py-0.5 bg-slate-100 rounded text-xs">{s.tier}</span></td>
+                <td className={`px-3 py-2 text-center font-bold ${scoreColor(s.overallScore)}`}>{s.overallScore}</td>
+                <td className={`px-3 py-2 text-center ${scoreColor(s.ratingScore)}`}>{s.ratingScore}</td>
+                <td className={`px-3 py-2 text-center ${scoreColor(s.completionScore)}`}>{s.completionScore}</td>
+                <td className={`px-3 py-2 text-center ${scoreColor(s.timelinessScore)}`}>{s.timelinessScore}</td>
+                <td className={`px-3 py-2 text-center ${scoreColor(s.cancellationScore)}`}>{s.cancellationScore}</td>
+                <td className="px-3 py-2 text-center text-slate-600">{s.totalJobsScored}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ─── Commission Optimization Tab ────────────────────────────────────
+
+interface CommissionSuggestion {
+  tier: string;
+  currentRate: number;
+  suggestedRate: number;
+  providerCount: number;
+  avgQualityScore: number;
+  avgRevenue: number;
+  rationale: string;
+}
+
+function CommissionTab() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin', 'commission-optimization'],
+    queryFn: async () => {
+      const res = await api.get('/api/v1/admin/analytics/commission-optimization');
+      return res.data.data as CommissionSuggestion[];
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : (
+        <div className="grid gap-4">
+          {data?.map((s) => {
+            const delta = s.suggestedRate - s.currentRate;
+            return (
+              <div key={s.tier} className="bg-white border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="font-semibold capitalize">{s.tier} Tier</h4>
+                    <p className="text-xs text-slate-500">{s.providerCount} providers</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-slate-500">Current: <strong>{(s.currentRate * 100).toFixed(0)}%</strong></p>
+                    <p className={`text-sm font-medium ${delta < 0 ? 'text-green-600' : delta > 0 ? 'text-red-600' : 'text-slate-500'}`}>
+                      Suggested: <strong>{(s.suggestedRate * 100).toFixed(0)}%</strong>
+                      {delta !== 0 && <span className="ml-1">({delta > 0 ? '+' : ''}{(delta * 100).toFixed(0)}pp)</span>}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-6 text-xs text-slate-500 mb-2">
+                  <span>Avg Quality: <strong className="text-slate-700">{s.avgQualityScore}</strong></span>
+                  <span>Avg Revenue: <strong className="text-slate-700">{formatCurrency(s.avgRevenue)}</strong></span>
+                </div>
+                <p className="text-sm text-slate-600 bg-slate-50 p-2 rounded">{s.rationale}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Analytics Page ────────────────────────────────────────────
+
+export default function AnalyticsPage() {
+  const [activeTab, setActiveTab] = useState<TabId>('ab-tests');
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold">Analytics</h2>
+      </div>
+
+      <div className="flex gap-1 border-b mb-6">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'ab-tests' && <AbTestsTab />}
+      {activeTab === 'cohorts' && <CohortTab />}
+      {activeTab === 'churn' && <ChurnTab />}
+      {activeTab === 'quality' && <QualityTab />}
+      {activeTab === 'commission' && <CommissionTab />}
+    </div>
+  );
+}

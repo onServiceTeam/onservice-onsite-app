@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "onService",
+    "slug": "onservice",
+    "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "orientation": "portrait",
+    "scheme": "onservice",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "platforms": ["ios", "android"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "ph.onservice.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "onService needs your location to find nearby service providers.",
+        "NSCameraUsageDescription": "onService needs camera access to take photos of job sites and receipts.",
+        "NSPhotoLibraryUsageDescription": "onService needs photo library access to upload images for bookings."
+      },
+      "config": {
+        "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1B3A4B"
+      },
+      "package": "ph.onservice.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+        }
+      }
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID"
+      }
+    },
+    "owner": "onservice",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

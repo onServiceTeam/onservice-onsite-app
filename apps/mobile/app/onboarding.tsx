@@ -1,0 +1,192 @@
+import React, { useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  Dimensions,
+  StyleSheet,
+  ViewToken,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { storage } from '@/services/api';
+import { Button } from '@/components/ui';
+import { colors, spacing, typography, borderRadius } from '@/config/theme';
+
+const { width } = Dimensions.get('window');
+
+interface Slide {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  bgColor: string;
+}
+
+const slides: Slide[] = [
+  {
+    id: '1',
+    icon: '🏠',
+    title: 'Home Services\nOn Demand',
+    description:
+      'From cleaning to plumbing, electrical to aircon — book trusted professionals in your area.',
+    bgColor: colors.primary,
+  },
+  {
+    id: '2',
+    icon: '🔒',
+    title: 'Secure Payments\nWith Escrow',
+    description:
+      'Your payment is held safely until you confirm the job is done right. Full protection, always.',
+    bgColor: '#00A376',
+  },
+  {
+    id: '3',
+    icon: '⭐',
+    title: 'Vetted & Verified\nProviders',
+    description:
+      'Every provider is NBI-cleared, ID-verified, and rated by customers just like you.',
+    bgColor: '#8B5CF6',
+  },
+];
+
+export default function OnboardingScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const flatListRef = useRef<FlatList>(null);
+
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      if (viewableItems.length > 0 && viewableItems[0]?.index != null) {
+        setActiveIndex(viewableItems[0].index);
+      }
+    },
+  ).current;
+
+  const handleNext = () => {
+    if (activeIndex < slides.length - 1) {
+      flatListRef.current?.scrollToIndex({ index: activeIndex + 1 });
+    } else {
+      completeOnboarding();
+    }
+  };
+
+  const completeOnboarding = () => {
+    storage.set('hasOnboarded', true);
+    router.replace('/auth/login');
+  };
+
+  const renderSlide = ({ item }: { item: Slide }) => (
+    <View style={[styles.slide, { width, backgroundColor: item.bgColor }]}>
+      <Text style={styles.slideIcon}>{item.icon}</Text>
+      <Text style={styles.slideTitle}>{item.title}</Text>
+      <Text style={styles.slideDescription}>{item.description}</Text>
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, { paddingBottom: insets.bottom + spacing.base }]}>
+      <FlatList
+        ref={flatListRef}
+        data={slides}
+        renderItem={renderSlide}
+        keyExtractor={(item) => item.id}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={{ viewAreaCoveragePercentThreshold: 50 }}
+      />
+
+      <View style={styles.footer}>
+        <View style={styles.dots}>
+          {slides.map((_, idx) => (
+            <View
+              key={idx}
+              style={[styles.dot, idx === activeIndex && styles.dotActive]}
+            />
+          ))}
+        </View>
+
+        <View style={styles.actions}>
+          {activeIndex < slides.length - 1 && (
+            <Button
+              title="Skip"
+              onPress={completeOnboarding}
+              variant="ghost"
+              fullWidth={false}
+              textStyle={styles.skipText}
+            />
+          )}
+          <Button
+            title={activeIndex === slides.length - 1 ? 'Get Started' : 'Next'}
+            onPress={handleNext}
+            variant="primary"
+            fullWidth={false}
+            style={styles.nextButton}
+            textStyle={styles.nextButtonText}
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.primary },
+  slide: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  slideIcon: { fontSize: 80, marginBottom: spacing.xl },
+  slideTitle: {
+    ...typography.h1,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: spacing.base,
+  },
+  slideDescription: {
+    ...typography.body,
+    color: 'rgba(255,255,255,0.85)',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+  },
+  dots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+  dotActive: { backgroundColor: '#FFFFFF', width: 24 },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  skipText: { color: 'rgba(255,255,255,0.7)' },
+  nextButton: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: spacing.xl,
+    borderRadius: borderRadius.lg,
+  },
+  nextButtonText: {
+    color: colors.primary,
+  },
+});
