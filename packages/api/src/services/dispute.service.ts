@@ -366,6 +366,8 @@ export async function acceptPartialOffer(disputeId: string, customerId: string):
     [escrowStatus, d.booking_id],
   );
 
+  if (result.rows.length === 0) throw createAppError('Failed to update dispute — concurrent modification.', 409);
+
   logger.info('Dispute resolved — partial offer accepted', { disputeId, refundAmount, refundPercent });
 
   if (refundAmount > 0) {
@@ -578,6 +580,7 @@ export async function escalateDispute(disputeId: string, adminId: string, reason
      reason],
   );
 
+  if (result.rows.length === 0) throw createAppError('Failed to escalate dispute — concurrent modification.', 409);
   logger.info('Dispute escalated', { disputeId, fromTier: d.tier, toTier: newTier });
   return result.rows[0]!;
 }

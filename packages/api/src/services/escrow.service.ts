@@ -256,7 +256,12 @@ export async function refundFromEscrow(
   refundAmount: number,
   reason: string,
 ): Promise<void> {
+  if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
+
   const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+  if (Number(escrowWallet.pending_balance) < refundAmount) {
+    throw createAppError('Insufficient escrow balance for refund.', 409);
+  }
 
   await db.transaction(async (client) => {
     await client.query(

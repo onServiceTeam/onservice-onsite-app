@@ -408,21 +408,23 @@ export async function processRecurringBookings(): Promise<number> {
         [rb.id, rb.next_booking_date, err instanceof Error ? err.message : 'Unknown error'],
       );
 
-      const nextDate = calculateNextDate(
-        rb.next_booking_date,
-        rb.frequency as 'weekly' | 'biweekly' | 'monthly',
-        rb.preferred_day,
-      );
-      await db.query(
-        `UPDATE recurring_bookings SET next_booking_date = $1, updated_at = NOW() WHERE id = $2`,
-        [nextDate, rb.id],
-      );
-
-      logger.error('Failed to create recurring instance — advanced to next date', {
-        recurringId: rb.id,
-        nextDate,
-        error: err instanceof Error ? err.message : 'Unknown',
-      });
+      try {
+        const nextDate = calculateNextDate(rb.frequency, rb.preferred_day, new Date(rb.next_booking_date));
+        await db.query(
+          `UPDATE recurring_bookings SET next_booking_date = $1, updated_at = NOW() WHERE id = $2`,
+          [nextDate.toISOString().split('T')[0], rb.id],
+        );
+        logger.error('Failed to create recurring instance — advanced to next date', {
+          recurringId: rb.id,
+          nextDate: nextDate.toISOString().split('T')[0],
+          error: err instanceof Error ? err.message : 'Unknown',
+        });
+      } catch (advanceErr) {
+        logger.error('Failed to advance recurring next_booking_date after instance failure', {
+          recurringId: rb.id,
+          error: advanceErr instanceof Error ? advanceErr.message : 'Unknown',
+        });
+      }
     }
   }
 

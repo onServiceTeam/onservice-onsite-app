@@ -131,6 +131,8 @@ export async function holdEscrow(
   amount: number,
   bookingId: string,
 ): Promise<void> {
+  if (amount <= 0) throw createAppError('Escrow hold amount must be positive.', 400);
+
   await db.transaction(async (client) => {
     await client.query(
       `UPDATE wallets SET pending_balance = pending_balance + $1, updated_at = NOW() WHERE id = $2`,
