@@ -320,7 +320,7 @@ export async function transitionBookingStatus(
     } else if (newStatus === 'paid') {
       updates.push(`escrow_status = 'held'`);
     } else if (newStatus === 'disputed') {
-      updates.push(`escrow_status = 'pending'`);
+      updates.push(`escrow_status = 'held'`);
     }
 
     const result = await client.query<BookingRow>(

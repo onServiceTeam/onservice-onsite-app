@@ -164,6 +164,7 @@ export async function releasePartialEscrow(
   if (remainingAmount <= 0) throw createAppError('No remaining amount to release.', 400);
 
   const totalAmount = Number(bk.total_amount);
+  if (totalAmount <= 0) throw createAppError('Booking total amount is zero — cannot calculate partial release.', 409);
   const retentionFactor = remainingAmount / totalAmount;
   const proportionalServicePrice = Math.round(Number(bk.service_price) * retentionFactor);
 

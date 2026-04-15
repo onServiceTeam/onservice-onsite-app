@@ -344,6 +344,7 @@ export async function acceptPartialOffer(disputeId: string, customerId: string):
      FROM bookings WHERE id = $1`,
     [d.booking_id],
   );
+  if (booking.rows.length === 0) throw createAppError('Associated booking not found.', 404);
   const bk = booking.rows[0]!;
   const totalAmount = Number(bk.total_amount);
   const refundAmount = Number(d.refund_amount);

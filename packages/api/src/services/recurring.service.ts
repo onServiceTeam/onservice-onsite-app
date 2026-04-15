@@ -408,8 +408,19 @@ export async function processRecurringBookings(): Promise<number> {
         [rb.id, rb.next_booking_date, err instanceof Error ? err.message : 'Unknown error'],
       );
 
-      logger.error('Failed to create recurring instance', {
+      const nextDate = calculateNextDate(
+        rb.next_booking_date,
+        rb.frequency as 'weekly' | 'biweekly' | 'monthly',
+        rb.preferred_day,
+      );
+      await db.query(
+        `UPDATE recurring_bookings SET next_booking_date = $1, updated_at = NOW() WHERE id = $2`,
+        [nextDate, rb.id],
+      );
+
+      logger.error('Failed to create recurring instance — advanced to next date', {
         recurringId: rb.id,
+        nextDate,
         error: err instanceof Error ? err.message : 'Unknown',
       });
     }

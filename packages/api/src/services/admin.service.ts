@@ -98,7 +98,7 @@ export async function getDashboardKpis(): Promise<Record<string, unknown>> {
         (SELECT COUNT(*) FROM disputes WHERE status IN ('open', 'under_review', 'escalated'))::text AS pending_disputes,
         (SELECT COUNT(*) FROM users WHERE created_at >= CURRENT_DATE)::text AS new_signups_today,
         (SELECT COUNT(*) FROM providers WHERE status = 'pending')::text AS pending_provider_approvals,
-        COALESCE((SELECT available_balance FROM wallets WHERE type = 'platform_escrow' AND user_id IS NULL), 0)::text AS platform_escrow_balance,
+        COALESCE((SELECT pending_balance FROM wallets WHERE type = 'platform_escrow' AND user_id IS NULL), 0)::text AS platform_escrow_balance,
         COALESCE((SELECT available_balance FROM wallets WHERE type = 'platform_revenue' AND user_id IS NULL), 0)::text AS platform_revenue_balance,
         COALESCE((SELECT available_balance FROM wallets WHERE type = 'guarantee_fund' AND user_id IS NULL), 0)::text AS guarantee_fund_balance
     `),
@@ -321,7 +321,7 @@ export async function listCustomers(
   const dataResult = await db.query<CustomerAdminRow>(
     `SELECT u.id, u.phone, u.email, u.first_name, u.last_name, u.role, u.is_active, u.created_at, u.updated_at,
        (SELECT COUNT(*) FROM bookings WHERE customer_id = u.id)::text AS total_bookings,
-       COALESCE((SELECT SUM(total_amount) FROM bookings WHERE customer_id = u.id AND status IN ('completed', 'paid_out')), 0)::text AS total_spent,
+       COALESCE((SELECT SUM(total_amount) FROM bookings WHERE customer_id = u.id AND status IN ('confirmed', 'payout_ready', 'paid_out')), 0)::text AS total_spent,
        (SELECT COUNT(*) FROM disputes WHERE filed_by = u.id)::text AS total_disputes
      FROM users u
      ${whereClause}

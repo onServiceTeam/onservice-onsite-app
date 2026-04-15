@@ -325,7 +325,7 @@ export default function DisputesPage() {
                 value={decisionNotes}
                 onChange={(e) => setDecisionNotes(e.target.value)}
                 rows={3}
-                placeholder={actionType === 'resolve' ? 'Explain the decision reasoning...' : 'Why is this being escalated?'}
+                placeholder={actionType === 'resolve' ? 'Explain the decision reasoning (min 20 characters)...' : 'Why is this being escalated (min 10 characters)?'}
                 className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
               />
             </div>
@@ -355,7 +355,8 @@ export default function DisputesPage() {
                 disabled={
                   resolveMutation.isPending ||
                   !decisionNotes.trim() ||
-                  decisionNotes.trim().length < 10 ||
+                  (actionType === 'resolve' && decisionNotes.trim().length < 20) ||
+                  (actionType === 'escalate' && decisionNotes.trim().length < 10) ||
                   (actionType === 'resolve' && !resolutionType) ||
                   (actionType === 'resolve' && (resolutionType === 'partial_refund' || resolutionType === 'split_decision') && (!refundPercent || Number(refundPercent) < 1 || Number(refundPercent) > 100))
                 }
