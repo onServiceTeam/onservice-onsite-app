@@ -38,19 +38,21 @@ export async function getUserWallet(userId: string, type: 'customer' | 'provider
 
   if (result.rows.length > 0) return result.rows[0]!;
 
-  const existing = await db.query<WalletRow>(
-    `SELECT * FROM wallets WHERE user_id = $1`,
-    [userId],
-  );
-  if (existing.rows.length > 0) return existing.rows[0]!;
-
   const created = await db.query<WalletRow>(
     `INSERT INTO wallets (user_id, type) VALUES ($1, $2)
      ON CONFLICT (user_id) WHERE user_id IS NOT NULL DO UPDATE SET updated_at = NOW()
      RETURNING *`,
     [userId, type],
   );
-  return created.rows[0]!;
+
+  const wallet = created.rows[0]!;
+  if (wallet.type !== type) {
+    throw createAppError(
+      `Wallet type mismatch: expected "${type}" but found "${wallet.type}" for user ${userId}.`,
+      409,
+    );
+  }
+  return wallet;
 }
 
 export async function getPlatformWallet(type: 'platform_escrow' | 'platform_revenue' | 'guarantee_fund'): Promise<WalletRow> {

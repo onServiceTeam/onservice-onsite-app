@@ -10,6 +10,7 @@ import {
 } from '../validators/dispute.validators';
 import * as disputeService from '../services/dispute.service';
 import { createAppError } from '../middleware/error.middleware';
+import { db } from '../models/db';
 
 const router = Router();
 
@@ -78,6 +79,27 @@ router.get(
       if (typeof id !== 'string' || !id) throw createAppError('Dispute ID is required.', 400);
 
       const dispute = await disputeService.getDisputeById(id);
+
+      const userId = req.user!.userId;
+      const role = req.user!.role;
+      const isAdmin = role === 'admin' || role === 'super_admin';
+      if (!isAdmin && dispute.filed_by !== userId) {
+        const bookingRow = await db.query<{ provider_id: string | null }>(
+          `SELECT b.provider_id FROM bookings b WHERE b.id = $1`,
+          [dispute.booking_id],
+        );
+        const providerRow = bookingRow.rows[0]?.provider_id
+          ? await db.query<{ user_id: string }>(
+              `SELECT user_id FROM providers WHERE id = $1`,
+              [bookingRow.rows[0].provider_id],
+            )
+          : null;
+        const isAssignedProvider = providerRow?.rows[0]?.user_id === userId;
+        if (!isAssignedProvider) {
+          throw createAppError('You do not have permission to view this dispute.', 403);
+        }
+      }
+
       const evidence = await disputeService.getDisputeEvidence(id);
 
       res.json({

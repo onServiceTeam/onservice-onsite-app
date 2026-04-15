@@ -1,21 +1,22 @@
-import { useEffect } from 'react';
+import { useEffect, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import AdminLayout from '@/components/AdminLayout';
 import LoginPage from '@/pages/LoginPage';
-import DashboardPage from '@/pages/DashboardPage';
-import ProvidersPage from '@/pages/ProvidersPage';
-import CustomersPage from '@/pages/CustomersPage';
-import BookingsPage from '@/pages/BookingsPage';
-import CatalogPage from '@/pages/CatalogPage';
-import DisputesPage from '@/pages/DisputesPage';
-import FinancialsPage from '@/pages/FinancialsPage';
-import PayoutsPage from '@/pages/PayoutsPage';
-import NotificationTemplatesPage from '@/pages/NotificationTemplatesPage';
-import RecurringPage from '@/pages/RecurringPage';
-import BusinessAccountsPage from '@/pages/BusinessAccountsPage';
-import ServiceAreasPage from '@/pages/ServiceAreasPage';
-import AnalyticsPage from '@/pages/AnalyticsPage';
+
+const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
+const ProvidersPage = lazy(() => import('@/pages/ProvidersPage'));
+const CustomersPage = lazy(() => import('@/pages/CustomersPage'));
+const BookingsPage = lazy(() => import('@/pages/BookingsPage'));
+const CatalogPage = lazy(() => import('@/pages/CatalogPage'));
+const DisputesPage = lazy(() => import('@/pages/DisputesPage'));
+const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'));
+const PayoutsPage = lazy(() => import('@/pages/PayoutsPage'));
+const NotificationTemplatesPage = lazy(() => import('@/pages/NotificationTemplatesPage'));
+const RecurringPage = lazy(() => import('@/pages/RecurringPage'));
+const BusinessAccountsPage = lazy(() => import('@/pages/BusinessAccountsPage'));
+const ServiceAreasPage = lazy(() => import('@/pages/ServiceAreasPage'));
+const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'));
 
 export default function App() {
   const hydrate = useAuthStore((s) => s.hydrate);

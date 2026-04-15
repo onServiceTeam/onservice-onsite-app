@@ -26,17 +26,23 @@ interface PaginatedResult {
 }
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'default'> = {
-  confirmed: 'info',
-  provider_assigned: 'info',
-  en_route: 'info',
+  requested: 'default',
+  quoted: 'default',
+  matched: 'info',
+  payment_pending: 'warning',
+  paid: 'info',
+  provider_en_route: 'info',
+  provider_arrived: 'info',
   in_progress: 'warning',
-  completed: 'success',
+  completed_by_provider: 'success',
+  confirmed: 'success',
+  payout_ready: 'success',
   paid_out: 'success',
+  disputed: 'danger',
+  resolved: 'default',
   cancelled_by_customer: 'danger',
   cancelled_by_provider: 'danger',
   cancelled_by_admin: 'danger',
-  disputed: 'danger',
-  resolved: 'default',
 };
 
 function formatStatus(s: string): string {
@@ -53,7 +59,7 @@ export default function BookingsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [searchInput, setSearchInput] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['adminBookings', page, search, statusFilter],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: 20 };
@@ -116,7 +122,7 @@ export default function BookingsPage() {
       header: 'Date',
       render: (r) => (
         <span className="text-[var(--color-text-secondary)]">
-          {r.scheduledAt ? new Date(r.scheduledAt).toLocaleDateString() : new Date(r.createdAt).toLocaleDateString()}
+          {r.scheduledAt ? new Date(r.scheduledAt).toLocaleDateString('en-PH') : new Date(r.createdAt).toLocaleDateString('en-PH')}
         </span>
       ),
     },
@@ -137,7 +143,7 @@ export default function BookingsPage() {
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by booking ID..."
+            placeholder="Search by booking ID or city..."
             className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
           />
           <button type="submit" className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-lg hover:opacity-90 transition-opacity">
@@ -150,17 +156,31 @@ export default function BookingsPage() {
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Statuses</option>
-          <option value="confirmed">Confirmed</option>
-          <option value="provider_assigned">Assigned</option>
-          <option value="en_route">En Route</option>
+          <option value="requested">Requested</option>
+          <option value="quoted">Quoted</option>
+          <option value="matched">Matched</option>
+          <option value="payment_pending">Payment Pending</option>
+          <option value="paid">Paid</option>
+          <option value="provider_en_route">En Route</option>
+          <option value="provider_arrived">Arrived</option>
           <option value="in_progress">In Progress</option>
-          <option value="completed">Completed</option>
+          <option value="completed_by_provider">Completed</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="payout_ready">Payout Ready</option>
           <option value="paid_out">Paid Out</option>
+          <option value="disputed">Disputed</option>
+          <option value="resolved">Resolved</option>
           <option value="cancelled_by_customer">Cancelled (Customer)</option>
           <option value="cancelled_by_provider">Cancelled (Provider)</option>
-          <option value="disputed">Disputed</option>
+          <option value="cancelled_by_admin">Cancelled (Admin)</option>
         </select>
       </div>
+
+      {isError && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          Failed to load bookings. Please try refreshing the page.
+        </div>
+      )}
 
       <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No bookings found." />
 

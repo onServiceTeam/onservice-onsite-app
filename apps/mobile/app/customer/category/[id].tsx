@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,39 +22,57 @@ export default function SubcategoryListScreen() {
   const insets = useSafeAreaInsets();
   const { draft, setSubcategory } = useBookingStore();
 
-  const { data: subcategories, isLoading, error } = useQuery({
+  const { data: subcategories, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['subcategories', slug],
     queryFn: () => getSubcategories(slug),
     staleTime: 24 * 60 * 60 * 1000,
     enabled: !!slug,
   });
 
+  const onRefresh = useCallback(() => { refetch(); }, [refetch]);
+
+  const isQuoteBased = (sub: Subcategory) => sub.pricingType === 'quote_based' || sub.basePrice == null;
+
   const handleSelect = (sub: Subcategory) => {
-    setSubcategory(sub.id, sub.name, sub.basePrice ?? 0);
-    router.push('/customer/booking/form');
+    if (isQuoteBased(sub)) {
+      setSubcategory(sub.id, sub.name, 0);
+      router.push('/customer/booking/job-request');
+    } else {
+      setSubcategory(sub.id, sub.name, sub.basePrice ?? 0);
+      router.push('/customer/booking/form');
+    }
   };
 
-  const renderItem = ({ item }: { item: Subcategory }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => handleSelect(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.cardContent}>
-        <Text style={styles.serviceName}>{item.name}</Text>
-        <Text style={styles.serviceDesc} numberOfLines={2}>
-          {item.description}
-        </Text>
-        {item.estimatedDurationMinutes != null && (
-          <Text style={styles.duration}>⏱ {item.estimatedDurationMinutes} min</Text>
-        )}
-      </View>
-      <View style={styles.priceContainer}>
-        <Text style={styles.priceLabel}>Starting at</Text>
-        <Text style={styles.price}>{formatPHP(item.basePrice ?? 0)}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderItem = ({ item }: { item: Subcategory }) => {
+    const quoteBased = isQuoteBased(item);
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => handleSelect(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.cardContent}>
+          <Text style={styles.serviceName}>{item.name}</Text>
+          <Text style={styles.serviceDesc} numberOfLines={2}>
+            {item.description}
+          </Text>
+          {item.estimatedDurationMinutes != null && (
+            <Text style={styles.duration}>⏱ {item.estimatedDurationMinutes} min</Text>
+          )}
+        </View>
+        <View style={styles.priceContainer}>
+          {quoteBased ? (
+            <Text style={styles.quoteLabel}>Get Quote</Text>
+          ) : (
+            <>
+              <Text style={styles.priceLabel}>Starting at</Text>
+              <Text style={styles.price}>{formatPHP(item.basePrice ?? 0)}</Text>
+            </>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -83,6 +102,9 @@ export default function SubcategoryListScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} />
+        }
         ListEmptyComponent={
           !isLoading ? (
             <View style={styles.empty}>
@@ -123,6 +145,7 @@ const styles = StyleSheet.create({
   priceContainer: { alignItems: 'flex-end', justifyContent: 'center' },
   priceLabel: { ...typography.caption, color: colors.textTertiary, marginBottom: 2 },
   price: { ...typography.priceSmall, color: colors.primary },
+  quoteLabel: { ...typography.bodySmall, fontWeight: '600', color: colors.secondary },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   errorContainer: { padding: spacing.xl, alignItems: 'center' },
   errorText: { ...typography.body, color: colors.error, textAlign: 'center' },

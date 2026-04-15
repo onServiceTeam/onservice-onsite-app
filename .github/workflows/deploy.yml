@@ -1,0 +1,104 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/api/**"
+      - "docker-compose.prod.yml"
+      - "nginx/**"
+      - "monitoring/**"
+
+  workflow_dispatch:
+    inputs:
+      run_migrations:
+        description: "Run database migrations"
+        required: false
+        default: "false"
+        type: boolean
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy API to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API Docker image
+        run: |
+          docker build \
+            -f packages/api/Dockerfile \
+            -t onservice-api:${{ github.sha }} \
+            -t onservice-api:latest \
+            .
+
+      - name: Save Docker image
+        run: docker save onservice-api:${{ github.sha }} | gzip > api-image.tar.gz
+
+      - name: Copy image to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: api-image.tar.gz
+          target: /tmp/
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+
+            cd /opt/onservice
+
+            # Load the new image
+            docker load < /tmp/api-image.tar.gz
+            rm -f /tmp/api-image.tar.gz
+
+            # Pull latest config
+            git pull origin main
+
+            # Run migrations if requested (bypass PgBouncer — advisory locks need session mode)
+            if [ "${{ github.event.inputs.run_migrations }}" = "true" ]; then
+              echo "Running database migrations..."
+              docker compose -f docker-compose.prod.yml run --rm \
+                api sh -c 'DATABASE_URL="$DATABASE_DIRECT_URL" npx node-pg-migrate up --migrations-dir migrations'
+            fi
+
+            # Rolling restart: build and recreate only the API service
+            docker compose -f docker-compose.prod.yml up -d --no-deps api
+
+            # Wait for health check
+            echo "Waiting for API health check..."
+            for i in $(seq 1 30); do
+              if docker compose -f docker-compose.prod.yml exec api curl -sf http://localhost:7381/health/ready > /dev/null 2>&1; then
+                echo "API is healthy!"
+                break
+              fi
+              if [ $i -eq 30 ]; then
+                echo "ERROR: Health check failed after 30 attempts."
+                echo "Manual intervention required. Inspect logs below:"
+                docker compose -f docker-compose.prod.yml logs --tail=50 api
+                exit 1
+              fi
+              sleep 2
+            done
+
+            # Reload nginx to pick up any config changes
+            docker compose -f docker-compose.prod.yml exec nginx nginx -s reload || true
+
+            # Cleanup old images
+            docker image prune -f
+
+            echo "Deployment complete: ${{ github.sha }}"

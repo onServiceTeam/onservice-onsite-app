@@ -174,14 +174,26 @@ function mapPaymentMethodToPaymongo(method: PaymentMethod): string[] {
 }
 
 export function formatPaymentIntent(p: PaymentIntentRow) {
+  let checkoutUrl: string | null = null;
+  if (p.payment_method !== 'wallet' && p.client_key) {
+    checkoutUrl = buildCheckoutUrl(p.client_key, p.payment_method);
+  }
+
   return {
     id: p.id,
     bookingId: p.booking_id,
     paymongoIntentId: p.paymongo_intent_id,
     amount: Number(p.amount),
+    currency: 'PHP',
     paymentMethod: p.payment_method,
     status: p.status,
     clientKey: p.client_key,
+    checkoutUrl,
     createdAt: p.created_at,
   };
+}
+
+function buildCheckoutUrl(clientKey: string, paymentMethod: string): string {
+  const base = process.env.PAYMONGO_CHECKOUT_BASE ?? 'https://checkout.paymongo.com';
+  return `${base}/intent/${encodeURIComponent(clientKey)}?method=${encodeURIComponent(paymentMethod)}`;
 }

@@ -98,18 +98,28 @@ router.post(
       if (providerRow.rows.length === 0) throw createAppError('Provider profile not found.', 404);
       const providerId = providerRow.rows[0]!.id;
 
-      await walletService.debitWallet(
-        wallet.id,
-        amount,
-        'withdrawal',
-        `Withdrawal via ${method} to ${destinationAccount}`,
-      );
+      const payout = await db.transaction(async (client) => {
+        const walletUpdate = await client.query(
+          `UPDATE wallets SET available_balance = available_balance - $1, updated_at = NOW()
+           WHERE id = $2 AND available_balance >= $1 RETURNING *`,
+          [amount, wallet.id],
+        );
+        if (walletUpdate.rows.length === 0) throw createAppError('Insufficient balance.', 400);
+        const updatedWallet = walletUpdate.rows[0]!;
 
-      const payout = await db.query<PayoutRow>(
-        `INSERT INTO payouts (provider_id, wallet_id, amount, method, destination_account)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [providerId, wallet.id, amount, method, destinationAccount],
-      );
+        await client.query(
+          `INSERT INTO wallet_transactions (wallet_id, type, amount, balance_after, description)
+           VALUES ($1, 'withdrawal', $2, $3, $4)`,
+          [wallet.id, -amount, updatedWallet.available_balance, `Withdrawal via ${method} to ${destinationAccount}`],
+        );
+
+        const payoutResult = await client.query<PayoutRow>(
+          `INSERT INTO payouts (provider_id, wallet_id, amount, method, destination_account)
+           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+          [providerId, wallet.id, amount, method, destinationAccount],
+        );
+        return payoutResult;
+      });
 
       logger.info('Withdrawal initiated', { userId, amount, method });
 

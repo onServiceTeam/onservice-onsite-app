@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
+import { captureException } from '../config/sentry.config';
 
 export interface AppError extends Error {
   statusCode: number;
@@ -22,7 +23,6 @@ export function errorMiddleware(
   const statusCode = 'statusCode' in err ? err.statusCode : 500;
   const isOperational = 'isOperational' in err ? err.isOperational : false;
 
-  // Log error with structured data
   logger.error('Request error', {
     method: req.method,
     path: req.path,
@@ -31,6 +31,10 @@ export function errorMiddleware(
     stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined,
     requestId: req.headers['x-request-id'],
   });
+
+  if (statusCode >= 500) {
+    captureException(err, { method: req.method, path: req.path, statusCode });
+  }
 
   // Never expose internal errors to client
   const clientMessage = isOperational

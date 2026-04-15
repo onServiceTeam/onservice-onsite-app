@@ -86,7 +86,7 @@ export default function ProviderJobsScreen() {
       </View>
       <Text style={styles.jobService}>{item.serviceName ?? item.categoryName ?? 'Service'}</Text>
       <Text style={styles.jobAddress} numberOfLines={1}>
-        📍 {item.address}, {item.barangay !== 'N/A' ? `${item.barangay}, ` : ''}{item.city}
+        📍 {[item.address, item.barangay, item.city].filter(Boolean).join(', ')}
       </Text>
       <View style={styles.jobBottom}>
         <Text style={styles.jobPrice}>{formatPHP(item.servicePrice)}</Text>
@@ -130,6 +130,10 @@ export default function ProviderJobsScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={10}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          removeClippedSubviews
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.secondary} />
           }

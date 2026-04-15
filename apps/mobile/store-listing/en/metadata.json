@@ -1,0 +1,21 @@
+{
+  "appName": "onService — Home Services PH",
+  "shortDescription": "Book trusted home service providers in your area. Cleaning, plumbing, electrical, aircon, and more.",
+  "fullDescription": "onService is the Philippines' home services marketplace, connecting you with verified and vetted local service providers for all your home maintenance needs.\n\nWHAT YOU CAN BOOK:\n• General Cleaning — deep clean, regular maintenance, move-in/move-out\n• Plumbing — repairs, installation, drain cleaning\n• Electrical — wiring, fixtures, troubleshooting\n• Aircon Services — cleaning, repair, installation\n• Pest Control — termites, rodents, general pest treatment\n• Painting — interior, exterior, touch-ups\n• Carpentry — furniture repair, installation, custom work\n• Appliance Repair — washing machines, refrigerators, and more\n\nWHY ONSERVICE:\n• Verified Providers — all service providers undergo background checks including NBI clearance verification\n• Transparent Pricing — see upfront prices or request custom quotes before booking\n• Secure Payments — pay through GCash, Maya, credit/debit cards via PayMongo with full escrow protection\n• Real-Time Tracking — track your provider's arrival and job progress\n• Suki Loyalty Program — earn points on every booking and unlock discounts as a loyal customer\n• Dispute Protection — if anything goes wrong, our resolution team has your back\n• Referral Rewards — invite friends and earn bonus credits\n\nHOW IT WORKS:\n1. Search for the service you need\n2. Choose a date, time, and your address\n3. Get matched with a verified provider or compare quotes\n4. Pay securely — funds are held in escrow until you confirm the job is done\n5. Rate and review your experience\n\nFOR SERVICE PROVIDERS:\nSwitch to provider mode to receive job requests, manage your schedule, build your reputation, and grow your business with onService.\n\nSECURITY & TRUST:\n• Escrow-protected payments — your money is safe until you confirm satisfaction\n• In-app messaging — communicate directly with your provider\n• Photo documentation — providers document work for transparency\n• 24-hour dispute window — file a dispute if you're not satisfied\n\nSupport: support@onservice.ph\nWebsite: https://onservice.ph",
+  "keywords": "home services, cleaning, plumbing, electrical, aircon, repair, Philippines, Manila, service provider, handyman, pest control",
+  "categoryGoogle": "House & Home",
+  "categoryApple": "Lifestyle",
+  "privacyPolicyUrl": "https://onservice.ph/privacy",
+  "termsOfServiceUrl": "https://onservice.ph/terms",
+  "supportUrl": "https://onservice.ph/support",
+  "supportEmail": "support@onservice.ph",
+  "marketingUrl": "https://onservice.ph",
+  "contentRating": "Everyone",
+  "targetAudience": {
+    "minAge": 18,
+    "countries": ["PH"]
+  },
+  "releaseNotes": {
+    "1.0.0": "Initial release of onService! Book home service providers in your area with secure escrow payments, real-time tracking, and the Suki loyalty program."
+  }
+}

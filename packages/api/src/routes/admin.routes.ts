@@ -3,9 +3,11 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { suspendProviderSchema, changeProviderTierSchema } from '../validators/admin.validators';
 import * as adminService from '../services/admin.service';
+import * as escrowService from '../services/escrow.service';
 import { createAppError } from '../middleware/error.middleware';
 import { db } from '../models/db';
 import * as notificationService from '../services/notification.service';
+import { logger } from '../utils/logger';
 import * as invoiceService from '../services/invoice.service';
 import * as serviceAreaService from '../services/service-area.service';
 import * as pricingService from '../services/pricing.service';
@@ -78,6 +80,24 @@ router.put(
 
       await adminService.approveProvider(id, req.user!.userId);
       res.json({ success: true, data: { message: 'Provider approved.' } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.put(
+  '/providers/:id/reject',
+  authMiddleware,
+  validationMiddleware(suspendProviderSchema),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const id = req.params['id'];
+      if (typeof id !== 'string' || !id) throw createAppError('Provider ID is required.', 400);
+
+      await adminService.rejectProvider(id, req.user!.userId, req.body.reason);
+      res.json({ success: true, data: { message: 'Provider application rejected.' } });
     } catch (error) {
       next(error);
     }
@@ -179,6 +199,53 @@ router.get(
         data: bookings.map(adminService.formatBookingAdmin),
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/bookings/:id/release-escrow',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const id = req.params['id'];
+      if (typeof id !== 'string' || !id) throw createAppError('Booking ID is required.', 400);
+
+      const { reason } = req.body as { reason?: string };
+      if (!reason || typeof reason !== 'string' || reason.trim().length < 10) {
+        throw createAppError('A detailed reason (min 10 characters) is required for manual escrow release.', 400);
+      }
+
+      const booking = await db.query<{ id: string; status: string; escrow_status: string; provider_id: string | null }>(
+        `SELECT id, status, escrow_status, provider_id FROM bookings WHERE id = $1`,
+        [id],
+      );
+      if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
+      const bk = booking.rows[0]!;
+
+      if (bk.escrow_status !== 'held') {
+        throw createAppError(`Escrow is not held for this booking (current: ${bk.escrow_status}).`, 409);
+      }
+      if (!bk.provider_id) {
+        throw createAppError('No provider assigned — cannot release escrow.', 409);
+      }
+
+      const breakdown = await escrowService.releaseEscrow(id);
+
+      await db.query(
+        `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
+         VALUES ($1, 'manual_escrow_release', 'booking', $2, $3, $4)`,
+        [req.user!.userId, id,
+         JSON.stringify({ breakdown, bookingStatus: bk.status }),
+         reason.trim()],
+      );
+
+      logger.info('Admin manually released escrow', { bookingId: id, adminId: req.user!.userId });
+
+      res.json({ success: true, data: { message: 'Escrow released successfully.', breakdown } });
     } catch (error) {
       next(error);
     }

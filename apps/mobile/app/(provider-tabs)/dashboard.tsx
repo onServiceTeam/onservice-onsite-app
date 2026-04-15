@@ -216,7 +216,7 @@ export default function ProviderDashboardScreen() {
                 <Text style={styles.jobTime}>{formatRelative(job.scheduledAt)}</Text>
               </View>
               <Text style={styles.jobService}>{job.serviceName ?? job.categoryName ?? 'Service'}</Text>
-              <Text style={styles.jobAddress} numberOfLines={1}>{job.address}, {job.city}</Text>
+              <Text style={styles.jobAddress} numberOfLines={1}>{[job.address, job.barangay, job.city].filter(Boolean).join(', ')}</Text>
               <View style={styles.jobCardBottom}>
                 <Text style={styles.jobPrice}>{formatPHP(job.servicePrice)}</Text>
                 <Text style={styles.jobArrow}>›</Text>

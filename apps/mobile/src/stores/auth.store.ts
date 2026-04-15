@@ -47,16 +47,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   requestOtp: async (phone: string) => {
-    const res = await api.post('/api/v1/auth/otp/request', { phone });
-    set({ otpRequestId: res.data.data?.requestId ?? null });
+    await api.post('/api/v1/auth/send-otp', { phone });
+    set({ otpRequestId: phone });
   },
 
   verifyOtp: async (phone: string, code: string) => {
-    const res = await api.post('/api/v1/auth/otp/verify', {
-      phone,
-      code,
-      requestId: get().otpRequestId,
-    });
+    const res = await api.post('/api/v1/auth/verify-otp', { phone, code });
     const { accessToken, refreshToken, user } = res.data.data;
     storage.set('accessToken', accessToken);
     storage.set('refreshToken', refreshToken);
@@ -64,16 +60,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user, isAuthenticated: true, otpRequestId: null });
   },
 
-  register: async (phone: string, firstName: string, lastName: string) => {
-    const res = await api.post('/api/v1/auth/register', {
-      phone,
-      firstName,
-      lastName,
-      role: 'customer',
-    });
-    const { accessToken, refreshToken, user } = res.data.data;
-    storage.set('accessToken', accessToken);
-    storage.set('refreshToken', refreshToken);
+  register: async (_phone: string, firstName: string, lastName: string) => {
+    const token = storage.getString('accessToken');
+    if (!token) throw new Error('Must verify OTP before completing registration.');
+    const res = await api.patch('/api/v1/auth/me', { firstName, lastName });
+    const user = res.data.data;
     storage.set('user', JSON.stringify(user));
     set({ user, isAuthenticated: true });
   },

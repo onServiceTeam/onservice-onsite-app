@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import * as escrowService from './escrow.service';
 
 interface DisputeRow {
   id: string;
@@ -57,7 +58,9 @@ type DisputeType = 'no_show' | 'incomplete' | 'substandard' | 'damage' | 'theft'
 type ResolutionType = 'full_refund' | 'partial_refund' | 'no_refund' | 'free_redo'
   | 'refund_with_warning' | 'refund_with_suspension' | 'split_decision';
 
-const DISPUTE_WINDOW_HOURS = 48;
+import { platformConfig } from '../config/platform.config';
+
+const DISPUTE_WINDOW_HOURS = platformConfig.escrowDisputeWindowHours;
 
 export async function fileDispute(
   bookingId: string,
@@ -101,23 +104,25 @@ export async function fileDispute(
 
   if ((data.type === 'damage' || data.type === 'theft') &&
       (!data.evidenceUrls || data.evidenceUrls.length === 0)) {
-    throw createAppError('Evidence is required for property damage and theft claims.', 400);
+    logger.warn('Dispute filed without evidence for damage/theft claim — evidence strongly recommended', {
+      bookingId, type: data.type, filedBy,
+    });
   }
 
-  return db.transaction(async (client) => {
+  const dispute = await db.transaction(async (client) => {
     const result = await client.query<DisputeRow>(
       `INSERT INTO disputes (booking_id, filed_by, type, description)
        VALUES ($1, $2, $3, $4) RETURNING *`,
       [bookingId, filedBy, data.type, data.description],
     );
-    const dispute = result.rows[0]!;
+    const d = result.rows[0]!;
 
     if (data.evidenceUrls && data.evidenceUrls.length > 0) {
       for (const ev of data.evidenceUrls.slice(0, 10)) {
         await client.query(
           `INSERT INTO dispute_evidence (dispute_id, uploaded_by, evidence_type, file_url, description)
            VALUES ($1, $2, $3, $4, $5)`,
-          [dispute.id, filedBy, ev.type, ev.url, ev.description ?? null],
+          [d.id, filedBy, ev.type, ev.url, ev.description ?? null],
         );
       }
     }
@@ -127,13 +132,13 @@ export async function fileDispute(
       [bookingId],
     );
 
-    logger.info('Dispute filed', { disputeId: dispute.id, bookingId, type: data.type });
+    logger.info('Dispute filed', { disputeId: d.id, bookingId, type: data.type });
 
-    const autoResult = await attemptAutoResolution(client, dispute, bk);
+    const autoResult = await attemptAutoResolution(client, d, bk);
     if (autoResult) {
       const resolved = await client.query<DisputeRow>(
         `SELECT * FROM disputes WHERE id = $1`,
-        [dispute.id],
+        [d.id],
       );
       return resolved.rows[0]!;
     }
@@ -150,14 +155,24 @@ export async function fileDispute(
           [
             provider.rows[0].user_id,
             'A customer has filed a dispute for one of your completed jobs. You have 24 hours to respond.',
-            JSON.stringify({ disputeId: dispute.id, bookingId, disputeType: data.type }),
+            JSON.stringify({ disputeId: d.id, bookingId, disputeType: data.type }),
           ],
         );
       }
     }
 
-    return dispute;
+    return d;
   });
+
+  if (dispute.status === 'resolved' && dispute.auto_resolved && Number(dispute.refund_amount) > 0) {
+    try {
+      await escrowService.refundFromEscrow(bookingId, Number(dispute.refund_amount), 'Auto-resolved dispute refund');
+    } catch (err) {
+      logger.error('Failed to process auto-resolve refund', { disputeId: dispute.id, bookingId, error: err instanceof Error ? err.message : 'Unknown' });
+    }
+  }
+
+  return dispute;
 }
 
 async function attemptAutoResolution(
@@ -246,7 +261,7 @@ export async function addProviderResponse(
     }
   }
 
-  return db.transaction(async (client) => {
+  const result = await db.transaction(async (client) => {
     if (action === 'accept') {
       const totalAmount = Number(bk.total_amount);
       await client.query(
@@ -295,6 +310,17 @@ export async function addProviderResponse(
     );
     return updated.rows[0]!;
   });
+
+  if (action === 'accept') {
+    try {
+      const totalAmount = Number(bk.total_amount);
+      await escrowService.refundFromEscrow(d.booking_id, totalAmount, 'Provider accepted dispute — full refund');
+    } catch (err) {
+      logger.error('Failed to process dispute refund after provider accept', { disputeId, error: err instanceof Error ? err.message : 'Unknown' });
+    }
+  }
+
+  return result;
 }
 
 export async function acceptPartialOffer(disputeId: string, customerId: string): Promise<DisputeRow> {
@@ -340,6 +366,26 @@ export async function acceptPartialOffer(disputeId: string, customerId: string):
   );
 
   logger.info('Dispute resolved — partial offer accepted', { disputeId, refundAmount, refundPercent });
+
+  if (refundAmount > 0) {
+    let refundSucceeded = false;
+    try {
+      await escrowService.refundFromEscrow(d.booking_id, refundAmount, 'Partial offer accepted — dispute refund');
+      refundSucceeded = true;
+    } catch (err) {
+      logger.error('Failed to process partial offer refund', { disputeId, refundAmount, error: err instanceof Error ? err.message : 'Unknown' });
+    }
+
+    const remainingAmount = totalAmount - refundAmount;
+    if (refundSucceeded && remainingAmount > 0 && bk.provider_id) {
+      try {
+        await escrowService.releasePartialEscrow(d.booking_id, remainingAmount);
+      } catch (err) {
+        logger.error('Failed to release remaining escrow after partial offer acceptance', { disputeId, remainingAmount, error: err instanceof Error ? err.message : 'Unknown' });
+      }
+    }
+  }
+
   return result.rows[0]!;
 }
 
@@ -387,7 +433,7 @@ export async function resolveDispute(
     refundAmount = Math.round(totalAmount * (refundPercent / 100));
   }
 
-  return db.transaction(async (client) => {
+  const resolved = await db.transaction(async (client) => {
     await client.query(
       `UPDATE disputes SET
          status = 'resolved', resolution_type = $1,
@@ -404,9 +450,19 @@ export async function resolveDispute(
         `UPDATE bookings SET status = 'resolved', escrow_status = $1, updated_at = NOW() WHERE id = $2`,
         [escrowStatus, d.booking_id],
       );
+    } else if (data.resolutionType === 'no_refund') {
+      await client.query(
+        `UPDATE bookings SET status = 'resolved', updated_at = NOW() WHERE id = $1`,
+        [d.booking_id],
+      );
+    } else if (data.resolutionType === 'free_redo') {
+      await client.query(
+        `UPDATE bookings SET status = 'resolved', updated_at = NOW() WHERE id = $1`,
+        [d.booking_id],
+      );
     } else {
       await client.query(
-        `UPDATE bookings SET status = 'resolved', escrow_status = 'released', updated_at = NOW() WHERE id = $1`,
+        `UPDATE bookings SET status = 'resolved', updated_at = NOW() WHERE id = $1`,
         [d.booking_id],
       );
     }
@@ -462,6 +518,38 @@ export async function resolveDispute(
     logger.info('Dispute resolved by admin', { disputeId, adminId, resolutionType: data.resolutionType });
     return updated.rows[0]!;
   });
+
+  if (refundAmount > 0) {
+    let refundSucceeded = false;
+    try {
+      await escrowService.refundFromEscrow(d.booking_id, refundAmount, `Admin dispute resolution: ${data.resolutionType}`);
+      refundSucceeded = true;
+    } catch (err) {
+      logger.error('Failed to process admin dispute refund', { disputeId, refundAmount, error: err instanceof Error ? err.message : 'Unknown' });
+    }
+
+    const remainingAmount = totalAmount - refundAmount;
+    if (refundSucceeded && remainingAmount > 0 && bk.provider_id) {
+      try {
+        await escrowService.releasePartialEscrow(d.booking_id, remainingAmount);
+      } catch (err) {
+        logger.error('Failed to release remaining escrow after partial refund', { disputeId, remainingAmount, error: err instanceof Error ? err.message : 'Unknown' });
+      }
+    }
+  }
+
+  const shouldReleaseToProvider = data.resolutionType === 'no_refund'
+    || (refundAmount === 0 && data.resolutionType !== 'free_redo');
+  if (shouldReleaseToProvider && bk.provider_id) {
+    try {
+      const { releaseEscrow } = await import('./escrow.service');
+      await releaseEscrow(d.booking_id);
+    } catch (err) {
+      logger.error('Failed to release escrow after dispute resolution', { disputeId, resolutionType: data.resolutionType, error: err instanceof Error ? err.message : 'Unknown' });
+    }
+  }
+
+  return resolved;
 }
 
 export async function escalateDispute(disputeId: string, adminId: string, reason: string): Promise<DisputeRow> {

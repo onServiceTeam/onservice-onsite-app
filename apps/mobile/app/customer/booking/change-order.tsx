@@ -9,7 +9,7 @@ function formatCurrency(centavos: number): string {
 }
 
 export default function ChangeOrderScreen() {
-  const { id: bookingId } = useLocalSearchParams<{ id: string }>();
+  const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: orders, isLoading } = useQuery({

@@ -146,7 +146,7 @@ export async function notifyCustomerProviderAssigned(
   providerName: string,
 ): Promise<void> {
   const { title, body } = await resolveTemplate(
-    'provider_assigned',
+    'booking_matched',
     { bookingId, providerName },
     'Provider Assigned',
     `${providerName} has been assigned to your booking. They will contact you shortly.`,

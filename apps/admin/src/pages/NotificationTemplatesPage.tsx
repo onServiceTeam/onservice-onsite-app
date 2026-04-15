@@ -40,7 +40,7 @@ export default function NotificationTemplatesPage() {
   const [formSlug, setFormSlug] = useState('');
   const [formTitle, setFormTitle] = useState('');
   const [formBody, setFormBody] = useState('');
-  const [formType, setFormType] = useState('booking');
+  const [formType, setFormType] = useState('booking_update');
   const [formChannel, setFormChannel] = useState('push');
   const [formActive, setFormActive] = useState(true);
   const [formError, setFormError] = useState('');
@@ -115,7 +115,7 @@ export default function NotificationTemplatesPage() {
     setFormSlug('');
     setFormTitle('');
     setFormBody('');
-    setFormType('booking');
+    setFormType('booking_update');
     setFormChannel('push');
     setFormActive(true);
     setFormError('');
@@ -231,12 +231,14 @@ export default function NotificationTemplatesPage() {
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Types</option>
-          <option value="booking">Booking</option>
+          <option value="booking_update">Booking</option>
           <option value="payment">Payment</option>
-          <option value="dispute">Dispute</option>
+          <option value="dispute_update">Dispute</option>
+          <option value="tier_upgrade">Tier Upgrade</option>
           <option value="payout">Payout</option>
           <option value="referral">Referral</option>
           <option value="suki">Suki</option>
+          <option value="promo">Promo</option>
           <option value="system">System</option>
         </select>
         <select
@@ -245,6 +247,7 @@ export default function NotificationTemplatesPage() {
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Channels</option>
+          <option value="all">All (Multi-channel)</option>
           <option value="push">Push</option>
           <option value="sms">SMS</option>
           <option value="email">Email</option>
@@ -291,12 +294,14 @@ export default function NotificationTemplatesPage() {
                     onChange={(e) => setFormType(e.target.value)}
                     className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                   >
-                    <option value="booking">Booking</option>
+                    <option value="booking_update">Booking</option>
                     <option value="payment">Payment</option>
-                    <option value="dispute">Dispute</option>
+                    <option value="dispute_update">Dispute</option>
+                    <option value="tier_upgrade">Tier Upgrade</option>
                     <option value="payout">Payout</option>
                     <option value="referral">Referral</option>
                     <option value="suki">Suki</option>
+                    <option value="promo">Promo</option>
                     <option value="system">System</option>
                   </select>
                 </div>
@@ -307,6 +312,7 @@ export default function NotificationTemplatesPage() {
                     onChange={(e) => setFormChannel(e.target.value)}
                     className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                   >
+                    <option value="all">All Channels</option>
                     <option value="push">Push</option>
                     <option value="sms">SMS</option>
                     <option value="email">Email</option>

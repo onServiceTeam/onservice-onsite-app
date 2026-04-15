@@ -54,7 +54,7 @@ export default function PayoutsPage() {
   const [transferId, setTransferId] = useState('');
   const [actionError, setActionError] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['adminPayouts', page, statusFilter, search],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: 20 };
@@ -204,11 +204,18 @@ export default function PayoutsPage() {
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>
+          <option value="processing">Processing</option>
           <option value="completed">Completed</option>
           <option value="rejected">Rejected</option>
           <option value="failed">Failed</option>
         </select>
       </div>
+
+      {isError && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          Failed to load payouts. Please try refreshing the page.
+        </div>
+      )}
 
       <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No payout requests found." />
 

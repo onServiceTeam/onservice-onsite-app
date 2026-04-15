@@ -3,7 +3,7 @@ import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityInd
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { fileDispute } from '@/services/booking.service';
+import { fileDispute, type DisputeEvidence } from '@/services/booking.service';
 
 const DISPUTE_TYPES = [
   { value: 'no_show', label: 'No Show', desc: 'Provider did not arrive', icon: '🚫' },
@@ -18,12 +18,12 @@ const DISPUTE_TYPES = [
 const EVIDENCE_REQUIRED = new Set(['damage', 'theft']);
 
 export default function DisputeScreen() {
-  const { id: bookingId } = useLocalSearchParams<{ id: string }>();
+  const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
 
   const [disputeType, setDisputeType] = useState('');
   const [description, setDescription] = useState('');
-  const [evidenceUrls] = useState<string[]>([]);
+  const [evidenceUrls] = useState<DisputeEvidence[]>([]);
 
   const mutation = useMutation({
     mutationFn: () => fileDispute({
@@ -39,13 +39,14 @@ export default function DisputeScreen() {
         [{ text: 'OK', onPress: () => router.back() }],
       );
     },
-    onError: (err: Error) => {
-      Alert.alert('Error', err.message);
+    onError: () => {
+      Alert.alert('Error', 'Failed to submit dispute. Please try again or contact support.');
     },
   });
 
   const needsEvidence = EVIDENCE_REQUIRED.has(disputeType);
-  const isValid = !!disputeType && description.length >= 50;
+  const hasValidBooking = !!bookingId && bookingId.length > 0;
+  const isValid = hasValidBooking && !!disputeType && description.length >= 50;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -61,7 +62,7 @@ export default function DisputeScreen() {
         <View style={styles.warningBox}>
           <Text style={styles.warningIcon}>⚠️</Text>
           <Text style={styles.warningText}>
-            Disputes must be filed within 48 hours of job completion. Please provide accurate details.
+            Disputes must be filed within 24 hours of job completion. Please provide accurate details.
           </Text>
         </View>
 
@@ -105,9 +106,11 @@ export default function DisputeScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Evidence {needsEvidence ? '*' : '(optional)'}</Text>
+          <Text style={styles.sectionTitle}>Evidence {needsEvidence ? '(recommended)' : '(optional)'}</Text>
           {needsEvidence && (
-            <Text style={styles.hintWarn}>Photos or videos are strongly recommended for {disputeType} disputes.</Text>
+            <Text style={styles.hintWarn}>
+              Photos or videos strengthen {disputeType} disputes. Evidence upload will be available in the next update — you can submit now and add evidence via support.
+            </Text>
           )}
           <View style={styles.photoGrid}>
             {evidenceUrls.map((_, i) => (

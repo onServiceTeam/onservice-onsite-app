@@ -18,6 +18,14 @@ const STATUS_LABELS: Record<string, string> = {
   completed_by_provider: 'Waiting for customer confirmation',
 };
 
+const STATUS_COLORS: Record<string, string> = {
+  paid: colors.statusConfirmed,
+  provider_en_route: colors.statusInProgress,
+  provider_arrived: colors.statusInProgress,
+  in_progress: colors.statusInProgress,
+  completed_by_provider: colors.statusCompleted,
+};
+
 const NEXT_ACTION: Record<string, { status: string; label: string }> = {
   paid: { status: 'provider_en_route', label: 'Start Navigation' },
   provider_en_route: { status: 'provider_arrived', label: 'I\'ve Arrived' },
@@ -62,7 +70,7 @@ export default function ActiveJobScreen() {
     ]);
   };
 
-  const handleNavigateToJob = () => {
+  const handleNavigateToJob = async () => {
     if (!booking?.latitude || !booking?.longitude) return;
     const lat = booking.latitude;
     const lng = booking.longitude;
@@ -71,7 +79,14 @@ export default function ActiveJobScreen() {
       ios: `maps:0,0?q=${label}@${lat},${lng}`,
       android: `geo:${lat},${lng}?q=${lat},${lng}(${label})`,
     });
-    if (url) void Linking.openURL(url);
+    if (url) {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Navigation', 'Could not open the maps application.');
+      }
+    }
   };
 
   const bookingRegion: Region | undefined = booking?.latitude && booking?.longitude
@@ -134,11 +149,11 @@ export default function ActiveJobScreen() {
 
       <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + spacing.base }]}>
         <View style={styles.statusRow}>
-          <Badge
-            label={booking.status.replace(/_/g, ' ').toUpperCase()}
-            backgroundColor={colors.statusInProgress}
-            size="md"
-          />
+            <Badge
+              label={booking.status.replace(/_/g, ' ').toUpperCase()}
+              backgroundColor={STATUS_COLORS[booking.status] ?? colors.statusInProgress}
+              size="md"
+            />
           <Text style={styles.timeText}>{formatRelative(booking.scheduledAt)}</Text>
         </View>
 
@@ -147,7 +162,7 @@ export default function ActiveJobScreen() {
         </Text>
         <Text style={styles.serviceName}>{booking.serviceName ?? 'Service'}</Text>
         <Text style={styles.addressText} numberOfLines={1}>
-          📍 {booking.address}, {booking.city}
+          📍 {[booking.address, booking.barangay, booking.city].filter(Boolean).join(', ')}
         </Text>
 
         <View style={styles.actionRow}>

@@ -5,6 +5,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as pricingService from './pricing.service';
 import * as slotWaitlistService from './slot-waitlist.service';
+import * as sukiService from './suki.service';
 
 interface BookingRow {
   id: string;
@@ -36,6 +37,7 @@ interface BookingRow {
   surge_amount: number;
   pricing_rule_id: string | null;
   rebooked_from_id: string | null;
+  suki_discount: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -62,7 +64,7 @@ interface CreateBookingParams {
   waitlistId?: string;
 }
 
-function calculateServiceFee(servicePrice: number): number {
+export function calculateServiceFee(servicePrice: number): number {
   const fee = Math.round(servicePrice * platformConfig.serviceFeeRate);
   return Math.max(
     platformConfig.minimumServiceFee,
@@ -93,14 +95,17 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
   const serviceFee = params.bookingType === 'fixed_price' ? calculateServiceFee(servicePrice) : 0;
   const totalAmount = servicePrice + serviceFee;
 
+  const initialStatus = 'requested';
+
   const result = await db.query<BookingRow>(
     `INSERT INTO bookings (
       customer_id, category_id, subcategory_id, booking_type,
       description, address, barangay, city, province,
       latitude, longitude, scheduled_at,
       service_price, service_fee, total_amount,
-      surge_multiplier, surge_amount, pricing_rule_id, rebooked_from_id
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      surge_multiplier, surge_amount, pricing_rule_id, rebooked_from_id,
+      status
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
     RETURNING *`,
     [
       params.customerId,
@@ -122,6 +127,7 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
       surgeAmount,
       pricingRuleId,
       params.rebookedFromId ?? null,
+      initialStatus,
     ],
   );
 
@@ -130,6 +136,7 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
   logger.info('Booking created', {
     bookingId: newBooking.id,
     customerId: params.customerId,
+    status: initialStatus,
     surgeMultiplier,
     surgeAmount,
   });
@@ -304,7 +311,6 @@ export async function transitionBookingStatus(
       updates.push(`completed_at = NOW()`);
     } else if (newStatus === 'confirmed') {
       updates.push(`confirmed_at = NOW()`);
-      updates.push(`escrow_status = 'released'`);
     } else if (newStatus.startsWith('cancelled_')) {
       updates.push(`cancelled_at = NOW()`);
       if (cancellationReason) {
@@ -653,38 +659,45 @@ export async function acceptQuote(bookingId: string, quoteId: string, customerId
   }
 
   const quote = quoteResult.rows[0]!;
-  const serviceFee = Math.max(
-    Math.min(Math.round(quote.quoted_price * platformConfig.serviceFeeRate), platformConfig.maximumServiceFee),
-    platformConfig.minimumServiceFee,
+  const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
+    customerId, quote.provider_id, quote.quoted_price,
   );
-  const totalAmount = quote.quoted_price + serviceFee;
+  const discountedPrice = quote.quoted_price - discountAmount;
+  const serviceFee = calculateServiceFee(discountedPrice);
+  const totalAmount = discountedPrice + serviceFee;
 
-  await db.query(
-    `UPDATE booking_quotes SET is_accepted = TRUE, status = 'accepted', updated_at = NOW()
-     WHERE id = $1`,
-    [quoteId],
-  );
+  return db.transaction(async (client) => {
+    await client.query(
+      `UPDATE booking_quotes SET is_accepted = TRUE, status = 'accepted', updated_at = NOW()
+       WHERE id = $1`,
+      [quoteId],
+    );
 
-  await db.query(
-    `UPDATE booking_quotes SET status = 'declined', updated_at = NOW()
-     WHERE booking_id = $1 AND id != $2 AND status = 'submitted'`,
-    [bookingId, quoteId],
-  );
+    await client.query(
+      `UPDATE booking_quotes SET status = 'declined', updated_at = NOW()
+       WHERE booking_id = $1 AND id != $2 AND status = 'submitted'`,
+      [bookingId, quoteId],
+    );
 
-  await db.query(
-    `UPDATE bookings SET
-       provider_id = $2,
-       service_price = $3,
-       service_fee = $4,
-       total_amount = $5,
-       status = 'payment_pending',
-       updated_at = NOW()
-     WHERE id = $1`,
-    [bookingId, quote.provider_id, quote.quoted_price, serviceFee, totalAmount],
-  );
+    await client.query(
+      `UPDATE bookings SET
+         provider_id = $2,
+         service_price = $3,
+         service_fee = $4,
+         total_amount = $5,
+         suki_discount = $6,
+         status = 'payment_pending',
+         updated_at = NOW()
+       WHERE id = $1`,
+      [bookingId, quote.provider_id, discountedPrice, serviceFee, totalAmount, discountAmount],
+    );
 
-  logger.info('Quote accepted', { bookingId, quoteId, providerId: quote.provider_id });
-  return { quoteId, providerId: quote.provider_id, totalAmount };
+    logger.info('Quote accepted', {
+      bookingId, quoteId, providerId: quote.provider_id,
+      originalPrice: quote.quoted_price, sukiDiscount: discountAmount, totalAmount,
+    });
+    return { quoteId, providerId: quote.provider_id, totalAmount };
+  });
 }
 
 export async function declineQuote(bookingId: string, quoteId: string, customerId: string) {
@@ -837,24 +850,42 @@ export async function respondToChangeOrder(
   const co = coResult.rows[0]!;
   const newStatus = approved ? 'approved' : 'declined';
 
-  await db.query(
-    `UPDATE change_orders SET status = $2, customer_responded_at = NOW(), updated_at = NOW() WHERE id = $1`,
-    [changeOrderId, newStatus],
-  );
-
-  if (approved) {
-    await db.query(
-      `UPDATE bookings SET
-         service_price = service_price + $2,
-         total_amount = total_amount + $2,
-         updated_at = NOW()
-       WHERE id = $1`,
-      [co.booking_id, co.additional_amount],
+  await db.transaction(async (client) => {
+    const updateResult = await client.query(
+      `UPDATE change_orders SET status = $2, customer_responded_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND status = 'pending' RETURNING id`,
+      [changeOrderId, newStatus],
     );
-    logger.info('Change order approved — booking amount updated', { changeOrderId, additionalAmount: co.additional_amount });
-  } else {
-    logger.info('Change order declined', { changeOrderId });
-  }
+    if ((updateResult.rowCount ?? 0) === 0) {
+      throw createAppError('Change order already resolved (concurrent update).', 409);
+    }
+
+    if (approved) {
+      const bookingResult = await client.query<{ service_price: number }>(
+        `SELECT service_price FROM bookings WHERE id = $1 FOR UPDATE`,
+        [co.booking_id],
+      );
+      const currentPrice = bookingResult.rows[0]?.service_price ?? 0;
+      const newServicePrice = currentPrice + co.additional_amount;
+      const newServiceFee = calculateServiceFee(newServicePrice);
+      const newTotalAmount = newServicePrice + newServiceFee;
+
+      await client.query(
+        `UPDATE bookings SET
+           service_price = $2,
+           service_fee = $3,
+           total_amount = $4,
+           updated_at = NOW()
+         WHERE id = $1`,
+        [co.booking_id, newServicePrice, newServiceFee, newTotalAmount],
+      );
+      logger.info('Change order approved — booking amount updated', {
+        changeOrderId, additionalAmount: co.additional_amount, newServicePrice, newServiceFee, newTotalAmount,
+      });
+    } else {
+      logger.info('Change order declined', { changeOrderId });
+    }
+  });
 
   return { id: changeOrderId, status: newStatus };
 }

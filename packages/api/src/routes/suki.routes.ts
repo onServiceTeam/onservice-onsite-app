@@ -4,6 +4,7 @@ import { validationMiddleware } from '../middleware/validation.middleware';
 import { redeemPointsSchema } from '../validators/suki.validators';
 import * as sukiService from '../services/suki.service';
 import { createAppError } from '../middleware/error.middleware';
+import { cacheMiddleware } from '../middleware/cache.middleware';
 import { db } from '../models/db';
 
 const router = Router();
@@ -85,13 +86,14 @@ router.post(
 
 router.get(
   '/tiers',
+  cacheMiddleware(3600),
   async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const tiers = sukiService.getSukiTiers();
       const tiersArray = Object.entries(tiers).map(([name, config]) => ({
         name,
         minBookings: config.minBookings,
-        pointsPerBooking: config.pointsPerPeso,
+        pointsMultiplier: config.pointsPerPeso,
         discount: config.discount,
       }));
       res.json({ success: true, data: tiersArray });

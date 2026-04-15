@@ -100,7 +100,7 @@ export default function BookingFormScreen() {
             <Text style={styles.addressIcon}>📍</Text>
             <Text style={[styles.addressText, !draft.address && styles.addressPlaceholder]}>
               {draft.address
-                ? `${draft.address}${draft.barangay ? `, ${draft.barangay}` : ''}, ${draft.city}`
+                ? [draft.address, draft.barangay, draft.city].filter(Boolean).join(', ')
                 : 'Tap to select your address'}
             </Text>
             <Text style={styles.addressArrow}>›</Text>

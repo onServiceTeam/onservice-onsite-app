@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBookingStore, type BookingDraft } from '@/stores/booking.store';
@@ -57,15 +57,16 @@ export default function CheckoutScreen() {
 
       const description = draft.description.trim().length >= 10
         ? draft.description.trim()
-        : 'Fixed-price service booking via onService app';
+        : `${draft.subcategoryName ?? 'Service'} – ${draft.scheduledDate ?? ''}`.trim();
 
       const booking = await createBooking({
         categoryId: draft.categoryId,
         subcategoryId: draft.subcategoryId,
         bookingType: 'fixed_price',
+        servicePrice: draft.basePrice,
         description,
         address: draft.address,
-        barangay: draft.barangay || 'N/A',
+        barangay: draft.barangay || '',
         city: draft.city ?? '',
         province: draft.province ?? '',
         latitude: draft.latitude ?? undefined,
@@ -73,13 +74,20 @@ export default function CheckoutScreen() {
         scheduledAt,
       });
 
-      await createPaymentIntent(booking.id, selectedMethod);
+      const intent = await createPaymentIntent(booking.id, selectedMethod);
 
       reset();
       router.replace({
         pathname: '/customer/booking/confirm',
         params: { bookingId: booking.id },
       });
+
+      if (selectedMethod !== 'wallet' && intent.checkoutUrl) {
+        const canOpen = await Linking.canOpenURL(intent.checkoutUrl);
+        if (canOpen) {
+          await Linking.openURL(intent.checkoutUrl);
+        }
+      }
     } catch (err: unknown) {
       const axErr = err as { response?: { data?: { error?: { message?: string } } } };
       const msg = axErr?.response?.data?.error?.message;
@@ -189,7 +197,7 @@ export default function CheckoutScreen() {
           title={loading ? 'Processing...' : `Pay ${formatPHP(total)}`}
           onPress={handlePay}
           loading={loading}
-          disabled={!selectedMethod}
+          disabled={!selectedMethod || loading}
         />
       </View>
     </View>

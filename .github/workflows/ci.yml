@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-check:
+    name: API — TypeScript & Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgis/postgis:18-3.5
+        env:
+          POSTGRES_USER: onservice_test
+          POSTGRES_PASSWORD: onservice_test
+          POSTGRES_DB: onservice_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U onservice_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check — API
+        run: npx tsc --noEmit --project packages/api/tsconfig.json
+
+      - name: Run API tests
+        run: npm test --workspace=packages/api
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://onservice_test:onservice_test@localhost:5432/onservice_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          JWT_SECRET: ci-test-secret-do-not-use-in-production
+
+  admin-check:
+    name: Admin — TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check — Admin
+        run: npx tsc --noEmit --project apps/admin/tsconfig.json
+
+      - name: Build Admin
+        run: npm run build --workspace=apps/admin
+
+  mobile-check:
+    name: Mobile — TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check — Mobile
+        run: npx tsc --noEmit --project apps/mobile/tsconfig.json
+
+  docker-build:
+    name: Docker — API Image Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [api-check]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API Docker image
+        run: docker build -f packages/api/Dockerfile -t onservice-api:ci-${{ github.sha }} .
+
+      - name: Verify image starts successfully
+        run: |
+          docker run -d --name api-test \
+            -e NODE_ENV=production \
+            -e PORT=7381 \
+            -e JWT_SECRET=ci-test-secret \
+            -e DATABASE_URL=postgresql://x:x@localhost:5432/x \
+            -e REDIS_HOST=localhost \
+            -p 7381:7381 \
+            onservice-api:ci-${{ github.sha }}
+          sleep 5
+          if ! docker inspect --format='{{.State.Running}}' api-test 2>/dev/null | grep -q true; then
+            echo "ERROR: Container exited unexpectedly"
+            docker logs api-test
+            exit 1
+          fi
+          echo "Container is running — Node.js process started successfully"
+          docker logs api-test
+          docker stop api-test

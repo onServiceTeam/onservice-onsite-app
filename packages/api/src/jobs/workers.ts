@@ -11,6 +11,7 @@ import * as slotWaitlistService from '../services/slot-waitlist.service';
 import * as dataManagementService from '../services/data-management.service';
 import * as securityService from '../services/security.service';
 import * as adminAnalyticsService from '../services/admin-analytics.service';
+import * as disputeService from '../services/dispute.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -54,20 +55,36 @@ async function autoConfirmBookings(): Promise<number> {
   for (const booking of stale.rows) {
     try {
       const updateResult = await db.query(
-        `UPDATE bookings SET status = 'confirmed', confirmed_at = NOW(), escrow_status = 'released', updated_at = NOW()
+        `UPDATE bookings SET status = 'confirmed', confirmed_at = NOW(), updated_at = NOW()
          WHERE id = $1 AND status = 'completed_by_provider'`,
         [booking.id],
       );
 
       if ((updateResult.rowCount ?? 0) === 0) continue;
 
-      await escrowService.releaseEscrow(booking.id);
+      try {
+        await escrowService.releaseEscrow(booking.id);
+      } catch (escrowErr) {
+        await db.query(
+          `UPDATE bookings SET status = 'completed_by_provider', confirmed_at = NULL, updated_at = NOW()
+           WHERE id = $1 AND status = 'confirmed'`,
+          [booking.id],
+        );
+        throw escrowErr;
+      }
 
-      await db.query(
-        `UPDATE bookings SET status = 'payout_ready', updated_at = NOW()
-         WHERE id = $1 AND status = 'confirmed'`,
-        [booking.id],
-      );
+      try {
+        await db.query(
+          `UPDATE bookings SET status = 'payout_ready', updated_at = NOW()
+           WHERE id = $1 AND status = 'confirmed'`,
+          [booking.id],
+        );
+      } catch (statusErr) {
+        logger.error('Post-escrow status update failed — escrow released but booking stuck at confirmed', {
+          bookingId: booking.id,
+          error: statusErr instanceof Error ? statusErr.message : 'Unknown',
+        });
+      }
 
       await notificationService.createNotification({
         userId: booking.customer_id,
@@ -383,10 +400,14 @@ const schedulerWorker = new Worker(
       case 'quality-score-compute':
         results.qualityScoresComputed = await adminAnalyticsService.computeProviderQualityScores(90);
         break;
+      case 'dispute-escalate':
+        results.disputesEscalated = await disputeService.autoEscalateStaleDisputes();
+        break;
       case 'all': {
         results.confirmed = await autoConfirmBookings();
         results.expired = await expireStaleQuotes();
         results.flagged = await detectNoShows();
+        results.disputesEscalated = await disputeService.autoEscalateStaleDisputes();
         break;
       }
       default:
@@ -404,7 +425,10 @@ schedulerWorker.on('failed', (job, err) => {
 });
 
 export async function initScheduledJobs(): Promise<void> {
-  await schedulerQueue.obliterate({ force: true });
+  const existingRepeatableJobs = await schedulerQueue.getRepeatableJobs();
+  for (const job of existingRepeatableJobs) {
+    await schedulerQueue.removeRepeatableByKey(job.key);
+  }
 
   await schedulerQueue.add('all', {}, {
     repeat: { pattern: '*/5 * * * *' },
@@ -478,7 +502,13 @@ export async function initScheduledJobs(): Promise<void> {
     removeOnFail: 10,
   });
 
-  logger.info('Scheduled jobs initialized: auto-confirm/expire-quotes/no-show every 5 min, NBI check daily midnight PHT, bypass detection weekly Sunday midnight PHT, recurring bookings daily 6AM PHT, invoice generation 1st of month midnight PHT, overdue check daily midnight PHT, slot waitlist expiry daily 1AM PHT, data export processing every 10 min, account deletion processing daily 2AM PHT, suspicious IP detection every 5 min, security cleanup monthly 3AM PHT, quality score compute weekly 4AM PHT Monday');
+  await schedulerQueue.add('dispute-escalate', {}, {
+    repeat: { pattern: '0 */6 * * *' },
+    removeOnComplete: 30,
+    removeOnFail: 30,
+  });
+
+  logger.info('Scheduled jobs initialized: auto-confirm/expire-quotes/no-show/dispute-escalate every 5 min (all), NBI check daily midnight PHT, bypass detection weekly Sunday midnight PHT, recurring bookings daily 6AM PHT, invoice generation 1st of month midnight PHT, overdue check daily midnight PHT, slot waitlist expiry daily 1AM PHT, data export processing every 10 min, account deletion processing daily 2AM PHT, suspicious IP detection every 5 min, security cleanup monthly 3AM PHT, quality score compute weekly 4AM PHT Monday, dispute escalation every 6 hours');
 }
 
 export { schedulerWorker };

@@ -1,14 +1,30 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
+import { getBookingById } from '@/services/booking.service';
 import { Button } from '@/components/ui';
+import { formatPHP } from '@/utils/currency';
+import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 export default function BookingConfirmScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
+
+  const { data: booking, isLoading, isError } = useQuery({
+    queryKey: ['bookingDetail', bookingId],
+    queryFn: () => getBookingById(bookingId ?? ''),
+    enabled: !!bookingId,
+  });
+
+  const isPaid = booking?.status === 'paid' || booking?.escrowStatus === 'held';
+  const titleText = isPaid ? 'Booking Confirmed!' : 'Booking Submitted!';
+  const subtitleText = isPaid
+    ? 'Your payment is secured. We\'re finding the best provider for you.'
+    : 'Complete your payment to confirm this booking.';
 
   return (
     <View
@@ -22,16 +38,50 @@ export default function BookingConfirmScreen() {
           <Text style={styles.checkmark}>✓</Text>
         </View>
 
-        <Text style={styles.title}>Booking Confirmed!</Text>
-        <Text style={styles.subtitle}>
-          Your booking has been submitted successfully.{'\n'}
-          We're finding the best provider for you.
-        </Text>
+        <Text style={styles.title}>{titleText}</Text>
+        <Text style={styles.subtitle}>{subtitleText}</Text>
 
         {bookingId && (
           <View style={styles.bookingIdCard}>
             <Text style={styles.bookingIdLabel}>Booking ID</Text>
             <Text style={styles.bookingIdValue}>#{bookingId.slice(0, 8).toUpperCase()}</Text>
+          </View>
+        )}
+
+        {isLoading && <ActivityIndicator size="small" color={colors.primary} style={{ marginBottom: spacing.lg }} />}
+
+        {isError && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>
+              Could not load booking details. Your booking was created — check My Bookings.
+            </Text>
+          </View>
+        )}
+
+        {booking && (
+          <View style={styles.detailsCard}>
+            {booking.categoryName && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Service</Text>
+                <Text style={styles.detailValue}>{booking.categoryName}</Text>
+              </View>
+            )}
+            {booking.scheduledAt && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Scheduled</Text>
+                <Text style={styles.detailValue}>{formatDate(booking.scheduledAt)}</Text>
+              </View>
+            )}
+            {booking.address && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Location</Text>
+                <Text style={styles.detailValue} numberOfLines={2}>{booking.address}</Text>
+              </View>
+            )}
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Total</Text>
+              <Text style={[styles.detailValue, { fontWeight: '700' }]}>{formatPHP(booking.totalAmount)}</Text>
+            </View>
           </View>
         )}
 
@@ -70,7 +120,11 @@ export default function BookingConfirmScreen() {
         <Button
           title="View Booking"
           onPress={() => {
-            router.replace('/(tabs)/bookings');
+            if (bookingId) {
+              router.replace(`/customer/booking/${bookingId}` as never);
+            } else {
+              router.replace('/(tabs)/bookings');
+            }
           }}
           style={styles.primaryAction}
         />
@@ -127,8 +181,32 @@ const styles = StyleSheet.create({
   bookingIdLabel: { ...typography.caption, color: colors.primary },
   bookingIdValue: { ...typography.h3, color: colors.primary, marginTop: 2 },
 
+  errorBanner: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: borderRadius.md,
+    padding: spacing.base,
+    width: '100%',
+    marginBottom: spacing.lg,
+  },
+  errorText: { ...typography.bodySmall, color: '#991B1B', textAlign: 'center' as const },
+
+  detailsCard: {
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.base,
+    width: '100%',
+    marginBottom: spacing.lg,
+  },
+  detailRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    paddingVertical: spacing.xs,
+  },
+  detailLabel: { ...typography.bodySmall, color: colors.textSecondary },
+  detailValue: { ...typography.bodySmall, color: colors.text, textAlign: 'right' as const, maxWidth: '60%' },
+
   infoCard: {
-    flexDirection: 'row',
+    flexDirection: 'row' as const,
     backgroundColor: '#F0FDF4',
     padding: spacing.base,
     borderRadius: borderRadius.md,

@@ -44,7 +44,12 @@ export default function OTPVerifyScreen() {
       } else {
         await verifyOtp(params.phone, otp);
       }
-      router.replace('/(tabs)/home');
+      const { user } = useAuthStore.getState();
+      if (user?.role === 'provider') {
+        router.replace('/(provider-tabs)/dashboard');
+      } else {
+        router.replace('/(tabs)/home');
+      }
     } catch (err: unknown) {
       setError(true);
       const axErr = err as { response?: { data?: { error?: { message?: string } } } };

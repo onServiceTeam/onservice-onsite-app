@@ -94,6 +94,16 @@ export const platformConfig = {
   loginAttemptRetentionDays: 90,
   adminSessionTimeoutHours: 8,
 
+  // --- Suki Loyalty Tiers ---
+  sukiTiers: {
+    new: { minBookings: 0, discount: 0, pointsPerPeso: 1 },
+    regular: { minBookings: 3, discount: 3, pointsPerPeso: 1.5 },
+    suki: { minBookings: 10, discount: 5, pointsPerPeso: 2 },
+    super_suki: { minBookings: 25, discount: 10, pointsPerPeso: 3 },
+  } as Record<string, { minBookings: number; discount: number; pointsPerPeso: number }>,
+  sukiPointsRedemptionRate: 100,
+  sukiTierUpBonusPoints: 50,
+
   // --- Cache TTLs (seconds) ---
   cacheTtl: {
     categories: 86400,

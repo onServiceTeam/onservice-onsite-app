@@ -1,6 +1,9 @@
 import { MMKV } from 'react-native-mmkv';
+import Constants from 'expo-constants';
 
-const ENCRYPTION_KEY = 'onservice-secure-v1';
+const ENCRYPTION_KEY = (Constants.expoConfig?.extra?.mmkvEncryptionKey as string | undefined)
+  ?? process.env.EXPO_PUBLIC_MMKV_KEY
+  ?? 'onservice-dev-only-key';
 
 const secureStorage = new MMKV({
   id: 'onservice-secure',

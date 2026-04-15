@@ -113,7 +113,7 @@ function QuoteCard({ quote, onAccept, onDecline, isPending }: {
 }
 
 export default function QuotesScreen() {
-  const { id: bookingId } = useLocalSearchParams<{ id: string }>();
+  const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: quotes, isLoading, isError, refetch } = useQuery({

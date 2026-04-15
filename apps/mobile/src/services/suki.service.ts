@@ -27,7 +27,7 @@ export interface SukiReward {
 export interface SukiTier {
   name: string;
   minBookings: number;
-  pointsPerBooking: number;
+  pointsMultiplier: number;
   discount: number;
 }
 

@@ -171,7 +171,9 @@ export default function JobRequestScreen() {
           <Text style={styles.sectionTitle}>Location</Text>
           <View style={styles.addressCard}>
             <Text style={styles.addressText}>
-              {draft.address ?? 'No address selected'}
+              {draft.address
+                ? [draft.address, draft.barangay, draft.city, draft.province].filter(Boolean).join(', ')
+                : 'No address selected'}
             </Text>
           </View>
         </View>

@@ -14,6 +14,10 @@ describe('Booking State Machine', () => {
       expect(canTransition('requested', 'cancelled_by_customer')).toBe(true);
     });
 
+    it('should allow requested → payment_pending (fixed-price instant-pay)', () => {
+      expect(canTransition('requested', 'payment_pending')).toBe(true);
+    });
+
     it('should allow matched → payment_pending', () => {
       expect(canTransition('matched', 'payment_pending')).toBe(true);
     });
@@ -116,6 +120,18 @@ describe('Booking State Machine', () => {
 
       for (let i = 0; i < happyPath.length - 1; i++) {
         expect(canTransition(happyPath[i]!, happyPath[i + 1]!)).toBe(true);
+      }
+    });
+
+    it('should follow the fixed-price instant-pay path: requested → payment_pending → paid_out', () => {
+      const fixedPath: BookingStatus[] = [
+        'requested', 'payment_pending', 'paid',
+        'provider_en_route', 'provider_arrived', 'in_progress',
+        'completed_by_provider', 'confirmed', 'payout_ready', 'paid_out',
+      ];
+
+      for (let i = 0; i < fixedPath.length - 1; i++) {
+        expect(canTransition(fixedPath[i]!, fixedPath[i + 1]!)).toBe(true);
       }
     });
 

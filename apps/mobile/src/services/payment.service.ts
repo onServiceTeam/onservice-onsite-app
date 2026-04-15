@@ -4,11 +4,14 @@ import type { ApiResponse } from './api';
 export interface PaymentIntent {
   id: string;
   bookingId: string;
+  paymongoIntentId: string | null;
   amount: number;
   currency: string;
   status: string;
   paymentMethod: string;
+  clientKey: string | null;
   checkoutUrl: string | null;
+  createdAt: string;
 }
 
 export interface WalletBalance {

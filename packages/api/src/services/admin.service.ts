@@ -173,59 +173,95 @@ export async function listProviders(
 }
 
 export async function approveProvider(providerId: string, adminId: string): Promise<void> {
-  const result = await db.query(
-    `UPDATE providers SET status = 'approved', updated_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING id`,
-    [providerId],
-  );
-  if (result.rowCount === 0) throw createAppError('Provider not found or not in pending status.', 404);
-
-  await db.query(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-     VALUES ($1, 'provider_approved', 'provider', $2, '{"action":"approved"}'::jsonb)`,
-    [adminId, providerId],
-  );
-
-  interface UserIdRow { user_id: string }
-  const provider = await db.query<UserIdRow>(`SELECT user_id FROM providers WHERE id = $1`, [providerId]);
-  if (provider.rows[0]) {
-    await db.query(
-      `INSERT INTO notifications (user_id, type, title, body, data)
-       VALUES ($1, 'tier_upgrade', 'Account Approved', 'Congratulations! Your provider account has been approved. You can now start accepting jobs.', $2)`,
-      [provider.rows[0].user_id, JSON.stringify({ providerId })],
+  await db.transaction(async (client) => {
+    const result = await client.query(
+      `UPDATE providers SET status = 'approved', updated_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING id`,
+      [providerId],
     );
-  }
+    if (result.rowCount === 0) throw createAppError('Provider not found or not in pending status.', 404);
+
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'provider_approved', 'provider', $2, '{"action":"approved"}'::jsonb)`,
+      [adminId, providerId],
+    );
+
+    interface UserIdRow { user_id: string }
+    const provider = await client.query<UserIdRow>(`SELECT user_id FROM providers WHERE id = $1`, [providerId]);
+    if (provider.rows[0]) {
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, body, data)
+         VALUES ($1, 'tier_upgrade', 'Account Approved', 'Congratulations! Your provider account has been approved. You can now start accepting jobs.', $2)`,
+        [provider.rows[0].user_id, JSON.stringify({ providerId })],
+      );
+    }
+  });
 
   logger.info('Provider approved', { providerId, adminId });
 }
 
-export async function suspendProvider(providerId: string, adminId: string, reason: string): Promise<void> {
-  const result = await db.query(
-    `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1 AND status IN ('approved', 'pending') RETURNING id`,
-    [providerId],
-  );
-  if (result.rowCount === 0) throw createAppError('Provider not found or already suspended.', 404);
+export async function rejectProvider(providerId: string, adminId: string, reason: string): Promise<void> {
+  await db.transaction(async (client) => {
+    const result = await client.query(
+      `UPDATE providers SET status = 'rejected', updated_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING id`,
+      [providerId],
+    );
+    if (result.rowCount === 0) throw createAppError('Provider not found or not in pending status.', 404);
 
-  await db.query(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-     VALUES ($1, 'provider_suspended', 'provider', $2, $3, $4)`,
-    [adminId, providerId, JSON.stringify({ action: 'suspended' }), reason],
-  );
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
+       VALUES ($1, 'provider_rejected', 'provider', $2, '{"action":"rejected"}'::jsonb, $3)`,
+      [adminId, providerId, reason],
+    );
+
+    interface UserIdRow { user_id: string }
+    const provider = await client.query<UserIdRow>(`SELECT user_id FROM providers WHERE id = $1`, [providerId]);
+    if (provider.rows[0]) {
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, body, data)
+         VALUES ($1, 'provider_rejected', 'Application Declined', $2, $3)`,
+        [provider.rows[0].user_id,
+         `Your provider application has been declined. Reason: ${reason}. Please contact support for more information.`,
+         JSON.stringify({ providerId, reason })],
+      );
+    }
+  });
+
+  logger.info('Provider rejected', { providerId, adminId, reason });
+}
+
+export async function suspendProvider(providerId: string, adminId: string, reason: string): Promise<void> {
+  await db.transaction(async (client) => {
+    const result = await client.query(
+      `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1 AND status IN ('approved', 'pending') RETURNING id`,
+      [providerId],
+    );
+    if (result.rowCount === 0) throw createAppError('Provider not found or already suspended.', 404);
+
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
+       VALUES ($1, 'provider_suspended', 'provider', $2, $3, $4)`,
+      [adminId, providerId, JSON.stringify({ action: 'suspended' }), reason],
+    );
+  });
 
   logger.info('Provider suspended', { providerId, adminId, reason });
 }
 
 export async function reactivateProvider(providerId: string, adminId: string): Promise<void> {
-  const result = await db.query(
-    `UPDATE providers SET status = 'approved', updated_at = NOW() WHERE id = $1 AND status = 'suspended' RETURNING id`,
-    [providerId],
-  );
-  if (result.rowCount === 0) throw createAppError('Provider not found or not suspended.', 404);
+  await db.transaction(async (client) => {
+    const result = await client.query(
+      `UPDATE providers SET status = 'approved', updated_at = NOW() WHERE id = $1 AND status = 'suspended' RETURNING id`,
+      [providerId],
+    );
+    if (result.rowCount === 0) throw createAppError('Provider not found or not suspended.', 404);
 
-  await db.query(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-     VALUES ($1, 'provider_reactivated', 'provider', $2, '{"action":"reactivated"}'::jsonb)`,
-    [adminId, providerId],
-  );
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'provider_reactivated', 'provider', $2, '{"action":"reactivated"}'::jsonb)`,
+      [adminId, providerId],
+    );
+  });
 
   logger.info('Provider reactivated', { providerId, adminId });
 }
@@ -241,16 +277,18 @@ export async function changeProviderTier(
   if (current.rows.length === 0) throw createAppError('Provider not found.', 404);
   const oldTier = current.rows[0]!.tier;
 
-  await db.query(
-    `UPDATE providers SET tier = $1, updated_at = NOW() WHERE id = $2`,
-    [newTier, providerId],
-  );
+  await db.transaction(async (client) => {
+    await client.query(
+      `UPDATE providers SET tier = $1, updated_at = NOW() WHERE id = $2`,
+      [newTier, providerId],
+    );
 
-  await db.query(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-     VALUES ($1, 'provider_tier_changed', 'provider', $2, $3, $4)`,
-    [adminId, providerId, JSON.stringify({ oldTier, newTier }), reason],
-  );
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
+       VALUES ($1, 'provider_tier_changed', 'provider', $2, $3, $4)`,
+      [adminId, providerId, JSON.stringify({ oldTier, newTier }), reason],
+    );
+  });
 
   logger.info('Provider tier changed', { providerId, adminId, oldTier, newTier });
 }

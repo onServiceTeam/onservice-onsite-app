@@ -198,7 +198,7 @@ export default function SukiProsScreen() {
                         {TIER_DISPLAY[tier.name] ?? tier.name}
                       </Text>
                       <Text style={styles.tierReq}>
-                        {tier.minBookings}+ bookings • {tier.pointsPerBooking} pts/booking
+                        {tier.minBookings}+ bookings • {tier.pointsMultiplier}x points
                         {tier.discount > 0 ? ` • ${tier.discount}% off` : ''}
                       </Text>
                     </View>

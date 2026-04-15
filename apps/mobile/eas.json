@@ -8,22 +8,28 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://localhost:7381"
+        "EXPO_PUBLIC_API_URL": "http://localhost:7381",
+        "EXPO_PUBLIC_ENV": "development"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://staging-api.onservice.ph"
+        "EXPO_PUBLIC_API_URL": "https://staging-api.onservice.ph",
+        "EXPO_PUBLIC_ENV": "staging"
       },
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.onservice.ph"
+        "EXPO_PUBLIC_API_URL": "https://api.onservice.ph",
+        "EXPO_PUBLIC_ENV": "production"
       },
       "android": {
         "buildType": "app-bundle"
@@ -34,10 +40,17 @@
     }
   },
   "submit": {
-    "production": {
+    "preview": {
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
         "track": "internal"
+      }
+    },
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "production",
+        "releaseStatus": "draft"
       },
       "ios": {
         "appleId": "APPLE_ID_HERE",

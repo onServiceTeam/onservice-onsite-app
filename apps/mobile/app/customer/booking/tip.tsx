@@ -139,7 +139,7 @@ export default function TipScreen() {
           title={loading ? 'Sending...' : `Send Tip${tipAmount > 0 ? ` • ${formatPHP(tipAmount)}` : ''}`}
           onPress={handleSendTip}
           loading={loading}
-          disabled={tipAmount <= 0}
+          disabled={tipAmount <= 0 || loading}
         />
         <Button
           title="Maybe Later"

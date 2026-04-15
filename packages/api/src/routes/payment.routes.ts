@@ -93,6 +93,17 @@ router.get(
       const bookingId = req.params['bookingId'];
       if (typeof bookingId !== 'string' || !bookingId) throw createAppError('Booking ID is required.', 400);
 
+      const role = req.user!.role;
+      if (role !== 'admin' && role !== 'super_admin') {
+        const bookingOwner = await db.query<{ customer_id: string }>(
+          `SELECT customer_id FROM bookings WHERE id = $1`, [bookingId],
+        );
+        if (!bookingOwner.rows[0]) throw createAppError('Booking not found.', 404);
+        if (bookingOwner.rows[0].customer_id !== req.user!.userId) {
+          throw createAppError('You do not have access to this payment.', 403);
+        }
+      }
+
       const intent = await paymentService.getBookingPaymentIntent(bookingId);
       if (!intent) throw createAppError('No payment found for this booking.', 404);
 

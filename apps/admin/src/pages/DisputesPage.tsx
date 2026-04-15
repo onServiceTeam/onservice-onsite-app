@@ -63,8 +63,9 @@ export default function DisputesPage() {
   const [resolutionType, setResolutionType] = useState('');
   const [refundPercent, setRefundPercent] = useState('');
   const [decisionNotes, setDecisionNotes] = useState('');
+  const [internalNotes, setInternalNotes] = useState('');
   const [actionError, setActionError] = useState('');
-  const [actionType, setActionType] = useState<'resolve' | 'escalate' | 'assign' | null>(null);
+  const [actionType, setActionType] = useState<'resolve' | 'escalate' | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['adminDisputes', page, statusFilter, tierFilter, search],
@@ -86,13 +87,12 @@ export default function DisputesPage() {
           resolutionType,
           refundPercent: refundPercent ? Number(refundPercent) : undefined,
           decisionNotes,
+          internalNotes: internalNotes.trim() || undefined,
         });
       } else if (actionType === 'escalate') {
         await api.post(`/api/v1/disputes/${selectedDispute.id}/escalate`, {
           reason: decisionNotes,
         });
-      } else if (actionType === 'assign') {
-        await api.put(`/api/v1/disputes/${selectedDispute.id}/assign`, {});
       }
     },
     onSuccess: () => {
@@ -108,6 +108,7 @@ export default function DisputesPage() {
     setResolutionType('');
     setRefundPercent('');
     setDecisionNotes('');
+    setInternalNotes('');
     setActionError('');
   }
 
@@ -329,6 +330,19 @@ export default function DisputesPage() {
               />
             </div>
 
+            {actionType === 'resolve' && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Internal Notes (optional)</label>
+                <textarea
+                  value={internalNotes}
+                  onChange={(e) => setInternalNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Notes visible only to admins (not shared with customer or provider)"
+                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none bg-amber-50/50 focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+                />
+              </div>
+            )}
+
             <div className="flex gap-2 justify-end">
               <button
                 onClick={closeModal}
@@ -341,7 +355,9 @@ export default function DisputesPage() {
                 disabled={
                   resolveMutation.isPending ||
                   !decisionNotes.trim() ||
-                  (actionType === 'resolve' && !resolutionType)
+                  decisionNotes.trim().length < 10 ||
+                  (actionType === 'resolve' && !resolutionType) ||
+                  (actionType === 'resolve' && (resolutionType === 'partial_refund' || resolutionType === 'split_decision') && (!refundPercent || Number(refundPercent) < 1 || Number(refundPercent) > 100))
                 }
                 className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
               >

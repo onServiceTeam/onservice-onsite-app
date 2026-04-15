@@ -19,7 +19,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 const ACTIVE_STATUSES = new Set([
   'matched', 'paid', 'provider_en_route', 'provider_arrived', 'in_progress',
 ]);
-const COMPLETED_STATUSES = new Set(['completed_by_provider', 'confirmed', 'payout_ready', 'paid_out']);
+const COMPLETED_STATUSES = new Set(['completed_by_provider', 'confirmed', 'payout_ready', 'paid_out', 'resolved']);
 const NEEDS_CONFIRMATION = 'completed_by_provider';
 
 function getStatusColor(status: string): string {
@@ -61,6 +61,9 @@ export default function BookingDetailScreen() {
 
   const isActive = ACTIVE_STATUSES.has(booking.status);
   const needsConfirmation = booking.status === NEEDS_CONFIRMATION;
+  const canViewQuotes = booking.bookingType === 'quote_based' && ['requested', 'quoted'].includes(booking.status);
+  const canViewChangeOrders = ['in_progress', 'completed_by_provider', 'confirmed'].includes(booking.status);
+  const canFileDispute = ['completed_by_provider', 'confirmed'].includes(booking.status);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -95,7 +98,7 @@ export default function BookingDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Location</Text>
           <Text style={styles.detailText}>
-            {booking.address}{booking.barangay ? `, ${booking.barangay}` : ''}, {booking.city}
+            {[booking.address, booking.barangay, booking.city].filter(Boolean).join(', ')}
           </Text>
         </View>
 
@@ -121,8 +124,16 @@ export default function BookingDetailScreen() {
           <Text style={styles.receiptTitle}>Receipt</Text>
           <View style={styles.receiptRow}>
             <Text style={styles.receiptLabel}>Service Price</Text>
-            <Text style={styles.receiptValue}>{formatPHP(booking.servicePrice)}</Text>
+            <Text style={styles.receiptValue}>
+              {formatPHP(booking.servicePrice + (booking.sukiDiscount ?? 0))}
+            </Text>
           </View>
+          {(booking.sukiDiscount ?? 0) > 0 && (
+            <View style={styles.receiptRow}>
+              <Text style={[styles.receiptLabel, { color: '#16a34a' }]}>Suki Discount</Text>
+              <Text style={[styles.receiptValue, { color: '#16a34a' }]}>-{formatPHP(booking.sukiDiscount)}</Text>
+            </View>
+          )}
           <View style={styles.receiptRow}>
             <Text style={styles.receiptLabel}>Platform Fee</Text>
             <Text style={styles.receiptValue}>{formatPHP(booking.serviceFee)}</Text>
@@ -151,6 +162,12 @@ export default function BookingDetailScreen() {
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
+        {canViewQuotes && (
+          <Button
+            title="View Quotes"
+            onPress={() => router.push(`/customer/booking/quotes?bookingId=${id}` as never)}
+          />
+        )}
         {isActive && (
           <Button
             title="Track Booking"
@@ -163,12 +180,26 @@ export default function BookingDetailScreen() {
             onPress={() => router.push(`/customer/booking/complete?bookingId=${id}` as never)}
           />
         )}
+        {canViewChangeOrders && (
+          <Button
+            title="View Change Orders"
+            onPress={() => router.push(`/customer/booking/change-order?bookingId=${id}` as never)}
+            variant="outline"
+          />
+        )}
         {(isActive || needsConfirmation) && booking.providerId && (
           <Button
             title="Chat with Provider"
             onPress={() => router.push(`/customer/chat/${booking.id}` as never)}
             variant="outline"
             style={styles.chatButton}
+          />
+        )}
+        {canFileDispute && (
+          <Button
+            title="File a Dispute"
+            onPress={() => router.push(`/customer/booking/dispute?bookingId=${id}` as never)}
+            variant="ghost"
           />
         )}
         {COMPLETED_STATUSES.has(booking.status) && booking.status !== 'completed_by_provider' && (

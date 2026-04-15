@@ -20,7 +20,15 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "loadtest:smoke": "k6 run load-tests/full-suite.js -e PROFILE=smoke",
+    "loadtest:load": "k6 run load-tests/full-suite.js -e PROFILE=load",
+    "loadtest:stress": "k6 run load-tests/full-suite.js -e PROFILE=stress",
+    "loadtest:soak": "k6 run load-tests/full-suite.js -e PROFILE=soak",
+    "loadtest:auth": "k6 run load-tests/scenarios/auth.js -e PROFILE=load",
+    "loadtest:bookings": "k6 run load-tests/scenarios/booking-flow.js -e PROFILE=load",
+    "loadtest:catalog": "k6 run load-tests/scenarios/catalog-search.js -e PROFILE=load",
+    "loadtest:payments": "k6 run load-tests/scenarios/payment-webhook.js -e PROFILE=load"
   },
   "engines": {
     "node": ">=24.0.0"

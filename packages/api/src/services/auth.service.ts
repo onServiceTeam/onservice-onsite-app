@@ -72,7 +72,7 @@ function signAccessToken(userId: string, role: string): string {
   if (!secret) throw new Error('JWT_SECRET is not configured');
 
   const duration = process.env.JWT_ACCESS_EXPIRES_IN || platformConfig.jwtExpiresIn;
-  return jwt.sign({ userId, role }, secret, { expiresIn: parseDurationToSeconds(duration) });
+  return jwt.sign({ userId, role }, secret, { algorithm: 'HS256', expiresIn: parseDurationToSeconds(duration) });
 }
 
 function signRefreshToken(userId: string, role: string): string {
@@ -80,7 +80,7 @@ function signRefreshToken(userId: string, role: string): string {
   if (!secret) throw new Error('JWT_SECRET is not configured');
 
   const duration = process.env.JWT_REFRESH_EXPIRES_IN || platformConfig.jwtRefreshExpiresIn;
-  return jwt.sign({ userId, role, type: 'refresh' }, secret, { expiresIn: parseDurationToSeconds(duration) });
+  return jwt.sign({ userId, role, type: 'refresh' }, secret, { algorithm: 'HS256', expiresIn: parseDurationToSeconds(duration) });
 }
 
 function parseDurationToSeconds(duration: string): number {

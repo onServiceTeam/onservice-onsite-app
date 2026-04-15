@@ -1,13 +1,42 @@
 import axios from 'axios';
 import { platformConfig } from '@/config/platform.config';
 
-const memoryStore = new Map<string, string | boolean>();
+let mmkvInstance: { getString: (k: string) => string | undefined; set: (k: string, v: string | boolean) => void; delete: (k: string) => void; getBoolean: (k: string) => boolean | undefined } | null = null;
+
+function initStorage(): void {
+  if (mmkvInstance) return;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { MMKV } = require('react-native-mmkv');
+    mmkvInstance = new MMKV({ id: 'onservice-auth', encryptionKey: undefined });
+  } catch {
+    // Fallback for environments where MMKV is unavailable (tests, SSR)
+  }
+}
+
+const fallbackStore = new Map<string, string | boolean>();
 
 export const storage = {
-  getString: (key: string): string | undefined => memoryStore.get(key) as string | undefined,
-  set: (key: string, value: string | boolean): void => { memoryStore.set(key, value); },
-  delete: (key: string): void => { memoryStore.delete(key); },
-  getBoolean: (key: string): boolean | undefined => memoryStore.get(key) as boolean | undefined,
+  getString: (key: string): string | undefined => {
+    initStorage();
+    if (mmkvInstance) return mmkvInstance.getString(key);
+    return fallbackStore.get(key) as string | undefined;
+  },
+  set: (key: string, value: string | boolean): void => {
+    initStorage();
+    if (mmkvInstance) { mmkvInstance.set(key, value); return; }
+    fallbackStore.set(key, value);
+  },
+  delete: (key: string): void => {
+    initStorage();
+    if (mmkvInstance) { mmkvInstance.delete(key); return; }
+    fallbackStore.delete(key);
+  },
+  getBoolean: (key: string): boolean | undefined => {
+    initStorage();
+    if (mmkvInstance) return mmkvInstance.getBoolean(key);
+    return fallbackStore.get(key) as boolean | undefined;
+  },
 };
 
 const api = axios.create({

@@ -30,6 +30,28 @@ function getParamId(req: AuthenticatedRequest): string {
   return id;
 }
 
+interface BookingOwnerRow { customer_id: string; provider_id: string | null }
+
+async function verifyBookingAccess(bookingId: string, userId: string, role: string): Promise<void> {
+  if (role === 'admin' || role === 'super_admin') return;
+  const result = await db.query<BookingOwnerRow>(
+    `SELECT customer_id, provider_id FROM bookings WHERE id = $1`,
+    [bookingId],
+  );
+  const booking = result.rows[0];
+  if (!booking) throw createAppError('Booking not found.', 404);
+
+  const providerResult = await db.query<{ id: string }>(
+    `SELECT id FROM providers WHERE user_id = $1`,
+    [userId],
+  );
+  const providerId = providerResult.rows[0]?.id;
+
+  if (booking.customer_id !== userId && booking.provider_id !== providerId) {
+    throw createAppError('You do not have access to this booking.', 403);
+  }
+}
+
 const router = Router();
 
 interface BookingRow {
@@ -62,6 +84,7 @@ interface BookingRow {
   surge_amount: number;
   pricing_rule_id: string | null;
   rebooked_from_id: string | null;
+  suki_discount: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -102,6 +125,7 @@ function formatBookingResponse(b: BookingRow) {
     surgeAmount: row.surge_amount ?? 0,
     pricingRuleId: row.pricing_rule_id ?? null,
     rebookedFromId: row.rebooked_from_id ?? null,
+    sukiDiscount: row.suki_discount ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     categoryName: row.category_name ?? null,
@@ -348,11 +372,28 @@ router.patch(
         req.body.cancellationReason,
       );
 
-      if (newStatus === 'confirmed' && booking.escrow_status === 'released') {
+      if (newStatus === 'confirmed' && booking.escrow_status === 'held') {
+        let escrowReleased = false;
         try {
           await escrowService.releaseEscrow(id);
+          escrowReleased = true;
+          await db.query(
+            `UPDATE bookings SET status = 'payout_ready', updated_at = NOW() WHERE id = $1`,
+            [id],
+          );
         } catch (escrowErr) {
-          logger.error('Escrow release failed during confirmation', {
+          if (!escrowReleased) {
+            logger.error('Escrow release failed during confirmation — rolling back to completed_by_provider', {
+              bookingId: id,
+              error: escrowErr instanceof Error ? escrowErr.message : 'Unknown',
+            });
+            await db.query(
+              `UPDATE bookings SET status = 'completed_by_provider', confirmed_at = NULL, updated_at = NOW() WHERE id = $1`,
+              [id],
+            );
+            throw escrowErr;
+          }
+          logger.error('Post-escrow status update failed — escrow released but booking stuck at confirmed', {
             bookingId: id,
             error: escrowErr instanceof Error ? escrowErr.message : 'Unknown',
           });
@@ -499,16 +540,35 @@ router.post(
 
       const provider = providerResult.rows[0]!;
 
-      await db.query(
-        `UPDATE bookings SET provider_id = $1, status = 'matched', updated_at = NOW() WHERE id = $2`,
-        [providerId, id],
+      const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
+        booking.customer_id, providerId, booking.service_price,
       );
+      let notificationAmount = booking.total_amount;
+      if (discountAmount > 0) {
+        const newPrice = booking.service_price - discountAmount;
+        const newFee = bookingService.calculateServiceFee(newPrice);
+        const newTotal = newPrice + newFee;
+        notificationAmount = newTotal;
+        await db.query(
+          `UPDATE bookings SET
+             provider_id = $1, status = 'matched',
+             service_price = $3, service_fee = $4, total_amount = $5, suki_discount = $6,
+             updated_at = NOW()
+           WHERE id = $2`,
+          [providerId, id, newPrice, newFee, newTotal, discountAmount],
+        );
+      } else {
+        await db.query(
+          `UPDATE bookings SET provider_id = $1, status = 'matched', updated_at = NOW() WHERE id = $2`,
+          [providerId, id],
+        );
+      }
 
       await notificationService.notifyProviderNewJob(
         provider.user_id,
         id,
         booking.description.slice(0, 50),
-        booking.total_amount,
+        notificationAmount,
         booking.city,
       );
 
@@ -555,6 +615,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = getParamId(req);
+      await verifyBookingAccess(id, req.user!.userId, req.user!.role);
       const quotes = await bookingService.getBookingQuotes(id);
       res.json({ success: true, data: quotes });
     } catch (error) {
@@ -616,6 +677,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = getParamId(req);
+      await verifyBookingAccess(id, req.user!.userId, req.user!.role);
       const orders = await bookingService.getChangeOrders(id);
       res.json({ success: true, data: orders });
     } catch (error) {

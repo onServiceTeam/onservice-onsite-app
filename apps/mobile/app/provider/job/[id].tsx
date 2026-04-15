@@ -38,7 +38,7 @@ const STATUS_LABELS: Record<string, string> = {
 function getStatusColor(status: string): string {
   if (['matched', 'paid', 'payment_pending'].includes(status)) return colors.statusConfirmed;
   if (['provider_en_route', 'provider_arrived', 'in_progress'].includes(status)) return colors.statusInProgress;
-  if (['completed_by_provider', 'confirmed', 'payout_ready', 'paid_out'].includes(status)) return colors.statusCompleted;
+  if (['completed_by_provider', 'confirmed', 'payout_ready', 'paid_out', 'resolved'].includes(status)) return colors.statusCompleted;
   if (status.startsWith('cancelled')) return colors.statusCancelled;
   if (status === 'disputed') return colors.statusDisputed;
   return colors.statusPending;
@@ -113,7 +113,7 @@ export default function ProviderJobDetailScreen() {
     ]);
   };
 
-  const handleNavigate = () => {
+  const handleNavigate = async () => {
     if (!booking?.latitude || !booking?.longitude) {
       Alert.alert('No Location', 'No GPS coordinates available for this job.');
       return;
@@ -125,7 +125,14 @@ export default function ProviderJobDetailScreen() {
       ios: `maps:0,0?q=${label}@${lat},${lng}`,
       android: `geo:${lat},${lng}?q=${lat},${lng}(${label})`,
     });
-    if (url) void Linking.openURL(url);
+    if (url) {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Navigation', 'Could not open the maps application.');
+      }
+    }
   };
 
   if (isLoading) {
@@ -148,6 +155,8 @@ export default function ProviderJobDetailScreen() {
   const nextAction = NEXT_STATUS[booking.status];
   const canCancel = ['matched', 'paid'].includes(booking.status);
   const isActiveJob = ['paid', 'provider_en_route', 'provider_arrived', 'in_progress'].includes(booking.status);
+  const canSubmitQuote = booking.bookingType === 'quote_based' && booking.status === 'requested';
+  const canSubmitChangeOrder = booking.status === 'in_progress';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -187,7 +196,7 @@ export default function ProviderJobDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Location</Text>
           <Text style={styles.detailText}>
-            {booking.address}{booking.barangay !== 'N/A' ? `, ${booking.barangay}` : ''}, {booking.city}
+            {[booking.address, booking.barangay, booking.city].filter(Boolean).join(', ')}
           </Text>
           {booking.latitude && booking.longitude && (
             <TouchableOpacity onPress={handleNavigate} style={styles.navigateButton}>
@@ -201,24 +210,41 @@ export default function ProviderJobDetailScreen() {
           <Text style={styles.sectionTitle}>Earnings</Text>
           <View style={styles.earningsRow}>
             <Text style={styles.earningsLabel}>Service Price</Text>
-            <Text style={styles.earningsValue}>{formatPHP(booking.servicePrice)}</Text>
+            <Text style={styles.earningsValue}>
+              {formatPHP(booking.servicePrice)}
+            </Text>
           </View>
           <View style={styles.earningsDivider} />
           <View style={styles.earningsRow}>
             <Text style={styles.earningsTotalLabel}>Your Earnings</Text>
-            <Text style={styles.earningsTotalValue}>{formatPHP(booking.servicePrice)}</Text>
+            <Text style={styles.earningsTotalValue}>
+              {formatPHP(booking.servicePrice)}
+            </Text>
           </View>
           <Text style={styles.earningsNote}>Commission will be deducted upon payout</Text>
         </View>
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
+        {canSubmitQuote && (
+          <Button
+            title="Submit Quote"
+            onPress={() => router.push(`/provider/job/${booking.id}/quote` as never)}
+          />
+        )}
         {nextAction && (
           <Button
             title={statusMutation.isPending ? 'Updating...' : nextAction.label}
             onPress={handleNextStatus}
             loading={statusMutation.isPending}
             disabled={statusMutation.isPending || cancelMutation.isPending}
+          />
+        )}
+        {canSubmitChangeOrder && (
+          <Button
+            title="Submit Change Order"
+            onPress={() => router.push(`/provider/job/${booking.id}/change-order` as never)}
+            variant="outline"
           />
         )}
         {isActiveJob && (

@@ -34,11 +34,14 @@ export default function ReferralScreen() {
     onError: (err: Error) => Alert.alert('Error', err.message),
   });
 
+  const refereeAmount = code ? formatCurrency(code.refereeBonus) : '₱50.00';
+  const referrerAmount = code ? formatCurrency(code.referrerBonus) : '₱50.00';
+
   const handleShare = async () => {
     if (!code?.code) return;
     try {
       await Share.share({
-        message: `Join onService using my referral code: ${code.code}\n\nGet ₱50 bonus on your first booking! Download the app now.`,
+        message: `Join onService using my referral code: ${code.code}\n\nGet ${refereeAmount} bonus on your first booking! Download the app now.`,
       });
     } catch {
       // User cancelled share
@@ -70,9 +73,9 @@ export default function ReferralScreen() {
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           <View style={styles.heroCard}>
             <Text style={styles.heroEmoji}>🎁</Text>
-            <Text style={styles.heroTitle}>Earn ₱50 for Every Friend!</Text>
+            <Text style={styles.heroTitle}>Earn {referrerAmount} for Every Friend!</Text>
             <Text style={styles.heroDesc}>
-              Share your code, your friend gets ₱50 on signup, and you earn ₱50 after their first completed booking.
+              Share your code, your friend gets {refereeAmount} on signup, and you earn {referrerAmount} after their first completed booking.
             </Text>
           </View>
 
@@ -163,11 +166,11 @@ export default function ReferralScreen() {
             </View>
             <View style={styles.step}>
               <Text style={styles.stepNum}>2</Text>
-              <Text style={styles.stepText}>They sign up and get ₱50 wallet bonus instantly</Text>
+              <Text style={styles.stepText}>They sign up and get {refereeAmount} wallet bonus instantly</Text>
             </View>
             <View style={styles.step}>
               <Text style={styles.stepNum}>3</Text>
-              <Text style={styles.stepText}>After their first completed booking, you earn ₱50 too!</Text>
+              <Text style={styles.stepText}>After their first completed booking, you earn {referrerAmount} too!</Text>
             </View>
           </View>
         </ScrollView>

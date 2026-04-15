@@ -64,7 +64,7 @@ export interface Booking {
  * Invalid transitions return HTTP 409 Conflict.
  */
 export const VALID_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
-  requested: ['quoted', 'matched', 'cancelled_by_customer', 'cancelled_by_admin'],
+  requested: ['quoted', 'matched', 'payment_pending', 'cancelled_by_customer', 'cancelled_by_admin'],
   quoted: ['matched', 'cancelled_by_customer', 'cancelled_by_admin'],
   matched: ['payment_pending', 'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin'],
   payment_pending: ['paid', 'cancelled_by_customer', 'cancelled_by_admin'],

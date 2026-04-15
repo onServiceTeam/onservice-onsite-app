@@ -42,6 +42,7 @@ function getStatusColor(status: string): string {
     payout_ready: colors.statusCompleted,
     paid_out: colors.statusCompleted,
     disputed: colors.statusDisputed,
+    resolved: colors.statusCompleted,
     cancelled_by_customer: colors.statusCancelled,
     cancelled_by_provider: colors.statusCancelled,
     cancelled_by_admin: colors.statusCancelled,
@@ -154,6 +155,10 @@ export default function BookingsScreen() {
           showsVerticalScrollIndicator={false}
           onEndReached={() => { if (hasNextPage) void fetchNextPage(); }}
           onEndReachedThreshold={0.3}
+          initialNumToRender={10}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          removeClippedSubviews
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} />
           }

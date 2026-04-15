@@ -160,7 +160,7 @@ export default function ReviewScreen() {
           title={loading ? 'Submitting...' : 'Submit Review'}
           onPress={handleSubmit}
           loading={loading}
-          disabled={overallRating === 0}
+          disabled={overallRating === 0 || loading}
         />
         <Button
           title="Skip"

@@ -31,6 +31,7 @@ interface PaginatedResult {
 const STATUS_BADGE: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'default'> = {
   approved: 'success',
   pending: 'warning',
+  rejected: 'danger',
   suspended: 'danger',
   deactivated: 'danger',
 };
@@ -51,14 +52,14 @@ export default function ProvidersPage() {
   const [searchInput, setSearchInput] = useState('');
 
   const [actionModal, setActionModal] = useState<{
-    type: 'approve' | 'suspend' | 'reactivate' | 'tier';
+    type: 'approve' | 'reject' | 'suspend' | 'reactivate' | 'tier';
     provider: Provider;
   } | null>(null);
   const [actionReason, setActionReason] = useState('');
   const [actionTier, setActionTier] = useState('');
   const [actionError, setActionError] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['adminProviders', page, search, statusFilter, tierFilter],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: 20 };
@@ -76,6 +77,8 @@ export default function ProvidersPage() {
       const { type, provider } = actionModal;
       if (type === 'approve') {
         await api.put(`/api/v1/admin/providers/${provider.id}/approve`);
+      } else if (type === 'reject') {
+        await api.put(`/api/v1/admin/providers/${provider.id}/reject`, { reason: actionReason });
       } else if (type === 'suspend') {
         await api.put(`/api/v1/admin/providers/${provider.id}/suspend`, { reason: actionReason });
       } else if (type === 'reactivate') {
@@ -154,7 +157,10 @@ export default function ProvidersPage() {
       render: (r) => (
         <div className="flex items-center gap-1 flex-wrap">
           {r.status === 'pending' && (
-            <ActionBtn label="Approve" color="emerald" onClick={() => setActionModal({ type: 'approve', provider: r })} />
+            <>
+              <ActionBtn label="Approve" color="emerald" onClick={() => setActionModal({ type: 'approve', provider: r })} />
+              <ActionBtn label="Reject" color="red" onClick={() => setActionModal({ type: 'reject', provider: r })} />
+            </>
           )}
           {r.status === 'approved' && (
             <ActionBtn label="Suspend" color="red" onClick={() => setActionModal({ type: 'suspend', provider: r })} />
@@ -206,7 +212,9 @@ export default function ProvidersPage() {
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
           <option value="suspended">Suspended</option>
+          <option value="deactivated">Deactivated</option>
         </select>
         <select
           value={tierFilter}
@@ -220,6 +228,12 @@ export default function ProvidersPage() {
           <option value="elite">Elite</option>
         </select>
       </div>
+
+      {isError && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          Failed to load providers. Please try refreshing the page.
+        </div>
+      )}
 
       <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No providers found." />
 
@@ -245,7 +259,7 @@ export default function ProvidersPage() {
               </div>
             )}
 
-            {(actionModal.type === 'suspend' || actionModal.type === 'tier') && (
+            {(actionModal.type === 'reject' || actionModal.type === 'suspend' || actionModal.type === 'tier') && (
               <div className="mb-4">
                 <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Reason</label>
                 <textarea
@@ -283,7 +297,7 @@ export default function ProvidersPage() {
               </button>
               <button
                 onClick={() => actionMutation.mutate()}
-                disabled={actionMutation.isPending || (actionModal.type === 'suspend' && !actionReason.trim())}
+                disabled={actionMutation.isPending || ((actionModal.type === 'suspend' || actionModal.type === 'reject' || actionModal.type === 'tier') && actionReason.trim().length < 10)}
                 className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
               >
                 {actionMutation.isPending ? 'Processing...' : 'Confirm'}

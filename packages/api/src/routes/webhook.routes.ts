@@ -8,11 +8,13 @@ import crypto from 'node:crypto';
 
 const router = Router();
 
+const WEBHOOK_REPLAY_WINDOW_MS = 5 * 60 * 1000;
+
 function verifyWebhookSignature(rawBody: string, signatureHeader: string): boolean {
   const secret = process.env.PAYMONGO_WEBHOOK_SECRET;
   if (!secret) {
-    logger.warn('PAYMONGO_WEBHOOK_SECRET not set — skipping signature verification');
-    return true;
+    logger.error('PAYMONGO_WEBHOOK_SECRET not set — rejecting webhook for security');
+    return false;
   }
 
   const parts = signatureHeader.split(',');
@@ -23,6 +25,12 @@ function verifyWebhookSignature(rawBody: string, signatureHeader: string): boole
 
   const timestamp = timestampPart.slice(2);
   const receivedSig = signaturePart.slice(3);
+
+  const tsMs = Number(timestamp) * 1000;
+  if (Number.isNaN(tsMs) || Math.abs(Date.now() - tsMs) > WEBHOOK_REPLAY_WINDOW_MS) {
+    logger.warn('Webhook timestamp outside replay window', { timestamp });
+    return false;
+  }
 
   const payload = `${timestamp}.${rawBody}`;
   const expectedSig = crypto.createHmac('sha256', secret).update(payload).digest('hex');
@@ -50,13 +58,17 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const signature = req.headers['paymongo-signature'];
-      if (typeof signature === 'string') {
-        const rawBody = JSON.stringify(req.body);
-        if (!verifyWebhookSignature(rawBody, signature)) {
-          logger.warn('Invalid PayMongo webhook signature');
-          res.status(401).json({ success: false, error: { message: 'Invalid signature' } });
-          return;
-        }
+      if (typeof signature !== 'string' || !signature) {
+        logger.warn('Missing PayMongo webhook signature header');
+        res.status(401).json({ success: false, error: { message: 'Missing signature' } });
+        return;
+      }
+
+      const rawBody = (req as Request & { rawBody?: string }).rawBody ?? JSON.stringify(req.body);
+      if (!verifyWebhookSignature(rawBody, signature)) {
+        logger.warn('Invalid PayMongo webhook signature');
+        res.status(401).json({ success: false, error: { message: 'Invalid signature' } });
+        return;
       }
 
       const event = req.body?.data?.attributes;
@@ -82,12 +94,25 @@ router.post(
             break;
           }
 
+          const webhookAmount = paymentData?.amount;
+          if (webhookAmount != null && Number(webhookAmount) !== Number(intent.amount)) {
+            logger.error('Webhook amount mismatch', {
+              bookingId, webhookAmount, intentAmount: intent.amount,
+            });
+            break;
+          }
+
           await paymentService.updatePaymentStatus(intent.id, 'succeeded', paymongoPaymentId);
 
-          await db.query(
-            `UPDATE bookings SET status = 'paid', escrow_status = 'held', updated_at = NOW() WHERE id = $1 AND status = 'payment_pending'`,
+          const updateResult = await db.query(
+            `UPDATE bookings SET status = 'paid', escrow_status = 'held', updated_at = NOW()
+             WHERE id = $1 AND status = 'payment_pending' RETURNING id`,
             [bookingId],
           );
+          if ((updateResult.rowCount ?? 0) === 0) {
+            logger.info('Webhook: booking already paid or not in payment_pending', { bookingId });
+            break;
+          }
 
           const booking = await db.query<BookingRow>(
             `SELECT id, customer_id, provider_id, status, total_amount FROM bookings WHERE id = $1`,
@@ -108,7 +133,7 @@ router.post(
           if (intent) {
             await paymentService.updatePaymentStatus(intent.id, 'failed');
             await db.query(
-              `UPDATE bookings SET status = 'payment_pending', updated_at = NOW() WHERE id = $1`,
+              `UPDATE bookings SET status = 'payment_pending', updated_at = NOW() WHERE id = $1 AND status = 'payment_pending'`,
               [bookingId],
             );
           }

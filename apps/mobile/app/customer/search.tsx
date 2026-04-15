@@ -44,8 +44,13 @@ export default function SearchScreen() {
 
   const handleSelect = (item: Subcategory) => {
     setCategory(item.categoryId, item.categoryName ?? '', item.categorySlug ?? '');
+    const isQuoteBased = item.pricingType === 'quote_based' || item.basePrice == null;
     setSubcategory(item.id, item.name, item.basePrice ?? 0);
-    router.push('/customer/booking/form');
+    if (isQuoteBased) {
+      router.push('/customer/booking/job-request');
+    } else {
+      router.push('/customer/booking/form');
+    }
   };
 
   const renderResult = ({ item }: { item: Subcategory }) => (

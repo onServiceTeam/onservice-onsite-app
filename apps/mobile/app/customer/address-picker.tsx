@@ -23,6 +23,28 @@ interface GeoResult {
   longitude: number;
 }
 
+const PH_REGIONS: { lat: number; lng: number; city: string; province: string }[] = [
+  { lat: 14.5995, lng: 120.9842, city: 'Manila', province: 'Metro Manila' },
+  { lat: 14.6507, lng: 121.0495, city: 'Quezon City', province: 'Metro Manila' },
+  { lat: 14.5547, lng: 121.0244, city: 'Makati', province: 'Metro Manila' },
+  { lat: 10.3157, lng: 123.8854, city: 'Cebu City', province: 'Cebu' },
+  { lat: 7.0732, lng: 125.6126, city: 'Davao City', province: 'Davao del Sur' },
+  { lat: 8.4542, lng: 124.6319, city: 'Cagayan de Oro', province: 'Misamis Oriental' },
+  { lat: 10.6918, lng: 122.5623, city: 'Iloilo City', province: 'Iloilo' },
+  { lat: 16.4023, lng: 120.5960, city: 'Baguio', province: 'Benguet' },
+];
+
+function guessRegionFromCoordinates(lat: number, lng: number): { city: string; province: string } {
+  let closest = PH_REGIONS[0]!;
+  let minDist = Infinity;
+  for (const r of PH_REGIONS) {
+    const d = Math.sqrt((r.lat - lat) ** 2 + (r.lng - lng) ** 2);
+    if (d < minDist) { minDist = d; closest = r; }
+  }
+  if (minDist > 0.5) return { city: '', province: '' };
+  return { city: closest.city, province: closest.province };
+}
+
 export default function AddressPickerScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -37,30 +59,45 @@ export default function AddressPickerScreen() {
   const handleMapPress = useCallback((e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
     const { latitude, longitude } = e.nativeEvent.coordinate;
     setPin({ latitude, longitude });
+
+    const regionGuess = guessRegionFromCoordinates(latitude, longitude);
     setSelectedAddress({
-      address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-      barangay: 'N/A',
-      city: 'Manila',
-      province: 'Metro Manila',
+      address: `Pin: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+      barangay: '',
+      city: regionGuess.city,
+      province: regionGuess.province,
       latitude,
       longitude,
     });
     setSearchResults([]);
   }, []);
 
-  // TODO: Replace with Google Places / geocoding API in Sprint 5+
+  // TODO: Replace with Google Places / geocoding API
   const handleSearch = useCallback(() => {
     if (!searchText.trim()) return;
-    setSearchResults([
-      {
+    const query = searchText.trim().toLowerCase();
+    const match = PH_REGIONS.find(
+      (r) => r.city.toLowerCase().includes(query) || r.province.toLowerCase().includes(query),
+    );
+    if (match) {
+      setSearchResults([{
         address: searchText.trim(),
-        barangay: 'Barangay Sample',
-        city: 'Manila',
-        province: 'Metro Manila',
-        latitude: 14.5995 + (Math.random() - 0.5) * 0.01,
-        longitude: 120.9842 + (Math.random() - 0.5) * 0.01,
-      },
-    ]);
+        barangay: '',
+        city: match.city,
+        province: match.province,
+        latitude: match.lat,
+        longitude: match.lng,
+      }]);
+    } else {
+      setSearchResults([{
+        address: searchText.trim(),
+        barangay: '',
+        city: '',
+        province: '',
+        latitude: 14.5995,
+        longitude: 120.9842,
+      }]);
+    }
   }, [searchText]);
 
   const handleSelectResult = (result: GeoResult) => {
@@ -77,6 +114,13 @@ export default function AddressPickerScreen() {
   const handleConfirm = () => {
     if (!selectedAddress) {
       Alert.alert('Select Address', 'Please tap on the map or search for your address.');
+      return;
+    }
+    if (!selectedAddress.city) {
+      Alert.alert(
+        'Location Not Recognized',
+        'We could not determine the city for this pin. Please use the search bar to find your address.',
+      );
       return;
     }
     setAddress(selectedAddress);
@@ -120,7 +164,7 @@ export default function AddressPickerScreen() {
               <View style={styles.resultText}>
                 <Text style={styles.resultAddress}>{item.address}</Text>
                 <Text style={styles.resultArea}>
-                  {item.barangay}, {item.city}, {item.province}
+                  {[item.barangay, item.city, item.province].filter(Boolean).join(', ')}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -142,9 +186,7 @@ export default function AddressPickerScreen() {
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
         {selectedAddress && (
           <Text style={styles.selectedText} numberOfLines={2}>
-            📍 {selectedAddress.address}
-            {selectedAddress.barangay ? `, ${selectedAddress.barangay}` : ''}
-            {`, ${selectedAddress.city}`}
+            📍 {[selectedAddress.address, selectedAddress.barangay, selectedAddress.city].filter(Boolean).join(', ')}
           </Text>
         )}
         <Button

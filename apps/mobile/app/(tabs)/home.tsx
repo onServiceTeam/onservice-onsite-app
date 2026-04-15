@@ -15,10 +15,34 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useBookingStore } from '@/stores/booking.store';
 import { getCategories, type Category } from '@/services/catalog.service';
 import { getActiveBookings, getRecentBookings, type Booking } from '@/services/booking.service';
+import api, { type ApiResponse } from '@/services/api';
 import { Badge } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+
+interface SukiProvider {
+  id: string;
+  providerId: string;
+  providerName: string;
+  tier: string;
+  totalBookings: number;
+  discount: number;
+}
+
+async function getSukiProviders(): Promise<SukiProvider[]> {
+  const res = await api.get<{ success: boolean; data: SukiProvider[] }>('/api/v1/suki/memberships', {
+    params: { page: 1, pageSize: 10 },
+  });
+  return (res.data.data ?? []).filter((m) => m.totalBookings >= 3);
+}
+
+async function getUnreadNotificationCount(): Promise<number> {
+  const res = await api.get<{ success: boolean; meta: { unread: number } }>('/api/v1/notifications', {
+    params: { page: 1, pageSize: 1 },
+  });
+  return res.data.meta?.unread ?? 0;
+}
 
 const CATEGORY_ICONS: Record<string, string> = {
   cleaning: '🧹',
@@ -73,6 +97,18 @@ export default function HomeScreen() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const sukiQuery = useQuery({
+    queryKey: ['sukiProviders'],
+    queryFn: getSukiProviders,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const unreadQuery = useQuery({
+    queryKey: ['notifUnread'],
+    queryFn: getUnreadNotificationCount,
+    staleTime: 60 * 1000,
+  });
+
   const isRefreshing =
     categoriesQuery.isRefetching ||
     activeBookingsQuery.isRefetching ||
@@ -82,7 +118,9 @@ export default function HomeScreen() {
     void categoriesQuery.refetch();
     void activeBookingsQuery.refetch();
     void recentBookingsQuery.refetch();
-  }, [categoriesQuery, activeBookingsQuery, recentBookingsQuery]);
+    void sukiQuery.refetch();
+    void unreadQuery.refetch();
+  }, [categoriesQuery, activeBookingsQuery, recentBookingsQuery, sukiQuery, unreadQuery]);
 
   const handleCategoryPress = (cat: Category) => {
     setCategory(cat.id, cat.name, cat.slug);
@@ -92,6 +130,8 @@ export default function HomeScreen() {
   const activeBookings = activeBookingsQuery.data ?? [];
   const recentBookings = recentBookingsQuery.data ?? [];
   const categories = categoriesQuery.data ?? [];
+  const sukiProviders = sukiQuery.data ?? [];
+  const unreadCount = unreadQuery.data ?? 0;
 
   const renderHeader = () => (
     <View>
@@ -123,6 +163,11 @@ export default function HomeScreen() {
           onPress={() => router.push('/customer/notifications' as never)}
         >
           <Text style={styles.notifIcon}>🔔</Text>
+          {unreadCount > 0 && (
+            <View style={styles.notifBadge}>
+              <Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -198,6 +243,49 @@ export default function HomeScreen() {
 
   const renderFooter = () => (
     <View>
+      {/* Suki Providers */}
+      {sukiProviders.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Your Suki Pros</Text>
+            <TouchableOpacity onPress={() => router.push('/customer/suki-pros' as never)}>
+              <Text style={styles.seeAllLink}>See all &gt;</Text>
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={sukiProviders}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.sukiList}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.sukiCard}
+                onPress={() => router.push(`/customer/provider/${item.providerId}` as never)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.sukiAvatar}>
+                  <Text style={styles.sukiAvatarText}>
+                    {item.providerName?.[0]?.toUpperCase() ?? '?'}
+                  </Text>
+                </View>
+                <Text style={styles.sukiName} numberOfLines={1}>{item.providerName}</Text>
+                <Text style={styles.sukiTier}>{item.tier.replace(/_/g, ' ')}</Text>
+                {item.discount > 0 && (
+                  <Text style={styles.sukiDiscount}>{item.discount}% off</Text>
+                )}
+                <TouchableOpacity
+                  style={styles.sukiBookBtn}
+                  onPress={() => router.push('/customer/booking/form' as never)}
+                >
+                  <Text style={styles.sukiBookText}>Book</Text>
+                </TouchableOpacity>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      )}
+
       {/* Quick Re-book */}
       {recentBookings.length > 0 && (
         <View style={styles.section}>
@@ -294,8 +382,25 @@ const styles = StyleSheet.create({
   locationSelector: { flex: 1 },
   locationLabel: { ...typography.caption, color: colors.textTertiary },
   locationValue: { ...typography.bodySmall, fontWeight: '600', color: colors.text },
-  notifButton: { padding: spacing.sm },
+  notifButton: { padding: spacing.sm, position: 'relative' as const },
   notifIcon: { fontSize: 22 },
+  notifBadge: {
+    position: 'absolute' as const,
+    top: 2,
+    right: 2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#EF4444',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingHorizontal: 4,
+  },
+  notifBadgeText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
 
   section: { paddingHorizontal: spacing.base, marginBottom: spacing.lg },
   sectionTitle: {
@@ -376,6 +481,68 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: 'center',
     fontWeight: '500',
+  },
+
+  sectionHeaderRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: spacing.md,
+  },
+  seeAllLink: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '600' as const,
+  },
+  sukiList: { paddingRight: spacing.base, gap: spacing.md },
+  sukiCard: {
+    width: 120,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    alignItems: 'center' as const,
+  },
+  sukiAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: spacing.sm,
+  },
+  sukiAvatarText: { color: '#FFFFFF', fontWeight: '700' as const, fontSize: 20 },
+  sukiName: {
+    ...typography.caption,
+    fontWeight: '600' as const,
+    color: colors.text,
+    textAlign: 'center' as const,
+    marginBottom: 2,
+  },
+  sukiTier: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 10,
+    textTransform: 'capitalize' as const,
+    marginBottom: spacing.xs,
+  },
+  sukiDiscount: {
+    ...typography.caption,
+    color: colors.statusCompleted,
+    fontWeight: '600' as const,
+    marginBottom: spacing.sm,
+  },
+  sukiBookBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.sm,
+  },
+  sukiBookText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '600' as const,
   },
 
   rebookList: { paddingRight: spacing.base, gap: spacing.md },

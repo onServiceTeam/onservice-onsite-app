@@ -89,7 +89,7 @@ export default function FinancialsPage() {
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [days, setDays] = useState(30);
 
-  const { data: kpis } = useQuery({
+  const { data: kpis, isError: kpiError } = useQuery({
     queryKey: ['adminDashboard'],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: KpiData }>('/api/v1/admin/dashboard');
@@ -97,7 +97,7 @@ export default function FinancialsPage() {
     },
   });
 
-  const { data: revenueData, isLoading: revenueLoading } = useQuery({
+  const { data: revenueData, isLoading: revenueLoading, isError: revenueError } = useQuery({
     queryKey: ['adminRevenue', period, days],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: RevenueRow[] }>(
@@ -122,6 +122,11 @@ export default function FinancialsPage() {
         </p>
       </div>
 
+      {kpiError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          Failed to load financial KPIs. Data shown may be inaccurate.
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <KpiCard
           title="Platform Revenue"
@@ -144,6 +149,12 @@ export default function FinancialsPage() {
           icon="📈"
         />
       </div>
+
+      {revenueError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          Failed to load revenue data. Please try refreshing.
+        </div>
+      )}
 
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-6 mb-6">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">

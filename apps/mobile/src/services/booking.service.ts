@@ -29,6 +29,7 @@ export interface Booking {
   surgeMultiplier: number;
   surgeAmount: number;
   rebookedFromId: string | null;
+  sukiDiscount: number;
   createdAt: string;
   providerName?: string;
   serviceName?: string;
@@ -39,6 +40,7 @@ export interface CreateBookingPayload {
   categoryId: string;
   subcategoryId: string;
   bookingType: 'fixed_price';
+  servicePrice?: number;
   description: string;
   address: string;
   barangay: string;
@@ -189,11 +191,17 @@ export async function respondToChangeOrder(changeOrderId: string, approved: bool
   return res.data.data;
 }
 
+export interface DisputeEvidence {
+  url: string;
+  type: 'photo' | 'video' | 'document';
+  description?: string;
+}
+
 export async function fileDispute(data: {
   bookingId: string;
   type: string;
   description: string;
-  evidenceUrls?: string[];
+  evidenceUrls?: DisputeEvidence[];
 }) {
   const res = await api.post<ApiResponse<unknown>>('/api/v1/disputes', data);
   return res.data.data;

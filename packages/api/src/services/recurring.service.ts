@@ -3,6 +3,7 @@ import { platformConfig } from '../config/platform.config';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as notificationService from './notification.service';
+import { calculateServiceFee } from './booking.service';
 
 interface RecurringBookingRow {
   id: string;
@@ -65,14 +66,6 @@ interface CreateRecurringParams {
   latitude?: number;
   longitude?: number;
   servicePrice: number;
-}
-
-function calculateServiceFee(servicePrice: number): number {
-  const fee = Math.round(servicePrice * platformConfig.serviceFeeRate);
-  return Math.max(
-    platformConfig.minimumServiceFee,
-    Math.min(platformConfig.maximumServiceFee, fee),
-  );
 }
 
 function calculateNextDate(frequency: string, preferredDay: number, fromDate?: Date): Date {

@@ -1,5 +1,10 @@
 import dotenv from 'dotenv';
-dotenv.config({ path: '../../.env' });
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 import { createServer } from 'node:http';
 import express from 'express';
@@ -13,7 +18,10 @@ import { auditMiddleware } from './middleware/audit.middleware';
 import { logger } from './utils/logger';
 import { platformConfig } from './config/platform.config';
 import { db } from './models/db';
+import { redis } from './config/redis.config';
 import { initSocketServer } from './services/socket.service';
+import * as metricsService from './services/metrics.service';
+import { initSentry, closeSentry } from './config/sentry.config';
 import { initScheduledJobs } from './jobs/workers';
 import authRoutes from './routes/auth.routes';
 import bookingRoutes from './routes/booking.routes';
@@ -40,6 +48,8 @@ import accountRoutes from './routes/account.routes';
 import securityRoutes from './routes/security.routes';
 import { ipBlockMiddleware } from './middleware/ip-block.middleware';
 
+initSentry();
+
 const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 7381;
@@ -63,7 +73,14 @@ app.use(cors({
 }));
 
 // --- Body Parsing ---
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req: express.Request, _res, buf) => {
+    if (req.url?.startsWith('/api/v1/webhooks')) {
+      (req as express.Request & { rawBody?: string }).rawBody = buf.toString('utf8');
+    }
+  },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // --- Compression ---
@@ -74,18 +91,15 @@ app.use(morgan('combined', {
   stream: { write: (message: string): void => { logger.info(message.trim()); } },
 }));
 
-// --- Rate Limiting ---
-app.use(rateLimitMiddleware);
+// --- Health Check (before rate limiting) ---
+const startTime = Date.now();
 
-// --- IP Block Check ---
-app.use(ipBlockMiddleware);
-
-// --- Health Check ---
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     version: platformConfig.appVersion,
+    uptime: Math.floor((Date.now() - startTime) / 1000),
   });
 });
 
@@ -97,14 +111,46 @@ app.get('/health/ready', async (_req, res) => {
   } catch {
     checks.database = 'fail';
   }
+  try {
+    const pong = await redis.ping();
+    checks.redis = pong === 'PONG' ? 'ok' : 'fail';
+  } catch {
+    checks.redis = 'fail';
+  }
   const allOk = Object.values(checks).every(v => v === 'ok');
   res.status(allOk ? 200 : 503).json({
     status: allOk ? 'ready' : 'degraded',
     timestamp: new Date().toISOString(),
     version: platformConfig.appVersion,
+    uptime: Math.floor((Date.now() - startTime) / 1000),
     checks,
   });
 });
+
+app.get('/metrics', async (_req, res) => {
+  try {
+    const snapshot = await metricsService.collectMetrics();
+    res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+    res.send(metricsService.toPrometheusFormat(snapshot));
+  } catch {
+    res.status(500).send('# Error collecting metrics\n');
+  }
+});
+
+app.get('/metrics/json', async (_req, res) => {
+  try {
+    const snapshot = await metricsService.collectMetrics();
+    res.json({ success: true, data: snapshot });
+  } catch {
+    res.status(500).json({ success: false, error: { message: 'Failed to collect metrics' } });
+  }
+});
+
+// --- Rate Limiting ---
+app.use(rateLimitMiddleware);
+
+// --- IP Block Check ---
+app.use(ipBlockMiddleware);
 
 // --- Audit Logging ---
 app.use(auditMiddleware);
@@ -171,5 +217,21 @@ httpServer.listen(PORT, () => {
     });
   });
 });
+
+async function gracefulShutdown(signal: string) {
+  logger.info(`Received ${signal} — shutting down gracefully`);
+  httpServer.close(async () => {
+    await closeSentry();
+    logger.info('HTTP server closed');
+    process.exit(0);
+  });
+  setTimeout(() => {
+    logger.error('Graceful shutdown timed out — forcing exit');
+    process.exit(1);
+  }, 10000);
+}
+
+process.on('SIGTERM', () => { void gracefulShutdown('SIGTERM'); });
+process.on('SIGINT', () => { void gracefulShutdown('SIGINT'); });
 
 export default app;

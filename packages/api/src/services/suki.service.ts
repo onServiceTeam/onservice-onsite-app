@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { platformConfig } from '../config/platform.config';
 
 interface SukiMembershipRow {
   id: string;
@@ -27,19 +28,14 @@ interface SukiRewardRow {
 
 interface CountRow { count: string }
 
-const SUKI_TIERS = {
-  new: { minBookings: 0, discount: 0, pointsPerPeso: 1 },
-  regular: { minBookings: 3, discount: 3, pointsPerPeso: 1.5 },
-  suki: { minBookings: 10, discount: 5, pointsPerPeso: 2 },
-  super_suki: { minBookings: 25, discount: 10, pointsPerPeso: 3 },
-} as const;
-
-const POINTS_REDEMPTION_RATE = 100;
+const SUKI_TIERS = platformConfig.sukiTiers;
+const POINTS_REDEMPTION_RATE = platformConfig.sukiPointsRedemptionRate;
+const DEFAULT_TIER = { minBookings: 0, discount: 0, pointsPerPeso: 1 };
 
 function computeTier(totalBookings: number): string {
-  if (totalBookings >= SUKI_TIERS.super_suki.minBookings) return 'super_suki';
-  if (totalBookings >= SUKI_TIERS.suki.minBookings) return 'suki';
-  if (totalBookings >= SUKI_TIERS.regular.minBookings) return 'regular';
+  if (totalBookings >= (SUKI_TIERS['super_suki']?.minBookings ?? Infinity)) return 'super_suki';
+  if (totalBookings >= (SUKI_TIERS['suki']?.minBookings ?? Infinity)) return 'suki';
+  if (totalBookings >= (SUKI_TIERS['regular']?.minBookings ?? Infinity)) return 'regular';
   return 'new';
 }
 
@@ -74,7 +70,7 @@ export async function recordBookingForSuki(
   const newTier = computeTier(newBookings);
   const tierChanged = newTier !== oldTier;
 
-  const tierConfig = SUKI_TIERS[newTier as keyof typeof SUKI_TIERS] ?? SUKI_TIERS.new;
+  const tierConfig = SUKI_TIERS[newTier] ?? DEFAULT_TIER;
   const pointsEarned = Math.floor((bookingAmount / 100) * tierConfig.pointsPerPeso);
 
   return db.transaction(async (client) => {
@@ -96,12 +92,12 @@ export async function recordBookingForSuki(
     if (tierChanged) {
       await client.query(
         `INSERT INTO suki_rewards (membership_id, type, points, description)
-         VALUES ($1, 'bonus', 50, $2)`,
-        [membership.id, `Tier upgrade bonus: ${oldTier} → ${newTier}`],
+         VALUES ($1, 'bonus', $2, $3)`,
+        [membership.id, platformConfig.sukiTierUpBonusPoints, `Tier upgrade bonus: ${oldTier} → ${newTier}`],
       );
       await client.query(
-        `UPDATE suki_memberships SET points_balance = points_balance + 50 WHERE id = $1`,
-        [membership.id],
+        `UPDATE suki_memberships SET points_balance = points_balance + $2 WHERE id = $1`,
+        [membership.id, platformConfig.sukiTierUpBonusPoints],
       );
 
       interface ProviderNameRow { business_name: string; user_id: string }
@@ -110,7 +106,7 @@ export async function recordBookingForSuki(
         [providerId],
       );
       if (provInfo.rows[0]) {
-        const discount = SUKI_TIERS[newTier as keyof typeof SUKI_TIERS]?.discount ?? 0;
+        const discount = SUKI_TIERS[newTier]?.discount ?? 0;
         await client.query(
           `INSERT INTO notifications (user_id, type, title, body, data)
            VALUES ($1, 'suki', 'Suki Tier Up!', $2, $3)`,
@@ -235,7 +231,23 @@ export async function getMembershipRewards(
 }
 
 export function getSukiDiscount(tier: string): number {
-  return SUKI_TIERS[tier as keyof typeof SUKI_TIERS]?.discount ?? 0;
+  return SUKI_TIERS[tier]?.discount ?? 0;
+}
+
+export async function calculateSukiDiscountForBooking(
+  customerId: string,
+  providerId: string,
+  servicePrice: number,
+): Promise<{ discountPercent: number; discountAmount: number }> {
+  const result = await db.query<{ tier: string }>(
+    `SELECT tier FROM suki_memberships WHERE customer_id = $1 AND provider_id = $2`,
+    [customerId, providerId],
+  );
+  const tier = result.rows[0]?.tier ?? 'new';
+  const discountPercent = SUKI_TIERS[tier]?.discount ?? 0;
+  if (discountPercent <= 0) return { discountPercent: 0, discountAmount: 0 };
+  const discountAmount = Math.round(servicePrice * (discountPercent / 100));
+  return { discountPercent, discountAmount };
 }
 
 export function getSukiTiers() {
@@ -243,7 +255,7 @@ export function getSukiTiers() {
 }
 
 export function formatMembership(m: SukiMembershipRow & { provider_name?: string | null }) {
-  const tierConfig = SUKI_TIERS[m.tier as keyof typeof SUKI_TIERS] ?? SUKI_TIERS.new;
+  const tierConfig = SUKI_TIERS[m.tier] ?? DEFAULT_TIER;
   return {
     id: m.id,
     customerId: m.customer_id,

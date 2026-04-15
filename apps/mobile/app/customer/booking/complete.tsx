@@ -32,7 +32,7 @@ export default function JobCompletionScreen() {
   });
 
   const handleDispute = () => {
-    router.push({ pathname: '/customer/booking/dispute', params: { id: bookingId! } });
+    router.push({ pathname: '/customer/booking/dispute', params: { bookingId: bookingId! } });
   };
 
   if (!bookingId) {

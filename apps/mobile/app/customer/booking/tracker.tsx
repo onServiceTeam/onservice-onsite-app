@@ -17,6 +17,21 @@ const STATUS_LABELS: Record<string, string> = {
   provider_arrived: 'Provider has arrived',
   in_progress: 'Service in progress',
   completed_by_provider: 'Awaiting your confirmation',
+  confirmed: 'Job confirmed',
+  disputed: 'Dispute in progress',
+  resolved: 'Dispute resolved',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  matched: colors.statusConfirmed,
+  paid: colors.statusConfirmed,
+  provider_en_route: colors.statusInProgress,
+  provider_arrived: colors.statusInProgress,
+  in_progress: colors.statusInProgress,
+  completed_by_provider: colors.statusCompleted,
+  confirmed: colors.statusCompleted,
+  disputed: colors.statusDisputed,
+  resolved: colors.statusCompleted,
 };
 
 export default function BookingTrackerScreen() {
@@ -121,7 +136,7 @@ export default function BookingTrackerScreen() {
             <View style={styles.statusRow}>
               <Badge
                 label={booking.status.replace(/_/g, ' ').toUpperCase()}
-                backgroundColor={colors.statusInProgress}
+                backgroundColor={STATUS_COLORS[booking.status] ?? colors.statusPending}
                 size="md"
               />
               <Text style={styles.scheduledText}>{formatRelative(booking.scheduledAt)}</Text>
