@@ -16,7 +16,7 @@ import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
-export default function SubcategoryListScreen() {
+export default function SubcategoryListScreen(): React.ReactElement {
   const { id: slug } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -31,19 +31,19 @@ export default function SubcategoryListScreen() {
 
   const onRefresh = useCallback(() => { refetch(); }, [refetch]);
 
-  const isQuoteBased = (sub: Subcategory) => sub.pricingType === 'quote_based' || sub.basePrice == null;
+  const isQuoteBased = (sub: Subcategory): boolean => sub.pricingType === 'quote_based' || sub.basePrice == null;
 
-  const handleSelect = (sub: Subcategory) => {
+  const handleSelect = (sub: Subcategory): void => {
     if (isQuoteBased(sub)) {
       setSubcategory(sub.id, sub.name, 0);
       router.push('/customer/booking/job-request');
     } else {
       setSubcategory(sub.id, sub.name, sub.basePrice ?? 0);
-      router.push('/customer/booking/form');
+      router.push('/customer/booking/configure');
     }
   };
 
-  const renderItem = ({ item }: { item: Subcategory }) => {
+  const renderItem = ({ item }: { item: Subcategory }): React.ReactElement => {
     const quoteBased = isQuoteBased(item);
     return (
       <TouchableOpacity

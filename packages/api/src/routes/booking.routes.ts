@@ -14,6 +14,7 @@ import * as bookingService from '../services/booking.service';
 import * as matchingService from '../services/matching.service';
 import * as notificationService from '../services/notification.service';
 import * as escrowService from '../services/escrow.service';
+import * as walletService from '../services/wallet.service';
 import * as referralService from '../services/referral.service';
 import * as sukiService from '../services/suki.service';
 import { BookingStatus, canTransition } from '../types/booking.types';
@@ -85,11 +86,14 @@ interface BookingRow {
   pricing_rule_id: string | null;
   rebooked_from_id: string | null;
   suki_discount: number;
+  job_photos: string[];
+  provider_before_photos: string[];
+  provider_after_photos: string[];
   created_at: Date;
   updated_at: Date;
 }
 
-function formatBookingResponse(b: BookingRow) {
+function formatBookingResponse(b: BookingRow): Record<string, unknown> {
   const row = b as BookingRow & {
     category_name?: string;
     subcategory_name?: string;
@@ -126,6 +130,9 @@ function formatBookingResponse(b: BookingRow) {
     pricingRuleId: row.pricing_rule_id ?? null,
     rebookedFromId: row.rebooked_from_id ?? null,
     sukiDiscount: row.suki_discount ?? 0,
+    jobPhotos: row.job_photos ?? [],
+    providerBeforePhotos: row.provider_before_photos ?? [],
+    providerAfterPhotos: row.provider_after_photos ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     categoryName: row.category_name ?? null,
@@ -206,6 +213,48 @@ router.post(
       const approved = req.body.approved === true;
       const result = await bookingService.respondToChangeOrder(changeOrderId, req.user!.userId, approved);
       res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/change-orders/:changeOrderId/pay',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const changeOrderId = req.params.changeOrderId;
+      if (typeof changeOrderId !== 'string') throw createAppError('Change order ID is required.', 400);
+      const paymentMethod = req.body.paymentMethod as string;
+      if (!paymentMethod) throw createAppError('Payment method is required.', 400);
+      if (paymentMethod !== 'wallet') {
+        throw createAppError('Change order additional payments must be paid via wallet balance. Please top up your wallet first.', 400);
+      }
+
+      const userId = req.user!.userId;
+      const result = await bookingService.finalizeChangeOrderPayment(changeOrderId, userId);
+
+      const customerWallet = await walletService.getUserWallet(userId, 'customer');
+      await walletService.debitWallet(
+        customerWallet.id,
+        result.additionalTotal,
+        'payment',
+        `Additional payment for change order`,
+        result.bookingId,
+      );
+      await escrowService.holdInEscrow(result.bookingId, result.additionalTotal);
+
+      res.json({
+        success: true,
+        data: {
+          changeOrderId,
+          bookingId: result.bookingId,
+          additionalAmountPaid: result.additionalTotal,
+          paymentMethod: 'wallet',
+          message: 'Additional payment completed. The provider has been notified.',
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -364,6 +413,14 @@ router.patch(
     try {
       const id = getParamId(req);
       const newStatus = req.body.status as BookingStatus;
+
+      const preTransitionRow = await db.query<{ status: string; escrow_status: string }>(
+        `SELECT status, escrow_status FROM bookings WHERE id = $1`,
+        [id],
+      );
+      const oldStatus = preTransitionRow.rows[0]?.status;
+      const oldEscrowStatus = preTransitionRow.rows[0]?.escrow_status;
+
       const booking = await bookingService.transitionBookingStatus(
         id,
         req.user!.userId,
@@ -372,7 +429,7 @@ router.patch(
         req.body.cancellationReason,
       );
 
-      if (newStatus === 'confirmed' && booking.escrow_status === 'held') {
+      if (newStatus === 'confirmed' && oldEscrowStatus === 'held') {
         let escrowReleased = false;
         try {
           await escrowService.releaseEscrow(id);
@@ -411,7 +468,7 @@ router.patch(
               booking.customer_id,
               booking.provider_id,
               id,
-              booking.total_amount,
+              booking.service_price,
             );
           } catch (sukiErr) {
             logger.error('Suki recording failed', { bookingId: id, error: sukiErr instanceof Error ? sukiErr.message : 'Unknown' });
@@ -421,17 +478,28 @@ router.patch(
 
       if (
         (newStatus === 'cancelled_by_customer' || newStatus === 'cancelled_by_provider' || newStatus === 'cancelled_by_admin') &&
-        booking.escrow_status === 'held'
+        oldEscrowStatus === 'held'
       ) {
         try {
           const scheduledAt = booking.scheduled_at ? new Date(booking.scheduled_at).getTime() : Date.now();
           const hoursUntil = (scheduledAt - Date.now()) / (1000 * 60 * 60);
-          await escrowService.handleCancellation(id, hoursUntil, false);
+          const arrivedStatuses = new Set(['provider_arrived', 'in_progress', 'completed_by_provider']);
+          const wasProviderArrived = arrivedStatuses.has(oldStatus ?? '');
+          await escrowService.handleCancellation(id, hoursUntil, wasProviderArrived);
         } catch (escrowErr) {
           logger.error('Cancellation escrow handling failed', {
             bookingId: id,
             error: escrowErr instanceof Error ? escrowErr.message : 'Unknown',
           });
+          res.status(207).json({
+            success: true,
+            data: formatBookingResponse(booking as BookingRow),
+            warning: {
+              code: 'ESCROW_PROCESSING_DELAYED',
+              message: 'Your cancellation was recorded but the refund could not be processed automatically. Our team has been notified and will process it within 48 hours.',
+            },
+          });
+          return;
         }
       }
 
@@ -680,6 +748,41 @@ router.get(
       await verifyBookingAccess(id, req.user!.userId, req.user!.role);
       const orders = await bookingService.getChangeOrders(id);
       res.json({ success: true, data: orders });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Provider Job Photos ---
+
+router.post(
+  '/:id/photos',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = getParamId(req);
+      await verifyBookingAccess(id, req.user!.userId, req.user!.role);
+      const { phase, urls } = req.body as { phase: 'before' | 'after'; urls: string[] };
+
+      if (!phase || !['before', 'after'].includes(phase)) {
+        throw createAppError('Phase must be "before" or "after".', 400);
+      }
+      if (!Array.isArray(urls) || urls.length === 0) {
+        throw createAppError('At least one photo URL is required.', 400);
+      }
+      if (urls.length > 20) {
+        throw createAppError('Maximum 20 photos per phase.', 400);
+      }
+
+      const column = phase === 'before' ? 'provider_before_photos' : 'provider_after_photos';
+      await db.query(
+        `UPDATE bookings SET ${column} = array_cat(${column}, $1::text[]), updated_at = NOW() WHERE id = $2`,
+        [urls, id],
+      );
+
+      const updated = await bookingService.getBookingByIdAdmin(id);
+      res.json({ success: true, data: formatBookingResponse(updated as BookingRow) });
     } catch (error) {
       next(error);
     }

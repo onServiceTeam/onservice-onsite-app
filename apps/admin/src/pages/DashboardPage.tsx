@@ -1,3 +1,4 @@
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { KpiCard } from '@/components/ui';
@@ -24,7 +25,7 @@ function formatCurrency(cents: number): string {
   return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 }
 
-export default function DashboardPage() {
+export default function DashboardPage(): React.ReactElement {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['adminDashboard'],
     queryFn: async () => {

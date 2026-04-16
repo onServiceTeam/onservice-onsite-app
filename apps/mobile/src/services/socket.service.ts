@@ -45,3 +45,7 @@ export function emitTypingStart(conversationId: string): void {
 export function emitTypingStop(conversationId: string): void {
   socket?.emit('typing:stop', conversationId);
 }
+
+export function emitMarkRead(conversationId: string): void {
+  socket?.emit('mark:read', conversationId);
+}

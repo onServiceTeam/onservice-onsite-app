@@ -32,7 +32,7 @@ function StarRow({
   value: number;
   onChange: (val: number) => void;
   size?: number;
-}) {
+}): React.ReactElement {
   return (
     <View style={styles.starRow}>
       {STAR_OPTIONS.map((star) => (
@@ -44,7 +44,7 @@ function StarRow({
   );
 }
 
-export default function ReviewScreen() {
+export default function ReviewScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -61,7 +61,7 @@ export default function ReviewScreen() {
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (): Promise<void> => {
     if (overallRating === 0) {
       Alert.alert('Rating Required', 'Please select an overall rating.');
       return;

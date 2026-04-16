@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MIN_TOUCH_TARGET } from '@/config/accessibility';
+import { hapticLight } from '@/utils/haptics';
 
 interface ButtonProps {
   title: string;
@@ -36,12 +37,17 @@ export default function Button({
   fullWidth = true,
   accessibilityLabel,
   accessibilityHint,
-}: ButtonProps) {
+}: ButtonProps): React.ReactElement {
   const isDisabled = disabled || loading;
+
+  const handlePress = (): void => {
+    void hapticLight();
+    onPress();
+  };
 
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={handlePress}
       disabled={isDisabled}
       activeOpacity={0.7}
       accessibilityRole="button"
@@ -60,7 +66,7 @@ export default function Button({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'outline' || variant === 'ghost' ? colors.primary : '#FFFFFF'}
+          color={variant === 'outline' || variant === 'ghost' ? colors.primary : colors.white}
         />
       ) : (
         <Text
@@ -96,8 +102,8 @@ const styles = StyleSheet.create({
   size_lg: { minHeight: MIN_TOUCH_TARGET + 8, paddingVertical: spacing.base, paddingHorizontal: spacing.xl },
   disabled: { opacity: 0.5 },
   text: { ...typography.button, textAlign: 'center' },
-  text_primary: { color: '#FFFFFF' },
-  text_secondary: { color: '#FFFFFF' },
+  text_primary: { color: colors.white },
+  text_secondary: { color: colors.white },
   text_outline: { color: colors.primary },
   text_ghost: { color: colors.primary },
   textSize_sm: { fontSize: 14 },

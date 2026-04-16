@@ -1,12 +1,13 @@
+import React from 'react';
 import { useAuthStore } from '@/stores/auth.store';
 import { useNavigate } from 'react-router-dom';
 
-export default function Header() {
+export default function Header(): React.ReactElement {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
 
-  const handleLogout = () => {
+  const handleLogout = (): void => {
     logout();
     navigate('/login');
   };

@@ -268,6 +268,12 @@ const BYPASS_PATTERNS = [
   /\b(?:gcash|g-cash|maya|paymaya|send\s*money|direct\s*pay|bank\s*transfer)\b/gi,
   /\b(?:meet\s*(?:me\s*)?(?:outside|privately|directly)|(?:pay|bayad)\s*(?:ko|kita)\s*(?:na\s*lang|directly))\b/gi,
   /\b\d{10,16}\b/g,
+  /\b(?:pm\s*(?:mo|ko|lang)|direct\s*message|inbox\s*(?:mo|ko|lang))\b/gi,
+  /\b(?:text\s*(?:mo|ko)\s*(?:na\s*lang)?|tawag\s*(?:mo|ko))\b/gi,
+  /\b(?:sa\s*labas|off[\s-]?(?:app|platform))\b/gi,
+  /\b(?:viber|telegram|signal|whatsapp)\b/gi,
+  /\b(?:bdo|bpi|metrobank|unionbank|landbank|rcbc)\s*(?:account|savings|acct)\b/gi,
+  /\b(?:bayad\s*(?:ko|kita)\s*(?:na\s*lang|directly))\b/gi,
 ];
 
 async function detectBypassAttempts(): Promise<number> {

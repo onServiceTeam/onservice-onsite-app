@@ -1,4 +1,4 @@
-import { useEffect, lazy } from 'react';
+import React, { useEffect, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import AdminLayout from '@/components/AdminLayout';
@@ -17,8 +17,10 @@ const RecurringPage = lazy(() => import('@/pages/RecurringPage'));
 const BusinessAccountsPage = lazy(() => import('@/pages/BusinessAccountsPage'));
 const ServiceAreasPage = lazy(() => import('@/pages/ServiceAreasPage'));
 const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'));
+const AuditLogPage = lazy(() => import('@/pages/AuditLogPage'));
+const SystemSettingsPage = lazy(() => import('@/pages/SystemSettingsPage'));
 
-export default function App() {
+export default function App(): React.ReactElement {
   const hydrate = useAuthStore((s) => s.hydrate);
 
   useEffect(() => {
@@ -42,6 +44,8 @@ export default function App() {
         <Route path="/business-accounts" element={<BusinessAccountsPage />} />
         <Route path="/service-areas" element={<ServiceAreasPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/audit-log" element={<AuditLogPage />} />
+        <Route path="/settings" element={<SystemSettingsPage />} />
       </Route>
     </Routes>
   );

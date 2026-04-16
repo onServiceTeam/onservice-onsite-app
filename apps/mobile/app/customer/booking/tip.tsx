@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -11,7 +11,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 const TIP_PERCENTAGES = [10, 15, 20] as const;
 
-export default function TipScreen() {
+export default function TipScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -20,15 +20,15 @@ export default function TipScreen() {
   const [showCustom, setShowCustom] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const { data: booking } = useQuery({
+  const { data: booking, isLoading: bookingLoading } = useQuery({
     queryKey: ['booking', bookingId],
-    queryFn: () => getBookingById(bookingId),
+    queryFn: () => getBookingById(bookingId ?? ''),
     enabled: !!bookingId,
   });
 
   const servicePrice = booking?.servicePrice ?? 0;
 
-  const tipAmount = (() => {
+  const tipAmount = ((): number => {
     if (showCustom) {
       const parts = (customAmount || '0').split('.');
       const pesos = parseInt(parts[0] ?? '0', 10) || 0;
@@ -40,7 +40,7 @@ export default function TipScreen() {
 
   const maxTip = servicePrice;
 
-  const handleSendTip = async () => {
+  const handleSendTip = async (): Promise<void> => {
     if (tipAmount <= 0) {
       Alert.alert('Enter Amount', 'Please select or enter a tip amount.');
       return;
@@ -58,7 +58,7 @@ export default function TipScreen() {
         paymentMethod: 'wallet',
       });
       Alert.alert('Thank you!', 'Your tip has been sent to the provider.', [
-        { text: 'Done', onPress: () => router.replace('/(tabs)/bookings') },
+        { text: 'Done', onPress: (): void => { router.replace({ pathname: '/customer/booking/make-recurring', params: { bookingId: bookingId! } }); } },
       ]);
     } catch (err: unknown) {
       const axErr = err as { response?: { data?: { error?: { message?: string } } } };
@@ -68,6 +68,14 @@ export default function TipScreen() {
       setLoading(false);
     }
   };
+
+  if (bookingLoading) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.base }]}>
@@ -143,7 +151,7 @@ export default function TipScreen() {
         />
         <Button
           title="Maybe Later"
-          onPress={() => router.replace('/(tabs)/bookings')}
+          onPress={() => router.replace({ pathname: '/customer/booking/make-recurring', params: { bookingId: bookingId! } })}
           variant="ghost"
           disabled={loading}
         />
@@ -161,13 +169,13 @@ const styles = StyleSheet.create({
   subtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.lg },
 
   guaranteeBadge: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.successLight,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
     marginBottom: spacing.xl,
   },
-  guaranteeText: { ...typography.bodySmall, color: '#166534', textAlign: 'center' },
+  guaranteeText: { ...typography.bodySmall, color: colors.success, textAlign: 'center' },
 
   presetRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
   presetChip: {

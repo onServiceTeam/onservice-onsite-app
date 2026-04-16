@@ -3,7 +3,7 @@
 -- Currency is ALWAYS PHP
 
 CREATE TABLE wallets (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     type VARCHAR(30) NOT NULL
         CHECK (type IN ('customer', 'provider', 'platform_escrow', 'platform_revenue', 'guarantee_fund')),
@@ -21,7 +21,7 @@ CREATE UNIQUE INDEX idx_wallets_platform ON wallets(type) WHERE user_id IS NULL;
 CREATE INDEX idx_wallets_type ON wallets(type);
 
 CREATE TABLE wallet_transactions (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     wallet_id UUID NOT NULL REFERENCES wallets(id),
     booking_id UUID REFERENCES bookings(id),
     type VARCHAR(30) NOT NULL

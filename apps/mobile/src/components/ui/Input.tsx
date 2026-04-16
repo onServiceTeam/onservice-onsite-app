@@ -9,7 +9,7 @@ interface InputProps extends TextInputProps {
   hint?: string;
 }
 
-export default function Input({ label, error, hint, style, ...props }: InputProps) {
+export default function Input({ label, error, hint, style, ...props }: InputProps): React.ReactElement {
   const [focused, setFocused] = useState(false);
 
   return (

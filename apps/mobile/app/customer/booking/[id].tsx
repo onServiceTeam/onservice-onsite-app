@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,20 +6,26 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
+  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
-import { getBookingById, type Booking } from '@/services/booking.service';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import api from '@/services/api';
+import { getBookingById } from '@/services/booking.service';
 import { Badge, Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
-import { formatDateTime } from '@/utils/date';
+import { formatDateTime, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 const ACTIVE_STATUSES = new Set([
   'matched', 'paid', 'provider_en_route', 'provider_arrived', 'in_progress',
 ]);
 const COMPLETED_STATUSES = new Set(['completed_by_provider', 'confirmed', 'payout_ready', 'paid_out', 'resolved']);
+const CANCELLABLE_STATUSES = new Set([
+  'requested', 'quoted', 'matched', 'payment_pending', 'paid', 'provider_en_route',
+]);
 const NEEDS_CONFIRMATION = 'completed_by_provider';
 
 function getStatusColor(status: string): string {
@@ -30,10 +36,13 @@ function getStatusColor(status: string): string {
   return colors.statusPending;
 }
 
-export default function BookingDetailScreen() {
+export default function BookingDetailScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
+  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
 
   const { data: booking, isLoading, error } = useQuery({
     queryKey: ['booking', id],
@@ -41,6 +50,38 @@ export default function BookingDetailScreen() {
     enabled: !!id,
     staleTime: 30 * 1000,
   });
+
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/api/v1/bookings/${id}/status`, {
+        status: 'cancelled_by_customer',
+        cancellationReason: cancelReason.trim() || undefined,
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['booking', id] });
+      void queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      void queryClient.invalidateQueries({ queryKey: ['activeBookings'] });
+      setShowCancelForm(false);
+      setCancelReason('');
+      Alert.alert('Booking Cancelled', 'Your booking has been cancelled. Any applicable refund will be processed automatically.');
+    },
+    onError: (err: unknown) => {
+      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
+      Alert.alert('Error', axErr?.response?.data?.error?.message ?? 'Could not cancel booking.');
+    },
+  });
+
+  const handleCancelConfirm = (): void => {
+    Alert.alert(
+      'Cancel Booking',
+      'Are you sure you want to cancel this booking? Cancellation fees may apply if the provider is already en route.',
+      [
+        { text: 'Keep Booking', style: 'cancel' },
+        { text: 'Yes, Cancel', style: 'destructive', onPress: () => cancelMutation.mutate() },
+      ],
+    );
+  };
 
   if (isLoading) {
     return (
@@ -61,9 +102,14 @@ export default function BookingDetailScreen() {
 
   const isActive = ACTIVE_STATUSES.has(booking.status);
   const needsConfirmation = booking.status === NEEDS_CONFIRMATION;
+  const canCancel = CANCELLABLE_STATUSES.has(booking.status);
   const canViewQuotes = booking.bookingType === 'quote_based' && ['requested', 'quoted'].includes(booking.status);
   const canViewChangeOrders = ['in_progress', 'completed_by_provider', 'confirmed'].includes(booking.status);
   const canFileDispute = ['completed_by_provider', 'confirmed'].includes(booking.status);
+  const hasPhotos =
+    (booking.providerBeforePhotos?.length ?? 0) > 0 ||
+    (booking.providerAfterPhotos?.length ?? 0) > 0 ||
+    (booking.jobPhotos?.length ?? 0) > 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -81,7 +127,7 @@ export default function BookingDetailScreen() {
             backgroundColor={getStatusColor(booking.status)}
             size="md"
           />
-          <Text style={styles.bookingId}>#{booking.id.slice(0, 8).toUpperCase()}</Text>
+          <Text style={styles.bookingId}>#{formatBookingRef(booking.id, booking.createdAt)}</Text>
         </View>
 
         <View style={styles.section}>
@@ -130,8 +176,8 @@ export default function BookingDetailScreen() {
           </View>
           {(booking.sukiDiscount ?? 0) > 0 && (
             <View style={styles.receiptRow}>
-              <Text style={[styles.receiptLabel, { color: '#16a34a' }]}>Suki Discount</Text>
-              <Text style={[styles.receiptValue, { color: '#16a34a' }]}>-{formatPHP(booking.sukiDiscount)}</Text>
+              <Text style={[styles.receiptLabel, { color: colors.success }]}>Suki Discount</Text>
+              <Text style={[styles.receiptValue, { color: colors.success }]}>-{formatPHP(booking.sukiDiscount)}</Text>
             </View>
           )}
           <View style={styles.receiptRow}>
@@ -187,6 +233,13 @@ export default function BookingDetailScreen() {
             variant="outline"
           />
         )}
+        {hasPhotos && (
+          <Button
+            title="View Job Photos"
+            onPress={() => router.push(`/customer/booking/photos?bookingId=${id}` as never)}
+            variant="outline"
+          />
+        )}
         {(isActive || needsConfirmation) && booking.providerId && (
           <Button
             title="Chat with Provider"
@@ -194,6 +247,42 @@ export default function BookingDetailScreen() {
             variant="outline"
             style={styles.chatButton}
           />
+        )}
+        {canCancel && !showCancelForm && (
+          <Button
+            title="Cancel Booking"
+            onPress={() => setShowCancelForm(true)}
+            variant="ghost"
+            style={styles.cancelButton}
+          />
+        )}
+        {canCancel && showCancelForm && (
+          <View style={styles.cancelForm}>
+            <Text style={styles.cancelFormLabel}>Reason for cancellation (optional)</Text>
+            <TextInput
+              style={styles.cancelReasonInput}
+              placeholder="Tell us why..."
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              numberOfLines={2}
+              value={cancelReason}
+              onChangeText={setCancelReason}
+              textAlignVertical="top"
+            />
+            <Button
+              title={cancelMutation.isPending ? 'Cancelling...' : 'Confirm Cancellation'}
+              onPress={handleCancelConfirm}
+              loading={cancelMutation.isPending}
+              disabled={cancelMutation.isPending}
+              style={styles.cancelConfirmBtn}
+            />
+            <TouchableOpacity
+              onPress={() => { setShowCancelForm(false); setCancelReason(''); }}
+              style={styles.cancelFormDismiss}
+            >
+              <Text style={styles.cancelFormDismissText}>Never mind</Text>
+            </TouchableOpacity>
+          </View>
         )}
         {canFileDispute && (
           <Button
@@ -264,7 +353,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: spacing.md,
   },
-  providerInitial: { color: '#FFFFFF', fontWeight: '700', fontSize: 16 },
+  providerInitial: { color: colors.white, fontWeight: '700', fontSize: 16 },
   providerName: { ...typography.body, color: colors.text, fontWeight: '600', flex: 1 },
   providerArrow: { fontSize: 22, color: colors.textTertiary },
 
@@ -296,4 +385,26 @@ const styles = StyleSheet.create({
   },
   chatButton: { marginTop: 0 },
   completedActions: { gap: spacing.sm },
+
+  cancelButton: { marginTop: spacing.xs },
+  cancelForm: {
+    backgroundColor: colors.errorLight,
+    padding: spacing.base,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+  },
+  cancelFormLabel: { ...typography.bodySmall, fontWeight: '600', color: colors.text },
+  cancelReasonInput: {
+    ...typography.body,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    minHeight: 60,
+    color: colors.text,
+  },
+  cancelConfirmBtn: { backgroundColor: colors.error },
+  cancelFormDismiss: { alignItems: 'center', paddingVertical: spacing.sm },
+  cancelFormDismissText: { ...typography.body, color: colors.textSecondary },
 });

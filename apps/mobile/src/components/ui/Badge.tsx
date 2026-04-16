@@ -11,10 +11,10 @@ interface BadgeProps {
 
 export default function Badge({
   label,
-  color = '#FFFFFF',
+  color = colors.white,
   backgroundColor = colors.primary,
   size = 'sm',
-}: BadgeProps) {
+}: BadgeProps): React.ReactElement {
   return (
     <View
       style={[styles.base, { backgroundColor }, size === 'md' && styles.md]}

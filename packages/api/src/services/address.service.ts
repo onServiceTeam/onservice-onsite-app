@@ -153,25 +153,27 @@ export async function deleteAddress(addressId: string, userId: string): Promise<
   const address = await getAddressById(addressId, userId);
   const wasDefault = address.is_default;
 
-  await db.query(`DELETE FROM user_addresses WHERE id = $1 AND user_id = $2`, [addressId, userId]);
+  await db.transaction(async (client) => {
+    await client.query(`DELETE FROM user_addresses WHERE id = $1 AND user_id = $2`, [addressId, userId]);
 
-  if (wasDefault) {
-    await db.query(
-      `UPDATE user_addresses SET is_default = TRUE
-       WHERE id = (
-         SELECT id FROM user_addresses
-         WHERE user_id = $1
-         ORDER BY created_at ASC
-         LIMIT 1
-       )`,
-      [userId],
-    );
-  }
+    if (wasDefault) {
+      await client.query(
+        `UPDATE user_addresses SET is_default = TRUE
+         WHERE id = (
+           SELECT id FROM user_addresses
+           WHERE user_id = $1
+           ORDER BY created_at ASC
+           LIMIT 1
+         )`,
+        [userId],
+      );
+    }
+  });
 
   logger.info('Address deleted', { userId, addressId });
 }
 
-export function formatAddress(row: AddressRow) {
+export function formatAddress(row: AddressRow): Record<string, unknown> {
   return {
     id: row.id,
     label: row.label,

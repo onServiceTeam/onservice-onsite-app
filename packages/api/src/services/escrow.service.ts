@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { platformConfig } from '../config/platform.config';
 import * as walletService from './wallet.service';
 import * as commissionService from './commission.service';
 import * as paymentService from './payment.service';
@@ -13,6 +14,7 @@ interface BookingAmountRow {
   service_fee: string;
   total_amount: string;
   status: string;
+  escrow_status?: string | null;
   scheduled_at: Date | null;
 }
 
@@ -58,7 +60,16 @@ export async function releaseEscrow(bookingId: string): Promise<commissionServic
   if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
 
   const servicePrice = Number(bk.service_price);
+  const serviceFee = Number(bk.service_fee);
+  const totalAmount = Number(bk.total_amount);
   if (servicePrice <= 0) throw createAppError('Invalid booking amount.', 400);
+
+  if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
+    logger.error('Booking amount mismatch detected', {
+      bookingId, servicePrice, serviceFee, totalAmount,
+      expected: servicePrice + serviceFee,
+    });
+  }
 
   const providerRow = await db.query<ProviderRow>(
     `SELECT user_id, tier FROM providers WHERE id = $1`,
@@ -67,14 +78,32 @@ export async function releaseEscrow(bookingId: string): Promise<commissionServic
   if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
   const provider = providerRow.rows[0]!;
 
-  const breakdown = commissionService.calculateCommission(servicePrice, provider.tier);
+  const commissionRate = platformConfig.commissionRates[provider.tier]
+    ?? platformConfig.commissionRates['new']!;
+  const commissionAmount = Math.round(servicePrice * commissionRate);
+  const guaranteeFundContribution = Math.round(serviceFee * platformConfig.guaranteeFundRate);
+
+  const providerReceives = servicePrice - commissionAmount;
+  const platformRetains = commissionAmount + serviceFee - guaranteeFundContribution;
+
+  const totalOut = providerReceives + platformRetains + guaranteeFundContribution;
+  if (totalOut !== totalAmount) {
+    const diff = totalAmount - totalOut;
+    if (Math.abs(diff) <= 2) {
+      logger.debug('Rounding adjustment in escrow release', { bookingId, diff });
+    } else {
+      logger.error('MONEY CONSERVATION VIOLATION in escrow release', {
+        bookingId, servicePrice, serviceFee, totalAmount, totalOut, diff,
+        providerReceives, platformRetains, guaranteeFundContribution,
+      });
+      throw createAppError('Internal accounting error. Please contact support.', 500);
+    }
+  }
 
   const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
   const revenueWallet = await walletService.getPlatformWallet('platform_revenue');
   const guaranteeWallet = await walletService.getPlatformWallet('guarantee_fund');
   const providerWallet = await walletService.getUserWallet(provider.user_id, 'provider');
-
-  const totalEscrowHeld = Number(bk.total_amount);
 
   await db.transaction(async (client) => {
     const escrowGuard = await client.query(
@@ -88,55 +117,64 @@ export async function releaseEscrow(bookingId: string): Promise<commissionServic
 
     await client.query(
       `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-      [totalEscrowHeld, escrowWallet.id],
+      [totalAmount, escrowWallet.id],
     );
-
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
        VALUES ($1, $2, 'escrow_release', $3,
                (SELECT pending_balance FROM wallets WHERE id = $1),
                'Escrow release for booking')`,
-      [escrowWallet.id, bookingId, -totalEscrowHeld],
+      [escrowWallet.id, bookingId, -totalAmount],
     );
 
     await client.query(
       `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-      [breakdown.providerReceives, providerWallet.id],
+      [providerReceives, providerWallet.id],
     );
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
        VALUES ($1, $2, 'escrow_release', $3,
                (SELECT available_balance FROM wallets WHERE id = $1),
                $4)`,
-      [providerWallet.id, bookingId, breakdown.providerReceives,
-       `Payment for booking (${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
+      [providerWallet.id, bookingId, providerReceives,
+       `Payment for booking (${Math.round(commissionRate * 100)}% commission deducted)`],
     );
 
     await client.query(
       `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-      [breakdown.commissionAmount + breakdown.serviceFeeAmount - breakdown.guaranteeFundContribution, revenueWallet.id],
+      [platformRetains, revenueWallet.id],
     );
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
        VALUES ($1, $2, 'commission', $3,
                (SELECT available_balance FROM wallets WHERE id = $1),
                'Commission + service fee from booking')`,
-      [revenueWallet.id, bookingId,
-       breakdown.commissionAmount + breakdown.serviceFeeAmount - breakdown.guaranteeFundContribution],
+      [revenueWallet.id, bookingId, platformRetains],
     );
 
     await client.query(
       `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-      [breakdown.guaranteeFundContribution, guaranteeWallet.id],
+      [guaranteeFundContribution, guaranteeWallet.id],
     );
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
        VALUES ($1, $2, 'guarantee_contribution', $3,
                (SELECT available_balance FROM wallets WHERE id = $1),
                'Guarantee fund contribution')`,
-      [guaranteeWallet.id, bookingId, breakdown.guaranteeFundContribution],
+      [guaranteeWallet.id, bookingId, guaranteeFundContribution],
     );
   });
+
+  const breakdown: commissionService.CommissionBreakdown = {
+    servicePrice,
+    commissionRate,
+    commissionAmount,
+    serviceFeeRate: platformConfig.serviceFeeRate,
+    serviceFeeAmount: serviceFee,
+    guaranteeFundContribution,
+    providerReceives,
+    platformRetains,
+  };
 
   logger.info('Escrow released', { bookingId, breakdown });
   return breakdown;
@@ -289,24 +327,35 @@ export async function handleCancellation(
   bookingId: string,
   hoursUntilScheduled: number,
   providerArrived: boolean,
+  customerNoShow = false,
 ): Promise<commissionService.CancellationRefund> {
   const booking = await db.query<BookingAmountRow>(
-    `SELECT id, customer_id, provider_id, service_price, service_fee, total_amount, status, scheduled_at FROM bookings WHERE id = $1`,
+    `SELECT id, customer_id, provider_id, service_price, service_fee, total_amount, status, escrow_status, scheduled_at FROM bookings WHERE id = $1`,
     [bookingId],
   );
 
   if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
   const bk = booking.rows[0]!;
-  const cancellationBase = Number(bk.total_amount);
+
+  const alreadyProcessed = new Set(['refunded', 'partially_refunded', 'released']);
+  if (bk.escrow_status && alreadyProcessed.has(bk.escrow_status)) {
+    throw createAppError(`Cancellation already processed for this booking (escrow_status: ${bk.escrow_status}).`, 409);
+  }
+
+  const cancellationBase = Number(bk.service_price);
+  const serviceFee = Number(bk.service_fee);
 
   const refund = commissionService.calculateCancellationRefund(
     cancellationBase,
     hoursUntilScheduled,
     providerArrived,
+    customerNoShow,
   );
 
-  if (refund.customerRefundAmount > 0) {
-    await refundFromEscrow(bookingId, refund.customerRefundAmount, 'Cancellation refund');
+  const feeRefund = customerNoShow ? 0 : serviceFee;
+  const totalCustomerRefund = refund.customerRefundAmount + feeRefund;
+  if (totalCustomerRefund > 0) {
+    await refundFromEscrow(bookingId, totalCustomerRefund, 'Cancellation refund (service price + service fee)');
   }
 
   if (refund.providerCompensationAmount > 0 && bk.provider_id) {
@@ -346,6 +395,48 @@ export async function handleCancellation(
     }
   }
 
-  logger.info('Cancellation processed', { bookingId, refund });
+  if (customerNoShow && serviceFee > 0) {
+    const revenueWallet = await walletService.getPlatformWallet('platform_revenue');
+    const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+    await db.transaction(async (client) => {
+      await client.query(
+        `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+        [serviceFee, escrowWallet.id],
+      );
+      await client.query(
+        `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+         VALUES ($1, $2, 'escrow_release', $3,
+                 (SELECT pending_balance FROM wallets WHERE id = $1),
+                 'Service fee retained — customer no-show')`,
+        [escrowWallet.id, bookingId, -serviceFee],
+      );
+      await client.query(
+        `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+        [serviceFee, revenueWallet.id],
+      );
+      await client.query(
+        `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+         VALUES ($1, $2, 'commission', $3,
+                 (SELECT available_balance FROM wallets WHERE id = $1),
+                 'Service fee from customer no-show')`,
+        [revenueWallet.id, bookingId, serviceFee],
+      );
+    });
+  }
+
+  let escrowStatus: string;
+  if (refund.customerRefundPercent >= 1.0) {
+    escrowStatus = 'refunded';
+  } else if (refund.customerRefundPercent <= 0) {
+    escrowStatus = 'released';
+  } else {
+    escrowStatus = 'partially_refunded';
+  }
+  await db.query(
+    `UPDATE bookings SET escrow_status = $1, updated_at = NOW() WHERE id = $2`,
+    [escrowStatus, bookingId],
+  );
+
+  logger.info('Cancellation processed', { bookingId, escrowStatus, refund });
   return refund;
 }

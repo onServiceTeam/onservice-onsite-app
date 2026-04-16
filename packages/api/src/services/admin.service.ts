@@ -175,7 +175,7 @@ export async function listProviders(
 export async function approveProvider(providerId: string, adminId: string): Promise<void> {
   await db.transaction(async (client) => {
     const result = await client.query(
-      `UPDATE providers SET status = 'approved', updated_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING id`,
+      `UPDATE providers SET status = 'approved', reviewed_at = NOW(), updated_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING id`,
       [providerId],
     );
     if (result.rowCount === 0) throw createAppError('Provider not found or not in pending status.', 404);
@@ -203,8 +203,8 @@ export async function approveProvider(providerId: string, adminId: string): Prom
 export async function rejectProvider(providerId: string, adminId: string, reason: string): Promise<void> {
   await db.transaction(async (client) => {
     const result = await client.query(
-      `UPDATE providers SET status = 'rejected', updated_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING id`,
-      [providerId],
+      `UPDATE providers SET status = 'rejected', rejection_reason = $2, reviewed_at = NOW(), updated_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING id`,
+      [providerId, reason],
     );
     if (result.rowCount === 0) throw createAppError('Provider not found or not in pending status.', 404);
 
@@ -434,7 +434,7 @@ export async function getAdminActions(
   return { actions: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
 }
 
-export function formatProvider(p: ProviderAdminRow) {
+export function formatProvider(p: ProviderAdminRow): Record<string, unknown> {
   return {
     id: p.id,
     userId: p.user_id,
@@ -455,7 +455,7 @@ export function formatProvider(p: ProviderAdminRow) {
   };
 }
 
-export function formatCustomer(c: CustomerAdminRow) {
+export function formatCustomer(c: CustomerAdminRow): Record<string, unknown> {
   return {
     id: c.id,
     phone: c.phone,
@@ -470,7 +470,7 @@ export function formatCustomer(c: CustomerAdminRow) {
   };
 }
 
-export function formatBookingAdmin(b: BookingAdminRow) {
+export function formatBookingAdmin(b: BookingAdminRow): Record<string, unknown> {
   return {
     id: b.id,
     customerId: b.customer_id,
@@ -488,7 +488,7 @@ export function formatBookingAdmin(b: BookingAdminRow) {
   };
 }
 
-export function formatRevenueRow(r: RevenueRow) {
+export function formatRevenueRow(r: RevenueRow): Record<string, unknown> {
   return {
     date: r.date,
     totalCommission: Number(r.total_commission),
@@ -498,7 +498,7 @@ export function formatRevenueRow(r: RevenueRow) {
   };
 }
 
-export function formatAdminAction(a: AdminActionRow) {
+export function formatAdminAction(a: AdminActionRow): Record<string, unknown> {
   return {
     id: a.id,
     adminId: a.admin_id,

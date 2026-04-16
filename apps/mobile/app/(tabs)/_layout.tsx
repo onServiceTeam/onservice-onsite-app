@@ -3,11 +3,11 @@ import { Tabs } from 'expo-router';
 import { Text, StyleSheet } from 'react-native';
 import { colors, typography } from '@/config/theme';
 
-function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
+function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }): React.ReactElement {
   return <Text style={[styles.icon, focused && styles.iconFocused]}>{emoji}</Text>;
 }
 
-export default function TabLayout() {
+export default function TabLayout(): React.ReactElement {
   return (
     <Tabs
       screenOptions={{

@@ -43,7 +43,13 @@ const STATUS_COLORS: Record<string, string> = {
   failed: colors.statusCancelled,
 };
 
-async function getPayouts(page: number, pageSize: number) {
+async function getPayouts(page: number, pageSize: number): Promise<{
+  payouts: Payout[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}> {
   const res = await api.get<{
     success: boolean;
     data: Payout[];
@@ -52,7 +58,7 @@ async function getPayouts(page: number, pageSize: number) {
   return { payouts: res.data.data, ...res.data.pagination };
 }
 
-export default function PayoutsScreen() {
+export default function PayoutsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -77,7 +83,7 @@ export default function PayoutsScreen() {
   const payouts = data?.pages.flatMap((p) => p.payouts) ?? [];
   const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
 
-  const renderItem = ({ item }: { item: Payout }) => (
+  const renderItem = ({ item }: { item: Payout }): React.ReactElement => (
     <View style={styles.card}>
       <View style={styles.cardTop}>
         <Badge

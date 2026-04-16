@@ -43,7 +43,7 @@ const TRANSACTION_ICONS: Record<string, string> = {
   tip: '🎁',
 };
 
-export default function EarningsScreen() {
+export default function EarningsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -76,11 +76,11 @@ export default function EarningsScreen() {
   const wallet = walletQuery.data;
   const transactions = transactionsQuery.data ?? [];
 
-  const renderHeader = () => (
+  const renderHeader = (): React.ReactElement => (
     <View>
       <View style={styles.earningsCard}>
         {walletQuery.isLoading ? (
-          <ActivityIndicator size="large" color="#FFFFFF" />
+          <ActivityIndicator size="large" color={colors.white} />
         ) : (
           <>
             <Text style={styles.earningsLabel}>Available Balance</Text>
@@ -127,7 +127,7 @@ export default function EarningsScreen() {
     </View>
   );
 
-  const renderTransaction = ({ item }: { item: Transaction }) => (
+  const renderTransaction = ({ item }: { item: Transaction }): React.ReactElement => (
     <View style={styles.txRow}>
       <Text style={styles.txIcon}>{TRANSACTION_ICONS[item.type] ?? '💱'}</Text>
       <View style={styles.txInfo}>
@@ -148,8 +148,8 @@ export default function EarningsScreen() {
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>⚠️</Text>
           <Text style={styles.emptyText}>Failed to load earnings data.</Text>
-          <TouchableOpacity onPress={onRefresh} style={{ marginTop: spacing.base }}>
-            <Text style={{ color: colors.secondary, fontWeight: '600' }}>Try Again</Text>
+          <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
+            <Text style={styles.retryText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   earningsLabel: { ...typography.body, color: 'rgba(255,255,255,0.7)', marginBottom: spacing.sm },
-  earningsAmount: { fontSize: 36, fontWeight: '800', color: '#FFFFFF', lineHeight: 44 },
+  earningsAmount: { fontSize: 36, fontWeight: '800', color: colors.white, lineHeight: 44 },
   pendingText: { ...typography.bodySmall, color: 'rgba(255,255,255,0.6)', marginTop: spacing.sm },
   earningsActions: { marginTop: spacing.lg },
   withdrawButton: {
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 2,
     borderRadius: borderRadius.full,
   },
-  withdrawText: { ...typography.button, color: '#FFFFFF' },
+  withdrawText: { ...typography.button, color: colors.white },
 
   infoRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
   infoCard: {
@@ -238,4 +238,6 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
   emptyText: { ...typography.body, color: colors.textSecondary },
   emptyHint: { ...typography.bodySmall, color: colors.textTertiary, marginTop: spacing.xs },
+  retryButton: { marginTop: spacing.base },
+  retryText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
 });

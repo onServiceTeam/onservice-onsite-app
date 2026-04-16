@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Share } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getMyCode, getMyReferrals, redeemCode } from '@/services/referral.service';
+import { colors, spacing, borderRadius } from '@/config/theme';
 
 function formatCurrency(centavos: number): string {
   return `₱${(centavos / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 }
 
-export default function ReferralScreen() {
+export default function ReferralScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [redeemInput, setRedeemInput] = useState('');
@@ -31,13 +32,16 @@ export default function ReferralScreen() {
       setRedeemInput('');
       Alert.alert('Success', 'Referral code redeemed! A bonus has been added to your wallet.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => {
+      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not redeem referral code.');
+    },
   });
 
   const refereeAmount = code ? formatCurrency(code.refereeBonus) : '₱50.00';
   const referrerAmount = code ? formatCurrency(code.referrerBonus) : '₱50.00';
 
-  const handleShare = async () => {
+  const handleShare = async (): Promise<void> => {
     if (!code?.code) return;
     try {
       await Share.share({
@@ -48,7 +52,7 @@ export default function ReferralScreen() {
     }
   };
 
-  const handleCopy = () => {
+  const handleCopy = (): void => {
     if (!code?.code) return;
     Alert.alert('Your Code', code.code, [{ text: 'OK' }]);
   };
@@ -67,7 +71,7 @@ export default function ReferralScreen() {
 
       {isLoading ? (
         <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color="#00B4D8" />
+          <ActivityIndicator size="large" color={colors.info} />
         </View>
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
@@ -119,7 +123,7 @@ export default function ReferralScreen() {
                 value={redeemInput}
                 onChangeText={setRedeemInput}
                 placeholder="Enter code"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={colors.textTertiary}
                 autoCapitalize="characters"
                 maxLength={10}
               />
@@ -129,7 +133,7 @@ export default function ReferralScreen() {
                 disabled={!redeemInput.trim() || redeemMutation.isPending}
               >
                 {redeemMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#FFF" />
+                  <ActivityIndicator size="small" color={colors.white} />
                 ) : (
                   <Text style={styles.redeemBtnText}>Redeem</Text>
                 )}
@@ -180,46 +184,46 @@ export default function ReferralScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  backBtn: { padding: 4 },
-  backText: { fontSize: 22, color: '#1B3A4B' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1B3A4B' },
+  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
+  backBtn: { padding: spacing.xs },
+  backText: { fontSize: 22, color: colors.text },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   placeholder: { width: 30 },
   body: { flex: 1 },
-  bodyContent: { padding: 16, paddingBottom: 40 },
+  bodyContent: { padding: spacing.base, paddingBottom: 40 },
   centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  heroCard: { backgroundColor: '#0C4A6E', borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 20 },
-  heroEmoji: { fontSize: 48, marginBottom: 12 },
-  heroTitle: { fontSize: 20, fontWeight: '800', color: '#FFF', marginBottom: 8, textAlign: 'center' },
-  heroDesc: { fontSize: 14, color: '#BAE6FD', textAlign: 'center', lineHeight: 20 },
-  codeCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, alignItems: 'center', borderWidth: 2, borderColor: '#00B4D8', borderStyle: 'dashed', marginBottom: 16 },
-  codeLabel: { fontSize: 12, color: '#64748B', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
-  codeText: { fontSize: 32, fontWeight: '900', color: '#1B3A4B', letterSpacing: 4, marginBottom: 16 },
-  codeActions: { flexDirection: 'row', gap: 12 },
-  copyBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10, backgroundColor: '#F1F5F9' },
-  copyBtnText: { fontSize: 14, fontWeight: '600', color: '#475569' },
-  shareBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10, backgroundColor: '#00B4D8' },
-  shareBtnText: { fontSize: 14, fontWeight: '600', color: '#FFF' },
-  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  statCard: { flex: 1, backgroundColor: '#FFF', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
-  statValue: { fontSize: 22, fontWeight: '800', color: '#1B3A4B' },
-  statLabel: { fontSize: 12, color: '#64748B', marginTop: 4 },
-  redeemSection: { marginBottom: 24 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1B3A4B', marginBottom: 10 },
+  heroCard: { backgroundColor: colors.primaryDark, borderRadius: 16, padding: spacing.lg, alignItems: 'center', marginBottom: 20 },
+  heroEmoji: { fontSize: 48, marginBottom: spacing.md },
+  heroTitle: { fontSize: 20, fontWeight: '800', color: colors.white, marginBottom: spacing.sm, textAlign: 'center' },
+  heroDesc: { fontSize: 14, color: colors.primaryLight, textAlign: 'center', lineHeight: 20 },
+  codeCard: { backgroundColor: colors.white, borderRadius: 16, padding: 20, alignItems: 'center', borderWidth: 2, borderColor: colors.info, borderStyle: 'dashed', marginBottom: spacing.base },
+  codeLabel: { fontSize: 12, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.sm },
+  codeText: { fontSize: 32, fontWeight: '900', color: colors.text, letterSpacing: 4, marginBottom: spacing.base },
+  codeActions: { flexDirection: 'row', gap: spacing.md },
+  copyBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.md, backgroundColor: colors.backgroundSecondary },
+  copyBtnText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
+  shareBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.md, backgroundColor: colors.info },
+  shareBtnText: { fontSize: 14, fontWeight: '600', color: colors.white },
+  statsRow: { flexDirection: 'row', gap: spacing.md, marginBottom: 20 },
+  statCard: { flex: 1, backgroundColor: colors.white, borderRadius: borderRadius.lg, padding: spacing.base, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  statValue: { fontSize: 22, fontWeight: '800', color: colors.text },
+  statLabel: { fontSize: 12, color: colors.textSecondary, marginTop: spacing.xs },
+  redeemSection: { marginBottom: spacing.lg },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 10 },
   redeemRow: { flexDirection: 'row', gap: 10 },
-  redeemInput: { flex: 1, backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', fontSize: 16, fontWeight: '600', color: '#1B3A4B', letterSpacing: 2, textAlign: 'center' },
-  redeemBtn: { paddingHorizontal: 24, borderRadius: 12, backgroundColor: '#1B3A4B', alignItems: 'center', justifyContent: 'center' },
+  redeemInput: { flex: 1, backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, fontSize: 16, fontWeight: '600', color: colors.text, letterSpacing: 2, textAlign: 'center' },
+  redeemBtn: { paddingHorizontal: spacing.lg, borderRadius: 12, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
   redeemBtnDisabled: { opacity: 0.5 },
-  redeemBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
-  section: { marginBottom: 24 },
-  historyItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 8 },
-  historyLabel: { fontSize: 14, fontWeight: '600', color: '#1B3A4B' },
-  historyDate: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
-  historyAmount: { fontSize: 14, fontWeight: '700', color: '#F59E0B' },
-  historyAmountGreen: { color: '#10B981' },
-  howItWorks: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  step: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-  stepNum: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#00B4D8', color: '#FFF', fontSize: 14, fontWeight: '700', textAlign: 'center', lineHeight: 28, overflow: 'hidden' },
-  stepText: { flex: 1, fontSize: 14, color: '#475569', lineHeight: 20 },
+  redeemBtnText: { fontSize: 14, fontWeight: '700', color: colors.white },
+  section: { marginBottom: spacing.lg },
+  historyItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },
+  historyLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
+  historyDate: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
+  historyAmount: { fontSize: 14, fontWeight: '700', color: colors.warning },
+  historyAmountGreen: { color: colors.success },
+  howItWorks: { backgroundColor: colors.white, borderRadius: 16, padding: spacing.base, borderWidth: 1, borderColor: colors.border },
+  step: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
+  stepNum: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.info, color: colors.white, fontSize: 14, fontWeight: '700', textAlign: 'center', lineHeight: 28, overflow: 'hidden' },
+  stepText: { flex: 1, fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
 });

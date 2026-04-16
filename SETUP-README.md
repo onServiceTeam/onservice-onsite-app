@@ -62,7 +62,7 @@ Then set up the project structure exactly as defined in the
 .cursorrules file — create all folders, install all dependencies,
 configure TypeScript strict mode, set up the monorepo structure,
 and create the initial configuration files (theme, platform config,
-i18n base files). Do NOT start building screens yet — just the
+config files). Do NOT start building screens yet — just the
 skeleton and tooling.
 ```
 

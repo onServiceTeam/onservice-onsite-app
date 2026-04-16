@@ -1,30 +1,33 @@
 import { Request, Response, NextFunction } from 'express';
-import { z } from 'zod';
+import { ZodSchema, ZodError } from 'zod';
 
 /**
  * Request body validation middleware using Zod schemas.
  * Validates req.body against the provided schema.
  */
-export function validationMiddleware(schema: z.ZodType) {
+export function validationMiddleware(schema: ZodSchema) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const result = schema.safeParse(req.body);
-    if (result.success) {
-      req.body = result.data as typeof req.body;
+    try {
+      req.body = schema.parse(req.body) as typeof req.body;
       next();
-    } else {
-      const formattedErrors = result.error.issues.map((issue) => ({
-        field: issue.path.join('.'),
-        message: issue.message,
-      }));
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const formattedErrors = error.issues.map((err) => ({
+          field: err.path.join('.'),
+          message: err.message,
+        }));
 
-      res.status(400).json({
-        success: false,
-        error: {
-          message: 'Validation failed. Please check your input.',
-          statusCode: 400,
-          details: formattedErrors,
-        },
-      });
+        res.status(400).json({
+          success: false,
+          error: {
+            message: 'Validation failed. Please check your input.',
+            statusCode: 400,
+            details: formattedErrors,
+          },
+        });
+        return;
+      }
+      next(error);
     }
   };
 }

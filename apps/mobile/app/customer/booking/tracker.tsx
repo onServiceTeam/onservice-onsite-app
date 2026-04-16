@@ -34,7 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
   resolved: colors.statusCompleted,
 };
 
-export default function BookingTrackerScreen() {
+export default function BookingTrackerScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -87,7 +87,7 @@ export default function BookingTrackerScreen() {
   if (isError || (!isLoading && !booking)) {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <Text style={{ ...typography.body, color: colors.error, marginBottom: spacing.lg }}>
+        <Text style={styles.errorText}>
           Failed to load booking details.
         </Text>
         <Button title="Go Back" onPress={() => router.back()} variant="outline" />
@@ -182,6 +182,7 @@ export default function BookingTrackerScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { alignItems: 'center', justifyContent: 'center' },
+  errorText: { ...typography.body, color: colors.error, marginBottom: spacing.lg },
   header: {
     position: 'absolute',
     top: 0,
@@ -204,7 +205,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     padding: spacing.base,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -237,7 +238,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: spacing.md,
   },
-  providerInitial: { color: '#FFFFFF', fontWeight: '700', fontSize: 18 },
+  providerInitial: { color: colors.white, fontWeight: '700', fontSize: 18 },
   providerInfo: { flex: 1 },
   providerName: { ...typography.body, color: colors.text, fontWeight: '600' },
   providerLabel: { ...typography.caption, color: colors.textTertiary },

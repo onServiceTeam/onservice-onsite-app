@@ -47,9 +47,7 @@ export const platformConfig = {
   // --- Provider ---
   providerNoShowMinutes: 30,      // No-show if not checked in within 30 min
   nbiExpiryWarningDays: 30,       // Warn 30 days before NBI clearance expires
-  maxServiceRadius: 50,           // Maximum 50km provider service radius
-  defaultServiceAreaRadius: 15,   // Default radius for new service areas (km)
-  maxServiceAreaRadius: 50,       // Maximum radius for a service area (km)
+  maxServiceRadius: 50,           // Maximum 50km service radius
 
   // --- Upload Limits ---
   maxImageSizeMB: 10,
@@ -68,9 +66,6 @@ export const platformConfig = {
   jwtExpiresIn: '7d',
   jwtRefreshExpiresIn: '30d',
 
-  // --- Tax ---
-  vatRate: 0.12,                    // 12% Philippine VAT on services
-
   // --- Currency ---
   currency: 'PHP',
   currencySymbol: '₱',
@@ -83,38 +78,46 @@ export const platformConfig = {
   defaultPageSize: 20,
   maxPageSize: 100,
 
-  // --- Security ---
-  otpLockoutThresholds: [
-    { failures: 5, lockoutMinutes: 15 },
-    { failures: 10, lockoutMinutes: 60 },
-    { failures: 20, lockoutMinutes: 1440 },
-  ] as ReadonlyArray<{ failures: number; lockoutMinutes: number }>,
-  captchaThreshold: 3,
-  suspiciousIpThreshold: 50,
-  loginAttemptRetentionDays: 90,
-  adminSessionTimeoutHours: 8,
-
   // --- Suki Loyalty Tiers ---
   sukiTiers: {
-    new: { minBookings: 0, discount: 0, pointsPerPeso: 1 },
-    regular: { minBookings: 3, discount: 3, pointsPerPeso: 1.5 },
-    suki: { minBookings: 10, discount: 5, pointsPerPeso: 2 },
-    super_suki: { minBookings: 25, discount: 10, pointsPerPeso: 3 },
-  } as Record<string, { minBookings: number; discount: number; pointsPerPeso: number }>,
+    new: { minBookings: 0, pointsPerPeso: 1, discount: 0 },
+    regular: { minBookings: 3, pointsPerPeso: 1, discount: 0 },
+    suki: { minBookings: 10, pointsPerPeso: 2, discount: 5 },
+    super_suki: { minBookings: 25, pointsPerPeso: 3, discount: 10 },
+  } as Record<string, { minBookings: number; pointsPerPeso: number; discount: number }>,
   sukiPointsRedemptionRate: 100,
-  sukiTierUpBonusPoints: 50,
+  sukiTierUpBonusPoints: 500,
 
-  // --- Cache TTLs (seconds) ---
+  // --- Cache TTL (seconds) ---
   cacheTtl: {
-    categories: 86400,
-    subcategories: 86400,
-    providerProfile: 1800,
-    providerRating: 300,
-    userProfile: 3600,
-    bookingStatus: 300,
-    searchResults: 300,
-    serviceAreas: 3600,
+    categories: 3600,
+    subcategories: 3600,
+    providerProfile: 300,
+    providerRating: 600,
+    userProfile: 300,
+    bookingStatus: 60,
+    searchResults: 120,
+    serviceAreas: 1800,
   },
+
+  // --- VAT ---
+  vatRate: 0.12,
+
+  // --- Admin ---
+  adminSessionTimeoutHours: 8,
+
+  // --- Security ---
+  otpLockoutThresholds: [
+    { failures: 3, lockoutMinutes: 5 },
+    { failures: 5, lockoutMinutes: 15 },
+    { failures: 10, lockoutMinutes: 60 },
+  ] as { failures: number; lockoutMinutes: number }[],
+  captchaThreshold: 3,
+  suspiciousIpThreshold: 10,
+  loginAttemptRetentionDays: 90,
+
+  // --- Service Areas ---
+  defaultServiceAreaRadius: 25,
 } as const;
 
 export type PlatformConfig = typeof platformConfig;

@@ -30,7 +30,7 @@ interface UserProfileRow {
   created_at: Date;
 }
 
-function formatUserResponse(u: UserProfileRow) {
+function formatUserResponse(u: UserProfileRow): Record<string, unknown> {
   return {
     id: u.id,
     phone: u.phone,

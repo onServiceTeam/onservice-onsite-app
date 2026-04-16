@@ -12,9 +12,18 @@ export const colors = {
   secondaryDark: '#00A376',
 
   success: '#00C48C',
+  successLight: '#ECFDF5',
+  successDark: '#047857',
   warning: '#FFB800',
+  warningLight: '#FFFBEB',
+  warningDark: '#B45309',
   error: '#FF3B3B',
+  errorLight: '#FEF2F2',
   info: '#0066FF',
+  infoLight: '#EFF6FF',
+  infoDark: '#1E40AF',
+  white: '#FFFFFF',
+  shadow: '#000000',
 
   text: '#1A1A2E',
   textSecondary: '#6B7280',

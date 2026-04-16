@@ -25,7 +25,7 @@ interface AuthState {
   setUser: (user: User) => void;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set, _get) => ({
   user: null,
   isAuthenticated: false,
   isLoading: true,
@@ -53,10 +53,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   verifyOtp: async (phone: string, code: string) => {
     const res = await api.post('/api/v1/auth/verify-otp', { phone, code });
-    const { accessToken, refreshToken, user } = res.data.data;
+    const { accessToken, refreshToken, user, isNewUser } = res.data.data;
     storage.set('accessToken', accessToken);
     storage.set('refreshToken', refreshToken);
     storage.set('user', JSON.stringify(user));
+    if (isNewUser) {
+      storage.set('isNewUser', 'true');
+    }
     set({ user, isAuthenticated: true, otpRequestId: null });
   },
 

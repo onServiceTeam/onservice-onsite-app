@@ -18,7 +18,7 @@
 # Section 10: Admin Panel Gaps (18 issues)
 # Section 11: Backend Service Gaps (14 issues)
 # Section 12: Performance & Quality (12 issues)
-# Section 13: i18n & Localization (10 issues)
+# Section 13: i18n & Localization (RESOLVED — English only, no i18n needed)
 # Section 14: Security Hardening (9 issues)
 # Section 15: Accessibility & Inclusivity (8 issues)
 
@@ -565,7 +565,7 @@ BTN-023 | No "End Chat" / archive conversation option
 BTN-024 | No "Change Phone Number" option (requires new OTP flow)
 BTN-025 | No "Linked Accounts" section (Google, Facebook)
 BTN-026 | No "Privacy Settings" (visibility of profile to providers)
-BTN-027 | No "Language Preference" selector (switch between English/Filipino)
+BTN-027 | RESOLVED — App is English only (no language selector needed)
 BTN-028 | No "App Theme" selector (light/dark)
 
 # --- Wallet ---
@@ -643,19 +643,22 @@ PERF-012 | No Sentry or error tracking integration
 
 
 # ════════════════════════════════════════════════════════
-# SECTION 13: i18n & LOCALIZATION
+# SECTION 13: i18n & LOCALIZATION — ALL RESOLVED
 # ════════════════════════════════════════════════════════
+# DECISION: App is English only. All Philippine apps use English.
+# The i18n framework has been removed entirely.
+# No translation files, no useTranslation hook, no language switcher.
 
-i18n-001 | Filipino translations need native speaker review
-i18n-002 | No language switcher in the app (hardcoded to English)
-i18n-003 | Some screens use hardcoded strings instead of i18n keys
-i18n-004 | Date formatting doesn't respect Filipino conventions
-i18n-005 | Currency formatting works (₱) but should show "PHP" in some contexts
-i18n-006 | Error messages from backend are in English only
-i18n-007 | Push notification templates are English only
-i18n-008 | Admin panel has no i18n support
-i18n-009 | Onboarding slides text should be available in Filipino
-i18n-010 | Legal text (Terms, Privacy Policy) needs Filipino translation
+i18n-001 | RESOLVED — No translations needed (English only)
+i18n-002 | RESOLVED — No language switcher needed (English only)
+i18n-003 | RESOLVED — Plain English strings in JSX is the standard
+i18n-004 | STILL VALID — Date formatting uses Asia/Manila timezone + PH format (separate from i18n)
+i18n-005 | STILL VALID — Currency formatting uses ₱/PHP correctly (separate from i18n)
+i18n-006 | RESOLVED — English error messages are correct for English-only app
+i18n-007 | RESOLVED — English push notifications are correct for English-only app
+i18n-008 | RESOLVED — Admin panel English only is correct
+i18n-009 | RESOLVED — Onboarding in English only
+i18n-010 | RESOLVED — Legal text in English only (standard for PH apps)
 
 
 # ════════════════════════════════════════════════════════
@@ -703,7 +706,7 @@ ACC-008 | No high contrast mode
 # ADMIN:     18 (panel gaps)
 # BACKEND:   14 (service gaps)
 # PERF:      12 (quality issues)
-# i18n:      10 (localization)
+# i18n:      10 (ALL RESOLVED — English only, no i18n framework)
 # SECURITY:   9 (hardening)
 # ACCESS:     8 (accessibility)
 # ════════════════════════════════════════════════════════

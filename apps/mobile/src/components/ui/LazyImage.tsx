@@ -8,7 +8,6 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { colors } from '@/config/theme';
-import { useTranslation } from '@/i18n/useTranslation';
 
 interface LazyImageProps {
   source: string | null | undefined;
@@ -32,7 +31,6 @@ export function LazyImage({
   accessibilityLabel,
 }: LazyImageProps): React.ReactElement {
   const [hasError, setHasError] = useState(false);
-  const { t } = useTranslation();
 
   if (!source || hasError) {
     return (
@@ -40,7 +38,7 @@ export function LazyImage({
         style={[styles.placeholder, containerStyle, style as ViewStyle]}
         accessible={true}
         accessibilityRole="image"
-        accessibilityLabel={accessibilityLabel ?? t('accessibility.imageUnavailable')}
+        accessibilityLabel={accessibilityLabel ?? 'Image unavailable'}
       >
         <Text style={styles.placeholderIcon} accessibilityElementsHidden={true}>📷</Text>
       </View>
@@ -52,7 +50,7 @@ export function LazyImage({
       style={[styles.container, containerStyle]}
       accessible={true}
       accessibilityRole="image"
-      accessibilityLabel={accessibilityLabel ?? t('accessibility.image')}
+      accessibilityLabel={accessibilityLabel ?? 'Image'}
     >
       <Image
         source={source}
@@ -63,7 +61,7 @@ export function LazyImage({
         onError={() => setHasError(true)}
         recyclingKey={source}
         cachePolicy="disk"
-        accessibilityLabel={accessibilityLabel ?? t('accessibility.image')}
+        accessibilityLabel={accessibilityLabel ?? 'Image'}
       />
     </View>
   );

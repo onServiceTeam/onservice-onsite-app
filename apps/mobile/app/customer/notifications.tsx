@@ -32,7 +32,7 @@ const NOTIFICATION_ICONS: Record<string, string> = {
   promo: '🎁',
 };
 
-export default function NotificationsScreen() {
+export default function NotificationsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -53,7 +53,7 @@ export default function NotificationsScreen() {
   const notifications = data?.notifications ?? [];
   const unread = data?.unread ?? 0;
 
-  const handleNotificationPress = async (notif: Notification) => {
+  const handleNotificationPress = async (notif: Notification): Promise<void> => {
     try {
       if (!notif.isRead) {
         await markNotificationRead(notif.id);
@@ -68,7 +68,7 @@ export default function NotificationsScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: Notification }) => (
+  const renderItem = ({ item }: { item: Notification }): React.ReactElement => (
     <TouchableOpacity
       style={[styles.card, !item.isRead && styles.cardUnread]}
       onPress={() => void handleNotificationPress(item)}

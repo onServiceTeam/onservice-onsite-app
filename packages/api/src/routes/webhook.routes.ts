@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import * as paymentService from '../services/payment.service';
 import * as escrowService from '../services/escrow.service';
+import * as walletService from '../services/wallet.service';
 import * as notificationService from '../services/notification.service';
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
@@ -84,6 +85,8 @@ router.post(
 
       logger.info('PayMongo webhook received', { eventType, paymongoPaymentId, bookingId });
 
+      const isTopUp = bookingId?.startsWith('topup_') ?? false;
+
       switch (eventType) {
         case 'payment.paid': {
           if (!bookingId) break;
@@ -91,6 +94,11 @@ router.post(
           const intent = await paymentService.getBookingPaymentIntent(bookingId);
           if (!intent) {
             logger.warn('Webhook: no payment intent found', { bookingId });
+            break;
+          }
+
+          if (intent.status === 'succeeded') {
+            logger.info('Webhook: payment already processed (idempotent skip)', { bookingId, intentId: intent.id });
             break;
           }
 
@@ -103,6 +111,37 @@ router.post(
           }
 
           await paymentService.updatePaymentStatus(intent.id, 'succeeded', paymongoPaymentId);
+
+          if (isTopUp) {
+            const topUpParts = bookingId.split('_');
+            const userId = topUpParts.slice(1, -1).join('_');
+            const topUpAmount = Number(intent.amount);
+
+            if (!userId || topUpAmount <= 0) {
+              logger.error('Webhook: invalid top-up metadata', { bookingId, userId, topUpAmount });
+              break;
+            }
+
+            try {
+              const wallet = await walletService.getUserWallet(userId, 'customer');
+              await walletService.creditWallet(
+                wallet.id,
+                topUpAmount,
+                'payment',
+                `Wallet top-up via ${intent.payment_method}`,
+                undefined,
+                paymongoPaymentId,
+              );
+              logger.info('Wallet top-up credited', { userId, topUpAmount, paymongoPaymentId });
+            } catch (topUpErr) {
+              logger.error('Wallet top-up credit failed', {
+                userId,
+                topUpAmount,
+                error: topUpErr instanceof Error ? topUpErr.message : 'Unknown',
+              });
+            }
+            break;
+          }
 
           const updateResult = await db.query(
             `UPDATE bookings SET status = 'paid', escrow_status = 'held', updated_at = NOW()
@@ -131,11 +170,19 @@ router.post(
           if (!bookingId) break;
           const intent = await paymentService.getBookingPaymentIntent(bookingId);
           if (intent) {
+            if (intent.status === 'failed' || intent.status === 'succeeded') {
+              logger.info('Webhook: payment.failed skipped — intent already terminal', {
+                bookingId, intentId: intent.id, currentStatus: intent.status,
+              });
+              break;
+            }
             await paymentService.updatePaymentStatus(intent.id, 'failed');
-            await db.query(
-              `UPDATE bookings SET status = 'payment_pending', updated_at = NOW() WHERE id = $1 AND status = 'payment_pending'`,
-              [bookingId],
-            );
+            if (!isTopUp) {
+              await db.query(
+                `UPDATE bookings SET status = 'payment_pending', updated_at = NOW() WHERE id = $1 AND status = 'payment_pending'`,
+                [bookingId],
+              );
+            }
           }
           break;
         }

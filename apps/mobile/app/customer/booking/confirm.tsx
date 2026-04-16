@@ -1,15 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
-import { formatDate } from '@/utils/date';
+import { formatDate, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
-export default function BookingConfirmScreen() {
+export default function BookingConfirmScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
@@ -44,11 +44,11 @@ export default function BookingConfirmScreen() {
         {bookingId && (
           <View style={styles.bookingIdCard}>
             <Text style={styles.bookingIdLabel}>Booking ID</Text>
-            <Text style={styles.bookingIdValue}>#{bookingId.slice(0, 8).toUpperCase()}</Text>
+            <Text style={styles.bookingIdValue}>#{formatBookingRef(bookingId)}</Text>
           </View>
         )}
 
-        {isLoading && <ActivityIndicator size="small" color={colors.primary} style={{ marginBottom: spacing.lg }} />}
+        {isLoading && <ActivityIndicator size="small" color={colors.primary} style={styles.loadingIndicator} />}
 
         {isError && (
           <View style={styles.errorBanner}>
@@ -85,13 +85,17 @@ export default function BookingConfirmScreen() {
           </View>
         )}
 
-        <View style={styles.infoCard}>
-          <Text style={styles.infoIcon}>🔒</Text>
+        <TouchableOpacity
+          style={styles.infoCard}
+          onPress={() => router.push('/customer/safety' as never)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.infoIcon}>🛡️</Text>
           <Text style={styles.infoText}>
-            Your payment is secured in escrow and will only be released when you confirm
-            the job is done to your satisfaction.
+            Protected by SiguradoShield™. Your payment is secured in escrow and will only
+            be released when you confirm the job is done to your satisfaction.
           </Text>
-        </View>
+        </TouchableOpacity>
 
         <View style={styles.stepsCard}>
           <Text style={styles.stepsTitle}>What happens next?</Text>
@@ -145,6 +149,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   content: { flex: 1, alignItems: 'center' },
+  loadingIndicator: { marginBottom: spacing.lg },
 
   successCircle: {
     width: 80,
@@ -155,7 +160,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.lg,
   },
-  checkmark: { fontSize: 40, color: '#FFFFFF', fontWeight: '700' },
+  checkmark: { fontSize: 40, color: colors.white, fontWeight: '700' },
 
   title: {
     ...typography.h1,
@@ -182,13 +187,13 @@ const styles = StyleSheet.create({
   bookingIdValue: { ...typography.h3, color: colors.primary, marginTop: 2 },
 
   errorBanner: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colors.errorLight,
     borderRadius: borderRadius.md,
     padding: spacing.base,
     width: '100%',
     marginBottom: spacing.lg,
   },
-  errorText: { ...typography.bodySmall, color: '#991B1B', textAlign: 'center' as const },
+  errorText: { ...typography.bodySmall, color: colors.error, textAlign: 'center' as const },
 
   detailsCard: {
     backgroundColor: colors.backgroundSecondary,
@@ -207,13 +212,13 @@ const styles = StyleSheet.create({
 
   infoCard: {
     flexDirection: 'row' as const,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.successLight,
     padding: spacing.base,
     borderRadius: borderRadius.md,
     marginBottom: spacing.lg,
   },
   infoIcon: { fontSize: 20, marginRight: spacing.sm },
-  infoText: { ...typography.bodySmall, color: '#166534', flex: 1 },
+  infoText: { ...typography.bodySmall, color: colors.success, flex: 1 },
 
   stepsCard: {
     backgroundColor: colors.backgroundSecondary,

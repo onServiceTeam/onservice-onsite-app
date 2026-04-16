@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { KpiCard, Badge } from '@/components/ui';
@@ -33,7 +33,7 @@ function formatCurrency(cents: number): string {
   return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 }
 
-function RevenueChart({ data, period }: { data: RevenueRow[]; period: string }) {
+function RevenueChart({ data, period }: { data: RevenueRow[]; period: string }): React.ReactElement {
   if (data.length === 0) {
     return (
       <div className="text-center py-12 text-[var(--color-text-secondary)]">
@@ -85,7 +85,7 @@ function RevenueChart({ data, period }: { data: RevenueRow[]; period: string }) 
   );
 }
 
-export default function FinancialsPage() {
+export default function FinancialsPage(): React.ReactElement {
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [days, setDays] = useState(30);
 

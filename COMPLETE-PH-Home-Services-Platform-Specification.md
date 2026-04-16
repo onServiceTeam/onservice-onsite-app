@@ -509,7 +509,7 @@ The platform has 7 distinct user types, each with different interfaces, permissi
 
 **US-C003: Customer Profile Management**
 - AS A customer, I WANT TO manage my profile SO THAT my information is accurate
-- Editable fields: Display name, email, phone number (requires re-verification), profile photo, saved addresses (home, work, other), preferred payment method, notification preferences, language preference (Tagalog/English/Cebuano/Bisaya)
+- Editable fields: Display name, email, phone number (requires re-verification), profile photo, saved addresses (home, work, other), preferred payment method, notification preferences
 - Edge cases: Changing phone number requires OTP on both old and new number, deleting account requires 30-day cooling period
 
 **US-C004: Customer Saved Addresses**
@@ -536,7 +536,7 @@ The platform has 7 distinct user types, each with different interfaces, permissi
 - Searches across: service names, categories, provider names, keywords
 - Auto-complete suggestions as user types
 - Recent searches shown when search is focused
-- Edge cases: No results (show "No services match '[query]'. Try: [suggested alternatives]"), typo correction, Filipino language search ("linis bahay" → House Cleaning)
+- Edge cases: No results (show "No services match '[query]'. Try: [suggested alternatives]"), typo correction
 
 **US-C008: View Provider Profiles**
 - AS A customer, I WANT TO view a provider's full profile SO THAT I can assess their quality
@@ -992,7 +992,7 @@ The platform requires the following screens across all user interfaces:
 **Content:**
 - App logo (centered)
 - App name
-- Tagline: "Trusted Home Services" (in Tagalog and English)
+- Tagline: "Trusted Home Services"
 - Loading indicator (subtle animation)
 **Design notes:**
 - Brand color background
@@ -1038,7 +1038,7 @@ The platform requires the following screens across all user interfaces:
 **Design notes:**
 - Currency must be ₱ (Philippine Peso) everywhere
 - All addresses must be Philippine format (barangay, municipality, province)
-- Language: default to English with Tagalog option
+- Language: English only (standard for Philippine apps)
 - NO dollar signs anywhere in the entire app
 
 ### Screen 5: Home Dashboard (CRITICAL — Main Screen)
@@ -2105,7 +2105,7 @@ There are NO screens for the custom quoting flow — no job request form, no quo
 ### live_chat_support
 **What's good:** Agent photo + verified badge, encrypted message indicator, quick action buttons ("Where is my pro?", "Reschedule", "Upload screenshot"), ticket ID
 **What's wrong:** "Sarah M." generic agent name, mostly cosmetic issues
-**Fix:** Filipino agent name, add "Tagalog/English" language preference toggle, add estimated wait time if not yet connected
+**Fix:** Filipino agent name, add estimated wait time if not yet connected
 
 ### provider_management_table (admin)
 **What's good:** Status filters (All/Pending/Verified/Suspended), provider cards with photo/rating/categories/status, action buttons (Edit/Suspend/Logs, Approve/Reject, Reactivate)

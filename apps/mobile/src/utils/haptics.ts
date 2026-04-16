@@ -7,47 +7,47 @@ export async function hapticLight(): Promise<void> {
   if (!isHapticsSupported) return;
   try {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  } catch {}
+  } catch { /* haptics unavailable */ }
 }
 
 export async function hapticMedium(): Promise<void> {
   if (!isHapticsSupported) return;
   try {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  } catch {}
+  } catch { /* haptics unavailable */ }
 }
 
 export async function hapticHeavy(): Promise<void> {
   if (!isHapticsSupported) return;
   try {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-  } catch {}
+  } catch { /* haptics unavailable */ }
 }
 
 export async function hapticSuccess(): Promise<void> {
   if (!isHapticsSupported) return;
   try {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  } catch {}
+  } catch { /* haptics unavailable */ }
 }
 
 export async function hapticWarning(): Promise<void> {
   if (!isHapticsSupported) return;
   try {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-  } catch {}
+  } catch { /* haptics unavailable */ }
 }
 
 export async function hapticError(): Promise<void> {
   if (!isHapticsSupported) return;
   try {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-  } catch {}
+  } catch { /* haptics unavailable */ }
 }
 
 export async function hapticSelection(): Promise<void> {
   if (!isHapticsSupported) return;
   try {
     await Haptics.selectionAsync();
-  } catch {}
+  } catch { /* haptics unavailable */ }
 }

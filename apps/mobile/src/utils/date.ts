@@ -34,6 +34,12 @@ export function toLocalPHT(utcDate: Date | string): Date {
   return new Date(d.toLocaleString('en-US', { timeZone: TIMEZONE }));
 }
 
+export function formatBookingRef(id: string, createdAt?: Date | string | null): string {
+  const year = createdAt ? new Date(createdAt).getFullYear() : new Date().getFullYear();
+  const suffix = id.replace(/-/g, '').slice(-4).toUpperCase();
+  return `OS-${year}-${suffix}`;
+}
+
 export function formatRelative(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();

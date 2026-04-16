@@ -50,7 +50,7 @@ function getJobStatusColor(status: string): string {
   return map[status] ?? colors.textTertiary;
 }
 
-export default function ProviderDashboardScreen() {
+export default function ProviderDashboardScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
@@ -72,6 +72,8 @@ export default function ProviderDashboardScreen() {
     mutationFn: (isAvailable: boolean) => setAvailability(isAvailable),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['providerProfile'] });
+      void queryClient.invalidateQueries({ queryKey: ['availability-status'] });
+      void queryClient.invalidateQueries({ queryKey: ['provider-calendar'] });
     },
   });
 
@@ -95,12 +97,10 @@ export default function ProviderDashboardScreen() {
   if (profileQuery.isError) {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <Text style={{ fontSize: 48, marginBottom: spacing.base }}>⚠️</Text>
-        <Text style={{ ...typography.body, color: colors.error, marginBottom: spacing.md }}>
-          Failed to load your profile.
-        </Text>
+        <Text style={styles.errorEmoji}>⚠️</Text>
+        <Text style={styles.errorText}>Failed to load your profile.</Text>
         <TouchableOpacity onPress={() => void profileQuery.refetch()}>
-          <Text style={{ color: colors.secondary, fontWeight: '600' }}>Try Again</Text>
+          <Text style={styles.retryText}>Try Again</Text>
         </TouchableOpacity>
       </View>
     );
@@ -152,7 +152,7 @@ export default function ProviderDashboardScreen() {
             value={profile.isAvailable}
             onValueChange={(val) => availabilityMutation.mutate(val)}
             trackColor={{ false: colors.border, true: colors.secondary }}
-            thumbColor="#FFFFFF"
+            thumbColor={colors.white}
             disabled={availabilityMutation.isPending}
           />
         </View>
@@ -162,7 +162,7 @@ export default function ProviderDashboardScreen() {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>
-              {profile.rating != null ? profile.rating.toFixed(1) : '—'}
+              {profile.rating != null ? `⭐ ${profile.rating.toFixed(1)}` : '—'}
             </Text>
             <Text style={styles.statLabel}>Rating</Text>
           </View>
@@ -252,10 +252,10 @@ export default function ProviderDashboardScreen() {
       <View style={styles.quickActions}>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push('/provider/schedule' as never)}
+          onPress={() => router.push('/provider/calendar' as never)}
         >
           <Text style={styles.actionIcon}>📅</Text>
-          <Text style={styles.actionLabel}>Schedule</Text>
+          <Text style={styles.actionLabel}>Calendar</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
@@ -281,6 +281,9 @@ export default function ProviderDashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { alignItems: 'center', justifyContent: 'center' },
+  errorEmoji: { fontSize: 48, marginBottom: spacing.base },
+  errorText: { ...typography.body, color: colors.error, marginBottom: spacing.md },
+  retryText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
   scrollContent: { paddingHorizontal: spacing.base, paddingBottom: 20 },
 
   header: {

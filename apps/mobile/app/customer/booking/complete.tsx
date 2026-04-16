@@ -8,7 +8,7 @@ import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 
-export default function JobCompletionScreen() {
+export default function JobCompletionScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -31,7 +31,7 @@ export default function JobCompletionScreen() {
     },
   });
 
-  const handleDispute = () => {
+  const handleDispute = (): void => {
     router.push({ pathname: '/customer/booking/dispute', params: { bookingId: bookingId! } });
   };
 
@@ -113,22 +113,22 @@ const styles = StyleSheet.create({
 
   infoCard: {
     flexDirection: 'row',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.successLight,
     padding: spacing.base,
     borderRadius: borderRadius.md,
     marginBottom: spacing.md,
   },
   infoIcon: { fontSize: 20, marginRight: spacing.sm },
-  infoText: { ...typography.bodySmall, color: '#166534', flex: 1 },
+  infoText: { ...typography.bodySmall, color: colors.success, flex: 1 },
 
   autoConfirmCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFFBEB',
+    backgroundColor: colors.warningLight,
     padding: spacing.base,
     borderRadius: borderRadius.md,
   },
   autoConfirmIcon: { fontSize: 20, marginRight: spacing.sm },
-  autoConfirmText: { ...typography.bodySmall, color: '#92400E', flex: 1 },
+  autoConfirmText: { ...typography.bodySmall, color: colors.warning, flex: 1 },
 
   actions: { gap: spacing.md },
 });

@@ -19,6 +19,8 @@ const TIME_SLOTS = [
   '13:00', '14:00', '15:00', '16:00', '17:00',
 ];
 
+const TIMEZONE = 'Asia/Manila';
+
 function generateDates(): { label: string; value: string }[] {
   const dates: { label: string; value: string }[] = [];
   const now = new Date();
@@ -26,17 +28,17 @@ function generateDates(): { label: string; value: string }[] {
     const d = new Date(now);
     d.setDate(d.getDate() + i);
     dates.push({
-      label: d.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }),
-      value: d.toISOString().split('T')[0]!,
+      label: d.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', timeZone: TIMEZONE }),
+      value: d.toLocaleDateString('en-CA', { timeZone: TIMEZONE }),
     });
   }
   return dates;
 }
 
-export default function BookingFormScreen() {
+export default function BookingFormScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { draft, serviceFee, total, setSchedule, setDescription, setAddress } = useBookingStore();
+  const { draft, serviceFee, total, addonsTotal, setSchedule, setDescription } = useBookingStore();
 
   const [selectedDate, setSelectedDate] = useState<string | null>(draft.scheduledDate);
   const [selectedTime, setSelectedTime] = useState<string | null>(draft.scheduledTime);
@@ -44,17 +46,17 @@ export default function BookingFormScreen() {
 
   const dates = generateDates();
 
-  const handleDateSelect = (date: string) => {
+  const handleDateSelect = (date: string): void => {
     setSelectedDate(date);
     if (selectedTime) setSchedule(date, selectedTime);
   };
 
-  const handleTimeSelect = (time: string) => {
+  const handleTimeSelect = (time: string): void => {
     setSelectedTime(time);
     if (selectedDate) setSchedule(selectedDate, time);
   };
 
-  const handleProceed = () => {
+  const handleProceed = (): void => {
     if (!selectedDate || !selectedTime) {
       Alert.alert('Select Schedule', 'Please select both a date and time for your booking.');
       return;
@@ -171,6 +173,18 @@ export default function BookingFormScreen() {
             <Text style={styles.priceLabel}>Service Price</Text>
             <Text style={styles.priceValue}>{formatPHP(draft.basePrice)}</Text>
           </View>
+          {draft.addons.map((a) => (
+            <View key={a.id} style={styles.priceRow}>
+              <Text style={styles.priceLabel}>{a.name}</Text>
+              <Text style={styles.priceValue}>+{formatPHP(a.price)}</Text>
+            </View>
+          ))}
+          {addonsTotal > 0 && (
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Add-ons Subtotal</Text>
+              <Text style={styles.priceValue}>{formatPHP(addonsTotal)}</Text>
+            </View>
+          )}
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Platform Service Fee</Text>
             <Text style={styles.priceValue}>{formatPHP(serviceFee)}</Text>

@@ -2,7 +2,7 @@
 -- All prices in centavos (₱500 = 50000)
 
 CREATE TABLE service_categories (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL UNIQUE,
     slug VARCHAR(100) NOT NULL UNIQUE,
     description TEXT NOT NULL DEFAULT '',
@@ -17,7 +17,7 @@ CREATE INDEX idx_categories_slug ON service_categories(slug);
 CREATE INDEX idx_categories_order ON service_categories(display_order);
 
 CREATE TABLE service_subcategories (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     category_id UUID NOT NULL REFERENCES service_categories(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(100) NOT NULL,

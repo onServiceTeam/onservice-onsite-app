@@ -217,7 +217,7 @@ export async function getMyReferrals(
   };
 }
 
-export function formatReferralCode(c: ReferralCodeRow) {
+export function formatReferralCode(c: ReferralCodeRow): Record<string, unknown> {
   return {
     id: c.id,
     code: c.code,
@@ -232,7 +232,7 @@ export function formatReferralCode(c: ReferralCodeRow) {
   };
 }
 
-export function formatRedemption(r: RedemptionRow) {
+export function formatRedemption(r: RedemptionRow): Record<string, unknown> {
   return {
     id: r.id,
     referrerId: r.referrer_id,

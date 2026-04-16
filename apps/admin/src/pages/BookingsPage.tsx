@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
@@ -53,7 +53,7 @@ function formatCurrency(cents: number): string {
   return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 }
 
-export default function BookingsPage() {
+export default function BookingsPage(): React.ReactElement {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -70,7 +70,7 @@ export default function BookingsPage() {
     },
   });
 
-  const handleSearch = (e: FormEvent) => {
+  const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
     setSearch(searchInput);
     setPage(1);

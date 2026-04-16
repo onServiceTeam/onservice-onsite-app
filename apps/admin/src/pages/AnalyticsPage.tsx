@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 
@@ -32,7 +32,7 @@ interface AbTest {
   createdAt: string;
 }
 
-function AbTestsTab() {
+function AbTestsTab(): React.ReactElement {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', targetMetric: 'conversion_rate', trafficSplit: 0.5 });
@@ -167,7 +167,7 @@ interface CohortRow {
   periods: Array<{ period: number; value: number; percentage: number }>;
 }
 
-function CohortTab() {
+function CohortTab(): React.ReactElement {
   const [months, setMonths] = useState(6);
   const [metric, setMetric] = useState<'retention' | 'revenue'>('retention');
 
@@ -242,7 +242,7 @@ interface ChurnCustomer {
   riskLevel: string;
 }
 
-function ChurnTab() {
+function ChurnTab(): React.ReactElement {
   const [riskLevel, setRiskLevel] = useState('');
   const [page, setPage] = useState(1);
 
@@ -334,7 +334,7 @@ interface QualityScore {
   computedAt: string;
 }
 
-function QualityTab() {
+function QualityTab(): React.ReactElement {
   const queryClient = useQueryClient();
   const [sortBy, setSortBy] = useState('overall');
 
@@ -351,7 +351,7 @@ function QualityTab() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'quality-scores'] }),
   });
 
-  const scoreColor = (score: number) => {
+  const scoreColor = (score: number): string => {
     if (score >= 80) return 'text-green-600';
     if (score >= 60) return 'text-yellow-600';
     return 'text-red-600';
@@ -423,7 +423,7 @@ interface CommissionSuggestion {
   rationale: string;
 }
 
-function CommissionTab() {
+function CommissionTab(): React.ReactElement {
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'commission-optimization'],
     queryFn: async () => {
@@ -469,7 +469,7 @@ function CommissionTab() {
 
 // ─── Main Analytics Page ────────────────────────────────────────────
 
-export default function AnalyticsPage() {
+export default function AnalyticsPage(): React.ReactElement {
   const [activeTab, setActiveTab] = useState<TabId>('ab-tests');
 
   return (

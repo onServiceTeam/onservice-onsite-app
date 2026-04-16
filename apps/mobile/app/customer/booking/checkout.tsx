@@ -27,19 +27,19 @@ const PAYMENT_METHODS: PaymentOption[] = [
   { id: 'qrph', label: 'QR Ph', icon: '📱', description: 'Scan to pay via QR Ph' },
 ];
 
-export default function CheckoutScreen() {
+export default function CheckoutScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { draft, serviceFee, total, setPaymentMethod, reset } = useBookingStore();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(draft.paymentMethod);
   const [loading, setLoading] = useState(false);
 
-  const handleMethodSelect = (method: PaymentMethod) => {
+  const handleMethodSelect = (method: PaymentMethod): void => {
     setSelectedMethod(method);
     setPaymentMethod(method);
   };
 
-  const handlePay = async () => {
+  const handlePay = async (): Promise<void> => {
     if (!selectedMethod) {
       Alert.alert('Payment Method', 'Please select a payment method.');
       return;
@@ -160,12 +160,16 @@ export default function CheckoutScreen() {
         ))}
 
         {/* Escrow info */}
-        <View style={styles.escrowBanner}>
-          <Text style={styles.escrowIcon}>🔒</Text>
+        <TouchableOpacity
+          style={styles.escrowBanner}
+          onPress={() => router.push('/customer/safety' as never)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.escrowIcon}>🛡️</Text>
           <Text style={styles.escrowText}>
-            Your payment is held securely in escrow until you confirm the job is complete.
+            Protected by SiguradoShield™. Your payment is held in escrow until you confirm the job is complete.
           </Text>
-        </View>
+        </TouchableOpacity>
 
         {/* Price breakdown */}
         <View style={styles.priceBreakdown}>
@@ -279,14 +283,14 @@ const styles = StyleSheet.create({
   escrowBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.successLight,
     padding: spacing.base,
     borderRadius: borderRadius.md,
     marginTop: spacing.md,
     marginBottom: spacing.lg,
   },
   escrowIcon: { fontSize: 20, marginRight: spacing.sm },
-  escrowText: { ...typography.bodySmall, color: '#166534', flex: 1 },
+  escrowText: { ...typography.bodySmall, color: colors.success, flex: 1 },
 
   priceBreakdown: {
     backgroundColor: colors.backgroundSecondary,

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
@@ -29,7 +29,7 @@ const CHANNEL_VARIANT: Record<string, 'info' | 'success' | 'warning' | 'default'
   in_app: 'default',
 };
 
-export default function NotificationTemplatesPage() {
+export default function NotificationTemplatesPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState('');
@@ -97,7 +97,7 @@ export default function NotificationTemplatesPage() {
     },
   });
 
-  function openEdit(t: Template) {
+  function openEdit(t: Template): void {
     setEditing(t);
     setCreating(false);
     setFormSlug(t.slug);
@@ -109,7 +109,7 @@ export default function NotificationTemplatesPage() {
     setFormError('');
   }
 
-  function openCreate() {
+  function openCreate(): void {
     setEditing(null);
     setCreating(true);
     setFormSlug('');
@@ -121,7 +121,7 @@ export default function NotificationTemplatesPage() {
     setFormError('');
   }
 
-  function closeModal() {
+  function closeModal(): void {
     setEditing(null);
     setCreating(false);
     setFormError('');

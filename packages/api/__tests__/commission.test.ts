@@ -72,7 +72,7 @@ describe('Commission Calculation Engine', () => {
     });
   });
 
-  describe('calculateCancellationRefund (FR-102)', () => {
+  describe('calculateCancellationRefund (FR-102 per spec)', () => {
     const servicePrice = 100000;
 
     it('should give 100% refund if >24h before scheduled time', () => {
@@ -88,36 +88,44 @@ describe('Commission Calculation Engine', () => {
       expect(result.customerRefundPercent).toBe(1.00);
     });
 
-    it('should give 90% refund if 1-2h before', () => {
+    it('should give 80% refund if <2h before (per spec)', () => {
       const result = calculateCancellationRefund(servicePrice, 1.5, false);
-      expect(result.customerRefundPercent).toBe(0.90);
-      expect(result.providerCompensationPercent).toBe(0.10);
-      expect(result.customerRefundAmount).toBe(90000);
-      expect(result.providerCompensationAmount).toBe(10000);
+      expect(result.customerRefundPercent).toBe(0.80);
+      expect(result.providerCompensationPercent).toBe(0.20);
+      expect(result.customerRefundAmount).toBe(80000);
+      expect(result.providerCompensationAmount).toBe(20000);
     });
 
-    it('should give 80% refund if 30min-1h before', () => {
+    it('should give 80% refund if 30min-1h before (per spec)', () => {
       const result = calculateCancellationRefund(servicePrice, 0.75, false);
       expect(result.customerRefundPercent).toBe(0.80);
       expect(result.providerCompensationPercent).toBe(0.20);
     });
 
-    it('should give 70% refund if <30min before', () => {
+    it('should give 80% refund if <30min before (per spec)', () => {
       const result = calculateCancellationRefund(servicePrice, 0.25, false);
-      expect(result.customerRefundPercent).toBe(0.70);
-      expect(result.providerCompensationPercent).toBe(0.30);
+      expect(result.customerRefundPercent).toBe(0.80);
+      expect(result.providerCompensationPercent).toBe(0.20);
     });
 
-    it('should give 70% refund if after scheduled time (provider en route)', () => {
+    it('should give 80% refund if after scheduled time and provider not arrived (per spec)', () => {
       const result = calculateCancellationRefund(servicePrice, -0.5, false);
-      expect(result.customerRefundPercent).toBe(0.70);
-      expect(result.providerCompensationPercent).toBe(0.30);
+      expect(result.customerRefundPercent).toBe(0.80);
+      expect(result.providerCompensationPercent).toBe(0.20);
     });
 
     it('should give 50% refund if provider has arrived', () => {
       const result = calculateCancellationRefund(servicePrice, 0, true);
       expect(result.customerRefundPercent).toBe(0.50);
       expect(result.providerCompensationPercent).toBe(0.50);
+    });
+
+    it('should give 0% refund for customer no-show (per spec)', () => {
+      const result = calculateCancellationRefund(servicePrice, -1, false, true);
+      expect(result.customerRefundPercent).toBe(0);
+      expect(result.providerCompensationPercent).toBe(1.00);
+      expect(result.customerRefundAmount).toBe(0);
+      expect(result.providerCompensationAmount).toBe(100000);
     });
 
     it('should round amounts to nearest centavo', () => {

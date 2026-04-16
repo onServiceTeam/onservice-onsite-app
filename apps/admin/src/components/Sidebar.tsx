@@ -1,3 +1,4 @@
+import React from 'react';
 import { NavLink } from 'react-router-dom';
 
 const NAV_ITEMS = [
@@ -14,9 +15,11 @@ const NAV_ITEMS = [
   { to: '/business-accounts', icon: '🏢', label: 'Business' },
   { to: '/service-areas', icon: '📍', label: 'Service Areas' },
   { to: '/analytics', icon: '📈', label: 'Analytics' },
+  { to: '/audit-log', icon: '🔍', label: 'Audit Log' },
+  { to: '/settings', icon: '⚙️', label: 'Settings' },
 ];
 
-export default function Sidebar() {
+export default function Sidebar(): React.ReactElement {
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-60 bg-[var(--color-sidebar)] text-white flex flex-col z-20">
       <div className="px-5 py-5 border-b border-white/10">

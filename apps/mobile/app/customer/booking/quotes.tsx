@@ -1,8 +1,10 @@
+import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getBookingQuotes, acceptQuote, declineQuote, type BookingQuote } from '@/services/booking.service';
+import { colors, spacing, borderRadius } from '@/config/theme';
 
 function formatCurrency(centavos: number): string {
   return `₱${(centavos / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
@@ -13,7 +15,7 @@ function QuoteCard({ quote, onAccept, onDecline, isPending }: {
   onAccept: () => void;
   onDecline: () => void;
   isPending: boolean;
-}) {
+}): React.ReactElement {
   const isExpired = new Date(quote.expiresAt) < new Date();
   const isResolved = quote.status !== 'submitted';
 
@@ -102,7 +104,7 @@ function QuoteCard({ quote, onAccept, onDecline, isPending }: {
             onPress={onAccept}
             disabled={isPending}
           >
-            {isPending ? <ActivityIndicator size="small" color="#FFF" /> : (
+            {isPending ? <ActivityIndicator size="small" color={colors.white} /> : (
               <Text style={styles.acceptBtnText}>Accept Quote</Text>
             )}
           </TouchableOpacity>
@@ -112,7 +114,7 @@ function QuoteCard({ quote, onAccept, onDecline, isPending }: {
   );
 }
 
-export default function QuotesScreen() {
+export default function QuotesScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -131,7 +133,10 @@ export default function QuotesScreen() {
         { text: 'OK', onPress: () => router.replace(`/customer/booking/${bookingId}` as never) },
       ]);
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => {
+      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not accept quote.');
+    },
   });
 
   const declineMutation = useMutation({
@@ -139,10 +144,13 @@ export default function QuotesScreen() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['bookingQuotes', bookingId] });
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => {
+      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not decline quote.');
+    },
   });
 
-  const handleAccept = (quoteId: string) => {
+  const handleAccept = (quoteId: string): void => {
     Alert.alert('Accept Quote', 'Are you sure you want to accept this quote? Other quotes will be declined.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Accept', onPress: () => acceptMutation.mutate(quoteId) },
@@ -161,7 +169,7 @@ export default function QuotesScreen() {
 
       {isLoading ? (
         <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color="#00B4D8" />
+          <ActivityIndicator size="large" color={colors.info} />
         </View>
       ) : isError ? (
         <View style={styles.centerBox}>
@@ -200,59 +208,59 @@ export default function QuotesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  backBtn: { padding: 4 },
-  backText: { fontSize: 22, color: '#1B3A4B' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1B3A4B' },
+  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
+  backBtn: { padding: spacing.xs },
+  backText: { fontSize: 22, color: colors.text },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   placeholder: { width: 30 },
   body: { flex: 1 },
-  bodyContent: { padding: 16, paddingBottom: 40 },
+  bodyContent: { padding: spacing.base, paddingBottom: 40 },
   centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  errorText: { fontSize: 15, color: '#64748B', marginBottom: 12 },
-  retryBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: '#00B4D8', borderRadius: 8 },
-  retryText: { color: '#FFF', fontWeight: '600' },
-  quotesCount: { fontSize: 14, color: '#64748B', marginBottom: 16 },
+  errorText: { fontSize: 15, color: colors.textSecondary, marginBottom: spacing.md },
+  retryBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.info, borderRadius: 8 },
+  retryText: { color: colors.white, fontWeight: '600' },
+  quotesCount: { fontSize: 14, color: colors.textSecondary, marginBottom: spacing.base },
   emptyBox: { alignItems: 'center', paddingVertical: 40 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1B3A4B', marginBottom: 6 },
-  emptyDesc: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20 },
-  quoteCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#E2E8F0' },
+  emptyEmoji: { fontSize: 48, marginBottom: spacing.md },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 6 },
+  emptyDesc: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  quoteCard: { backgroundColor: colors.white, borderRadius: 16, padding: spacing.base, marginBottom: spacing.base, borderWidth: 1, borderColor: colors.border },
   quoteResolved: { opacity: 0.7 },
-  quoteHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  providerName: { fontSize: 16, fontWeight: '700', color: '#1B3A4B' },
+  quoteHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md },
+  providerName: { fontSize: 16, fontWeight: '700', color: colors.text },
   providerMeta: { flexDirection: 'row', gap: 6, marginTop: 2 },
-  metaText: { fontSize: 12, color: '#64748B' },
+  metaText: { fontSize: 12, color: colors.textSecondary },
   priceBox: { alignItems: 'flex-end' },
-  priceLabel: { fontSize: 11, color: '#64748B', textTransform: 'uppercase' },
-  priceValue: { fontSize: 20, fontWeight: '800', color: '#1B3A4B' },
-  quoteDesc: { fontSize: 14, color: '#475569', lineHeight: 20, marginBottom: 12 },
-  lineItemsSection: { borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 12, marginBottom: 12 },
-  lineItemsTitle: { fontSize: 13, fontWeight: '700', color: '#1B3A4B', marginBottom: 8 },
+  priceLabel: { fontSize: 11, color: colors.textSecondary, textTransform: 'uppercase' },
+  priceValue: { fontSize: 20, fontWeight: '800', color: colors.text },
+  quoteDesc: { fontSize: 14, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.md },
+  lineItemsSection: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md, marginBottom: spacing.md },
+  lineItemsTitle: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
   lineItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  lineItemName: { fontSize: 13, color: '#1B3A4B' },
-  lineItemMeta: { fontSize: 11, color: '#94A3B8' },
-  lineItemTotal: { fontSize: 13, fontWeight: '600', color: '#1B3A4B' },
+  lineItemName: { fontSize: 13, color: colors.text },
+  lineItemMeta: { fontSize: 11, color: colors.textTertiary },
+  lineItemTotal: { fontSize: 13, fontWeight: '600', color: colors.text },
   subtotalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  subtotalLabel: { fontSize: 13, color: '#64748B' },
-  subtotalValue: { fontSize: 13, fontWeight: '600', color: '#1B3A4B' },
-  estimateRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  estimateLabel: { fontSize: 13, color: '#64748B' },
-  estimateValue: { fontSize: 13, fontWeight: '600', color: '#1B3A4B' },
-  notesSection: { backgroundColor: '#F1F5F9', borderRadius: 8, padding: 10, marginBottom: 12 },
-  notesLabel: { fontSize: 11, fontWeight: '600', color: '#64748B', marginBottom: 4 },
-  notesText: { fontSize: 13, color: '#475569', lineHeight: 18 },
-  expiredBadge: { backgroundColor: '#FEF2F2', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, alignSelf: 'flex-start', marginTop: 4 },
-  expiredText: { fontSize: 12, fontWeight: '600', color: '#EF4444' },
-  statusBadge: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, alignSelf: 'flex-start', marginTop: 4 },
-  acceptedBadge: { backgroundColor: '#ECFDF5' },
-  declinedBadge: { backgroundColor: '#FEF2F2' },
+  subtotalLabel: { fontSize: 13, color: colors.textSecondary },
+  subtotalValue: { fontSize: 13, fontWeight: '600', color: colors.text },
+  estimateRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
+  estimateLabel: { fontSize: 13, color: colors.textSecondary },
+  estimateValue: { fontSize: 13, fontWeight: '600', color: colors.text },
+  notesSection: { backgroundColor: colors.backgroundSecondary, borderRadius: 8, padding: 10, marginBottom: spacing.md },
+  notesLabel: { fontSize: 11, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.xs },
+  notesText: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+  expiredBadge: { backgroundColor: colors.errorLight, paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: 8, alignSelf: 'flex-start', marginTop: spacing.xs },
+  expiredText: { fontSize: 12, fontWeight: '600', color: colors.error },
+  statusBadge: { paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: 8, alignSelf: 'flex-start', marginTop: spacing.xs },
+  acceptedBadge: { backgroundColor: colors.successLight },
+  declinedBadge: { backgroundColor: colors.errorLight },
   statusText: { fontSize: 12, fontWeight: '600' },
-  acceptedText: { color: '#10B981' },
-  declinedText: { color: '#EF4444' },
-  quoteActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  declineBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center' },
-  declineBtnText: { fontSize: 14, fontWeight: '600', color: '#64748B' },
-  acceptBtn: { flex: 2, paddingVertical: 12, borderRadius: 10, backgroundColor: '#1B3A4B', alignItems: 'center' },
-  acceptBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  acceptedText: { color: colors.success },
+  declinedText: { color: colors.error },
+  quoteActions: { flexDirection: 'row', gap: 10, marginTop: spacing.md },
+  declineBtn: { flex: 1, paddingVertical: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+  declineBtnText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
+  acceptBtn: { flex: 2, paddingVertical: spacing.md, borderRadius: borderRadius.md, backgroundColor: colors.text, alignItems: 'center' },
+  acceptBtnText: { fontSize: 14, fontWeight: '700', color: colors.white },
 });

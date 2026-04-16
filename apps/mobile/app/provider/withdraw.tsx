@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,7 +27,7 @@ const PAYOUT_METHODS = [
 
 type PayoutMethod = typeof PAYOUT_METHODS[number]['id'];
 
-export default function WithdrawScreen() {
+export default function WithdrawScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -68,7 +69,7 @@ export default function WithdrawScreen() {
   const minWithdraw = platformConfig.minimumWithdrawalAmount;
   const amountCentavos = Math.round(parseFloat(amount || '0') * 100);
 
-  const handleWithdraw = () => {
+  const handleWithdraw = (): void => {
     if (!method) {
       Alert.alert('Select Method', 'Please select a payout method.');
       return;
@@ -107,8 +108,21 @@ export default function WithdrawScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Available Balance</Text>
-          <Text style={styles.balanceAmount}>{formatPHP(availableBalance)}</Text>
+          {walletQuery.isLoading ? (
+            <ActivityIndicator size="large" color={colors.white} />
+          ) : walletQuery.isError ? (
+            <>
+              <Text style={styles.balanceLabel}>Could not load balance</Text>
+              <TouchableOpacity onPress={() => void walletQuery.refetch()}>
+                <Text style={{ ...typography.bodySmall, color: colors.white, fontWeight: '600', marginTop: spacing.sm }}>Retry</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.balanceLabel}>Available Balance</Text>
+              <Text style={styles.balanceAmount}>{formatPHP(availableBalance)}</Text>
+            </>
+          )}
         </View>
 
         <Text style={styles.sectionTitle}>Amount (₱)</Text>
@@ -193,7 +207,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   balanceLabel: { ...typography.body, color: 'rgba(255,255,255,0.7)', marginBottom: spacing.xs },
-  balanceAmount: { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
+  balanceAmount: { fontSize: 28, fontWeight: '800', color: colors.white },
 
   sectionTitle: {
     ...typography.bodySmall,
@@ -217,7 +231,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'transparent',
   },
-  methodCardActive: { borderColor: colors.secondary, backgroundColor: '#E6FFF5' },
+  methodCardActive: { borderColor: colors.secondary, backgroundColor: colors.successLight },
   methodIcon: { fontSize: 28, marginBottom: spacing.xs },
   methodLabel: { ...typography.bodySmall, color: colors.text, fontWeight: '600' },
   methodLabelActive: { color: colors.secondary },

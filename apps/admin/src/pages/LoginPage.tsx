@@ -1,9 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuthStore, type AdminUser } from '@/stores/auth.store';
 import api, { getErrorMessage } from '@/lib/api';
 
-export default function LoginPage() {
+export default function LoginPage(): React.ReactElement {
   const navigate = useNavigate();
   const { isAuthenticated, login } = useAuthStore();
   const [email, setEmail] = useState('');
@@ -15,7 +15,7 @@ export default function LoginPage() {
     return <Navigate to="/" replace />;
   }
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
     setError('');
     setLoading(true);

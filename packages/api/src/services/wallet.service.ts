@@ -40,7 +40,7 @@ export async function getUserWallet(userId: string, type: 'customer' | 'provider
 
   const created = await db.query<WalletRow>(
     `INSERT INTO wallets (user_id, type) VALUES ($1, $2)
-     ON CONFLICT (user_id) WHERE user_id IS NOT NULL DO UPDATE SET updated_at = NOW()
+     ON CONFLICT (user_id, type) WHERE user_id IS NOT NULL DO UPDATE SET updated_at = NOW()
      RETURNING *`,
     [userId, type],
   );
@@ -171,7 +171,7 @@ export async function getWalletTransactions(
   };
 }
 
-export function formatWallet(w: WalletRow) {
+export function formatWallet(w: WalletRow): Record<string, unknown> {
   return {
     id: w.id,
     userId: w.user_id,
@@ -183,7 +183,7 @@ export function formatWallet(w: WalletRow) {
   };
 }
 
-export function formatTransaction(t: TransactionRow) {
+export function formatTransaction(t: TransactionRow): Record<string, unknown> {
   return {
     id: t.id,
     walletId: t.wallet_id,

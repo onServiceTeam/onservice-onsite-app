@@ -250,11 +250,11 @@ export async function calculateSukiDiscountForBooking(
   return { discountPercent, discountAmount };
 }
 
-export function getSukiTiers() {
+export function getSukiTiers(): Record<string, { minBookings: number; pointsPerPeso: number; discount: number }> {
   return SUKI_TIERS;
 }
 
-export function formatMembership(m: SukiMembershipRow & { provider_name?: string | null }) {
+export function formatMembership(m: SukiMembershipRow & { provider_name?: string | null }): Record<string, unknown> {
   const tierConfig = SUKI_TIERS[m.tier] ?? DEFAULT_TIER;
   return {
     id: m.id,
@@ -272,7 +272,56 @@ export function formatMembership(m: SukiMembershipRow & { provider_name?: string
   };
 }
 
-export function formatReward(r: SukiRewardRow) {
+export async function getProviderSukiCustomers(
+  providerUserId: string,
+  page = 1,
+  pageSize = 20,
+): Promise<{ memberships: (SukiMembershipRow & { customer_name: string | null })[]; total: number }> {
+  const providerResult = await db.query<{ id: string }>(
+    `SELECT id FROM providers WHERE user_id = $1`,
+    [providerUserId],
+  );
+  if (providerResult.rows.length === 0) {
+    throw createAppError('Provider not found.', 404);
+  }
+  const providerId = providerResult.rows[0]!.id;
+  const offset = (page - 1) * pageSize;
+
+  const [countResult, dataResult] = await Promise.all([
+    db.query<CountRow>(
+      `SELECT COUNT(*)::text as count FROM suki_memberships WHERE provider_id = $1`,
+      [providerId],
+    ),
+    db.query<SukiMembershipRow & { customer_name: string | null }>(
+      `SELECT sm.*,
+              CONCAT(u.first_name, ' ', LEFT(u.last_name, 1), '.') AS customer_name
+       FROM suki_memberships sm
+       JOIN users u ON u.id = sm.customer_id
+       WHERE sm.provider_id = $1
+       ORDER BY sm.total_bookings DESC, sm.last_booking_at DESC NULLS LAST
+       LIMIT $2 OFFSET $3`,
+      [providerId, pageSize, offset],
+    ),
+  ]);
+
+  return { memberships: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
+}
+
+export function formatProviderCustomer(m: SukiMembershipRow & { customer_name?: string | null }): Record<string, unknown> {
+  const tierConfig = SUKI_TIERS[m.tier] ?? DEFAULT_TIER;
+  return {
+    id: m.id,
+    customerId: m.customer_id,
+    customerName: m.customer_name ?? 'Customer',
+    totalBookings: m.total_bookings,
+    totalSpent: Number(m.total_spent),
+    tier: m.tier,
+    discount: tierConfig.discount,
+    lastBookingAt: m.last_booking_at,
+  };
+}
+
+export function formatReward(r: SukiRewardRow): Record<string, unknown> {
   return {
     id: r.id,
     membershipId: r.membership_id,

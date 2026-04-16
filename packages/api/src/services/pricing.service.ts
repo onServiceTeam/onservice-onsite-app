@@ -388,7 +388,7 @@ export async function getUpcomingHolidays(
 
 // --- Formatters ---
 
-export function formatPricingRule(r: PricingRuleRow) {
+export function formatPricingRule(r: PricingRuleRow): Record<string, unknown> {
   return {
     id: r.id,
     name: r.name,

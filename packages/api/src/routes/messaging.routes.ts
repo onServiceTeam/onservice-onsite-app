@@ -5,6 +5,7 @@ import { sendMessageSchema, createConversationSchema } from '../validators/messa
 import { createAppError } from '../middleware/error.middleware';
 import * as messagingService from '../services/messaging.service';
 import * as notificationService from '../services/notification.service';
+import { emitToConversation, emitToUser } from '../services/socket.service';
 import { db } from '../models/db';
 
 const router = Router();
@@ -135,6 +136,14 @@ router.post(
         ? conversation.provider_id
         : conversation.customer_id;
 
+      const formatted = messagingService.formatMessage(message);
+
+      emitToConversation(conversationId, 'new:message', formatted);
+      emitToUser(recipientId, 'notification:message', {
+        conversationId,
+        message: formatted,
+      });
+
       await notificationService.createNotification({
         userId: recipientId,
         type: 'new_message',
@@ -145,7 +154,7 @@ router.post(
 
       res.status(201).json({
         success: true,
-        data: messagingService.formatMessage(message),
+        data: formatted,
       });
     } catch (error) {
       next(error);
@@ -159,7 +168,17 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const conversationId = getParamId(req);
-      const count = await messagingService.markMessagesAsRead(conversationId, req.user!.userId);
+      const userId = req.user!.userId;
+      const count = await messagingService.markMessagesAsRead(conversationId, userId);
+
+      if (count > 0) {
+        emitToConversation(conversationId, 'messages:read', {
+          conversationId,
+          readBy: userId,
+          count,
+        });
+      }
+
       res.json({ success: true, data: { markedRead: count } });
     } catch (error) {
       next(error);

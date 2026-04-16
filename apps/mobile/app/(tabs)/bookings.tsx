@@ -50,7 +50,7 @@ function getStatusColor(status: string): string {
   return map[status] ?? colors.textTertiary;
 }
 
-async function fetchBookings({ pageParam = 1, queryKey }: { pageParam?: number; queryKey: string[] }) {
+async function fetchBookings({ pageParam = 1, queryKey }: { pageParam?: number; queryKey: string[] }): Promise<{ bookings: Booking[]; meta: { page: number; pageSize: number; total: number; totalPages: number } }> {
   const statusFilter = queryKey[1];
   const params: Record<string, unknown> = { page: pageParam, pageSize: 15 };
   if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
@@ -64,7 +64,7 @@ async function fetchBookings({ pageParam = 1, queryKey }: { pageParam?: number; 
   return { bookings: res.data.data, meta: res.data.meta };
 }
 
-export default function BookingsScreen() {
+export default function BookingsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<StatusFilter>('all');
@@ -93,7 +93,7 @@ export default function BookingsScreen() {
 
   const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
 
-  const renderItem = ({ item }: { item: Booking }) => (
+  const renderItem = ({ item }: { item: Booking }): React.ReactElement => (
     <TouchableOpacity
       style={styles.card}
       onPress={() => router.push(`/customer/booking/${item.id}` as never)}
@@ -117,7 +117,15 @@ export default function BookingsScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
-      <Text style={styles.title}>Bookings</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.title}>Bookings</Text>
+        <TouchableOpacity
+          style={styles.recurringLink}
+          onPress={() => router.push('/customer/recurring' as never)}
+        >
+          <Text style={styles.recurringLinkText}>🔄 Recurring</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.filterRow}>
         {FILTERS.map((f) => (
@@ -142,8 +150,8 @@ export default function BookingsScreen() {
           <Text style={styles.emptyIcon}>⚠️</Text>
           <Text style={styles.emptyTitle}>Something went wrong</Text>
           <Text style={styles.emptySubtitle}>Could not load your bookings.</Text>
-          <TouchableOpacity onPress={onRefresh} style={{ marginTop: spacing.base }}>
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>Try Again</Text>
+          <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
+            <Text style={styles.retryText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -184,7 +192,10 @@ export default function BookingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.base },
-  title: { ...typography.h1, color: colors.text, marginBottom: spacing.md },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
+  title: { ...typography.h1, color: colors.text },
+  recurringLink: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
+  recurringLinkText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
 
   filterRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.base },
   filterChip: {
@@ -195,7 +206,7 @@ const styles = StyleSheet.create({
   },
   filterChipActive: { backgroundColor: colors.primary },
   filterLabel: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '500' },
-  filterLabelActive: { color: '#FFFFFF' },
+  filterLabelActive: { color: colors.white },
 
   list: { paddingBottom: 100 },
   card: {
@@ -227,4 +238,6 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 64, marginBottom: spacing.base },
   emptyTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
   emptySubtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  retryButton: { marginTop: spacing.base },
+  retryText: { ...typography.body, color: colors.primary, fontWeight: '600' },
 });

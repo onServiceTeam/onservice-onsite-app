@@ -20,11 +20,14 @@ type PaymentMethod = 'gcash' | 'maya' | 'card' | 'qrph' | 'wallet' | 'bank_trans
 
 const PAYMONGO_BASE = 'https://api.paymongo.com/v1';
 
-function getPaymongoHeaders() {
+function getPaymongoHeaders(): Record<string, string> {
   const key = process.env.PAYMONGO_SECRET_KEY;
   if (!key) {
-    logger.warn('PAYMONGO_SECRET_KEY not set — using sandbox mode');
-    return { Authorization: 'Basic ' + Buffer.from('sk_test_placeholder:').toString('base64') };
+    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+      logger.warn('PAYMONGO_SECRET_KEY not set — payment calls will fail in production');
+      return { Authorization: 'Basic ' + Buffer.from('sk_test_missing:').toString('base64') };
+    }
+    throw new Error('PAYMONGO_SECRET_KEY environment variable is required in production');
   }
   return { Authorization: 'Basic ' + Buffer.from(key + ':').toString('base64') };
 }
@@ -173,7 +176,7 @@ function mapPaymentMethodToPaymongo(method: PaymentMethod): string[] {
   return map[method] ?? ['card'];
 }
 
-export function formatPaymentIntent(p: PaymentIntentRow) {
+export function formatPaymentIntent(p: PaymentIntentRow): Record<string, unknown> {
   let checkoutUrl: string | null = null;
   if (p.payment_method !== 'wallet' && p.client_key) {
     checkoutUrl = buildCheckoutUrl(p.client_key, p.payment_method);

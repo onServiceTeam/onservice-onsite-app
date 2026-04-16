@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 import { hapticSuccess } from '@/utils/haptics';
 import { colors } from '@/config/theme';
-import { useTranslation } from '@/i18n/useTranslation';
 
 interface SuccessAnimationProps {
   visible: boolean;
@@ -20,7 +19,6 @@ export function SuccessAnimation({
   const scale = useRef(new Animated.Value(0)).current;
   const checkOpacity = useRef(new Animated.Value(0)).current;
   const messageOpacity = useRef(new Animated.Value(0)).current;
-  const { t } = useTranslation();
 
   useEffect(() => {
     if (!visible) {
@@ -63,7 +61,7 @@ export function SuccessAnimation({
       style={styles.wrapper}
       accessible={true}
       accessibilityRole="alert"
-      accessibilityLabel={message ?? t('common.success')}
+      accessibilityLabel={message ?? 'Success!'}
       accessibilityLiveRegion="polite"
     >
       <Animated.View
@@ -116,7 +114,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   checkmark: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontWeight: '700',
   },
   message: {

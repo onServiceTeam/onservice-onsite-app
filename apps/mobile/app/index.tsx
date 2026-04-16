@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { colors, typography, spacing } from '@/config/theme';
 import { storage } from '@/services/api';
 
-export default function SplashScreen() {
+export default function SplashScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isAuthenticated, isLoading, user } = useAuthStore();
@@ -43,7 +43,7 @@ export default function SplashScreen() {
         <Text style={styles.appName}>onService</Text>
         <Text style={styles.tagline}>Home services, done right.</Text>
       </View>
-      <ActivityIndicator size="large" color="#FFFFFF" style={styles.loader} />
+      <ActivityIndicator size="large" color={colors.white} style={styles.loader} />
     </View>
   );
 }
@@ -68,11 +68,11 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 40,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: colors.white,
   },
   appName: {
     ...typography.h1,
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 36,
     marginBottom: spacing.sm,
   },

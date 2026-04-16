@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import React, { useState, Fragment, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { Badge } from '@/components/ui';
@@ -31,15 +31,32 @@ function formatCurrency(cents: number): string {
   return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 }
 
-type ModalMode = null | 'addCategory' | 'editCategory' | 'addSubcategory' | 'editSubcategory';
+interface Addon {
+  id: string;
+  subcategoryId: string;
+  name: string;
+  description: string;
+  price: number;
+  isActive: boolean;
+  displayOrder: number;
+}
 
-export default function CatalogPage() {
+type ModalMode = null | 'addCategory' | 'editCategory' | 'addSubcategory' | 'editSubcategory' | 'addAddon' | 'editAddon';
+
+export default function CatalogPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalMode>(null);
   const [editTarget, setEditTarget] = useState<Category | Subcategory | null>(null);
   const [targetCategoryId, setTargetCategoryId] = useState<string | null>(null);
   const [error, setError] = useState('');
+
+  const [addonSubcatId, setAddonSubcatId] = useState<string | null>(null);
+  const [addonEditTarget, setAddonEditTarget] = useState<Addon | null>(null);
+  const [addonName, setAddonName] = useState('');
+  const [addonDesc, setAddonDesc] = useState('');
+  const [addonPrice, setAddonPrice] = useState('');
+  const [addonOrder, setAddonOrder] = useState('0');
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -109,10 +126,53 @@ export default function CatalogPage() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['adminCatalog'] }),
   });
 
-  function closeModal() {
+  const [expandedAddons, setExpandedAddons] = useState<string | null>(null);
+
+  const { data: addonsData } = useQuery({
+    queryKey: ['adminAddons', expandedAddons],
+    queryFn: async () => {
+      if (!expandedAddons) return [];
+      const res = await api.get<{ success: boolean; data: Addon[] }>(
+        `/api/v1/catalog/admin/subcategories/${expandedAddons}/addons`,
+      );
+      return res.data.data;
+    },
+    enabled: !!expandedAddons,
+  });
+
+  const addonMutation = useMutation({
+    mutationFn: async () => {
+      const body = {
+        subcategoryId: addonSubcatId,
+        name: addonName,
+        description: addonDesc,
+        price: addonPrice ? Math.round(Number(addonPrice) * 100) : 0,
+        displayOrder: Number(addonOrder),
+      };
+      if (modal === 'addAddon') {
+        await api.post('/api/v1/catalog/admin/addons', body);
+      } else if (modal === 'editAddon' && addonEditTarget) {
+        await api.put(`/api/v1/catalog/admin/addons/${addonEditTarget.id}`, body);
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['adminAddons', expandedAddons] });
+      closeModal();
+    },
+    onError: (err) => setError(getErrorMessage(err)),
+  });
+
+  const deleteAddonMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/api/v1/catalog/admin/addons/${id}`),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['adminAddons', expandedAddons] }),
+  });
+
+  function closeModal(): void {
     setModal(null);
     setEditTarget(null);
     setTargetCategoryId(null);
+    setAddonEditTarget(null);
+    setAddonSubcatId(null);
     setError('');
     setName('');
     setDescription('');
@@ -123,14 +183,18 @@ export default function CatalogPage() {
     setMinPrice('');
     setMaxPrice('');
     setEstimatedDuration('');
+    setAddonName('');
+    setAddonDesc('');
+    setAddonPrice('');
+    setAddonOrder('0');
   }
 
-  function openAddCategory() {
+  function openAddCategory(): void {
     closeModal();
     setModal('addCategory');
   }
 
-  function openEditCategory(cat: Category) {
+  function openEditCategory(cat: Category): void {
     closeModal();
     setEditTarget(cat);
     setName(cat.name);
@@ -140,13 +204,13 @@ export default function CatalogPage() {
     setModal('editCategory');
   }
 
-  function openAddSubcategory(categoryId: string) {
+  function openAddSubcategory(categoryId: string): void {
     closeModal();
     setTargetCategoryId(categoryId);
     setModal('addSubcategory');
   }
 
-  function openEditSubcategory(sub: Subcategory) {
+  function openEditSubcategory(sub: Subcategory): void {
     closeModal();
     setEditTarget(sub);
     setTargetCategoryId(sub.categoryId);
@@ -161,17 +225,37 @@ export default function CatalogPage() {
     setModal('editSubcategory');
   }
 
-  const handleSubmit = (e: FormEvent) => {
+  function openAddAddon(subcategoryId: string): void {
+    closeModal();
+    setAddonSubcatId(subcategoryId);
+    setModal('addAddon');
+  }
+
+  function openEditAddon(addon: Addon): void {
+    closeModal();
+    setAddonEditTarget(addon);
+    setAddonSubcatId(addon.subcategoryId);
+    setAddonName(addon.name);
+    setAddonDesc(addon.description);
+    setAddonPrice(String(addon.price / 100));
+    setAddonOrder(String(addon.displayOrder));
+    setModal('editAddon');
+  }
+
+  const handleSubmit = (e: FormEvent): void => {
     e.preventDefault();
     if (modal === 'addCategory' || modal === 'editCategory') {
       categoryMutation.mutate();
+    } else if (modal === 'addAddon' || modal === 'editAddon') {
+      addonMutation.mutate();
     } else {
       subcategoryMutation.mutate();
     }
   };
 
   const isCategoryModal = modal === 'addCategory' || modal === 'editCategory';
-  const isPending = categoryMutation.isPending || subcategoryMutation.isPending;
+  const isAddonModal = modal === 'addAddon' || modal === 'editAddon';
+  const isPending = categoryMutation.isPending || subcategoryMutation.isPending || addonMutation.isPending;
 
   if (isLoading) {
     return (
@@ -248,7 +332,8 @@ export default function CatalogPage() {
                     </thead>
                     <tbody>
                       {cat.subcategories.map((sub) => (
-                        <tr key={sub.id} className="border-t border-[var(--color-border)]">
+                        <Fragment key={sub.id}>
+                        <tr className="border-t border-[var(--color-border)]">
                           <td className="px-5 py-3">
                             <p className="text-sm font-medium text-[var(--color-text)]">{sub.name}</p>
                             <p className="text-xs text-[var(--color-text-secondary)] line-clamp-1">{sub.description}</p>
@@ -267,6 +352,12 @@ export default function CatalogPage() {
                           <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)]">{sub.displayOrder}</td>
                           <td className="px-5 py-3 text-right">
                             <button
+                              onClick={() => setExpandedAddons(expandedAddons === sub.id ? null : sub.id)}
+                              className="px-2 py-1 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-md transition-colors mr-1"
+                            >
+                              Add-ons
+                            </button>
+                            <button
                               onClick={() => openEditSubcategory(sub)}
                               className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors mr-1"
                             >
@@ -282,6 +373,56 @@ export default function CatalogPage() {
                             </button>
                           </td>
                         </tr>
+                        {expandedAddons === sub.id && (
+                          <tr>
+                            <td colSpan={5} className="bg-purple-50/40 px-5 py-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-semibold text-purple-800 uppercase tracking-wider">
+                                  Add-ons for {sub.name}
+                                </span>
+                                <button
+                                  onClick={() => openAddAddon(sub.id)}
+                                  className="px-2 py-1 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-md transition-colors"
+                                >
+                                  + Add-on
+                                </button>
+                              </div>
+                              {(addonsData ?? []).length === 0 ? (
+                                <p className="text-xs text-[var(--color-text-secondary)]">No add-ons yet.</p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {(addonsData ?? []).map((addon) => (
+                                    <div key={addon.id} className="flex items-center justify-between bg-white rounded-md px-3 py-2 border border-purple-100">
+                                      <div>
+                                        <span className="text-sm font-medium text-[var(--color-text)]">{addon.name}</span>
+                                        {addon.description && (
+                                          <span className="ml-2 text-xs text-[var(--color-text-secondary)]">{addon.description}</span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-[var(--color-text)]">{formatCurrency(addon.price)}</span>
+                                        {!addon.isActive && <span className="text-xs text-red-500">(inactive)</span>}
+                                        <button
+                                          onClick={() => openEditAddon(addon)}
+                                          className="px-2 py-0.5 text-xs text-sky-700 bg-sky-50 rounded hover:bg-sky-100 transition-colors"
+                                        >
+                                          Edit
+                                        </button>
+                                        <button
+                                          onClick={() => { if (confirm(`Remove "${addon.name}"?`)) deleteAddonMutation.mutate(addon.id); }}
+                                          className="px-2 py-0.5 text-xs text-red-700 bg-red-50 rounded hover:bg-red-100 transition-colors"
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -311,6 +452,52 @@ export default function CatalogPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {isAddonModal ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Add-on Name</label>
+                    <input
+                      type="text"
+                      value={addonName}
+                      onChange={(e) => setAddonName(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Description</label>
+                    <textarea
+                      value={addonDesc}
+                      onChange={(e) => setAddonDesc(e.target.value)}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Price (₱)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={addonPrice}
+                        onChange={(e) => setAddonPrice(e.target.value)}
+                        required
+                        className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Display Order</label>
+                      <input
+                        type="number"
+                        value={addonOrder}
+                        onChange={(e) => setAddonOrder(e.target.value)}
+                        className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+              <>
               <div>
                 <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Name</label>
                 <input
@@ -421,6 +608,8 @@ export default function CatalogPage() {
                   className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                 />
               </div>
+              </>
+              )}
 
               <div className="flex gap-2 justify-end pt-2">
                 <button
@@ -432,7 +621,7 @@ export default function CatalogPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isPending || !name.trim()}
+                  disabled={isPending || (isAddonModal ? !addonName.trim() : !name.trim())}
                   className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                 >
                   {isPending ? 'Saving...' : 'Save'}

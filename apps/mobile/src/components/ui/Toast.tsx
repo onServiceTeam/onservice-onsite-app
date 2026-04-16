@@ -28,10 +28,10 @@ export const useToastStore = create<ToastState>((set) => ({
 }));
 
 const TOAST_COLORS: Record<ToastType, { bg: string; text: string; icon: string }> = {
-  success: { bg: colors.success, text: '#FFFFFF', icon: '✓' },
-  error: { bg: colors.error, text: '#FFFFFF', icon: '✕' },
+  success: { bg: colors.success, text: colors.white, icon: '✓' },
+  error: { bg: colors.error, text: colors.white, icon: '✕' },
   warning: { bg: colors.warning, text: colors.text, icon: '!' },
-  info: { bg: colors.info, text: '#FFFFFF', icon: 'i' },
+  info: { bg: colors.info, text: colors.white, icon: 'i' },
 };
 
 const DISPLAY_DURATION = 3000;
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,

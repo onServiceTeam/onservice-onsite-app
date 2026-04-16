@@ -7,15 +7,16 @@ import {
   StyleSheet,
   RefreshControl,
   Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
 import { useBookingStore } from '@/stores/booking.store';
-import { getCategories, type Category } from '@/services/catalog.service';
-import { getActiveBookings, getRecentBookings, type Booking } from '@/services/booking.service';
-import api, { type ApiResponse } from '@/services/api';
+import { getCategories, getActivePromotions, type Category, type Promotion } from '@/services/catalog.service';
+import { getActiveBookings, getRecentBookings } from '@/services/booking.service';
+import api from '@/services/api';
 import { Badge } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
@@ -73,7 +74,7 @@ function getBookingStatusColor(status: string): string {
   return map[status] ?? colors.textTertiary;
 }
 
-export default function HomeScreen() {
+export default function HomeScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
@@ -97,6 +98,12 @@ export default function HomeScreen() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const promosQuery = useQuery({
+    queryKey: ['activePromotions'],
+    queryFn: getActivePromotions,
+    staleTime: 10 * 60 * 1000,
+  });
+
   const sukiQuery = useQuery({
     queryKey: ['sukiProviders'],
     queryFn: getSukiProviders,
@@ -118,11 +125,12 @@ export default function HomeScreen() {
     void categoriesQuery.refetch();
     void activeBookingsQuery.refetch();
     void recentBookingsQuery.refetch();
+    void promosQuery.refetch();
     void sukiQuery.refetch();
     void unreadQuery.refetch();
-  }, [categoriesQuery, activeBookingsQuery, recentBookingsQuery, sukiQuery, unreadQuery]);
+  }, [categoriesQuery, activeBookingsQuery, recentBookingsQuery, promosQuery, sukiQuery, unreadQuery]);
 
-  const handleCategoryPress = (cat: Category) => {
+  const handleCategoryPress = (cat: Category): void => {
     setCategory(cat.id, cat.name, cat.slug);
     router.push(`/customer/category/${cat.slug}`);
   };
@@ -130,10 +138,11 @@ export default function HomeScreen() {
   const activeBookings = activeBookingsQuery.data ?? [];
   const recentBookings = recentBookingsQuery.data ?? [];
   const categories = categoriesQuery.data ?? [];
+  const promotions = promosQuery.data ?? [];
   const sukiProviders = sukiQuery.data ?? [];
   const unreadCount = unreadQuery.data ?? 0;
 
-  const renderHeader = () => (
+  const renderHeader = (): React.ReactElement => (
     <View>
       {/* Header bar */}
       <View style={[styles.headerBar, { paddingTop: insets.top + spacing.sm }]}>
@@ -216,6 +225,44 @@ export default function HomeScreen() {
         <Text style={styles.searchPlaceholder}>Search services or providers...</Text>
       </Pressable>
 
+      {/* Promo Carousel */}
+      {promotions.length > 0 && (
+        <View style={styles.promoSection}>
+          <FlatList
+            data={promotions}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item: Promotion) => item.id}
+            contentContainerStyle={styles.promoList}
+            renderItem={({ item }: { item: Promotion }): React.ReactElement => (
+              <TouchableOpacity
+                style={styles.promoCard}
+                onPress={() => {
+                  if (item.ctaLink) router.push(item.ctaLink as never);
+                }}
+                activeOpacity={0.85}
+              >
+                {item.badge && (
+                  <View style={styles.promoBadge}>
+                    <Text style={styles.promoBadgeText}>{item.badge}</Text>
+                  </View>
+                )}
+                <Text style={styles.promoTitle}>{item.title}</Text>
+                {item.subtitle && (
+                  <Text style={styles.promoSubtitle}>{item.subtitle}</Text>
+                )}
+                {item.ctaText && (
+                  <View style={styles.promoCta}>
+                    <Text style={styles.promoCtaText}>{item.ctaText}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      )}
+
       {/* Category Grid Header */}
       <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>
         What do you need?
@@ -223,7 +270,7 @@ export default function HomeScreen() {
     </View>
   );
 
-  const renderCategoryItem = ({ item }: { item: Category }) => {
+  const renderCategoryItem = ({ item }: { item: Category }): React.ReactElement => {
     const icon = CATEGORY_ICONS[item.slug] ?? CATEGORY_ICONS[item.name.toLowerCase()] ?? '🔨';
     return (
       <TouchableOpacity
@@ -241,7 +288,7 @@ export default function HomeScreen() {
     );
   };
 
-  const renderFooter = () => (
+  const renderFooter = (): React.ReactElement => (
     <View>
       {/* Suki Providers */}
       {sukiProviders.length > 0 && (
@@ -320,6 +367,21 @@ export default function HomeScreen() {
         </View>
       )}
 
+      {/* SiguradoShield Banner */}
+      <TouchableOpacity
+        style={styles.shieldBanner}
+        onPress={() => router.push('/customer/safety' as never)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.shieldBannerIcon}>🛡️</Text>
+        <View style={styles.shieldBannerContent}>
+          <Text style={styles.shieldBannerTitle}>SiguradoShield™ Protection</Text>
+          <Text style={styles.shieldBannerText}>
+            Every booking is covered up to ₱50,000. Learn more →
+          </Text>
+        </View>
+      </TouchableOpacity>
+
       {/* Empty state for new users */}
       {activeBookings.length === 0 && recentBookings.length === 0 && (
         <View style={styles.emptyState}>
@@ -334,6 +396,28 @@ export default function HomeScreen() {
       <View style={styles.bottomSpacer} />
     </View>
   );
+
+  if (categoriesQuery.isLoading) {
+    return (
+      <View style={[styles.container, styles.centeredState, { paddingTop: insets.top + 80 }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Loading services...</Text>
+      </View>
+    );
+  }
+
+  if (categoriesQuery.isError && categories.length === 0) {
+    return (
+      <View style={[styles.container, styles.centeredState, { paddingTop: insets.top + 80 }]}>
+        <Text style={styles.emptyIcon}>⚠️</Text>
+        <Text style={styles.emptyTitle}>Could not load services</Text>
+        <Text style={styles.emptySubtitle}>Please check your connection and try again.</Text>
+        <TouchableOpacity onPress={onRefresh} style={styles.retryBtn}>
+          <Text style={styles.retryText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <FlatList
@@ -378,7 +462,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: '#FFFFFF', fontWeight: '700', fontSize: 18 },
+  avatarText: { color: colors.white, fontWeight: '700', fontSize: 18 },
   locationSelector: { flex: 1 },
   locationLabel: { ...typography.caption, color: colors.textTertiary },
   locationValue: { ...typography.bodySmall, fontWeight: '600', color: colors.text },
@@ -391,7 +475,7 @@ const styles = StyleSheet.create({
     minWidth: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: '#EF4444',
+    backgroundColor: colors.error,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     paddingHorizontal: 4,
@@ -399,7 +483,7 @@ const styles = StyleSheet.create({
   notifBadgeText: {
     fontSize: 10,
     fontWeight: '700' as const,
-    color: '#FFFFFF',
+    color: colors.white,
   },
 
   section: { paddingHorizontal: spacing.base, marginBottom: spacing.lg },
@@ -428,7 +512,7 @@ const styles = StyleSheet.create({
   activeCardTime: { ...typography.caption, color: 'rgba(255,255,255,0.7)' },
   activeCardService: {
     ...typography.h3,
-    color: '#FFFFFF',
+    color: colors.white,
     marginBottom: spacing.xs,
   },
   activeCardProvider: {
@@ -440,7 +524,7 @@ const styles = StyleSheet.create({
   trackText: {
     ...typography.bodySmall,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: colors.white,
   },
 
   searchBar: {
@@ -511,7 +595,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     marginBottom: spacing.sm,
   },
-  sukiAvatarText: { color: '#FFFFFF', fontWeight: '700' as const, fontSize: 20 },
+  sukiAvatarText: { color: colors.white, fontWeight: '700' as const, fontSize: 20 },
   sukiName: {
     ...typography.caption,
     fontWeight: '600' as const,
@@ -574,6 +658,63 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  promoSection: {
+    marginBottom: spacing.sm,
+  },
+  promoList: {
+    paddingHorizontal: spacing.base,
+    gap: spacing.md,
+  },
+  promoCard: {
+    width: 280,
+    backgroundColor: colors.secondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    minHeight: 120,
+    justifyContent: 'flex-end' as const,
+    position: 'relative' as const,
+    overflow: 'hidden' as const,
+  },
+  promoBadge: {
+    position: 'absolute' as const,
+    top: spacing.sm,
+    left: spacing.sm,
+    backgroundColor: colors.warning,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  promoBadgeText: {
+    ...typography.caption,
+    color: colors.white,
+    fontWeight: '700' as const,
+    fontSize: 10,
+    textTransform: 'uppercase' as const,
+  },
+  promoTitle: {
+    ...typography.body,
+    fontWeight: '700' as const,
+    color: colors.white,
+    marginBottom: 4,
+  },
+  promoSubtitle: {
+    ...typography.bodySmall,
+    color: 'rgba(255,255,255,0.85)',
+    marginBottom: spacing.sm,
+  },
+  promoCta: {
+    alignSelf: 'flex-start' as const,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.md,
+  },
+  promoCtaText: {
+    ...typography.caption,
+    color: colors.secondary,
+    fontWeight: '700' as const,
+  },
+
   emptyState: {
     alignItems: 'center',
     paddingHorizontal: spacing.xl,
@@ -591,5 +732,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
+  shieldBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.infoLight,
+    marginHorizontal: spacing.base,
+    marginTop: spacing.lg,
+    padding: spacing.base,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.info,
+  },
+  shieldBannerIcon: { fontSize: 28, marginRight: spacing.md },
+  shieldBannerContent: { flex: 1 },
+  shieldBannerTitle: { ...typography.body, fontWeight: '700', color: colors.infoDark, marginBottom: 2 },
+  shieldBannerText: { ...typography.bodySmall, color: colors.info },
+
   bottomSpacer: { height: 80 },
+  centeredState: { alignItems: 'center' as const, justifyContent: 'center' as const },
+  loadingText: { ...typography.body, color: colors.textSecondary, marginTop: spacing.base },
+  retryBtn: {
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+  },
+  retryText: { ...typography.body, color: colors.white, fontWeight: '600' as const },
 });

@@ -15,7 +15,7 @@ import { getProviderBookings } from '@/services/provider-api.service';
 import type { Booking } from '@/services/booking.service';
 import { Badge } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
-import { formatRelative, formatDateTime } from '@/utils/date';
+import { formatRelative, formatDateTime, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 const STATUS_FILTERS = [
@@ -41,7 +41,7 @@ function getStatusColor(status: string): string {
   return map[status] ?? colors.statusCancelled;
 }
 
-export default function ProviderJobsScreen() {
+export default function ProviderJobsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<string>('active');
@@ -70,7 +70,7 @@ export default function ProviderJobsScreen() {
 
   const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
 
-  const renderJob = ({ item }: { item: Booking }) => (
+  const renderJob = ({ item }: { item: Booking }): React.ReactElement => (
     <TouchableOpacity
       style={styles.jobCard}
       onPress={() => router.push(`/provider/job/${item.id}` as never)}
@@ -82,7 +82,7 @@ export default function ProviderJobsScreen() {
           backgroundColor={getStatusColor(item.status)}
           size="sm"
         />
-        <Text style={styles.jobId}>#{item.id.slice(0, 8).toUpperCase()}</Text>
+        <Text style={styles.jobId}>#{formatBookingRef(item.id, item.createdAt)}</Text>
       </View>
       <Text style={styles.jobService}>{item.serviceName ?? item.categoryName ?? 'Service'}</Text>
       <Text style={styles.jobAddress} numberOfLines={1}>
@@ -119,8 +119,8 @@ export default function ProviderJobsScreen() {
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>⚠️</Text>
           <Text style={styles.emptyText}>Failed to load jobs.</Text>
-          <TouchableOpacity onPress={onRefresh} style={{ marginTop: spacing.base }}>
-            <Text style={{ color: colors.secondary, fontWeight: '600' }}>Try Again</Text>
+          <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
+            <Text style={styles.retryText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   },
   filterChipActive: { backgroundColor: colors.secondary },
   filterText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' },
-  filterTextActive: { color: '#FFFFFF' },
+  filterTextActive: { color: colors.white },
 
   list: { paddingBottom: 100 },
   jobCard: {
@@ -211,4 +211,6 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: spacing.xxl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
   emptyText: { ...typography.body, color: colors.textSecondary },
+  retryButton: { marginTop: spacing.base },
+  retryText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
 });

@@ -17,6 +17,8 @@ export interface Provider {
   isAvailable: boolean;
   latitude: number | null;
   longitude: number | null;
+  city: string | null;
+  province: string | null;
   createdAt: string;
 }
 
@@ -37,10 +39,35 @@ export interface ScheduleSlot {
   isAvailable: boolean;
 }
 
+export interface PortfolioItem {
+  id: string;
+  imageUrl: string;
+  caption: string | null;
+  categoryId: string | null;
+  displayOrder: number;
+  createdAt: string;
+}
+
+export interface Certification {
+  id: string;
+  name: string;
+  issuingBody: string;
+  certificateNumber: string | null;
+  certificateUrl: string | null;
+  issuedDate: string | null;
+  expiryDate: string | null;
+  isVerified: boolean;
+  verifiedAt: string | null;
+  createdAt: string;
+}
+
 export interface ProviderProfile extends Provider {
   services: ProviderService[];
   schedule: ScheduleSlot[];
   ratings: ReviewAggregate;
+  portfolio: PortfolioItem[];
+  certifications: Certification[];
+  sukiCount: number;
 }
 
 export async function getProviderProfile(id: string): Promise<ProviderProfile> {

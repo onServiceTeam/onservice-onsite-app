@@ -177,7 +177,7 @@ export function renderTemplate(
   return { title, body };
 }
 
-export function formatTemplate(t: TemplateRow) {
+export function formatTemplate(t: TemplateRow): Record<string, unknown> {
   return {
     id: t.id,
     slug: t.slug,

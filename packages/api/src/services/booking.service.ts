@@ -73,7 +73,24 @@ export function calculateServiceFee(servicePrice: number): number {
 }
 
 export async function createBooking(params: CreateBookingParams): Promise<BookingRow> {
-  const baseServicePrice = params.servicePrice ?? 0;
+  let baseServicePrice = params.servicePrice ?? 0;
+
+  if (params.subcategoryId && params.bookingType === 'fixed_price') {
+    const subcatResult = await db.query<{ base_price: string | null }>(
+      `SELECT base_price FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
+      [params.subcategoryId],
+    );
+    if (subcatResult.rows.length > 0 && subcatResult.rows[0]!.base_price != null) {
+      baseServicePrice = Number(subcatResult.rows[0]!.base_price);
+    }
+  }
+
+  if (params.bookingType === 'fixed_price' && baseServicePrice <= 0) {
+    throw createAppError(
+      'Service price could not be determined. The selected service may not have a fixed price.',
+      400,
+    );
+  }
 
   let surgeMultiplier = 1.0;
   let surgeAmount = 0;
@@ -582,7 +599,7 @@ interface LineItemRow {
   item_type: string;
 }
 
-export async function getBookingQuotes(bookingId: string) {
+export async function getBookingQuotes(bookingId: string): Promise<Record<string, unknown>[]> {
   const quotes = await db.query<QuoteDetailRow>(
     `SELECT bq.*,
        CONCAT(u.first_name, ' ', u.last_name) as provider_name,
@@ -639,7 +656,7 @@ export async function getBookingQuotes(bookingId: string) {
   }));
 }
 
-export async function acceptQuote(bookingId: string, quoteId: string, customerId: string) {
+export async function acceptQuote(bookingId: string, quoteId: string, customerId: string): Promise<Record<string, unknown>> {
   const booking = await getBookingByIdAdmin(bookingId);
   if (booking.customer_id !== customerId) {
     throw createAppError('Not authorized.', 403);
@@ -700,7 +717,7 @@ export async function acceptQuote(bookingId: string, quoteId: string, customerId
   });
 }
 
-export async function declineQuote(bookingId: string, quoteId: string, customerId: string) {
+export async function declineQuote(bookingId: string, quoteId: string, customerId: string): Promise<Record<string, unknown>> {
   const booking = await getBookingByIdAdmin(bookingId);
   if (booking.customer_id !== customerId) {
     throw createAppError('Not authorized.', 403);
@@ -742,7 +759,7 @@ export async function createJobRequest(
     jobPhotos?: string[];
     jobVideoUrl?: string;
   },
-) {
+): Promise<BookingRow> {
   const scheduledAt = new Date();
   if (data.urgency === 'same_day') {
     scheduledAt.setHours(scheduledAt.getHours() + 4);
@@ -796,7 +813,7 @@ export async function createChangeOrder(
   bookingId: string,
   providerUserId: string,
   data: { description: string; additionalAmount: number; photos?: string[] },
-) {
+): Promise<Record<string, unknown>> {
   interface ProviderIdRow { id: string }
   const providerResult = await db.query<ProviderIdRow>(
     `SELECT id FROM providers WHERE user_id = $1 AND status = 'approved'`,
@@ -836,7 +853,7 @@ export async function respondToChangeOrder(
   changeOrderId: string,
   customerId: string,
   approved: boolean,
-) {
+): Promise<Record<string, unknown>> {
   const coResult = await db.query<ChangeOrderRow>(
     `SELECT co.* FROM change_orders co
      JOIN bookings b ON b.id = co.booking_id
@@ -860,37 +877,110 @@ export async function respondToChangeOrder(
       throw createAppError('Change order already resolved (concurrent update).', 409);
     }
 
-    if (approved) {
-      const bookingResult = await client.query<{ service_price: number }>(
-        `SELECT service_price FROM bookings WHERE id = $1 FOR UPDATE`,
-        [co.booking_id],
-      );
-      const currentPrice = bookingResult.rows[0]?.service_price ?? 0;
-      const newServicePrice = currentPrice + co.additional_amount;
-      const newServiceFee = calculateServiceFee(newServicePrice);
-      const newTotalAmount = newServicePrice + newServiceFee;
-
-      await client.query(
-        `UPDATE bookings SET
-           service_price = $2,
-           service_fee = $3,
-           total_amount = $4,
-           updated_at = NOW()
-         WHERE id = $1`,
-        [co.booking_id, newServicePrice, newServiceFee, newTotalAmount],
-      );
-      logger.info('Change order approved — booking amount updated', {
-        changeOrderId, additionalAmount: co.additional_amount, newServicePrice, newServiceFee, newTotalAmount,
-      });
-    } else {
+    if (!approved) {
       logger.info('Change order declined', { changeOrderId });
     }
   });
 
-  return { id: changeOrderId, status: newStatus };
+  if (approved) {
+    const bookingResult = await db.query<{ service_price: number; service_fee: number; total_amount: number }>(
+      `SELECT service_price, service_fee, total_amount FROM bookings WHERE id = $1`,
+      [co.booking_id],
+    );
+    const current = bookingResult.rows[0];
+    if (!current) throw createAppError('Booking not found.', 404);
+
+    const newServicePrice = current.service_price + co.additional_amount;
+    const newServiceFee = calculateServiceFee(newServicePrice);
+    const newTotalAmount = newServicePrice + newServiceFee;
+    const additionalTotal = newTotalAmount - current.total_amount;
+    const additionalServiceFee = additionalTotal - co.additional_amount;
+
+    logger.info('Change order approved — awaiting additional payment', {
+      changeOrderId,
+      bookingId: co.booking_id,
+      additionalAmount: co.additional_amount,
+      additionalServiceFee,
+      additionalTotal,
+    });
+    return {
+      id: changeOrderId,
+      status: newStatus,
+      bookingId: co.booking_id,
+      paymentRequired: true,
+      additionalAmount: co.additional_amount,
+      additionalServiceFee,
+      additionalTotal,
+    };
+  }
+
+  return { id: changeOrderId, status: newStatus, paymentRequired: false };
 }
 
-export async function getChangeOrders(bookingId: string) {
+export async function finalizeChangeOrderPayment(
+  changeOrderId: string,
+  customerId: string,
+): Promise<{
+  bookingId: string;
+  newServicePrice: number;
+  newServiceFee: number;
+  newTotalAmount: number;
+  additionalTotal: number;
+}> {
+  return db.transaction(async (client) => {
+    const coResult = await client.query<ChangeOrderRow>(
+      `SELECT co.* FROM change_orders co
+       JOIN bookings b ON b.id = co.booking_id
+       WHERE co.id = $1 AND b.customer_id = $2 AND co.status = 'approved'
+       FOR UPDATE`,
+      [changeOrderId, customerId],
+    );
+    if (coResult.rows.length === 0) {
+      throw createAppError('Approved change order not found or already paid.', 404);
+    }
+    const co = coResult.rows[0]!;
+
+    await client.query(
+      `UPDATE change_orders SET status = 'paid', updated_at = NOW() WHERE id = $1`,
+      [changeOrderId],
+    );
+
+    const bookingResult = await client.query<{ service_price: number; service_fee: number; total_amount: number }>(
+      `SELECT service_price, service_fee, total_amount FROM bookings WHERE id = $1 FOR UPDATE`,
+      [co.booking_id],
+    );
+    const current = bookingResult.rows[0];
+    if (!current) throw createAppError('Booking not found.', 404);
+
+    const newServicePrice = current.service_price + co.additional_amount;
+    const newServiceFee = calculateServiceFee(newServicePrice);
+    const newTotalAmount = newServicePrice + newServiceFee;
+    const additionalTotal = newTotalAmount - current.total_amount;
+
+    await client.query(
+      `UPDATE bookings SET
+         service_price = $2,
+         service_fee = $3,
+         total_amount = $4,
+         updated_at = NOW()
+       WHERE id = $1`,
+      [co.booking_id, newServicePrice, newServiceFee, newTotalAmount],
+    );
+
+    logger.info('Change order payment finalized — booking amounts updated', {
+      changeOrderId,
+      bookingId: co.booking_id,
+      additionalAmount: co.additional_amount,
+      newServicePrice,
+      newServiceFee,
+      newTotalAmount,
+    });
+
+    return { bookingId: co.booking_id, newServicePrice, newServiceFee, newTotalAmount, additionalTotal };
+  });
+}
+
+export async function getChangeOrders(bookingId: string): Promise<Record<string, unknown>[]> {
   const result = await db.query<ChangeOrderRow>(
     `SELECT * FROM change_orders WHERE booking_id = $1 ORDER BY created_at ASC`,
     [bookingId],
@@ -898,7 +988,7 @@ export async function getChangeOrders(bookingId: string) {
   return result.rows.map(formatChangeOrder);
 }
 
-function formatChangeOrder(co: ChangeOrderRow) {
+function formatChangeOrder(co: ChangeOrderRow): Record<string, unknown> {
   return {
     id: co.id,
     bookingId: co.booking_id,

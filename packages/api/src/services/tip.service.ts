@@ -160,7 +160,7 @@ export async function getMyTips(
   return { tips: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
 }
 
-export function formatTip(t: TipRow) {
+export function formatTip(t: TipRow): Record<string, unknown> {
   return {
     id: t.id,
     bookingId: t.booking_id,

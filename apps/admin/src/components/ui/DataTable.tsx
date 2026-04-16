@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import React, { ReactNode } from 'react';
 
 export interface Column<T> {
   key: string;
@@ -23,7 +23,7 @@ export default function DataTable<T>({
   isLoading,
   emptyMessage = 'No results found.',
   onRowClick,
-}: DataTableProps<T>) {
+}: DataTableProps<T>): React.ReactElement {
   if (isLoading) {
     return (
       <div className="bg-white rounded-xl border border-[var(--color-border)] p-12 text-center">

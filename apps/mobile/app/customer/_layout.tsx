@@ -1,6 +1,7 @@
+import React from 'react';
 import { Stack } from 'expo-router';
 
-export default function CustomerLayout() {
+export default function CustomerLayout(): React.ReactElement {
   return (
     <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <Stack.Screen name="category/[id]" />
@@ -21,8 +22,15 @@ export default function CustomerLayout() {
       <Stack.Screen name="booking/quotes" />
       <Stack.Screen name="booking/dispute" />
       <Stack.Screen name="booking/change-order" />
+      <Stack.Screen name="booking/photos" />
       <Stack.Screen name="referral" />
       <Stack.Screen name="suki-pros" />
+      <Stack.Screen name="safety" />
+      <Stack.Screen name="addresses" />
+      <Stack.Screen name="help" />
+      <Stack.Screen name="wallet-topup" />
+      <Stack.Screen name="terms" />
+      <Stack.Screen name="account-management" />
     </Stack>
   );
 }

@@ -30,6 +30,9 @@ export interface Booking {
   surgeAmount: number;
   rebookedFromId: string | null;
   sukiDiscount: number;
+  jobPhotos: string[];
+  providerBeforePhotos: string[];
+  providerAfterPhotos: string[];
   createdAt: string;
   providerName?: string;
   serviceName?: string;
@@ -146,17 +149,17 @@ export async function submitQuote(
     portfolioPhotos?: string[];
     lineItems?: Omit<QuoteLineItem, 'id' | 'lineTotal'>[];
   },
-) {
+): Promise<unknown> {
   const res = await api.post<ApiResponse<unknown>>(`/api/v1/bookings/${bookingId}/quotes`, data);
   return res.data.data;
 }
 
-export async function acceptQuote(bookingId: string, quoteId: string) {
+export async function acceptQuote(bookingId: string, quoteId: string): Promise<{ quoteId: string; providerId: string; totalAmount: number }> {
   const res = await api.post<ApiResponse<{ quoteId: string; providerId: string; totalAmount: number }>>(`/api/v1/bookings/${bookingId}/quotes/${quoteId}/accept`);
   return res.data.data;
 }
 
-export async function declineQuote(bookingId: string, quoteId: string) {
+export async function declineQuote(bookingId: string, quoteId: string): Promise<{ quoteId: string }> {
   const res = await api.post<ApiResponse<{ quoteId: string }>>(`/api/v1/bookings/${bookingId}/quotes/${quoteId}/decline`);
   return res.data.data;
 }
@@ -186,8 +189,47 @@ export async function getChangeOrders(bookingId: string): Promise<ChangeOrder[]>
   return res.data.data;
 }
 
-export async function respondToChangeOrder(changeOrderId: string, approved: boolean) {
-  const res = await api.post<ApiResponse<{ id: string; status: string }>>(`/api/v1/bookings/change-orders/${changeOrderId}/respond`, { approved });
+export interface ChangeOrderResponse {
+  id: string;
+  status: string;
+  bookingId?: string;
+  paymentRequired?: boolean;
+  additionalAmount?: number;
+  additionalServiceFee?: number;
+  additionalTotal?: number;
+}
+
+export async function respondToChangeOrder(changeOrderId: string, approved: boolean): Promise<ChangeOrderResponse> {
+  const res = await api.post<ApiResponse<ChangeOrderResponse>>(`/api/v1/bookings/change-orders/${changeOrderId}/respond`, { approved });
+  return res.data.data;
+}
+
+export async function payChangeOrder(changeOrderId: string, paymentMethod: string): Promise<{
+  changeOrderId: string;
+  bookingId: string;
+  additionalAmountPaid: number;
+  paymentMethod: string;
+  message: string;
+}> {
+  const res = await api.post<ApiResponse<{
+    changeOrderId: string;
+    bookingId: string;
+    additionalAmountPaid: number;
+    paymentMethod: string;
+    message: string;
+  }>>(`/api/v1/bookings/change-orders/${changeOrderId}/pay`, { paymentMethod });
+  return res.data.data;
+}
+
+export async function uploadJobPhotos(
+  bookingId: string,
+  phase: 'before' | 'after',
+  urls: string[],
+): Promise<Booking> {
+  const res = await api.post<ApiResponse<Booking>>(`/api/v1/bookings/${bookingId}/photos`, {
+    phase,
+    urls,
+  });
   return res.data.data;
 }
 
@@ -202,7 +244,7 @@ export async function fileDispute(data: {
   type: string;
   description: string;
   evidenceUrls?: DisputeEvidence[];
-}) {
+}): Promise<unknown> {
   const res = await api.post<ApiResponse<unknown>>('/api/v1/disputes', data);
   return res.data.data;
 }

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { submitQuote } from '@/services/booking.service';
+import { colors, spacing, borderRadius } from '@/config/theme';
 
 interface LineItemDraft {
   id: number;
@@ -20,7 +21,7 @@ function createEmptyItem(): LineItemDraft {
   return { id: nextItemId++, description: '', quantity: '1', unit: 'unit', unitPrice: '', itemType: 'labor' };
 }
 
-export default function QuoteBuilderScreen() {
+export default function QuoteBuilderScreen(): React.ReactElement {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [description, setDescription] = useState('');
@@ -28,13 +29,13 @@ export default function QuoteBuilderScreen() {
   const [estimatedDays, setEstimatedDays] = useState('');
   const [items, setItems] = useState<LineItemDraft[]>([createEmptyItem()]);
 
-  const addItem = () => setItems([...items, createEmptyItem()]);
+  const addItem = (): void => setItems([...items, createEmptyItem()]);
 
-  const updateItem = (id: number, field: keyof LineItemDraft, value: string) => {
+  const updateItem = (id: number, field: keyof LineItemDraft, value: string): void => {
     setItems(items.map(item => item.id === id ? { ...item, [field]: value } : item));
   };
 
-  const removeItem = (id: number) => {
+  const removeItem = (id: number): void => {
     if (items.length > 1) setItems(items.filter(item => item.id !== id));
   };
 
@@ -69,7 +70,10 @@ export default function QuoteBuilderScreen() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => {
+      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not submit quote.');
+    },
   });
 
   const isValid = description.length >= 10 && totalAmount >= 10000 && items.some(i => i.description && Number(i.unitPrice) > 0);
@@ -95,7 +99,7 @@ export default function QuoteBuilderScreen() {
             value={description}
             onChangeText={setDescription}
             placeholder="Describe what the quote covers, scope of work, approach..."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={colors.textTertiary}
             maxLength={2000}
           />
         </View>
@@ -124,7 +128,7 @@ export default function QuoteBuilderScreen() {
                 value={item.description}
                 onChangeText={(v) => updateItem(item.id, 'description', v)}
                 placeholder="Item description"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={colors.textTertiary}
               />
 
               <View style={styles.typeRow}>
@@ -158,7 +162,7 @@ export default function QuoteBuilderScreen() {
                     value={item.unit}
                     onChangeText={(v) => updateItem(item.id, 'unit', v)}
                     placeholder="unit"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={colors.textTertiary}
                   />
                 </View>
                 <View style={styles.fieldMedium}>
@@ -169,7 +173,7 @@ export default function QuoteBuilderScreen() {
                     value={item.unitPrice}
                     onChangeText={(v) => updateItem(item.id, 'unitPrice', v)}
                     placeholder="0.00"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={colors.textTertiary}
                   />
                 </View>
               </View>
@@ -192,7 +196,7 @@ export default function QuoteBuilderScreen() {
               value={estimatedDays}
               onChangeText={setEstimatedDays}
               placeholder="0"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={colors.textTertiary}
             />
             <Text style={styles.daysLabel}>day(s)</Text>
           </View>
@@ -208,7 +212,7 @@ export default function QuoteBuilderScreen() {
             value={notes}
             onChangeText={setNotes}
             placeholder="Terms, conditions, special requirements..."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={colors.textTertiary}
             maxLength={2000}
           />
         </View>
@@ -229,7 +233,7 @@ export default function QuoteBuilderScreen() {
           disabled={!isValid || mutation.isPending}
         >
           {mutation.isPending ? (
-            <ActivityIndicator color="#FFF" />
+            <ActivityIndicator color={colors.white} />
           ) : (
             <Text style={styles.submitText}>Submit Quote</Text>
           )}
@@ -240,44 +244,44 @@ export default function QuoteBuilderScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  backBtn: { padding: 4 },
-  backText: { fontSize: 22, color: '#1B3A4B' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1B3A4B' },
+  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
+  backBtn: { padding: spacing.xs },
+  backText: { fontSize: 22, color: colors.text },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   placeholder: { width: 30 },
   body: { flex: 1 },
-  bodyContent: { padding: 16, paddingBottom: 40 },
-  section: { marginBottom: 24 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1B3A4B', marginBottom: 8 },
-  textArea: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', fontSize: 14, color: '#1B3A4B', minHeight: 80 },
-  input: { backgroundColor: '#FFF', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#E2E8F0', fontSize: 14, color: '#1B3A4B', marginBottom: 8 },
-  addItemBtn: { backgroundColor: '#F0F9FF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  addItemText: { fontSize: 13, fontWeight: '600', color: '#00B4D8' },
-  lineItemCard: { backgroundColor: '#FFF', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 10 },
-  lineItemHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  lineItemNum: { fontSize: 12, fontWeight: '700', color: '#64748B' },
-  removeItem: { fontSize: 16, color: '#EF4444', fontWeight: '600' },
+  bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  section: { marginBottom: spacing.lg },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
+  textArea: { backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, minHeight: 80 },
+  input: { backgroundColor: colors.white, borderRadius: borderRadius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, marginBottom: spacing.sm },
+  addItemBtn: { backgroundColor: colors.primaryLight, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: 8 },
+  addItemText: { fontSize: 13, fontWeight: '600', color: colors.info },
+  lineItemCard: { backgroundColor: colors.white, borderRadius: borderRadius.lg, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 10 },
+  lineItemHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
+  lineItemNum: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  removeItem: { fontSize: 16, color: colors.error, fontWeight: '600' },
   typeRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
-  typeChip: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, backgroundColor: '#F1F5F9' },
-  typeChipActive: { backgroundColor: '#1B3A4B' },
-  typeChipText: { fontSize: 11, fontWeight: '600', color: '#64748B' },
-  typeChipTextActive: { color: '#FFF' },
-  qtyPriceRow: { flexDirection: 'row', gap: 8 },
+  typeChip: { paddingVertical: spacing.xs, paddingHorizontal: 10, borderRadius: borderRadius.sm, backgroundColor: colors.backgroundSecondary },
+  typeChipActive: { backgroundColor: colors.text },
+  typeChipText: { fontSize: 11, fontWeight: '600', color: colors.textSecondary },
+  typeChipTextActive: { color: colors.white },
+  qtyPriceRow: { flexDirection: 'row', gap: spacing.sm },
   fieldSmall: { flex: 1 },
   fieldMedium: { flex: 2 },
-  fieldLabel: { fontSize: 11, color: '#64748B', marginBottom: 4 },
-  smallInput: { backgroundColor: '#F8FAFC', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#E2E8F0', fontSize: 14, color: '#1B3A4B' },
-  lineTotal: { fontSize: 13, fontWeight: '600', color: '#10B981', textAlign: 'right', marginTop: 8 },
-  daysRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  daysInput: { width: 80, backgroundColor: '#FFF', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#E2E8F0', fontSize: 14, color: '#1B3A4B', textAlign: 'center' },
-  daysLabel: { fontSize: 14, color: '#64748B' },
-  totalBox: { backgroundColor: '#1B3A4B', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 16 },
-  totalLabel: { fontSize: 12, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1 },
-  totalValue: { fontSize: 28, fontWeight: '800', color: '#FFF', marginTop: 4 },
-  minWarn: { fontSize: 12, color: '#F59E0B', marginTop: 4 },
-  submitBtn: { backgroundColor: '#10B981', borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
+  fieldLabel: { fontSize: 11, color: colors.textSecondary, marginBottom: spacing.xs },
+  smallInput: { backgroundColor: colors.backgroundSecondary, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text },
+  lineTotal: { fontSize: 13, fontWeight: '600', color: colors.success, textAlign: 'right', marginTop: spacing.sm },
+  daysRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  daysInput: { width: 80, backgroundColor: colors.white, borderRadius: borderRadius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, textAlign: 'center' },
+  daysLabel: { fontSize: 14, color: colors.textSecondary },
+  totalBox: { backgroundColor: colors.text, borderRadius: borderRadius.lg, padding: spacing.base, alignItems: 'center', marginBottom: spacing.base },
+  totalLabel: { fontSize: 12, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 1 },
+  totalValue: { fontSize: 28, fontWeight: '800', color: colors.white, marginTop: spacing.xs },
+  minWarn: { fontSize: 12, color: colors.warning, marginTop: spacing.xs },
+  submitBtn: { backgroundColor: colors.success, borderRadius: borderRadius.lg, paddingVertical: spacing.base, alignItems: 'center' },
   submitDisabled: { opacity: 0.5 },
-  submitText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  submitText: { fontSize: 16, fontWeight: '700', color: colors.white },
 });

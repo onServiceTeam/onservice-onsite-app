@@ -154,7 +154,7 @@ export async function fileDispute(
            VALUES ($1, 'dispute_update', 'Dispute Filed', $2, $3)`,
           [
             provider.rows[0].user_id,
-            'A customer has filed a dispute for one of your completed jobs. You have 24 hours to respond.',
+            'A customer has filed a dispute for one of your completed jobs. You have 48 hours to respond.',
             JSON.stringify({ disputeId: d.id, bookingId, disputeType: data.type }),
           ],
         );
@@ -721,7 +721,7 @@ export async function autoEscalateStaleDisputes(): Promise<number> {
        updated_at = NOW()
      WHERE status = 'open'
        AND provider_response IS NULL
-       AND created_at < NOW() - INTERVAL '24 hours'
+       AND created_at < NOW() - INTERVAL '48 hours'
      RETURNING id`,
     [],
   );
@@ -746,7 +746,7 @@ function formatResolutionType(type: string): string {
   return labels[type] ?? type;
 }
 
-export function formatDispute(d: DisputeRow) {
+export function formatDispute(d: DisputeRow): Record<string, unknown> {
   return {
     id: d.id,
     bookingId: d.booking_id,
@@ -770,7 +770,7 @@ export function formatDispute(d: DisputeRow) {
   };
 }
 
-export function formatEvidence(e: EvidenceRow) {
+export function formatEvidence(e: EvidenceRow): Record<string, unknown> {
   return {
     id: e.id,
     disputeId: e.dispute_id,

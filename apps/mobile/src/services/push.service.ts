@@ -24,9 +24,11 @@ let Device: DeviceModule | null = null;
 let ExpoConstants: ConstantsModule | null = null;
 
 try {
+  /* eslint-disable @typescript-eslint/no-require-imports */
   Notifications = require('expo-notifications') as PushNotificationsModule;
   Device = require('expo-device') as DeviceModule;
   const mod = require('expo-constants') as { default: ConstantsModule };
+  /* eslint-enable @typescript-eslint/no-require-imports */
   ExpoConstants = mod.default;
 } catch {
   // Packages not installed — push will be unavailable
@@ -87,7 +89,87 @@ async function registerTokenWithServer(token: string): Promise<boolean> {
   }
 }
 
-export function usePushNotifications() {
+function getUserRole(): string {
+  try {
+    const userJson = storage.getString('user');
+    if (userJson) {
+      const user = JSON.parse(userJson) as { role?: string };
+      return user.role ?? 'customer';
+    }
+  } catch { /* default */ }
+  return 'customer';
+}
+
+type NotificationData = Record<string, unknown>;
+
+function resolveDeepLink(data: NotificationData): string | null {
+  const type = typeof data?.type === 'string' ? data.type : '';
+  const bookingId = typeof data?.bookingId === 'string' ? data.bookingId : null;
+  const conversationId = typeof data?.conversationId === 'string' ? data.conversationId : null;
+  const role = getUserRole();
+  const isProvider = role === 'provider';
+
+  switch (type) {
+    case 'new_message':
+      if (conversationId) {
+        return isProvider
+          ? `/provider/chat/${conversationId}`
+          : `/customer/chat/${conversationId}`;
+      }
+      if (bookingId) {
+        return isProvider ? `/provider/job/${bookingId}` : `/customer/booking/${bookingId}`;
+      }
+      return null;
+
+    case 'new_job_available':
+    case 'quote_expired':
+      return bookingId ? `/provider/job/${bookingId}` : '/(provider-tabs)/jobs';
+
+    case 'provider_assigned':
+    case 'booking_confirmed':
+    case 'auto_confirmed':
+    case 'customer_cancelled':
+    case 'recurring_update':
+      return bookingId
+        ? (isProvider ? `/provider/job/${bookingId}` : `/customer/booking/${bookingId}`)
+        : null;
+
+    case 'provider_en_route':
+    case 'provider_arrived':
+      return bookingId ? `/customer/booking/tracker?bookingId=${bookingId}` : null;
+
+    case 'job_completed':
+      return bookingId ? `/customer/booking/complete?bookingId=${bookingId}` : null;
+
+    case 'payment_released':
+      return isProvider ? '/(provider-tabs)/earnings' : '/(tabs)/wallet';
+
+    case 'dispute_update':
+      return bookingId
+        ? (isProvider ? `/provider/job/${bookingId}` : `/customer/booking/${bookingId}`)
+        : null;
+
+    case 'nbi_expiring':
+      return '/provider/settings';
+
+    case 'business_update':
+      return '/(provider-tabs)/dashboard';
+
+    case 'area_launch':
+      return '/(tabs)/home';
+
+    default:
+      break;
+  }
+
+  if (bookingId) {
+    return isProvider ? `/provider/job/${bookingId}` : `/customer/booking/${bookingId}`;
+  }
+
+  return null;
+}
+
+export function usePushNotifications(): { isRegistered: boolean; registerForPushNotifications: () => Promise<boolean> } {
   const router = useRouter();
   const [isRegistered, setIsRegistered] = useState(false);
   const notificationListenerRef = useRef<{ remove: () => void } | null>(null);
@@ -102,27 +184,15 @@ export function usePushNotifications() {
     if (!Notifications) return;
 
     notificationListenerRef.current = Notifications.addNotificationReceivedListener(() => {
-      // Foreground notification — handled by notification handler
+      // Foreground notification — handled by notification handler (shows alert)
     });
 
     responseListenerRef.current = Notifications.addNotificationResponseReceivedListener(
-      (response: { notification: { request: { content: { data: Record<string, unknown> } } } }) => {
+      (response: { notification: { request: { content: { data: NotificationData } } } }) => {
         const data = response.notification.request.content.data;
-        const bookingId = typeof data?.bookingId === 'string' ? data.bookingId : null;
-        if (bookingId) {
-          let userRole = 'customer';
-          try {
-            const userJson = storage.getString('user');
-            if (userJson) {
-              const user = JSON.parse(userJson) as { role?: string };
-              userRole = user.role ?? 'customer';
-            }
-          } catch { /* use default */ }
-          if (userRole === 'provider') {
-            router.push(`/provider/job/${bookingId}` as never);
-          } else {
-            router.push(`/customer/booking/${bookingId}` as never);
-          }
+        const route = resolveDeepLink(data);
+        if (route) {
+          router.push(route as never);
         }
       },
     );

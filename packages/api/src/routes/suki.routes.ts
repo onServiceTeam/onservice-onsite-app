@@ -85,6 +85,32 @@ router.post(
 );
 
 router.get(
+  '/provider-customers',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      if (req.user!.role !== 'provider') {
+        throw createAppError('Only providers can access this endpoint.', 403);
+      }
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
+
+      const { memberships, total } = await sukiService.getProviderSukiCustomers(
+        req.user!.userId, page, pageSize,
+      );
+
+      res.json({
+        success: true,
+        data: memberships.map(sukiService.formatProviderCustomer),
+        pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
   '/tiers',
   cacheMiddleware(3600),
   async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {

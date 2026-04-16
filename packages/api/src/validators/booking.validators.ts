@@ -9,8 +9,8 @@ export const createBookingSchema = z.object({
   barangay: z.string().min(1, 'Barangay is required').max(100),
   city: z.string().min(1, 'City is required').max(100),
   province: z.string().min(1, 'Province is required').max(100),
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
+  latitude: z.number().min(4.5, 'Must be within Philippines').max(21.5, 'Must be within Philippines').optional(),
+  longitude: z.number().min(116, 'Must be within Philippines').max(127.5, 'Must be within Philippines').optional(),
   scheduledAt: z.string().datetime('Invalid date format'),
   servicePrice: z.number().int().min(0).optional(),
   rebookedFromId: z.string().uuid('Invalid rebooking reference').optional(),
@@ -52,14 +52,22 @@ export const createJobRequestSchema = z.object({
   barangay: z.string().min(1).max(100),
   city: z.string().min(1).max(100),
   province: z.string().min(1).max(100),
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
+  latitude: z.number().min(4.5, 'Must be within Philippines').max(21.5, 'Must be within Philippines').optional(),
+  longitude: z.number().min(116, 'Must be within Philippines').max(127.5, 'Must be within Philippines').optional(),
   urgency: z.enum(['same_day', 'within_3_days', 'within_a_week', 'flexible']),
   budgetMin: z.number().int().min(0).optional(),
   budgetMax: z.number().int().min(0).optional(),
-  jobPhotos: z.array(z.string().url()).max(10).optional().default([]),
+  jobPhotos: z.array(z.string().url()).min(2, 'At least 2 photos are required for custom quote requests').max(10),
   jobVideoUrl: z.string().url().optional(),
-});
+}).refine(
+  (data) => {
+    if (data.budgetMin != null && data.budgetMax != null) {
+      return data.budgetMax >= data.budgetMin;
+    }
+    return true;
+  },
+  { message: 'Maximum budget must be greater than or equal to minimum budget', path: ['budgetMax'] },
+);
 
 export const createChangeOrderSchema = z.object({
   description: z.string().min(10, 'Description must be at least 10 characters').max(2000),

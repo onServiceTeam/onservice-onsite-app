@@ -79,6 +79,32 @@ router.post(
   },
 );
 
+router.get(
+  '/preferences',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const prefs = await notificationService.getNotificationPreferences(req.user!.userId);
+      res.json({ success: true, data: prefs });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.put(
+  '/preferences',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const prefs = await notificationService.updateNotificationPreferences(req.user!.userId, req.body);
+      res.json({ success: true, data: prefs });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.post(
   '/:id/read',
   authMiddleware,

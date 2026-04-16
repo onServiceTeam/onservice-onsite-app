@@ -33,11 +33,12 @@ interface CreateNotificationParams {
 }
 
 export async function createNotification(params: CreateNotificationParams): Promise<NotificationRow> {
+  const enrichedData = { ...params.data, type: params.type };
   const result = await db.query<NotificationRow>(
     `INSERT INTO notifications (user_id, type, title, body, data)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [params.userId, params.type, params.title, params.body, params.data ? JSON.stringify(params.data) : null],
+    [params.userId, params.type, params.title, params.body, JSON.stringify(enrichedData)],
   );
 
   logger.debug('Notification created', { userId: params.userId, type: params.type });
@@ -105,6 +106,83 @@ async function resolveTemplate(
   return { title: fallbackTitle, body: fallbackBody };
 }
 
+interface PushTokenRow { token: string; platform: string }
+
+interface ExpoPushTicket {
+  status: 'ok' | 'error';
+  id?: string;
+  message?: string;
+  details?: { error?: string };
+}
+
+async function deliverPushToDevice(
+  userId: string,
+  title: string,
+  body: string,
+  data?: Record<string, unknown>,
+): Promise<void> {
+  const tokenResult = await db.query<PushTokenRow>(
+    `SELECT token, platform FROM push_tokens WHERE user_id = $1`,
+    [userId],
+  );
+
+  if (tokenResult.rows.length === 0) {
+    logger.debug('No push tokens for user — skipping device push', { userId });
+    return;
+  }
+
+  const messages = tokenResult.rows.map((row) => ({
+    to: row.token,
+    title,
+    body,
+    data: data ?? {},
+    sound: 'default' as const,
+    priority: 'high' as const,
+    channelId: 'default',
+  }));
+
+  try {
+    const response = await globalThis.fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        ...(process.env.EXPO_ACCESS_TOKEN
+          ? { 'Authorization': `Bearer ${process.env.EXPO_ACCESS_TOKEN}` }
+          : {}),
+      },
+      body: JSON.stringify(messages),
+    });
+
+    const result = (await response.json()) as { data: ExpoPushTicket[] };
+
+    for (let i = 0; i < (result.data?.length ?? 0); i++) {
+      const ticket = result.data[i];
+      if (ticket?.status === 'error') {
+        logger.warn('Push delivery failed', {
+          userId,
+          token: tokenResult.rows[i]?.token?.slice(0, 20),
+          error: ticket.details?.error ?? ticket.message,
+        });
+        if (ticket.details?.error === 'DeviceNotRegistered') {
+          await db.query(
+            `DELETE FROM push_tokens WHERE user_id = $1 AND token = $2`,
+            [userId, tokenResult.rows[i]?.token],
+          );
+          logger.info('Removed stale push token', { userId });
+        }
+      }
+    }
+
+    logger.info('Push notification sent', { userId, tokenCount: messages.length });
+  } catch (err) {
+    logger.error('Expo push API call failed', {
+      userId,
+      error: err instanceof Error ? err.message : 'Unknown',
+    });
+  }
+}
+
 export async function sendPushNotification(
   userId: string,
   title: string,
@@ -112,9 +190,9 @@ export async function sendPushNotification(
   type: NotificationType = 'booking_confirmed',
   data?: Record<string, unknown>,
 ): Promise<void> {
-  logger.info('Push notification (FCM pending)', { userId, title, type });
+  const notification = await createNotification({ userId, type, title, body, data });
 
-  await createNotification({ userId, type, title, body, data });
+  void deliverPushToDevice(userId, title, body, { ...data, notificationId: notification.id, type });
 }
 
 export async function notifyProviderNewJob(
@@ -131,13 +209,15 @@ export async function notifyProviderNewJob(
     'New Job Available',
     `${serviceName} in ${city} — ${amountStr}`,
   );
-  await createNotification({
+  const n = await createNotification({
     userId: providerUserId,
     type: 'new_job_available',
     title,
     body,
     data: { bookingId, serviceName, amount },
   });
+
+  void deliverPushToDevice(providerUserId, title, body, { bookingId, serviceName, amount, notificationId: n.id, type: 'new_job_available' });
 }
 
 export async function notifyCustomerProviderAssigned(
@@ -151,13 +231,15 @@ export async function notifyCustomerProviderAssigned(
     'Provider Assigned',
     `${providerName} has been assigned to your booking. They will contact you shortly.`,
   );
-  await createNotification({
+  const n = await createNotification({
     userId: customerId,
     type: 'provider_assigned',
     title,
     body,
     data: { bookingId, providerName },
   });
+
+  void deliverPushToDevice(customerId, title, body, { bookingId, providerName, notificationId: n.id, type: 'provider_assigned' });
 }
 
 export async function notifyBookingStatusChange(
@@ -188,7 +270,7 @@ export async function notifyBookingStatusChange(
     },
     completed_by_provider: {
       title: 'Job Completed',
-      body: 'The provider has marked the job as complete. Please confirm within 24 hours.',
+      body: 'The provider has marked the job as complete. Please confirm within 48 hours.',
       type: 'job_completed',
     },
     confirmed: {
@@ -216,16 +298,18 @@ export async function notifyBookingStatusChange(
   const msg = statusMessages[status];
   if (!msg) return;
 
-  await createNotification({
+  const n = await createNotification({
     userId,
     type: msg.type,
     title: msg.title,
     body: msg.body,
     data: { bookingId, status },
   });
+
+  void deliverPushToDevice(userId, msg.title, msg.body, { bookingId, status, notificationId: n.id, type: msg.type });
 }
 
-export function formatNotification(n: NotificationRow) {
+export function formatNotification(n: NotificationRow): Record<string, unknown> {
   return {
     id: n.id,
     type: n.type,
@@ -235,4 +319,118 @@ export function formatNotification(n: NotificationRow) {
     isRead: n.is_read,
     createdAt: n.created_at,
   };
+}
+
+// ─── Notification Preferences ──────────────────────────────
+
+interface NotificationPrefRow {
+  user_id: string;
+  booking_updates: boolean;
+  provider_activity: boolean;
+  payment_alerts: boolean;
+  messages: boolean;
+  promotions: boolean;
+  suki_rewards: boolean;
+  reminders: boolean;
+  system: boolean;
+}
+
+const PREF_COLUMNS: (keyof Omit<NotificationPrefRow, 'user_id'>)[] = [
+  'booking_updates', 'provider_activity', 'payment_alerts', 'messages',
+  'promotions', 'suki_rewards', 'reminders', 'system',
+];
+
+export interface NotificationPrefs {
+  bookingUpdates: boolean;
+  providerActivity: boolean;
+  paymentAlerts: boolean;
+  messages: boolean;
+  promotions: boolean;
+  sukiRewards: boolean;
+  reminders: boolean;
+  system: boolean;
+}
+
+const DEFAULT_PREFS: NotificationPrefs = {
+  bookingUpdates: true,
+  providerActivity: true,
+  paymentAlerts: true,
+  messages: true,
+  promotions: false,
+  sukiRewards: true,
+  reminders: true,
+  system: true,
+};
+
+function formatPrefs(row: NotificationPrefRow): NotificationPrefs {
+  return {
+    bookingUpdates: row.booking_updates,
+    providerActivity: row.provider_activity,
+    paymentAlerts: row.payment_alerts,
+    messages: row.messages,
+    promotions: row.promotions,
+    sukiRewards: row.suki_rewards,
+    reminders: row.reminders,
+    system: row.system,
+  };
+}
+
+export async function getNotificationPreferences(userId: string): Promise<NotificationPrefs> {
+  const result = await db.query<NotificationPrefRow>(
+    `SELECT * FROM notification_preferences WHERE user_id = $1`,
+    [userId],
+  );
+  if (result.rows.length === 0) return { ...DEFAULT_PREFS };
+  return formatPrefs(result.rows[0]!);
+}
+
+export async function updateNotificationPreferences(
+  userId: string,
+  prefs: Partial<NotificationPrefs>,
+): Promise<NotificationPrefs> {
+  const mapping: Record<string, keyof NotificationPrefRow> = {
+    bookingUpdates: 'booking_updates',
+    providerActivity: 'provider_activity',
+    paymentAlerts: 'payment_alerts',
+    messages: 'messages',
+    promotions: 'promotions',
+    sukiRewards: 'suki_rewards',
+    reminders: 'reminders',
+    system: 'system',
+  };
+
+  const sets: string[] = [];
+  const params: unknown[] = [userId];
+  let idx = 2;
+
+  for (const [camel, snake] of Object.entries(mapping)) {
+    const value = prefs[camel as keyof NotificationPrefs];
+    if (value !== undefined) {
+      sets.push(`${snake} = $${idx++}`);
+      params.push(value);
+    }
+  }
+
+  if (sets.length === 0) return getNotificationPreferences(userId);
+
+  sets.push('updated_at = NOW()');
+
+  const insertCols = PREF_COLUMNS.map((c) => c).join(', ');
+  const insertVals = PREF_COLUMNS.map((col) => {
+    const camelKey = Object.entries(mapping).find(([, v]) => v === col)?.[0];
+    const val = camelKey ? prefs[camelKey as keyof NotificationPrefs] : undefined;
+    return val !== undefined ? val : DEFAULT_PREFS[camelKey as keyof NotificationPrefs];
+  });
+  const insertPlaceholders = insertVals.map((_, i) => `$${idx + i}`).join(', ');
+
+  const result = await db.query<NotificationPrefRow>(
+    `INSERT INTO notification_preferences (user_id, ${insertCols})
+     VALUES ($1, ${insertPlaceholders})
+     ON CONFLICT (user_id) DO UPDATE SET ${sets.join(', ')}
+     RETURNING *`,
+    [...params, ...insertVals],
+  );
+
+  logger.info('Notification preferences updated', { userId });
+  return formatPrefs(result.rows[0]!);
 }

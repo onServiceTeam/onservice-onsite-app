@@ -199,7 +199,7 @@ export async function findMatchingProvidersSimple(
   }).sort((a, b) => b.score - a.score);
 }
 
-export function getMatchConfig() {
+export function getMatchConfig(): Record<string, unknown> {
   return {
     maxAttempts: MAX_MATCH_ATTEMPTS,
     offerTimeoutSeconds: 45,

@@ -34,11 +34,11 @@ Two master specification documents live in this repo root. **READ THEM FULLY bef
 - **Placeholder names must be Filipino:** Maria Santos, Juan dela Cruz, Jose Rizal, Ana Reyes — never John Doe, Jane Smith, Alice, Bob.
 - **Placeholder businesses:** "Linis Pro Cleaning Services", "Kuya Mike's Plumbing", "Ate Joy's Home Spa" — never "Cleaning Pros Inc."
 
-### Rule 2: No Hardcoded Strings
-- Every user-facing string MUST be in a localization file (`/src/i18n/en.json` and `/src/i18n/fil.json`).
-- Never write: `<Text>Book Now</Text>`
-- Always write: `<Text>{t('booking.bookNow')}</Text>`
-- This applies to: button labels, headers, descriptions, error messages, placeholders, tooltips, notifications — EVERYTHING the user sees.
+### Rule 2: English Only — No i18n Framework
+- The app is **English only**. All Philippine apps use English as the universal UI language. No translation framework is needed.
+- Write user-facing strings directly in JSX: `<Text>Book Now</Text>` is fine.
+- Do NOT add i18n libraries, translation hooks, or localization files. Keep it simple and maintainable.
+- Ensure all user-facing text is clear, concise, and uses Philippine English conventions where appropriate (e.g. "GCash", "barangay", "₱").
 
 ### Rule 3: No Hardcoded Values
 - Commission rates, service fees, cancellation fee percentages, escrow timeout duration, OTP expiry, max upload size, minimum withdrawal amount — ALL go in a config file (`/src/config/platform.config.ts`) or environment variables.
@@ -139,11 +139,7 @@ onservice-onsite-app/
 │   │   │   │   ├── platform.config.ts   ← All configurable business values
 │   │   │   │   ├── theme.ts             ← Colors, typography, spacing
 │   │   │   │   └── navigation.ts        ← Route names and params
-│   │   │   ├── i18n/
-│   │   │   │   ├── en.json              ← English strings
-│   │   │   │   ├── fil.json             ← Filipino strings
-│   │   │   │   └── i18n.config.ts
-│   │   │   ├── utils/
+│   │   │   ├── utils/                  ← Utility functions (currency, date, haptics)
 │   │   │   │   ├── currency.ts          ← formatPHP(), parsePHP()
 │   │   │   │   ├── date.ts             ← formatDate(), formatTime(), toLocalPHT()
 │   │   │   │   ├── phone.ts            ← formatPHPhone(), validatePHPhone()
@@ -375,7 +371,7 @@ When Ken tells you to build a screen, follow this exact process:
 ### Step 2: Create the Screen File
 - File location: `apps/mobile/src/screens/{userType}/{ScreenName}Screen.tsx`
 - Import the design system tokens (colors, spacing, typography)
-- Import localization strings
+- Write user-facing strings directly in English (no i18n framework)
 
 ### Step 3: Implement ALL States
 Every screen MUST implement these states. No exceptions:
@@ -390,7 +386,7 @@ export function ExampleScreen() {
   if (isLoading) return <ExampleScreenSkeleton />;
 
   // State 2: Error
-  if (error) return <ErrorState message={t('errors.loadFailed')} onRetry={refetch} />;
+  if (error) return <ErrorState message="Failed to load. Please try again." onRetry={refetch} />;
 
   // State 3: Offline (with cached data)
   if (isOffline && !data) return <OfflineBanner />;
@@ -413,7 +409,7 @@ Match the component tree from the spec EXACTLY. Every component, every nesting l
 
 ### Step 6: Add Validation
 - All forms use React Hook Form + Zod schemas
-- Validation messages in localization files
+- Validation messages as plain English strings
 - Real-time validation (validate on blur, show errors inline)
 
 ### Step 7: Test
@@ -427,7 +423,7 @@ Before telling Ken the screen is done, verify ALL of these:
 ```
 □ No dollar signs ($) anywhere — only ₱
 □ No US addresses — only Philippine format
-□ No hardcoded strings — all in i18n files
+□ All user-facing text is clear, uses Philippine English conventions
 □ No hardcoded business values — all in config
 □ Loading skeleton implemented
 □ Error state implemented with retry button

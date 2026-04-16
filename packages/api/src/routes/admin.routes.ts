@@ -331,7 +331,7 @@ router.get(
       const total = Number(countResult.rows[0]?.count ?? 0);
 
       const dataParams = [...params, pageSize, offset];
-      const result = await db.query(
+      const result = await db.query<Record<string, unknown>>(
         `SELECT rb.*,
                 TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS customer_name,
                 sc.name AS category_name
@@ -345,7 +345,7 @@ router.get(
       );
 
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const data = result.rows.map((r: Record<string, unknown>) => ({
+      const data = result.rows.map((r) => ({
         id: r.id,
         customerId: r.customer_id,
         providerId: r.provider_id,
@@ -442,7 +442,7 @@ router.get(
       const total = Number(countResult.rows[0]?.count ?? 0);
 
       const dataParams = [...params, pageSize, offset];
-      const result = await db.query(
+      const result = await db.query<Record<string, unknown>>(
         `SELECT ba.*,
                 TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS owner_name,
                 TRIM(COALESCE(am.first_name, '') || ' ' || COALESCE(am.last_name, '')) AS manager_name
@@ -455,7 +455,7 @@ router.get(
         dataParams,
       );
 
-      const data = result.rows.map((r: Record<string, unknown>) => ({
+      const data = result.rows.map((r) => ({
         id: r.id,
         companyName: r.company_name,
         businessType: r.business_type,
@@ -1424,6 +1424,186 @@ router.get(
       requireAdmin(req);
       const suggestions = await adminAnalyticsService.getCommissionOptimizationSuggestions();
       res.json({ success: true, data: suggestions });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Audit Log ---
+
+interface AuditLogRow {
+  id: string;
+  user_id: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  old_values: unknown;
+  new_values: unknown;
+  ip_address: string | null;
+  user_agent: string | null;
+  request_id: string | null;
+  created_at: Date;
+  user_email: string | null;
+  user_role: string | null;
+}
+
+router.get(
+  '/audit-log',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 50));
+      const offset = (page - 1) * pageSize;
+
+      const filters: string[] = [];
+      const params: unknown[] = [];
+      let paramIdx = 1;
+
+      if (req.query.userId && typeof req.query.userId === 'string') {
+        filters.push(`al.user_id = $${paramIdx++}`);
+        params.push(req.query.userId);
+      }
+      if (req.query.action && typeof req.query.action === 'string') {
+        filters.push(`al.action ILIKE $${paramIdx++}`);
+        params.push(`%${req.query.action}%`);
+      }
+      if (req.query.entityType && typeof req.query.entityType === 'string') {
+        filters.push(`al.entity_type = $${paramIdx++}`);
+        params.push(req.query.entityType);
+      }
+      if (req.query.from && typeof req.query.from === 'string') {
+        filters.push(`al.created_at >= $${paramIdx++}`);
+        params.push(req.query.from);
+      }
+      if (req.query.to && typeof req.query.to === 'string') {
+        filters.push(`al.created_at <= $${paramIdx++}`);
+        params.push(req.query.to);
+      }
+
+      const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+
+      const countResult = await db.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM audit_log al ${whereClause}`,
+        params,
+      );
+      const total = Number(countResult.rows[0]?.count ?? 0);
+
+      const dataResult = await db.query<AuditLogRow>(
+        `SELECT al.*, u.email AS user_email, u.role AS user_role
+         FROM audit_log al
+         LEFT JOIN users u ON u.id = al.user_id
+         ${whereClause}
+         ORDER BY al.created_at DESC
+         LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
+        [...params, pageSize, offset],
+      );
+
+      res.json({
+        success: true,
+        data: dataResult.rows.map((r) => ({
+          id: r.id,
+          userId: r.user_id,
+          userEmail: r.user_email,
+          userRole: r.user_role,
+          action: r.action,
+          entityType: r.entity_type,
+          entityId: r.entity_id,
+          oldValues: r.old_values,
+          newValues: r.new_values,
+          ipAddress: r.ip_address,
+          userAgent: r.user_agent,
+          createdAt: r.created_at,
+        })),
+        pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// ─── Platform Settings ──────────────────────────────────────
+
+interface SettingRow {
+  key: string;
+  value: unknown;
+  description: string | null;
+  updated_by: string | null;
+  updated_at: Date;
+  created_at: Date;
+}
+
+router.get(
+  '/settings',
+  authMiddleware,
+  requireAdmin,
+  async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await db.query<SettingRow>(
+        `SELECT * FROM platform_settings ORDER BY key ASC`,
+      );
+
+      res.json({
+        success: true,
+        data: result.rows.map((s) => ({
+          key: s.key,
+          value: s.value,
+          description: s.description,
+          updatedBy: s.updated_by,
+          updatedAt: s.updated_at,
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.put(
+  '/settings/:key',
+  authMiddleware,
+  requireSuperAdmin,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const { key } = req.params;
+      const { value } = req.body;
+
+      if (value === undefined || value === null) {
+        throw createAppError('Value is required.', 400);
+      }
+
+      const result = await db.query<SettingRow>(
+        `UPDATE platform_settings
+         SET value = $1::jsonb, updated_by = $2, updated_at = NOW()
+         WHERE key = $3
+         RETURNING *`,
+        [JSON.stringify(value), req.user!.userId, key],
+      );
+
+      if (result.rows.length === 0) {
+        throw createAppError('Setting not found.', 404);
+      }
+
+      const s = result.rows[0]!;
+      logger.info('Platform setting updated', {
+        key,
+        value,
+        updatedBy: req.user!.userId,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          key: s.key,
+          value: s.value,
+          description: s.description,
+          updatedBy: s.updated_by,
+          updatedAt: s.updated_at,
+        },
+      });
     } catch (error) {
       next(error);
     }

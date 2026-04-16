@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
 import {
   createConversation,
@@ -30,15 +30,19 @@ import {
   leaveConversation,
   emitTypingStart,
   emitTypingStop,
+  emitMarkRead,
 } from '@/services/socket.service';
+import { uploadImages } from '@/services/upload.service';
+import { LazyImage } from '@/components/ui';
 import { formatTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
-export default function ChatScreen() {
+import * as ImagePicker from 'expo-image-picker';
+
+export default function ChatScreen(): React.ReactElement {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id);
 
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -47,11 +51,12 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [typingUser, setTypingUser] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    async function initConversation() {
+    async function initConversation(): Promise<void> {
       try {
         setInitError(false);
         const conversations = await getConversations();
@@ -90,11 +95,28 @@ export default function ChatScreen() {
     const socket = connectSocket();
     joinConversation(conversationId);
     void markConversationRead(conversationId);
+    emitMarkRead(conversationId);
 
     socket.on('new:message', (msg: Message) => {
       if (msg.conversationId === conversationId) {
-        setMessages((prev) => [...prev, msg]);
-        void markConversationRead(conversationId);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
+        if (msg.senderId !== userId) {
+          void markConversationRead(conversationId);
+          emitMarkRead(conversationId);
+        }
+      }
+    });
+
+    socket.on('messages:read', (data: { conversationId: string; readBy: string }) => {
+      if (data.conversationId === conversationId && data.readBy !== userId) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.senderId === userId && !m.isRead ? { ...m, isRead: true } : m,
+          ),
+        );
       }
     });
 
@@ -110,6 +132,7 @@ export default function ChatScreen() {
       leaveConversation(conversationId);
       const s = getSocket();
       s?.off('new:message');
+      s?.off('messages:read');
       s?.off('typing:start');
       s?.off('typing:stop');
     };
@@ -120,7 +143,10 @@ export default function ChatScreen() {
     setSending(true);
     try {
       const msg = await sendMessageApi(conversationId, inputText.trim());
-      setMessages((prev) => [...prev, msg]);
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
       setInputText('');
       flatListRef.current?.scrollToEnd({ animated: true });
     } catch {
@@ -130,30 +156,78 @@ export default function ChatScreen() {
     }
   }, [inputText, conversationId]);
 
-  const handleTyping = (text: string) => {
+  const handlePhotoSend = useCallback(async () => {
+    if (!conversationId) return;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Needed', 'Please allow access to your photo library to send images.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.7,
+      allowsMultipleSelection: false,
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    setUploadingPhoto(true);
+    try {
+      const uploaded = await uploadImages([result.assets[0].uri], 'chat');
+      if (uploaded.length > 0) {
+        const msg = await sendMessageApi(conversationId, '📷 Photo', 'image', uploaded[0]!.url);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }
+    } catch {
+      Alert.alert('Upload Failed', 'Could not send the photo. Please try again.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }, [conversationId]);
+
+  const handleTyping = (text: string): void => {
     setInputText(text);
-    if (conversationId && text.length > 0) {
+    if (!conversationId) return;
+    if (text.length > 0) {
       emitTypingStart(conversationId);
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       typingTimerRef.current = setTimeout(() => {
-        if (conversationId) emitTypingStop(conversationId);
+        emitTypingStop(conversationId);
       }, 2000);
+    } else {
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      emitTypingStop(conversationId);
     }
   };
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  const renderMessage = ({ item }: { item: Message }): React.ReactElement => {
     const isMine = item.senderId === userId;
     return (
       <View style={[styles.messageBubble, isMine ? styles.myBubble : styles.theirBubble]}>
         {item.messageType === 'image' && item.imageUrl && (
-          <Text style={styles.imageText}>📷 Photo</Text>
+          <LazyImage source={item.imageUrl} style={styles.chatImage} contentFit="cover" accessibilityLabel="Chat photo" />
         )}
-        <Text style={[styles.messageText, isMine ? styles.myText : styles.theirText]}>
-          {item.content}
-        </Text>
-        <Text style={[styles.messageTime, isMine ? styles.myTime : styles.theirTime]}>
-          {formatTime(item.createdAt)}
-        </Text>
+        {item.content && !(item.messageType === 'image' && item.imageUrl) && (
+          <Text style={[styles.messageText, isMine ? styles.myText : styles.theirText]}>
+            {item.content}
+          </Text>
+        )}
+        <View style={styles.messageFooter}>
+          <Text style={[styles.messageTime, isMine ? styles.myTime : styles.theirTime]}>
+            {formatTime(item.createdAt)}
+          </Text>
+          {isMine && (
+            <Text style={styles.readReceipt}>
+              {item.isRead ? '✓✓' : '✓'}
+            </Text>
+          )}
+        </View>
       </View>
     );
   };
@@ -162,8 +236,8 @@ export default function ChatScreen() {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
         <Text style={styles.loadingText}>Failed to set up chat.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: spacing.md }}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Go Back</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.retryButton}>
+          <Text style={styles.retryText}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -211,6 +285,17 @@ export default function ChatScreen() {
       />
 
       <View style={[styles.inputBar, { paddingBottom: insets.bottom + spacing.sm }]}>
+        <TouchableOpacity
+          style={styles.photoButton}
+          onPress={handlePhotoSend}
+          disabled={uploadingPhoto || sending}
+        >
+          {uploadingPhoto ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Text style={styles.photoIcon}>📷</Text>
+          )}
+        </TouchableOpacity>
         <TextInput
           style={styles.input}
           value={inputText}
@@ -236,6 +321,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { alignItems: 'center', justifyContent: 'center' },
   loadingText: { ...typography.body, color: colors.textSecondary, marginTop: spacing.md },
+  retryButton: { marginTop: spacing.md },
+  retryText: { ...typography.body, color: colors.primary, fontWeight: '600' },
 
   header: {
     flexDirection: 'row',
@@ -263,12 +350,14 @@ const styles = StyleSheet.create({
   myBubble: { backgroundColor: colors.primary, alignSelf: 'flex-end' },
   theirBubble: { backgroundColor: colors.backgroundSecondary, alignSelf: 'flex-start' },
   messageText: { ...typography.body },
-  myText: { color: '#FFFFFF' },
+  myText: { color: colors.white },
   theirText: { color: colors.text },
-  messageTime: { ...typography.caption, marginTop: spacing.xs },
-  myTime: { color: 'rgba(255,255,255,0.6)', textAlign: 'right' },
+  messageFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: spacing.xs, gap: 4 },
+  messageTime: { ...typography.caption },
+  myTime: { color: 'rgba(255,255,255,0.6)' },
   theirTime: { color: colors.textTertiary },
-  imageText: { ...typography.bodySmall, marginBottom: spacing.xs },
+  readReceipt: { fontSize: 10, color: 'rgba(255,255,255,0.7)' },
+  chatImage: { width: 200, height: 150, borderRadius: borderRadius.md, marginBottom: spacing.xs },
 
   emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
   emptyChatIcon: { fontSize: 48, marginBottom: spacing.md },
@@ -283,6 +372,14 @@ const styles = StyleSheet.create({
     borderTopColor: colors.divider,
     backgroundColor: colors.background,
   },
+  photoButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.xs,
+  },
+  photoIcon: { fontSize: 22 },
   input: {
     ...typography.body,
     flex: 1,
@@ -303,5 +400,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendButtonDisabled: { opacity: 0.4 },
-  sendIcon: { fontSize: 20, color: '#FFFFFF' },
+  sendIcon: { fontSize: 20, color: colors.white },
 });

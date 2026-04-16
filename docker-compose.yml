@@ -1,35 +1,36 @@
+version: '3.8'
+
 services:
   postgres:
-    image: postgis/postgis:18-3.5
-    restart: unless-stopped
-    ports:
-      - "${DB_PORT:-7383}:5432"
+    image: postgres:17-alpine
+    container_name: onservice-postgres
     environment:
-      POSTGRES_USER: ${DB_USER:-onservice}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-onservice_dev}
-      POSTGRES_DB: ${DB_NAME:-onservice_dev}
+      POSTGRES_DB: onservice_dev
+      POSTGRES_USER: onservice
+      POSTGRES_PASSWORD: onservice_dev
+    ports:
+      - '5432:5432'
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-onservice} -d ${DB_NAME:-onservice_dev}"]
+      test: ['CMD-SHELL', 'pg_isready -U onservice -d onservice_dev']
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
-    image: redis:8-alpine
-    restart: unless-stopped
+    image: redis:7.4-alpine
+    container_name: onservice-redis
     ports:
-      - "${REDIS_PORT:-7385}:6379"
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+      - '6379:6379'
     volumes:
-      - redisdata:/data
+      - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
 
 volumes:
-  pgdata:
-  redisdata:
+  postgres_data:
+  redis_data:

@@ -57,3 +57,21 @@ export async function getTiers(): Promise<SukiTier[]> {
   const res = await api.get<ApiResponse<SukiTier[]>>('/api/v1/suki/tiers');
   return res.data.data;
 }
+
+export interface SukiCustomer {
+  id: string;
+  customerId: string;
+  customerName: string;
+  totalBookings: number;
+  totalSpent: number;
+  tier: string;
+  discount: number;
+  lastBookingAt: string | null;
+}
+
+export async function getProviderSukiCustomers(): Promise<SukiCustomer[]> {
+  const res = await api.get<PaginatedResponse<SukiCustomer>>('/api/v1/suki/provider-customers', {
+    params: { page: 1, pageSize: 50 },
+  });
+  return res.data.data;
+}

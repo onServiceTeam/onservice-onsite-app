@@ -247,7 +247,7 @@ export async function getSlotWaitlistStats(
 
 // --- Formatter ---
 
-export function formatWaitlistEntry(w: SlotWaitlistRow) {
+export function formatWaitlistEntry(w: SlotWaitlistRow): Record<string, unknown> {
   return {
     id: w.id,
     customerId: w.customer_id,

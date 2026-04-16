@@ -7,7 +7,7 @@ import { Button, Input } from '@/components/ui';
 import { validatePHPhone, normalizePHPhone } from '@/utils/phone';
 import { colors, spacing, typography } from '@/config/theme';
 
-export default function RegisterScreen() {
+export default function RegisterScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { requestOtp } = useAuthStore();
@@ -26,7 +26,7 @@ export default function RegisterScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (): Promise<void> => {
     if (!validate()) return;
 
     setLoading(true);

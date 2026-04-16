@@ -33,7 +33,7 @@ const NEXT_ACTION: Record<string, { status: string; label: string }> = {
   in_progress: { status: 'completed_by_provider', label: 'Mark Complete' },
 };
 
-export default function ActiveJobScreen() {
+export default function ActiveJobScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -59,7 +59,7 @@ export default function ActiveJobScreen() {
     },
   });
 
-  const handleAction = () => {
+  const handleAction = (): void => {
     if (!booking) return;
     const action = NEXT_ACTION[booking.status];
     if (!action) return;
@@ -70,7 +70,7 @@ export default function ActiveJobScreen() {
     ]);
   };
 
-  const handleNavigateToJob = async () => {
+  const handleNavigateToJob = async (): Promise<void> => {
     if (!booking?.latitude || !booking?.longitude) return;
     const lat = booking.latitude;
     const lng = booking.longitude;
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     padding: spacing.base,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,

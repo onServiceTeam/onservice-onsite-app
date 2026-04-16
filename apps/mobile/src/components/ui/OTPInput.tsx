@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { View, TextInput, Text, StyleSheet, Pressable } from 'react-native';
 import { colors, spacing, borderRadius, typography } from '@/config/theme';
-import { useTranslation } from '@/i18n/useTranslation';
 
 interface OTPInputProps {
   length?: number;
@@ -17,10 +16,9 @@ export default function OTPInput({
   onChange,
   error,
   accessibilityLabel,
-}: OTPInputProps) {
+}: OTPInputProps): React.ReactElement {
   const inputRef = useRef<TextInput>(null);
   const [focused, setFocused] = useState(false);
-  const { t } = useTranslation();
 
   const digits = value.split('').concat(Array(length - value.length).fill(''));
 
@@ -31,9 +29,9 @@ export default function OTPInput({
       accessibilityRole="keyboardkey"
       accessibilityLabel={
         accessibilityLabel ??
-        t('accessibility.otpInput', { entered: String(value.length), total: String(length) })
+        `Verification code input, ${value.length} of ${length} digits entered`
       }
-      accessibilityHint={t('accessibility.otpHint')}
+      accessibilityHint="Tap to enter verification code"
     >
       <View style={styles.container}>
         {digits.slice(0, length).map((digit, idx) => (
@@ -67,7 +65,7 @@ export default function OTPInput({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         autoFocus
-        accessibilityLabel={t('accessibility.otpEnter', { length: String(length) })}
+        accessibilityLabel={`Enter ${length}-digit code`}
         textContentType="oneTimeCode"
       />
     </Pressable>

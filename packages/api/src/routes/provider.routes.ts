@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
-import { updateProfileSchema, addServiceSchema, setScheduleSchema } from '../validators/provider.validators';
+import { providerApplicationSchema, updateProfileSchema, addServiceSchema, setScheduleSchema } from '../validators/provider.validators';
 import * as providerService from '../services/provider.service';
 import * as reviewService from '../services/review.service';
 import * as providerToolsService from '../services/provider-tools.service';
@@ -15,6 +15,48 @@ function requireProvider(req: AuthenticatedRequest): void {
   }
 }
 
+router.post(
+  '/apply',
+  authMiddleware,
+  validationMiddleware(providerApplicationSchema),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const provider = await providerService.createProviderApplication(req.user!.userId, {
+        businessName: req.body.businessName,
+        categoryIds: req.body.categoryIds,
+        serviceRadiusKm: req.body.serviceRadiusKm,
+        latitude: req.body.latitude,
+        longitude: req.body.longitude,
+        city: req.body.city,
+        province: req.body.province,
+        governmentIdFrontUrl: req.body.governmentIdFrontUrl,
+        governmentIdBackUrl: req.body.governmentIdBackUrl,
+        nbiClearanceUrl: req.body.nbiClearanceUrl,
+        selfieUrl: req.body.selfieUrl,
+      });
+      res.status(201).json({
+        success: true,
+        data: providerService.formatProvider(provider),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/application-status',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await providerService.getApplicationStatus(req.user!.userId);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.get(
   '/me',
   authMiddleware,
@@ -22,9 +64,13 @@ router.get(
     try {
       requireProvider(req);
       const provider = await providerService.getProviderByUserId(req.user!.userId);
-      const services = await providerService.getProviderServices(provider.id);
-      const schedule = await providerService.getSchedule(provider.id);
-      const ratings = await reviewService.getProviderAggregateRating(provider.id);
+      const [services, schedule, ratings, portfolio, certifications] = await Promise.all([
+        providerService.getProviderServices(provider.id),
+        providerService.getSchedule(provider.id),
+        reviewService.getProviderAggregateRating(provider.id),
+        providerService.getPortfolio(provider.id),
+        providerService.getCertifications(provider.id),
+      ]);
 
       res.json({
         success: true,
@@ -33,6 +79,8 @@ router.get(
           services: services.map(providerService.formatProviderService),
           schedule: schedule.map(providerService.formatScheduleSlot),
           ratings,
+          portfolio: portfolio.map(providerService.formatPortfolioItem),
+          certifications: certifications.map(providerService.formatCertification),
         },
       });
     } catch (error) {
@@ -49,9 +97,14 @@ router.get(
       if (typeof providerId !== 'string' || !providerId) throw createAppError('Provider ID is required.', 400);
 
       const provider = await providerService.getProviderById(providerId);
-      const services = await providerService.getProviderServices(provider.id);
-      const schedule = await providerService.getSchedule(provider.id);
-      const ratings = await reviewService.getProviderAggregateRating(provider.id);
+      const [services, schedule, ratings, portfolio, certifications, sukiCount] = await Promise.all([
+        providerService.getProviderServices(provider.id),
+        providerService.getSchedule(provider.id),
+        reviewService.getProviderAggregateRating(provider.id),
+        providerService.getPortfolio(provider.id),
+        providerService.getCertifications(provider.id),
+        providerService.getSukiCount(provider.id),
+      ]);
       const providerName = [provider.first_name, provider.last_name].filter(Boolean).join(' ') || null;
 
       res.json({
@@ -62,6 +115,9 @@ router.get(
           services: services.map(providerService.formatProviderService),
           schedule: schedule.map(providerService.formatScheduleSlot),
           ratings,
+          portfolio: portfolio.map(providerService.formatPortfolioItem),
+          certifications: certifications.map(providerService.formatCertification),
+          sukiCount,
         },
       });
     } catch (error) {
@@ -180,6 +236,289 @@ router.put(
       const provider = await providerService.getProviderByUserId(req.user!.userId);
       const schedule = await providerService.setSchedule(provider.id, req.body.schedule);
       res.json({ success: true, data: schedule.map(providerService.formatScheduleSlot) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Portfolio Management ---
+
+router.get(
+  '/me/portfolio',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const items = await providerService.getPortfolio(provider.id);
+      res.json({ success: true, data: items.map(providerService.formatPortfolioItem) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/me/portfolio',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const { imageUrl, caption, categoryId, displayOrder } = req.body as {
+        imageUrl: string; caption?: string; categoryId?: string; displayOrder?: number;
+      };
+      if (!imageUrl || typeof imageUrl !== 'string') throw createAppError('imageUrl is required.', 400);
+      const item = await providerService.addPortfolioItem(provider.id, { imageUrl, caption, categoryId, displayOrder });
+      res.status(201).json({ success: true, data: providerService.formatPortfolioItem(item) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.patch(
+  '/me/portfolio/:itemId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const itemId = req.params['itemId'] as string;
+      const { caption, displayOrder } = req.body as { caption?: string; displayOrder?: number };
+      const item = await providerService.updatePortfolioItem(provider.id, itemId, { caption, displayOrder });
+      res.json({ success: true, data: providerService.formatPortfolioItem(item) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.delete(
+  '/me/portfolio/:itemId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const itemId = req.params['itemId'] as string;
+      await providerService.removePortfolioItem(provider.id, itemId);
+      res.json({ success: true, data: { message: 'Portfolio item removed.' } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Certification Management ---
+
+router.get(
+  '/me/certifications',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const certs = await providerService.getCertifications(provider.id);
+      res.json({ success: true, data: certs.map(providerService.formatCertification) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/me/certifications',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const { name, issuingBody, certificateNumber, certificateUrl, issuedDate, expiryDate } = req.body as {
+        name: string; issuingBody?: string; certificateNumber?: string;
+        certificateUrl?: string; issuedDate?: string; expiryDate?: string;
+      };
+      if (!name || typeof name !== 'string') throw createAppError('Certification name is required.', 400);
+      const cert = await providerService.addCertification(provider.id, {
+        name, issuingBody, certificateNumber, certificateUrl, issuedDate, expiryDate,
+      });
+      res.status(201).json({ success: true, data: providerService.formatCertification(cert) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.patch(
+  '/me/certifications/:certId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const certId = req.params['certId'] as string;
+      const { name, issuingBody, certificateNumber, certificateUrl, issuedDate, expiryDate } = req.body as {
+        name?: string; issuingBody?: string; certificateNumber?: string;
+        certificateUrl?: string; issuedDate?: string; expiryDate?: string;
+      };
+      const cert = await providerService.updateCertification(provider.id, certId, {
+        name, issuingBody, certificateNumber, certificateUrl, issuedDate, expiryDate,
+      });
+      res.json({ success: true, data: providerService.formatCertification(cert) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.delete(
+  '/me/certifications/:certId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const certId = req.params['certId'] as string;
+      await providerService.removeCertification(provider.id, certId);
+      res.json({ success: true, data: { message: 'Certification removed.' } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Availability Overrides (US-P008) ---
+
+router.get(
+  '/me/availability/overrides',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const { from, to } = req.query as { from?: string; to?: string };
+      const overrides = await providerService.getAvailabilityOverrides(provider.id, from, to);
+      res.json({ success: true, data: overrides.map(providerService.formatOverride) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/me/availability/overrides',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const { overrideDate, isAvailable, startTime, endTime, reason } = req.body as {
+        overrideDate: string; isAvailable: boolean; startTime?: string; endTime?: string; reason?: string;
+      };
+      if (!overrideDate || typeof overrideDate !== 'string') throw createAppError('overrideDate is required.', 400);
+      if (typeof isAvailable !== 'boolean') throw createAppError('isAvailable is required.', 400);
+      const override = await providerService.addAvailabilityOverride(provider.id, {
+        overrideDate, isAvailable, startTime, endTime, reason,
+      });
+      res.status(201).json({ success: true, data: providerService.formatOverride(override) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.delete(
+  '/me/availability/overrides/:overrideId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const overrideId = req.params['overrideId'] as string;
+      await providerService.removeAvailabilityOverride(provider.id, overrideId);
+      res.json({ success: true, data: { message: 'Override removed.' } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Instant Availability Toggle ---
+
+router.put(
+  '/me/availability/toggle',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const { isAvailable } = req.body as { isAvailable: boolean };
+      if (typeof isAvailable !== 'boolean') throw createAppError('isAvailable is required.', 400);
+      await providerService.toggleInstantAvailability(provider.id, isAvailable);
+      res.json({ success: true, data: { isAvailable } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/me/availability/status',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const isAvailable = await providerService.getInstantAvailability(provider.id);
+      res.json({ success: true, data: { isAvailable } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Tier Progression (US-P016) ---
+
+router.get(
+  '/me/tier-progression',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const progression = await providerService.getTierProgression(provider.id);
+      res.json({ success: true, data: progression });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Provider Calendar / Upcoming Jobs (US-P007) ---
+
+router.get(
+  '/me/calendar',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const { from, to } = req.query as { from?: string; to?: string };
+      if (!from || !to) throw createAppError('from and to query params are required.', 400);
+
+      const [jobs, overrides] = await Promise.all([
+        providerService.getUpcomingJobs(provider.id, from, to),
+        providerService.getAvailabilityOverrides(provider.id, from, to),
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          jobs: jobs.map(providerService.formatUpcomingJob),
+          overrides: overrides.map(providerService.formatOverride),
+        },
+      });
     } catch (error) {
       next(error);
     }

@@ -1,10 +1,10 @@
-import { Suspense } from 'react';
+import React, { Suspense } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
-function PageLoader() {
+function PageLoader(): React.ReactElement {
   return (
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]" />
@@ -12,7 +12,7 @@ function PageLoader() {
   );
 }
 
-export default function AdminLayout() {
+export default function AdminLayout(): React.ReactElement {
   const { isAuthenticated, isLoading } = useAuthStore();
 
   if (isLoading) {

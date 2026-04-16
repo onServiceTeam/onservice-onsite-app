@@ -7,7 +7,7 @@ import { Button, Input } from '@/components/ui';
 import { validatePHPhone, normalizePHPhone } from '@/utils/phone';
 import { colors, spacing, typography } from '@/config/theme';
 
-export default function LoginScreen() {
+export default function LoginScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { requestOtp } = useAuthStore();
@@ -15,7 +15,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSendOtp = async () => {
+  const handleSendOtp = async (): Promise<void> => {
     setError('');
     if (!validatePHPhone(phone)) {
       setError('Enter a valid Philippine mobile number (+63 9XX XXX XXXX)');

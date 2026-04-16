@@ -2,11 +2,11 @@
 -- All phone numbers in +63 9XX XXX XXXX format
 -- All timestamps stored in UTC, displayed in Asia/Manila (PHT)
 
--- PostgreSQL 18: uuidv7() is built-in, no extensions needed for UUIDs
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     phone VARCHAR(15) NOT NULL UNIQUE,         -- +63 format
     email VARCHAR(255) UNIQUE,
     first_name VARCHAR(100) NOT NULL,
@@ -28,7 +28,7 @@ CREATE INDEX idx_users_created_at ON users(created_at);
 
 -- OTP verification table
 CREATE TABLE otp_codes (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     phone VARCHAR(15) NOT NULL,
     code VARCHAR(6) NOT NULL,
     attempts INT NOT NULL DEFAULT 0,
@@ -42,7 +42,7 @@ CREATE INDEX idx_otp_expires ON otp_codes(expires_at);
 
 -- Refresh tokens
 CREATE TABLE refresh_tokens (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash VARCHAR(255) NOT NULL UNIQUE,
     expires_at TIMESTAMPTZ NOT NULL,

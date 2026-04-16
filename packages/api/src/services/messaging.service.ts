@@ -179,7 +179,7 @@ export async function getUnreadCount(userId: string): Promise<number> {
   return Number(result.rows[0]?.count ?? 0);
 }
 
-export function formatMessage(m: MessageRow) {
+export function formatMessage(m: MessageRow): Record<string, unknown> {
   return {
     id: m.id,
     conversationId: m.conversation_id,
@@ -192,7 +192,7 @@ export function formatMessage(m: MessageRow) {
   };
 }
 
-export function formatConversation(c: ConversationRow) {
+export function formatConversation(c: ConversationRow): Record<string, unknown> {
   return {
     id: c.id,
     bookingId: c.booking_id,

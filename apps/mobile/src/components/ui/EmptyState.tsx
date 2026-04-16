@@ -1,17 +1,21 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/config/theme';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 interface EmptyStateProps {
   icon?: string;
   title: string;
   description?: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 export function EmptyState({
   icon = '📭',
   title,
   description,
+  actionLabel,
+  onAction,
 }: EmptyStateProps): React.ReactElement {
   return (
     <View
@@ -25,6 +29,11 @@ export function EmptyState({
       {description ? (
         <Text style={styles.description} maxFontSizeMultiplier={2}>{description}</Text>
       ) : null}
+      {actionLabel && onAction ? (
+        <TouchableOpacity style={styles.actionBtn} onPress={onAction} activeOpacity={0.7}>
+          <Text style={styles.actionText}>{actionLabel}</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -34,24 +43,35 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 64,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxl + spacing.base,
   },
   icon: {
     fontSize: 48,
-    marginBottom: 16,
+    marginBottom: spacing.base,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
+    ...typography.h3,
     color: colors.text,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   description: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  actionBtn: {
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+  },
+  actionText: {
+    ...typography.body,
+    color: colors.white,
+    fontWeight: '600',
   },
 });

@@ -14,7 +14,7 @@ function requireAdmin(req: AuthenticatedRequest): void {
   }
 }
 
-function formatCategory(c: { id: string; name: string; slug: string; description: string; icon_url: string | null; display_order: number }) {
+function formatCategory(c: { id: string; name: string; slug: string; description: string; icon_url: string | null; display_order: number }): Record<string, unknown> {
   return {
     id: c.id,
     name: c.name,
@@ -30,7 +30,7 @@ function formatSubcategory(s: {
   pricing_type: string; base_price: number | null; min_price: number | null;
   max_price: number | null; estimated_duration_minutes: number | null; display_order: number;
   category_name?: string; category_slug?: string;
-}) {
+}): Record<string, unknown> {
   const result: Record<string, unknown> = {
     id: s.id,
     categoryId: s.category_id,
@@ -99,8 +99,32 @@ router.get(
       }
 
       const limit = Math.min(Number(req.query.limit) || 20, 50);
-      const results = await catalogService.searchServices(query, limit);
-      res.json({ success: true, data: results.map(formatSubcategory) });
+      const [serviceResults, providerResults] = await Promise.all([
+        catalogService.searchServices(query, limit),
+        catalogService.searchProviders(query, Math.min(limit, 10)),
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          services: serviceResults.map(formatSubcategory),
+          providers: providerResults,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/subcategory/:subcategoryId/addons',
+  cacheMiddleware(CacheTTL.SUBCATEGORIES),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const subcategoryId = req.params.subcategoryId as string;
+      const addons = await catalogService.getAddonsForSubcategory(subcategoryId);
+      res.json({ success: true, data: addons });
     } catch (error) {
       next(error);
     }
@@ -285,6 +309,124 @@ router.put(
 
       await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
       res.json({ success: true, data: formatSubcategory(result.rows[0]!) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// ─── Admin Add-on Management ─────────────────────────────
+
+router.get(
+  '/admin/subcategories/:id/addons',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const subcategoryId = req.params['id'] as string;
+      interface AddonRow { id: string; subcategory_id: string; name: string; description: string; price: number; is_active: boolean; display_order: number }
+      const result = await db.query<AddonRow>(
+        `SELECT * FROM service_addons WHERE subcategory_id = $1 ORDER BY display_order ASC, name ASC`,
+        [subcategoryId],
+      );
+      res.json({
+        success: true,
+        data: result.rows.map((a) => ({
+          id: a.id, subcategoryId: a.subcategory_id, name: a.name, description: a.description,
+          price: a.price, isActive: a.is_active, displayOrder: a.display_order,
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/admin/addons',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const { subcategoryId, name, description, price, displayOrder } = req.body;
+      if (typeof name !== 'string' || !name.trim()) throw createAppError('Name is required.', 400);
+      if (typeof subcategoryId !== 'string') throw createAppError('Subcategory ID is required.', 400);
+      if (typeof price !== 'number' || price < 0) throw createAppError('Valid price is required.', 400);
+
+      const result = await db.query(
+        `INSERT INTO service_addons (subcategory_id, name, description, price, display_order)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [subcategoryId, name.trim(), description ?? '', price, displayOrder ?? 0],
+      );
+      const a = result.rows[0] as { id: string; subcategory_id: string; name: string; description: string; price: number; is_active: boolean; display_order: number };
+      await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
+      res.status(201).json({
+        success: true,
+        data: { id: a.id, subcategoryId: a.subcategory_id, name: a.name, description: a.description, price: a.price, isActive: a.is_active, displayOrder: a.display_order },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.put(
+  '/admin/addons/:id',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const id = req.params['id'];
+      if (typeof id !== 'string') throw createAppError('Add-on ID is required.', 400);
+
+      const { name, description, price, displayOrder, isActive } = req.body;
+      const sets: string[] = [];
+      const params: unknown[] = [];
+      let idx = 1;
+
+      if (name !== undefined) { sets.push(`name = $${idx++}`); params.push(name); }
+      if (description !== undefined) { sets.push(`description = $${idx++}`); params.push(description); }
+      if (price !== undefined) { sets.push(`price = $${idx++}`); params.push(price); }
+      if (displayOrder !== undefined) { sets.push(`display_order = $${idx++}`); params.push(displayOrder); }
+      if (isActive !== undefined) { sets.push(`is_active = $${idx++}`); params.push(isActive); }
+
+      if (sets.length === 0) throw createAppError('No fields to update.', 400);
+      sets.push('updated_at = NOW()');
+      params.push(id);
+
+      const result = await db.query(
+        `UPDATE service_addons SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+        params,
+      );
+      if (result.rows.length === 0) throw createAppError('Add-on not found.', 404);
+      const a = result.rows[0] as { id: string; subcategory_id: string; name: string; description: string; price: number; is_active: boolean; display_order: number };
+      await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
+      res.json({
+        success: true,
+        data: { id: a.id, subcategoryId: a.subcategory_id, name: a.name, description: a.description, price: a.price, isActive: a.is_active, displayOrder: a.display_order },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.delete(
+  '/admin/addons/:id',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const id = req.params['id'];
+      if (typeof id !== 'string') throw createAppError('Add-on ID is required.', 400);
+
+      const result = await db.query(
+        `UPDATE service_addons SET is_active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id`,
+        [id],
+      );
+      if (result.rowCount === 0) throw createAppError('Add-on not found.', 404);
+      await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
+      res.json({ success: true, data: { message: 'Add-on deactivated.' } });
     } catch (error) {
       next(error);
     }

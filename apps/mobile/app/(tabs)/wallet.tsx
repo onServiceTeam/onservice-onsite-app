@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { getWalletBalance } from '@/services/payment.service';
 import api from '@/services/api';
@@ -40,8 +41,9 @@ const TRANSACTION_ICONS: Record<string, string> = {
   guarantee_contribution: '🛡️',
 };
 
-export default function WalletScreen() {
+export default function WalletScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const walletQuery = useQuery({
     queryKey: ['wallet'],
@@ -72,11 +74,11 @@ export default function WalletScreen() {
   const wallet = walletQuery.data;
   const transactions = transactionsQuery.data ?? [];
 
-  const renderHeader = () => (
+  const renderHeader = (): React.ReactElement => (
     <View>
       <View style={styles.balanceCard}>
         {walletQuery.isLoading ? (
-          <ActivityIndicator size="large" color="#FFFFFF" />
+          <ActivityIndicator size="large" color={colors.white} />
         ) : (
           <>
             <Text style={styles.balanceLabel}>Available Balance</Text>
@@ -88,6 +90,12 @@ export default function WalletScreen() {
                 {formatPHP(wallet.pendingBalance)} pending
               </Text>
             )}
+            <TouchableOpacity
+              style={styles.topUpBtn}
+              onPress={() => router.push('/customer/wallet-topup')}
+            >
+              <Text style={styles.topUpBtnText}>+ Top Up</Text>
+            </TouchableOpacity>
           </>
         )}
       </View>
@@ -96,7 +104,7 @@ export default function WalletScreen() {
     </View>
   );
 
-  const renderTransaction = ({ item }: { item: Transaction }) => (
+  const renderTransaction = ({ item }: { item: Transaction }): React.ReactElement => (
     <View style={styles.txRow}>
       <Text style={styles.txIcon}>{TRANSACTION_ICONS[item.type] ?? '💱'}</Text>
       <View style={styles.txInfo}>
@@ -117,8 +125,8 @@ export default function WalletScreen() {
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>⚠️</Text>
           <Text style={styles.emptyText}>Failed to load wallet data.</Text>
-          <TouchableOpacity onPress={onRefresh} style={{ marginTop: spacing.base }}>
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>Try Again</Text>
+          <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
+            <Text style={styles.retryText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -160,8 +168,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   balanceLabel: { ...typography.body, color: 'rgba(255,255,255,0.7)', marginBottom: spacing.sm },
-  balanceAmount: { fontSize: 36, fontWeight: '800', color: '#FFFFFF', lineHeight: 44 },
+  balanceAmount: { fontSize: 36, fontWeight: '800', color: colors.white, lineHeight: 44 },
   pendingText: { ...typography.bodySmall, color: 'rgba(255,255,255,0.6)', marginTop: spacing.sm },
+  topUpBtn: {
+    marginTop: spacing.md,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
+  },
+  topUpBtnText: { ...typography.body, fontWeight: '700', color: colors.white },
 
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
 
@@ -185,4 +201,6 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: spacing.xxl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
   emptyText: { ...typography.body, color: colors.textSecondary },
+  retryButton: { marginTop: spacing.base },
+  retryText: { ...typography.body, color: colors.primary, fontWeight: '600' },
 });

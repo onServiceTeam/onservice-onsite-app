@@ -331,7 +331,7 @@ export async function checkOverdueInvoices(): Promise<number> {
   return overdueCount;
 }
 
-export function formatInvoice(inv: InvoiceRow) {
+export function formatInvoice(inv: InvoiceRow): Record<string, unknown> {
   return {
     id: inv.id,
     businessAccountId: inv.business_account_id,
@@ -352,7 +352,7 @@ export function formatInvoice(inv: InvoiceRow) {
   };
 }
 
-export function formatInvoiceItem(item: InvoiceItemRow) {
+export function formatInvoiceItem(item: InvoiceItemRow): Record<string, unknown> {
   return {
     id: item.id,
     invoiceId: item.invoice_id,

@@ -3,6 +3,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { withdrawalSchema } from '../validators/wallet.validators';
 import * as walletService from '../services/wallet.service';
+import * as paymentService from '../services/payment.service';
 import { createAppError } from '../middleware/error.middleware';
 import { platformConfig } from '../config/platform.config';
 import { db } from '../models/db';
@@ -66,6 +67,52 @@ router.get(
 );
 
 router.post(
+  '/top-up',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user!.userId;
+      const { amount, paymentMethod } = req.body as { amount: number; paymentMethod: string };
+
+      if (!amount || typeof amount !== 'number' || amount < 10000) {
+        throw createAppError('Minimum top-up amount is ₱100.00.', 400);
+      }
+      if (amount > 5000000) {
+        throw createAppError('Maximum top-up amount is ₱50,000.00 per transaction.', 400);
+      }
+
+      const validMethods = ['gcash', 'maya', 'card', 'qrph', 'bank_transfer'];
+      if (!paymentMethod || !validMethods.includes(paymentMethod)) {
+        throw createAppError('Please select a valid payment method (GCash, Maya, Card, QRPH, or Bank Transfer).', 400);
+      }
+
+      const topUpId = `topup_${userId}_${Date.now()}`;
+      const intent = await paymentService.createPaymentIntent(
+        topUpId,
+        amount,
+        paymentMethod as 'gcash' | 'maya' | 'card' | 'qrph' | 'bank_transfer',
+        `Wallet top-up for user ${userId}`,
+      );
+
+      logger.info('Wallet top-up intent created', { userId, amount, paymentMethod, intentId: intent.id });
+
+      res.status(201).json({
+        success: true,
+        data: {
+          topUpId,
+          amount,
+          paymentMethod,
+          paymentIntent: paymentService.formatPaymentIntent(intent),
+          message: 'Top-up payment intent created. Complete payment to add funds to your wallet.',
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
   '/withdraw',
   authMiddleware,
   validationMiddleware(withdrawalSchema),
@@ -99,7 +146,8 @@ router.post(
       const providerId = providerRow.rows[0]!.id;
 
       const payout = await db.transaction(async (client) => {
-        const walletUpdate = await client.query(
+        interface WalletBalanceRow { available_balance: number; [key: string]: unknown }
+        const walletUpdate = await client.query<WalletBalanceRow>(
           `UPDATE wallets SET available_balance = available_balance - $1, updated_at = NOW()
            WHERE id = $2 AND available_balance >= $1 RETURNING *`,
           [amount, wallet.id],
@@ -179,7 +227,104 @@ router.get(
   },
 );
 
-function formatPayout(p: PayoutRow) {
+// ─── Payout Schedule Preferences ──────────────────────────
+
+interface PayoutPrefsRow {
+  payout_frequency: string;
+  payout_min_threshold: number;
+  payout_preferred_method: string;
+  payout_destination_account: string | null;
+}
+
+router.get(
+  '/payout-preferences',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      if (req.user!.role !== 'provider') {
+        throw createAppError('Only providers can access payout preferences.', 403);
+      }
+
+      const result = await db.query<PayoutPrefsRow>(
+        `SELECT payout_frequency, payout_min_threshold, payout_preferred_method, payout_destination_account
+         FROM providers WHERE user_id = $1`,
+        [req.user!.userId],
+      );
+
+      if (result.rows.length === 0) throw createAppError('Provider not found.', 404);
+      const p = result.rows[0]!;
+
+      res.json({
+        success: true,
+        data: {
+          frequency: p.payout_frequency,
+          minThreshold: p.payout_min_threshold,
+          preferredMethod: p.payout_preferred_method,
+          destinationAccount: p.payout_destination_account,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.put(
+  '/payout-preferences',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      if (req.user!.role !== 'provider') {
+        throw createAppError('Only providers can update payout preferences.', 403);
+      }
+
+      const { frequency, minThreshold, preferredMethod, destinationAccount } = req.body;
+
+      const validFrequencies = ['manual', 'daily', 'weekly', 'biweekly', 'monthly'];
+      if (frequency && !validFrequencies.includes(frequency)) {
+        throw createAppError('Invalid payout frequency.', 400);
+      }
+      const validMethods = ['gcash', 'maya', 'bank_transfer'];
+      if (preferredMethod && !validMethods.includes(preferredMethod)) {
+        throw createAppError('Invalid payout method.', 400);
+      }
+      if (minThreshold !== undefined && (typeof minThreshold !== 'number' || minThreshold < 10000)) {
+        throw createAppError('Minimum threshold must be at least ₱100.00.', 400);
+      }
+
+      const result = await db.query<PayoutPrefsRow>(
+        `UPDATE providers
+         SET payout_frequency = COALESCE($1, payout_frequency),
+             payout_min_threshold = COALESCE($2, payout_min_threshold),
+             payout_preferred_method = COALESCE($3, payout_preferred_method),
+             payout_destination_account = COALESCE($4, payout_destination_account),
+             updated_at = NOW()
+         WHERE user_id = $5
+         RETURNING payout_frequency, payout_min_threshold, payout_preferred_method, payout_destination_account`,
+        [frequency ?? null, minThreshold ?? null, preferredMethod ?? null, destinationAccount ?? null, req.user!.userId],
+      );
+
+      if (result.rows.length === 0) throw createAppError('Provider not found.', 404);
+      const p = result.rows[0]!;
+
+      logger.info('Payout preferences updated', { userId: req.user!.userId, frequency: p.payout_frequency });
+
+      res.json({
+        success: true,
+        data: {
+          frequency: p.payout_frequency,
+          minThreshold: p.payout_min_threshold,
+          preferredMethod: p.payout_preferred_method,
+          destinationAccount: p.payout_destination_account,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+function formatPayout(p: PayoutRow): Record<string, unknown> {
   return {
     id: p.id,
     providerId: p.provider_id,

@@ -64,15 +64,31 @@ describe('Dispute Validators', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should accept all valid dispute types', () => {
+    it('should accept all valid dispute types (with evidence for damage/theft)', () => {
+      const evidenceRequiredTypes = new Set(['damage', 'theft']);
       const types = ['no_show', 'incomplete', 'substandard', 'damage', 'theft', 'overcharge', 'other'];
       for (const type of types) {
+        const data: Record<string, unknown> = {
+          bookingId: '550e8400-e29b-41d4-a716-446655440000',
+          type,
+          description: 'A description that is long enough to pass the fifty character minimum validation check.',
+        };
+        if (evidenceRequiredTypes.has(type)) {
+          data.evidenceUrls = [{ url: 'https://example.com/photo.jpg', type: 'photo' }];
+        }
+        const result = fileDisputeSchema.safeParse(data);
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should reject damage/theft disputes without evidence', () => {
+      for (const type of ['damage', 'theft']) {
         const result = fileDisputeSchema.safeParse({
           bookingId: '550e8400-e29b-41d4-a716-446655440000',
           type,
           description: 'A description that is long enough to pass the fifty character minimum validation check.',
         });
-        expect(result.success).toBe(true);
+        expect(result.success).toBe(false);
       }
     });
   });

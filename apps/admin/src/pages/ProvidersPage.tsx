@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
@@ -43,7 +43,7 @@ const TIER_BADGE: Record<string, 'info' | 'success' | 'warning' | 'default'> = {
   elite: 'warning',
 };
 
-export default function ProvidersPage() {
+export default function ProvidersPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -99,7 +99,7 @@ export default function ProvidersPage() {
     },
   });
 
-  const handleSearch = (e: FormEvent) => {
+  const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
     setSearch(searchInput);
     setPage(1);
@@ -317,7 +317,7 @@ const ACTION_COLORS: Record<string, string> = {
   amber: 'text-amber-700 bg-amber-50 hover:bg-amber-100',
 };
 
-function ActionBtn({ label, color, onClick }: { label: string; color: string; onClick: () => void }) {
+function ActionBtn({ label, color, onClick }: { label: string; color: string; onClick: () => void }): React.ReactElement {
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}

@@ -4,18 +4,6 @@ import { platformConfig } from '../config/platform.config';
 
 // --- Interfaces ---
 
-interface LoginAttemptRow {
-  id: string;
-  phone: string;
-  ip_address: string;
-  attempt_type: 'otp_send' | 'otp_verify' | 'admin_login';
-  success: boolean;
-  device_fingerprint: string | null;
-  user_agent: string | null;
-  locked_until: Date | null;
-  created_at: Date;
-}
-
 interface DeviceFingerprintRow {
   id: string;
   user_id: string;
@@ -170,10 +158,10 @@ export async function verifyCaptchaToken(token: string): Promise<boolean> {
   }
 
   try {
-    const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+    const response = await globalThis.fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ secret: captchaSecret, response: token }),
+      body: new globalThis.URLSearchParams({ secret: captchaSecret, response: token }),
     });
 
     const data = (await response.json()) as { success: boolean };
@@ -487,7 +475,10 @@ export async function expireBlockedIps(): Promise<number> {
 
 // --- Formatters ---
 
-export function formatBlockedIp(row: BlockedIpRow) {
+export function formatBlockedIp(row: BlockedIpRow): {
+  id: string; ipAddress: string; reason: string; blockedBy: string | null;
+  expiresAt: Date | null; isActive: boolean; createdAt: Date;
+} {
   return {
     id: row.id,
     ipAddress: row.ip_address,
@@ -499,7 +490,10 @@ export function formatBlockedIp(row: BlockedIpRow) {
   };
 }
 
-export function formatSecurityEvent(row: SecurityEventRow) {
+export function formatSecurityEvent(row: SecurityEventRow): {
+  id: string; userId: string | null; eventType: string; ipAddress: string | null;
+  deviceFingerprint: string | null; metadata: Record<string, unknown>; createdAt: Date;
+} {
   return {
     id: row.id,
     userId: row.user_id,
@@ -511,7 +505,11 @@ export function formatSecurityEvent(row: SecurityEventRow) {
   };
 }
 
-export function formatDeviceFingerprint(row: DeviceFingerprintRow) {
+export function formatDeviceFingerprint(row: DeviceFingerprintRow): {
+  id: string; userId: string; fingerprint: string; deviceName: string | null;
+  platform: 'ios' | 'android' | 'web' | null; isTrusted: boolean;
+  lastSeenAt: Date; lastIp: string | null; createdAt: Date;
+} {
   return {
     id: row.id,
     userId: row.user_id,

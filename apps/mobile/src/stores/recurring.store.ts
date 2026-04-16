@@ -21,7 +21,7 @@ interface RecurringState {
   clearError: () => void;
 }
 
-export const useRecurringStore = create<RecurringState>((set, get) => ({
+export const useRecurringStore = create<RecurringState>((set, _get) => ({
   items: [],
   selectedItem: null,
   instances: [],

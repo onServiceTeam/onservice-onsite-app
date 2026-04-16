@@ -8,7 +8,7 @@ import { formatPHPhone } from '@/utils/phone';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography } from '@/config/theme';
 
-export default function OTPVerifyScreen() {
+export default function OTPVerifyScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
@@ -41,14 +41,15 @@ export default function OTPVerifyScreen() {
       if (params.mode === 'register' && params.firstName && params.lastName) {
         await verifyOtp(params.phone, otp);
         await register(params.phone, params.firstName, params.lastName);
+        router.replace('/provider-onboarding/role-select');
       } else {
         await verifyOtp(params.phone, otp);
-      }
-      const { user } = useAuthStore.getState();
-      if (user?.role === 'provider') {
-        router.replace('/(provider-tabs)/dashboard');
-      } else {
-        router.replace('/(tabs)/home');
+        const { user } = useAuthStore.getState();
+        if (user?.role === 'provider') {
+          router.replace('/(provider-tabs)/dashboard');
+        } else {
+          router.replace('/(tabs)/home');
+        }
       }
     } catch (err: unknown) {
       setError(true);
@@ -61,7 +62,7 @@ export default function OTPVerifyScreen() {
     }
   }, [params, verifyOtp, register, router]);
 
-  const handleCodeChange = (val: string) => {
+  const handleCodeChange = (val: string): void => {
     setCode(val);
     setError(false);
     if (val.length === platformConfig.otpLength) {
@@ -69,7 +70,7 @@ export default function OTPVerifyScreen() {
     }
   };
 
-  const handleResend = async () => {
+  const handleResend = async (): Promise<void> => {
     if (resendCooldown > 0) return;
     try {
       await requestOtp(params.phone);

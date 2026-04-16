@@ -54,7 +54,14 @@ interface Aggregate {
   value: number | null;
 }
 
-async function getProviderReviews(providerId: string, page: number, pageSize: number) {
+async function getProviderReviews(providerId: string, page: number, pageSize: number): Promise<{
+  reviews: Review[];
+  aggregate: Aggregate;
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}> {
   const res = await api.get<{
     success: boolean;
     data: Review[];
@@ -68,7 +75,7 @@ async function getProviderReviews(providerId: string, page: number, pageSize: nu
   };
 }
 
-async function submitResponse(reviewId: string, response: string) {
+async function submitResponse(reviewId: string, response: string): Promise<Review> {
   const res = await api.post<{ success: boolean; data: Review }>(
     `/api/v1/reviews/${reviewId}/response`,
     { response },
@@ -76,11 +83,11 @@ async function submitResponse(reviewId: string, response: string) {
   return res.data.data;
 }
 
-function StarRating({ rating, size = 14 }: { rating: number; size?: number }) {
+function StarRating({ rating, size = 14 }: { rating: number; size?: number }): React.ReactElement {
   const stars = [];
   for (let i = 1; i <= 5; i++) {
     stars.push(
-      <Text key={i} style={{ fontSize: size, color: i <= rating ? '#FFB800' : colors.border }}>
+      <Text key={i} style={{ fontSize: size, color: i <= rating ? colors.warning : colors.border }}>
         ★
       </Text>,
     );
@@ -88,7 +95,7 @@ function StarRating({ rating, size = 14 }: { rating: number; size?: number }) {
   return <View style={{ flexDirection: 'row', gap: 1 }}>{stars}</View>;
 }
 
-function RatingBar({ label, value }: { label: string; value: number | null }) {
+function RatingBar({ label, value }: { label: string; value: number | null }): React.ReactElement | null {
   if (value == null) return null;
   return (
     <View style={styles.ratingBarRow}>
@@ -101,7 +108,7 @@ function RatingBar({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-export default function ProviderReviewsScreen() {
+export default function ProviderReviewsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -154,7 +161,7 @@ export default function ProviderReviewsScreen() {
   const aggregate = data?.pages[0]?.aggregate ?? null;
   const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
 
-  const renderHeader = () => {
+  const renderHeader = (): React.ReactElement | null => {
     if (!aggregate) return null;
     return (
       <View style={styles.aggregateCard}>
@@ -178,7 +185,7 @@ export default function ProviderReviewsScreen() {
     );
   };
 
-  const renderReview = ({ item }: { item: Review }) => (
+  const renderReview = ({ item }: { item: Review }): React.ReactElement => (
     <View style={styles.reviewCard}>
       <View style={styles.reviewHeader}>
         <StarRating rating={item.rating} />
@@ -331,7 +338,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     overflow: 'hidden',
   },
-  ratingBarFill: { height: 6, backgroundColor: '#FFB800', borderRadius: 3 },
+  ratingBarFill: { height: 6, backgroundColor: colors.warning, borderRadius: 3 },
   ratingBarValue: { ...typography.caption, color: colors.text, fontWeight: '600', width: 26, textAlign: 'right' },
 
   reviewCard: {

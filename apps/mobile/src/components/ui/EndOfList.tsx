@@ -1,6 +1,5 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { useTranslation } from '@/i18n/useTranslation';
 import { colors } from '@/config/theme';
 
 interface EndOfListProps {
@@ -8,8 +7,7 @@ interface EndOfListProps {
 }
 
 export function EndOfList({ message }: EndOfListProps): React.ReactElement {
-  const { t } = useTranslation();
-  const displayMessage = message ?? t('common.endOfList');
+  const displayMessage = message ?? "You've reached the end";
   return (
     <View
       style={styles.container}

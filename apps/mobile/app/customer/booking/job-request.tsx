@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBookingStore } from '@/stores/booking.store';
 import { createJobRequest } from '@/services/booking.service';
+import { useImagePicker } from '@/hooks/useImagePicker';
+import { colors, spacing, borderRadius } from '@/config/theme';
 
 const URGENCY_OPTIONS = [
   { value: 'same_day' as const, label: 'Same Day', desc: 'Within 4 hours' },
@@ -13,7 +15,7 @@ const URGENCY_OPTIONS = [
   { value: 'flexible' as const, label: 'Flexible', desc: 'Provider suggests time' },
 ];
 
-export default function JobRequestScreen() {
+export default function JobRequestScreen(): React.ReactElement {
   const router = useRouter();
   const draft = useBookingStore((s) => s.draft);
 
@@ -21,13 +23,14 @@ export default function JobRequestScreen() {
   const [urgency, setUrgency] = useState<'same_day' | 'within_3_days' | 'within_a_week' | 'flexible'>('within_3_days');
   const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
-  const [photoUrls] = useState<string[]>([]);
+  const imagePicker = useImagePicker({ context: 'job-request', maxImages: 10 });
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!draft.categoryId || !draft.address) {
         throw new Error('Missing category or address');
       }
+      const uploadedUrls = await imagePicker.uploadAll();
       return createJobRequest({
         categoryId: draft.categoryId,
         subcategoryId: draft.subcategoryId ?? undefined,
@@ -41,7 +44,7 @@ export default function JobRequestScreen() {
         urgency,
         budgetMin: budgetMin ? Math.round(Number(budgetMin) * 100) : undefined,
         budgetMax: budgetMax ? Math.round(Number(budgetMax) * 100) : undefined,
-        jobPhotos: photoUrls.length > 0 ? photoUrls : undefined,
+        jobPhotos: uploadedUrls.length > 0 ? uploadedUrls : undefined,
       });
     },
     onSuccess: (booking) => {
@@ -49,12 +52,14 @@ export default function JobRequestScreen() {
         { text: 'OK', onPress: () => router.replace(`/customer/booking/${booking.id}` as never) },
       ]);
     },
-    onError: (err: Error) => {
-      Alert.alert('Error', err.message);
+    onError: (err: unknown) => {
+      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not submit request.');
     },
   });
 
-  const isValid = description.length >= 50 && draft.categoryId && draft.address;
+  const hasMinPhotos = imagePicker.localUris.length >= 2;
+  const isValid = description.length >= 50 && draft.categoryId && draft.address && hasMinPhotos;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -88,7 +93,7 @@ export default function JobRequestScreen() {
             value={description}
             onChangeText={setDescription}
             placeholder="Describe the issue in detail. What needs to be done? What materials might be needed?"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={colors.textTertiary}
             maxLength={2000}
           />
           <Text style={[styles.charCount, description.length < 50 ? styles.charCountRed : styles.charCountGreen]}>
@@ -97,25 +102,37 @@ export default function JobRequestScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photos (optional)</Text>
-          <Text style={styles.hint}>Add photos of the job site (max 10)</Text>
+          <Text style={styles.sectionTitle}>Photos *</Text>
+          <Text style={styles.hint}>At least 2 photos required (max 10). Show the job site and issue clearly.</Text>
           <View style={styles.photoGrid}>
-            {photoUrls.map((_, i) => (
-              <View key={i} style={styles.photoThumb}>
-                <Text style={styles.photoIcon}>📷</Text>
-                <Text style={styles.photoLabel}>Photo {i + 1}</Text>
+            {imagePicker.localUris.map((uri, i) => (
+              <View key={uri} style={styles.photoThumb}>
+                <Image source={{ uri }} style={styles.photoImage} />
+                <TouchableOpacity
+                  style={styles.removeBtn}
+                  onPress={() => imagePicker.removeImage(i)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.removeBtnText}>×</Text>
+                </TouchableOpacity>
               </View>
             ))}
-            {photoUrls.length < 10 && (
+            {imagePicker.localUris.length < 10 && (
               <TouchableOpacity
                 style={[styles.photoThumb, styles.addPhotoBtn]}
-                onPress={() => Alert.alert('Coming Soon', 'Photo upload will be available in the next update.')}
+                onPress={imagePicker.showPickerOptions}
               >
                 <Text style={styles.addPhotoIcon}>+</Text>
                 <Text style={styles.addPhotoText}>Add Photo</Text>
               </TouchableOpacity>
             )}
           </View>
+          {imagePicker.isUploading && (
+            <View style={styles.uploadingRow}>
+              <ActivityIndicator size="small" color={colors.info} />
+              <Text style={styles.uploadingText}>Uploading photos...</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -149,7 +166,7 @@ export default function JobRequestScreen() {
                 value={budgetMin}
                 onChangeText={setBudgetMin}
                 placeholder="Min"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={colors.textTertiary}
               />
             </View>
             <Text style={styles.budgetDash}>—</Text>
@@ -161,7 +178,7 @@ export default function JobRequestScreen() {
                 value={budgetMax}
                 onChangeText={setBudgetMax}
                 placeholder="Max"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={colors.textTertiary}
               />
             </View>
           </View>
@@ -184,7 +201,7 @@ export default function JobRequestScreen() {
           disabled={!isValid || mutation.isPending}
         >
           {mutation.isPending ? (
-            <ActivityIndicator color="#FFF" />
+            <ActivityIndicator color={colors.white} />
           ) : (
             <Text style={styles.submitBtnText}>Submit Job Request</Text>
           )}
@@ -199,48 +216,51 @@ export default function JobRequestScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  backBtn: { padding: 4 },
-  backText: { fontSize: 22, color: '#1B3A4B' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1B3A4B' },
+  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
+  backBtn: { padding: spacing.xs },
+  backText: { fontSize: 22, color: colors.text },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   placeholder: { width: 30 },
   body: { flex: 1 },
-  bodyContent: { padding: 16, paddingBottom: 40 },
-  section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1B3A4B', marginBottom: 6 },
-  hint: { fontSize: 13, color: '#64748B', marginBottom: 8 },
-  categoryCard: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0' },
-  categoryName: { fontSize: 15, fontWeight: '600', color: '#1B3A4B' },
-  subcategoryName: { fontSize: 13, color: '#64748B', marginTop: 2 },
-  textArea: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', fontSize: 14, color: '#1B3A4B', minHeight: 120 },
-  inputError: { borderColor: '#EF4444' },
-  charCount: { fontSize: 12, marginTop: 4, textAlign: 'right' },
-  charCountRed: { color: '#EF4444' },
-  charCountGreen: { color: '#10B981' },
+  bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  section: { marginBottom: spacing.lg },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 6 },
+  hint: { fontSize: 13, color: colors.textSecondary, marginBottom: spacing.sm },
+  categoryCard: { backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border },
+  categoryName: { fontSize: 15, fontWeight: '600', color: colors.text },
+  subcategoryName: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  textArea: { backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, minHeight: 120 },
+  inputError: { borderColor: colors.error },
+  charCount: { fontSize: 12, marginTop: spacing.xs, textAlign: 'right' },
+  charCountRed: { color: colors.error },
+  charCountGreen: { color: colors.success },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  photoThumb: { width: 80, height: 80, borderRadius: 10, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' },
-  photoIcon: { fontSize: 24 },
-  photoLabel: { fontSize: 10, color: '#64748B', marginTop: 2 },
-  addPhotoBtn: { borderStyle: 'dashed', borderColor: '#00B4D8' },
-  addPhotoIcon: { fontSize: 24, color: '#00B4D8' },
-  addPhotoText: { fontSize: 10, color: '#00B4D8', marginTop: 2 },
-  urgencyOption: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 8, gap: 12 },
-  urgencySelected: { borderColor: '#00B4D8', backgroundColor: '#F0F9FF' },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#CBD5E1' },
-  radioSelected: { borderColor: '#00B4D8', backgroundColor: '#00B4D8' },
-  urgencyLabel: { fontSize: 14, fontWeight: '600', color: '#1B3A4B' },
-  urgencyLabelSelected: { color: '#00B4D8' },
-  urgencyDesc: { fontSize: 12, color: '#64748B', marginTop: 1 },
-  budgetRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  budgetField: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 12 },
-  budgetPrefix: { fontSize: 14, color: '#64748B', marginRight: 4 },
-  budgetInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: '#1B3A4B' },
-  budgetDash: { fontSize: 16, color: '#94A3B8' },
-  addressCard: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0' },
-  addressText: { fontSize: 14, color: '#1B3A4B' },
-  submitBtn: { backgroundColor: '#1B3A4B', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
+  photoThumb: { width: 80, height: 80, borderRadius: borderRadius.md, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  photoImage: { width: '100%', height: '100%', borderRadius: 9 },
+  removeBtn: { position: 'absolute', top: 2, right: 2, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  removeBtnText: { color: colors.white, fontSize: 14, fontWeight: '700', lineHeight: 16 },
+  addPhotoBtn: { borderStyle: 'dashed', borderColor: colors.info, alignItems: 'center', justifyContent: 'center' },
+  addPhotoIcon: { fontSize: 24, color: colors.info },
+  addPhotoText: { fontSize: 10, color: colors.info, marginTop: 2 },
+  uploadingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
+  uploadingText: { fontSize: 13, color: colors.info },
+  urgencyOption: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm, gap: spacing.md },
+  urgencySelected: { borderColor: colors.info, backgroundColor: colors.primaryLight },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.border },
+  radioSelected: { borderColor: colors.info, backgroundColor: colors.info },
+  urgencyLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
+  urgencyLabelSelected: { color: colors.info },
+  urgencyDesc: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+  budgetRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  budgetField: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md },
+  budgetPrefix: { fontSize: 14, color: colors.textSecondary, marginRight: spacing.xs },
+  budgetInput: { flex: 1, paddingVertical: spacing.md, fontSize: 14, color: colors.text },
+  budgetDash: { fontSize: 16, color: colors.textTertiary },
+  addressCard: { backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border },
+  addressText: { fontSize: 14, color: colors.text },
+  submitBtn: { backgroundColor: colors.text, borderRadius: borderRadius.lg, paddingVertical: spacing.base, alignItems: 'center', marginTop: spacing.sm },
   submitBtnDisabled: { opacity: 0.5 },
-  submitBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
-  footer: { fontSize: 12, color: '#94A3B8', textAlign: 'center', marginTop: 12 },
+  submitBtnText: { fontSize: 16, fontWeight: '700', color: colors.white },
+  footer: { fontSize: 12, color: colors.textTertiary, textAlign: 'center', marginTop: spacing.md },
 });

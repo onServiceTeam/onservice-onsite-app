@@ -1,5 +1,5 @@
 import { db } from '../models/db';
-import { platformConfig } from '../config/platform.config';
+
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as notificationService from './notification.service';
@@ -431,7 +431,7 @@ export async function processRecurringBookings(): Promise<number> {
   return created;
 }
 
-export function formatRecurringBooking(rb: RecurringBookingRow) {
+export function formatRecurringBooking(rb: RecurringBookingRow): Record<string, unknown> {
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   return {
     id: rb.id,
@@ -467,7 +467,7 @@ export function formatRecurringBooking(rb: RecurringBookingRow) {
   };
 }
 
-export function formatRecurringInstance(ri: RecurringInstanceRow) {
+export function formatRecurringInstance(ri: RecurringInstanceRow): Record<string, unknown> {
   return {
     id: ri.id,
     recurringBookingId: ri.recurring_booking_id,

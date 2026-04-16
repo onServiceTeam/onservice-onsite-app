@@ -1,3 +1,5 @@
+import React from 'react';
+
 interface KpiCardProps {
   title: string;
   value: string | number;
@@ -6,7 +8,7 @@ interface KpiCardProps {
   changeType?: 'positive' | 'negative' | 'neutral';
 }
 
-export default function KpiCard({ title, value, icon, change, changeType = 'neutral' }: KpiCardProps) {
+export default function KpiCard({ title, value, icon, change, changeType = 'neutral' }: KpiCardProps): React.ReactElement {
   const changeColor =
     changeType === 'positive' ? 'text-emerald-600' :
     changeType === 'negative' ? 'text-red-600' :

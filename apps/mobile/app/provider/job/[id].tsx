@@ -13,11 +13,11 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getBookingById, type Booking } from '@/services/booking.service';
+import { getBookingById } from '@/services/booking.service';
 import { updateBookingStatus } from '@/services/provider-api.service';
 import { Badge, Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
-import { formatDateTime, formatRelative } from '@/utils/date';
+import { formatDateTime, formatRelative, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -51,7 +51,7 @@ const NEXT_STATUS: Record<string, { status: string; label: string; confirm?: str
   in_progress: { status: 'completed_by_provider', label: 'Mark Complete', confirm: 'Mark this job as complete? The customer will be asked to confirm.' },
 };
 
-export default function ProviderJobDetailScreen() {
+export default function ProviderJobDetailScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -79,10 +79,14 @@ export default function ProviderJobDetailScreen() {
 
   const cancelMutation = useMutation({
     mutationFn: () => updateBookingStatus(id, 'cancelled_by_provider', 'Provider cancelled'),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['booking', id] });
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
-      Alert.alert('Cancelled', 'Job has been cancelled.');
+      if (result.warning) {
+        Alert.alert('Cancelled', result.warning.message);
+      } else {
+        Alert.alert('Cancelled', 'Job has been cancelled.');
+      }
       router.back();
     },
     onError: (err: unknown) => {
@@ -91,7 +95,7 @@ export default function ProviderJobDetailScreen() {
     },
   });
 
-  const handleNextStatus = () => {
+  const handleNextStatus = (): void => {
     if (!booking) return;
     const next = NEXT_STATUS[booking.status];
     if (!next) return;
@@ -106,14 +110,14 @@ export default function ProviderJobDetailScreen() {
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = (): void => {
     Alert.alert('Cancel Job', 'Are you sure you want to cancel this job?', [
       { text: 'No', style: 'cancel' },
       { text: 'Yes, Cancel', style: 'destructive', onPress: () => cancelMutation.mutate() },
     ]);
   };
 
-  const handleNavigate = async () => {
+  const handleNavigate = async (): Promise<void> => {
     if (!booking?.latitude || !booking?.longitude) {
       Alert.alert('No Location', 'No GPS coordinates available for this job.');
       return;
@@ -153,7 +157,7 @@ export default function ProviderJobDetailScreen() {
   }
 
   const nextAction = NEXT_STATUS[booking.status];
-  const canCancel = ['matched', 'paid'].includes(booking.status);
+  const canCancel = ['matched', 'paid', 'provider_en_route'].includes(booking.status);
   const isActiveJob = ['paid', 'provider_en_route', 'provider_arrived', 'in_progress'].includes(booking.status);
   const canSubmitQuote = booking.bookingType === 'quote_based' && booking.status === 'requested';
   const canSubmitChangeOrder = booking.status === 'in_progress';
@@ -174,7 +178,7 @@ export default function ProviderJobDetailScreen() {
             backgroundColor={getStatusColor(booking.status)}
             size="md"
           />
-          <Text style={styles.bookingId}>#{booking.id.slice(0, 8).toUpperCase()}</Text>
+          <Text style={styles.bookingId}>#{formatBookingRef(booking.id, booking.createdAt)}</Text>
         </View>
 
         <Text style={styles.statusMessage}>
@@ -246,6 +250,20 @@ export default function ProviderJobDetailScreen() {
             onPress={() => router.push(`/provider/job/${booking.id}/change-order` as never)}
             variant="outline"
           />
+        )}
+        {['in_progress', 'provider_arrived', 'provider_en_route'].includes(booking.status) && (
+          <>
+            <Button
+              title="Job Checklist"
+              onPress={() => router.push(`/provider/job/${booking.id}/checklist` as never)}
+              variant="outline"
+            />
+            <Button
+              title="Upload Before/After Photos"
+              onPress={() => router.push(`/provider/job/${booking.id}/photos` as never)}
+              variant="outline"
+            />
+          </>
         )}
         {isActiveJob && (
           <Button

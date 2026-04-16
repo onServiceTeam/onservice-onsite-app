@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
@@ -22,7 +22,7 @@ interface PaginatedResult {
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
 }
 
-export default function CustomersPage() {
+export default function CustomersPage(): React.ReactElement {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -39,7 +39,7 @@ export default function CustomersPage() {
     },
   });
 
-  const handleSearch = (e: FormEvent) => {
+  const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
     setSearch(searchInput);
     setPage(1);

@@ -1,9 +1,11 @@
-import { useState } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fileDispute, type DisputeEvidence } from '@/services/booking.service';
+import { useImagePicker } from '@/hooks/useImagePicker';
+import { colors, spacing, borderRadius } from '@/config/theme';
 
 const DISPUTE_TYPES = [
   { value: 'no_show', label: 'No Show', desc: 'Provider did not arrive', icon: '🚫' },
@@ -17,36 +19,45 @@ const DISPUTE_TYPES = [
 
 const EVIDENCE_REQUIRED = new Set(['damage', 'theft']);
 
-export default function DisputeScreen() {
+export default function DisputeScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
 
   const [disputeType, setDisputeType] = useState('');
   const [description, setDescription] = useState('');
-  const [evidenceUrls] = useState<DisputeEvidence[]>([]);
+  const imagePicker = useImagePicker({ context: 'dispute', maxImages: 10 });
 
   const mutation = useMutation({
-    mutationFn: () => fileDispute({
-      bookingId: bookingId ?? '',
-      type: disputeType,
-      description,
-      evidenceUrls: evidenceUrls.length > 0 ? evidenceUrls : undefined,
-    }),
+    mutationFn: async () => {
+      const uploadedUrls = await imagePicker.uploadAll();
+      const evidence: DisputeEvidence[] = uploadedUrls.map((url) => ({
+        url,
+        type: 'photo' as const,
+      }));
+      return fileDispute({
+        bookingId: bookingId ?? '',
+        type: disputeType,
+        description,
+        evidenceUrls: evidence.length > 0 ? evidence : undefined,
+      });
+    },
     onSuccess: () => {
       Alert.alert(
         'Dispute Filed',
-        'Your dispute has been submitted. The provider has 24 hours to respond. We\'ll keep you updated.',
+        'Your dispute has been submitted. The provider has 48 hours to respond. We\'ll keep you updated.',
         [{ text: 'OK', onPress: () => router.back() }],
       );
     },
-    onError: () => {
-      Alert.alert('Error', 'Failed to submit dispute. Please try again or contact support.');
+    onError: (err: unknown) => {
+      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Failed to submit dispute. Please try again or contact support.');
     },
   });
 
   const needsEvidence = EVIDENCE_REQUIRED.has(disputeType);
+  const hasEvidence = imagePicker.localUris.length > 0;
   const hasValidBooking = !!bookingId && bookingId.length > 0;
-  const isValid = hasValidBooking && !!disputeType && description.length >= 50;
+  const isValid = hasValidBooking && !!disputeType && description.length >= 50 && (!needsEvidence || hasEvidence);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -62,7 +73,7 @@ export default function DisputeScreen() {
         <View style={styles.warningBox}>
           <Text style={styles.warningIcon}>⚠️</Text>
           <Text style={styles.warningText}>
-            Disputes must be filed within 24 hours of job completion. Please provide accurate details.
+            Disputes must be filed within 48 hours of job completion. Please provide accurate details.
           </Text>
         </View>
 
@@ -97,7 +108,7 @@ export default function DisputeScreen() {
             value={description}
             onChangeText={setDescription}
             placeholder="Explain what happened in detail. Include relevant times, conversations, and specifics."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={colors.textTertiary}
             maxLength={2000}
           />
           <Text style={[styles.charCount, description.length < 50 ? styles.charRed : styles.charGreen]}>
@@ -106,31 +117,46 @@ export default function DisputeScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Evidence {needsEvidence ? '(recommended)' : '(optional)'}</Text>
+          <Text style={styles.sectionTitle}>Evidence {needsEvidence ? '(required)' : '(optional)'}</Text>
           {needsEvidence && (
             <Text style={styles.hintWarn}>
-              Photos or videos strengthen {disputeType} disputes. Evidence upload will be available in the next update — you can submit now and add evidence via support.
+              Photos or videos are required for {disputeType} disputes. Please attach at least one photo as evidence.
             </Text>
           )}
           <View style={styles.photoGrid}>
-            {evidenceUrls.map((_, i) => (
-              <View key={i} style={styles.photoThumb}>
-                <Text style={styles.photoIcon}>📷</Text>
+            {imagePicker.localUris.map((uri, i) => (
+              <View key={uri} style={styles.photoThumb}>
+                <Image source={{ uri }} style={styles.photoImage} />
+                <TouchableOpacity
+                  style={styles.removeBtn}
+                  onPress={() => imagePicker.removeImage(i)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.removeBtnText}>×</Text>
+                </TouchableOpacity>
               </View>
             ))}
-            <TouchableOpacity
-              style={[styles.photoThumb, styles.addPhoto]}
-              onPress={() => Alert.alert('Coming Soon', 'Evidence upload will be available in the next update.')}
-            >
-              <Text style={styles.addPhotoPlus}>+</Text>
-              <Text style={styles.addPhotoLabel}>Add Photo</Text>
-            </TouchableOpacity>
+            {imagePicker.localUris.length < 10 && (
+              <TouchableOpacity
+                style={[styles.photoThumb, styles.addPhoto]}
+                onPress={imagePicker.showPickerOptions}
+              >
+                <Text style={styles.addPhotoPlus}>+</Text>
+                <Text style={styles.addPhotoLabel}>Add Photo</Text>
+              </TouchableOpacity>
+            )}
           </View>
+          {imagePicker.isUploading && (
+            <View style={styles.uploadingRow}>
+              <ActivityIndicator size="small" color={colors.error} />
+              <Text style={styles.uploadingText}>Uploading evidence...</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.infoBox}>
           <Text style={styles.infoTitle}>What happens next?</Text>
-          <Text style={styles.infoStep}>1. Provider is notified and has 24 hours to respond</Text>
+          <Text style={styles.infoStep}>1. Provider is notified and has 48 hours to respond</Text>
           <Text style={styles.infoStep}>2. If accepted, refund is processed automatically</Text>
           <Text style={styles.infoStep}>3. If contested, our support team reviews the case</Text>
           <Text style={styles.infoStep}>4. Unresponded disputes resolve in your favor</Text>
@@ -142,7 +168,7 @@ export default function DisputeScreen() {
           disabled={!isValid || mutation.isPending}
         >
           {mutation.isPending ? (
-            <ActivityIndicator color="#FFF" />
+            <ActivityIndicator color={colors.white} />
           ) : (
             <Text style={styles.submitText}>Submit Dispute</Text>
           )}
@@ -153,43 +179,47 @@ export default function DisputeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  backBtn: { padding: 4 },
-  backText: { fontSize: 22, color: '#1B3A4B' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1B3A4B' },
+  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
+  backBtn: { padding: spacing.xs },
+  backText: { fontSize: 22, color: colors.text },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   placeholder: { width: 30 },
   body: { flex: 1 },
-  bodyContent: { padding: 16, paddingBottom: 40 },
-  warningBox: { flexDirection: 'row', gap: 10, backgroundColor: '#FFFBEB', borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#FDE68A' },
+  bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  warningBox: { flexDirection: 'row', gap: 10, backgroundColor: colors.warningLight, borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: colors.warning },
   warningIcon: { fontSize: 20 },
-  warningText: { flex: 1, fontSize: 13, color: '#92400E', lineHeight: 18 },
-  section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1B3A4B', marginBottom: 8 },
-  hint: { fontSize: 13, color: '#64748B', marginBottom: 8 },
-  hintWarn: { fontSize: 13, color: '#DC2626', marginBottom: 8 },
-  typeOption: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 8 },
-  typeSelected: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' },
+  warningText: { flex: 1, fontSize: 13, color: colors.warning, lineHeight: 18 },
+  section: { marginBottom: spacing.lg },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
+  hint: { fontSize: 13, color: colors.textSecondary, marginBottom: spacing.sm },
+  hintWarn: { fontSize: 13, color: colors.error, marginBottom: spacing.sm },
+  typeOption: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },
+  typeSelected: { borderColor: colors.error, backgroundColor: colors.errorLight },
   typeIcon: { fontSize: 22 },
-  typeLabel: { fontSize: 14, fontWeight: '600', color: '#1B3A4B' },
-  typeLabelSelected: { color: '#DC2626' },
-  typeDesc: { fontSize: 12, color: '#64748B', marginTop: 1 },
-  checkMark: { fontSize: 18, color: '#DC2626', fontWeight: '700' },
-  textArea: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', fontSize: 14, color: '#1B3A4B', minHeight: 120 },
-  inputError: { borderColor: '#EF4444' },
-  charCount: { fontSize: 12, marginTop: 4, textAlign: 'right' },
-  charRed: { color: '#EF4444' },
-  charGreen: { color: '#10B981' },
+  typeLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
+  typeLabelSelected: { color: colors.error },
+  typeDesc: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+  checkMark: { fontSize: 18, color: colors.error, fontWeight: '700' },
+  textArea: { backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, minHeight: 120 },
+  inputError: { borderColor: colors.error },
+  charCount: { fontSize: 12, marginTop: spacing.xs, textAlign: 'right' },
+  charRed: { color: colors.error },
+  charGreen: { color: colors.success },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  photoThumb: { width: 80, height: 80, borderRadius: 10, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' },
-  photoIcon: { fontSize: 24 },
-  addPhoto: { borderStyle: 'dashed', borderColor: '#EF4444' },
-  addPhotoPlus: { fontSize: 24, color: '#EF4444' },
-  addPhotoLabel: { fontSize: 10, color: '#EF4444', marginTop: 2 },
-  infoBox: { backgroundColor: '#F0F9FF', borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#BAE6FD' },
-  infoTitle: { fontSize: 14, fontWeight: '700', color: '#0C4A6E', marginBottom: 8 },
-  infoStep: { fontSize: 13, color: '#0369A1', lineHeight: 20, marginBottom: 2 },
-  submitBtn: { backgroundColor: '#DC2626', borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
+  photoThumb: { width: 80, height: 80, borderRadius: borderRadius.md, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  photoImage: { width: '100%', height: '100%', borderRadius: 9 },
+  removeBtn: { position: 'absolute', top: 2, right: 2, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  removeBtnText: { color: colors.white, fontSize: 14, fontWeight: '700', lineHeight: 16 },
+  addPhoto: { borderStyle: 'dashed', borderColor: colors.error, alignItems: 'center', justifyContent: 'center' },
+  addPhotoPlus: { fontSize: 24, color: colors.error },
+  addPhotoLabel: { fontSize: 10, color: colors.error, marginTop: 2 },
+  uploadingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
+  uploadingText: { fontSize: 13, color: colors.error },
+  infoBox: { backgroundColor: colors.primaryLight, borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: colors.primary },
+  infoTitle: { fontSize: 14, fontWeight: '700', color: colors.primaryDark, marginBottom: spacing.sm },
+  infoStep: { fontSize: 13, color: colors.primary, lineHeight: 20, marginBottom: 2 },
+  submitBtn: { backgroundColor: colors.error, borderRadius: borderRadius.lg, paddingVertical: spacing.base, alignItems: 'center' },
   submitDisabled: { opacity: 0.5 },
-  submitText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  submitText: { fontSize: 16, fontWeight: '700', color: colors.white },
 });

@@ -61,7 +61,7 @@ onservice-onsite-app/
 ## Rules
 
 - Currency is ALWAYS ₱ (Philippine Peso) — never $
-- All strings in localization files (en.json / fil.json) — never hardcoded
+- English only — no i18n framework (all Philippine apps use English)
 - All business values in config files — never hardcoded
 - TypeScript strict mode — no `any`, no `@ts-ignore`
 - Philippine data only — Filipino names, PH addresses, +63 phone numbers, Asia/Manila timezone

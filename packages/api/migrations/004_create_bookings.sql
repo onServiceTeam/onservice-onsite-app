@@ -2,7 +2,7 @@
 -- Status transitions enforced by application-level state machine
 
 CREATE TABLE bookings (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     customer_id UUID NOT NULL REFERENCES users(id),
     provider_id UUID REFERENCES providers(id),
     category_id UUID NOT NULL REFERENCES service_categories(id),
@@ -49,7 +49,7 @@ CREATE INDEX idx_bookings_escrow ON bookings(escrow_status);
 
 -- Booking quotes (for quote-based bookings)
 CREATE TABLE booking_quotes (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
     provider_id UUID NOT NULL REFERENCES providers(id),
     quoted_price INTEGER NOT NULL,           -- in centavos
@@ -66,7 +66,7 @@ CREATE INDEX idx_quotes_expires ON booking_quotes(expires_at);
 
 -- Booking images (before/after photos)
 CREATE TABLE booking_images (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
     image_url TEXT NOT NULL,
     image_type VARCHAR(20) NOT NULL DEFAULT 'before'

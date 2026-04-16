@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
@@ -51,7 +51,7 @@ function formatType(t: string): string {
   return t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-export default function DisputesPage() {
+export default function DisputesPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
@@ -102,7 +102,7 @@ export default function DisputesPage() {
     onError: (err) => setActionError(getErrorMessage(err)),
   });
 
-  function closeModal() {
+  function closeModal(): void {
     setSelectedDispute(null);
     setActionType(null);
     setResolutionType('');
@@ -112,17 +112,17 @@ export default function DisputesPage() {
     setActionError('');
   }
 
-  function openResolve(d: Dispute) {
+  function openResolve(d: Dispute): void {
     setSelectedDispute(d);
     setActionType('resolve');
   }
 
-  function openEscalate(d: Dispute) {
+  function openEscalate(d: Dispute): void {
     setSelectedDispute(d);
     setActionType('escalate');
   }
 
-  const handleSearch = (e: FormEvent) => {
+  const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
     setSearch(searchInput);
     setPage(1);

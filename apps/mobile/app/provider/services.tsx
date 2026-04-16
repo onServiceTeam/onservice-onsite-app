@@ -22,7 +22,7 @@ import { Button, Input } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
-export default function ManageServicesScreen() {
+export default function ManageServicesScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -86,7 +86,7 @@ export default function ManageServicesScreen() {
     },
   });
 
-  const handleRemove = (svc: ProviderServiceItem) => {
+  const handleRemove = (svc: ProviderServiceItem): void => {
     Alert.alert('Remove Service', `Remove "${svc.subcategoryName}" from your profile?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: () => removeMutation.mutate(svc.subcategoryId) },
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
   chipText: { ...typography.bodySmall, color: colors.text },
-  chipTextActive: { color: '#FFFFFF', fontWeight: '600' },
+  chipTextActive: { color: colors.white, fontWeight: '600' },
 
   addActions: { gap: spacing.sm, marginTop: spacing.lg },
 });

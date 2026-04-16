@@ -1,3 +1,5 @@
+import React from 'react';
+
 interface PaginationProps {
   page: number;
   totalPages: number;
@@ -6,7 +8,7 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
 }
 
-export default function Pagination({ page, totalPages, total, pageSize, onPageChange }: PaginationProps) {
+export default function Pagination({ page, totalPages, total, pageSize, onPageChange }: PaginationProps): React.ReactElement {
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
 

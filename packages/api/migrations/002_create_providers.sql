@@ -2,7 +2,7 @@
 -- Tier-based commission rates defined in platform.config.ts
 
 CREATE TABLE providers (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     business_name VARCHAR(200) NOT NULL,
     description TEXT NOT NULL DEFAULT '',
@@ -33,7 +33,7 @@ CREATE INDEX idx_providers_rating ON providers(average_rating DESC);
 
 -- Provider service areas (many-to-many with categories)
 CREATE TABLE provider_services (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     provider_id UUID NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
     category_id UUID NOT NULL,
     subcategory_id UUID,

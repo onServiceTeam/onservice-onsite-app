@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
@@ -48,7 +48,7 @@ function formatStatus(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function RecurringPage() {
+export default function RecurringPage(): React.ReactElement {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -75,7 +75,7 @@ export default function RecurringPage() {
     },
   });
 
-  const handleSearch = (e: FormEvent) => {
+  const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
     setSearch(searchInput);
     setPage(1);

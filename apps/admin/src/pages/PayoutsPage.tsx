@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
@@ -41,7 +41,7 @@ function formatCurrency(cents: number): string {
   return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 }
 
-export default function PayoutsPage() {
+export default function PayoutsPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
@@ -85,7 +85,7 @@ export default function PayoutsPage() {
     onError: (err) => setActionError(getErrorMessage(err)),
   });
 
-  function closeModal() {
+  function closeModal(): void {
     setSelectedPayout(null);
     setActionType(null);
     setRejectReason('');
@@ -93,7 +93,7 @@ export default function PayoutsPage() {
     setActionError('');
   }
 
-  const handleSearch = (e: FormEvent) => {
+  const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
     setSearch(searchInput);
     setPage(1);

@@ -1,3 +1,5 @@
+import React from 'react';
+
 interface BadgeProps {
   label: string;
   variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'outline';
@@ -12,7 +14,7 @@ const VARIANT_CLASSES: Record<string, string> = {
   outline: 'bg-transparent text-slate-600 border border-slate-300',
 };
 
-export default function Badge({ label, variant = 'default' }: BadgeProps) {
+export default function Badge({ label, variant = 'default' }: BadgeProps): React.ReactElement {
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${VARIANT_CLASSES[variant] ?? VARIANT_CLASSES.default}`}>
       {label}

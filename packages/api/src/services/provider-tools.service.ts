@@ -51,6 +51,7 @@ interface ReceiptBookingRow {
   description: string;
   scheduled_at: Date;
   completed_at: Date | null;
+  service_price: number;
   total_amount: number;
   service_fee: number;
   status: string;
@@ -160,7 +161,7 @@ export async function getEarningsSummary(
   );
 
   const escrowResult = await db.query<{ pending: string }>(
-    `SELECT COALESCE(SUM(b.total_amount), 0)::text AS pending
+    `SELECT COALESCE(SUM(b.service_price), 0)::text AS pending
      FROM bookings b
      WHERE b.provider_id = $1
        AND b.status IN ('paid', 'provider_en_route', 'provider_arrived', 'in_progress', 'completed_by_provider')`,
@@ -236,8 +237,8 @@ export async function getEarningsTrends(
   const result = await db.query<EarningsTrendRow>(
     `SELECT
        ${truncExpr}::text AS period,
-       COALESCE(SUM(b.total_amount), 0)::text AS total_earned,
-       COALESCE(SUM(b.total_amount - wt.amount), 0)::text AS total_commission,
+       COALESCE(SUM(b.service_price), 0)::text AS total_earned,
+       COALESCE(SUM(b.service_price - wt.amount), 0)::text AS total_commission,
        COALESCE(SUM(wt.amount), 0)::text AS net_earned,
        COUNT(*)::text AS job_count
      FROM bookings b
@@ -379,7 +380,7 @@ export async function getDemandInsights(
     for (const h of top3Hours) {
       const startHour = h.hour;
       const endHour = (startHour + 1) % 24;
-      const formatH = (n: number) => {
+      const formatH = (n: number): string => {
         const ampm = n >= 12 ? 'PM' : 'AM';
         const hr = n % 12 || 12;
         return `${hr}${ampm}`;
@@ -433,7 +434,7 @@ export async function generateReceipt(
 
   const booking = await db.query<ReceiptBookingRow>(
     `SELECT b.id, b.description, b.scheduled_at, b.completed_at,
-            b.total_amount, b.service_fee, b.status,
+            b.service_price, b.total_amount, b.service_fee, b.status,
             TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS customer_name,
             u.phone AS customer_phone,
             b.address, b.barangay, b.city, b.province,
@@ -457,7 +458,7 @@ export async function generateReceipt(
   }
 
   const commissionRate = platformConfig.commissionRates[prov.tier] ?? platformConfig.commissionRates['new']!;
-  const servicePrice = bk.total_amount;
+  const servicePrice = Number(bk.service_price);
   const commissionAmount = Math.round(servicePrice * commissionRate);
   const netEarnings = servicePrice - commissionAmount;
 
@@ -531,14 +532,14 @@ export async function getMonthlySummary(
     booking_id: string;
     description: string;
     confirmed_at: Date;
-    total_amount: number;
+    service_price: number;
     provider_received: string;
   }>(
     `SELECT
        b.id AS booking_id,
        COALESCE(b.description, sc.name, 'Service') AS description,
        b.confirmed_at,
-       b.total_amount,
+       b.service_price,
        COALESCE(wt.amount, 0)::text AS provider_received
      FROM bookings b
      LEFT JOIN service_categories sc ON b.category_id = sc.id
@@ -579,7 +580,7 @@ export async function getMonthlySummary(
   let totalGross = 0;
   let totalNet = 0;
   const breakdown = jobsResult.rows.map((r) => {
-    const gross = r.total_amount;
+    const gross = Number(r.service_price);
     const net = Number(r.provider_received);
     const commission = gross - net;
     totalGross += gross;
@@ -729,7 +730,7 @@ export async function getMaterialsList(
 
 // --- Formatters ---
 
-export function formatEarningsGoal(g: EarningsGoalRow) {
+export function formatEarningsGoal(g: EarningsGoalRow): Record<string, unknown> {
   return {
     id: g.id,
     providerId: g.provider_id,

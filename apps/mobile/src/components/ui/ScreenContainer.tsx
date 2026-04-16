@@ -21,7 +21,7 @@ export default function ScreenContainer({
   padded = true,
   style,
   backgroundColor = colors.background,
-}: ScreenContainerProps) {
+}: ScreenContainerProps): React.ReactElement {
   const insets = useSafeAreaInsets();
 
   if (scrollable) {

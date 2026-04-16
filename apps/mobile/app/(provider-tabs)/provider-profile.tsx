@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,14 +25,14 @@ const TIER_COLORS: Record<string, string> = {
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export default function ProviderProfileScreen() {
+export default function ProviderProfileScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
-  const { data: profile, isLoading } = useQuery({
+  const { data: profile, isLoading, isError, refetch } = useQuery({
     queryKey: ['providerProfile'],
     queryFn: getMyProfile,
     staleTime: 60 * 1000,
@@ -42,7 +43,7 @@ export default function ProviderProfileScreen() {
   const [yearsExp, setYearsExp] = useState('');
   const [radius, setRadius] = useState('');
 
-  const startEditing = () => {
+  const startEditing = (): void => {
     setBio(profile?.bio ?? '');
     setYearsExp(profile?.yearsExperience != null ? String(profile.yearsExperience) : '');
     setRadius(profile?.serviceRadiusKm != null ? String(profile.serviceRadiusKm) : '');
@@ -70,19 +71,39 @@ export default function ProviderProfileScreen() {
     },
   });
 
-  const handleLogout = () => {
+  const handleLogout = (): void => {
     Alert.alert('Log Out', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Log Out',
         style: 'destructive',
-        onPress: () => {
+        onPress: (): void => {
           logout();
           router.replace('/auth/login');
         },
       },
     ]);
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.errorCenter, { paddingTop: insets.top + 80 }]}>
+        <ActivityIndicator size="large" color={colors.secondary} />
+      </View>
+    );
+  }
+
+  if (isError && !profile) {
+    return (
+      <View style={[styles.container, styles.errorCenter, { paddingTop: insets.top + 80 }]}>
+        <Text style={styles.errorEmoji}>⚠️</Text>
+        <Text style={styles.title}>Could not load profile</Text>
+        <TouchableOpacity onPress={() => void refetch()} style={styles.retryButton}>
+          <Text style={styles.retryText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -103,11 +124,14 @@ export default function ProviderProfileScreen() {
         </Text>
         <Text style={styles.userPhone}>{user?.phone}</Text>
         {profile && (
-          <Badge
-            label={profile.tier.toUpperCase()}
-            backgroundColor={TIER_COLORS[profile.tier] ?? colors.textTertiary}
-            size="md"
-          />
+          <TouchableOpacity onPress={(): void => { router.push('/provider/tier-progression' as never); }}>
+            <Badge
+              label={profile.tier.toUpperCase()}
+              backgroundColor={TIER_COLORS[profile.tier] ?? colors.textTertiary}
+              size="md"
+            />
+            <Text style={styles.tierProgressLink}>View Tier Progress →</Text>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -155,7 +179,7 @@ export default function ProviderProfileScreen() {
             onChangeText={setBio}
             multiline
             numberOfLines={4}
-            style={{ height: 100, textAlignVertical: 'top' }}
+            style={styles.bioInput}
           />
           <Input
             label="Years of Experience"
@@ -226,7 +250,7 @@ export default function ProviderProfileScreen() {
               <View key={svc.id} style={styles.serviceRow}>
                 <Text style={styles.serviceName}>{svc.subcategoryName}</Text>
                 {svc.basePrice != null && (
-                  <Text style={styles.servicePrice}>₱{(svc.basePrice / 100).toFixed(0)}</Text>
+                  <Text style={styles.servicePrice}>₱{(svc.basePrice / 100).toLocaleString('en-PH', { minimumFractionDigits: 0 })}</Text>
                 )}
               </View>
             ))
@@ -243,6 +267,16 @@ export default function ProviderProfileScreen() {
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/services' as never)}>
           <Text style={styles.menuIcon}>🛠</Text>
           <Text style={styles.menuLabel}>Manage Services</Text>
+          <Text style={styles.menuArrow}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.menuItem} onPress={(): void => { router.push('/provider/portfolio' as never); }}>
+          <Text style={styles.menuIcon}>📷</Text>
+          <Text style={styles.menuLabel}>Portfolio Photos</Text>
+          <Text style={styles.menuArrow}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.menuItem} onPress={(): void => { router.push('/provider/certifications' as never); }}>
+          <Text style={styles.menuIcon}>📜</Text>
+          <Text style={styles.menuLabel}>Certifications</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/reviews' as never)}>
@@ -281,6 +315,10 @@ export default function ProviderProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.base },
+  errorCenter: { alignItems: 'center' },
+  errorEmoji: { fontSize: 40, marginBottom: spacing.base },
+  retryButton: { marginTop: spacing.base },
+  retryText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
   scrollContent: { paddingBottom: 20 },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.lg },
 
@@ -294,9 +332,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.md,
   },
-  avatarText: { color: '#FFFFFF', fontWeight: '800', fontSize: 32 },
+  avatarText: { color: colors.white, fontWeight: '800', fontSize: 32 },
   userName: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
   userPhone: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.sm },
+  tierProgressLink: { ...typography.caption, color: colors.primary, fontWeight: '600', marginTop: spacing.xs, textAlign: 'center' },
 
   section: { marginBottom: spacing.xl },
   sectionHeader: {
@@ -355,5 +394,6 @@ const styles = StyleSheet.create({
 
   logoutButton: { marginTop: spacing.md, borderColor: colors.error },
 
+  bioInput: { height: 100, textAlignVertical: 'top' } as const,
   bottomSpacer: { height: 40 },
 });

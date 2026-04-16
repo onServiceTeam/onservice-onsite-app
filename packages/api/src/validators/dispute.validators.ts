@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+const EVIDENCE_REQUIRED_TYPES = new Set(['damage', 'theft']);
+
 export const fileDisputeSchema = z.object({
   bookingId: z.string().uuid('Booking ID must be a valid UUID'),
   type: z.enum(['no_show', 'incomplete', 'substandard', 'damage', 'theft', 'overcharge', 'other']),
@@ -11,7 +13,15 @@ export const fileDisputeSchema = z.object({
       description: z.string().max(500).optional(),
     }),
   ).max(10, 'Maximum 10 evidence files').optional(),
-});
+}).refine(
+  (data) => {
+    if (EVIDENCE_REQUIRED_TYPES.has(data.type)) {
+      return data.evidenceUrls != null && data.evidenceUrls.length > 0;
+    }
+    return true;
+  },
+  { message: 'Evidence (photos/videos) is required for property damage and theft disputes', path: ['evidenceUrls'] },
+);
 
 export const providerDisputeResponseSchema = z.object({
   response: z.string().min(20, 'Response must be at least 20 characters').max(2000),

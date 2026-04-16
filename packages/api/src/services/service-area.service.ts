@@ -105,7 +105,7 @@ function haversineDistance(
   lat1: number, lng1: number,
   lat2: number, lng2: number,
 ): number {
-  const toRad = (deg: number) => deg * (Math.PI / 180);
+  const toRad = (deg: number): number => deg * (Math.PI / 180);
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
   const a =
@@ -130,7 +130,7 @@ export async function createServiceArea(
       params.name, slug, params.city, params.province, params.region,
       params.zipCodes ?? [],
       params.centerLat, params.centerLng,
-      Math.min(params.radiusKm ?? platformConfig.defaultServiceAreaRadius, platformConfig.maxServiceAreaRadius),
+      Math.min(params.radiusKm ?? platformConfig.defaultServiceAreaRadius, platformConfig.maxServiceRadius),
       params.minProvidersToLaunch ?? 5,
       params.launchDate ?? null,
       JSON.stringify(params.settings ?? {}),
@@ -590,7 +590,7 @@ export async function getServiceAreaStats(): Promise<{
   };
 }
 
-export function formatServiceArea(sa: ServiceAreaRow) {
+export function formatServiceArea(sa: ServiceAreaRow): Record<string, unknown> {
   return {
     id: sa.id,
     name: sa.name,
@@ -615,7 +615,7 @@ export function formatServiceArea(sa: ServiceAreaRow) {
   };
 }
 
-export function formatWaitlistEntry(w: WaitlistRow) {
+export function formatWaitlistEntry(w: WaitlistRow): Record<string, unknown> {
   return {
     id: w.id,
     fullName: w.full_name,

@@ -1,27 +1,37 @@
-import { useState } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createChangeOrder } from '@/services/booking.service';
+import { useImagePicker } from '@/hooks/useImagePicker';
+import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
-export default function ChangeOrderFormScreen() {
+export default function ChangeOrderFormScreen(): React.ReactElement {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
+  const imagePicker = useImagePicker({ context: 'change-order', maxImages: 10 });
 
   const mutation = useMutation({
-    mutationFn: () => createChangeOrder(bookingId ?? '', {
-      description,
-      additionalAmount: Math.round((Number(amount) || 0) * 100),
-    }),
+    mutationFn: async () => {
+      const uploadedUrls = await imagePicker.uploadAll();
+      return createChangeOrder(bookingId ?? '', {
+        description,
+        additionalAmount: Math.round((Number(amount) || 0) * 100),
+        photos: uploadedUrls.length > 0 ? uploadedUrls : undefined,
+      });
+    },
     onSuccess: () => {
       Alert.alert('Success', 'Change order submitted. Waiting for customer approval.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => {
+      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not submit change order.');
+    },
   });
 
   const amountCentavos = Math.round((Number(amount) || 0) * 100);
@@ -55,7 +65,7 @@ export default function ChangeOrderFormScreen() {
             value={description}
             onChangeText={setDescription}
             placeholder="Describe the additional work needed and why it wasn't in the original scope..."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={colors.textTertiary}
             maxLength={2000}
           />
           <Text style={[styles.charCount, description.length < 10 ? styles.charRed : styles.charGreen]}>
@@ -73,7 +83,7 @@ export default function ChangeOrderFormScreen() {
               value={amount}
               onChangeText={setAmount}
               placeholder="0.00"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={colors.textTertiary}
             />
           </View>
           {amountCentavos > 0 && amountCentavos < 100 && (
@@ -84,13 +94,35 @@ export default function ChangeOrderFormScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Photos (optional)</Text>
           <Text style={styles.hint}>Add photos showing why additional work is needed</Text>
-          <TouchableOpacity
-            style={styles.addPhotoBtn}
-            onPress={() => Alert.alert('Coming Soon', 'Photo upload will be available in the next update.')}
-          >
-            <Text style={styles.addPhotoPlus}>+</Text>
-            <Text style={styles.addPhotoLabel}>Add Photos</Text>
-          </TouchableOpacity>
+          <View style={styles.photoGrid}>
+            {imagePicker.localUris.map((uri, i) => (
+              <View key={uri} style={styles.photoThumb}>
+                <Image source={{ uri }} style={styles.photoImage} />
+                <TouchableOpacity
+                  style={styles.removeBtn}
+                  onPress={() => imagePicker.removeImage(i)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.removeBtnText}>×</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+            {imagePicker.localUris.length < 10 && (
+              <TouchableOpacity
+                style={styles.addPhotoBtn}
+                onPress={imagePicker.showPickerOptions}
+              >
+                <Text style={styles.addPhotoPlus}>+</Text>
+                <Text style={styles.addPhotoLabel}>Add Photos</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {imagePicker.isUploading && (
+            <View style={styles.uploadingRow}>
+              <ActivityIndicator size="small" color={colors.info} />
+              <Text style={styles.uploadingText}>Uploading photos...</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.noteBox}>
@@ -105,7 +137,7 @@ export default function ChangeOrderFormScreen() {
           disabled={!isValid || mutation.isPending}
         >
           {mutation.isPending ? (
-            <ActivityIndicator color="#FFF" />
+            <ActivityIndicator color={colors.white} />
           ) : (
             <Text style={styles.submitText}>Submit Change Order</Text>
           )}
@@ -116,34 +148,41 @@ export default function ChangeOrderFormScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  backBtn: { padding: 4 },
-  backText: { fontSize: 22, color: '#1B3A4B' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1B3A4B' },
+  container: { flex: 1, backgroundColor: colors.background },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border },
+  backBtn: { padding: spacing.xs },
+  backText: { fontSize: 22, color: colors.text },
+  headerTitle: { ...typography.h3, color: colors.text },
   placeholder: { width: 30 },
   body: { flex: 1 },
-  bodyContent: { padding: 16, paddingBottom: 40 },
-  infoBox: { flexDirection: 'row', gap: 10, backgroundColor: '#F0F9FF', borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#BAE6FD' },
+  bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  infoBox: { flexDirection: 'row', gap: spacing.sm + 2, backgroundColor: colors.primaryLight, borderRadius: borderRadius.lg, padding: spacing.md + 2, marginBottom: spacing.lg - 4, borderWidth: 1, borderColor: colors.primary },
   infoIcon: { fontSize: 18 },
-  infoText: { flex: 1, fontSize: 13, color: '#0369A1', lineHeight: 18 },
-  section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1B3A4B', marginBottom: 8 },
-  hint: { fontSize: 13, color: '#64748B', marginBottom: 8 },
-  textArea: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', fontSize: 14, color: '#1B3A4B', minHeight: 100 },
-  charCount: { fontSize: 12, marginTop: 4, textAlign: 'right' },
-  charRed: { color: '#EF4444' },
-  charGreen: { color: '#10B981' },
-  amountField: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 14 },
-  prefix: { fontSize: 18, fontWeight: '600', color: '#64748B', marginRight: 6 },
-  amountInput: { flex: 1, paddingVertical: 14, fontSize: 24, fontWeight: '700', color: '#1B3A4B' },
-  minWarn: { fontSize: 12, color: '#EF4444', marginTop: 4 },
-  addPhotoBtn: { width: 100, height: 100, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed', borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' },
-  addPhotoPlus: { fontSize: 28, color: '#94A3B8' },
-  addPhotoLabel: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
-  noteBox: { backgroundColor: '#FFFBEB', borderRadius: 10, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: '#FDE68A' },
-  noteText: { fontSize: 12, color: '#92400E', lineHeight: 17 },
-  submitBtn: { backgroundColor: '#1B3A4B', borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
+  infoText: { flex: 1, ...typography.caption, color: colors.primary, lineHeight: 18 },
+  section: { marginBottom: spacing.lg },
+  sectionTitle: { ...typography.body, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
+  hint: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.sm },
+  textArea: { backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.lg, padding: spacing.md + 2, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, minHeight: 100 },
+  charCount: { fontSize: 12, marginTop: spacing.xs, textAlign: 'right' },
+  charRed: { color: colors.error },
+  charGreen: { color: colors.success },
+  amountField: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md + 2 },
+  prefix: { fontSize: 18, fontWeight: '600', color: colors.textSecondary, marginRight: spacing.xs + 2 },
+  amountInput: { flex: 1, paddingVertical: spacing.md + 2, fontSize: 24, fontWeight: '700', color: colors.text },
+  minWarn: { fontSize: 12, color: colors.error, marginTop: spacing.xs },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm + 2 },
+  photoThumb: { width: 80, height: 80, borderRadius: borderRadius.md, backgroundColor: colors.backgroundSecondary, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  photoImage: { width: '100%', height: '100%', borderRadius: borderRadius.md - 1 },
+  removeBtn: { position: 'absolute', top: 2, right: 2, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  removeBtnText: { color: colors.white, fontSize: 14, fontWeight: '700', lineHeight: 16 },
+  addPhotoBtn: { width: 80, height: 80, borderRadius: borderRadius.md, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  addPhotoPlus: { fontSize: 24, color: colors.textTertiary },
+  addPhotoLabel: { fontSize: 10, color: colors.textTertiary, marginTop: 2 },
+  uploadingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
+  uploadingText: { ...typography.caption, color: colors.info },
+  noteBox: { backgroundColor: colors.warningLight, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.lg - 4, borderWidth: 1, borderColor: colors.warning },
+  noteText: { fontSize: 12, color: colors.warning, lineHeight: 17 },
+  submitBtn: { backgroundColor: colors.primary, borderRadius: borderRadius.lg, paddingVertical: spacing.base, alignItems: 'center' },
   submitDisabled: { opacity: 0.5 },
-  submitText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  submitText: { ...typography.body, fontWeight: '700', color: colors.white },
 });

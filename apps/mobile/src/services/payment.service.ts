@@ -35,3 +35,19 @@ export async function getWalletBalance(): Promise<WalletBalance> {
   const res = await api.get<ApiResponse<WalletBalance>>('/api/v1/wallets');
   return res.data.data;
 }
+
+export interface TopUpResult {
+  topUpId: string;
+  amount: number;
+  paymentMethod: string;
+  paymentIntent: PaymentIntent;
+  message: string;
+}
+
+export async function topUpWallet(amount: number, paymentMethod: string): Promise<TopUpResult> {
+  const res = await api.post<ApiResponse<TopUpResult>>('/api/v1/wallets/top-up', {
+    amount,
+    paymentMethod,
+  });
+  return res.data.data;
+}

@@ -7,7 +7,6 @@ import {
 } from 'react-native';
 import { hapticLight } from '@/utils/haptics';
 import { colors } from '@/config/theme';
-import { useTranslation } from '@/i18n/useTranslation';
 
 interface ScrollToTopProps {
   visible: boolean;
@@ -16,7 +15,6 @@ interface ScrollToTopProps {
 
 export function ScrollToTop({ visible, onPress }: ScrollToTopProps): React.ReactElement | null {
   const scale = useRef(new Animated.Value(0)).current;
-  const { t } = useTranslation();
 
   useEffect(() => {
     Animated.spring(scale, {
@@ -48,8 +46,8 @@ export function ScrollToTop({ visible, onPress }: ScrollToTopProps): React.React
         onPress={handlePress}
         activeOpacity={0.8}
         accessibilityRole="button"
-        accessibilityLabel={t('accessibility.scrollToTop')}
-        accessibilityHint={t('accessibility.scrollToTopHint')}
+        accessibilityLabel="Scroll to top"
+        accessibilityHint="Double tap to scroll to the top of the list"
       >
         <Text style={styles.arrow} accessibilityElementsHidden={true}>↑</Text>
       </TouchableOpacity>
@@ -71,14 +69,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 6,
   },
   arrow: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 22,
     fontWeight: '700',
     marginTop: -2,

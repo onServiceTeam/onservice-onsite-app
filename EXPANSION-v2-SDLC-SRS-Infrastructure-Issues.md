@@ -386,10 +386,9 @@ Any state → CANCELLED_BY_ADMIN (admin override)
 - All images have alt text
 - All forms have labels
 
-**NFR-007: Internationalization**
-- Primary language: English
-- Secondary language: Filipino (Tagalog)
-- All user-facing strings in localization files (not hardcoded)
+**NFR-007: Language**
+- App language: English only (all Philippine apps use English as the universal UI language)
+- No i18n framework, translation files, or language switcher needed
 - Date format: Month DD, YYYY (or DD/MM/YYYY with locale toggle)
 - Time format: 12-hour with AM/PM
 - Currency: ₱ (PHP) only — no other currencies
@@ -825,7 +824,7 @@ Build this screen using React Native 0.83 (Expo SDK 55, New Architecture) with:
 - FlatList for the main scroll (NOT ScrollView — FlatList has better performance)
 - Animated skeleton placeholders during loading
 - RefreshControl for pull-to-refresh
-- All text in a localization file (no hardcoded strings)
+- All text in plain English directly in JSX (no i18n framework)
 - All colors from a theme/design-token file
 - All spacing from a spacing scale (4, 8, 12, 16, 24, 32, 48)
 - Horizontal scrolls use FlatList with horizontal={true} and snapToInterval

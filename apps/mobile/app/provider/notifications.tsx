@@ -31,7 +31,7 @@ const NOTIFICATION_ICONS: Record<string, string> = {
   tip_received: '🎁',
 };
 
-export default function ProviderNotificationsScreen() {
+export default function ProviderNotificationsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -52,7 +52,7 @@ export default function ProviderNotificationsScreen() {
   const notifications = data?.notifications ?? [];
   const unread = data?.unread ?? 0;
 
-  const handlePress = async (notif: Notification) => {
+  const handlePress = async (notif: Notification): Promise<void> => {
     try {
       if (!notif.isRead) {
         await markNotificationRead(notif.id);
@@ -67,7 +67,7 @@ export default function ProviderNotificationsScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: Notification }) => (
+  const renderItem = ({ item }: { item: Notification }): React.ReactElement => (
     <TouchableOpacity
       style={[styles.card, !item.isRead && styles.cardUnread]}
       onPress={() => void handlePress(item)}
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  cardUnread: { backgroundColor: '#E6FFF5' },
+  cardUnread: { backgroundColor: colors.successLight },
   icon: { fontSize: 24, marginRight: spacing.md, marginTop: 2 },
   cardContent: { flex: 1 },
   cardTitle: { ...typography.body, color: colors.text },

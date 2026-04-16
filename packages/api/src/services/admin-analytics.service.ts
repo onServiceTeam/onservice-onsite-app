@@ -728,7 +728,7 @@ export async function getCommissionOptimizationSuggestions(): Promise<Array<{
 // FORMATTERS
 // ────────────────────────────────────────────────────────────────────
 
-export function formatAbTest(t: AbTestRow) {
+export function formatAbTest(t: AbTestRow): Record<string, unknown> {
   return {
     id: t.id,
     name: t.name,

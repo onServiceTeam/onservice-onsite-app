@@ -1016,12 +1016,11 @@ Quality scores are computed weekly but the admin UI doesn't display them.
 Wire into ProvidersPage.tsx or AnalyticsPage.tsx as a visible metric.
 
 
-## MEDIUM-005: Filipino i18n translations need native speaker review
+## MEDIUM-005: RESOLVED — i18n removed (English only)
 
-File: `apps/mobile/src/i18n/fil.json`
-
-477 lines exist but may contain inaccurate AI-generated translations.
-Before launch, have a native Filipino speaker review all strings.
+The app is English only. All Philippine apps use English as the universal UI language.
+The i18n framework, translation files (`en.json`, `fil.json`), and `useTranslation` hook
+have been removed. No translation review is needed.
 
 
 ---

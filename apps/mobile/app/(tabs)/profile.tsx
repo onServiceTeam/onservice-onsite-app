@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useAuthStore } from '@/stores/auth.store';
+import { useAuthStore, type User } from '@/stores/auth.store';
 import { Button, Input } from '@/components/ui';
 import api from '@/services/api';
+import type { ApiResponse } from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 
-export default function ProfileScreen() {
+export default function ProfileScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout, setUser } = useAuthStore();
@@ -16,8 +17,26 @@ export default function ProfileScreen() {
   const [firstName, setFirstName] = useState(user?.firstName ?? '');
   const [lastName, setLastName] = useState(user?.lastName ?? '');
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const handleLogout = () => {
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const res = await api.get<ApiResponse<User>>('/api/v1/auth/me');
+      const data = res.data.data;
+      if (data) {
+        setUser(data);
+        setFirstName(data.firstName ?? '');
+        setLastName(data.lastName ?? '');
+      }
+    } catch {
+      // Silently fail on refresh
+    } finally {
+      setRefreshing(false);
+    }
+  }, [setUser]);
+
+  const handleLogout = (): void => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -31,7 +50,7 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = async (): Promise<void> => {
     if (firstName.trim().length < 2 || lastName.trim().length < 2) {
       Alert.alert('Invalid', 'Names must be at least 2 characters.');
       return;
@@ -55,12 +74,13 @@ export default function ProfileScreen() {
   };
 
   const menuItems = [
-    { label: 'My Addresses', icon: '📍', onPress: () => {} },
-    { label: 'Payment Methods', icon: '💳', onPress: () => {} },
-    { label: 'Notification Settings', icon: '🔔', onPress: () => {} },
-    { label: 'Help & Support', icon: '❓', onPress: () => {} },
-    { label: 'Terms of Service', icon: '📄', onPress: () => {} },
-    { label: 'Privacy Policy', icon: '🔒', onPress: () => {} },
+    { label: 'SiguradoShield\u2122 Protection', icon: '🛡️', onPress: () => router.push('/customer/safety' as never) },
+    { label: 'My Addresses', icon: '📍', onPress: () => router.push('/customer/addresses' as never) },
+    { label: 'Payment Methods', icon: '💳', onPress: () => router.push('/customer/payment-methods' as never) },
+    { label: 'Notification Settings', icon: '🔔', onPress: () => router.push('/customer/notification-settings' as never) },
+    { label: 'Help & Support', icon: '❓', onPress: () => router.push('/customer/help' as never) },
+    { label: 'Terms & Privacy', icon: '📄', onPress: () => router.push('/customer/terms' as never) },
+    { label: 'Account & Data', icon: '🔐', onPress: () => router.push('/customer/account-management' as never) },
   ];
 
   return (
@@ -68,6 +88,14 @@ export default function ProfileScreen() {
       style={[styles.container, { paddingTop: insets.top + spacing.base }]}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={colors.primary}
+          colors={[colors.primary]}
+        />
+      }
     >
       <Text style={styles.title}>Profile</Text>
 
@@ -166,7 +194,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: spacing.base,
   },
-  avatarText: { color: '#FFFFFF', fontWeight: '700', fontSize: 24 },
+  avatarText: { color: colors.white, fontWeight: '700', fontSize: 24 },
   userInfo: { flex: 1 },
   userName: { ...typography.h3, color: colors.text },
   userPhone: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },

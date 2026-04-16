@@ -16,7 +16,7 @@ import { usePushNotifications } from '@/services/push.service';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
-export default function ProviderSettingsScreen() {
+export default function ProviderSettingsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
@@ -29,7 +29,7 @@ export default function ProviderSettingsScreen() {
     setPushEnabled(isRegistered);
   }, [isRegistered]);
 
-  const handlePushToggle = async (enabled: boolean) => {
+  const handlePushToggle = async (enabled: boolean): Promise<void> => {
     if (enabled) {
       const success = await registerForPushNotifications();
       setPushEnabled(success);
@@ -39,7 +39,7 @@ export default function ProviderSettingsScreen() {
           'Please enable notifications in your device settings.',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+            { text: 'Open Settings', onPress: (): void => { void Linking.openSettings(); } },
           ],
         );
       }
@@ -48,13 +48,13 @@ export default function ProviderSettingsScreen() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = (): void => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Log Out',
         style: 'destructive',
-        onPress: () => {
+        onPress: (): void => {
           logout();
           router.replace('/auth/login');
         },
@@ -62,21 +62,8 @@ export default function ProviderSettingsScreen() {
     ]);
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'This action is permanent and cannot be undone. All your data will be removed.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert('Contact Support', 'Please email support@onservice.ph to request account deletion.');
-          },
-        },
-      ],
-    );
+  const handleDeleteAccount = (): void => {
+    router.push('/provider/account-management' as never);
   };
 
   return (
@@ -124,7 +111,7 @@ export default function ProviderSettingsScreen() {
               value={pushEnabled}
               onValueChange={(val) => void handlePushToggle(val)}
               trackColor={{ false: colors.border, true: colors.secondary }}
-              thumbColor="#FFFFFF"
+              thumbColor={colors.white}
             />
           </View>
         </View>
@@ -133,30 +120,79 @@ export default function ProviderSettingsScreen() {
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.row}
-            onPress={() => router.push('/provider/schedule' as never)}
+            onPress={(): void => { router.push('/provider/schedule' as never); }}
           >
-            <Text style={styles.rowLabel}>Manage Schedule</Text>
+            <Text style={styles.rowLabel}>Weekly Schedule</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
-            onPress={() => router.push('/provider/services' as never)}
+            onPress={(): void => { router.push('/provider/availability' as never); }}
+          >
+            <Text style={styles.rowLabel}>Availability Settings</Text>
+            <Text style={styles.rowArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={(): void => { router.push('/provider/calendar' as never); }}
+          >
+            <Text style={styles.rowLabel}>Calendar View</Text>
+            <Text style={styles.rowArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={(): void => { router.push('/provider/tier-progression' as never); }}
+          >
+            <Text style={styles.rowLabel}>Tier Progression</Text>
+            <Text style={styles.rowArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={(): void => { router.push('/provider/services' as never); }}
           >
             <Text style={styles.rowLabel}>Manage Services</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
-            onPress={() => router.push('/provider/reviews' as never)}
+            onPress={(): void => { router.push('/provider/portfolio' as never); }}
+          >
+            <Text style={styles.rowLabel}>Portfolio Photos</Text>
+            <Text style={styles.rowArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={(): void => { router.push('/provider/certifications' as never); }}
+          >
+            <Text style={styles.rowLabel}>Certifications</Text>
+            <Text style={styles.rowArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={(): void => { router.push('/provider/reviews' as never); }}
           >
             <Text style={styles.rowLabel}>My Reviews</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.row, { borderBottomWidth: 0 }]}
+            style={styles.row}
             onPress={() => router.push('/provider/payouts' as never)}
           >
             <Text style={styles.rowLabel}>Payout History</Text>
+            <Text style={styles.rowArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/provider/payout-settings' as never)}
+          >
+            <Text style={styles.rowLabel}>Payout Settings</Text>
+            <Text style={styles.rowArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.row, { borderBottomWidth: 0 }]}
+            onPress={() => router.push('/provider/suki-customers' as never)}
+          >
+            <Text style={styles.rowLabel}>Suki Customers</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
         </View>
@@ -169,9 +205,9 @@ export default function ProviderSettingsScreen() {
           </View>
           <TouchableOpacity
             style={[styles.row, { borderBottomWidth: 0 }]}
-            onPress={() => Alert.alert('Support', 'Email us at support@onservice.ph')}
+            onPress={() => router.push('/provider/help' as never)}
           >
-            <Text style={styles.rowLabel}>Contact Support</Text>
+            <Text style={styles.rowLabel}>Help & Support</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
         </View>
@@ -181,7 +217,7 @@ export default function ProviderSettingsScreen() {
             <Text style={styles.logoutText}>Log Out</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.deleteRow} onPress={handleDeleteAccount}>
-            <Text style={styles.deleteText}>Delete Account</Text>
+            <Text style={styles.deleteText}>Account & Data Management</Text>
           </TouchableOpacity>
         </View>
 

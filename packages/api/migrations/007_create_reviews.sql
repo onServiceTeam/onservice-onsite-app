@@ -2,7 +2,7 @@
 -- Ratings are 1-5 stars
 
 CREATE TABLE reviews (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     booking_id UUID NOT NULL UNIQUE REFERENCES bookings(id),
     reviewer_id UUID NOT NULL REFERENCES users(id),
     provider_id UUID NOT NULL REFERENCES providers(id),
@@ -21,7 +21,7 @@ CREATE INDEX idx_reviews_created ON reviews(created_at);
 
 -- Review images
 CREATE TABLE review_images (
-    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     review_id UUID NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
     image_url TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

@@ -2,7 +2,6 @@ import React, { useState, useCallback } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, type ScrollViewProps } from 'react-native';
 import { hapticLight } from '@/utils/haptics';
 import { colors } from '@/config/theme';
-import { useTranslation } from '@/i18n/useTranslation';
 
 interface PullToRefreshProps extends ScrollViewProps {
   onRefresh: () => Promise<void>;
@@ -17,7 +16,6 @@ export function PullToRefresh({
   ...rest
 }: PullToRefreshProps): React.ReactElement {
   const [refreshing, setRefreshing] = useState(false);
-  const { t } = useTranslation();
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -33,14 +31,14 @@ export function PullToRefresh({
     <ScrollView
       {...rest}
       style={[styles.fill, rest.style]}
-      accessibilityHint={t('accessibility.pullToRefresh')}
+      accessibilityHint="Pull down to refresh"
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={handleRefresh}
           tintColor={tintColor}
           colors={[tintColor]}
-          accessibilityLabel={refreshing ? t('accessibility.refreshingContent') : t('accessibility.pullToRefresh')}
+          accessibilityLabel={refreshing ? 'Refreshing content' : 'Pull down to refresh'}
         />
       }
     >

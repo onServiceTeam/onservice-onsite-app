@@ -39,3 +39,21 @@ export async function getSubcategories(categorySlug: string): Promise<Subcategor
   const res = await api.get<ApiResponse<CategoryWithSubcategories>>(`/api/v1/catalog/${categorySlug}`);
   return res.data.data.subcategories;
 }
+
+export interface Promotion {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  imageUrl: string | null;
+  badge: string | null;
+  ctaText: string | null;
+  ctaLink: string | null;
+  targetAudience: string;
+  startDate: string;
+  endDate: string | null;
+}
+
+export async function getActivePromotions(): Promise<Promotion[]> {
+  const res = await api.get<ApiResponse<Promotion[]>>('/api/v1/promotions/active');
+  return res.data.data;
+}

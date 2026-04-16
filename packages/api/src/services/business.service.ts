@@ -471,7 +471,7 @@ export async function updateContractStatus(
   return result.rows[0]!;
 }
 
-export function formatBusinessAccount(ba: BusinessAccountRow) {
+export function formatBusinessAccount(ba: BusinessAccountRow): Record<string, unknown> {
   return {
     id: ba.id,
     companyName: ba.company_name,
@@ -497,7 +497,7 @@ export function formatBusinessAccount(ba: BusinessAccountRow) {
   };
 }
 
-export function formatMember(m: BusinessMemberRow & { first_name?: string; last_name?: string; email?: string }) {
+export function formatMember(m: BusinessMemberRow & { first_name?: string; last_name?: string; email?: string }): Record<string, unknown> {
   return {
     id: m.id,
     businessAccountId: m.business_account_id,
@@ -514,7 +514,7 @@ export function formatMember(m: BusinessMemberRow & { first_name?: string; last_
   };
 }
 
-export function formatContract(c: BusinessContractRow) {
+export function formatContract(c: BusinessContractRow): Record<string, unknown> {
   return {
     id: c.id,
     businessAccountId: c.business_account_id,

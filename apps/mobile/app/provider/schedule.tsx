@@ -32,7 +32,7 @@ const DEFAULT_SCHEDULE: DaySchedule[] = Array.from({ length: 7 }, (_, i) => ({
   isAvailable: i >= 1 && i <= 5,
 }));
 
-export default function ScheduleScreen() {
+export default function ScheduleScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -78,7 +78,7 @@ export default function ScheduleScreen() {
     },
   });
 
-  const toggleDay = (dayOfWeek: number) => {
+  const toggleDay = (dayOfWeek: number): void => {
     setSchedule((prev) =>
       prev.map((d) =>
         d.dayOfWeek === dayOfWeek ? { ...d, isAvailable: !d.isAvailable } : d,
@@ -87,7 +87,7 @@ export default function ScheduleScreen() {
     setHasChanges(true);
   };
 
-  const updateTime = (dayOfWeek: number, field: 'startTime' | 'endTime', value: string) => {
+  const updateTime = (dayOfWeek: number, field: 'startTime' | 'endTime', value: string): void => {
     setSchedule((prev) =>
       prev.map((d) =>
         d.dayOfWeek === dayOfWeek ? { ...d, [field]: value } : d,
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   checkboxActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
-  checkMark: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  checkMark: { color: colors.white, fontSize: 14, fontWeight: '700' },
   dayName: { ...typography.body, color: colors.text, fontWeight: '600' },
   dayNameDisabled: { color: colors.textTertiary },
 

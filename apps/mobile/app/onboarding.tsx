@@ -34,11 +34,11 @@ const slides: Slide[] = [
   },
   {
     id: '2',
-    icon: '🔒',
-    title: 'Secure Payments\nWith Escrow',
+    icon: '🛡️',
+    title: 'SiguradoShield™\nProtection',
     description:
-      'Your payment is held safely until you confirm the job is done right. Full protection, always.',
-    bgColor: '#00A376',
+      'Every booking is covered. Your payment is held in escrow until you confirm the job is done right. If anything goes wrong, we make it right.',
+    bgColor: colors.secondaryDark,
   },
   {
     id: '3',
@@ -46,11 +46,11 @@ const slides: Slide[] = [
     title: 'Vetted & Verified\nProviders',
     description:
       'Every provider is NBI-cleared, ID-verified, and rated by customers just like you.',
-    bgColor: '#8B5CF6',
+    bgColor: colors.tierPro,
   },
 ];
 
-export default function OnboardingScreen() {
+export default function OnboardingScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(0);
@@ -64,7 +64,7 @@ export default function OnboardingScreen() {
     },
   ).current;
 
-  const handleNext = () => {
+  const handleNext = (): void => {
     if (activeIndex < slides.length - 1) {
       flatListRef.current?.scrollToIndex({ index: activeIndex + 1 });
     } else {
@@ -72,12 +72,12 @@ export default function OnboardingScreen() {
     }
   };
 
-  const completeOnboarding = () => {
+  const completeOnboarding = (): void => {
     storage.set('hasOnboarded', true);
     router.replace('/auth/login');
   };
 
-  const renderSlide = ({ item }: { item: Slide }) => (
+  const renderSlide = ({ item }: { item: Slide }): React.ReactElement => (
     <View style={[styles.slide, { width, backgroundColor: item.bgColor }]}>
       <Text style={styles.slideIcon}>{item.icon}</Text>
       <Text style={styles.slideTitle}>{item.title}</Text>
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   slideIcon: { fontSize: 80, marginBottom: spacing.xl },
   slideTitle: {
     ...typography.h1,
-    color: '#FFFFFF',
+    color: colors.white,
     textAlign: 'center',
     marginBottom: spacing.base,
   },
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: 'rgba(255,255,255,0.4)',
   },
-  dotActive: { backgroundColor: '#FFFFFF', width: 24 },
+  dotActive: { backgroundColor: colors.white, width: 24 },
   actions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   },
   skipText: { color: 'rgba(255,255,255,0.7)' },
   nextButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     paddingHorizontal: spacing.xl,
     borderRadius: borderRadius.lg,
   },

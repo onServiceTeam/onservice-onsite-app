@@ -1,19 +1,20 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getMemberships, getTiers, redeemPoints, type SukiMembership, type SukiTier } from '@/services/suki.service';
+import { colors, spacing, borderRadius } from '@/config/theme';
 
 function formatCurrency(centavos: number): string {
   return `₱${(centavos / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 }
 
 const TIER_COLORS: Record<string, { bg: string; text: string; border: string; emoji: string }> = {
-  new: { bg: '#F8FAFC', text: '#64748B', border: '#E2E8F0', emoji: '🌱' },
-  regular: { bg: '#F1F5F9', text: '#475569', border: '#CBD5E1', emoji: '⭐' },
-  suki: { bg: '#FEF3C7', text: '#92400E', border: '#FDE68A', emoji: '🌟' },
-  super_suki: { bg: '#FDF2F8', text: '#831843', border: '#F9A8D4', emoji: '💎' },
+  new: { bg: colors.backgroundSecondary, text: colors.textSecondary, border: colors.border, emoji: '🌱' },
+  regular: { bg: colors.backgroundSecondary, text: colors.textSecondary, border: colors.border, emoji: '⭐' },
+  suki: { bg: colors.warningLight, text: colors.warning, border: colors.warning, emoji: '🌟' },
+  super_suki: { bg: colors.errorLight, text: colors.error, border: colors.error, emoji: '💎' },
 };
 
 const TIER_DISPLAY: Record<string, string> = {
@@ -23,7 +24,7 @@ const TIER_DISPLAY: Record<string, string> = {
   super_suki: 'Super Suki',
 };
 
-function TierBadge({ tier }: { tier: string }) {
+function TierBadge({ tier }: { tier: string }): React.ReactElement {
   const c = TIER_COLORS[tier] ?? TIER_COLORS.new!;
   return (
     <View style={[styles.tierBadge, { backgroundColor: c.bg, borderColor: c.border }]}>
@@ -43,7 +44,7 @@ function MembershipCard({
   membership: SukiMembership;
   tiers: SukiTier[];
   onRedeem: (id: string, points: number) => void;
-}) {
+}): React.ReactElement {
   const [redeemInput, setRedeemInput] = useState('');
   const currentTier = tiers.find(t => t.name === membership.tier);
   const nextTier = tiers.find(t => t.minBookings > membership.totalBookings);
@@ -73,7 +74,7 @@ function MembershipCard({
         </View>
         {currentTier && currentTier.discount > 0 && (
           <View style={styles.memberStat}>
-            <Text style={[styles.statValue, { color: '#10B981' }]}>{currentTier.discount}%</Text>
+            <Text style={[styles.statValue, { color: colors.success }]}>{currentTier.discount}%</Text>
             <Text style={styles.statLabel}>Discount</Text>
           </View>
         )}
@@ -104,7 +105,7 @@ function MembershipCard({
               value={redeemInput}
               onChangeText={setRedeemInput}
               placeholder="Points"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={colors.textTertiary}
             />
             <TouchableOpacity
               style={[styles.redeemBtn, (!redeemInput || Number(redeemInput) < 100) && styles.redeemBtnDisabled]}
@@ -137,7 +138,7 @@ function MembershipCard({
   );
 }
 
-export default function SukiProsScreen() {
+export default function SukiProsScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -158,7 +159,10 @@ export default function SukiProsScreen() {
       void queryClient.invalidateQueries({ queryKey: ['sukiMemberships'] });
       Alert.alert('Points Redeemed', `₱${(result.amountCredited / 100).toFixed(2)} added to your wallet.\n${result.remainingPoints} points remaining.`);
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => {
+      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not redeem points.');
+    },
   });
 
   return (
@@ -173,7 +177,7 @@ export default function SukiProsScreen() {
 
       {membershipsLoading ? (
         <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color="#00B4D8" />
+          <ActivityIndicator size="large" color={colors.info} />
         </View>
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
@@ -189,10 +193,10 @@ export default function SukiProsScreen() {
             <View style={styles.tiersCard}>
               <Text style={styles.tiersTitle}>Loyalty Tiers</Text>
               {tiers.map((tier) => {
-                const colors = TIER_COLORS[tier.name] ?? TIER_COLORS.regular!;
+                const tierColor = TIER_COLORS[tier.name] ?? TIER_COLORS.regular!;
                 return (
                   <View key={tier.name} style={styles.tierRow}>
-                    <Text style={{ fontSize: 20 }}>{colors.emoji}</Text>
+                    <Text style={{ fontSize: 20 }}>{tierColor.emoji}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.tierName}>
                         {TIER_DISPLAY[tier.name] ?? tier.name}
@@ -238,52 +242,52 @@ export default function SukiProsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  backBtn: { padding: 4 },
-  backText: { fontSize: 22, color: '#1B3A4B' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1B3A4B' },
+  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
+  backBtn: { padding: spacing.xs },
+  backText: { fontSize: 22, color: colors.text },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   headerPlaceholder: { width: 30 },
   body: { flex: 1 },
-  bodyContent: { padding: 16, paddingBottom: 40 },
+  bodyContent: { padding: spacing.base, paddingBottom: 40 },
   centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   heroSection: { alignItems: 'center', marginBottom: 20 },
-  heroEmoji: { fontSize: 48, marginBottom: 8 },
-  heroTitle: { fontSize: 20, fontWeight: '800', color: '#1B3A4B', marginBottom: 6 },
-  heroDesc: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20 },
-  tiersCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 20 },
-  tiersTitle: { fontSize: 15, fontWeight: '700', color: '#1B3A4B', marginBottom: 12 },
+  heroEmoji: { fontSize: 48, marginBottom: spacing.sm },
+  heroTitle: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 6 },
+  heroDesc: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  tiersCard: { backgroundColor: colors.white, borderRadius: 16, padding: spacing.base, borderWidth: 1, borderColor: colors.border, marginBottom: 20 },
+  tiersTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
   tierRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  tierName: { fontSize: 14, fontWeight: '600', color: '#1B3A4B' },
-  tierReq: { fontSize: 12, color: '#64748B', marginTop: 1 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1B3A4B', marginBottom: 12 },
-  memberCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 14 },
-  memberHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  providerName: { fontSize: 16, fontWeight: '700', color: '#1B3A4B', marginBottom: 6 },
-  tierBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1 },
+  tierName: { fontSize: 14, fontWeight: '600', color: colors.text },
+  tierReq: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
+  memberCard: { backgroundColor: colors.white, borderRadius: 16, padding: spacing.base, borderWidth: 1, borderColor: colors.border, marginBottom: 14 },
+  memberHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.md },
+  providerName: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 6 },
+  tierBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', paddingVertical: 3, paddingHorizontal: spacing.sm, borderRadius: borderRadius.sm, borderWidth: 1 },
   tierEmoji: { fontSize: 12 },
   tierText: { fontSize: 11, fontWeight: '700' },
-  pointsBox: { alignItems: 'center', backgroundColor: '#F0F9FF', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 },
-  pointsValue: { fontSize: 20, fontWeight: '800', color: '#0C4A6E' },
-  pointsLabel: { fontSize: 10, color: '#0369A1', textTransform: 'uppercase' },
-  memberStats: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  pointsBox: { alignItems: 'center', backgroundColor: colors.primaryLight, borderRadius: borderRadius.md, paddingVertical: spacing.sm, paddingHorizontal: 14 },
+  pointsValue: { fontSize: 20, fontWeight: '800', color: colors.primaryDark },
+  pointsLabel: { fontSize: 10, color: colors.primary, textTransform: 'uppercase' },
+  memberStats: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },
   memberStat: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 16, fontWeight: '700', color: '#1B3A4B' },
-  statLabel: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
-  progressSection: { marginBottom: 12 },
-  progressLabel: { fontSize: 12, color: '#64748B', marginBottom: 6 },
-  progressBar: { height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#00B4D8', borderRadius: 3 },
-  redeemSection: { borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 12 },
-  redeemRow: { flexDirection: 'row', gap: 8 },
-  redeemInput: { width: 80, backgroundColor: '#F8FAFC', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#E2E8F0', fontSize: 14, color: '#1B3A4B', textAlign: 'center' },
-  redeemBtn: { flex: 1, borderRadius: 10, backgroundColor: '#10B981', alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
+  statValue: { fontSize: 16, fontWeight: '700', color: colors.text },
+  statLabel: { fontSize: 11, color: colors.textTertiary, marginTop: 2 },
+  progressSection: { marginBottom: spacing.md },
+  progressLabel: { fontSize: 12, color: colors.textSecondary, marginBottom: 6 },
+  progressBar: { height: 6, backgroundColor: colors.border, borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: colors.info, borderRadius: 3 },
+  redeemSection: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md },
+  redeemRow: { flexDirection: 'row', gap: spacing.sm },
+  redeemInput: { width: 80, backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.md, padding: 10, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, textAlign: 'center' },
+  redeemBtn: { flex: 1, borderRadius: borderRadius.md, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
   redeemBtnDisabled: { opacity: 0.5 },
-  redeemBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
-  redeemHint: { fontSize: 11, color: '#94A3B8', marginTop: 6, textAlign: 'center' },
-  lastBooking: { fontSize: 11, color: '#94A3B8', marginTop: 8 },
+  redeemBtnText: { fontSize: 13, fontWeight: '700', color: colors.white },
+  redeemHint: { fontSize: 11, color: colors.textTertiary, marginTop: 6, textAlign: 'center' },
+  lastBooking: { fontSize: 11, color: colors.textTertiary, marginTop: spacing.sm },
   emptyBox: { alignItems: 'center', paddingVertical: 40 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1B3A4B', marginBottom: 6 },
-  emptyDesc: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20, maxWidth: 280 },
+  emptyEmoji: { fontSize: 48, marginBottom: spacing.md },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 6 },
+  emptyDesc: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 280 },
 });

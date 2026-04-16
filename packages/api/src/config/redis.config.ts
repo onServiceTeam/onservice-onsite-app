@@ -1,15 +1,10 @@
-import { Redis } from 'ioredis';
+import Redis from 'ioredis';
 import { logger } from '../utils/logger';
 
-const redisHost = process.env.REDIS_HOST || 'localhost';
-const redisPort = Number(process.env.REDIS_PORT) || 7385;
-const redisPassword = process.env.REDIS_PASSWORD || undefined;
-
 const redisConfig = {
-  host: redisHost,
-  port: redisPort,
-  password: redisPassword,
-  maxRetriesPerRequest: null as null,
+  host: process.env.REDIS_HOST || 'localhost',
+  port: Number(process.env.REDIS_PORT) || 6379,
+  maxRetriesPerRequest: null,
   enableReadyCheck: true,
   retryStrategy: (times: number): number | null => {
     if (times > 10) {
@@ -22,16 +17,15 @@ const redisConfig = {
 
 export const redis = new Redis(redisConfig);
 
-export const bullMqConnection = {
-  host: redisHost,
-  port: redisPort,
-  password: redisPassword,
-};
-
 redis.on('connect', () => {
   logger.info('Redis connected');
 });
 
-redis.on('error', (err: Error) => {
+redis.on('error', (err) => {
   logger.error('Redis connection error', { error: err.message });
 });
+
+export const bullMqConnection = {
+  host: process.env.REDIS_HOST || 'localhost',
+  port: Number(process.env.REDIS_PORT) || 6379,
+};

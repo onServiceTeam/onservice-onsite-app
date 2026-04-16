@@ -275,7 +275,7 @@ function containsFlaggedContent(text: string): boolean {
   return phonePattern.test(text) || emailPattern.test(text);
 }
 
-export function formatReview(r: ReviewRow, images?: ReviewImageRow[]) {
+export function formatReview(r: ReviewRow, images?: ReviewImageRow[]): Record<string, unknown> {
   return {
     id: r.id,
     bookingId: r.booking_id,

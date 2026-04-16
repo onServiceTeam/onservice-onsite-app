@@ -396,7 +396,7 @@ async function anonymizeUser(userId: string): Promise<void> {
   );
 
   await db.query(
-    `UPDATE reviews SET comment = NULL WHERE reviewer_id = $1`,
+    `UPDATE reviews SET comment = '' WHERE reviewer_id = $1`,
     [userId],
   );
 
@@ -518,7 +518,7 @@ export async function getPendingExportCount(): Promise<number> {
 
 // --- Formatters ---
 
-export function formatDataExport(d: DataExportRow) {
+export function formatDataExport(d: DataExportRow): Record<string, unknown> {
   return {
     id: d.id,
     userId: d.user_id,
@@ -533,7 +533,7 @@ export function formatDataExport(d: DataExportRow) {
   };
 }
 
-export function formatAccountDeletion(d: AccountDeletionRow) {
+export function formatAccountDeletion(d: AccountDeletionRow): Record<string, unknown> {
   return {
     id: d.id,
     userId: d.user_id,

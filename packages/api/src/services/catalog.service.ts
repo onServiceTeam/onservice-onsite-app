@@ -107,6 +107,46 @@ export async function searchServices(query: string, limit = 20): Promise<(Subcat
   return result.rows;
 }
 
+interface ProviderSearchRow {
+  id: string;
+  user_id: string;
+  business_name: string;
+  tier: string;
+  rating: string | null;
+  total_reviews: number;
+  city: string | null;
+  avatar_url: string | null;
+}
+
+export async function searchProviders(query: string, limit = 10): Promise<Record<string, unknown>[]> {
+  const escaped = query.toLowerCase().replace(/[%_\\]/g, '\\$&');
+  const searchTerm = `%${escaped}%`;
+
+  const result = await db.query<ProviderSearchRow>(
+    `SELECT p.id, p.user_id, p.business_name, p.tier, p.rating, p.total_reviews,
+            p.city, u.avatar_url
+     FROM providers p
+     JOIN users u ON u.id = p.user_id
+     WHERE p.status = 'approved' AND u.is_active = TRUE
+       AND (LOWER(p.business_name) LIKE $1
+            OR LOWER(CONCAT(u.first_name, ' ', u.last_name)) LIKE $1)
+     ORDER BY p.rating DESC NULLS LAST, p.total_reviews DESC
+     LIMIT $2`,
+    [searchTerm, limit],
+  );
+
+  return result.rows.map((p) => ({
+    id: p.id,
+    userId: p.user_id,
+    businessName: p.business_name,
+    tier: p.tier,
+    averageRating: p.rating ? Number(p.rating) : null,
+    totalReviews: p.total_reviews,
+    city: p.city,
+    avatarUrl: p.avatar_url,
+  }));
+}
+
 export async function getFullCatalog(): Promise<CategoryWithSubcategories[]> {
   const categories = await getActiveCategories();
   const allSubs = await db.query<SubcategoryRow>(
@@ -125,5 +165,72 @@ export async function getFullCatalog(): Promise<CategoryWithSubcategories[]> {
   return categories.map((cat) => ({
     ...cat,
     subcategories: subsByCategory.get(cat.id) ?? [],
+  }));
+}
+
+// ─── Service Add-ons ──────────────────────────────────────
+
+interface AddonRow {
+  id: string;
+  subcategory_id: string;
+  name: string;
+  description: string;
+  price: number;
+  is_active: boolean;
+  display_order: number;
+}
+
+export async function getAddonsForSubcategory(subcategoryId: string): Promise<Record<string, unknown>[]> {
+  const result = await db.query<AddonRow>(
+    `SELECT id, subcategory_id, name, description, price, is_active, display_order
+     FROM service_addons
+     WHERE subcategory_id = $1 AND is_active = TRUE
+     ORDER BY display_order ASC, name ASC`,
+    [subcategoryId],
+  );
+
+  return result.rows.map((a) => ({
+    id: a.id,
+    subcategoryId: a.subcategory_id,
+    name: a.name,
+    description: a.description,
+    price: a.price,
+    displayOrder: a.display_order,
+  }));
+}
+
+export async function saveBookingAddons(
+  bookingId: string,
+  addons: { addonId: string; name: string; price: number }[],
+): Promise<void> {
+  if (addons.length === 0) return;
+
+  const values: unknown[] = [];
+  const placeholders: string[] = [];
+  let idx = 1;
+  for (const a of addons) {
+    placeholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++})`);
+    values.push(bookingId, a.addonId, a.name, a.price);
+  }
+
+  await db.query(
+    `INSERT INTO booking_addons (booking_id, addon_id, name, price)
+     VALUES ${placeholders.join(', ')}`,
+    values,
+  );
+
+  logger.debug('Booking addons saved', { bookingId, count: addons.length });
+}
+
+export async function getBookingAddons(bookingId: string): Promise<Record<string, unknown>[]> {
+  const result = await db.query<{ id: string; addon_id: string; name: string; price: number }>(
+    `SELECT id, addon_id, name, price FROM booking_addons WHERE booking_id = $1 ORDER BY created_at ASC`,
+    [bookingId],
+  );
+  return result.rows.map((a) => ({
+    id: a.id,
+    addonId: a.addon_id,
+    name: a.name,
+    price: a.price,
   }));
 }

@@ -261,7 +261,7 @@ export async function getPayoutById(payoutId: string): Promise<PayoutRow> {
   return result.rows[0]!;
 }
 
-export function formatPayout(p: PayoutRow) {
+export function formatPayout(p: PayoutRow): Record<string, unknown> {
   return {
     id: p.id,
     providerId: p.provider_id,
