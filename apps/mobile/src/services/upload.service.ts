@@ -1,6 +1,13 @@
 import api from './api';
 import { platformConfig } from '../config/platform.config';
 
+/** React Native FormData file descriptor — RN accepts this instead of Blob */
+interface RNFormDataFile {
+  uri: string;
+  name: string;
+  type: string;
+}
+
 export interface UploadedFile {
   id: string;
   url: string;
@@ -32,7 +39,7 @@ export async function uploadImages(
       uri,
       name: `photo.${safeExt}`,
       type,
-    } as unknown as Blob);
+    } as RNFormDataFile as unknown as Blob);
   }
 
   const res = await api.post<{ success: boolean; data: UploadedFile[] }>(

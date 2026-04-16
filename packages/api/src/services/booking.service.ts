@@ -62,6 +62,7 @@ interface CreateBookingParams {
   servicePrice?: number;
   rebookedFromId?: string;
   waitlistId?: string;
+  addons?: Array<{ id: string; name: string; price: number }>;
 }
 
 export function calculateServiceFee(servicePrice: number): number {
@@ -108,7 +109,8 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
     pricingRuleId = pricing.appliedRule?.id ?? null;
   }
 
-  const servicePrice = baseServicePrice + surgeAmount;
+  const addonsTotal = (params.addons ?? []).reduce((sum, a) => sum + a.price, 0);
+  const servicePrice = baseServicePrice + surgeAmount + addonsTotal;
   const serviceFee = params.bookingType === 'fixed_price' ? calculateServiceFee(servicePrice) : 0;
   const totalAmount = servicePrice + serviceFee;
 
@@ -150,12 +152,23 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
 
   const newBooking = result.rows[0]!;
 
+  if (params.addons && params.addons.length > 0) {
+    for (const addon of params.addons) {
+      await db.query(
+        `INSERT INTO booking_addons (booking_id, addon_id, name, price)
+         VALUES ($1, $2, $3, $4)`,
+        [newBooking.id, addon.id, addon.name, addon.price],
+      );
+    }
+  }
+
   logger.info('Booking created', {
     bookingId: newBooking.id,
     customerId: params.customerId,
     status: initialStatus,
     surgeMultiplier,
     surgeAmount,
+    addonsCount: params.addons?.length ?? 0,
   });
 
   if (params.waitlistId) {
@@ -363,6 +376,30 @@ export async function transitionBookingStatus(
       ).catch((err: unknown) => {
         logger.error('Slot waitlist notification failed after cancellation', {
           bookingId,
+          error: err instanceof Error ? err.message : 'Unknown',
+        });
+      });
+    }
+
+    // Track provider cancellation penalty (PROV-007)
+    if (newStatus === 'cancelled_by_provider' && updated.provider_id) {
+      db.query(
+        `UPDATE providers
+         SET total_cancellations = total_cancellations + 1,
+             cancellations_last_30d = (
+               SELECT COUNT(*) FROM bookings
+               WHERE provider_id = $1
+                 AND status = 'cancelled_by_provider'
+                 AND cancelled_at > NOW() - INTERVAL '30 days'
+             ) + 1,
+             last_cancellation_at = NOW(),
+             updated_at = NOW()
+         WHERE id = $1`,
+        [updated.provider_id],
+      ).catch((err: unknown) => {
+        logger.error('Provider cancellation tracking update failed', {
+          bookingId,
+          providerId: updated.provider_id,
           error: err instanceof Error ? err.message : 'Unknown',
         });
       });

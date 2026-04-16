@@ -49,3 +49,12 @@ declare module 'react-native-mmkv' {
     contains(key: string): boolean;
   }
 }
+
+declare module 'expo-network' {
+  export interface NetworkState {
+    isConnected: boolean;
+    isInternetReachable: boolean | null;
+    type: string;
+  }
+  export function getNetworkStateAsync(): Promise<NetworkState>;
+}

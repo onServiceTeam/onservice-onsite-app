@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
+  RefreshControl,
+  type DimensionValue,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -51,7 +53,7 @@ function RatingBar({ label, value }: { label: string; value: number | null }): R
     <View style={styles.ratingBarRow}>
       <Text style={styles.ratingBarLabel}>{label}</Text>
       <View style={styles.ratingBarTrack}>
-        <View style={[styles.ratingBarFill, { width: `${pct}%` as unknown as number }]} />
+        <View style={[styles.ratingBarFill, { width: `${pct}%` as DimensionValue }]} />
       </View>
       <Text style={styles.ratingBarValue}>{value.toFixed(1)}</Text>
     </View>
@@ -70,14 +72,14 @@ export default function ProviderProfileScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { data: provider, isLoading: providerLoading } = useQuery({
+  const { data: provider, isLoading: providerLoading, isError: providerError, refetch: refetchProvider } = useQuery({
     queryKey: ['provider', id],
     queryFn: () => getProviderProfile(id),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: reviewsData } = useQuery({
+  const { data: reviewsData, isError: reviewsError } = useQuery({
     queryKey: ['providerReviews', id],
     queryFn: () => getProviderReviews(id, 1, 10),
     enabled: !!id,
@@ -91,6 +93,19 @@ export default function ProviderProfileScreen(): React.ReactElement {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (providerError) {
+    return (
+      <View style={[styles.container, styles.centered, { paddingTop: insets.top, padding: 24 }]}>
+        <Text style={styles.errorEmoji}>⚠️</Text>
+        <Text style={styles.errorTitle}>Something went wrong</Text>
+        <Text style={styles.errorSubtitle}>Failed to load provider profile. Please try again.</Text>
+        <TouchableOpacity onPress={() => void refetchProvider()} style={styles.retryButton}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -113,7 +128,14 @@ export default function ProviderProfileScreen(): React.ReactElement {
         <Text style={styles.headerTitle}>Provider Profile</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={false} onRefresh={() => void refetchProvider()} />
+        }
+      >
         <View style={styles.profileCard}>
           <View style={styles.avatarLarge}>
             <Text style={styles.avatarLargeText}>
@@ -248,7 +270,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
                   <Text style={styles.certIssuer}>{cert.issuingBody}</Text>
                   {cert.expiryDate && (
                     <Text style={styles.certExpiry}>
-                      Valid until {cert.expiryDate}
+                      Valid until {formatDate(cert.expiryDate)}
                     </Text>
                   )}
                 </View>
@@ -259,6 +281,12 @@ export default function ProviderProfileScreen(): React.ReactElement {
                 )}
               </View>
             ))}
+          </View>
+        )}
+
+        {reviewsError && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>Failed to load reviews. Pull to refresh.</Text>
           </View>
         )}
 
@@ -304,7 +332,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.shieldBadge}
-          onPress={() => router.push('/customer/safety' as never)}
+          onPress={() => router.push('/customer/safety')}
           activeOpacity={0.7}
         >
           <Text style={styles.shieldBadgeIcon}>🛡️</Text>
@@ -315,6 +343,17 @@ export default function ProviderProfileScreen(): React.ReactElement {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Sticky Book CTA */}
+      <View style={[styles.bookCtaContainer, { paddingBottom: Math.max(insets.bottom, spacing.base) }]}>
+        <TouchableOpacity
+          style={styles.bookCtaButton}
+          onPress={() => router.push(`/customer/booking/form?providerId=${id}`)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.bookCtaText}>Book this Provider</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -331,7 +370,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
@@ -524,5 +563,38 @@ const styles = StyleSheet.create({
   shieldBadgeIcon: { fontSize: 22 },
   shieldBadgeText: { ...typography.bodySmall, color: colors.infoDark, flex: 1 },
 
-  bottomSpacer: { height: 40 },
+  bottomSpacer: { height: 100 },
+
+  errorEmoji: { fontSize: 48, marginBottom: 12 },
+  errorTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
+  errorSubtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center' as const, marginBottom: spacing.base },
+  retryButton: { backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: borderRadius.md },
+  retryButtonText: { color: colors.white, fontWeight: '600' as const },
+
+  errorBanner: {
+    backgroundColor: colors.errorLight,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+  },
+  errorBannerText: { ...typography.bodySmall, color: colors.error, textAlign: 'center' as const },
+
+  bookCtaContainer: {
+    position: 'absolute' as const,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
+  bookCtaButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: borderRadius.md,
+    alignItems: 'center' as const,
+  },
+  bookCtaText: { ...typography.button, color: colors.white },
 });

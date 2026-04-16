@@ -325,13 +325,23 @@ export interface StatusUpdateResult {
   warning?: { code: string; message: string };
 }
 
+interface StatusUpdateLocation {
+  latitude: number;
+  longitude: number;
+}
+
 export async function updateBookingStatus(
   bookingId: string,
   status: string,
   cancellationReason?: string,
+  location?: StatusUpdateLocation,
 ): Promise<StatusUpdateResult> {
-  const body: Record<string, string> = { status };
+  const body: Record<string, string | number> = { status };
   if (cancellationReason) body.cancellationReason = cancellationReason;
+  if (location) {
+    body.latitude = location.latitude;
+    body.longitude = location.longitude;
+  }
   const res = await api.patch<ApiResponse<Booking> & { warning?: { code: string; message: string } }>(
     `/api/v1/bookings/${bookingId}/status`,
     body,

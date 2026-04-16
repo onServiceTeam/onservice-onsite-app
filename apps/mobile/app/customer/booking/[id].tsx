@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,12 +47,14 @@ export default function BookingDetailScreen(): React.ReactElement {
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
 
-  const { data: booking, isLoading, error } = useQuery({
+  const { data: booking, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['booking', id],
     queryFn: () => getBookingById(id),
     enabled: !!id,
     staleTime: 30 * 1000,
   });
+
+  const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
@@ -120,7 +125,15 @@ export default function BookingDetailScreen(): React.ReactElement {
         <Text style={styles.title}>Booking Details</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+        }
+      >
         <View style={styles.statusCard}>
           <Badge
             label={booking.status.replace(/_/g, ' ').toUpperCase()}
@@ -153,7 +166,7 @@ export default function BookingDetailScreen(): React.ReactElement {
             <Text style={styles.sectionTitle}>Provider</Text>
             <TouchableOpacity
               style={styles.providerRow}
-              onPress={() => booking.providerId && router.push(`/customer/provider/${booking.providerId}` as never)}
+              onPress={() => booking.providerId && router.push(`/customer/provider/${booking.providerId}`)}
             >
               <View style={styles.providerAvatar}>
                 <Text style={styles.providerInitial}>
@@ -206,44 +219,45 @@ export default function BookingDetailScreen(): React.ReactElement {
           </View>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
         {canViewQuotes && (
           <Button
             title="View Quotes"
-            onPress={() => router.push(`/customer/booking/quotes?bookingId=${id}` as never)}
+            onPress={() => router.push(`/customer/booking/quotes?bookingId=${id}`)}
           />
         )}
         {isActive && (
           <Button
             title="Track Booking"
-            onPress={() => router.push(`/customer/booking/tracker?bookingId=${id}` as never)}
+            onPress={() => router.push(`/customer/booking/tracker?bookingId=${id}`)}
           />
         )}
         {needsConfirmation && (
           <Button
             title="Confirm & Review"
-            onPress={() => router.push(`/customer/booking/complete?bookingId=${id}` as never)}
+            onPress={() => router.push(`/customer/booking/complete?bookingId=${id}`)}
           />
         )}
         {canViewChangeOrders && (
           <Button
             title="View Change Orders"
-            onPress={() => router.push(`/customer/booking/change-order?bookingId=${id}` as never)}
+            onPress={() => router.push(`/customer/booking/change-order?bookingId=${id}`)}
             variant="outline"
           />
         )}
         {hasPhotos && (
           <Button
             title="View Job Photos"
-            onPress={() => router.push(`/customer/booking/photos?bookingId=${id}` as never)}
+            onPress={() => router.push(`/customer/booking/photos?bookingId=${id}`)}
             variant="outline"
           />
         )}
         {(isActive || needsConfirmation) && booking.providerId && (
           <Button
             title="Chat with Provider"
-            onPress={() => router.push(`/customer/chat/${booking.id}` as never)}
+            onPress={() => router.push(`/customer/chat/${booking.id}`)}
             variant="outline"
             style={styles.chatButton}
           />
@@ -287,7 +301,7 @@ export default function BookingDetailScreen(): React.ReactElement {
         {canFileDispute && (
           <Button
             title="File a Dispute"
-            onPress={() => router.push(`/customer/booking/dispute?bookingId=${id}` as never)}
+            onPress={() => router.push(`/customer/booking/dispute?bookingId=${id}`)}
             variant="ghost"
           />
         )}
@@ -295,7 +309,7 @@ export default function BookingDetailScreen(): React.ReactElement {
           <View style={styles.completedActions}>
             <Button
               title="Leave a Review"
-              onPress={() => router.push(`/customer/booking/review?bookingId=${id}` as never)}
+              onPress={() => router.push(`/customer/booking/review?bookingId=${id}`)}
               variant="outline"
             />
           </View>
@@ -316,7 +330,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
@@ -405,6 +419,6 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   cancelConfirmBtn: { backgroundColor: colors.error },
-  cancelFormDismiss: { alignItems: 'center', paddingVertical: spacing.sm },
+  cancelFormDismiss: { alignItems: 'center', paddingVertical: spacing.sm, minHeight: 44, justifyContent: 'center' },
   cancelFormDismissText: { ...typography.body, color: colors.textSecondary },
 });

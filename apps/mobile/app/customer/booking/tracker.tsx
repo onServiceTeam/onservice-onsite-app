@@ -159,7 +159,7 @@ export default function BookingTrackerScreen(): React.ReactElement {
                 </View>
                 <TouchableOpacity
                   style={styles.chatButton}
-                  onPress={() => router.push(`/customer/chat/${booking.id}` as never)}
+                  onPress={() => router.push(`/customer/chat/${booking.id}`)}
                 >
                   <Text style={styles.chatIcon}>💬</Text>
                 </TouchableOpacity>
@@ -169,7 +169,7 @@ export default function BookingTrackerScreen(): React.ReactElement {
             {booking.status === 'completed_by_provider' && (
               <Button
                 title="Confirm Job Complete"
-                onPress={() => router.push(`/customer/booking/complete?bookingId=${bookingId}` as never)}
+                onPress={() => router.push(`/customer/booking/complete?bookingId=${bookingId}`)}
               />
             )}
           </>
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     backgroundColor: 'rgba(255,255,255,0.95)',
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   map: { flex: 1 },

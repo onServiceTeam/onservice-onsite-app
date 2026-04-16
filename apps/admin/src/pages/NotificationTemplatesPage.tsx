@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
 
@@ -44,11 +45,12 @@ export default function NotificationTemplatesPage(): React.ReactElement {
   const [formChannel, setFormChannel] = useState('push');
   const [formActive, setFormActive] = useState(true);
   const [formError, setFormError] = useState('');
+  const [actionError, setActionError] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['adminTemplates', page, typeFilter, channelFilter],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize: 20 };
+      const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (typeFilter) params.type = typeFilter;
       if (channelFilter) params.channel = channelFilter;
       const res = await api.get<PaginatedResult>('/api/v1/admin/notification-templates', { params });
@@ -85,7 +87,9 @@ export default function NotificationTemplatesPage(): React.ReactElement {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminTemplates'] });
+      setActionError('');
     },
+    onError: (e) => setActionError(getErrorMessage(e)),
   });
 
   const toggleMutation = useMutation({
@@ -94,7 +98,9 @@ export default function NotificationTemplatesPage(): React.ReactElement {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminTemplates'] });
+      setActionError('');
     },
+    onError: (e) => setActionError(getErrorMessage(e)),
   });
 
   function openEdit(t: Template): void {
@@ -254,6 +260,9 @@ export default function NotificationTemplatesPage(): React.ReactElement {
           <option value="in_app">In-App</option>
         </select>
       </div>
+
+      {isError && <p className="text-sm text-red-500 mb-4">Failed to load templates. Please try again.</p>}
+      {actionError && <p className="text-sm text-red-500 mb-4">{actionError}</p>}
 
       <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No templates found." />
 

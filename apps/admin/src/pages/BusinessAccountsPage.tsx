@@ -1,6 +1,8 @@
 import React, { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { adminConfig } from '@/config/admin.config';
+import api, { getErrorMessage } from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
 
 interface BusinessAccount {
@@ -49,21 +51,18 @@ function formatStatus(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function formatCurrency(cents: number): string {
-  return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-}
-
 export default function BusinessAccountsPage(): React.ReactElement {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  const [actionError, setActionError] = useState('');
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['adminBusinessAccounts', page, search, statusFilter],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize: 20 };
+      const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
       const res = await api.get<PaginatedResult>('/api/v1/admin/business-accounts', { params });
@@ -77,7 +76,9 @@ export default function BusinessAccountsPage(): React.ReactElement {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminBusinessAccounts'] });
+      setActionError('');
     },
+    onError: (e) => setActionError(getErrorMessage(e)),
   });
 
   const suspendMutation = useMutation({
@@ -86,7 +87,9 @@ export default function BusinessAccountsPage(): React.ReactElement {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminBusinessAccounts'] });
+      setActionError('');
     },
+    onError: (e) => setActionError(getErrorMessage(e)),
   });
 
   const handleSearch = (e: FormEvent): void => {
@@ -215,6 +218,9 @@ export default function BusinessAccountsPage(): React.ReactElement {
           <option value="closed">Closed</option>
         </select>
       </div>
+
+      {isError && <p className="text-sm text-red-500 mb-4">Failed to load business accounts. Please try again.</p>}
+      {actionError && <p className="text-sm text-red-500 mb-4">{actionError}</p>}
 
       <DataTable columns={columns} data={accounts} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No business accounts found." />
 

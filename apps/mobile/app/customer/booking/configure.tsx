@@ -30,7 +30,7 @@ export default function ConfigureScreen(): React.ReactElement {
     new Map(draft.addons.map((a) => [a.id, a])),
   );
 
-  const { data: addons, isLoading } = useQuery({
+  const { data: addons, isLoading, isError: addonsError } = useQuery({
     queryKey: ['addons', draft.subcategoryId],
     queryFn: async () => {
       if (!draft.subcategoryId) return [];
@@ -97,7 +97,13 @@ export default function ConfigureScreen(): React.ReactElement {
           </View>
         )}
 
-        {!isLoading && (!addons || addons.length === 0) && (
+        {addonsError && (
+          <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: 12 }}>
+            <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load add-ons. You can continue without them.</Text>
+          </View>
+        )}
+
+        {!isLoading && !addonsError && (!addons || addons.length === 0) && (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyText}>No add-ons available for this service.</Text>
           </View>
@@ -189,7 +195,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },

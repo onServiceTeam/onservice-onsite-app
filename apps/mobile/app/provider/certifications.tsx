@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,7 +39,7 @@ export default function CertificationsScreen(): React.ReactElement {
   const [issuedDate, setIssuedDate] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
 
-  const { data: certifications = [], isLoading } = useQuery({
+  const { data: certifications = [], isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['my-certifications'],
     queryFn: getMyCertifications,
   });
@@ -149,6 +150,19 @@ export default function CertificationsScreen(): React.ReactElement {
     );
   }
 
+  if (isError) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
+        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load certifications. Please try again.</Text>
+        <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
+          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -222,7 +236,9 @@ export default function CertificationsScreen(): React.ReactElement {
         </View>
       )}
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.secondary} />}
+      >
         {certifications.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>📜</Text>
@@ -294,7 +310,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text, flex: 1 },
   addButton: {
@@ -385,7 +401,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.divider,
     paddingTop: spacing.sm,
   },
-  certActionBtn: { padding: spacing.xs },
+  certActionBtn: { padding: spacing.md, minHeight: 44, minWidth: 44, justifyContent: 'center' as const },
   editText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
   removeText: { ...typography.bodySmall, color: colors.error, fontWeight: '600' },
 });

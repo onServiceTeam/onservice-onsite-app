@@ -16,6 +16,7 @@ import {
 import * as authService from '../services/auth.service';
 import * as securityService from '../services/security.service';
 import { platformConfig } from '../config/platform.config';
+import { generateTotpSecret, verifyTotp, generateTotpUri, encryptSecret, decryptSecret } from '../utils/totp';
 
 interface UserProfileRow {
   id: string;
@@ -128,7 +129,9 @@ router.post(
         attemptType: 'otp_send',
         success: false,
         userAgent: req.headers['user-agent'] as string | undefined,
-      }).catch(() => {});
+      }).catch((err) => {
+        logger.warn('Failed to record OTP send attempt', { phone: req.body.phone ?? '', error: err instanceof Error ? err.message : 'Unknown' });
+      });
       next(error);
     }
   },
@@ -210,7 +213,9 @@ router.post(
         attemptType: 'otp_verify',
         success: false,
         userAgent: req.headers['user-agent'] as string | undefined,
-      }).catch(() => {});
+      }).catch((err) => {
+        logger.warn('Failed to record OTP verify attempt', { phone: req.body.phone ?? '', error: err instanceof Error ? err.message : 'Unknown' });
+      });
       next(error);
     }
   },
@@ -376,6 +381,43 @@ router.post(
         throw createAppError('Invalid email or password.', 401);
       }
 
+      // Check if 2FA is enabled — require TOTP verification before issuing tokens
+      const totpResult = await db.query<{ totp_enabled: boolean }>(
+        `SELECT totp_enabled FROM users WHERE id = $1`,
+        [user.id],
+      );
+      const totpEnabled = totpResult.rows[0]?.totp_enabled ?? false;
+
+      if (totpEnabled) {
+        // Return a partial response requiring 2FA verification
+        // Sign a short-lived pre-auth token (5 min) for the 2FA step
+        const jwt = await import('jsonwebtoken');
+        const secret = process.env.JWT_SECRET;
+        if (!secret) throw new Error('JWT_SECRET is not configured');
+        const preAuthToken = jwt.default.sign(
+          { userId: user.id, role: user.role, type: 'pre_auth_2fa' },
+          secret,
+          { algorithm: 'HS256', expiresIn: 300 },
+        );
+
+        await securityService.logSecurityEvent({
+          userId: user.id,
+          eventType: 'admin_login_2fa_required',
+          ipAddress: clientIp,
+          metadata: { email },
+        });
+
+        res.json({
+          success: true,
+          data: {
+            requires2FA: true,
+            preAuthToken,
+            user: formatUserResponse(user),
+          },
+        });
+        return;
+      }
+
       await db.query(
         `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
         [user.id],
@@ -407,6 +449,258 @@ router.post(
           user: formatUserResponse(user),
           sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
         },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Admin 2FA: Verify TOTP code after password login ---
+router.post(
+  '/admin/2fa/verify',
+  authRateLimit,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const clientIp = getClientIp(req);
+      const { preAuthToken, totpCode } = req.body;
+      if (typeof preAuthToken !== 'string' || !preAuthToken) throw createAppError('Pre-auth token is required.', 400);
+      if (typeof totpCode !== 'string' || !totpCode) throw createAppError('TOTP code is required.', 400);
+
+      const jwt = await import('jsonwebtoken');
+      const secret = process.env.JWT_SECRET;
+      if (!secret) throw new Error('JWT_SECRET is not configured');
+
+      let payload: { userId: string; role: string; type?: string };
+      try {
+        payload = jwt.default.verify(preAuthToken, secret) as typeof payload;
+      } catch {
+        throw createAppError('Pre-auth token expired or invalid. Please login again.', 401);
+      }
+
+      if (payload.type !== 'pre_auth_2fa') {
+        throw createAppError('Invalid token type.', 401);
+      }
+
+      const userResult = await db.query<{ id: string; totp_secret: string | null; totp_enabled: boolean; role: string }>(
+        `SELECT id, totp_secret, totp_enabled, role FROM users WHERE id = $1 AND role IN ('admin', 'super_admin') AND is_active = TRUE`,
+        [payload.userId],
+      );
+
+      if (userResult.rows.length === 0 || !userResult.rows[0]!.totp_secret || !userResult.rows[0]!.totp_enabled) {
+        throw createAppError('2FA not configured for this account.', 400);
+      }
+
+      const user = userResult.rows[0]!;
+      const decryptedSecret = decryptSecret(user.totp_secret!);
+      const valid = verifyTotp(decryptedSecret, totpCode);
+      if (!valid) {
+        await securityService.logSecurityEvent({
+          userId: user.id,
+          eventType: 'admin_2fa_failed',
+          ipAddress: clientIp,
+          metadata: { reason: 'invalid_totp' },
+        });
+        throw createAppError('Invalid verification code. Please try again.', 401);
+      }
+
+      await db.query(
+        `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
+        [user.id],
+      );
+
+      const tokens = await authService.createTokenPair(user.id, user.role);
+
+      await securityService.recordLoginAttempt({
+        phone: user.id,
+        ipAddress: clientIp,
+        attemptType: 'admin_login',
+        success: true,
+        userAgent: req.headers['user-agent'] as string | undefined,
+      });
+      await securityService.logSecurityEvent({
+        userId: user.id,
+        eventType: 'admin_login_2fa_verified',
+        ipAddress: clientIp,
+        metadata: {},
+      });
+
+      const fullUser = await db.query<UserProfileRow>(
+        `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at FROM users WHERE id = $1`,
+        [user.id],
+      );
+
+      logger.info('Admin 2FA login', { userId: user.id });
+
+      res.json({
+        success: true,
+        data: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          user: formatUserResponse(fullUser.rows[0]!),
+          sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Admin 2FA: Setup (generate secret + QR URI) ---
+router.post(
+  '/admin/2fa/setup',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user!.userId;
+      const role = req.user!.role;
+
+      if (role !== 'admin' && role !== 'super_admin') {
+        throw createAppError('2FA setup is only available for admin accounts.', 403);
+      }
+
+      const userResult = await db.query<{ email: string | null; totp_enabled: boolean }>(
+        `SELECT email, totp_enabled FROM users WHERE id = $1`,
+        [userId],
+      );
+
+      if (userResult.rows.length === 0) throw createAppError('User not found.', 404);
+      const user = userResult.rows[0]!;
+
+      if (user.totp_enabled) {
+        throw createAppError('2FA is already enabled. Disable it first to reconfigure.', 409);
+      }
+
+      const secret = generateTotpSecret();
+      const uri = generateTotpUri(secret, user.email ?? userId);
+
+      // Store the secret encrypted (not yet enabled — must verify first)
+      const encryptedSecret = encryptSecret(secret);
+      await db.query(
+        `UPDATE users SET totp_secret = $1, totp_enabled = FALSE, updated_at = NOW() WHERE id = $2`,
+        [encryptedSecret, userId],
+      );
+
+      logger.info('Admin 2FA setup initiated', { userId });
+
+      res.json({
+        success: true,
+        data: {
+          secret,
+          uri,
+          message: 'Scan the QR code with your authenticator app, then verify with a code.',
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Admin 2FA: Enable (verify setup code to activate) ---
+router.post(
+  '/admin/2fa/enable',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user!.userId;
+      const role = req.user!.role;
+      const { totpCode } = req.body;
+
+      if (role !== 'admin' && role !== 'super_admin') {
+        throw createAppError('2FA is only available for admin accounts.', 403);
+      }
+
+      if (typeof totpCode !== 'string' || !totpCode) {
+        throw createAppError('Verification code is required.', 400);
+      }
+
+      const userResult = await db.query<{ totp_secret: string | null; totp_enabled: boolean }>(
+        `SELECT totp_secret, totp_enabled FROM users WHERE id = $1`,
+        [userId],
+      );
+
+      if (userResult.rows.length === 0) throw createAppError('User not found.', 404);
+      const user = userResult.rows[0]!;
+
+      if (user.totp_enabled) {
+        throw createAppError('2FA is already enabled.', 409);
+      }
+
+      if (!user.totp_secret) {
+        throw createAppError('Please call /auth/admin/2fa/setup first.', 400);
+      }
+
+      const decryptedEnableSecret = decryptSecret(user.totp_secret);
+      const valid = verifyTotp(decryptedEnableSecret, totpCode);
+      if (!valid) {
+        throw createAppError('Invalid verification code. Please try again with a new code from your authenticator app.', 400);
+      }
+
+      await db.query(
+        `UPDATE users SET totp_enabled = TRUE, updated_at = NOW() WHERE id = $1`,
+        [userId],
+      );
+
+      logger.info('Admin 2FA enabled', { userId });
+
+      res.json({
+        success: true,
+        data: { message: 'Two-factor authentication is now enabled.' },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Admin 2FA: Disable ---
+router.post(
+  '/admin/2fa/disable',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user!.userId;
+      const role = req.user!.role;
+      const { totpCode } = req.body;
+
+      if (role !== 'admin' && role !== 'super_admin') {
+        throw createAppError('2FA is only available for admin accounts.', 403);
+      }
+
+      if (typeof totpCode !== 'string' || !totpCode) {
+        throw createAppError('Current verification code is required to disable 2FA.', 400);
+      }
+
+      const userResult = await db.query<{ totp_secret: string | null; totp_enabled: boolean }>(
+        `SELECT totp_secret, totp_enabled FROM users WHERE id = $1`,
+        [userId],
+      );
+
+      if (userResult.rows.length === 0) throw createAppError('User not found.', 404);
+      const user = userResult.rows[0]!;
+
+      if (!user.totp_enabled || !user.totp_secret) {
+        throw createAppError('2FA is not currently enabled.', 400);
+      }
+
+      const decryptedDisableSecret = decryptSecret(user.totp_secret);
+      const valid = verifyTotp(decryptedDisableSecret, totpCode);
+      if (!valid) {
+        throw createAppError('Invalid verification code.', 401);
+      }
+
+      await db.query(
+        `UPDATE users SET totp_secret = NULL, totp_enabled = FALSE, updated_at = NOW() WHERE id = $1`,
+        [userId],
+      );
+
+      logger.info('Admin 2FA disabled', { userId });
+
+      res.json({
+        success: true,
+        data: { message: 'Two-factor authentication has been disabled.' },
       });
     } catch (error) {
       next(error);

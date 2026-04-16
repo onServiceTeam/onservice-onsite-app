@@ -1,6 +1,8 @@
 import React, { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { adminConfig } from '@/config/admin.config';
+import api, { getErrorMessage } from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
 
 interface RecurringBooking {
@@ -40,10 +42,6 @@ const FREQUENCY_LABELS: Record<string, string> = {
   monthly: 'Monthly',
 };
 
-function formatCurrency(cents: number): string {
-  return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-}
-
 function formatStatus(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -53,12 +51,13 @@ export default function RecurringPage(): React.ReactElement {
   const [statusFilter, setStatusFilter] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  const [actionError, setActionError] = useState('');
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['adminRecurring', page, search, statusFilter],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize: 20 };
+      const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
       const res = await api.get<PaginatedResult>('/api/v1/admin/recurring', { params });
@@ -72,7 +71,9 @@ export default function RecurringPage(): React.ReactElement {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminRecurring'] });
+      setActionError('');
     },
+    onError: (e) => setActionError(getErrorMessage(e)),
   });
 
   const handleSearch = (e: FormEvent): void => {
@@ -128,7 +129,7 @@ export default function RecurringPage(): React.ReactElement {
       render: (r) => (
         <span className="text-sm">
           {r.status === 'active' && r.nextBookingDate
-            ? new Date(r.nextBookingDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+            ? new Date(r.nextBookingDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })
             : '—'}
         </span>
       ),
@@ -198,6 +199,9 @@ export default function RecurringPage(): React.ReactElement {
           <option value="cancelled">Cancelled</option>
         </select>
       </div>
+
+      {isError && <p className="text-sm text-red-500 mb-4">Failed to load recurring bookings. Please try again.</p>}
+      {actionError && <p className="text-sm text-red-500 mb-4">{actionError}</p>}
 
       <DataTable columns={columns} data={bookings} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No recurring bookings found." />
 

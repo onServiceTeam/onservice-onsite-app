@@ -73,7 +73,7 @@ export default function ProviderJobsScreen(): React.ReactElement {
   const renderJob = ({ item }: { item: Booking }): React.ReactElement => (
     <TouchableOpacity
       style={styles.jobCard}
-      onPress={() => router.push(`/provider/job/${item.id}` as never)}
+      onPress={() => router.push(`/provider/job/${item.id}`)}
       activeOpacity={0.7}
     >
       <View style={styles.jobTop}>

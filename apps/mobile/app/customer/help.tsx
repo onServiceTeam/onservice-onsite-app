@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  backBtn: { padding: spacing.xs, marginRight: spacing.sm },
+  backBtn: { padding: spacing.xs, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   body: { flex: 1, paddingHorizontal: spacing.base },

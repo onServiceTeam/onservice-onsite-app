@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +21,7 @@ import {
 import { getCategories, getSubcategories, type Category, type Subcategory } from '@/services/catalog.service';
 import { Button, Input } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
+import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 export default function ManageServicesScreen(): React.ReactElement {
@@ -37,6 +39,7 @@ export default function ManageServicesScreen(): React.ReactElement {
     queryFn: getMyServices,
     staleTime: 60 * 1000,
   });
+  const { isError: servicesError, isRefetching: servicesRefetching } = servicesQuery;
 
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
@@ -44,6 +47,7 @@ export default function ManageServicesScreen(): React.ReactElement {
     staleTime: 24 * 60 * 60 * 1000,
     enabled: showAdd,
   });
+  const { isError: categoriesError } = categoriesQuery;
 
   const subcategoriesQuery = useQuery({
     queryKey: ['subcategories', selectedCategory?.slug],
@@ -51,6 +55,7 @@ export default function ManageServicesScreen(): React.ReactElement {
     enabled: !!selectedCategory?.slug,
     staleTime: 60 * 60 * 1000,
   });
+  const { isError: subcategoriesError } = subcategoriesQuery;
 
   const addMutation = useMutation({
     mutationFn: () => {
@@ -106,7 +111,14 @@ export default function ManageServicesScreen(): React.ReactElement {
         <Text style={styles.title}>My Services</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={servicesRefetching} onRefresh={() => void servicesQuery.refetch()} tintColor={colors.secondary} />}
+      >
+        {servicesError && (
+          <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: 12 }}>
+            <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load your services. Pull to refresh.</Text>
+          </View>
+        )}
         {servicesQuery.isLoading ? (
           <ActivityIndicator size="large" color={colors.secondary} style={{ marginTop: spacing.xl }} />
         ) : services.length === 0 ? (
@@ -147,6 +159,11 @@ export default function ManageServicesScreen(): React.ReactElement {
             <Text style={styles.addTitle}>Add a Service</Text>
 
             <Text style={styles.formLabel}>Category</Text>
+            {categoriesError && (
+              <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: spacing.sm }}>
+                <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load categories. Please try again.</Text>
+              </View>
+            )}
             <View style={styles.chipGrid}>
               {categories.map((cat) => (
                 <TouchableOpacity
@@ -167,6 +184,11 @@ export default function ManageServicesScreen(): React.ReactElement {
             {selectedCategory && (
               <>
                 <Text style={styles.formLabel}>Subcategory</Text>
+                {subcategoriesError && (
+                  <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: spacing.sm }}>
+                    <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load subcategories. Please try again.</Text>
+                  </View>
+                )}
                 {subcategoriesQuery.isLoading ? (
                   <ActivityIndicator color={colors.secondary} style={{ marginVertical: spacing.md }} />
                 ) : (
@@ -189,7 +211,7 @@ export default function ManageServicesScreen(): React.ReactElement {
 
             {selectedSubcategory && (
               <Input
-                label="Your Base Price (₱)"
+                label={`Your Base Price (${platformConfig.currencySymbol})`}
                 placeholder="e.g. 500"
                 value={basePrice}
                 onChangeText={setBasePrice}
@@ -232,7 +254,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
@@ -255,9 +277,9 @@ const styles = StyleSheet.create({
   serviceName: { ...typography.body, color: colors.text, fontWeight: '600' },
   servicePrice: { ...typography.bodySmall, color: colors.secondary, marginTop: 2 },
   removeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.divider,
     alignItems: 'center',
     justifyContent: 'center',

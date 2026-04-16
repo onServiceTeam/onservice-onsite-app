@@ -53,6 +53,8 @@ export default [
         globalThis: 'readonly',
         Blob: 'readonly',
         File: 'readonly',
+        URLSearchParams: 'readonly',
+        __DEV__: 'readonly',
       },
     },
     plugins: {
@@ -75,6 +77,15 @@ export default [
       }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       'react/react-in-jsx-scope': 'off',
+    },
+  },
+  {
+    // React hook files: relax explicit-function-return-type since return types
+    // are inferred from the store's typed state. Complex object shapes would
+    // require duplicating large interface trees unnecessarily.
+    files: ['apps/mobile/src/hooks/**/*.ts'],
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off',
     },
   },
   {

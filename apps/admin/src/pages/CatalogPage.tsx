@@ -1,7 +1,10 @@
 import React, { useState, Fragment, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
 import { Badge } from '@/components/ui';
+
+const CURRENCY_SYMBOL = '₱';
 
 interface Subcategory {
   id: string;
@@ -25,10 +28,6 @@ interface Category {
   iconUrl: string | null;
   displayOrder: number;
   subcategories: Subcategory[];
-}
-
-function formatCurrency(cents: number): string {
-  return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 }
 
 interface Addon {
@@ -68,7 +67,7 @@ export default function CatalogPage(): React.ReactElement {
   const [maxPrice, setMaxPrice] = useState('');
   const [estimatedDuration, setEstimatedDuration] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['adminCatalog'],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: Category[] }>('/api/v1/catalog/full');
@@ -124,11 +123,12 @@ export default function CatalogPage(): React.ReactElement {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/api/v1/catalog/admin/subcategories/${id}`),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['adminCatalog'] }),
+    onError: (err) => setError(getErrorMessage(err)),
   });
 
   const [expandedAddons, setExpandedAddons] = useState<string | null>(null);
 
-  const { data: addonsData } = useQuery({
+  const { data: addonsData, isError: isAddonsError } = useQuery({
     queryKey: ['adminAddons', expandedAddons],
     queryFn: async () => {
       if (!expandedAddons) return [];
@@ -165,6 +165,7 @@ export default function CatalogPage(): React.ReactElement {
   const deleteAddonMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/api/v1/catalog/admin/addons/${id}`),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['adminAddons', expandedAddons] }),
+    onError: (err) => setError(getErrorMessage(err)),
   });
 
   function closeModal(): void {
@@ -263,6 +264,10 @@ export default function CatalogPage(): React.ReactElement {
         <div className="animate-spin h-8 w-8 border-4 border-[var(--color-secondary)] border-t-transparent rounded-full" />
       </div>
     );
+  }
+
+  if (isError) {
+    return <p className="text-sm text-red-500 py-10 text-center">Failed to load catalog. Please try again.</p>;
   }
 
   return (
@@ -387,7 +392,10 @@ export default function CatalogPage(): React.ReactElement {
                                   + Add-on
                                 </button>
                               </div>
-                              {(addonsData ?? []).length === 0 ? (
+                              {isAddonsError && (
+                                <p className="text-xs text-red-500">Failed to load add-ons. Please try again.</p>
+                              )}
+                              {!isAddonsError && (addonsData ?? []).length === 0 ? (
                                 <p className="text-xs text-[var(--color-text-secondary)]">No add-ons yet.</p>
                               ) : (
                                 <div className="space-y-1">
@@ -475,7 +483,7 @@ export default function CatalogPage(): React.ReactElement {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Price (₱)</label>
+                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Price ({CURRENCY_SYMBOL})</label>
                       <input
                         type="number"
                         step="0.01"
@@ -549,7 +557,7 @@ export default function CatalogPage(): React.ReactElement {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Base Price (₱)</label>
+                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Base Price ({CURRENCY_SYMBOL})</label>
                       <input
                         type="number"
                         step="0.01"
@@ -563,7 +571,7 @@ export default function CatalogPage(): React.ReactElement {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Min Price (₱)</label>
+                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Min Price ({CURRENCY_SYMBOL})</label>
                       <input
                         type="number"
                         step="0.01"
@@ -574,7 +582,7 @@ export default function CatalogPage(): React.ReactElement {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Max Price (₱)</label>
+                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Max Price ({CURRENCY_SYMBOL})</label>
                       <input
                         type="number"
                         step="0.01"

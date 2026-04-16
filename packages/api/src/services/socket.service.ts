@@ -2,6 +2,7 @@ import { Server as HttpServer } from 'node:http';
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
+import { platformConfig } from '../config/platform.config';
 import * as messagingService from './messaging.service';
 
 interface AuthPayload {
@@ -22,8 +23,8 @@ export function initSocketServer(httpServer: HttpServer): Server {
       origin: process.env.APP_URL || 'http://localhost:7382',
       credentials: true,
     },
-    pingTimeout: 60000,
-    pingInterval: 25000,
+    pingTimeout: platformConfig.socketPingTimeoutMs,
+    pingInterval: platformConfig.socketPingIntervalMs,
   });
 
   io.use((socket: AuthenticatedSocket, next) => {
@@ -41,7 +42,14 @@ export function initSocketServer(httpServer: HttpServer): Server {
     }
 
     try {
-      const payload = jwt.verify(token, secret) as AuthPayload;
+      const payload = jwt.verify(token, secret) as AuthPayload & { type?: string };
+
+      // Reject partial/non-access tokens (parity with HTTP auth middleware)
+      if (payload.type === 'pre_auth_2fa' || payload.type === 'refresh') {
+        next(new Error('Invalid token type'));
+        return;
+      }
+
       socket.userId = payload.userId;
       socket.userRole = payload.role;
       next();

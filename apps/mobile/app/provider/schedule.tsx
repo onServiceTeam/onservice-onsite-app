@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,7 +38,7 @@ export default function ScheduleScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
-  const { data: existingSchedule, isLoading } = useQuery({
+  const { data: existingSchedule, isLoading, isError: scheduleError, refetch: refetchSchedule, isRefetching: scheduleRefetching } = useQuery({
     queryKey: ['providerSchedule'],
     queryFn: getMySchedule,
     staleTime: 60 * 1000,
@@ -113,7 +114,14 @@ export default function ScheduleScreen(): React.ReactElement {
         <Text style={styles.title}>Weekly Schedule</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={scheduleRefetching} onRefresh={() => void refetchSchedule()} tintColor={colors.secondary} />}
+      >
+        {scheduleError && (
+          <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: 12 }}>
+            <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load your saved schedule. Showing defaults.</Text>
+          </View>
+        )}
         <Text style={styles.description}>
           Set your weekly availability. Customers will only see you as available during these hours.
         </Text>
@@ -181,7 +189,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },

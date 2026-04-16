@@ -91,6 +91,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "onService needs your location to provide real-time job tracking and navigation.",
+          "locationWhenInUsePermission": "onService needs your location to find nearby service providers."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
@@ -99,6 +106,7 @@
       ]
     ],
     "extra": {
+      "sentryDsn": "",
       "eas": {
         "projectId": "YOUR_EAS_PROJECT_ID"
       }

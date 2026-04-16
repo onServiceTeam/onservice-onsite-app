@@ -4,23 +4,21 @@ import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getMyCode, getMyReferrals, redeemCode } from '@/services/referral.service';
+import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
-
-function formatCurrency(centavos: number): string {
-  return `₱${(centavos / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-}
+import { platformConfig } from '@/config/platform.config';
 
 export default function ReferralScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [redeemInput, setRedeemInput] = useState('');
 
-  const { data: code, isLoading: codeLoading } = useQuery({
+  const { data: code, isLoading: codeLoading, isError: codeError, refetch: refetchCode } = useQuery({
     queryKey: ['myReferralCode'],
     queryFn: getMyCode,
   });
 
-  const { data: referrals, isLoading: referralsLoading } = useQuery({
+  const { data: referrals, isLoading: referralsLoading, isError: referralsError, refetch: refetchReferrals } = useQuery({
     queryKey: ['myReferrals'],
     queryFn: getMyReferrals,
   });
@@ -33,31 +31,37 @@ export default function ReferralScreen(): React.ReactElement {
       Alert.alert('Success', 'Referral code redeemed! A bonus has been added to your wallet.');
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not redeem referral code.');
+      const message = err instanceof Error ? err.message : 'Could not redeem referral code.';
+      Alert.alert('Error', message);
     },
   });
 
-  const refereeAmount = code ? formatCurrency(code.refereeBonus) : '₱50.00';
-  const referrerAmount = code ? formatCurrency(code.referrerBonus) : '₱50.00';
+  const refereeAmount = code ? formatPHP(code.refereeBonus) : formatPHP(platformConfig.referralBonusDefault);
+  const referrerAmount = code ? formatPHP(code.referrerBonus) : formatPHP(platformConfig.referralBonusDefault);
 
   const handleShare = async (): Promise<void> => {
     if (!code?.code) return;
     try {
       await Share.share({
-        message: `Join onService using my referral code: ${code.code}\n\nGet ${refereeAmount} bonus on your first booking! Download the app now.`,
+        message: `Join ${platformConfig.appName} using my referral code: ${code.code}\n\nGet ${refereeAmount} bonus on your first booking! Download the app now.`,
       });
     } catch {
       // User cancelled share
     }
   };
 
-  const handleCopy = (): void => {
+  const handleCopy = async (): Promise<void> => {
     if (!code?.code) return;
-    Alert.alert('Your Code', code.code, [{ text: 'OK' }]);
+    try {
+      await Share.share({ message: code.code });
+    } catch {
+      // User cancelled
+    }
   };
 
   const isLoading = codeLoading || referralsLoading;
+  const isError = codeError || referralsError;
+  const refetchAll = (): void => { void refetchCode(); void refetchReferrals(); };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -72,6 +76,14 @@ export default function ReferralScreen(): React.ReactElement {
       {isLoading ? (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={colors.info} />
+        </View>
+      ) : isError ? (
+        <View style={styles.centerBox}>
+          <Text style={{ fontSize: 48, marginBottom: spacing.md }}>⚠️</Text>
+          <Text style={styles.heroTitle}>Failed to load</Text>
+          <TouchableOpacity onPress={refetchAll} style={[styles.redeemBtn, { marginTop: spacing.base, paddingVertical: 12 }]}>
+            <Text style={styles.redeemBtnText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
@@ -105,7 +117,7 @@ export default function ReferralScreen(): React.ReactElement {
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statValue}>
-                {formatCurrency(
+                {formatPHP(
                   (referrals?.redemptions ?? [])
                     .filter(r => r.referrerCredited)
                     .reduce((sum, r) => sum + r.referrerBonus, 0)
@@ -151,11 +163,11 @@ export default function ReferralScreen(): React.ReactElement {
                       {r.referrerCredited ? 'Bonus earned' : 'Pending first booking'}
                     </Text>
                     <Text style={styles.historyDate}>
-                      {new Date(r.createdAt).toLocaleDateString()}
+                      {new Date(r.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })}
                     </Text>
                   </View>
                   <Text style={[styles.historyAmount, r.referrerCredited && styles.historyAmountGreen]}>
-                    {r.referrerCredited ? `+${formatCurrency(r.referrerBonus)}` : 'Pending'}
+                    {r.referrerCredited ? `+${formatPHP(r.referrerBonus)}` : 'Pending'}
                   </Text>
                 </View>
               ))}
@@ -186,7 +198,7 @@ export default function ReferralScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundSecondary },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   placeholder: { width: 30 },

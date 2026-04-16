@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Switch,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -75,6 +76,10 @@ export default function ProviderDashboardScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['availability-status'] });
       void queryClient.invalidateQueries({ queryKey: ['provider-calendar'] });
     },
+    onError: (err: unknown) => {
+      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
+      Alert.alert('Error', axErr?.response?.data?.error?.message ?? 'Failed to update availability.');
+    },
   });
 
   const isRefreshing = profileQuery.isRefetching || activeJobsQuery.isRefetching;
@@ -130,7 +135,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         </View>
         <TouchableOpacity
           style={styles.notifButton}
-          onPress={() => router.push('/provider/notifications' as never)}
+          onPress={() => router.push('/provider/notifications')}
         >
           <Text style={styles.notifIcon}>🔔</Text>
         </TouchableOpacity>
@@ -184,7 +189,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Active Jobs</Text>
-          <TouchableOpacity onPress={() => router.push('/(provider-tabs)/jobs' as never)}>
+          <TouchableOpacity onPress={() => router.push('/(provider-tabs)/jobs')}>
             <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
         </View>
@@ -204,7 +209,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
             <TouchableOpacity
               key={job.id}
               style={styles.jobCard}
-              onPress={() => router.push(`/provider/job/${job.id}` as never)}
+              onPress={() => router.push(`/provider/job/${job.id}`)}
               activeOpacity={0.7}
             >
               <View style={styles.jobCardTop}>
@@ -230,7 +235,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>My Services</Text>
-            <TouchableOpacity onPress={() => router.push('/provider/services' as never)}>
+            <TouchableOpacity onPress={() => router.push('/provider/services')}>
               <Text style={styles.seeAllText}>Manage</Text>
             </TouchableOpacity>
           </View>
@@ -252,21 +257,21 @@ export default function ProviderDashboardScreen(): React.ReactElement {
       <View style={styles.quickActions}>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push('/provider/calendar' as never)}
+          onPress={() => router.push('/provider/calendar')}
         >
           <Text style={styles.actionIcon}>📅</Text>
           <Text style={styles.actionLabel}>Calendar</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push('/provider/services' as never)}
+          onPress={() => router.push('/provider/services')}
         >
           <Text style={styles.actionIcon}>🛠</Text>
           <Text style={styles.actionLabel}>Services</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push('/(provider-tabs)/earnings' as never)}
+          onPress={() => router.push('/(provider-tabs)/earnings')}
         >
           <Text style={styles.actionIcon}>💳</Text>
           <Text style={styles.actionLabel}>Earnings</Text>
@@ -294,7 +299,7 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   greeting: { ...typography.h2, color: colors.text },
-  notifButton: { padding: spacing.sm },
+  notifButton: { padding: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const, alignItems: 'center' as const },
   notifIcon: { fontSize: 22 },
 
   availabilityCard: {

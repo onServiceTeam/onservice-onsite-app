@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { adminConfig } from '@/config/admin.config';
 
 interface AuditEntry {
   id: string;
@@ -31,6 +32,7 @@ function formatDate(iso: string): string {
     minute: '2-digit',
     second: '2-digit',
     hour12: true,
+    timeZone: 'Asia/Manila',
   });
 }
 
@@ -46,7 +48,7 @@ export default function AuditLogPage(): React.ReactElement {
   const [actionFilter, setActionFilter] = useState('');
   const [entityTypeFilter, setEntityTypeFilter] = useState('');
   const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
-  const pageSize = 25;
+  const pageSize = adminConfig.defaultPageSize;
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin', 'audit-log', page, actionFilter, entityTypeFilter],
@@ -54,8 +56,8 @@ export default function AuditLogPage(): React.ReactElement {
       const params: Record<string, string | number> = { page, pageSize };
       if (actionFilter) params.action = actionFilter;
       if (entityTypeFilter) params.entityType = entityTypeFilter;
-      const res = await api.get('/api/v1/admin/audit-log', { params });
-      return res.data as AuditResponse;
+      const res = await api.get<AuditResponse>('/api/v1/admin/audit-log', { params });
+      return res.data;
     },
     placeholderData: (prev) => prev,
   });

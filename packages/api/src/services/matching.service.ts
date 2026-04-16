@@ -208,3 +208,38 @@ export function getMatchConfig(): Record<string, unknown> {
     maxServiceRadiusKm: platformConfig.maxServiceRadius,
   };
 }
+
+/**
+ * Checks if a provider already has an overlapping booking at the given time.
+ * Uses the booking's estimated duration (defaulting to platformConfig.defaultServiceDurationMinutes)
+ * to detect conflicts.
+ *
+ * @returns true if the provider is already booked (conflict exists)
+ */
+export async function hasBookingConflict(
+  providerId: string,
+  scheduledAt: Date,
+  estimatedDurationMinutes: number = platformConfig.defaultServiceDurationMinutes,
+  excludeBookingId?: string,
+): Promise<boolean> {
+  const windowStart = new Date(scheduledAt.getTime() - estimatedDurationMinutes * 60 * 1000);
+  const windowEnd = new Date(scheduledAt.getTime() + estimatedDurationMinutes * 60 * 1000);
+
+  const result = await db.query<{ id: string }>(
+    `SELECT id FROM bookings
+     WHERE provider_id = $1
+       AND status NOT IN (
+         'cancelled_by_customer','cancelled_by_provider','cancelled_by_admin',
+         'paid_out','rejected','expired'
+       )
+       AND scheduled_at > $2
+       AND scheduled_at < $3
+       ${excludeBookingId ? 'AND id != $4' : ''}
+     LIMIT 1`,
+    excludeBookingId
+      ? [providerId, windowStart.toISOString(), windowEnd.toISOString(), excludeBookingId]
+      : [providerId, windowStart.toISOString(), windowEnd.toISOString()],
+  );
+
+  return result.rows.length > 0;
+}

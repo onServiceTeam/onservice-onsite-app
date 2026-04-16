@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  backBtn: { padding: spacing.xs, marginRight: spacing.sm },
+  backBtn: { padding: spacing.xs, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   progress: { flexDirection: 'row', flex: 1, justifyContent: 'center', gap: spacing.xs },
   progressDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.border },

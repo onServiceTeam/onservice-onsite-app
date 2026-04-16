@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { authMiddleware, type AuthenticatedRequest } from '../middleware/auth.middleware';
+import { rbacMiddleware } from '../middleware/rbac.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import * as promotionService from '../services/promotion.service';
 
@@ -21,9 +22,9 @@ router.get(
 router.get(
   '/',
   authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (req.user?.role !== 'admin') throw createAppError('Admin access required.', 403);
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize) || 20));
       const { rows, total } = await promotionService.getAllPromotions(page, pageSize);
@@ -41,9 +42,9 @@ router.get(
 router.post(
   '/',
   authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (req.user?.role !== 'admin') throw createAppError('Admin access required.', 403);
       const { title, subtitle, imageUrl, badge, ctaText, ctaLink, targetAudience, startDate, endDate, displayOrder } = req.body as {
         title: string; subtitle?: string; imageUrl?: string; badge?: string;
         ctaText?: string; ctaLink?: string; targetAudience?: string;
@@ -65,9 +66,9 @@ router.post(
 router.put(
   '/:id',
   authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (req.user?.role !== 'admin') throw createAppError('Admin access required.', 403);
       const id = req.params['id'] as string;
       const promo = await promotionService.updatePromotion(id, req.body as Record<string, unknown>);
       res.json({ success: true, data: promotionService.formatPromotion(promo) });
@@ -80,9 +81,9 @@ router.put(
 router.delete(
   '/:id',
   authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      if (req.user?.role !== 'admin') throw createAppError('Admin access required.', 403);
       const id = req.params['id'] as string;
       await promotionService.deletePromotion(id);
       res.json({ success: true, data: { message: 'Promotion deleted.' } });

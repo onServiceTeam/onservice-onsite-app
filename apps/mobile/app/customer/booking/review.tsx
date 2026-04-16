@@ -22,6 +22,17 @@ const SUB_CATEGORIES = [
   { key: 'valueRating', label: 'Value for Money' },
 ] as const;
 
+const QUICK_TAGS: { key: string; label: string }[] = [
+  { key: 'professional', label: 'Professional' },
+  { key: 'punctual', label: 'Punctual' },
+  { key: 'great_value', label: 'Great Value' },
+  { key: 'friendly', label: 'Friendly' },
+  { key: 'clean', label: 'Cleaned Up Well' },
+  { key: 'thorough', label: 'Thorough' },
+  { key: 'responsive', label: 'Responsive' },
+  { key: 'skilled', label: 'Skilled' },
+];
+
 type SubKey = typeof SUB_CATEGORIES[number]['key'];
 
 function StarRow({
@@ -58,8 +69,22 @@ export default function ReviewScreen(): React.ReactElement {
     valueRating: 0,
   });
   const [showSubRatings, setShowSubRatings] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [comment, setComment] = useState('');
+  const [privateNote, setPrivateNote] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const toggleTag = (key: string): void => {
+    setSelectedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else if (next.size < 5) {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   const handleSubmit = async (): Promise<void> => {
     if (overallRating === 0) {
@@ -81,8 +106,10 @@ export default function ReviewScreen(): React.ReactElement {
         ...(subRatings.professionalismRating > 0 && { professionalismRating: subRatings.professionalismRating }),
         ...(subRatings.communicationRating > 0 && { communicationRating: subRatings.communicationRating }),
         ...(subRatings.valueRating > 0 && { valueRating: subRatings.valueRating }),
+        ...(selectedTags.size > 0 && { tags: Array.from(selectedTags) }),
       };
       if (comment.trim().length >= 20) payload.comment = comment.trim();
+      if (privateNote.trim().length > 0) payload.privateNote = privateNote.trim();
 
       await createReview(payload);
       router.replace({ pathname: '/customer/booking/tip', params: { bookingId } });
@@ -153,6 +180,44 @@ export default function ReviewScreen(): React.ReactElement {
             error={comment.length > 0 && comment.length < 20 ? 'Must be at least 20 characters' : undefined}
           />
         </View>
+
+        <View style={styles.tagSection}>
+          <Text style={styles.tagLabel}>What went well? (optional, select up to 5)</Text>
+          <View style={styles.tagGrid}>
+            {QUICK_TAGS.map((tag) => {
+              const selected = selectedTags.has(tag.key);
+              return (
+                <TouchableOpacity
+                  key={tag.key}
+                  onPress={() => toggleTag(tag.key)}
+                  style={[styles.tagChip, selected && styles.tagChipSelected]}
+                  activeOpacity={0.7}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: selected }}
+                  accessibilityLabel={tag.label}
+                >
+                  <Text style={[styles.tagChipText, selected && styles.tagChipTextSelected]}>
+                    {selected ? '✓ ' : ''}{tag.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.privateNoteSection}>
+          <Input
+            label="Private Note to onService (optional)"
+            placeholder="Share confidential feedback with us only — not shown publicly"
+            value={privateNote}
+            onChangeText={setPrivateNote}
+            multiline
+            numberOfLines={3}
+            style={styles.commentInput}
+            hint={privateNote.length > 0 ? `${privateNote.length} / 1000 characters` : undefined}
+          />
+          <Text style={styles.privateNoteHint}>🔒 This note is only visible to our support team, not the provider or public.</Text>
+        </View>
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
@@ -183,7 +248,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
@@ -220,6 +285,27 @@ const styles = StyleSheet.create({
 
   commentSection: { marginBottom: spacing.base },
   commentInput: { height: 100, textAlignVertical: 'top' },
+
+  tagSection: { marginBottom: spacing.lg },
+  tagLabel: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '500', marginBottom: spacing.sm },
+  tagGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  tagChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundSecondary,
+  },
+  tagChipSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+  },
+  tagChipText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '500' },
+  tagChipTextSelected: { color: colors.primary, fontWeight: '600' },
+
+  privateNoteSection: { marginBottom: spacing.base },
+  privateNoteHint: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.xs },
 
   bottomBar: {
     backgroundColor: colors.background,

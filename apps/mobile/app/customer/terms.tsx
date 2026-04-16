@@ -3,6 +3,8 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from 'r
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { platformConfig } from '@/config/platform.config';
+import { formatPHP } from '@/utils/currency';
 
 interface Section {
   title: string;
@@ -38,7 +40,7 @@ const TOS_SECTIONS: Section[] = [
   {
     title: '6. SiguradoShield Protection',
     content:
-      'Every booking includes buyer protection up to ₱25,000 for property damage, coverage for no-shows and incomplete work, and a quality guarantee.',
+      `Every booking includes buyer protection up to ${formatPHP(platformConfig.siguradoShieldPropertyDamage)} for property damage, coverage for no-shows and incomplete work, and a quality guarantee.`,
   },
   {
     title: '7. User Conduct',
@@ -174,7 +176,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
     backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   placeholder: { width: 30 },

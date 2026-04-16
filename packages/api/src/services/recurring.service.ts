@@ -4,6 +4,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as notificationService from './notification.service';
 import { calculateServiceFee } from './booking.service';
+import { formatPHP } from '../utils/currency';
 
 interface RecurringBookingRow {
   id: string;
@@ -296,7 +297,7 @@ export async function updateRecurringPrice(
     userId: rb.rows[0]!.customer_id,
     type: 'recurring_update',
     title: 'Recurring Service Price Updated',
-    body: `Your recurring service price has been updated to ₱${(totalAmount / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}. This applies starting ${rb.rows[0]!.next_booking_date}.`,
+    body: `Your recurring service price has been updated to ${formatPHP(totalAmount)}. This applies starting ${rb.rows[0]!.next_booking_date}.`,
     data: { recurringBookingId: recurringId, newTotal: totalAmount },
   });
 

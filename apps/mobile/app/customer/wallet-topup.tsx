@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getWalletBalance, topUpWallet } from '@/services/payment.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { platformConfig } from '@/config/platform.config';
 
 const QUICK_AMOUNTS = [10000, 25000, 50000, 100000, 200000, 500000];
 
@@ -31,6 +32,7 @@ export default function WalletTopUpScreen(): React.ReactElement {
     queryFn: getWalletBalance,
     staleTime: 60 * 1000,
   });
+  const { isError: walletError } = walletQuery;
 
   const topUpMutation = useMutation({
     mutationFn: () => {
@@ -69,7 +71,7 @@ export default function WalletTopUpScreen(): React.ReactElement {
   });
 
   const activeAmount = selectedAmount ?? Math.round((Number(customAmount) || 0) * 100);
-  const isValid = activeAmount >= 10000;
+  const isValid = activeAmount >= platformConfig.minTopUp;
 
   const handleQuickAmount = (amount: number): void => {
     setSelectedAmount(amount);
@@ -97,6 +99,9 @@ export default function WalletTopUpScreen(): React.ReactElement {
           <Text style={styles.balanceAmount}>
             {walletQuery.data ? formatPHP(walletQuery.data.availableBalance) : '---'}
           </Text>
+          {walletError && (
+            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 6 }}>Failed to load balance. Pull to refresh.</Text>
+          )}
         </View>
 
         <Text style={styles.sectionTitle}>Select Amount</Text>
@@ -115,7 +120,7 @@ export default function WalletTopUpScreen(): React.ReactElement {
         </View>
 
         <View style={styles.customRow}>
-          <Text style={styles.customPrefix}>₱</Text>
+          <Text style={styles.customPrefix}>{platformConfig.currencySymbol}</Text>
           <TextInput
             style={styles.customInput}
             keyboardType="numeric"
@@ -125,11 +130,11 @@ export default function WalletTopUpScreen(): React.ReactElement {
             onChangeText={handleCustomInput}
           />
         </View>
-        {activeAmount > 0 && activeAmount < 10000 && (
-          <Text style={styles.minWarn}>Minimum top-up: ₱100.00</Text>
+        {activeAmount > 0 && activeAmount < platformConfig.minTopUp && (
+          <Text style={styles.minWarn}>Minimum top-up: {formatPHP(platformConfig.minTopUp)}</Text>
         )}
-        {activeAmount > 5000000 && (
-          <Text style={styles.minWarn}>Maximum top-up: ₱50,000.00 per transaction</Text>
+        {activeAmount > platformConfig.maxTopUp && (
+          <Text style={styles.minWarn}>Maximum top-up: {formatPHP(platformConfig.maxTopUp)} per transaction</Text>
         )}
 
         <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Payment Method</Text>
@@ -157,7 +162,7 @@ export default function WalletTopUpScreen(): React.ReactElement {
             <TouchableOpacity
               style={[styles.topUpBtn, !isValid && styles.topUpBtnDisabled]}
               onPress={() => topUpMutation.mutate()}
-              disabled={!isValid || activeAmount > 5000000}
+              disabled={!isValid || activeAmount > platformConfig.maxTopUp}
             >
               <Text style={styles.topUpBtnText}>
                 {isValid ? `Add ${formatPHP(activeAmount)} to Wallet` : 'Select an Amount'}
@@ -177,7 +182,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
     backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   placeholder: { width: 30 },

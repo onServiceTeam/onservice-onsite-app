@@ -125,7 +125,7 @@ export default function WithdrawScreen(): React.ReactElement {
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>Amount (₱)</Text>
+        <Text style={styles.sectionTitle}>Amount ({platformConfig.currencySymbol})</Text>
         <Input
           placeholder={`Min ${formatPHP(minWithdraw)}`}
           value={amount}
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },

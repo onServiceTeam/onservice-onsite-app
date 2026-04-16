@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   content: { paddingBottom: spacing.xxl },
 
   header: { paddingHorizontal: spacing.base, paddingTop: spacing.xxl, paddingBottom: spacing.base },
-  backBtn: { marginBottom: spacing.sm },
+  backBtn: { padding: spacing.xs, marginBottom: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { ...typography.body, color: colors.primary },
   title: { ...typography.h2, color: colors.text },
   subtitle: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },

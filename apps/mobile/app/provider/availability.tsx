@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,12 +37,12 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
 
-  const { data: isAvailable, isLoading: loadingStatus } = useQuery({
+  const { data: isAvailable, isLoading: loadingStatus, isError: statusError, isRefetching: statusRefetching } = useQuery({
     queryKey: ['availability-status'],
     queryFn: getAvailabilityStatus,
   });
 
-  const { data: overrides = [], isLoading: loadingOverrides } = useQuery({
+  const { data: overrides = [], isLoading: loadingOverrides, isError: overridesError, isRefetching: overridesRefetching } = useQuery({
     queryKey: ['availability-overrides'],
     queryFn: (): Promise<AvailabilityOverride[]> => getAvailabilityOverrides(),
   });
@@ -119,6 +120,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
   }, [removeMutation]);
 
   const isLoading = loadingStatus || loadingOverrides;
+  const isError = statusError || overridesError;
   const isPending = addMutation.isPending;
 
   if (isLoading) {
@@ -129,7 +131,21 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
     );
   }
 
-  const futureOverrides = overrides.filter((o) => new Date(o.overrideDate) >= new Date(new Date().toDateString()));
+  if (isError) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
+        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load availability settings. Please try again.</Text>
+        <TouchableOpacity onPress={() => { void invalidateAll(); }} style={{ backgroundColor: colors.secondary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10, minHeight: 44, justifyContent: 'center' as const }}>
+          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const todayManila = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  const futureOverrides = overrides.filter((o) => o.overrideDate >= todayManila);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -140,7 +156,9 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
         <Text style={styles.title}>Availability Settings</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={statusRefetching || overridesRefetching} onRefresh={() => void invalidateAll()} tintColor={colors.secondary} />}
+      >
         <View style={styles.toggleCard}>
           <View style={styles.toggleInfo}>
             <Text style={styles.toggleTitle}>Available Now</Text>
@@ -283,9 +301,13 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
 
 function formatDateLabel(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  return d.toLocaleDateString('en-PH', {
+    timeZone: 'Asia/Manila',
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 const styles = StyleSheet.create({
@@ -298,7 +320,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text, flex: 1 },
 
@@ -329,8 +351,10 @@ const styles = StyleSheet.create({
   addBtn: {
     backgroundColor: colors.secondary,
     paddingHorizontal: spacing.base,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
+    minHeight: 44,
+    justifyContent: 'center' as const,
   },
   addBtnText: { ...typography.bodySmall, color: colors.white, fontWeight: '600' },
 
@@ -392,7 +416,7 @@ const styles = StyleSheet.create({
   overrideTime: { ...typography.bodySmall, color: colors.success, marginTop: 2 },
   overrideBlocked: { ...typography.bodySmall, color: colors.error, marginTop: 2 },
   overrideReason: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
-  removeBtn: { padding: spacing.sm },
+  removeBtn: { padding: spacing.sm, minWidth: 44, minHeight: 44, alignItems: 'center' as const, justifyContent: 'center' as const },
   removeBtnText: { fontSize: 18, color: colors.error, fontWeight: '700' },
 
   scheduleLink: {

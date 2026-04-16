@@ -517,12 +517,13 @@ export async function computeProviderQualityScores(
 
     const responseScore = 75;
 
+    const w = platformConfig.qualityScoreWeights;
     const overall = Math.round(
-      ratingScore * 0.30 +
-      completionScore * 0.25 +
-      timelinessScore * 0.20 +
-      cancellationScore * 0.15 +
-      responseScore * 0.10,
+      ratingScore * w.rating +
+      completionScore * w.completion +
+      timelinessScore * w.timeliness +
+      cancellationScore * w.cancellation +
+      responseScore * w.response,
     );
 
     await db.query(

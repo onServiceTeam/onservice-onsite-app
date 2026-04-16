@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -232,12 +233,32 @@ export default function ChatScreen(): React.ReactElement {
     );
   };
 
+  const retryInit = useCallback((): void => {
+    setInitError(false);
+    setConversationId(null);
+    (async (): Promise<void> => {
+      try {
+        const conversations = await getConversations();
+        let conv = conversations.find((c) => c.bookingId === bookingId);
+        if (!conv) {
+          conv = await createConversation(bookingId);
+        }
+        setConversationId(conv.id);
+      } catch {
+        setInitError(true);
+      }
+    })();
+  }, [bookingId]);
+
   if (initError) {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
         <Text style={styles.loadingText}>Failed to set up chat.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.retryButton}>
-          <Text style={styles.retryText}>Go Back</Text>
+        <TouchableOpacity onPress={retryInit} style={styles.retryButton}>
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()} style={[styles.retryButton, { marginTop: spacing.sm }]}>
+          <Text style={[styles.retryText, { color: colors.textSecondary }]}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -276,6 +297,20 @@ export default function ChatScreen(): React.ReactElement {
         contentContainerStyle={styles.messageList}
         showsVerticalScrollIndicator={false}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+        refreshControl={
+          <RefreshControl
+            refreshing={messagesQuery.isRefetching}
+            onRefresh={() => void messagesQuery.refetch()}
+            tintColor={colors.primary}
+          />
+        }
+        ListHeaderComponent={
+          messagesQuery.isError ? (
+            <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, margin: 16, marginBottom: 0 }}>
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load messages. Pull down to refresh.</Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.emptyChat}>
             <Text style={styles.emptyChatIcon}>💬</Text>
@@ -321,7 +356,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { alignItems: 'center', justifyContent: 'center' },
   loadingText: { ...typography.body, color: colors.textSecondary, marginTop: spacing.md },
-  retryButton: { marginTop: spacing.md },
+  retryButton: { marginTop: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, minHeight: 44, justifyContent: 'center' as const },
   retryText: { ...typography.body, color: colors.primary, fontWeight: '600' },
 
   header: {
@@ -333,7 +368,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
     backgroundColor: colors.background,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   headerInfo: { flex: 1 },
   headerTitle: { ...typography.h3, color: colors.text },
@@ -373,8 +408,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   photoButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.xs,

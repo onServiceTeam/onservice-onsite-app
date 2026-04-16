@@ -2,6 +2,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as walletService from './wallet.service';
+import { formatPHP } from '../utils/currency';
 
 interface TipRow {
   id: string;
@@ -108,7 +109,7 @@ export async function sendTip(
            VALUES ($1, 'payment', 'Tip Received!', $2, $3)`,
           [
             providerUser.rows[0].user_id,
-            `You received a tip of ₱${(data.amount / 100).toFixed(2)}${data.message ? `: "${data.message}"` : ''}`,
+            `You received a tip of ${formatPHP(data.amount)}${data.message ? `: "${data.message}"` : ''}`,
             JSON.stringify({ tipId: tip.id, bookingId: data.bookingId, amount: data.amount }),
           ],
         );

@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { platformConfig } from '@/config/platform.config';
 
 interface SukiProvider {
   id: string;
@@ -91,18 +92,21 @@ export default function HomeScreen(): React.ReactElement {
     queryFn: getActiveBookings,
     staleTime: 60 * 1000,
   });
+  const { isError: activeBookingsError } = activeBookingsQuery;
 
   const recentBookingsQuery = useQuery({
     queryKey: ['recentBookings'],
     queryFn: () => getRecentBookings(3),
     staleTime: 5 * 60 * 1000,
   });
+  const { isError: recentBookingsError } = recentBookingsQuery;
 
   const promosQuery = useQuery({
     queryKey: ['activePromotions'],
     queryFn: getActivePromotions,
     staleTime: 10 * 60 * 1000,
   });
+  const { isError: promosError } = promosQuery;
 
   const sukiQuery = useQuery({
     queryKey: ['sukiProviders'],
@@ -169,7 +173,7 @@ export default function HomeScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.notifButton}
-          onPress={() => router.push('/customer/notifications' as never)}
+          onPress={() => router.push('/customer/notifications')}
         >
           <Text style={styles.notifIcon}>🔔</Text>
           {unreadCount > 0 && (
@@ -181,6 +185,11 @@ export default function HomeScreen(): React.ReactElement {
       </View>
 
       {/* Active Booking Card */}
+      {activeBookingsError && (
+        <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginHorizontal: 16, marginBottom: 8 }}>
+          <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load active bookings.</Text>
+        </View>
+      )}
       {activeBookings.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Active Booking</Text>
@@ -188,7 +197,7 @@ export default function HomeScreen(): React.ReactElement {
             <TouchableOpacity
               key={booking.id}
               style={styles.activeCard}
-              onPress={() => router.push(`/customer/booking/${booking.id}` as never)}
+              onPress={() => router.push(`/customer/booking/${booking.id}`)}
               activeOpacity={0.8}
             >
               <View style={styles.activeCardTop}>
@@ -219,13 +228,18 @@ export default function HomeScreen(): React.ReactElement {
       {/* Search Bar */}
       <Pressable
         style={styles.searchBar}
-        onPress={() => router.push('/customer/search' as never)}
+        onPress={() => router.push('/customer/search')}
       >
         <Text style={styles.searchIcon}>🔍</Text>
         <Text style={styles.searchPlaceholder}>Search services or providers...</Text>
       </Pressable>
 
       {/* Promo Carousel */}
+      {promosError && (
+        <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginHorizontal: 16, marginBottom: 8 }}>
+          <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load promotions.</Text>
+        </View>
+      )}
       {promotions.length > 0 && (
         <View style={styles.promoSection}>
           <FlatList
@@ -239,7 +253,7 @@ export default function HomeScreen(): React.ReactElement {
               <TouchableOpacity
                 style={styles.promoCard}
                 onPress={() => {
-                  if (item.ctaLink) router.push(item.ctaLink as never);
+                  if (item.ctaLink) router.push(item.ctaLink);
                 }}
                 activeOpacity={0.85}
               >
@@ -295,7 +309,7 @@ export default function HomeScreen(): React.ReactElement {
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Your Suki Pros</Text>
-            <TouchableOpacity onPress={() => router.push('/customer/suki-pros' as never)}>
+            <TouchableOpacity onPress={() => router.push('/customer/suki-pros')}>
               <Text style={styles.seeAllLink}>See all &gt;</Text>
             </TouchableOpacity>
           </View>
@@ -308,7 +322,7 @@ export default function HomeScreen(): React.ReactElement {
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.sukiCard}
-                onPress={() => router.push(`/customer/provider/${item.providerId}` as never)}
+                onPress={() => router.push(`/customer/provider/${item.providerId}`)}
                 activeOpacity={0.7}
               >
                 <View style={styles.sukiAvatar}>
@@ -323,7 +337,7 @@ export default function HomeScreen(): React.ReactElement {
                 )}
                 <TouchableOpacity
                   style={styles.sukiBookBtn}
-                  onPress={() => router.push('/customer/booking/form' as never)}
+                  onPress={() => router.push(`/customer/booking/form?providerId=${item.providerId}`)}
                 >
                   <Text style={styles.sukiBookText}>Book</Text>
                 </TouchableOpacity>
@@ -334,6 +348,11 @@ export default function HomeScreen(): React.ReactElement {
       )}
 
       {/* Quick Re-book */}
+      {recentBookingsError && (
+        <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginHorizontal: 16, marginBottom: 8 }}>
+          <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load recent bookings.</Text>
+        </View>
+      )}
       {recentBookings.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Re-book</Text>
@@ -370,14 +389,14 @@ export default function HomeScreen(): React.ReactElement {
       {/* SiguradoShield Banner */}
       <TouchableOpacity
         style={styles.shieldBanner}
-        onPress={() => router.push('/customer/safety' as never)}
+        onPress={() => router.push('/customer/safety')}
         activeOpacity={0.7}
       >
         <Text style={styles.shieldBannerIcon}>🛡️</Text>
         <View style={styles.shieldBannerContent}>
           <Text style={styles.shieldBannerTitle}>SiguradoShield™ Protection</Text>
           <Text style={styles.shieldBannerText}>
-            Every booking is covered up to ₱50,000. Learn more →
+            Every booking is covered up to {formatPHP(platformConfig.siguradoShieldMaxCoverage)}. Learn more →
           </Text>
         </View>
       </TouchableOpacity>
@@ -466,7 +485,7 @@ const styles = StyleSheet.create({
   locationSelector: { flex: 1 },
   locationLabel: { ...typography.caption, color: colors.textTertiary },
   locationValue: { ...typography.bodySmall, fontWeight: '600', color: colors.text },
-  notifButton: { padding: spacing.sm, position: 'relative' as const },
+  notifButton: { padding: spacing.sm, position: 'relative' as const, minWidth: 44, minHeight: 44, justifyContent: 'center' as const, alignItems: 'center' as const },
   notifIcon: { fontSize: 22 },
   notifBadge: {
     position: 'absolute' as const,
@@ -622,6 +641,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary,
     borderRadius: borderRadius.sm,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
   },
   sukiBookText: {
     ...typography.caption,

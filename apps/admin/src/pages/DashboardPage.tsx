@@ -1,6 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
 import { KpiCard } from '@/components/ui';
 
 interface DashboardKpis {
@@ -19,10 +20,6 @@ interface DashboardKpis {
     escalatedDisputes: number;
     staleDisputes: number;
   };
-}
-
-function formatCurrency(cents: number): string {
-  return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 }
 
 export default function DashboardPage(): React.ReactElement {

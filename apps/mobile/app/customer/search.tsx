@@ -50,7 +50,7 @@ export default function SearchScreen(): React.ReactElement {
   const [query, setQuery] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const { data, isLoading, isFetched } = useQuery({
+  const { data, isLoading, isError, isFetched } = useQuery({
     queryKey: ['search', searchTerm],
     queryFn: async () => {
       if (searchTerm.length < 2) return { services: [], providers: [] } as SearchResponse;
@@ -95,7 +95,7 @@ export default function SearchScreen(): React.ReactElement {
   };
 
   const handleSelectProvider = (provider: ProviderResult): void => {
-    router.push(`/customer/provider/${provider.userId}` as never);
+    router.push(`/customer/provider/${provider.userId}`);
   };
 
   const renderItem = ({ item }: { item: SearchItem }): React.ReactElement => {
@@ -181,7 +181,15 @@ export default function SearchScreen(): React.ReactElement {
         </View>
       )}
 
-      {!isLoading && isFetched && searchTerm.length >= 2 && totalResults === 0 && (
+      {isError && (
+        <View style={styles.empty}>
+          <Text style={styles.emptyIcon}>⚠️</Text>
+          <Text style={styles.emptyTitle}>Search failed</Text>
+          <Text style={styles.emptySubtitle}>Something went wrong. Please try again.</Text>
+        </View>
+      )}
+
+      {!isLoading && !isError && isFetched && searchTerm.length >= 2 && totalResults === 0 && (
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>🔍</Text>
           <Text style={styles.emptyTitle}>No results for &quot;{searchTerm}&quot;</Text>
@@ -214,7 +222,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   searchInput: {
     ...typography.body,

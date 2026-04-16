@@ -1,6 +1,8 @@
 import React, { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
 
 interface Dispute {
@@ -43,10 +45,6 @@ const TIER_VARIANT: Record<number, 'info' | 'warning' | 'danger'> = {
   3: 'danger',
 };
 
-function formatCurrency(cents: number): string {
-  return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-}
-
 function formatType(t: string): string {
   return t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
@@ -67,10 +65,10 @@ export default function DisputesPage(): React.ReactElement {
   const [actionError, setActionError] = useState('');
   const [actionType, setActionType] = useState<'resolve' | 'escalate' | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['adminDisputes', page, statusFilter, tierFilter, search],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize: 20 };
+      const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (statusFilter) params.status = statusFilter;
       if (tierFilter) params.tier = tierFilter;
       if (search) params.search = search;
@@ -171,7 +169,7 @@ export default function DisputesPage(): React.ReactElement {
       header: 'Filed',
       render: (r) => (
         <span className="text-[var(--color-text-secondary)]">
-          {new Date(r.createdAt).toLocaleDateString()}
+          {new Date(r.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}
         </span>
       ),
     },
@@ -247,6 +245,8 @@ export default function DisputesPage(): React.ReactElement {
           <option value="3">Tier 3</option>
         </select>
       </div>
+
+      {isError && <p className="text-sm text-red-500 mb-4">Failed to load disputes. Please try again.</p>}
 
       <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No disputes found." />
 

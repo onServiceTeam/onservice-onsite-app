@@ -145,6 +145,48 @@ async function expireStaleQuotes(): Promise<number> {
   return expired.rows.length;
 }
 
+interface ExpiredUnmatchedRow {
+  id: string;
+  customer_id: string;
+}
+
+async function expireUnmatchedBookings(): Promise<number> {
+  const expiryHours = platformConfig.unmatchedBookingExpiryHours ?? 72;
+
+  const expired = await db.query<ExpiredUnmatchedRow>(
+    `UPDATE bookings
+     SET status = 'cancelled_by_admin', updated_at = NOW()
+     WHERE status = 'requested'
+       AND provider_id IS NULL
+       AND created_at < NOW() - INTERVAL '1 hour' * $1
+     RETURNING id, customer_id`,
+    [expiryHours],
+  );
+
+  for (const booking of expired.rows) {
+    try {
+      await notificationService.createNotification({
+        userId: booking.customer_id,
+        type: 'booking_expired',
+        title: 'Booking Expired',
+        body: 'We were unable to find a provider for your booking. It has been cancelled. Please try booking again.',
+        data: { bookingId: booking.id },
+      });
+    } catch (err) {
+      logger.error('Failed to notify unmatched booking expiry', {
+        bookingId: booking.id,
+        error: err instanceof Error ? err.message : 'Unknown',
+      });
+    }
+  }
+
+  if (expired.rows.length > 0) {
+    logger.info('Expired unmatched bookings', { count: expired.rows.length });
+  }
+
+  return expired.rows.length;
+}
+
 async function checkNbiExpiry(): Promise<number> {
   const expiringProviders = await db.query<ExpiringNbiRow>(
     `SELECT p.user_id, p.business_name, p.nbi_expiry_date,
@@ -358,6 +400,9 @@ const schedulerWorker = new Worker(
       case 'expire-quotes':
         results.expired = await expireStaleQuotes();
         break;
+      case 'expire-unmatched':
+        results.expiredUnmatched = await expireUnmatchedBookings();
+        break;
       case 'nbi-check':
         results.notified = await checkNbiExpiry();
         break;
@@ -412,6 +457,7 @@ const schedulerWorker = new Worker(
       case 'all': {
         results.confirmed = await autoConfirmBookings();
         results.expired = await expireStaleQuotes();
+        results.expiredUnmatched = await expireUnmatchedBookings();
         results.flagged = await detectNoShows();
         results.disputesEscalated = await disputeService.autoEscalateStaleDisputes();
         break;

@@ -1,7 +1,20 @@
 import dotenv from 'dotenv';
 dotenv.config({ path: '../../.env' });
 
+import * as Sentry from '@sentry/node';
+
+// Initialize Sentry before any other imports
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1.0,
+    release: `onservice-api@${process.env.npm_package_version || '0.1.0'}`,
+  });
+}
+
 import express from 'express';
+import { createServer } from 'node:http';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -10,6 +23,9 @@ import { errorMiddleware } from './middleware/error.middleware';
 import { rateLimitMiddleware } from './middleware/rate-limit.middleware';
 import { logger } from './utils/logger';
 import { platformConfig } from './config/platform.config';
+import { initSocketServer } from './services/socket.service';
+import { initScheduledJobs } from './jobs/workers';
+import { collectMetrics, toPrometheusFormat } from './services/metrics.service';
 
 import authRoutes from './routes/auth.routes';
 import bookingRoutes from './routes/booking.routes';
@@ -36,6 +52,10 @@ import tipRoutes from './routes/tip.routes';
 import securityRoutes from './routes/security.routes';
 import accountRoutes from './routes/account.routes';
 import promotionRoutes from './routes/promotion.routes';
+import supportTicketRoutes from './routes/support-ticket.routes';
+import staffRoutes from './routes/staff.routes';
+import { db } from './models/db';
+import { redis } from './config/redis.config';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -76,6 +96,35 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// --- Deep Health Check (checks DB + Redis) ---
+app.get('/health/ready', async (_req, res) => {
+  const checks: Record<string, 'ok' | 'error'> = {};
+  let allOk = true;
+
+  try {
+    await db.query('SELECT 1');
+    checks.postgres = 'ok';
+  } catch {
+    checks.postgres = 'error';
+    allOk = false;
+  }
+
+  try {
+    await redis.ping();
+    checks.redis = 'ok';
+  } catch {
+    checks.redis = 'error';
+    allOk = false;
+  }
+
+  res.status(allOk ? 200 : 503).json({
+    status: allOk ? 'ready' : 'degraded',
+    timestamp: new Date().toISOString(),
+    version: platformConfig.appVersion,
+    checks,
+  });
+});
+
 // --- Webhooks (must be before JSON parsing but we need raw body) ---
 app.use('/api/v1/webhooks', webhookRoutes);
 
@@ -104,14 +153,45 @@ app.use('/api/v1/tips', tipRoutes);
 app.use('/api/v1/security', securityRoutes);
 app.use('/api/v1/account', accountRoutes);
 app.use('/api/v1/promotions', promotionRoutes);
+app.use('/api/v1/support-tickets', supportTicketRoutes);
+app.use('/api/v1/staff', staffRoutes);
+
+// --- Prometheus Metrics Endpoint (before error handlers so it always responds) ---
+app.get('/metrics', async (_req, res) => {
+  try {
+    const metrics = await collectMetrics();
+    res.set('Content-Type', 'text/plain; version=0.0.4');
+    res.send(toPrometheusFormat(metrics));
+  } catch {
+    res.status(500).send('# Error collecting metrics\n');
+  }
+});
+
+// --- Sentry Error Handler (must be before custom error handler) ---
+if (process.env.SENTRY_DSN) {
+  Sentry.setupExpressErrorHandler(app);
+}
 
 // --- Global Error Handler (must be last) ---
 app.use(errorMiddleware);
 
+// --- Create HTTP Server (required for Socket.io) ---
+const httpServer = createServer(app);
+
+// --- Initialize Socket.io ---
+initSocketServer(httpServer);
+logger.info('Socket.io server initialized');
+
 // --- Start Server ---
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   logger.info(`onService API server running on port ${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  // Initialize background jobs after server is listening
+  initScheduledJobs()
+    .then(() => logger.info('Scheduled jobs initialized'))
+    .catch((err: unknown) => logger.error('Failed to initialize scheduled jobs', { error: err }));
 });
 
+export { httpServer };
 export default app;

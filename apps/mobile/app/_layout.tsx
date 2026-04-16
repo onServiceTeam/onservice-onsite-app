@@ -4,9 +4,21 @@ import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
+import * as Sentry from '@sentry/react-native';
+import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePushNotifications } from '@/services/push.service';
 import { OfflineBanner } from '@/components/ui';
+
+const sentryDsn = Constants.expoConfig?.extra?.sentryDsn as string | undefined;
+if (sentryDsn) {
+  Sentry.init({
+    dsn: sentryDsn,
+    environment: __DEV__ ? 'development' : 'production',
+    tracesSampleRate: __DEV__ ? 1.0 : 0.2,
+    enableAutoSessionTracking: true,
+  });
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,7 +44,7 @@ function PushNotificationGate(): null {
   return null;
 }
 
-export default function RootLayout(): React.ReactElement {
+function RootLayout(): React.ReactElement {
   const hydrate = useAuthStore((s) => s.hydrate);
 
   useEffect(() => {
@@ -63,3 +75,5 @@ export default function RootLayout(): React.ReactElement {
 const styles = StyleSheet.create({
   root: { flex: 1 },
 });
+
+export default sentryDsn ? Sentry.wrap(RootLayout) : RootLayout;

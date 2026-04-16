@@ -6,6 +6,8 @@ import {
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { platformConfig } from '@/config/platform.config';
+import { formatPHP } from '@/utils/currency';
 import api from '@/services/api';
 
 interface PayoutPrefs {
@@ -73,8 +75,8 @@ export default function PayoutSettingsScreen(): React.ReactElement {
 
   const handleSave = useCallback(() => {
     const thresholdCentavos = Math.round(Number(threshold) * 100);
-    if (isNaN(thresholdCentavos) || thresholdCentavos < 10000) {
-      Alert.alert('Invalid Threshold', 'Minimum payout threshold is ₱100.00');
+    if (isNaN(thresholdCentavos) || thresholdCentavos < platformConfig.minimumPayoutThreshold) {
+      Alert.alert('Invalid Threshold', `Minimum payout threshold is ${formatPHP(platformConfig.minimumPayoutThreshold)}`);
       return;
     }
     if (frequency !== 'manual' && !account.trim()) {
@@ -175,7 +177,7 @@ export default function PayoutSettingsScreen(): React.ReactElement {
           Auto-payouts trigger only when your balance exceeds this amount
         </Text>
         <View style={styles.thresholdRow}>
-          <Text style={styles.currencySymbol}>₱</Text>
+          <Text style={styles.currencySymbol}>{platformConfig.currencySymbol}</Text>
           <TextInput
             style={styles.thresholdInput}
             value={threshold}
@@ -212,7 +214,7 @@ const styles = StyleSheet.create({
   retryText: { ...typography.body, color: colors.primary, fontWeight: '600' },
 
   header: { paddingHorizontal: spacing.base, paddingTop: spacing.xxl, paddingBottom: spacing.base },
-  backBtn: { marginBottom: spacing.sm },
+  backBtn: { padding: spacing.xs, marginBottom: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { ...typography.body, color: colors.primary },
   title: { ...typography.h2, color: colors.text },
 

@@ -87,7 +87,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.infoCard}
-          onPress={() => router.push('/customer/safety' as never)}
+          onPress={() => router.push('/customer/safety')}
           activeOpacity={0.7}
         >
           <Text style={styles.infoIcon}>🛡️</Text>
@@ -125,7 +125,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
           title="View Booking"
           onPress={() => {
             if (bookingId) {
-              router.replace(`/customer/booking/${bookingId}` as never);
+              router.replace(`/customer/booking/${bookingId}`);
             } else {
               router.replace('/(tabs)/bookings');
             }

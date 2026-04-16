@@ -7,11 +7,8 @@ import {
   getChangeOrders, respondToChangeOrder, payChangeOrder,
   type ChangeOrder, type ChangeOrderResponse,
 } from '@/services/booking.service';
+import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-
-function formatCurrency(centavos: number): string {
-  return `₱${(centavos / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-}
 
 const PAYMENT_METHOD = { id: 'wallet', label: 'Wallet Balance', icon: '👛' } as const;
 
@@ -20,7 +17,7 @@ export default function ChangeOrderScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [pendingPayment, setPendingPayment] = useState<ChangeOrderResponse | null>(null);
-  const { data: orders, isLoading } = useQuery({
+  const { data: orders, isLoading, isError, refetch } = useQuery({
     queryKey: ['changeOrders', bookingId],
     queryFn: () => getChangeOrders(bookingId ?? ''),
     enabled: !!bookingId,
@@ -38,8 +35,8 @@ export default function ChangeOrderScreen(): React.ReactElement {
       }
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not process change order.');
+      const message = err instanceof Error ? err.message : 'Could not process change order.';
+      Alert.alert('Error', message);
     },
   });
 
@@ -51,14 +48,14 @@ export default function ChangeOrderScreen(): React.ReactElement {
       Alert.alert('Payment Complete', 'Additional payment processed. The provider has been notified to proceed.');
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Payment Failed', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not process additional payment.');
+      const message = err instanceof Error ? err.message : 'Could not process additional payment.';
+      Alert.alert('Payment Failed', message);
     },
   });
 
   const handleRespond = (order: ChangeOrder, approved: boolean): void => {
     const msg = approved
-      ? `Approve additional charge of ${formatCurrency(order.additionalAmount)}? You will be prompted to pay the additional amount.`
+      ? `Approve additional charge of ${formatPHP(order.additionalAmount)}? You will be prompted to pay the additional amount.`
       : 'Decline this change order? The provider will proceed with the original scope.';
     Alert.alert(approved ? 'Approve Change Order' : 'Decline Change Order', msg, [
       { text: 'Cancel', style: 'cancel' },
@@ -87,18 +84,18 @@ export default function ChangeOrderScreen(): React.ReactElement {
             <View style={styles.paymentBreakdown}>
               <View style={styles.paymentRow}>
                 <Text style={styles.paymentLabel}>Additional Work</Text>
-                <Text style={styles.paymentValue}>{formatCurrency(pendingPayment.additionalAmount ?? 0)}</Text>
+                <Text style={styles.paymentValue}>{formatPHP(pendingPayment.additionalAmount ?? 0)}</Text>
               </View>
               {pendingPayment.additionalServiceFee != null && (
                 <View style={styles.paymentRow}>
                   <Text style={styles.paymentLabel}>Service Fee</Text>
-                  <Text style={styles.paymentValue}>{formatCurrency(pendingPayment.additionalServiceFee)}</Text>
+                  <Text style={styles.paymentValue}>{formatPHP(pendingPayment.additionalServiceFee)}</Text>
                 </View>
               )}
               {pendingPayment.additionalTotal != null ? (
                 <View style={[styles.paymentRow, styles.paymentTotalRow]}>
                   <Text style={styles.paymentTotalLabel}>Total</Text>
-                  <Text style={styles.paymentTotalValue}>{formatCurrency(pendingPayment.additionalTotal)}</Text>
+                  <Text style={styles.paymentTotalValue}>{formatPHP(pendingPayment.additionalTotal)}</Text>
                 </View>
               ) : (
                 <View style={[styles.paymentRow, styles.paymentTotalRow]}>
@@ -129,7 +126,7 @@ export default function ChangeOrderScreen(): React.ReactElement {
                 <TouchableOpacity style={styles.payNowBtn} onPress={() => payMutation.mutate()}>
                   <Text style={styles.payNowText}>
                     {pendingPayment.additionalTotal != null
-                      ? `Pay ${formatCurrency(pendingPayment.additionalTotal)}`
+                      ? `Pay ${formatPHP(pendingPayment.additionalTotal)}`
                       : 'Pay from Wallet'}
                   </Text>
                 </TouchableOpacity>
@@ -143,6 +140,14 @@ export default function ChangeOrderScreen(): React.ReactElement {
       ) : isLoading ? (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : isError ? (
+        <View style={styles.centerBox}>
+          <Text style={styles.emptyTitle}>Failed to load</Text>
+          <Text style={[styles.emptyDesc, { marginBottom: spacing.base }]}>Something went wrong. Please try again.</Text>
+          <TouchableOpacity style={styles.approveBtn} onPress={() => void refetch()}>
+            <Text style={styles.approveText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
@@ -173,7 +178,7 @@ export default function ChangeOrderScreen(): React.ReactElement {
                       {order.status === 'paid' ? 'Paid' : order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                     </Text>
                   </View>
-                  <Text style={styles.orderAmount}>{formatCurrency(order.additionalAmount)}</Text>
+                  <Text style={styles.orderAmount}>{formatPHP(order.additionalAmount)}</Text>
                 </View>
 
                 <Text style={styles.orderDesc}>{order.description}</Text>
@@ -189,7 +194,7 @@ export default function ChangeOrderScreen(): React.ReactElement {
                 )}
 
                 <Text style={styles.dateText}>
-                  Submitted {new Date(order.createdAt).toLocaleDateString()}
+                  Submitted {new Date(order.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })}
                 </Text>
 
                 {order.status === 'pending' && (
@@ -239,7 +244,7 @@ export default function ChangeOrderScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   placeholder: { width: 30 },

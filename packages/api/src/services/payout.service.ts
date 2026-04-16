@@ -3,6 +3,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 import * as walletService from './wallet.service';
+import { formatPHP } from '../utils/currency';
 
 interface PayoutRow {
   id: string;
@@ -37,7 +38,7 @@ export async function requestPayout(
 ): Promise<PayoutRow> {
   if (data.amount < platformConfig.minimumWithdrawalAmount) {
     throw createAppError(
-      `Minimum withdrawal is ${platformConfig.currencySymbol}${(platformConfig.minimumWithdrawalAmount / 100).toFixed(2)}.`,
+      `Minimum withdrawal is ${formatPHP(platformConfig.minimumWithdrawalAmount)}.`,
       400,
     );
   }
@@ -112,13 +113,12 @@ export async function approvePayout(payoutId: string, adminId: string): Promise<
     [result.rows[0]!.provider_id],
   );
   if (prov.rows[0]) {
-    const amt = (Number(result.rows[0]!.amount) / 100).toFixed(2);
     await db.query(
       `INSERT INTO notifications (user_id, type, title, body, data)
        VALUES ($1, 'payout', 'Payout Approved', $2, $3)`,
       [
         prov.rows[0].user_id,
-        `Your payout of ₱${amt} has been approved and is being processed.`,
+        `Your payout of ${formatPHP(Number(result.rows[0]!.amount))} has been approved and is being processed.`,
         JSON.stringify({ payoutId, amount: Number(result.rows[0]!.amount) }),
       ],
     );
@@ -191,13 +191,12 @@ export async function completePayout(payoutId: string, paymongoTransferId?: stri
       [p.provider_id],
     );
     if (prov.rows[0]) {
-      const amt = (Number(p.amount) / 100).toFixed(2);
       await client.query(
         `INSERT INTO notifications (user_id, type, title, body, data)
          VALUES ($1, 'payout', 'Payout Sent', $2, $3)`,
         [
           prov.rows[0].user_id,
-          `Your payout of ₱${amt} has been sent to your ${p.method} account.`,
+          `Your payout of ${formatPHP(Number(p.amount))} has been sent to your ${p.method} account.`,
           JSON.stringify({ payoutId, amount: Number(p.amount), method: p.method }),
         ],
       );

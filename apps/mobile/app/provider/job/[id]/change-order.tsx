@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { createChangeOrder } from '@/services/booking.service';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { platformConfig } from '@/config/platform.config';
+import { formatPHP } from '@/utils/currency';
 
 export default function ChangeOrderFormScreen(): React.ReactElement {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
@@ -35,7 +37,7 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
   });
 
   const amountCentavos = Math.round((Number(amount) || 0) * 100);
-  const isValid = description.length >= 10 && amountCentavos >= 100;
+  const isValid = description.length >= 10 && amountCentavos >= platformConfig.minimumChangeOrderAmount;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -76,7 +78,7 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Additional Amount *</Text>
           <View style={styles.amountField}>
-            <Text style={styles.prefix}>₱</Text>
+            <Text style={styles.prefix}>{platformConfig.currencySymbol}</Text>
             <TextInput
               style={styles.amountInput}
               keyboardType="numeric"
@@ -87,7 +89,7 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
             />
           </View>
           {amountCentavos > 0 && amountCentavos < 100 && (
-            <Text style={styles.minWarn}>Minimum amount: ₱1.00</Text>
+            <Text style={styles.minWarn}>Minimum amount: {formatPHP(100)}</Text>
           )}
         </View>
 
@@ -150,7 +152,7 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   placeholder: { width: 30 },

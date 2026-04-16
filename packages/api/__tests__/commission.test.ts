@@ -2,43 +2,43 @@ import { calculateCommission, calculateCancellationRefund } from '../src/service
 
 describe('Commission Calculation Engine', () => {
   describe('calculateCommission', () => {
-    it('should apply 20% commission for new providers', () => {
+    it('should apply 15% commission for new providers', () => {
       const result = calculateCommission(100000, 'new');
-      expect(result.commissionRate).toBe(0.20);
-      expect(result.commissionAmount).toBe(20000);
-      expect(result.providerReceives).toBe(80000);
-    });
-
-    it('should apply 18% commission for verified providers', () => {
-      const result = calculateCommission(100000, 'verified');
-      expect(result.commissionRate).toBe(0.18);
-      expect(result.commissionAmount).toBe(18000);
-      expect(result.providerReceives).toBe(82000);
-    });
-
-    it('should apply 15% commission for pro providers', () => {
-      const result = calculateCommission(100000, 'pro');
       expect(result.commissionRate).toBe(0.15);
       expect(result.commissionAmount).toBe(15000);
       expect(result.providerReceives).toBe(85000);
     });
 
-    it('should apply 12% commission for elite providers', () => {
+    it('should apply 13% commission for verified providers', () => {
+      const result = calculateCommission(100000, 'verified');
+      expect(result.commissionRate).toBe(0.13);
+      expect(result.commissionAmount).toBe(13000);
+      expect(result.providerReceives).toBe(87000);
+    });
+
+    it('should apply 11% commission for pro providers', () => {
+      const result = calculateCommission(100000, 'pro');
+      expect(result.commissionRate).toBe(0.11);
+      expect(result.commissionAmount).toBe(11000);
+      expect(result.providerReceives).toBe(89000);
+    });
+
+    it('should apply 9% commission for elite providers', () => {
       const result = calculateCommission(100000, 'elite');
-      expect(result.commissionRate).toBe(0.12);
-      expect(result.commissionAmount).toBe(12000);
-      expect(result.providerReceives).toBe(88000);
+      expect(result.commissionRate).toBe(0.09);
+      expect(result.commissionAmount).toBe(9000);
+      expect(result.providerReceives).toBe(91000);
     });
 
     it('should default to new tier for unknown tiers', () => {
       const result = calculateCommission(100000, 'unknown_tier');
-      expect(result.commissionRate).toBe(0.20);
+      expect(result.commissionRate).toBe(0.15);
     });
 
-    it('should calculate 5% service fee', () => {
+    it('should calculate 10% service fee', () => {
       const result = calculateCommission(100000, 'new');
-      expect(result.serviceFeeRate).toBe(0.05);
-      expect(result.serviceFeeAmount).toBe(5000);
+      expect(result.serviceFeeRate).toBe(0.10);
+      expect(result.serviceFeeAmount).toBe(10000);
     });
 
     it('should enforce minimum service fee of ₱25.00 (2500 centavos)', () => {
@@ -66,8 +66,8 @@ describe('Commission Calculation Engine', () => {
 
     it('should handle small amounts correctly', () => {
       const result = calculateCommission(10000, 'elite');
-      expect(result.commissionAmount).toBe(1200);
-      expect(result.providerReceives).toBe(8800);
+      expect(result.commissionAmount).toBe(900);
+      expect(result.providerReceives).toBe(9100);
       expect(result.servicePrice).toBe(10000);
     });
   });

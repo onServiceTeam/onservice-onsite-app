@@ -52,7 +52,7 @@ function CustomerCard({ customer }: { customer: SukiCustomer }): React.ReactElem
         {customer.lastBookingAt && (
           <View style={styles.stat}>
             <Text style={styles.statValue}>
-              {new Date(customer.lastBookingAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
+              {new Date(customer.lastBookingAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })}
             </Text>
             <Text style={styles.statLabel}>Last Booking</Text>
           </View>
@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   headerPlaceholder: { width: 30 },

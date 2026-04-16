@@ -83,7 +83,7 @@ export default function WalletScreen(): React.ReactElement {
           <>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <Text style={styles.balanceAmount}>
-              {wallet ? formatPHP(wallet.availableBalance) : '₱0.00'}
+              {wallet ? formatPHP(wallet.availableBalance) : formatPHP(0)}
             </Text>
             {wallet && wallet.pendingBalance > 0 && (
               <Text style={styles.pendingText}>

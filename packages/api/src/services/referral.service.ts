@@ -2,6 +2,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as walletService from './wallet.service';
+import { formatPHP } from '../utils/currency';
 
 interface ReferralCodeRow {
   id: string;
@@ -134,7 +135,7 @@ export async function redeemReferralCode(
        VALUES ($1, 'referral', 'Welcome Bonus!', $2, $3)`,
       [
         refereeId,
-        `You received ₱${(Number(rc.referee_bonus) / 100).toFixed(2)} as a signup bonus from a referral!`,
+        `You received ${formatPHP(Number(rc.referee_bonus))} as a signup bonus from a referral!`,
         JSON.stringify({ referralCodeId: rc.id, bonus: Number(rc.referee_bonus) }),
       ],
     );
@@ -175,7 +176,7 @@ export async function creditReferrerAfterBooking(bookingId: string, customerId: 
        VALUES ($1, 'referral', 'Referral Bonus!', $2, $3)`,
       [
         rd.referrer_id,
-        `You earned ₱${(Number(rd.referrer_bonus) / 100).toFixed(2)} because your friend completed their first booking!`,
+        `You earned ${formatPHP(Number(rd.referrer_bonus))} because your friend completed their first booking!`,
         JSON.stringify({ bookingId, bonus: Number(rd.referrer_bonus) }),
       ],
     );

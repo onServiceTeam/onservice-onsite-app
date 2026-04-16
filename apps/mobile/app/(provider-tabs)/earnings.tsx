@@ -85,7 +85,7 @@ export default function EarningsScreen(): React.ReactElement {
           <>
             <Text style={styles.earningsLabel}>Available Balance</Text>
             <Text style={styles.earningsAmount}>
-              {wallet ? formatPHP(wallet.availableBalance) : '₱0.00'}
+              {wallet ? formatPHP(wallet.availableBalance) : formatPHP(0)}
             </Text>
             {wallet && wallet.pendingBalance > 0 && (
               <Text style={styles.pendingText}>
@@ -95,13 +95,13 @@ export default function EarningsScreen(): React.ReactElement {
             <View style={styles.earningsActions}>
               <TouchableOpacity
                 style={styles.withdrawButton}
-                onPress={() => router.push('/provider/withdraw' as never)}
+                onPress={() => router.push('/provider/withdraw')}
               >
                 <Text style={styles.withdrawText}>Withdraw Funds</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.withdrawButton, { marginTop: spacing.sm }]}
-                onPress={() => router.push('/provider/payouts' as never)}
+                onPress={() => router.push('/provider/payouts')}
               >
                 <Text style={styles.withdrawText}>Payout History</Text>
               </TouchableOpacity>
@@ -119,7 +119,7 @@ export default function EarningsScreen(): React.ReactElement {
         <View style={styles.infoCard}>
           <Text style={styles.infoIcon}>📊</Text>
           <Text style={styles.infoLabel}>Commission</Text>
-          <Text style={styles.infoValue}>12-20%</Text>
+          <Text style={styles.infoValue}>{`${Math.round((platformConfig.commissionRates.elite ?? 0.09) * 100)}-${Math.round((platformConfig.commissionRates.new ?? 0.15) * 100)}%`}</Text>
         </View>
       </View>
 

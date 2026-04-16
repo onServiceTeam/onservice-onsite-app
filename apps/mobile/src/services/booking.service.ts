@@ -54,6 +54,7 @@ export interface CreateBookingPayload {
   scheduledAt: string;
   rebookedFromId?: string;
   waitlistId?: string;
+  addons?: Array<{ id: string; name: string; price: number }>;
 }
 
 export async function createBooking(data: CreateBookingPayload): Promise<Booking> {

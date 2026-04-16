@@ -42,7 +42,7 @@ export default function RecurringListScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['recurring-bookings'],
     queryFn: async () => {
       const res = await api.get<{
@@ -61,7 +61,7 @@ export default function RecurringListScreen(): React.ReactElement {
     return (
       <TouchableOpacity
         style={styles.card}
-        onPress={() => router.push(`/customer/recurring/${item.id}` as never)}
+        onPress={() => router.push(`/customer/recurring/${item.id}`)}
         activeOpacity={0.7}
       >
         <View style={styles.cardHeader}>
@@ -85,7 +85,7 @@ export default function RecurringListScreen(): React.ReactElement {
           {item.nextScheduledDate && (
             <Text style={styles.nextDate}>
               Next: {new Date(item.nextScheduledDate).toLocaleDateString('en-PH', {
-                weekday: 'short', month: 'short', day: 'numeric',
+                weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Manila',
               })}
             </Text>
           )}
@@ -114,7 +114,18 @@ export default function RecurringListScreen(): React.ReactElement {
         </View>
       )}
 
-      {!isLoading && items.length === 0 && (
+      {!isLoading && isError && (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load recurring bookings. Please try again.</Text>
+          <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
+            <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {!isLoading && !isError && items.length === 0 && (
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>🔄</Text>
           <Text style={styles.emptyTitle}>No recurring bookings</Text>
@@ -148,7 +159,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backBtn: { padding: spacing.sm, marginRight: spacing.sm },
+  backBtn: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
 

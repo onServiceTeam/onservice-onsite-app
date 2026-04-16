@@ -45,7 +45,14 @@ export function authMiddleware(
   }
 
   try {
-    const payload = jwt.verify(token, jwtSecret) as AuthPayload;
+    const payload = jwt.verify(token, jwtSecret) as AuthPayload & { type?: string };
+
+    // Reject pre-auth (2FA pending) and refresh tokens from being used as access tokens
+    if (payload.type === 'pre_auth_2fa' || payload.type === 'refresh') {
+      next(createAppError('Invalid authentication token.', 401));
+      return;
+    }
+
     req.user = payload;
     next();
   } catch {

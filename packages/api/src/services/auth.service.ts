@@ -71,7 +71,8 @@ function signAccessToken(userId: string, role: string): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET is not configured');
 
-  const duration = process.env.JWT_ACCESS_EXPIRES_IN || platformConfig.jwtExpiresIn;
+  const roleExpiry = platformConfig.jwtExpiresInByRole[role] ?? platformConfig.jwtExpiresIn;
+  const duration = process.env.JWT_ACCESS_EXPIRES_IN || roleExpiry;
   return jwt.sign({ userId, role }, secret, { algorithm: 'HS256', expiresIn: parseDurationToSeconds(duration) });
 }
 

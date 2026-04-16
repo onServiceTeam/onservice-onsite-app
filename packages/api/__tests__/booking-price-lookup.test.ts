@@ -6,7 +6,7 @@ describe('Booking Price Lookup', () => {
     const result = calculateCommission(servicePrice, 'new');
 
     expect(result.servicePrice).toBe(servicePrice);
-    expect(result.commissionAmount).toBe(Math.round(servicePrice * 0.20));
+    expect(result.commissionAmount).toBe(Math.round(servicePrice * 0.15));
     expect(result.providerReceives).toBe(servicePrice - result.commissionAmount);
   });
 
@@ -20,8 +20,8 @@ describe('Booking Price Lookup', () => {
     const servicePrice = 100000;
     const result = calculateCommission(servicePrice, 'verified');
 
-    expect(result.serviceFeeAmount).toBe(5000);
-    expect(result.serviceFeeRate).toBe(0.05);
+    expect(result.serviceFeeAmount).toBe(10000);
+    expect(result.serviceFeeRate).toBe(0.10);
   });
 
   it('should enforce minimum service fee of 2500 centavos', () => {
@@ -52,6 +52,6 @@ describe('Booking Price Lookup', () => {
     const result = calculateCommission(100000, 'elite');
     expect(result.providerReceives).toBeLessThanOrEqual(result.servicePrice);
     expect(result.providerReceives).toBeGreaterThan(0);
-    expect(result.providerReceives).toBe(100000 - Math.round(100000 * 0.12));
+    expect(result.providerReceives).toBe(100000 - Math.round(100000 * 0.09));
   });
 });

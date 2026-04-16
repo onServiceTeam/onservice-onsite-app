@@ -4,20 +4,29 @@ import { useRouter } from 'expo-router';
 import api from './api';
 import { storage } from './api';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+interface NotificationBehavior {
+  shouldShowAlert: boolean;
+  shouldPlaySound: boolean;
+  shouldSetBadge: boolean;
+}
+interface NotificationPayload {
+  request: { content: { title?: string; body?: string; data?: Record<string, unknown> } };
+}
+interface NotificationResponse {
+  notification: NotificationPayload;
+}
 interface PushNotificationsModule {
-  setNotificationHandler: (handler: { handleNotification: () => Promise<any> }) => void;
-  setNotificationChannelAsync: (id: string, config: any) => Promise<any>;
+  setNotificationHandler: (handler: { handleNotification: () => Promise<NotificationBehavior> }) => void;
+  setNotificationChannelAsync: (id: string, config: { name: string; importance: number }) => Promise<unknown>;
   AndroidImportance: { MAX: number };
   getPermissionsAsync: () => Promise<{ status: string }>;
   requestPermissionsAsync: () => Promise<{ status: string }>;
   getExpoPushTokenAsync: (config?: { projectId?: string }) => Promise<{ data: string }>;
-  addNotificationReceivedListener: (cb: (n: any) => void) => { remove: () => void };
-  addNotificationResponseReceivedListener: (cb: (r: any) => void) => { remove: () => void };
+  addNotificationReceivedListener: (cb: (n: NotificationPayload) => void) => { remove: () => void };
+  addNotificationResponseReceivedListener: (cb: (r: NotificationResponse) => void) => { remove: () => void };
 }
 interface DeviceModule { isDevice: boolean }
 interface ConstantsModule { expoConfig?: { extra?: { eas?: { projectId?: string } } } }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 let Notifications: PushNotificationsModule | null = null;
 let Device: DeviceModule | null = null;
@@ -53,7 +62,6 @@ async function getExpoPushToken(): Promise<string | null> {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'Default',
       importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
     });
   }
 
@@ -188,8 +196,9 @@ export function usePushNotifications(): { isRegistered: boolean; registerForPush
     });
 
     responseListenerRef.current = Notifications.addNotificationResponseReceivedListener(
-      (response: { notification: { request: { content: { data: NotificationData } } } }) => {
-        const data = response.notification.request.content.data;
+      (response) => {
+        const data = response.notification.request.content.data as NotificationData | undefined;
+        if (!data) return;
         const route = resolveDeepLink(data);
         if (route) {
           router.push(route as never);

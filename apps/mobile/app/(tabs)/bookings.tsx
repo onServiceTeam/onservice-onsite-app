@@ -96,7 +96,7 @@ export default function BookingsScreen(): React.ReactElement {
   const renderItem = ({ item }: { item: Booking }): React.ReactElement => (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => router.push(`/customer/booking/${item.id}` as never)}
+      onPress={() => router.push(`/customer/booking/${item.id}`)}
       activeOpacity={0.7}
     >
       <View style={styles.cardTop}>
@@ -121,7 +121,7 @@ export default function BookingsScreen(): React.ReactElement {
         <Text style={styles.title}>Bookings</Text>
         <TouchableOpacity
           style={styles.recurringLink}
-          onPress={() => router.push('/customer/recurring' as never)}
+          onPress={() => router.push('/customer/recurring')}
         >
           <Text style={styles.recurringLinkText}>🔄 Recurring</Text>
         </TouchableOpacity>
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.base },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
   title: { ...typography.h1, color: colors.text },
-  recurringLink: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
+  recurringLink: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   recurringLinkText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
 
   filterRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.base },

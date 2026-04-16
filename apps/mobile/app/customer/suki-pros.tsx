@@ -4,11 +4,9 @@ import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getMemberships, getTiers, redeemPoints, type SukiMembership, type SukiTier } from '@/services/suki.service';
+import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
-
-function formatCurrency(centavos: number): string {
-  return `₱${(centavos / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-}
+import { platformConfig } from '@/config/platform.config';
 
 const TIER_COLORS: Record<string, { bg: string; text: string; border: string; emoji: string }> = {
   new: { bg: colors.backgroundSecondary, text: colors.textSecondary, border: colors.border, emoji: '🌱' },
@@ -69,7 +67,7 @@ function MembershipCard({
           <Text style={styles.statLabel}>Bookings</Text>
         </View>
         <View style={styles.memberStat}>
-          <Text style={styles.statValue}>{formatCurrency(membership.totalSpent)}</Text>
+          <Text style={styles.statValue}>{formatPHP(membership.totalSpent)}</Text>
           <Text style={styles.statLabel}>Total Spent</Text>
         </View>
         {currentTier && currentTier.discount > 0 && (
@@ -111,8 +109,8 @@ function MembershipCard({
               style={[styles.redeemBtn, (!redeemInput || Number(redeemInput) < 100) && styles.redeemBtnDisabled]}
               onPress={() => {
                 const pts = Number(redeemInput);
-                if (pts < 100 || pts % 100 !== 0) {
-                  Alert.alert('Invalid', 'Points must be a multiple of 100.');
+                if (pts < platformConfig.sukiMinRedeemPoints || pts % platformConfig.sukiMinRedeemPoints !== 0) {
+                  Alert.alert('Invalid', `Points must be a multiple of ${platformConfig.sukiMinRedeemPoints}.`);
                 } else if (pts > membership.pointsBalance) {
                   Alert.alert('Invalid', `You only have ${membership.pointsBalance} points available.`);
                 } else {
@@ -120,18 +118,18 @@ function MembershipCard({
                   setRedeemInput('');
                 }
               }}
-              disabled={!redeemInput || Number(redeemInput) < 100}
+              disabled={!redeemInput || Number(redeemInput) < platformConfig.sukiMinRedeemPoints}
             >
               <Text style={styles.redeemBtnText}>Redeem → Wallet</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.redeemHint}>100 points = ₱1.00 wallet credit (multiples of 100)</Text>
+          <Text style={styles.redeemHint}>{platformConfig.sukiPointsPerPeso} points = {formatPHP(100)} wallet credit (multiples of {platformConfig.sukiMinRedeemPoints})</Text>
         </View>
       )}
 
       {membership.lastBookingAt && (
         <Text style={styles.lastBooking}>
-          Last booked: {new Date(membership.lastBookingAt).toLocaleDateString()}
+          Last booked: {new Date(membership.lastBookingAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })}
         </Text>
       )}
     </View>
@@ -142,12 +140,12 @@ export default function SukiProsScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { data: memberships, isLoading: membershipsLoading } = useQuery({
+  const { data: memberships, isLoading: membershipsLoading, isError, refetch } = useQuery({
     queryKey: ['sukiMemberships'],
     queryFn: getMemberships,
   });
 
-  const { data: tiers } = useQuery({
+  const { data: tiers, isError: tiersError } = useQuery({
     queryKey: ['sukiTiers'],
     queryFn: getTiers,
   });
@@ -157,11 +155,11 @@ export default function SukiProsScreen(): React.ReactElement {
       redeemPoints(membershipId, points),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['sukiMemberships'] });
-      Alert.alert('Points Redeemed', `₱${(result.amountCredited / 100).toFixed(2)} added to your wallet.\n${result.remainingPoints} points remaining.`);
+      Alert.alert('Points Redeemed', `${formatPHP(result.amountCredited)} added to your wallet.\n${result.remainingPoints} points remaining.`);
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not redeem points.');
+      const message = err instanceof Error ? err.message : 'Could not redeem points.';
+      Alert.alert('Error', message);
     },
   });
 
@@ -179,6 +177,15 @@ export default function SukiProsScreen(): React.ReactElement {
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={colors.info} />
         </View>
+      ) : isError ? (
+        <View style={styles.centerBox}>
+          <Text style={styles.emptyEmoji}>⚠️</Text>
+          <Text style={styles.emptyTitle}>Failed to load</Text>
+          <Text style={styles.emptyDesc}>Something went wrong. Please try again.</Text>
+          <TouchableOpacity onPress={() => void refetch()} style={[styles.redeemBtn, { marginTop: spacing.base, paddingHorizontal: 24 }]}>
+            <Text style={styles.redeemBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           <View style={styles.heroSection}>
@@ -188,6 +195,12 @@ export default function SukiProsScreen(): React.ReactElement {
               Build relationships with your favorite providers. The more you book, the more you earn!
             </Text>
           </View>
+
+          {tiersError && (
+            <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: 12 }}>
+              <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load loyalty tiers. Pull to refresh.</Text>
+            </View>
+          )}
 
           {tiers && tiers.length > 0 && (
             <View style={styles.tiersCard}>
@@ -244,7 +257,7 @@ export default function SukiProsScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundSecondary },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   headerPlaceholder: { width: 30 },

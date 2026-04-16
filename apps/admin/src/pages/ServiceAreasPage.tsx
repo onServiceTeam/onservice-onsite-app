@@ -1,6 +1,7 @@
 import React, { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { adminConfig } from '@/config/admin.config';
+import api, { getErrorMessage } from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
 
 interface ServiceArea {
@@ -68,8 +69,8 @@ function formatStatus(s: string): string {
 
 const EMPTY_FORM: CreateAreaForm = {
   name: '', city: '', province: '', region: '',
-  centerLat: '', centerLng: '', radiusKm: '15',
-  minProvidersToLaunch: '5', launchDate: '',
+  centerLat: '', centerLng: '', radiusKm: String(adminConfig.defaultServiceAreaRadiusKm),
+  minProvidersToLaunch: String(adminConfig.defaultMinProvidersToLaunch), launchDate: '',
 };
 
 export default function ServiceAreasPage(): React.ReactElement {
@@ -79,12 +80,13 @@ export default function ServiceAreasPage(): React.ReactElement {
   const [search, setSearch] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [form, setForm] = useState<CreateAreaForm>({ ...EMPTY_FORM });
+  const [actionError, setActionError] = useState('');
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['adminServiceAreas', page, search, statusFilter],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize: 20 };
+      const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
       const res = await api.get<PaginatedResult>('/api/v1/admin/service-areas', { params });
@@ -92,7 +94,7 @@ export default function ServiceAreasPage(): React.ReactElement {
     },
   });
 
-  const { data: statsData } = useQuery({
+  const { data: statsData, isError: isStatsError } = useQuery({
     queryKey: ['adminServiceAreaStats'],
     queryFn: async () => {
       const res = await api.get<AreaStats>('/api/v1/admin/service-areas/stats');
@@ -109,8 +111,8 @@ export default function ServiceAreasPage(): React.ReactElement {
         region: formData.region,
         centerLat: Number(formData.centerLat),
         centerLng: Number(formData.centerLng),
-        radiusKm: Number(formData.radiusKm) || 15,
-        minProvidersToLaunch: Number(formData.minProvidersToLaunch) || 5,
+        radiusKm: Number(formData.radiusKm) || adminConfig.defaultServiceAreaRadiusKm,
+        minProvidersToLaunch: Number(formData.minProvidersToLaunch) || adminConfig.defaultMinProvidersToLaunch,
         launchDate: formData.launchDate || undefined,
       });
     },
@@ -119,7 +121,9 @@ export default function ServiceAreasPage(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['adminServiceAreaStats'] });
       setShowCreateForm(false);
       setForm({ ...EMPTY_FORM });
+      setActionError('');
     },
+    onError: (e) => setActionError(getErrorMessage(e)),
   });
 
   const activateMutation = useMutation({
@@ -129,7 +133,9 @@ export default function ServiceAreasPage(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminServiceAreas'] });
       void queryClient.invalidateQueries({ queryKey: ['adminServiceAreaStats'] });
+      setActionError('');
     },
+    onError: (e) => setActionError(getErrorMessage(e)),
   });
 
   const pauseMutation = useMutation({
@@ -139,7 +145,9 @@ export default function ServiceAreasPage(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminServiceAreas'] });
       void queryClient.invalidateQueries({ queryKey: ['adminServiceAreaStats'] });
+      setActionError('');
     },
+    onError: (e) => setActionError(getErrorMessage(e)),
   });
 
   const handleSearch = (e: FormEvent): void => {
@@ -253,6 +261,7 @@ export default function ServiceAreasPage(): React.ReactElement {
         </button>
       </div>
 
+      {isStatsError && <p className="text-sm text-red-500 mb-2">Failed to load area statistics.</p>}
       {stats && (
         <div className="grid grid-cols-4 gap-4">
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
@@ -375,6 +384,9 @@ export default function ServiceAreasPage(): React.ReactElement {
           <option value="retired">Retired</option>
         </select>
       </div>
+
+      {isError && <p className="text-sm text-red-500 mb-4">Failed to load service areas. Please try again.</p>}
+      {actionError && <p className="text-sm text-red-500 mb-4">{actionError}</p>}
 
       <DataTable columns={columns} data={areas} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No service areas found." />
 

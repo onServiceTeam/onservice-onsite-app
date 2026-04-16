@@ -22,6 +22,7 @@ import { logger } from '../utils/logger';
 import * as pricingService from '../services/pricing.service';
 import * as rebookingService from '../services/rebooking.service';
 import * as slotWaitlistService from '../services/slot-waitlist.service';
+import { platformConfig } from '../config/platform.config';
 
 function getParamId(req: AuthenticatedRequest): string {
   const id = req.params.id;
@@ -32,6 +33,30 @@ function getParamId(req: AuthenticatedRequest): string {
 }
 
 interface BookingOwnerRow { customer_id: string; provider_id: string | null }
+
+interface PreTransitionRow {
+  status: string;
+  escrow_status: string;
+  latitude: string | null;
+  longitude: string | null;
+}
+
+function haversineDistanceMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const toRad = (deg: number): number => deg * (Math.PI / 180);
+  const earthRadiusMeters = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+
+  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 async function verifyBookingAccess(bookingId: string, userId: string, role: string): Promise<void> {
   if (role === 'admin' || role === 'super_admin') return;
@@ -414,12 +439,59 @@ router.patch(
       const id = getParamId(req);
       const newStatus = req.body.status as BookingStatus;
 
-      const preTransitionRow = await db.query<{ status: string; escrow_status: string }>(
-        `SELECT status, escrow_status FROM bookings WHERE id = $1`,
+      const preTransitionRow = await db.query<PreTransitionRow>(
+        `SELECT status, escrow_status, latitude, longitude FROM bookings WHERE id = $1`,
         [id],
       );
       const oldStatus = preTransitionRow.rows[0]?.status;
       const oldEscrowStatus = preTransitionRow.rows[0]?.escrow_status;
+
+      if (newStatus === 'provider_arrived') {
+        const bookingCoordinates = preTransitionRow.rows[0];
+        const providerLatitude = req.body.latitude as number | undefined;
+        const providerLongitude = req.body.longitude as number | undefined;
+
+        if (providerLatitude === undefined || providerLongitude === undefined) {
+          throw createAppError('Current provider location is required to mark arrival.', 400);
+        }
+
+        if (!bookingCoordinates?.latitude || !bookingCoordinates.longitude) {
+          throw createAppError('Booking does not have service coordinates. Arrival cannot be verified.', 409);
+        }
+
+        const distanceMeters = haversineDistanceMeters(
+          providerLatitude,
+          providerLongitude,
+          Number(bookingCoordinates.latitude),
+          Number(bookingCoordinates.longitude),
+        );
+
+        if (distanceMeters > platformConfig.providerArrivalRadiusMeters) {
+          throw createAppError(
+            `You must be within ${platformConfig.providerArrivalRadiusMeters} meters of the job location to mark arrival. Current distance: ${Math.round(distanceMeters)} meters.`,
+            409,
+          );
+        }
+      }
+
+      if (newStatus === 'completed_by_provider') {
+        // Enforce minimum time-on-site: provider must have been in_progress for at least N minutes
+        const inProgressRow = await db.query<{ updated_at: Date }>(
+          `SELECT updated_at FROM bookings WHERE id = $1 AND status = 'in_progress'`,
+          [id],
+        );
+        if (inProgressRow.rows[0]) {
+          const elapsedMs = Date.now() - new Date(inProgressRow.rows[0].updated_at).getTime();
+          const minimumMs = platformConfig.minimumTimeOnSiteMinutes * 60 * 1000;
+          if (elapsedMs < minimumMs) {
+            const remainingMin = Math.ceil((minimumMs - elapsedMs) / 60000);
+            throw createAppError(
+              `You must be on-site for at least ${platformConfig.minimumTimeOnSiteMinutes} minutes before marking the job complete. Please wait ${remainingMin} more minute(s).`,
+              409,
+            );
+          }
+        }
+      }
 
       const booking = await bookingService.transitionBookingStatus(
         id,
@@ -607,6 +679,20 @@ router.post(
       }
 
       const provider = providerResult.rows[0]!;
+
+      // --- Booking Conflict Detection (BACK-013) ---
+      const conflict = await matchingService.hasBookingConflict(
+        providerId,
+        new Date(booking.scheduled_at),
+        undefined,
+        id, // exclude this booking itself
+      );
+      if (conflict) {
+        throw createAppError(
+          'This provider already has a booking at the same time. Please choose a different provider or time.',
+          409,
+        );
+      }
 
       const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
         booking.customer_id, providerId, booking.service_price,
@@ -799,6 +885,95 @@ router.get(
       const id = getParamId(req);
       const suggestions = await rebookingService.getRebookingSuggestions(req.user!.userId, id);
       res.json({ success: true, data: suggestions });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Customer No-Show Report (FR-102 — provider reports customer didn't answer door) ---
+interface CustomerNoShowBookingRow {
+  id: string;
+  customer_id: string;
+  provider_id: string | null;
+  status: string;
+  escrow_status: string;
+  scheduled_at: string;
+}
+
+router.post(
+  '/:id/report-no-show',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = getParamId(req);
+      const userId = req.user!.userId;
+
+      // Only providers can report a no-show
+      const providerRow = await db.query<{ id: string }>(
+        `SELECT id FROM providers WHERE user_id = $1`,
+        [userId],
+      );
+      if (providerRow.rows.length === 0) {
+        throw createAppError('Only providers can report a customer no-show.', 403);
+      }
+      const providerEntityId = providerRow.rows[0]!.id;
+
+      const bkRow = await db.query<CustomerNoShowBookingRow>(
+        `SELECT id, customer_id, provider_id, status, escrow_status, scheduled_at FROM bookings WHERE id = $1`,
+        [id],
+      );
+      if (bkRow.rows.length === 0) throw createAppError('Booking not found.', 404);
+      const bk = bkRow.rows[0]!;
+
+      // Must be this provider's booking
+      if (bk.provider_id !== providerEntityId) {
+        throw createAppError('You are not assigned to this booking.', 403);
+      }
+
+      // Booking must be in provider_arrived status (provider is at the location)
+      if (bk.status !== 'provider_arrived') {
+        throw createAppError(
+          'No-show can only be reported when the booking status is "provider_arrived".',
+          409,
+        );
+      }
+
+      // Must have waited the configured minimum no-show time
+      const noShowMinutes = platformConfig.providerNoShowMinutes;
+      const scheduledMs = new Date(bk.scheduled_at).getTime();
+      const minutesSinceScheduled = (Date.now() - scheduledMs) / (1000 * 60);
+      if (minutesSinceScheduled < noShowMinutes) {
+        const minutesLeft = Math.ceil(noShowMinutes - minutesSinceScheduled);
+        throw createAppError(
+          `Please wait ${minutesLeft} more minute${minutesLeft !== 1 ? 's' : ''} before reporting a no-show. You must be on-site for at least ${noShowMinutes} minutes.`,
+          409,
+        );
+      }
+
+      // Mark booking as cancelled_by_customer (no-show is treated as customer cancellation)
+      await db.query(
+        `UPDATE bookings SET status = 'cancelled_by_customer', cancellation_reason = 'Customer no-show — provider was on-site for ${noShowMinutes}+ minutes', cancelled_at = NOW(), updated_at = NOW() WHERE id = $1`,
+        [id],
+      );
+
+      // Process escrow: 0% refund to customer, 100% compensation to provider (minus commission)
+      const hoursUntil = -1; // Already past scheduled time
+      await escrowService.handleCancellation(id, hoursUntil, true /* providerArrived */, true /* customerNoShow */);
+
+      // Notify customer
+      await notificationService.createNotification({
+        userId: bk.customer_id,
+        type: 'customer_cancelled',
+        title: 'Booking Cancelled — No-Show',
+        body: 'Your booking was cancelled because the provider was on-site but could not reach you. The service fee has been retained as per our cancellation policy.',
+        data: { bookingId: id },
+      });
+
+      logger.info('Customer no-show reported', { bookingId: id, providerId: providerEntityId });
+
+      const updated = await bookingService.getBookingByIdAdmin(id);
+      res.json({ success: true, data: formatBookingResponse(updated as BookingRow), message: 'No-show recorded. Compensation has been processed.' });
     } catch (error) {
       next(error);
     }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
 import { KpiCard, Badge } from '@/components/ui';
 
 interface RevenueRow {
@@ -27,10 +28,6 @@ interface KpiData {
     escalatedDisputes: number;
     staleDisputes: number;
   };
-}
-
-function formatCurrency(cents: number): string {
-  return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
 }
 
 function RevenueChart({ data, period }: { data: RevenueRow[]; period: string }): React.ReactElement {
@@ -89,7 +86,7 @@ export default function FinancialsPage(): React.ReactElement {
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [days, setDays] = useState(30);
 
-  const { data: kpis, isError: kpiError } = useQuery({
+  const { data: kpis, isLoading: kpiLoading, isError: kpiError } = useQuery({
     queryKey: ['adminDashboard'],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: KpiData }>('/api/v1/admin/dashboard');
@@ -128,26 +125,37 @@ export default function FinancialsPage(): React.ReactElement {
         </div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiCard
-          title="Platform Revenue"
-          value={formatCurrency(kpis?.platformWallets?.revenue ?? 0)}
-          icon="💰"
-        />
-        <KpiCard
-          title="Escrow Held"
-          value={formatCurrency(kpis?.platformWallets?.escrow ?? 0)}
-          icon="🔒"
-        />
-        <KpiCard
-          title="Guarantee Fund"
-          value={formatCurrency(kpis?.platformWallets?.guaranteeFund ?? 0)}
-          icon="🛡️"
-        />
-        <KpiCard
-          title="Today's Revenue"
-          value={formatCurrency(kpis?.todayRevenue ?? 0)}
-          icon="📈"
-        />
+        {kpiLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-2/3 mb-2" />
+              <div className="h-7 bg-gray-200 rounded w-1/2" />
+            </div>
+          ))
+        ) : (
+          <>
+            <KpiCard
+              title="Platform Revenue"
+              value={formatCurrency(kpis?.platformWallets?.revenue ?? 0)}
+              icon="💰"
+            />
+            <KpiCard
+              title="Escrow Held"
+              value={formatCurrency(kpis?.platformWallets?.escrow ?? 0)}
+              icon="🔒"
+            />
+            <KpiCard
+              title="Guarantee Fund"
+              value={formatCurrency(kpis?.platformWallets?.guaranteeFund ?? 0)}
+              icon="🛡️"
+            />
+            <KpiCard
+              title="Today's Revenue"
+              value={formatCurrency(kpis?.todayRevenue ?? 0)}
+              icon="📈"
+            />
+          </>
+        )}
       </div>
 
       {revenueError && (

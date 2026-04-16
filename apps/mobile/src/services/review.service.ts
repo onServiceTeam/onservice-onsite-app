@@ -40,6 +40,8 @@ export interface CreateReviewPayload {
   communicationRating?: number;
   valueRating?: number;
   comment?: string;
+  tags?: string[];
+  privateNote?: string;
   imageUrls?: string[];
 }
 

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { platformConfig } from '../config/platform.config';
+import { formatPHP } from '../utils/currency';
 
 export const createBookingSchema = z.object({
   categoryId: z.string().uuid('Invalid category ID'),
@@ -15,6 +17,11 @@ export const createBookingSchema = z.object({
   servicePrice: z.number().int().min(0).optional(),
   rebookedFromId: z.string().uuid('Invalid rebooking reference').optional(),
   waitlistId: z.string().uuid('Invalid waitlist ID').optional(),
+  addons: z.array(z.object({
+    id: z.string().uuid('Invalid addon ID'),
+    name: z.string().max(150),
+    price: z.number().int().min(0),
+  })).max(20).optional(),
 });
 
 export const updateBookingStatusSchema = z.object({
@@ -26,10 +33,12 @@ export const updateBookingStatusSchema = z.object({
     'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin',
   ]),
   cancellationReason: z.string().max(500).optional(),
+  latitude: z.number().min(4.5, 'Must be within Philippines').max(21.5, 'Must be within Philippines').optional(),
+  longitude: z.number().min(116, 'Must be within Philippines').max(127.5, 'Must be within Philippines').optional(),
 });
 
 export const submitQuoteSchema = z.object({
-  quotedPrice: z.number().int().min(10000, 'Minimum quote is ₱100.00'),
+  quotedPrice: z.number().int().min(platformConfig.minimumQuoteAmount, `Minimum quote is ${formatPHP(platformConfig.minimumQuoteAmount)}`),
   description: z.string().min(10).max(2000),
   estimatedDurationMinutes: z.number().int().min(15).max(1440).optional(),
   estimatedDays: z.number().int().min(1).max(365).optional(),
@@ -71,6 +80,6 @@ export const createJobRequestSchema = z.object({
 
 export const createChangeOrderSchema = z.object({
   description: z.string().min(10, 'Description must be at least 10 characters').max(2000),
-  additionalAmount: z.number().int().min(100, 'Minimum additional amount is ₱1.00'),
+  additionalAmount: z.number().int().min(platformConfig.minimumChangeOrderAmount, `Minimum additional amount is ${formatPHP(platformConfig.minimumChangeOrderAmount)}`),
   photos: z.array(z.string().url()).max(10).optional(),
 });

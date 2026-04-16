@@ -18,7 +18,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-PH', {
-    year: 'numeric', month: 'long', day: 'numeric',
+    year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Manila',
   });
 }
 
@@ -38,12 +38,14 @@ export default function AccountManagementScreen(): React.ReactElement {
     queryFn: getAccountDeletionStatus,
     staleTime: 30 * 1000,
   });
+  const { isError: deletionError } = deletionQuery;
 
   const exportQuery = useQuery({
     queryKey: ['dataExports'],
     queryFn: getDataExportStatus,
     staleTime: 30 * 1000,
   });
+  const { isError: exportError } = exportQuery;
 
   const deleteMutation = useMutation({
     mutationFn: () => requestAccountDeletion(reason.trim() || undefined),
@@ -123,6 +125,11 @@ export default function AccountManagementScreen(): React.ReactElement {
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        {(deletionError || exportError) && (
+          <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: 12 }}>
+            <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load account data. Some information may be unavailable.</Text>
+          </View>
+        )}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Your Data Rights</Text>
           <Text style={styles.sectionDesc}>
@@ -274,7 +281,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
     backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   placeholder: { width: 30 },

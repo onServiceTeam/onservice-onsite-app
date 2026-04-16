@@ -9,6 +9,8 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  RefreshControl,
+  type DimensionValue,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,7 +37,7 @@ export default function PortfolioScreen(): React.ReactElement {
   const [imageUrl, setImageUrl] = useState('');
   const [caption, setCaption] = useState('');
 
-  const { data: portfolio = [], isLoading } = useQuery({
+  const { data: portfolio = [], isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['my-portfolio'],
     queryFn: getMyPortfolio,
   });
@@ -123,6 +125,19 @@ export default function PortfolioScreen(): React.ReactElement {
     );
   }
 
+  if (isError) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
+        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load portfolio. Please try again.</Text>
+        <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
+          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -168,7 +183,9 @@ export default function PortfolioScreen(): React.ReactElement {
         </View>
       )}
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.secondary} />}
+      >
         {portfolio.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>📷</Text>
@@ -219,7 +236,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text, flex: 1 },
   addButton: {
@@ -275,7 +292,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   photoCard: {
-    width: '48%' as unknown as number,
+    width: '48%' as DimensionValue,
     backgroundColor: colors.backgroundSecondary,
     borderRadius: borderRadius.lg,
     overflow: 'hidden',
@@ -297,7 +314,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
-  photoActionBtn: { padding: spacing.xs },
+  photoActionBtn: { padding: spacing.md, minHeight: 44, minWidth: 44, justifyContent: 'center' as const },
   editText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
   removeText: { ...typography.caption, color: colors.error, fontWeight: '600' },
 });

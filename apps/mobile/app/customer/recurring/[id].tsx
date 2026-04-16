@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, RefreshControl,
+  ActivityIndicator, Alert, RefreshControl, type DimensionValue,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,7 +53,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
   const queryClient = useQueryClient();
   const [showInstances, setShowInstances] = useState(false);
 
-  const { data: recurring, isLoading, refetch, isRefetching } = useQuery({
+  const { data: recurring, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['recurring', id],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: RecurringDetail }>(`/api/v1/recurring/${id}`);
@@ -148,6 +148,18 @@ export default function RecurringDetailScreen(): React.ReactElement {
   }, [recurring, skipMutation]);
 
   if (isLoading || !recurring) {
+    if (isError) {
+      return (
+        <View style={[styles.center, { paddingTop: insets.top, padding: 24 }]}>
+          <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load recurring booking details. Please try again.</Text>
+          <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
+            <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -192,14 +204,14 @@ export default function RecurringDetailScreen(): React.ReactElement {
           <DetailRow
             label="Next Date"
             value={new Date(recurring.nextScheduledDate).toLocaleDateString('en-PH', {
-              weekday: 'long', month: 'long', day: 'numeric',
+              weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Manila',
             })}
           />
         )}
         <DetailRow
           label="Created"
           value={new Date(recurring.createdAt).toLocaleDateString('en-PH', {
-            month: 'long', day: 'numeric', year: 'numeric',
+            month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila',
           })}
         />
       </View>
@@ -245,7 +257,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
             <View key={inst.id} style={styles.instanceRow}>
               <Text style={styles.instanceDate}>
                 {new Date(inst.scheduledDate).toLocaleDateString('en-PH', {
-                  weekday: 'short', month: 'short', day: 'numeric',
+                  weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Manila',
                 })}
               </Text>
               <Text style={[
@@ -286,7 +298,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     backgroundColor: colors.background,
   },
-  backBtn: { padding: spacing.sm, marginRight: spacing.sm },
+  backBtn: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
 
@@ -327,7 +339,7 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     flex: 1,
-    minWidth: '40%' as unknown as number,
+    minWidth: '40%' as DimensionValue,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
     borderWidth: 1.5,

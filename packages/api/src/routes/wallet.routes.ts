@@ -6,6 +6,7 @@ import * as walletService from '../services/wallet.service';
 import * as paymentService from '../services/payment.service';
 import { createAppError } from '../middleware/error.middleware';
 import { platformConfig } from '../config/platform.config';
+import { formatPHP } from '../utils/currency';
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 
@@ -74,11 +75,11 @@ router.post(
       const userId = req.user!.userId;
       const { amount, paymentMethod } = req.body as { amount: number; paymentMethod: string };
 
-      if (!amount || typeof amount !== 'number' || amount < 10000) {
-        throw createAppError('Minimum top-up amount is ₱100.00.', 400);
+      if (!amount || typeof amount !== 'number' || amount < platformConfig.minimumTopUpAmount) {
+        throw createAppError(`Minimum top-up amount is ${formatPHP(platformConfig.minimumTopUpAmount)}.`, 400);
       }
-      if (amount > 5000000) {
-        throw createAppError('Maximum top-up amount is ₱50,000.00 per transaction.', 400);
+      if (amount > platformConfig.maximumTopUpAmount) {
+        throw createAppError(`Maximum top-up amount is ${formatPHP(platformConfig.maximumTopUpAmount)} per transaction.`, 400);
       }
 
       const validMethods = ['gcash', 'maya', 'card', 'qrph', 'bank_transfer'];
@@ -288,8 +289,8 @@ router.put(
       if (preferredMethod && !validMethods.includes(preferredMethod)) {
         throw createAppError('Invalid payout method.', 400);
       }
-      if (minThreshold !== undefined && (typeof minThreshold !== 'number' || minThreshold < 10000)) {
-        throw createAppError('Minimum threshold must be at least ₱100.00.', 400);
+      if (minThreshold !== undefined && (typeof minThreshold !== 'number' || minThreshold < platformConfig.minimumPayoutThreshold)) {
+        throw createAppError(`Minimum threshold must be at least ${formatPHP(platformConfig.minimumPayoutThreshold)}.`, 400);
       }
 
       const result = await db.query<PayoutPrefsRow>(

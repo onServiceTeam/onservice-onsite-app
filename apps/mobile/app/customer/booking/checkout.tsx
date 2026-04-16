@@ -30,7 +30,7 @@ const PAYMENT_METHODS: PaymentOption[] = [
 export default function CheckoutScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { draft, serviceFee, total, setPaymentMethod, reset } = useBookingStore();
+  const { draft, serviceFee, total, addonsTotal, setPaymentMethod, reset } = useBookingStore();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(draft.paymentMethod);
   const [loading, setLoading] = useState(false);
 
@@ -44,7 +44,7 @@ export default function CheckoutScreen(): React.ReactElement {
       Alert.alert('Payment Method', 'Please select a payment method.');
       return;
     }
-    if (!draft.categoryId || !draft.subcategoryId || !draft.address || !draft.scheduledDate || !draft.scheduledTime) {
+    if (!draft.categoryId || !draft.subcategoryId || !draft.address || !draft.barangay || !draft.scheduledDate || !draft.scheduledTime) {
       Alert.alert('Missing Info', 'Booking details incomplete. Please go back and fill in all fields.');
       return;
     }
@@ -63,7 +63,7 @@ export default function CheckoutScreen(): React.ReactElement {
         categoryId: draft.categoryId,
         subcategoryId: draft.subcategoryId,
         bookingType: 'fixed_price',
-        servicePrice: draft.basePrice,
+        servicePrice: draft.basePrice + addonsTotal,
         description,
         address: draft.address,
         barangay: draft.barangay || '',
@@ -72,6 +72,7 @@ export default function CheckoutScreen(): React.ReactElement {
         latitude: draft.latitude ?? undefined,
         longitude: draft.longitude ?? undefined,
         scheduledAt,
+        addons: draft.addons.length > 0 ? draft.addons.map(a => ({ id: a.id, name: a.name, price: a.price })) : undefined,
       });
 
       const intent = await createPaymentIntent(booking.id, selectedMethod);
@@ -162,7 +163,7 @@ export default function CheckoutScreen(): React.ReactElement {
         {/* Escrow info */}
         <TouchableOpacity
           style={styles.escrowBanner}
-          onPress={() => router.push('/customer/safety' as never)}
+          onPress={() => router.push('/customer/safety')}
           activeOpacity={0.7}
         >
           <Text style={styles.escrowIcon}>🛡️</Text>
@@ -177,6 +178,12 @@ export default function CheckoutScreen(): React.ReactElement {
             <Text style={styles.priceLabel}>Service Price</Text>
             <Text style={styles.priceValue}>{formatPHP(draft.basePrice)}</Text>
           </View>
+          {addonsTotal > 0 && (
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Add-ons ({draft.addons.length})</Text>
+              <Text style={styles.priceValue}>{formatPHP(addonsTotal)}</Text>
+            </View>
+          )}
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Platform Fee</Text>
             <Text style={styles.priceValue}>{formatPHP(serviceFee)}</Text>
@@ -218,7 +225,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },

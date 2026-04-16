@@ -4,7 +4,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { submitQuote } from '@/services/booking.service';
+import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
+import { platformConfig } from '@/config/platform.config';
 
 interface LineItemDraft {
   id: number;
@@ -76,7 +78,7 @@ export default function QuoteBuilderScreen(): React.ReactElement {
     },
   });
 
-  const isValid = description.length >= 10 && totalAmount >= 10000 && items.some(i => i.description && Number(i.unitPrice) > 0);
+  const isValid = description.length >= 10 && totalAmount >= platformConfig.minimumQuoteAmount && items.some(i => i.description && Number(i.unitPrice) > 0);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -117,7 +119,7 @@ export default function QuoteBuilderScreen(): React.ReactElement {
               <View style={styles.lineItemHeader}>
                 <Text style={styles.lineItemNum}>#{idx + 1}</Text>
                 {items.length > 1 && (
-                  <TouchableOpacity onPress={() => removeItem(item.id)}>
+                  <TouchableOpacity onPress={() => removeItem(item.id)} style={styles.removeItemBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <Text style={styles.removeItem}>✕</Text>
                   </TouchableOpacity>
                 )}
@@ -166,7 +168,7 @@ export default function QuoteBuilderScreen(): React.ReactElement {
                   />
                 </View>
                 <View style={styles.fieldMedium}>
-                  <Text style={styles.fieldLabel}>Unit Price (₱)</Text>
+                  <Text style={styles.fieldLabel}>Unit Price ({platformConfig.currencySymbol})</Text>
                   <TextInput
                     style={styles.smallInput}
                     keyboardType="numeric"
@@ -180,7 +182,7 @@ export default function QuoteBuilderScreen(): React.ReactElement {
 
               {Number(item.quantity) > 0 && Number(item.unitPrice) > 0 && (
                 <Text style={styles.lineTotal}>
-                  Subtotal: ₱{(Number(item.quantity) * Number(item.unitPrice)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  Subtotal: {formatPHP(Math.round(Number(item.quantity) * Number(item.unitPrice) * 100))}
                 </Text>
               )}
             </View>
@@ -220,10 +222,10 @@ export default function QuoteBuilderScreen(): React.ReactElement {
         <View style={styles.totalBox}>
           <Text style={styles.totalLabel}>Total Quote</Text>
           <Text style={styles.totalValue}>
-            ₱{(totalAmount / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+            {formatPHP(totalAmount)}
           </Text>
-          {totalAmount > 0 && totalAmount < 10000 && (
-            <Text style={styles.minWarn}>Minimum quote: ₱100.00</Text>
+          {totalAmount > 0 && totalAmount < platformConfig.minimumQuoteAmount && (
+            <Text style={styles.minWarn}>Minimum quote: {formatPHP(platformConfig.minimumQuoteAmount)}</Text>
           )}
         </View>
 
@@ -246,7 +248,7 @@ export default function QuoteBuilderScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundSecondary },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   placeholder: { width: 30 },
@@ -257,14 +259,15 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
   textArea: { backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, minHeight: 80 },
   input: { backgroundColor: colors.white, borderRadius: borderRadius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, marginBottom: spacing.sm },
-  addItemBtn: { backgroundColor: colors.primaryLight, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: 8 },
+  addItemBtn: { backgroundColor: colors.primaryLight, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 8, minHeight: 44, justifyContent: 'center' as const },
   addItemText: { fontSize: 13, fontWeight: '600', color: colors.info },
   lineItemCard: { backgroundColor: colors.white, borderRadius: borderRadius.lg, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 10 },
   lineItemHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
   lineItemNum: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  removeItemBtn: { padding: spacing.sm, minWidth: 44, minHeight: 44, alignItems: 'center' as const, justifyContent: 'center' as const },
   removeItem: { fontSize: 16, color: colors.error, fontWeight: '600' },
   typeRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
-  typeChip: { paddingVertical: spacing.xs, paddingHorizontal: 10, borderRadius: borderRadius.sm, backgroundColor: colors.backgroundSecondary },
+  typeChip: { paddingVertical: spacing.sm, paddingHorizontal: 10, borderRadius: borderRadius.sm, backgroundColor: colors.backgroundSecondary, minHeight: 36 },
   typeChipActive: { backgroundColor: colors.text },
   typeChipText: { fontSize: 11, fontWeight: '600', color: colors.textSecondary },
   typeChipTextActive: { color: colors.white },

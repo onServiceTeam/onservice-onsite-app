@@ -91,12 +91,30 @@ describe('Booking Validators', () => {
       expect(result.success).toBe(true);
     });
 
+    it('should accept provider arrival status with location coordinates', () => {
+      const result = updateBookingStatusSchema.safeParse({
+        status: 'provider_arrived',
+        latitude: 14.5547,
+        longitude: 121.0244,
+      });
+      expect(result.success).toBe(true);
+    });
+
     it('should accept cancellation with reason', () => {
       const result = updateBookingStatusSchema.safeParse({
         status: 'cancelled_by_customer',
         cancellationReason: 'Schedule conflict',
       });
       expect(result.success).toBe(true);
+    });
+
+    it('should reject status update coordinates outside the Philippines', () => {
+      const result = updateBookingStatusSchema.safeParse({
+        status: 'provider_arrived',
+        latitude: 40.7128,
+        longitude: -74.0060,
+      });
+      expect(result.success).toBe(false);
     });
 
     it('should reject invalid status', () => {

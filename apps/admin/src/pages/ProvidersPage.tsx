@@ -1,5 +1,6 @@
 import React, { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
 
@@ -62,7 +63,7 @@ export default function ProvidersPage(): React.ReactElement {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['adminProviders', page, search, statusFilter, tierFilter],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize: 20 };
+      const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
       if (tierFilter) params.tier = tierFilter;
@@ -147,7 +148,7 @@ export default function ProvidersPage(): React.ReactElement {
       header: 'Joined',
       render: (r) => (
         <span className="text-[var(--color-text-secondary)]">
-          {new Date(r.createdAt).toLocaleDateString()}
+          {new Date(r.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}
         </span>
       ),
     },

@@ -1,6 +1,8 @@
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import * as templateService from './notification-template.service';
+import { formatPHP } from '../utils/currency';
+import { emitToUser } from './socket.service';
 
 interface NotificationRow {
   id: string;
@@ -16,7 +18,7 @@ interface NotificationRow {
 interface CountRow { count: string }
 
 type NotificationType =
-  | 'booking_confirmed' | 'provider_assigned' | 'provider_en_route'
+  | 'booking_confirmed' | 'booking_expired' | 'provider_assigned' | 'provider_en_route'
   | 'provider_arrived' | 'job_completed' | 'auto_confirmed'
   | 'refund_processed' | 'dispute_update' | 'payment_released'
   | 'new_job_available' | 'job_accepted' | 'customer_cancelled'
@@ -202,7 +204,7 @@ export async function notifyProviderNewJob(
   amount: number,
   city: string,
 ): Promise<void> {
-  const amountStr = `₱${(amount / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+  const amountStr = formatPHP(amount);
   const { title, body } = await resolveTemplate(
     'new_job_available',
     { bookingId, serviceName, amount: amountStr, city },
@@ -218,6 +220,9 @@ export async function notifyProviderNewJob(
   });
 
   void deliverPushToDevice(providerUserId, title, body, { bookingId, serviceName, amount, notificationId: n.id, type: 'new_job_available' });
+
+  // Also emit real-time socket event so the in-app modal fires immediately
+  emitToUser(providerUserId, 'new:job', { bookingId, serviceName, amount, city, title, body });
 }
 
 export async function notifyCustomerProviderAssigned(

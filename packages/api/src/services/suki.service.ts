@@ -2,6 +2,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
+import { formatPHP } from '../utils/currency';
 
 interface SukiMembershipRow {
   id: string;
@@ -154,7 +155,7 @@ export async function redeemPoints(
     await client.query(
       `INSERT INTO suki_rewards (membership_id, type, points, description)
        VALUES ($1, 'redeemed', $2, $3)`,
-      [membershipId, -points, `Redeemed ${points} points for ₱${(amountCredited / 100).toFixed(2)} wallet credit`],
+      [membershipId, -points, `Redeemed ${points} points for ${formatPHP(amountCredited)} wallet credit`],
     );
 
     const wallet = await client.query<{ id: string }>(

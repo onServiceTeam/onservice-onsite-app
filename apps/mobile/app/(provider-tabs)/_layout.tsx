@@ -1,7 +1,8 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet, View } from 'react-native';
 import { colors, typography } from '@/config/theme';
+import NewJobModal from '@/components/provider/NewJobModal';
 
 function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }): React.ReactElement {
   return <Text style={[styles.icon, focused && styles.iconFocused]}>{emoji}</Text>;
@@ -9,44 +10,49 @@ function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }): React
 
 export default function ProviderTabLayout(): React.ReactElement {
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.secondary,
-        tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabLabel,
-      }}
-    >
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📊" focused={focused} />,
+    <View style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: colors.secondary,
+          tabBarInactiveTintColor: colors.textTertiary,
+          tabBarStyle: styles.tabBar,
+          tabBarLabelStyle: styles.tabLabel,
         }}
-      />
-      <Tabs.Screen
-        name="jobs"
-        options={{
-          title: 'Jobs',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🔧" focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="earnings"
-        options={{
-          title: 'Earnings',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="💰" focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="provider-profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />,
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="dashboard"
+          options={{
+            title: 'Dashboard',
+            tabBarIcon: ({ focused }) => <TabIcon emoji="📊" focused={focused} />,
+          }}
+        />
+        <Tabs.Screen
+          name="jobs"
+          options={{
+            title: 'Jobs',
+            tabBarIcon: ({ focused }) => <TabIcon emoji="🔧" focused={focused} />,
+          }}
+        />
+        <Tabs.Screen
+          name="earnings"
+          options={{
+            title: 'Earnings',
+            tabBarIcon: ({ focused }) => <TabIcon emoji="💰" focused={focused} />,
+          }}
+        />
+        <Tabs.Screen
+          name="provider-profile"
+          options={{
+            title: 'Profile',
+            tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />,
+          }}
+        />
+      </Tabs>
+
+      {/* Global new-job notification overlay — renders over any tab */}
+      <NewJobModal />
+    </View>
   );
 }
 

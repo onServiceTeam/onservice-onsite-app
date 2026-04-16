@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  type DimensionValue,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,7 +51,7 @@ export default function ProviderCalendarScreen(): React.ReactElement {
 
   const { from, to } = useMemo(() => getMonthRange(viewYear, viewMonth), [viewYear, viewMonth]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['provider-calendar', from, to],
     queryFn: () => getCalendarData(from, to),
   });
@@ -185,6 +186,12 @@ export default function ProviderCalendarScreen(): React.ReactElement {
         </View>
       )}
 
+      {isError && (
+        <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginHorizontal: 16, marginBottom: 8 }}>
+          <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load calendar data. Pull to refresh.</Text>
+        </View>
+      )}
+
       <ScrollView style={styles.detailScroll} contentContainerStyle={styles.detailContent}>
         {selectedDate && (
           <Text style={styles.detailDateLabel}>
@@ -211,13 +218,13 @@ export default function ProviderCalendarScreen(): React.ReactElement {
             <TouchableOpacity
               key={job.id}
               style={styles.jobCard}
-              onPress={(): void => { router.push(`/provider/job/${job.id}` as never); }}
+              onPress={(): void => { router.push(`/provider/job/${job.id}`); }}
               activeOpacity={0.7}
             >
               <View style={[styles.jobStatusBar, { backgroundColor: STATUS_COLORS[job.status] ?? colors.textTertiary }]} />
               <View style={styles.jobInfo}>
                 <Text style={styles.jobTime}>
-                  {new Date(job.scheduledAt).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(job.scheduledAt).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' })}
                 </Text>
                 <Text style={styles.jobService}>{job.serviceName}</Text>
                 <Text style={styles.jobCustomer}>{job.customerName}</Text>
@@ -257,7 +264,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text, flex: 1 },
   settingsBtn: { padding: spacing.sm },
@@ -293,7 +300,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   dayCell: {
-    width: `${100 / 7}%` as unknown as number,
+    width: `${100 / 7}%` as DimensionValue,
     height: CELL_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
@@ -323,8 +330,8 @@ const styles = StyleSheet.create({
   blockedBar: {
     position: 'absolute',
     bottom: 0,
-    left: '20%' as unknown as number,
-    right: '20%' as unknown as number,
+    left: '20%' as DimensionValue,
+    right: '20%' as DimensionValue,
     height: 2,
     backgroundColor: colors.error,
     borderRadius: 1,

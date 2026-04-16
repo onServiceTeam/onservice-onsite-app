@@ -19,6 +19,7 @@ import { Badge, Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatRelative, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { useLocation } from '@/hooks/useLocation';
 
 const STATUS_LABELS: Record<string, string> = {
   requested: 'New Request',
@@ -56,6 +57,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { getCurrentLocation, isLoading: isGettingLocation } = useLocation();
 
   const { data: booking, isLoading, isError } = useQuery({
     queryKey: ['booking', id],
@@ -66,7 +68,8 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   });
 
   const statusMutation = useMutation({
-    mutationFn: (newStatus: string) => updateBookingStatus(id, newStatus),
+    mutationFn: ({ newStatus, location }: { newStatus: string; location?: { latitude: number; longitude: number } }) =>
+      updateBookingStatus(id, newStatus, undefined, location),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['booking', id] });
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
@@ -100,13 +103,22 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
     const next = NEXT_STATUS[booking.status];
     if (!next) return;
 
+    const submitNextStatus = async (): Promise<void> => {
+      let location: { latitude: number; longitude: number } | undefined;
+      if (next.status === 'provider_arrived') {
+        location = await getCurrentLocation() ?? undefined;
+        if (!location) return;
+      }
+      statusMutation.mutate({ newStatus: next.status, location });
+    };
+
     if (next.confirm) {
       Alert.alert('Confirm', next.confirm, [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Yes', onPress: () => statusMutation.mutate(next.status) },
+        { text: 'Yes', onPress: () => { void submitNextStatus(); } },
       ]);
     } else {
-      statusMutation.mutate(next.status);
+      void submitNextStatus();
     }
   };
 
@@ -233,21 +245,21 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
         {canSubmitQuote && (
           <Button
             title="Submit Quote"
-            onPress={() => router.push(`/provider/job/${booking.id}/quote` as never)}
+            onPress={() => router.push(`/provider/job/${booking.id}/quote`)}
           />
         )}
         {nextAction && (
           <Button
-            title={statusMutation.isPending ? 'Updating...' : nextAction.label}
+            title={isGettingLocation ? 'Getting location...' : statusMutation.isPending ? 'Updating...' : nextAction.label}
             onPress={handleNextStatus}
             loading={statusMutation.isPending}
-            disabled={statusMutation.isPending || cancelMutation.isPending}
+            disabled={statusMutation.isPending || cancelMutation.isPending || isGettingLocation}
           />
         )}
         {canSubmitChangeOrder && (
           <Button
             title="Submit Change Order"
-            onPress={() => router.push(`/provider/job/${booking.id}/change-order` as never)}
+            onPress={() => router.push(`/provider/job/${booking.id}/change-order`)}
             variant="outline"
           />
         )}
@@ -255,12 +267,12 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           <>
             <Button
               title="Job Checklist"
-              onPress={() => router.push(`/provider/job/${booking.id}/checklist` as never)}
+              onPress={() => router.push(`/provider/job/${booking.id}/checklist`)}
               variant="outline"
             />
             <Button
               title="Upload Before/After Photos"
-              onPress={() => router.push(`/provider/job/${booking.id}/photos` as never)}
+              onPress={() => router.push(`/provider/job/${booking.id}/photos`)}
               variant="outline"
             />
           </>
@@ -268,7 +280,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
         {isActiveJob && (
           <Button
             title="Chat with Customer"
-            onPress={() => router.push(`/provider/chat/${booking.id}` as never)}
+            onPress={() => router.push(`/provider/chat/${booking.id}`)}
             variant="outline"
           />
         )}
@@ -297,7 +309,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },

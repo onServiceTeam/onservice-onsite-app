@@ -37,7 +37,7 @@ export default function NotificationsScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isRefetching, refetch } = useQuery({
+  const { data, isLoading, isRefetching, isError, refetch } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => getNotifications(1, 50),
     staleTime: 30 * 1000,
@@ -64,7 +64,7 @@ export default function NotificationsScreen(): React.ReactElement {
     }
     const notifData = notif.data as Record<string, string> | null;
     if (notifData?.bookingId) {
-      router.push(`/customer/booking/${notifData.bookingId}` as never);
+      router.push(`/customer/booking/${notifData.bookingId}`);
     }
   };
 
@@ -102,6 +102,15 @@ export default function NotificationsScreen(): React.ReactElement {
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
+      ) : isError ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load notifications. Please try again.</Text>
+          <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
+            <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <FlatList
           data={notifications}
@@ -138,7 +147,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text, flex: 1 },
   markAllButton: { padding: spacing.sm },

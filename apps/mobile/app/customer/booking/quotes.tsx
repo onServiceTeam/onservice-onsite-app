@@ -4,11 +4,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getBookingQuotes, acceptQuote, declineQuote, type BookingQuote } from '@/services/booking.service';
+import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
-
-function formatCurrency(centavos: number): string {
-  return `₱${(centavos / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-}
 
 function QuoteCard({ quote, onAccept, onDecline, isPending }: {
   quote: BookingQuote;
@@ -33,7 +30,7 @@ function QuoteCard({ quote, onAccept, onDecline, isPending }: {
         </View>
         <View style={styles.priceBox}>
           <Text style={styles.priceLabel}>Total</Text>
-          <Text style={styles.priceValue}>{formatCurrency(quote.quotedPrice)}</Text>
+          <Text style={styles.priceValue}>{formatPHP(quote.quotedPrice)}</Text>
         </View>
       </View>
 
@@ -46,18 +43,18 @@ function QuoteCard({ quote, onAccept, onDecline, isPending }: {
             <View key={item.id ?? idx} style={styles.lineItem}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.lineItemName}>{item.description}</Text>
-                <Text style={styles.lineItemMeta}>{item.quantity} {item.unit} × {formatCurrency(item.unitPrice)}</Text>
+                <Text style={styles.lineItemMeta}>{item.quantity} {item.unit} × {formatPHP(item.unitPrice)}</Text>
               </View>
-              <Text style={styles.lineItemTotal}>{formatCurrency(item.lineTotal)}</Text>
+              <Text style={styles.lineItemTotal}>{formatPHP(item.lineTotal)}</Text>
             </View>
           ))}
           <View style={styles.subtotalRow}>
             <Text style={styles.subtotalLabel}>Labor</Text>
-            <Text style={styles.subtotalValue}>{formatCurrency(quote.laborAmount)}</Text>
+            <Text style={styles.subtotalValue}>{formatPHP(quote.laborAmount)}</Text>
           </View>
           <View style={styles.subtotalRow}>
             <Text style={styles.subtotalLabel}>Materials</Text>
-            <Text style={styles.subtotalValue}>{formatCurrency(quote.materialsAmount)}</Text>
+            <Text style={styles.subtotalValue}>{formatPHP(quote.materialsAmount)}</Text>
           </View>
         </View>
       )}
@@ -130,12 +127,12 @@ export default function QuotesScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['bookingQuotes', bookingId] });
       Alert.alert('Success', 'Quote accepted! Proceed to payment.', [
-        { text: 'OK', onPress: () => router.replace(`/customer/booking/${bookingId}` as never) },
+        { text: 'OK', onPress: () => router.replace(`/customer/booking/${bookingId}`) },
       ]);
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not accept quote.');
+      const message = err instanceof Error ? err.message : 'Could not accept quote.';
+      Alert.alert('Error', message);
     },
   });
 
@@ -143,10 +140,11 @@ export default function QuotesScreen(): React.ReactElement {
     mutationFn: (quoteId: string) => declineQuote(bookingId ?? '', quoteId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['bookingQuotes', bookingId] });
+      Alert.alert('Declined', 'Quote has been declined.');
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not decline quote.');
+      const message = err instanceof Error ? err.message : 'Could not decline quote.';
+      Alert.alert('Error', message);
     },
   });
 
@@ -210,7 +208,7 @@ export default function QuotesScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundSecondary },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   placeholder: { width: 30 },

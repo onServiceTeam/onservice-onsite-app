@@ -73,18 +73,20 @@ export function calculateCancellationRefund(
   let customerRefundPercent: number;
   let providerCompensationPercent: number;
 
+  const splits = platformConfig.cancellationRefundSplits;
+
   if (customerNoShow) {
-    customerRefundPercent = 0;
-    providerCompensationPercent = 1.00;
+    customerRefundPercent = splits.customerNoShow.customerRefund;
+    providerCompensationPercent = splits.customerNoShow.providerCompensation;
   } else if (providerArrived) {
-    customerRefundPercent = 0.50;
-    providerCompensationPercent = 0.50;
+    customerRefundPercent = splits.providerArrived.customerRefund;
+    providerCompensationPercent = splits.providerArrived.providerCompensation;
   } else if (hoursUntilScheduled < 2) {
-    customerRefundPercent = 0.80;
-    providerCompensationPercent = 0.20;
+    customerRefundPercent = splits.lessThan2Hours.customerRefund;
+    providerCompensationPercent = splits.lessThan2Hours.providerCompensation;
   } else {
-    customerRefundPercent = 1.00;
-    providerCompensationPercent = 0;
+    customerRefundPercent = splits.moreThan2Hours.customerRefund;
+    providerCompensationPercent = splits.moreThan2Hours.providerCompensation;
   }
 
   return {

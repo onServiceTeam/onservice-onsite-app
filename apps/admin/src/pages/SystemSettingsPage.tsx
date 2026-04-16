@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { getErrorMessage } from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
 
 interface PlatformSetting {
   key: string;
@@ -68,8 +69,8 @@ function formatLabel(key: string): string {
 function formatDisplayValue(key: string, val: unknown): string {
   const num = Number(val);
   if (key.includes('rate') && num < 1) return `${(num * 100).toFixed(1)}%`;
-  if (key.includes('fee') && !key.includes('rate')) return `₱${(num / 100).toFixed(2)}`;
-  if (key.includes('withdrawal')) return `₱${(num / 100).toFixed(2)}`;
+  if (key.includes('fee') && !key.includes('rate')) return formatCurrency(num);
+  if (key.includes('withdrawal')) return formatCurrency(num);
   return String(val);
 }
 
@@ -78,6 +79,7 @@ export default function SystemSettingsPage(): React.ReactElement {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const { data: settings, isLoading, error } = useQuery({
     queryKey: ['platform-settings'],
@@ -94,8 +96,13 @@ export default function SystemSettingsPage(): React.ReactElement {
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['platform-settings'] });
       setSaveMessage(`"${formatLabel(variables.key)}" updated successfully.`);
+      setSaveError(null);
       setEditingKey(null);
       setTimeout(() => setSaveMessage(null), 3000);
+    },
+    onError: (e) => {
+      setSaveError(getErrorMessage(e));
+      setTimeout(() => setSaveError(null), 5000);
     },
   });
 
@@ -135,7 +142,7 @@ export default function SystemSettingsPage(): React.ReactElement {
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-6">System Settings</h1>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-          Failed to load settings. {error instanceof Error ? error.message : ''}
+          Failed to load settings. {getErrorMessage(error)}
         </div>
       </div>
     );
@@ -158,9 +165,9 @@ export default function SystemSettingsPage(): React.ReactElement {
         </div>
       )}
 
-      {updateMutation.isError && (
+      {saveError && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
-          Failed to update setting. {updateMutation.error instanceof Error ? updateMutation.error.message : ''}
+          Failed to update setting. {saveError}
         </div>
       )}
 

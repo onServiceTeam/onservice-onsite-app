@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -50,11 +51,12 @@ const DEFAULT_PREFS: NotificationPrefs = {
 
 export default function NotificationSettingsScreen(): React.ReactElement {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
   const [dirty, setDirty] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['notification-preferences'],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: NotificationPrefs }>('/api/v1/notifications/preferences');
@@ -117,7 +119,16 @@ export default function NotificationSettingsScreen(): React.ReactElement {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
+      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.primary} />}
+    >
+      {isError && (
+        <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, margin: 16, marginBottom: 0 }}>
+          <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load notification settings. Showing defaults.</Text>
+        </View>
+      )}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backText}>← Back</Text>
@@ -186,8 +197,8 @@ const styles = StyleSheet.create({
   content: { paddingBottom: spacing.xxl },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backgroundSecondary },
 
-  header: { paddingHorizontal: spacing.base, paddingTop: spacing.xxl, paddingBottom: spacing.base },
-  backBtn: { marginBottom: spacing.sm },
+  header: { paddingHorizontal: spacing.base, paddingTop: spacing.base, paddingBottom: spacing.base },
+  backBtn: { marginBottom: spacing.sm, paddingVertical: spacing.sm, minHeight: 44 },
   backText: { ...typography.body, color: colors.primary },
   title: { ...typography.h2, color: colors.text },
   subtitle: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },

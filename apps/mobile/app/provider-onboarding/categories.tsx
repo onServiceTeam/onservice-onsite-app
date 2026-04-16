@@ -21,7 +21,7 @@ export default function CategoriesScreen(): React.ReactElement {
   const [selected, setSelected] = useState<Set<string>>(new Set(categoryIds));
   const [name, setName] = useState(businessName);
 
-  const { data: categories = [], isLoading } = useQuery({
+  const { data: categories = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['categories'],
     queryFn: getCategories,
     staleTime: 24 * 60 * 60 * 1000,
@@ -102,6 +102,15 @@ export default function CategoriesScreen(): React.ReactElement {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
+      ) : isError ? (
+        <View style={styles.loadingContainer}>
+          <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load categories. Please try again.</Text>
+          <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: borderRadius.md }}>
+            <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <FlatList
           data={categories}
@@ -132,7 +141,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  backBtn: { padding: spacing.xs, marginRight: spacing.sm },
+  backBtn: { padding: spacing.xs, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   progress: { flexDirection: 'row', flex: 1, justifyContent: 'center', gap: spacing.xs },
   progressDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.border },

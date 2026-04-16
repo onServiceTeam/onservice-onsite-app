@@ -1,7 +1,9 @@
 import React, { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { adminConfig } from '@/config/admin.config';
 
 interface Customer {
   id: string;
@@ -28,10 +30,10 @@ export default function CustomersPage(): React.ReactElement {
   const [statusFilter, setStatusFilter] = useState('');
   const [searchInput, setSearchInput] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['adminCustomers', page, search, statusFilter],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize: 20 };
+      const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
       const res = await api.get<PaginatedResult>('/api/v1/admin/customers', { params });
@@ -82,7 +84,7 @@ export default function CustomersPage(): React.ReactElement {
       header: 'Total Spent',
       render: (r) => (
         <span className="text-[var(--color-text)]">
-          {r.totalSpent > 0 ? `₱${(r.totalSpent / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—'}
+          {r.totalSpent > 0 ? formatCurrency(r.totalSpent) : '—'}
         </span>
       ),
     },
@@ -91,7 +93,7 @@ export default function CustomersPage(): React.ReactElement {
       header: 'Joined',
       render: (r) => (
         <span className="text-[var(--color-text-secondary)]">
-          {new Date(r.createdAt).toLocaleDateString()}
+          {new Date(r.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}
         </span>
       ),
     },
@@ -129,6 +131,8 @@ export default function CustomersPage(): React.ReactElement {
           <option value="inactive">Inactive</option>
         </select>
       </div>
+
+      {isError && <p className="text-sm text-red-500 mb-4">Failed to load customers. Please try again.</p>}
 
       <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No customers found." />
 

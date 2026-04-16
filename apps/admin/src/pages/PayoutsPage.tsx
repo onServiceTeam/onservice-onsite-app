@@ -1,6 +1,8 @@
 import React, { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
 
 interface Payout {
@@ -37,10 +39,6 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' |
   failed: 'danger',
 };
 
-function formatCurrency(cents: number): string {
-  return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-}
-
 export default function PayoutsPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -57,7 +55,7 @@ export default function PayoutsPage(): React.ReactElement {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['adminPayouts', page, statusFilter, search],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize: 20 };
+      const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (statusFilter) params.status = statusFilter;
       if (search) params.providerId = search;
       const res = await api.get<PaginatedResult>('/api/v1/payouts', { params });
@@ -136,7 +134,7 @@ export default function PayoutsPage(): React.ReactElement {
       header: 'Requested',
       render: (r) => (
         <span className="text-[var(--color-text-secondary)] text-xs">
-          {new Date(r.createdAt).toLocaleDateString()}
+          {new Date(r.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}
         </span>
       ),
     },

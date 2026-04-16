@@ -1,7 +1,9 @@
 import React, { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { adminConfig } from '@/config/admin.config';
 
 interface Booking {
   id: string;
@@ -49,10 +51,6 @@ function formatStatus(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function formatCurrency(cents: number): string {
-  return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-}
-
 export default function BookingsPage(): React.ReactElement {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -62,7 +60,7 @@ export default function BookingsPage(): React.ReactElement {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['adminBookings', page, search, statusFilter],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize: 20 };
+      const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
       const res = await api.get<PaginatedResult>('/api/v1/admin/bookings', { params });
@@ -122,7 +120,7 @@ export default function BookingsPage(): React.ReactElement {
       header: 'Date',
       render: (r) => (
         <span className="text-[var(--color-text-secondary)]">
-          {r.scheduledAt ? new Date(r.scheduledAt).toLocaleDateString('en-PH') : new Date(r.createdAt).toLocaleDateString('en-PH')}
+          {r.scheduledAt ? new Date(r.scheduledAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }) : new Date(r.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}
         </span>
       ),
     },

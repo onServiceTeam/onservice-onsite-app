@@ -6,6 +6,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
+  type DimensionValue,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,15 +33,28 @@ export default function TierProgressionScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['tier-progression'],
     queryFn: getTierProgression,
   });
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
+        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load tier progression. Please try again.</Text>
+        <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
+          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -56,7 +71,9 @@ export default function TierProgressionScreen(): React.ReactElement {
         <Text style={styles.title}>Tier Progression</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.primary} />}
+      >
         {/* Current Tier Card */}
         <View style={[styles.currentCard, { borderLeftColor: TIER_COLORS[currentTier] ?? colors.primary }]}>
           <Text style={styles.currentIcon}>{TIER_ICONS[currentTier] ?? '🌱'}</Text>
@@ -192,7 +209,7 @@ function RequirementRow({ label, current, met, progressPct }: {
       </View>
       {progressPct != null && (
         <View style={styles.reqProgressTrack}>
-          <View style={[styles.reqProgressFill, { width: `${progressPct}%` as unknown as number }, met && styles.reqProgressFillMet]} />
+          <View style={[styles.reqProgressFill, { width: `${progressPct}%` as DimensionValue }, met && styles.reqProgressFillMet]} />
         </View>
       )}
     </View>
@@ -236,7 +253,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text, flex: 1 },
 

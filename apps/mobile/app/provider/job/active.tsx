@@ -9,6 +9,7 @@ import { updateBookingStatus } from '@/services/provider-api.service';
 import { Badge, Button } from '@/components/ui';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { useLocation } from '@/hooks/useLocation';
 
 const STATUS_LABELS: Record<string, string> = {
   paid: 'Navigate to job',
@@ -39,6 +40,7 @@ export default function ActiveJobScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const mapRef = useRef<MapView>(null);
+  const { getCurrentLocation, isLoading: isGettingLocation } = useLocation();
 
   const { data: booking, isLoading, isError } = useQuery({
     queryKey: ['booking', bookingId],
@@ -48,7 +50,8 @@ export default function ActiveJobScreen(): React.ReactElement {
   });
 
   const statusMutation = useMutation({
-    mutationFn: (newStatus: string) => updateBookingStatus(bookingId, newStatus),
+    mutationFn: ({ newStatus, location }: { newStatus: string; location?: { latitude: number; longitude: number } }) =>
+      updateBookingStatus(bookingId, newStatus, undefined, location),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
@@ -64,9 +67,18 @@ export default function ActiveJobScreen(): React.ReactElement {
     const action = NEXT_ACTION[booking.status];
     if (!action) return;
 
+    const submitAction = async (): Promise<void> => {
+      let location: { latitude: number; longitude: number } | undefined;
+      if (action.status === 'provider_arrived') {
+        location = await getCurrentLocation() ?? undefined;
+        if (!location) return;
+      }
+      statusMutation.mutate({ newStatus: action.status, location });
+    };
+
     Alert.alert('Confirm', `Proceed to "${action.label}"?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Yes', onPress: () => statusMutation.mutate(action.status) },
+      { text: 'Yes', onPress: () => { void submitAction(); } },
     ]);
   };
 
@@ -168,10 +180,10 @@ export default function ActiveJobScreen(): React.ReactElement {
         <View style={styles.actionRow}>
           {action && (
             <Button
-              title={statusMutation.isPending ? 'Updating...' : action.label}
+              title={isGettingLocation ? 'Getting location...' : statusMutation.isPending ? 'Updating...' : action.label}
               onPress={handleAction}
               loading={statusMutation.isPending}
-              disabled={statusMutation.isPending}
+              disabled={statusMutation.isPending || isGettingLocation}
               style={styles.actionButton}
             />
           )}
@@ -184,7 +196,7 @@ export default function ActiveJobScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.chatRow}
-          onPress={() => router.push(`/provider/chat/${booking.id}` as never)}
+          onPress={() => router.push(`/provider/chat/${booking.id}`)}
         >
           <Text style={styles.chatIcon}>💬</Text>
           <Text style={styles.chatText}>Chat with Customer</Text>
@@ -209,7 +221,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     backgroundColor: 'rgba(255,255,255,0.95)',
   },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm },
+  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   map: { flex: 1 },

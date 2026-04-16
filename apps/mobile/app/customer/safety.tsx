@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
+import { formatPHP } from '@/utils/currency';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -32,7 +33,7 @@ const COVERAGE_CARDS = [
   {
     icon: '🛡️',
     title: 'Damage Protection',
-    desc: 'Property damage covered up to ₱50,000 per incident.',
+    desc: `Property damage covered up to ${formatPHP(platformConfig.siguradoShieldMaxCoverage)} per incident.`,
   },
   {
     icon: '⭐',
@@ -56,12 +57,12 @@ interface CoverageItem {
 }
 
 const WHATS_COVERED: CoverageItem[] = [
-  { type: 'No-show', description: 'Provider doesn\'t arrive within 30 min', maxCoverage: 'Full refund', deductible: '₱0' },
-  { type: 'Incomplete work', description: 'Provider leaves before job is finished', maxCoverage: 'Full or partial refund', deductible: '₱0' },
-  { type: 'Substandard work', description: 'Quality below reasonable standards', maxCoverage: 'Up to 100% refund or free redo', deductible: '₱0' },
-  { type: 'Property damage', description: 'Provider damages your property', maxCoverage: 'Up to ₱50,000', deductible: '₱500' },
-  { type: 'Theft', description: 'Items missing after provider visit', maxCoverage: 'Up to ₱25,000 (police report required)', deductible: '₱0' },
-  { type: 'Personal injury', description: 'Injured due to provider negligence', maxCoverage: 'Up to ₱100,000 (medical docs required)', deductible: '₱0' },
+  { type: 'No-show', description: 'Provider doesn\'t arrive within 30 min', maxCoverage: 'Full refund', deductible: formatPHP(0) },
+  { type: 'Incomplete work', description: 'Provider leaves before job is finished', maxCoverage: 'Full or partial refund', deductible: formatPHP(0) },
+  { type: 'Substandard work', description: 'Quality below reasonable standards', maxCoverage: 'Up to 100% refund or free redo', deductible: formatPHP(0) },
+  { type: 'Property damage', description: 'Provider damages your property', maxCoverage: `Up to ${formatPHP(platformConfig.siguradoShieldMaxCoverage)}`, deductible: formatPHP(platformConfig.siguradoShieldDeductible) },
+  { type: 'Theft', description: 'Items missing after provider visit', maxCoverage: `Up to ${formatPHP(platformConfig.siguradoShieldPropertyDamage)} (police report required)`, deductible: formatPHP(0) },
+  { type: 'Personal injury', description: 'Injured due to provider negligence', maxCoverage: `Up to ${formatPHP(platformConfig.siguradoShieldPremiumProtection)} (medical docs required)`, deductible: formatPHP(0) },
 ];
 
 const WHATS_NOT_COVERED = [
@@ -127,7 +128,7 @@ export default function SafetyScreen(): React.ReactElement {
           <Text style={styles.heroShield}>🛡️</Text>
           <Text style={styles.heroTitle}>You're Protected</Text>
           <Text style={styles.heroSubtitle}>
-            Every booking includes SiguradoShield™ protection up to ₱50,000.
+            Every booking includes SiguradoShield™ protection up to {formatPHP(platformConfig.siguradoShieldMaxCoverage)}.
             If anything goes wrong, we make it right.
           </Text>
         </View>
@@ -173,7 +174,7 @@ export default function SafetyScreen(): React.ReactElement {
                 <Text style={styles.coverageMax}>{item.maxCoverage}</Text>
               </View>
               <Text style={styles.coverageDesc}>{item.description}</Text>
-              {item.deductible !== '₱0' && (
+              {item.deductible !== formatPHP(0) && (
                 <Text style={styles.coverageDeductible}>Deductible: {item.deductible}</Text>
               )}
             </View>
@@ -203,7 +204,7 @@ export default function SafetyScreen(): React.ReactElement {
         {/* CTA */}
         <TouchableOpacity
           style={styles.ctaBtn}
-          onPress={() => router.push('/(tabs)/bookings' as never)}
+          onPress={() => router.push('/(tabs)/bookings')}
           activeOpacity={0.8}
         >
           <Text style={styles.ctaBtnText}>Report an Issue</Text>
@@ -232,7 +233,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   headerSpacer: { width: 30 },

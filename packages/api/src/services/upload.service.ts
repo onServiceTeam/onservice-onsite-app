@@ -5,11 +5,50 @@ import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 import { createAppError } from '../middleware/error.middleware';
 
+// --- Storage Backend Selection ---
+// When S3_BUCKET is set, use S3-compatible storage (AWS S3 or DigitalOcean Spaces).
+// Otherwise, fall back to local filesystem (dev only).
+const USE_S3 = !!process.env.S3_BUCKET;
+
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
 const BASE_URL = process.env.UPLOAD_BASE_URL || `http://localhost:${process.env.PORT || 7381}/uploads`;
 
 const ALLOWED_MIME = new Set<string>(platformConfig.allowedImageTypes);
 const MAX_SIZE_BYTES = platformConfig.maxImageSizeMB * 1024 * 1024;
+
+// --- Lazy S3 client initialization ---
+let s3Client: {
+  send: (command: unknown) => Promise<unknown>;
+} | null = null;
+let s3Commands: {
+  PutObjectCommand: new (params: Record<string, unknown>) => unknown;
+  DeleteObjectCommand: new (params: Record<string, unknown>) => unknown;
+} | null = null;
+
+async function getS3(): Promise<{
+  client: typeof s3Client;
+  commands: typeof s3Commands;
+}> {
+  if (!s3Client) {
+    const { S3Client } = await import('@aws-sdk/client-s3');
+    const cmds = await import('@aws-sdk/client-s3');
+    s3Client = new S3Client({
+      region: process.env.S3_REGION || 'ap-southeast-1',
+      ...(process.env.S3_ENDPOINT ? { endpoint: process.env.S3_ENDPOINT, forcePathStyle: true } : {}),
+      credentials: process.env.S3_ACCESS_KEY_ID
+        ? {
+          accessKeyId: process.env.S3_ACCESS_KEY_ID,
+          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+        }
+        : undefined,
+    });
+    s3Commands = {
+      PutObjectCommand: cmds.PutObjectCommand,
+      DeleteObjectCommand: cmds.DeleteObjectCommand,
+    };
+  }
+  return { client: s3Client, commands: s3Commands };
+}
 
 export interface UploadedFile {
   id: string;
@@ -59,32 +98,46 @@ export async function saveUploadedFile(
   userId: string,
   context: string,
 ): Promise<UploadedFile> {
-  await ensureUploadDir();
-
   const ext = path.extname(originalname).toLowerCase();
   const fileId = randomUUID();
   const safeContext = context.replace(/[^a-z0-9_-]/gi, '');
   const safeUser = userId.replace(/[^a-f0-9-]/gi, '');
-  const relativePath = `${safeContext}/${safeUser}/${fileId}${ext}`;
-  const fullPath = path.join(UPLOAD_DIR, safeContext, safeUser, `${fileId}${ext}`);
+  const objectKey = `${safeContext}/${safeUser}/${fileId}${ext}`;
 
-  const resolved = path.resolve(fullPath);
-  if (!resolved.startsWith(path.resolve(UPLOAD_DIR))) {
-    throw createAppError('Invalid file path.', 400);
+  let url: string;
+
+  if (USE_S3) {
+    const { client, commands } = await getS3();
+    const bucket = process.env.S3_BUCKET!;
+    await client!.send(new commands!.PutObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      Body: buffer,
+      ContentType: mimetype,
+      CacheControl: 'public, max-age=31536000, immutable',
+    }));
+    const cdnBase = process.env.S3_CDN_URL || `https://${bucket}.s3.${process.env.S3_REGION || 'ap-southeast-1'}.amazonaws.com`;
+    url = `${cdnBase}/${objectKey}`;
+    logger.info('File uploaded to S3', { fileId, key: objectKey, bucket, sizeBytes: buffer.length, userId, context });
+  } else {
+    // Local filesystem fallback (dev only)
+    await ensureUploadDir();
+    const fullPath = path.join(UPLOAD_DIR, safeContext, safeUser, `${fileId}${ext}`);
+    const resolved = path.resolve(fullPath);
+    if (!resolved.startsWith(path.resolve(UPLOAD_DIR))) {
+      throw createAppError('Invalid file path.', 400);
+    }
+    const dir = path.dirname(fullPath);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(fullPath, buffer);
+    url = `${BASE_URL}/${objectKey}`;
+    logger.info('File uploaded locally', { fileId, filename: objectKey, sizeBytes: buffer.length, userId, context });
   }
-
-  const dir = path.dirname(fullPath);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(fullPath, buffer);
-
-  const url = `${BASE_URL}/${relativePath}`;
-
-  logger.info('File uploaded', { fileId, filename: relativePath, mimeType: mimetype, sizeBytes: buffer.length, userId, context });
 
   return {
     id: fileId,
     url,
-    filename: relativePath,
+    filename: objectKey,
     mimeType: mimetype,
     sizeBytes: buffer.length,
   };
@@ -92,13 +145,23 @@ export async function saveUploadedFile(
 
 export async function deleteUploadedFile(filename: string): Promise<void> {
   try {
-    const fullPath = path.resolve(path.join(UPLOAD_DIR, filename));
-    if (!fullPath.startsWith(path.resolve(UPLOAD_DIR))) {
-      logger.warn('Path traversal attempt in deleteUploadedFile', { filename });
-      return;
+    if (USE_S3) {
+      const { client, commands } = await getS3();
+      const bucket = process.env.S3_BUCKET!;
+      await client!.send(new commands!.DeleteObjectCommand({
+        Bucket: bucket,
+        Key: filename,
+      }));
+      logger.info('File deleted from S3', { filename, bucket });
+    } else {
+      const fullPath = path.resolve(path.join(UPLOAD_DIR, filename));
+      if (!fullPath.startsWith(path.resolve(UPLOAD_DIR))) {
+        logger.warn('Path traversal attempt in deleteUploadedFile', { filename });
+        return;
+      }
+      await fs.unlink(fullPath);
+      logger.info('File deleted locally', { filename });
     }
-    await fs.unlink(fullPath);
-    logger.info('File deleted', { filename });
   } catch (err) {
     logger.warn('File deletion failed (may not exist)', { filename, error: err instanceof Error ? err.message : 'Unknown' });
   }

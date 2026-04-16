@@ -30,7 +30,7 @@ export default function MakeRecurringScreen(): React.ReactElement {
   const [frequency, setFrequency] = useState<Frequency>('weekly');
   const [preferredDay, setPreferredDay] = useState<number>(new Date().getDay());
 
-  const { data: booking, isLoading } = useQuery({
+  const { data: booking, isLoading, isError: bookingError, refetch } = useQuery({
     queryKey: ['booking', bookingId],
     queryFn: () => getBookingById(bookingId!),
     enabled: !!bookingId,
@@ -85,6 +85,19 @@ export default function MakeRecurringScreen(): React.ReactElement {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (bookingError) {
+    return (
+      <View style={[styles.container, styles.centered, { paddingTop: insets.top, padding: 24 }]}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
+        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load booking details. Please try again.</Text>
+        <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
+          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }

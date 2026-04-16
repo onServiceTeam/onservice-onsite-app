@@ -3,6 +3,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as notificationService from './notification.service';
 import { platformConfig } from '../config/platform.config';
+import { formatPHP } from '../utils/currency';
 
 interface InvoiceRow {
   id: string;
@@ -51,6 +52,7 @@ interface BookingForInvoicing {
   description: string;
   scheduled_at: Date;
   total_amount: number;
+  service_price: number;
   category_name: string;
 }
 
@@ -68,7 +70,7 @@ function getDueDate(invoiceDate: Date, paymentTerms: string): Date {
   switch (paymentTerms) {
     case 'net_15': due.setDate(due.getDate() + 15); break;
     case 'net_60': due.setDate(due.getDate() + 60); break;
-    default: due.setDate(due.getDate() + 30); break;
+    default: due.setDate(due.getDate() + platformConfig.invoiceDefaultDueTermsDays); break;
   }
   return due;
 }
@@ -100,7 +102,7 @@ export async function generateMonthlyInvoices(): Promise<number> {
       if (existingInvoice.rows.length > 0) continue;
 
       const bookings = await db.query<BookingForInvoicing>(
-        `SELECT b.id, b.description, b.scheduled_at, b.total_amount,
+        `SELECT b.id, b.description, b.scheduled_at, b.total_amount, b.service_price,
                 sc.name AS category_name
          FROM bookings b
          INNER JOIN business_members bm ON b.customer_id = bm.user_id
@@ -115,7 +117,7 @@ export async function generateMonthlyInvoices(): Promise<number> {
 
       if (bookings.rows.length === 0) continue;
 
-      const subtotal = bookings.rows.reduce((sum, b) => sum + b.total_amount, 0);
+      const subtotal = bookings.rows.reduce((sum, b) => sum + b.service_price, 0);
       const discountRate = Number(account.volume_discount_rate) / 100;
       const discountAmount = Math.round(subtotal * discountRate);
       const afterDiscount = subtotal - discountAmount;
@@ -144,7 +146,7 @@ export async function generateMonthlyInvoices(): Promise<number> {
       const invoiceId = invoice.rows[0]!.id;
 
       for (const booking of bookings.rows) {
-        const itemDiscount = Math.round(booking.total_amount * discountRate);
+        const itemDiscount = Math.round(booking.service_price * discountRate);
         await db.query(
           `INSERT INTO business_invoice_items (
             invoice_id, booking_id, description, service_date,
@@ -154,9 +156,9 @@ export async function generateMonthlyInvoices(): Promise<number> {
             invoiceId, booking.id,
             `${booking.category_name ?? 'Service'} — ${booking.description ?? ''}`.trim(),
             booking.scheduled_at.toISOString().split('T')[0],
-            booking.total_amount,
+            booking.service_price,
             itemDiscount,
-            booking.total_amount - itemDiscount,
+            booking.service_price - itemDiscount,
           ],
         );
       }
@@ -165,7 +167,7 @@ export async function generateMonthlyInvoices(): Promise<number> {
         userId: account.owner_user_id,
         type: 'business_update',
         title: 'Monthly Invoice Ready',
-        body: `Invoice ${invoiceNumber} for ₱${(totalAmount / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })} is ready. Due by ${dueDate.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}.`,
+        body: `Invoice ${invoiceNumber} for ${formatPHP(totalAmount)} is ready. Due by ${dueDate.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}.`,
         data: { invoiceId, invoiceNumber, totalAmount },
       });
 
@@ -313,7 +315,7 @@ export async function checkOverdueInvoices(): Promise<number> {
             userId: account.rows[0].owner_user_id,
             type: 'business_update',
             title: 'Invoice Overdue',
-            body: `Invoice ${inv.invoice_number} for ₱${(inv.total_amount / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })} is overdue. Please settle to avoid service interruption.`,
+            body: `Invoice ${inv.invoice_number} for ${formatPHP(inv.total_amount)} is overdue. Please settle to avoid service interruption.`,
             data: { invoiceNumber: inv.invoice_number, businessAccountId: inv.business_account_id },
           });
         }

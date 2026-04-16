@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: '/customers', icon: '👥', label: 'Customers' },
   { to: '/bookings', icon: '📋', label: 'Bookings' },
   { to: '/catalog', icon: '📦', label: 'Catalog' },
+  { to: '/pricing-rules', icon: '💹', label: 'Pricing Rules' },
   { to: '/disputes', icon: '⚖️', label: 'Disputes' },
   { to: '/financials', icon: '💰', label: 'Financials' },
   { to: '/payouts', icon: '💸', label: 'Payouts' },
@@ -16,6 +17,8 @@ const NAV_ITEMS = [
   { to: '/service-areas', icon: '📍', label: 'Service Areas' },
   { to: '/analytics', icon: '📈', label: 'Analytics' },
   { to: '/audit-log', icon: '🔍', label: 'Audit Log' },
+  { to: '/support-tickets', icon: '🎫', label: 'Support' },
+  { to: '/staff', icon: '👤', label: 'Staff & Roles' },
   { to: '/settings', icon: '⚙️', label: 'Settings' },
 ];
 

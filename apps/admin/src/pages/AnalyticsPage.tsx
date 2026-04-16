@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
 
 type TabId = 'ab-tests' | 'cohorts' | 'churn' | 'quality' | 'commission';
 
@@ -11,10 +13,6 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'quality', label: 'Quality Scores' },
   { id: 'commission', label: 'Commission' },
 ];
-
-function formatCurrency(cents: number): string {
-  return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
-}
 
 // ─── A/B Tests Tab ──────────────────────────────────────────────────
 
@@ -37,8 +35,9 @@ function AbTestsTab(): React.ReactElement {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', targetMetric: 'conversion_rate', trafficSplit: 0.5 });
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['admin', 'ab-tests'],
     queryFn: async () => {
       const res = await api.get('/api/v1/admin/analytics/ab-tests');
@@ -48,15 +47,16 @@ function AbTestsTab(): React.ReactElement {
 
   const createMut = useMutation({
     mutationFn: (body: typeof form) => api.post('/api/v1/admin/analytics/ab-tests', body),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'ab-tests'] }); setShowCreate(false); setForm({ name: '', description: '', targetMetric: 'conversion_rate', trafficSplit: 0.5 }); },
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['admin', 'ab-tests'] }); setShowCreate(false); setForm({ name: '', description: '', targetMetric: 'conversion_rate', trafficSplit: 0.5 }); },
   });
 
   const statusMut = useMutation({
     mutationFn: (args: { testId: string; status: string }) => api.patch(`/api/v1/admin/analytics/ab-tests/${args.testId}/status`, { status: args.status }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'ab-tests'] }); queryClient.invalidateQueries({ queryKey: ['admin', 'ab-test-results'] }); },
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['admin', 'ab-tests'] }); void queryClient.invalidateQueries({ queryKey: ['admin', 'ab-test-results'] }); setActionError(''); },
+    onError: (e) => setActionError(`Failed to update test status: ${getErrorMessage(e)}`),
   });
 
-  const { data: resultsData } = useQuery({
+  const { data: resultsData, isError: isResultsError } = useQuery({
     queryKey: ['admin', 'ab-test-results', selectedTestId],
     queryFn: async () => {
       const res = await api.get(`/api/v1/admin/analytics/ab-tests/${selectedTestId}/results`);
@@ -72,9 +72,11 @@ function AbTestsTab(): React.ReactElement {
   });
 
   if (isLoading) return <p className="text-sm text-slate-500">Loading...</p>;
+  if (isError) return <p className="text-sm text-red-500">Failed to load A/B tests. Please try again.</p>;
 
   return (
     <div className="space-y-4">
+      {actionError && <p className="text-sm text-red-500 mb-2">{actionError}</p>}
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">A/B Tests ({data?.pagination.total ?? 0})</h3>
         <button onClick={() => setShowCreate(!showCreate)} className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded-md hover:opacity-90">
@@ -134,6 +136,8 @@ function AbTestsTab(): React.ReactElement {
         </table>
       </div>
 
+      {isResultsError && selectedTestId && <p className="text-sm text-red-500">Failed to load test results.</p>}
+
       {resultsData && selectedTestId && (
         <div className="bg-white border rounded-lg p-4 space-y-3">
           <h4 className="font-semibold">Results: {resultsData.test.name}</h4>
@@ -171,7 +175,7 @@ function CohortTab(): React.ReactElement {
   const [months, setMonths] = useState(6);
   const [metric, setMetric] = useState<'retention' | 'revenue'>('retention');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['admin', 'cohorts', months, metric],
     queryFn: async () => {
       const res = await api.get('/api/v1/admin/analytics/cohorts', { params: { months, metric } });
@@ -191,7 +195,7 @@ function CohortTab(): React.ReactElement {
         </select>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-500">Failed to load cohort data. Please try again.</p> : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">
             <thead>
@@ -246,10 +250,10 @@ function ChurnTab(): React.ReactElement {
   const [riskLevel, setRiskLevel] = useState('');
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['admin', 'churn', riskLevel, page],
     queryFn: async () => {
-      const params: Record<string, unknown> = { page, pageSize: 20 };
+      const params: Record<string, unknown> = { page, pageSize: adminConfig.defaultPageSize };
       if (riskLevel) params.riskLevel = riskLevel;
       const res = await api.get('/api/v1/admin/analytics/churn', { params });
       return res.data as { data: ChurnCustomer[]; pagination: { total: number; totalPages: number } };
@@ -276,7 +280,7 @@ function ChurnTab(): React.ReactElement {
         <span className="text-sm text-slate-500">{data?.pagination.total ?? 0} customers</span>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-500">Failed to load churn data. Please try again.</p> : (
         <>
           <table className="w-full text-sm">
             <thead className="bg-slate-50">
@@ -295,7 +299,7 @@ function ChurnTab(): React.ReactElement {
                 <tr key={c.userId} className="border-t">
                   <td className="px-3 py-2 font-medium">{c.name || '—'}</td>
                   <td className="px-3 py-2 text-slate-600">{c.phone}</td>
-                  <td className="px-3 py-2 text-center text-slate-600">{c.lastBookingDate ? new Date(c.lastBookingDate).toLocaleDateString() : 'Never'}</td>
+                  <td className="px-3 py-2 text-center text-slate-600">{c.lastBookingDate ? new Date(c.lastBookingDate).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }) : 'Never'}</td>
                   <td className="px-3 py-2 text-center">{c.totalBookings}</td>
                   <td className="px-3 py-2 text-center">{formatCurrency(c.totalSpent)}</td>
                   <td className="px-3 py-2 text-center font-bold">{c.riskScore}</td>
@@ -337,8 +341,9 @@ interface QualityScore {
 function QualityTab(): React.ReactElement {
   const queryClient = useQueryClient();
   const [sortBy, setSortBy] = useState('overall');
+  const [actionError, setActionError] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['admin', 'quality-scores', sortBy],
     queryFn: async () => {
       const res = await api.get('/api/v1/admin/analytics/quality-scores', { params: { sortBy, pageSize: 50 } });
@@ -348,7 +353,8 @@ function QualityTab(): React.ReactElement {
 
   const computeMut = useMutation({
     mutationFn: () => api.post('/api/v1/admin/analytics/quality-scores/compute', { periodDays: 90 }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'quality-scores'] }),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['admin', 'quality-scores'] }); setActionError(''); },
+    onError: (e) => setActionError(`Failed to recompute scores: ${getErrorMessage(e)}`),
   });
 
   const scoreColor = (score: number): string => {
@@ -359,6 +365,7 @@ function QualityTab(): React.ReactElement {
 
   return (
     <div className="space-y-4">
+      {actionError && <p className="text-sm text-red-500 mb-2">{actionError}</p>}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-500">{data?.pagination.total ?? 0} scored providers</span>
@@ -374,7 +381,7 @@ function QualityTab(): React.ReactElement {
         </button>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-500">Failed to load quality scores. Please try again.</p> : (
         <table className="w-full text-sm">
           <thead className="bg-slate-50">
             <tr>
@@ -424,7 +431,7 @@ interface CommissionSuggestion {
 }
 
 function CommissionTab(): React.ReactElement {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['admin', 'commission-optimization'],
     queryFn: async () => {
       const res = await api.get('/api/v1/admin/analytics/commission-optimization');
@@ -434,7 +441,7 @@ function CommissionTab(): React.ReactElement {
 
   return (
     <div className="space-y-4">
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-500">Failed to load commission data. Please try again.</p> : (
         <div className="grid gap-4">
           {data?.map((s) => {
             const delta = s.suggestedRate - s.currentRate;

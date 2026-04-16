@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  StyleSheet, Alert, ActivityIndicator,
+  StyleSheet, Alert, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,7 +21,7 @@ export default function ProviderPhotosScreen(): React.ReactElement {
   const beforePicker = useImagePicker({ context: 'general', maxImages: 20 });
   const afterPicker = useImagePicker({ context: 'general', maxImages: 20 });
 
-  const { data: booking, isLoading: bookingLoading } = useQuery({
+  const { data: booking, isLoading: bookingLoading, isError: bookingError, refetch, isRefetching } = useQuery({
     queryKey: ['booking', bookingId],
     queryFn: () => getBookingById(bookingId ?? ''),
     enabled: !!bookingId,
@@ -77,9 +77,16 @@ export default function ProviderPhotosScreen(): React.ReactElement {
         ))}
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={colors.primary} colors={[colors.primary]} />}
+      >
         {bookingLoading && (
           <ActivityIndicator size="small" color={colors.primary} style={{ marginBottom: spacing.base }} />
+        )}
+        {bookingError && (
+          <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: 12 }}>
+            <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load booking photos.</Text>
+          </View>
         )}
         <Text style={styles.phaseHint}>
           {activePhase === 'before'
@@ -159,7 +166,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
     backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   placeholder: { width: 30 },
@@ -204,8 +211,8 @@ const styles = StyleSheet.create({
   },
   thumbImg: { width: '100%', height: '100%' },
   removeBtn: {
-    position: 'absolute', top: 4, right: 4,
-    width: 22, height: 22, borderRadius: 11,
+    position: 'absolute', top: 0, right: 0,
+    width: 28, height: 28, borderRadius: 14,
     backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center',
   },
   removeBtnText: { color: colors.white, fontSize: 14, fontWeight: '700' },

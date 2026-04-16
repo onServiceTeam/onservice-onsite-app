@@ -10,10 +10,10 @@ describe('Escrow Money Conservation', () => {
     );
   });
 
-  it('should apply 20% commission on service_price for new tier', () => {
+  it('should apply 15% commission on service_price for new tier', () => {
     const result = calculateCommission(50000, 'new');
-    expect(result.commissionAmount).toBe(Math.round(50000 * 0.20));
-    expect(result.providerReceives).toBe(50000 - Math.round(50000 * 0.20));
+    expect(result.commissionAmount).toBe(Math.round(50000 * 0.15));
+    expect(result.providerReceives).toBe(50000 - Math.round(50000 * 0.15));
   });
 
   it('should calculate guarantee fund as 1.5% of service fee', () => {
@@ -26,11 +26,11 @@ describe('Escrow Money Conservation', () => {
     const result = calculateCommission(50000, 'new');
 
     expect(result.servicePrice).toBe(50000);
-    expect(result.commissionRate).toBe(0.20);
-    expect(result.commissionAmount).toBe(10000);
-    expect(result.providerReceives).toBe(40000);
-    expect(result.serviceFeeAmount).toBe(2500);
-    expect(result.guaranteeFundContribution).toBe(Math.round(2500 * 0.015));
+    expect(result.commissionRate).toBe(0.15);
+    expect(result.commissionAmount).toBe(7500);
+    expect(result.providerReceives).toBe(42500);
+    expect(result.serviceFeeAmount).toBe(5000);
+    expect(result.guaranteeFundContribution).toBe(Math.round(5000 * 0.015));
   });
 
   it('should conserve money for all tiers', () => {

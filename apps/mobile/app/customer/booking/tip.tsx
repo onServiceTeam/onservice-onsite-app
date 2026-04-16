@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import { sendTip } from '@/services/tip.service';
 import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
+import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 const TIP_PERCENTAGES = [10, 15, 20] as const;
@@ -18,9 +19,8 @@ export default function TipScreen(): React.ReactElement {
   const [selectedPercent, setSelectedPercent] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState('');
   const [showCustom, setShowCustom] = useState(false);
-  const [loading, setLoading] = useState(false);
 
-  const { data: booking, isLoading: bookingLoading } = useQuery({
+  const { data: booking, isLoading: bookingLoading, isError: bookingError, refetch } = useQuery({
     queryKey: ['booking', bookingId],
     queryFn: () => getBookingById(bookingId ?? ''),
     enabled: !!bookingId,
@@ -40,7 +40,27 @@ export default function TipScreen(): React.ReactElement {
 
   const maxTip = servicePrice;
 
-  const handleSendTip = async (): Promise<void> => {
+  const tipMutation = useMutation({
+    mutationFn: (amount: number) => sendTip({
+      bookingId: bookingId ?? '',
+      amount,
+      paymentMethod: 'wallet',
+    }),
+    onSuccess: () => {
+      Alert.alert('Thank you!', 'Your tip has been sent to the provider.', [
+        { text: 'Done', onPress: (): void => { router.replace({ pathname: '/customer/booking/make-recurring', params: { bookingId: bookingId ?? '' } }); } },
+      ]);
+    },
+    onError: (err: unknown) => {
+      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
+      const msg = axErr?.response?.data?.error?.message;
+      Alert.alert('Error', msg ?? 'Failed to send tip. Please try again.');
+    },
+  });
+
+  const loading = tipMutation.isPending;
+
+  const handleSendTip = (): void => {
     if (tipAmount <= 0) {
       Alert.alert('Enter Amount', 'Please select or enter a tip amount.');
       return;
@@ -49,30 +69,26 @@ export default function TipScreen(): React.ReactElement {
       Alert.alert('Tip Too Large', `Maximum tip is ${formatPHP(maxTip)} (100% of service price).`);
       return;
     }
-
-    setLoading(true);
-    try {
-      await sendTip({
-        bookingId,
-        amount: tipAmount,
-        paymentMethod: 'wallet',
-      });
-      Alert.alert('Thank you!', 'Your tip has been sent to the provider.', [
-        { text: 'Done', onPress: (): void => { router.replace({ pathname: '/customer/booking/make-recurring', params: { bookingId: bookingId! } }); } },
-      ]);
-    } catch (err: unknown) {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      const msg = axErr?.response?.data?.error?.message;
-      Alert.alert('Error', msg ?? 'Failed to send tip. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    tipMutation.mutate(tipAmount);
   };
 
   if (bookingLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, alignItems: 'center', justifyContent: 'center' }]}>
         <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (bookingError) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
+        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load booking details. Please try again.</Text>
+        <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10, minHeight: 44, justifyContent: 'center' as const }}>
+          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -124,7 +140,7 @@ export default function TipScreen(): React.ReactElement {
 
         {showCustom && (
           <View style={styles.customInputRow}>
-            <Text style={styles.currencyPrefix}>₱</Text>
+            <Text style={styles.currencyPrefix}>{platformConfig.currencySymbol}</Text>
             <TextInput
               style={styles.customInput}
               value={customAmount}
@@ -151,7 +167,7 @@ export default function TipScreen(): React.ReactElement {
         />
         <Button
           title="Maybe Later"
-          onPress={() => router.replace({ pathname: '/customer/booking/make-recurring', params: { bookingId: bookingId! } })}
+          onPress={() => router.replace({ pathname: '/customer/booking/make-recurring', params: { bookingId: bookingId ?? '' } })}
           variant="ghost"
           disabled={loading}
         />

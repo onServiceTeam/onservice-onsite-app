@@ -7,6 +7,7 @@ import { useBookingStore } from '@/stores/booking.store';
 import { createJobRequest } from '@/services/booking.service';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, borderRadius } from '@/config/theme';
+import { platformConfig } from '@/config/platform.config';
 
 const URGENCY_OPTIONS = [
   { value: 'same_day' as const, label: 'Same Day', desc: 'Within 4 hours' },
@@ -49,7 +50,7 @@ export default function JobRequestScreen(): React.ReactElement {
     },
     onSuccess: (booking) => {
       Alert.alert('Success', 'Your job request has been submitted. Providers will send quotes soon.', [
-        { text: 'OK', onPress: () => router.replace(`/customer/booking/${booking.id}` as never) },
+        { text: 'OK', onPress: () => router.replace(`/customer/booking/${booking.id}`) },
       ]);
     },
     onError: (err: unknown) => {
@@ -159,7 +160,7 @@ export default function JobRequestScreen(): React.ReactElement {
           <Text style={styles.hint}>Helps providers understand your expectations</Text>
           <View style={styles.budgetRow}>
             <View style={styles.budgetField}>
-              <Text style={styles.budgetPrefix}>₱</Text>
+              <Text style={styles.budgetPrefix}>{platformConfig.currencySymbol}</Text>
               <TextInput
                 style={styles.budgetInput}
                 keyboardType="numeric"
@@ -171,7 +172,7 @@ export default function JobRequestScreen(): React.ReactElement {
             </View>
             <Text style={styles.budgetDash}>—</Text>
             <View style={styles.budgetField}>
-              <Text style={styles.budgetPrefix}>₱</Text>
+              <Text style={styles.budgetPrefix}>{platformConfig.currencySymbol}</Text>
               <TextInput
                 style={styles.budgetInput}
                 keyboardType="numeric"
@@ -218,7 +219,7 @@ export default function JobRequestScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundSecondary },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
-  backBtn: { padding: spacing.xs },
+  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   placeholder: { width: 30 },

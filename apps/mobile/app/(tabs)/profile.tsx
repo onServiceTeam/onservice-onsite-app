@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore, type User } from '@/stores/auth.store';
@@ -74,16 +74,17 @@ export default function ProfileScreen(): React.ReactElement {
   };
 
   const menuItems = [
-    { label: 'SiguradoShield\u2122 Protection', icon: '🛡️', onPress: () => router.push('/customer/safety' as never) },
-    { label: 'My Addresses', icon: '📍', onPress: () => router.push('/customer/addresses' as never) },
-    { label: 'Payment Methods', icon: '💳', onPress: () => router.push('/customer/payment-methods' as never) },
-    { label: 'Notification Settings', icon: '🔔', onPress: () => router.push('/customer/notification-settings' as never) },
-    { label: 'Help & Support', icon: '❓', onPress: () => router.push('/customer/help' as never) },
-    { label: 'Terms & Privacy', icon: '📄', onPress: () => router.push('/customer/terms' as never) },
-    { label: 'Account & Data', icon: '🔐', onPress: () => router.push('/customer/account-management' as never) },
+    { label: 'SiguradoShield\u2122 Protection', icon: '🛡️', onPress: () => router.push('/customer/safety') },
+    { label: 'My Addresses', icon: '📍', onPress: () => router.push('/customer/addresses') },
+    { label: 'Payment Methods', icon: '💳', onPress: () => router.push('/customer/payment-methods') },
+    { label: 'Notification Settings', icon: '🔔', onPress: () => router.push('/customer/notification-settings') },
+    { label: 'Help & Support', icon: '❓', onPress: () => router.push('/customer/help') },
+    { label: 'Terms & Privacy', icon: '📄', onPress: () => router.push('/customer/terms') },
+    { label: 'Account & Data', icon: '🔐', onPress: () => router.push('/customer/account-management') },
   ];
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
     <ScrollView
       style={[styles.container, { paddingTop: insets.top + spacing.base }]}
       contentContainerStyle={styles.content}
@@ -170,6 +171,7 @@ export default function ProfileScreen(): React.ReactElement {
 
       <Text style={styles.version}>Version {platformConfig.appVersion}</Text>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -198,7 +200,7 @@ const styles = StyleSheet.create({
   userInfo: { flex: 1 },
   userName: { ...typography.h3, color: colors.text },
   userPhone: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },
-  editButton: { marginTop: spacing.sm },
+  editButton: { marginTop: spacing.sm, minHeight: 44, justifyContent: 'center' as const },
   editButtonText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
   editForm: { flex: 1 },
   editActions: { flexDirection: 'row', gap: spacing.sm },
@@ -209,6 +211,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md + 2,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
+    minHeight: 44,
   },
   menuIcon: { fontSize: 20, marginRight: spacing.md, width: 28 },
   menuLabel: { ...typography.body, color: colors.text, flex: 1 },

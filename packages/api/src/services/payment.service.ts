@@ -2,6 +2,8 @@ import axios from 'axios';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { platformConfig } from '../config/platform.config';
+import { formatPHP } from '../utils/currency';
 
 interface PaymentIntentRow {
   id: string;
@@ -38,8 +40,8 @@ export async function createPaymentIntent(
   paymentMethod: PaymentMethod,
   description: string,
 ): Promise<PaymentIntentRow> {
-  if (amount < 10000) {
-    throw createAppError('Minimum payment amount is ₱100.00.', 400);
+  if (amount < platformConfig.minimumPaymentAmount) {
+    throw createAppError(`Minimum payment amount is ${formatPHP(platformConfig.minimumPaymentAmount)}.`, 400);
   }
 
   let paymongoIntentId: string | null = null;

@@ -31,7 +31,7 @@ export default function AddressesScreen(): React.ReactElement {
   const [notes, setNotes] = useState('');
   const [isDefault, setIsDefault] = useState(false);
 
-  const { data: addresses = [], isLoading } = useQuery({
+  const { data: addresses = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['addresses'],
     queryFn: addressService.getAddresses,
   });
@@ -137,6 +137,27 @@ export default function AddressesScreen(): React.ReactElement {
 
   const isSaving = createMut.isPending || updateMut.isPending;
 
+  if (!showForm && isError) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Text style={styles.backText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>My Addresses</Text>
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load addresses. Please try again.</Text>
+          <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
+            <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const renderAddress = ({ item }: { item: SavedAddress }): React.ReactElement => {
     const icon = LABEL_OPTIONS.find((l) => l.value === item.label)?.icon ?? '📍';
     return (
@@ -206,7 +227,7 @@ export default function AddressesScreen(): React.ReactElement {
           <Text style={styles.formLabel}>Full Address *</Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g. 123 Rizal St, Brgy. San Antonio"
+            placeholder="e.g. Purok 3, Brgy. San Antonio"
             placeholderTextColor={colors.textTertiary}
             value={fullAddress}
             onChangeText={setFullAddress}
@@ -326,7 +347,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  backBtn: { padding: spacing.xs, marginRight: spacing.sm },
+  backBtn: { padding: spacing.xs, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },

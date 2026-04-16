@@ -14,6 +14,8 @@ interface ReviewRow {
   communication_rating: number | null;
   value_rating: number | null;
   comment: string;
+  tags: string[];
+  private_note: string | null;
   provider_response: string | null;
   provider_response_at: Date | null;
   is_visible: boolean;
@@ -63,6 +65,8 @@ export async function createReview(
     communicationRating?: number;
     valueRating?: number;
     comment?: string;
+    tags?: string[];
+    privateNote?: string;
     imageUrls?: string[];
   },
 ): Promise<ReviewRow> {
@@ -95,12 +99,19 @@ export async function createReview(
 
   const flagged = containsFlaggedContent(data.comment ?? '');
 
+  // Validate allowed tags
+  const ALLOWED_TAGS = new Set([
+    'professional', 'punctual', 'great_value', 'friendly', 'clean', 'thorough',
+    'responsive', 'skilled', 'reliable', 'careful',
+  ]);
+  const sanitizedTags = (data.tags ?? []).filter((t) => ALLOWED_TAGS.has(t));
+
   return db.transaction(async (client) => {
     const result = await client.query<ReviewRow>(
       `INSERT INTO reviews
         (booking_id, reviewer_id, provider_id, rating, quality_rating, punctuality_rating,
-         professionalism_rating, communication_rating, value_rating, comment, is_visible, is_flagged)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+         professionalism_rating, communication_rating, value_rating, comment, tags, private_note, is_visible, is_flagged)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
       [
         bookingId, reviewerId, bk.provider_id,
         data.rating,
@@ -110,6 +121,8 @@ export async function createReview(
         data.communicationRating ?? null,
         data.valueRating ?? null,
         data.comment ?? '',
+        sanitizedTags,
+        data.privateNote?.trim() ?? null,
         !flagged,
         flagged,
       ],
@@ -288,6 +301,8 @@ export function formatReview(r: ReviewRow, images?: ReviewImageRow[]): Record<st
     communicationRating: r.communication_rating,
     valueRating: r.value_rating,
     comment: r.comment,
+    tags: r.tags ?? [],
+    // private_note is intentionally omitted — never expose to clients
     providerResponse: r.provider_response,
     providerResponseAt: r.provider_response_at,
     isVisible: r.is_visible,
