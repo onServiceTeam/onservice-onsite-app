@@ -120,4 +120,8 @@ export {
   Receipt,
   Wallet,
   HelpCircle,
+  Key,
+  History,
+  RotateCcw,
+  DollarSign,
 } from 'lucide-react';

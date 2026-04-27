@@ -34,8 +34,29 @@ When in doubt, run it. It's cheap. The point is mechanical: you stop, you look a
 
 ---
 
-## THE PROMPT (literally what runs in your head)
+## 0️⃣ PHASE-SCOPE PREFLIGHT (run BEFORE the first meaningful change of every phase)
 
+Mutation gates and other end-of-phase checks are scoped to the files actually
+touched by the phase, not the files the spec *predicts* will be touched. The
+two diverge constantly — implementation drifts wider than the plan. If you
+discover at end-of-phase that you touched a sacred file that wasn't in the
+spec, the testing burden is a surprise and tempts you toward deferral. Avoid
+that by confirming scope at the start.
+
+After branching from baseline and before writing implementation code:
+
+1. `git diff --stat $(cat .ai-coder/checkpoints/preflight/baseline-commit.txt)..HEAD` — list every file the phase has touched so far (initially empty; revisit after every meaningful change).
+2. **List sacred files in the diff.** Sacred = `escrow.service.ts`, `commission.service.ts`, `dispute.service.ts`, `booking.service.ts`, `payout.service.ts`, `wallet.service.ts`, `settings.service.ts`, anything in `src/services/refund*` — the money-touching surface tracked by the mutation gate.
+3. **For each sacred file in the diff that the phase plan did NOT anticipate:** flag it explicitly in `.ai-coder/checkpoints/logs/PHASE-NN/sanity-checks.log`. Then write the test plan for it BEFORE finishing the implementation. The test plan goes in the same log entry.
+4. **Re-run after every sacred-file edit.** If you started touching a new sacred file mid-phase, it's the same problem — flag it, write the test plan, then continue.
+
+The point: tests for sacred files are not optional, are not deferrable, and are not "Phase N+1 work." They belong to the phase that touched the file. Discovering them at end-of-phase is a planning failure; the only fix is to discover them at start-of-phase.
+
+If you find yourself thinking "I'll add tests later" or "I'll defer the mutation gate for this file" — stop. The constitutional answer is that touching a sacred file means writing the tests in this phase. (See TD-005 in `.ai-coder/checkpoints/logs/tech-debt.md` for the rationale.)
+
+---
+
+## THE PROMPT (literally what runs in your head)
 > You are acting as a senior full-stack engineer, QA lead, and data integrity auditor.
 > Perform a progressive sanity and integrity check on the changes just made.
 

@@ -1,0 +1,428 @@
+[32m06:51:18 (26448) INFO ProjectReader[39m Found 7 of 714 file(s) to be mutated.
+[32m06:51:18 (26448) INFO Instrumenter[39m Instrumented 7 source file(s) with 2214 mutant(s)
+[32m06:51:19 (26448) INFO ConcurrencyTokenProvider[39m Creating 2 checker process(es) and 2 test runner process(es).
+[32m06:51:30 (26448) INFO BroadcastReporter[39m Detected that current console does not support the "progress" reporter, downgrading to "progress-append-only" reporter
+[32m06:51:31 (26448) INFO DryRunExecutor[39m Starting initial test run (jest test runner with "perTest" coverage analysis). This may take a while.
+[91m06:51:32 (26448) ERROR DryRunExecutor[39m One or more tests resulted in an error:
+	BABEL_PARSE_ERROR C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\.stryker-tmp\sandbox1791582\packages\api\__tests__\commission.test.ts: Missing initializer in const declaration. (8:23)
+
+   6 |
+   7 |
+>  8 | const SETTINGS_DEFAULTS: Record<string, string> = {
+     |                        ^
+   9 |   commission_rate_founding: '10',
+  10 |   commission_rate_new: '15',
+  11 |   commission_rate_verified: '13', Jest encountered an unexpected token
+
+Jest failed to parse a file. This happens e.g. when your code or its dependencies use non-standard JavaScript syntax, or when Jest is not configured to support such syntax.
+
+Out of the box Jest supports Babel, which will be used to transform your files into valid JS based on your Babel configuration.
+
+By default "node_modules" folder is ignored by transformers.
+
+Here's what you can do:
+ • If you are trying to use ECMAScript Modules, see https://jestjs.io/docs/ecmascript-modules for how to enable it.
+ • If you are trying to use TypeScript, see https://jestjs.io/docs/getting-started#using-typescript
+ • To have some of your "node_modules" files transformed, you can specify a custom "transformIgnorePatterns" in your config.
+ • If you need a custom transformation, specify a "transform" option in your config.
+ • If you simply want to mock your non-JS modules (e.g. binary assets) you can stub them out with the "moduleNameMapper" config option.
+
+You'll find more details and examples of these config options in the docs:
+https://jestjs.io/docs/configuration
+For information about custom transformations, see:
+https://jestjs.io/docs/code-transformation
+
+Details:
+
+SyntaxError: C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\.stryker-tmp\sandbox1791582\packages\api\__tests__\commission.test.ts: Missing initializer in const declaration. (8:23)
+
+   6 |
+   7 |
+>  8 | const SETTINGS_DEFAULTS: Record<string, string> = {
+     |                        ^
+   9 |   commission_rate_founding: '10',
+  10 |   commission_rate_new: '15',
+  11 |   commission_rate_verified: '13',
+    at constructor (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parse-error.ts:95:45)
+    at Parser.toParseError [as raise] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\tokenizer\index.ts:1504:19)
+    at Parser.raise [as parseVar] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1605:16)
+    at Parser.parseVar [as parseVarStatement] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1251:10)
+    at Parser.parseVarStatement [as parseStatementContent] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:612:21)
+    at Parser.parseStatementContent [as parseStatementLike] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:482:17)
+    at Parser.parseStatementLike [as parseModuleItem] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:419:17)
+    at Parser.parseModuleItem [as parseBlockOrModuleBlockBody] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1443:16)
+    at Parser.parseBlockOrModuleBlockBody [as parseBlockBody] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1417:10)
+    at Parser.parseBlockBody [as parseProgram] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:229:10)
+    at Parser.parseProgram [as parseTopLevel] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:203:25)
+    at Parser.parseTopLevel [as parse] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\index.ts:83:25)
+    at parse (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\index.ts:86:38)
+    at parser (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\parser\index.ts:29:19)
+    at parser.next (<anonymous>)
+    at normalizeFile (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transformation\normalize-file.ts:50:24)
+    at normalizeFile.next (<anonymous>)
+    at run (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transformation\index.ts:41:36)
+    at run.next (<anonymous>)
+    at transform (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transform.ts:29:20)
+    at transform.next (<anonymous>)
+    at evaluateSync (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\gensync\index.js:251:28)
+    at sync (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\gensync\index.js:89:14)
+    at fn (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\errors\rewrite-stack-trace.ts:99:14)
+    at transformSync (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transform.ts:66:52)
+    at Object.process (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\babel-jest\build\index.js:250:56)
+    at ScriptTransformer.transformSource (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@jest\transform\build\index.js:415:31)
+    at ScriptTransformer._transformAndBuildScript (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@jest\transform\build\index.js:512:40)
+    at ScriptTransformer.transform (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@jest\transform\build\index.js:551:19)
+    at Runtime.transformFile (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:1286:53)
+    at Runtime._execModule (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:1239:34)
+    at Runtime._loadModule (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:940:12)
+    at Runtime.requireModule (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:828:12)
+    at jestAdapter (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-circus\build\runner.js:95:13)
+    at runTestInternal (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runner\build\index.js:275:16)
+    at runTest (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runner\build\index.js:343:7), BABEL_PARSE_ERROR C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\.stryker-tmp\sandbox1791582\packages\api\__tests__\runtime-config-e2e.test.ts: Unexpected token, expected ")" (14:19)
+
+  12 | jest.mock('../src/models/db', () => ({
+  13 |   db: {
+> 14 |     query: (...args: unknown[]) => dbQueryMock(...args),
+     |                    ^
+  15 |     transaction: jest.fn(),
+  16 |   },
+  17 | })); SyntaxError: C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\.stryker-tmp\sandbox1791582\packages\api\__tests__\runtime-config-e2e.test.ts: Unexpected token, expected ")" (14:19)
+
+  12 | jest.mock('../src/models/db', () => ({
+  13 |   db: {
+> 14 |     query: (...args: unknown[]) => dbQueryMock(...args),
+     |                    ^
+  15 |     transaction: jest.fn(),
+  16 |   },
+  17 | }));
+    at constructor (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parse-error.ts:95:45)
+    at Parser.toParseError [as raise] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\tokenizer\index.ts:1504:19)
+    at Parser.raise [as unexpected] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\tokenizer\index.ts:1544:16)
+    at Parser.unexpected [as expect] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\util.ts:157:12)
+    at Parser.expect [as parseParenAndDistinguishExpression] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:1835:10)
+    at Parser.parseParenAndDistinguishExpression [as parseExprAtom] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:1170:21)
+    at Parser.parseExprAtom [as parseExprSubscripts] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:742:23)
+    at Parser.parseExprSubscripts [as parseUpdate] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:721:21)
+    at Parser.parseUpdate [as parseMaybeUnary] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:683:23)
+    at Parser.parseMaybeUnary [as parseMaybeUnaryOrPrivate] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:417:14)
+    at Parser.parseMaybeUnaryOrPrivate [as parseExprOps] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:429:23)
+    at Parser.parseExprOps [as parseMaybeConditional] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:384:23)
+    at Parser.parseMaybeConditional [as parseMaybeAssign] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:301:21)
+    at parseMaybeAssign (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:257:12)
+    at Parser.callback [as allowInAnd] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:3197:12)
+    at Parser.allowInAnd [as parseMaybeAssignAllowIn] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:256:17)
+    at Parser.parseMaybeAssignAllowIn [as parseMaybeAssignAllowInOrVoidPattern] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:3311:17)
+    at Parser.parseMaybeAssignAllowInOrVoidPattern [as parseObjectProperty] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:2328:16)
+    at Parser.parseObjectProperty [as parseObjPropValue] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:2391:12)
+    at Parser.parseObjPropValue [as parsePropertyDefinition] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:2231:17)
+    at Parser.parsePropertyDefinition [as parseObjectLike] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:2098:21)
+    at Parser.parseObjectLike [as parseExprAtom] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:1181:21)
+    at Parser.parseExprAtom [as parseExprSubscripts] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:742:23)
+    at Parser.parseExprSubscripts [as parseUpdate] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:721:21)
+    at Parser.parseUpdate [as parseMaybeUnary] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:683:23)
+    at Parser.parseMaybeUnary [as parseMaybeUnaryOrPrivate] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:417:14)
+    at Parser.parseMaybeUnaryOrPrivate [as parseExprOps] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:429:23)
+    at Parser.parseExprOps [as parseMaybeConditional] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:384:23)
+    at Parser.parseMaybeConditional [as parseMaybeAssign] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:301:21)
+    at parseMaybeAssign (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:257:12)
+    at Parser.callback [as allowInAnd] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:3197:12)
+    at Parser.allowInAnd [as parseMaybeAssignAllowIn] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:256:17)
+    at Parser.parseMaybeAssignAllowIn [as parseMaybeAssignAllowInOrVoidPattern] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:3311:17)
+    at Parser.parseMaybeAssignAllowInOrVoidPattern [as parseObjectProperty] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:2328:16)
+    at Parser.parseObjectProperty [as parseObjPropValue] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:2391:12)
+    at Parser.parseObjPropValue [as parsePropertyDefinition] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:2231:17)
+    at Parser.parsePropertyDefinition [as parseObjectLike] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:2098:21)
+    at Parser.parseObjectLike [as parseExprAtom] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:1181:21)
+    at Parser.parseExprAtom [as parseExprSubscripts] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:742:23)
+    at Parser.parseExprSubscripts [as parseUpdate] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:721:21)
+    at Parser.parseUpdate [as parseMaybeUnary] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:683:23)
+    at Parser.parseMaybeUnary [as parseMaybeUnaryOrPrivate] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:417:14)
+    at Parser.parseMaybeUnaryOrPrivate [as parseExprOps] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:429:23)
+    at Parser.parseExprOps [as parseMaybeConditional] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:384:23)
+    at Parser.parseMaybeConditional [as parseMaybeAssign] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:301:21)
+    at parseMaybeAssign (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:257:12)
+    at Parser.callback [as allowInAnd] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:3197:12)
+    at Parser.allowInAnd [as parseMaybeAssignAllowIn] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:256:17)
+    at Parser.parseMaybeAssignAllowIn [as parseMaybeAssignAllowInOrVoidPattern] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:3311:17)
+    at Parser.parseMaybeAssignAllowInOrVoidPattern [as parseParenAndDistinguishExpression] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:1825:16)
+    at Parser.parseParenAndDistinguishExpression [as parseExprAtom] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:1170:21)
+    at Parser.parseExprAtom [as parseExprSubscripts] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:742:23)
+    at Parser.parseExprSubscripts [as parseUpdate] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:721:21)
+    at Parser.parseUpdate [as parseMaybeUnary] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:683:23)
+    at Parser.parseMaybeUnary [as parseMaybeUnaryOrPrivate] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:417:14)
+    at Parser.parseMaybeUnaryOrPrivate [as parseExprOps] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:429:23)
+    at Parser.parseExprOps [as parseMaybeConditional] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:384:23)
+    at Parser.parseMaybeConditional [as parseMaybeAssign] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:301:21)
+    at Parser.parseMaybeAssign [as parseFunctionBody] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:2607:14)
+    at Parser.parseFunctionBody [as parseArrowExpression] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:2562:10)
+    at Parser.parseArrowExpression [as parseParenAndDistinguishExpression] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:1850:12)
+    at Parser.parseParenAndDistinguishExpression [as parseExprAtom] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:1170:21)
+    at Parser.parseExprAtom [as parseExprSubscripts] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:742:23)
+    at Parser.parseExprSubscripts [as parseUpdate] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:721:21)
+    at Parser.parseUpdate [as parseMaybeUnary] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:683:23)
+    at Parser.parseMaybeUnary [as parseMaybeUnaryOrPrivate] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:417:14)
+    at Parser.parseMaybeUnaryOrPrivate [as parseExprOps] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:429:23)
+    at Parser.parseExprOps [as parseMaybeConditional] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:384:23)
+    at Parser.parseMaybeConditional [as parseMaybeAssign] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:301:21)
+    at parseMaybeAssign (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:257:12)
+    at Parser.callback [as allowInAnd] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:3197:12)
+    at Parser.allowInAnd [as parseMaybeAssignAllowIn] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:256:17)
+    at Parser.parseMaybeAssignAllowIn [as parseMaybeAssignAllowInOrVoidPattern] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:3311:17)
+    at Parser.parseMaybeAssignAllowInOrVoidPattern [as parseExprListItem] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:2793:18)
+    at Parser.parseExprListItem [as parseCallExpressionArguments] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:1042:14)
+    at Parser.parseCallExpressionArguments [as parseCoverCallAndAsyncArrowHead] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:922:29)
+    at Parser.parseCoverCallAndAsyncArrowHead [as parseSubscript] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:804:19)
+    at Parser.parseSubscript [as parseSubscripts] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:763:19)
+    at Parser.parseSubscripts [as parseExprSubscripts] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:748:17)
+    at Parser.parseExprSubscripts [as parseUpdate] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:721:21)
+    at Parser.parseUpdate [as parseMaybeUnary] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:683:23)
+    at Parser.parseMaybeUnary [as parseMaybeUnaryOrPrivate] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:417:14)
+    at Parser.parseMaybeUnaryOrPrivate [as parseExprOps] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:429:23)
+    at Parser.parseExprOps [as parseMaybeConditional] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:384:23)
+    at Parser.parseMaybeConditional [as parseMaybeAssign] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:301:21)
+    at Parser.parseMaybeAssign [as parseExpressionBase] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:226:23)
+    at parseExpressionBase (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:217:39)
+    at Parser.callback [as allowInAnd] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:3192:16)
+    at Parser.allowInAnd [as parseExpression] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\expression.ts:217:17)
+    at Parser.parseExpression [as parseStatementContent] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:688:23)
+    at Parser.parseStatementContent [as parseStatementLike] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:482:17)
+    at Parser.parseStatementLike [as parseModuleItem] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:419:17)
+    at Parser.parseModuleItem [as parseBlockOrModuleBlockBody] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1443:16)
+    at Parser.parseBlockOrModuleBlockBody [as parseBlockBody] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1417:10)
+    at Parser.parseBlockBody [as parseProgram] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:229:10)
+    at Parser.parseProgram [as parseTopLevel] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:203:25)
+    at Parser.parseTopLevel [as parse] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\index.ts:83:25)
+    at parse (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\index.ts:86:38)
+    at parser (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\parser\index.ts:29:19)
+    at parser.next (<anonymous>), BABEL_PARSE_ERROR C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\.stryker-tmp\sandbox1791582\packages\api\__tests__\dispute-refund-processing.test.ts: Missing initializer in const declaration. (8:23)
+
+   6 |
+   7 |
+>  8 | const SETTINGS_DEFAULTS: Record<string, string> = {
+     |                        ^
+   9 |   cancel_refund_over_24h: '100',
+  10 |   cancel_refund_2_to_24h: '100',
+  11 |   cancel_refund_1_to_2h: '90', Jest encountered an unexpected token
+
+Jest failed to parse a file. This happens e.g. when your code or its dependencies use non-standard JavaScript syntax, or when Jest is not configured to support such syntax.
+
+Out of the box Jest supports Babel, which will be used to transform your files into valid JS based on your Babel configuration.
+
+By default "node_modules" folder is ignored by transformers.
+
+Here's what you can do:
+ • If you are trying to use ECMAScript Modules, see https://jestjs.io/docs/ecmascript-modules for how to enable it.
+ • If you are trying to use TypeScript, see https://jestjs.io/docs/getting-started#using-typescript
+ • To have some of your "node_modules" files transformed, you can specify a custom "transformIgnorePatterns" in your config.
+ • If you need a custom transformation, specify a "transform" option in your config.
+ • If you simply want to mock your non-JS modules (e.g. binary assets) you can stub them out with the "moduleNameMapper" config option.
+
+You'll find more details and examples of these config options in the docs:
+https://jestjs.io/docs/configuration
+For information about custom transformations, see:
+https://jestjs.io/docs/code-transformation
+
+Details:
+
+SyntaxError: C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\.stryker-tmp\sandbox1791582\packages\api\__tests__\dispute-refund-processing.test.ts: Missing initializer in const declaration. (8:23)
+
+   6 |
+   7 |
+>  8 | const SETTINGS_DEFAULTS: Record<string, string> = {
+     |                        ^
+   9 |   cancel_refund_over_24h: '100',
+  10 |   cancel_refund_2_to_24h: '100',
+  11 |   cancel_refund_1_to_2h: '90',
+    at constructor (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parse-error.ts:95:45)
+    at Parser.toParseError [as raise] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\tokenizer\index.ts:1504:19)
+    at Parser.raise [as parseVar] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1605:16)
+    at Parser.parseVar [as parseVarStatement] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1251:10)
+    at Parser.parseVarStatement [as parseStatementContent] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:612:21)
+    at Parser.parseStatementContent [as parseStatementLike] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:482:17)
+    at Parser.parseStatementLike [as parseModuleItem] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:419:17)
+    at Parser.parseModuleItem [as parseBlockOrModuleBlockBody] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1443:16)
+    at Parser.parseBlockOrModuleBlockBody [as parseBlockBody] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1417:10)
+    at Parser.parseBlockBody [as parseProgram] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:229:10)
+    at Parser.parseProgram [as parseTopLevel] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:203:25)
+    at Parser.parseTopLevel [as parse] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\index.ts:83:25)
+    at parse (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\index.ts:86:38)
+    at parser (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\parser\index.ts:29:19)
+    at parser.next (<anonymous>)
+    at normalizeFile (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transformation\normalize-file.ts:50:24)
+    at normalizeFile.next (<anonymous>)
+    at run (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transformation\index.ts:41:36)
+    at run.next (<anonymous>)
+    at transform (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transform.ts:29:20)
+    at transform.next (<anonymous>)
+    at evaluateSync (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\gensync\index.js:251:28)
+    at sync (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\gensync\index.js:89:14)
+    at fn (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\errors\rewrite-stack-trace.ts:99:14)
+    at transformSync (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transform.ts:66:52)
+    at Object.process (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\babel-jest\build\index.js:250:56)
+    at ScriptTransformer.transformSource (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@jest\transform\build\index.js:415:31)
+    at ScriptTransformer._transformAndBuildScript (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@jest\transform\build\index.js:512:40)
+    at ScriptTransformer.transform (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@jest\transform\build\index.js:551:19)
+    at Runtime.transformFile (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:1286:53)
+    at Runtime._execModule (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:1239:34)
+    at Runtime._loadModule (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:940:12)
+    at Runtime.requireModule (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:828:12)
+    at jestAdapter (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-circus\build\runner.js:95:13)
+    at runTestInternal (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runner\build\index.js:275:16)
+    at runTest (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runner\build\index.js:343:7), BABEL_PARSE_ERROR C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\.stryker-tmp\sandbox1791582\packages\api\__tests__\escrow-money-conservation.test.ts: Missing initializer in const declaration. (7:23)
+
+   5 |
+   6 |
+>  7 | const SETTINGS_DEFAULTS: Record<string, string> = {
+     |                        ^
+   8 |   commission_rate_new: '15',
+   9 |   commission_rate_verified: '13',
+  10 |   commission_rate_pro: '11', Jest encountered an unexpected token
+
+Jest failed to parse a file. This happens e.g. when your code or its dependencies use non-standard JavaScript syntax, or when Jest is not configured to support such syntax.
+
+Out of the box Jest supports Babel, which will be used to transform your files into valid JS based on your Babel configuration.
+
+By default "node_modules" folder is ignored by transformers.
+
+Here's what you can do:
+ • If you are trying to use ECMAScript Modules, see https://jestjs.io/docs/ecmascript-modules for how to enable it.
+ • If you are trying to use TypeScript, see https://jestjs.io/docs/getting-started#using-typescript
+ • To have some of your "node_modules" files transformed, you can specify a custom "transformIgnorePatterns" in your config.
+ • If you need a custom transformation, specify a "transform" option in your config.
+ • If you simply want to mock your non-JS modules (e.g. binary assets) you can stub them out with the "moduleNameMapper" config option.
+
+You'll find more details and examples of these config options in the docs:
+https://jestjs.io/docs/configuration
+For information about custom transformations, see:
+https://jestjs.io/docs/code-transformation
+
+Details:
+
+SyntaxError: C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\.stryker-tmp\sandbox1791582\packages\api\__tests__\escrow-money-conservation.test.ts: Missing initializer in const declaration. (7:23)
+
+   5 |
+   6 |
+>  7 | const SETTINGS_DEFAULTS: Record<string, string> = {
+     |                        ^
+   8 |   commission_rate_new: '15',
+   9 |   commission_rate_verified: '13',
+  10 |   commission_rate_pro: '11',
+    at constructor (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parse-error.ts:95:45)
+    at Parser.toParseError [as raise] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\tokenizer\index.ts:1504:19)
+    at Parser.raise [as parseVar] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1605:16)
+    at Parser.parseVar [as parseVarStatement] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1251:10)
+    at Parser.parseVarStatement [as parseStatementContent] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:612:21)
+    at Parser.parseStatementContent [as parseStatementLike] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:482:17)
+    at Parser.parseStatementLike [as parseModuleItem] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:419:17)
+    at Parser.parseModuleItem [as parseBlockOrModuleBlockBody] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1443:16)
+    at Parser.parseBlockOrModuleBlockBody [as parseBlockBody] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1417:10)
+    at Parser.parseBlockBody [as parseProgram] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:229:10)
+    at Parser.parseProgram [as parseTopLevel] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:203:25)
+    at Parser.parseTopLevel [as parse] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\index.ts:83:25)
+    at parse (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\index.ts:86:38)
+    at parser (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\parser\index.ts:29:19)
+    at parser.next (<anonymous>)
+    at normalizeFile (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transformation\normalize-file.ts:50:24)
+    at normalizeFile.next (<anonymous>)
+    at run (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transformation\index.ts:41:36)
+    at run.next (<anonymous>)
+    at transform (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transform.ts:29:20)
+    at transform.next (<anonymous>)
+    at evaluateSync (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\gensync\index.js:251:28)
+    at sync (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\gensync\index.js:89:14)
+    at fn (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\errors\rewrite-stack-trace.ts:99:14)
+    at transformSync (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transform.ts:66:52)
+    at Object.process (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\babel-jest\build\index.js:250:56)
+    at ScriptTransformer.transformSource (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@jest\transform\build\index.js:415:31)
+    at ScriptTransformer._transformAndBuildScript (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@jest\transform\build\index.js:512:40)
+    at ScriptTransformer.transform (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@jest\transform\build\index.js:551:19)
+    at Runtime.transformFile (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:1286:53)
+    at Runtime._execModule (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:1239:34)
+    at Runtime._loadModule (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:940:12)
+    at Runtime.requireModule (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:828:12)
+    at jestAdapter (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-circus\build\runner.js:95:13)
+    at runTestInternal (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runner\build\index.js:275:16)
+    at runTest (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runner\build\index.js:343:7), BABEL_PARSE_ERROR C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\.stryker-tmp\sandbox1791582\packages\api\__tests__\booking-price-lookup.test.ts: Missing initializer in const declaration. (7:23)
+
+   5 |
+   6 |
+>  7 | const SETTINGS_DEFAULTS: Record<string, string> = {
+     |                        ^
+   8 |   commission_rate_new: '15',
+   9 |   commission_rate_verified: '13',
+  10 |   commission_rate_pro: '11', Jest encountered an unexpected token
+
+Jest failed to parse a file. This happens e.g. when your code or its dependencies use non-standard JavaScript syntax, or when Jest is not configured to support such syntax.
+
+Out of the box Jest supports Babel, which will be used to transform your files into valid JS based on your Babel configuration.
+
+By default "node_modules" folder is ignored by transformers.
+
+Here's what you can do:
+ • If you are trying to use ECMAScript Modules, see https://jestjs.io/docs/ecmascript-modules for how to enable it.
+ • If you are trying to use TypeScript, see https://jestjs.io/docs/getting-started#using-typescript
+ • To have some of your "node_modules" files transformed, you can specify a custom "transformIgnorePatterns" in your config.
+ • If you need a custom transformation, specify a "transform" option in your config.
+ • If you simply want to mock your non-JS modules (e.g. binary assets) you can stub them out with the "moduleNameMapper" config option.
+
+You'll find more details and examples of these config options in the docs:
+https://jestjs.io/docs/configuration
+For information about custom transformations, see:
+https://jestjs.io/docs/code-transformation
+
+Details:
+
+SyntaxError: C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\.stryker-tmp\sandbox1791582\packages\api\__tests__\booking-price-lookup.test.ts: Missing initializer in const declaration. (7:23)
+
+   5 |
+   6 |
+>  7 | const SETTINGS_DEFAULTS: Record<string, string> = {
+     |                        ^
+   8 |   commission_rate_new: '15',
+   9 |   commission_rate_verified: '13',
+  10 |   commission_rate_pro: '11',
+    at constructor (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parse-error.ts:95:45)
+    at Parser.toParseError [as raise] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\tokenizer\index.ts:1504:19)
+    at Parser.raise [as parseVar] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1605:16)
+    at Parser.parseVar [as parseVarStatement] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1251:10)
+    at Parser.parseVarStatement [as parseStatementContent] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:612:21)
+    at Parser.parseStatementContent [as parseStatementLike] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:482:17)
+    at Parser.parseStatementLike [as parseModuleItem] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:419:17)
+    at Parser.parseModuleItem [as parseBlockOrModuleBlockBody] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1443:16)
+    at Parser.parseBlockOrModuleBlockBody [as parseBlockBody] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:1417:10)
+    at Parser.parseBlockBody [as parseProgram] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:229:10)
+    at Parser.parseProgram [as parseTopLevel] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\statement.ts:203:25)
+    at Parser.parseTopLevel [as parse] (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\parser\index.ts:83:25)
+    at parse (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\parser\src\index.ts:86:38)
+    at parser (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\parser\index.ts:29:19)
+    at parser.next (<anonymous>)
+    at normalizeFile (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transformation\normalize-file.ts:50:24)
+    at normalizeFile.next (<anonymous>)
+    at run (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transformation\index.ts:41:36)
+    at run.next (<anonymous>)
+    at transform (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transform.ts:29:20)
+    at transform.next (<anonymous>)
+    at evaluateSync (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\gensync\index.js:251:28)
+    at sync (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\gensync\index.js:89:14)
+    at fn (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\errors\rewrite-stack-trace.ts:99:14)
+    at transformSync (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@babel\core\src\transform.ts:66:52)
+    at Object.process (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\babel-jest\build\index.js:250:56)
+    at ScriptTransformer.transformSource (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@jest\transform\build\index.js:415:31)
+    at ScriptTransformer._transformAndBuildScript (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@jest\transform\build\index.js:512:40)
+    at ScriptTransformer.transform (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@jest\transform\build\index.js:551:19)
+    at Runtime.transformFile (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:1286:53)
+    at Runtime._execModule (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:1239:34)
+    at Runtime._loadModule (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:940:12)
+    at Runtime.requireModule (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runtime\build\index.js:828:12)
+    at jestAdapter (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-circus\build\runner.js:95:13)
+    at runTestInternal (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runner\build\index.js:275:16)
+    at runTest (C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\jest-runner\build\index.js:343:7)
+[91m06:51:32 (26448) ERROR Stryker[39m Unexpected error occurred while running Stryker Error: Something went wrong in the initial test run
+    at DryRunExecutor.validateResultCompleted (file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/node_modules/@stryker-mutator/core/dist/src/process/3-dry-run-executor.js:76:15)
+    at DryRunExecutor.executeDryRun (file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/node_modules/@stryker-mutator/core/dist/src/process/3-dry-run-executor.js:96:14)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async WorkItem.execute (file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/node_modules/@stryker-mutator/core/dist/src/concurrent/pool.js:32:28)
+    at async file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/node_modules/@stryker-mutator/core/dist/src/concurrent/pool.js:69:13
+[32m06:51:32 (26448) INFO Stryker[39m This might be a known problem with a solution documented in our troubleshooting guide.
+[32m06:51:32 (26448) INFO Stryker[39m You can find it at https://stryker-mutator.io/docs/stryker-js/troubleshooting/
+[32m06:51:32 (26448) INFO Stryker[39m Still having trouble figuring out what went wrong? Try `npx stryker run --fileLogLevel trace --logLevel debug` to get some more info.

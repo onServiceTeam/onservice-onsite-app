@@ -1,0 +1,3746 @@
+--- gate-3-mutations (TD-005 baseline-delta scope) ---
+Phase:            PHASE-03
+Sacred roster:    8 files
+Touched by phase: 3 file(s)
+  - packages/api/src/services/escrow.service.ts
+  - packages/api/src/services/commission.service.ts
+  - packages/api/src/services/settings.service.ts
+Untouched (deferred to their implementation phases / Phase 12 sweep):
+  - packages/api/src/services/dispute.service.ts
+  - packages/api/src/services/booking.service.ts
+  - packages/api/src/services/payout.service.ts
+  - packages/api/src/services/wallet.service.ts
+  - packages/api/src/services/refund.service.ts
+
+Stryker config: .ai-coder/checkpoints/logs/PHASE-03/stryker.config.generated.json
+Running mutation testing on 3 file(s)...
+
+[32m08:13:43 (12304) INFO ProjectReader[39m Found 3 of 723 file(s) to be mutated.
+[32m08:13:43 (12304) INFO Instrumenter[39m Instrumented 3 source file(s) with 637 mutant(s)
+[32m08:13:44 (12304) INFO ConcurrencyTokenProvider[39m Creating 2 checker process(es) and 2 test runner process(es).
+[32m08:13:51 (12304) INFO BroadcastReporter[39m Detected that current console does not support the "progress" reporter, downgrading to "progress-append-only" reporter
+[32m08:13:52 (12304) INFO DryRunExecutor[39m Starting initial test run (jest test runner with "perTest" coverage analysis). This may take a while.
+[32m08:13:53 (12304) INFO DryRunExecutor[39m Initial test run succeeded. Ran 80 tests in 1 second (net 35 ms, overhead 1168 ms).
+[33m08:13:53 (12304) WARN MutantTestPlanner[39m Detected 52 static mutants (8% of total) that are estimated to take 73% of the time running the tests!
+  You might want to enable "ignoreStatic" to ignore these static mutants for your next run. 
+  For more information about static mutants visit: https://stryker-mutator.io/docs/mutation-testing-elements/static-mutants
+  (disable "warnings.slow" to ignore this warning)
+Mutation testing 7% (elapsed: <1m, remaining: ~2m) 13/637 tested (0 survived, 0 timed out)
+Mutation testing 13% (elapsed: <1m, remaining: ~2m) 36/637 tested (2 survived, 0 timed out)
+Mutation testing 18% (elapsed: <1m, remaining: ~2m) 60/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: <1m, remaining: ~2m) 79/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: <1m, remaining: ~3m) 103/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~1m, remaining: ~4m) 127/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~1m, remaining: ~5m) 151/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~1m, remaining: ~5m) 175/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~1m, remaining: ~6m) 201/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~1m, remaining: ~7m) 225/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~1m, remaining: ~8m) 250/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~2m, remaining: ~8m) 266/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~2m, remaining: ~9m) 277/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~2m, remaining: ~10m) 289/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~2m, remaining: ~11m) 301/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~2m, remaining: ~11m) 313/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~2m, remaining: ~12m) 324/637 tested (7 survived, 0 timed out)
+Mutation testing 18% (elapsed: ~3m, remaining: ~13m) 336/637 tested (7 survived, 0 timed out)
+Mutation testing 19% (elapsed: ~3m, remaining: ~12m) 342/637 tested (8 survived, 0 timed out)
+Mutation testing 36% (elapsed: ~3m, remaining: ~5m) 354/637 tested (19 survived, 0 timed out)
+Mutation testing 52% (elapsed: ~3m, remaining: ~3m) 365/637 tested (30 survived, 0 timed out)
+Mutation testing 68% (elapsed: ~3m, remaining: ~1m) 377/637 tested (42 survived, 0 timed out)
+Mutation testing 85% (elapsed: ~3m, remaining: <1m) 389/637 tested (54 survived, 0 timed out)
+Mutation testing 92% (elapsed: ~4m, remaining: <1m) 401/637 tested (59 survived, 0 timed out)
+Mutation testing 92% (elapsed: ~4m, remaining: <1m) 411/637 tested (63 survived, 0 timed out)
+Mutation testing 93% (elapsed: ~4m, remaining: <1m) 423/637 tested (65 survived, 0 timed out)
+Mutation testing 93% (elapsed: ~4m, remaining: <1m) 435/637 tested (65 survived, 0 timed out)
+Mutation testing 93% (elapsed: ~4m, remaining: <1m) 446/637 tested (65 survived, 0 timed out)
+Mutation testing 93% (elapsed: ~4m, remaining: <1m) 458/637 tested (65 survived, 0 timed out)
+Mutation testing 93% (elapsed: ~5m, remaining: <1m) 468/637 tested (65 survived, 0 timed out)
+Mutation testing 94% (elapsed: ~5m, remaining: <1m) 480/637 tested (67 survived, 0 timed out)
+Mutation testing 94% (elapsed: ~5m, remaining: <1m) 492/637 tested (69 survived, 0 timed out)
+Mutation testing 95% (elapsed: ~5m, remaining: <1m) 502/637 tested (73 survived, 0 timed out)
+Mutation testing 96% (elapsed: ~5m, remaining: <1m) 514/637 tested (76 survived, 0 timed out)
+Mutation testing 97% (elapsed: ~5m, remaining: <1m) 526/637 tested (79 survived, 0 timed out)
+Mutation testing 98% (elapsed: ~6m, remaining: <1m) 539/637 tested (80 survived, 0 timed out)
+Mutation testing 98% (elapsed: ~6m, remaining: <1m) 550/637 tested (80 survived, 0 timed out)
+Mutation testing 99% (elapsed: ~6m, remaining: <1m) 561/637 tested (85 survived, 0 timed out)
+Mutation testing 99% (elapsed: ~6m, remaining: n/a) 573/637 tested (90 survived, 0 timed out)
+Mutation testing 99% (elapsed: ~6m, remaining: n/a) 583/637 tested (93 survived, 0 timed out)
+Mutation testing 100% (elapsed: ~6m, remaining: n/a) 595/637 tested (95 survived, 0 timed out)
+Mutation testing 100% (elapsed: ~7m, remaining: n/a) 607/637 tested (95 survived, 0 timed out)
+Mutation testing 100% (elapsed: ~7m, remaining: n/a) 617/637 tested (95 survived, 0 timed out)
+Mutation testing 100% (elapsed: ~7m, remaining: n/a) 628/637 tested (95 survived, 0 timed out)
+
+All tests
+  booking-price-lookup.test.ts
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) calculates commission based on service_price, not total_amount [line 30] (covered 13)
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) handles zero service price [line 39] (covered 13)
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) calculates correct service fee from service_price [line 45] (covered 13)
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) enforces minimum service fee of 2500 centavos [line 53] (covered 13)
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) enforces maximum service fee of 50000 centavos [line 58] (covered 13)
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) computes total_amount as servicePrice + serviceFee for all tiers [line 63] (covered 13)
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) uses service_price for provider receives, not total_amount [line 77] (covered 13)
+  commission.test.ts
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should apply 15% commission for new providers [line 40] (killed 2)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should apply 13% commission for verified providers [line 47] (covered 13)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should apply 11% commission for pro providers [line 53] (covered 13)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should apply 9% commission for elite providers [line 59] (covered 13)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should default to new tier for unknown tiers [line 65] (covered 13)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should calculate 10% service fee [line 70] (killed 6)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should enforce minimum service fee of 2500 centavos [line 76] (covered 13)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should enforce maximum service fee of 50000 centavos [line 81] (covered 13)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should allocate 1.5% of service fee to guarantee fund [line 86] (killed 2)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should ensure provider + platform = service price + service fee [line 92] (killed 1)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should handle small amounts correctly [line 99] (covered 13)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time [line 109] (killed 6)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before [line 116] (covered 29)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 90% refund if 1-2h before [line 121] (killed 1)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 80% refund if 30min-1h before [line 128] (killed 1)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 70% refund if <30min before or after scheduled (provider not arrived) [line 133] (killed 1)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 50% refund if provider has arrived [line 140] (killed 2)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 0% refund for customer no-show [line 146] (killed 2)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) rounds amounts to nearest centavo [line 152] (covered 25)
+  dispute-refund-processing.test.ts
+    Γ£ô Dispute Refund Processing (Phase 03 ΓÇö async) full refund scenarios 100% customer refund for >24h cancellation [line 28] (killed 7)
+    Γ£ô Dispute Refund Processing (Phase 03 ΓÇö async) full refund scenarios refund + compensation always equals service price [line 35] (killed 2)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) partial refund scenarios 90% refund for 1-2h cancellation [line 43] (covered 25)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) partial refund scenarios 50% refund when provider already arrived [line 50] (covered 13)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) no-show scenarios 0% refund for customer no-show [line 59] (covered 10)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: >24h, price=10000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: >24h, price=50000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: >24h, price=100000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: >24h, price=250000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: >24h, price=500000 [line 81] (covered 28)
+    Γ£ô Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 2-24h, price=10000 [line 81] (killed 1)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 2-24h, price=50000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 2-24h, price=100000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 2-24h, price=250000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 2-24h, price=500000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 1-2h, price=10000 [line 81] (covered 24)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 1-2h, price=50000 [line 81] (covered 24)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 1-2h, price=100000 [line 81] (covered 24)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 1-2h, price=250000 [line 81] (covered 24)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 1-2h, price=500000 [line 81] (covered 24)
+    Γ£ô Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 30m-1h, price=10000 [line 81] (killed 1)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 30m-1h, price=50000 [line 81] (covered 20)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 30m-1h, price=100000 [line 81] (covered 20)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 30m-1h, price=250000 [line 81] (covered 20)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 30m-1h, price=500000 [line 81] (covered 20)
+    Γ£ô Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: <30m, price=10000 [line 81] (killed 1)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: <30m, price=50000 [line 81] (covered 16)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: <30m, price=100000 [line 81] (covered 16)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: <30m, price=250000 [line 81] (covered 16)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: <30m, price=500000 [line 81] (covered 16)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: arrived, price=10000 [line 81] (covered 12)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: arrived, price=50000 [line 81] (covered 12)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: arrived, price=100000 [line 81] (covered 12)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: arrived, price=250000 [line 81] (covered 12)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: arrived, price=500000 [line 81] (covered 12)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: no-show, price=10000 [line 81] (covered 10)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: no-show, price=50000 [line 81] (covered 10)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: no-show, price=100000 [line 81] (covered 10)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: no-show, price=250000 [line 81] (covered 10)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: no-show, price=500000 [line 81] (covered 10)
+  escrow-money-conservation.test.ts
+    ~ Escrow Money Conservation (Phase 03 ΓÇö async) conserves money: providerReceives + platformRetains === servicePrice + serviceFee [line 30] (covered 13)
+    ~ Escrow Money Conservation (Phase 03 ΓÇö async) applies 15% commission on service_price for new tier [line 39] (covered 13)
+    ~ Escrow Money Conservation (Phase 03 ΓÇö async) calculates guarantee fund as 1.5% of service fee [line 45] (covered 13)
+    ~ Escrow Money Conservation (Phase 03 ΓÇö async) passes the exact example: 50000 price, new tier [line 51] (covered 13)
+    ~ Escrow Money Conservation (Phase 03 ΓÇö async) conserves money for all tiers and price tiers [line 61] (covered 13)
+    ~ Escrow Money Conservation (Phase 03 ΓÇö async) ensures all amounts are integers (centavos) [line 77] (covered 13)
+  runtime-config-e2e.test.ts
+    Γ£ô runtime-config-e2e getSetting fallback chain returns cached value on Redis hit (no DB call) [line 72] (killed 1)
+    Γ£ô runtime-config-e2e getSetting fallback chain falls back to DB on cache miss and warms cache [line 79] (killed 5)
+    Γ£ô runtime-config-e2e getSetting fallback chain falls back to SETTING_DEFAULTS when DB row is missing [line 88] (killed 1)
+    ~ runtime-config-e2e getSetting fallback chain throws 404 when key is unknown and not in defaults [line 95] (covered 17)
+    Γ£ô runtime-config-e2e updateSetting validation rejects values below the configured minimum [line 104] (killed 13)
+    Γ£ô runtime-config-e2e updateSetting validation rejects values above the configured maximum [line 113] (killed 4)
+    Γ£ô runtime-config-e2e updateSetting side effects writes audit row and busts cache on success [line 124] (killed 16)
+    Γ£ô runtime-config-e2e resetToDefault writes the default_value back to the row [line 147] (killed 4)
+
+[Survived] EqualityOperator
+packages/api/src/services/commission.service.ts:84:14
+-     } else if (hoursUntilScheduled < 0.5) {
++     } else if (hoursUntilScheduled <= 0.5) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 90% refund if 1-2h before
+  and 31 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/commission.service.ts:86:14
+-     } else if (hoursUntilScheduled < 1) {
++     } else if (hoursUntilScheduled <= 1) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 90% refund if 1-2h before
+  and 25 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/commission.service.ts:88:14
+-     } else if (hoursUntilScheduled < 2) {
++     } else if (hoursUntilScheduled <= 2) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 90% refund if 1-2h before
+  and 19 more tests!
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/commission.service.ts:90:14
+-     } else if (hoursUntilScheduled < 24) {
++     } else if (true) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Dispute Refund Processing (Phase 03 ΓÇö async) full refund scenarios 100% customer refund for >24h cancellation
+  and 10 more tests!
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/commission.service.ts:90:14
+-     } else if (hoursUntilScheduled < 24) {
++     } else if (false) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Dispute Refund Processing (Phase 03 ΓÇö async) full refund scenarios 100% customer refund for >24h cancellation
+  and 10 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/commission.service.ts:90:14
+-     } else if (hoursUntilScheduled < 24) {
++     } else if (hoursUntilScheduled <= 24) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Dispute Refund Processing (Phase 03 ΓÇö async) full refund scenarios 100% customer refund for >24h cancellation
+  and 10 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/commission.service.ts:90:14
+-     } else if (hoursUntilScheduled < 24) {
++     } else if (hoursUntilScheduled >= 24) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Dispute Refund Processing (Phase 03 ΓÇö async) full refund scenarios 100% customer refund for >24h cancellation
+  and 10 more tests!
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/commission.service.ts:109:5
+-       `SELECT tier FROM providers WHERE id = $1`,
++       ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/commission.service.ts:110:5
+-       [providerId],
++       [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/commission.service.ts:112:34
+-     return result.rows[0]?.tier ?? 'new';
++     return result.rows[0]?.tier ?? "";
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:30:86
+-   export async function holdInEscrow(bookingId: string, amount: number): Promise<void> {
+-     const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+-     await walletService.holdEscrow(escrowWallet.id, amount, bookingId);
+-     logger.info('Escrow hold created', { bookingId, amount });
+-   }
++   export async function holdInEscrow(bookingId: string, amount: number): Promise<void> {}
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:34:15
+-     logger.info('Escrow hold created', { bookingId, amount });
++     logger.info("", { bookingId, amount });
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:47:5
+-       `SELECT b.id, b.customer_id, b.provider_id, b.service_price, b.service_fee, b.total_amount, b.status, b.scheduled_at
+-        FROM bookings b WHERE b.id = $1`,
++       ``,
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/escrow.service.ts:34:38
+-     logger.info('Escrow hold created', { bookingId, amount });
++     logger.info('Escrow hold created', {});
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:49:5
+-       [bookingId],
++       [],
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:52:7
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (true) throw createAppError('Booking not found.', 404);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:52:7
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (false) throw createAppError('Booking not found.', 404);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:52:7
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (booking.rows.length !== 0) throw createAppError('Booking not found.', 404);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:52:55
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (booking.rows.length === 0) throw createAppError("", 404);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:55:39
+-     const releasableStatuses = new Set(['confirmed', 'paid', 'resolved']);
++     const releasableStatuses = new Set(["", 'paid', 'resolved']);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:55:52
+-     const releasableStatuses = new Set(['confirmed', 'paid', 'resolved']);
++     const releasableStatuses = new Set(['confirmed', "", 'resolved']);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:55:60
+-     const releasableStatuses = new Set(['confirmed', 'paid', 'resolved']);
++     const releasableStatuses = new Set(['confirmed', 'paid', ""]);
+
+[NoCoverage] BooleanLiteral
+packages/api/src/services/escrow.service.ts:56:7
+-     if (!releasableStatuses.has(bk.status)) {
++     if (releasableStatuses.has(bk.status)) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:56:7
+-     if (!releasableStatuses.has(bk.status)) {
++     if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:56:7
+-     if (!releasableStatuses.has(bk.status)) {
++     if (false) {
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:56:43
+-     if (!releasableStatuses.has(bk.status)) {
+-       throw createAppError(`Cannot release escrow ΓÇö booking status is "${bk.status}".`, 409);
+-     }
++     if (!releasableStatuses.has(bk.status)) {}
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:57:26
+-       throw createAppError(`Cannot release escrow ΓÇö booking status is "${bk.status}".`, 409);
++       throw createAppError(``, 409);
+
+[NoCoverage] BooleanLiteral
+packages/api/src/services/escrow.service.ts:60:7
+-     if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
++     if (bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:60:7
+-     if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
++     if (true) throw createAppError('No provider assigned to this booking.', 409);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:60:7
+-     if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
++     if (false) throw createAppError('No provider assigned to this booking.', 409);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:60:45
+-     if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
++     if (!bk.provider_id) throw createAppError("", 409);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:65:7
+-     if (servicePrice <= 0) throw createAppError('Invalid booking amount.', 400);
++     if (true) throw createAppError('Invalid booking amount.', 400);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:65:7
+-     if (servicePrice <= 0) throw createAppError('Invalid booking amount.', 400);
++     if (false) throw createAppError('Invalid booking amount.', 400);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:65:7
+-     if (servicePrice <= 0) throw createAppError('Invalid booking amount.', 400);
++     if (servicePrice < 0) throw createAppError('Invalid booking amount.', 400);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:65:7
+-     if (servicePrice <= 0) throw createAppError('Invalid booking amount.', 400);
++     if (servicePrice > 0) throw createAppError('Invalid booking amount.', 400);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:65:47
+-     if (servicePrice <= 0) throw createAppError('Invalid booking amount.', 400);
++     if (servicePrice <= 0) throw createAppError("", 400);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:67:7
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
++     if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:67:7
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
++     if (false) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:67:7
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
++     if (Math.abs(totalAmount - (servicePrice + serviceFee)) >= 1) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:67:7
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
++     if (Math.abs(totalAmount - (servicePrice + serviceFee)) <= 1) {
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:67:16
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
++     if (Math.abs(totalAmount + (servicePrice + serviceFee)) > 1) {
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:67:31
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
++     if (Math.abs(totalAmount - (servicePrice - serviceFee)) > 1) {
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:67:64
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
+-       logger.error('Booking amount mismatch detected', {
+-         bookingId, servicePrice, serviceFee, totalAmount,
+-         expected: servicePrice + serviceFee,
+-       });
+-     }
++     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {}
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:68:18
+-       logger.error('Booking amount mismatch detected', {
++       logger.error("", {
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/escrow.service.ts:68:54
+-       logger.error('Booking amount mismatch detected', {
+-         bookingId, servicePrice, serviceFee, totalAmount,
+-         expected: servicePrice + serviceFee,
+-       });
++       logger.error('Booking amount mismatch detected', {});
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:70:17
+-         expected: servicePrice + serviceFee,
++         expected: servicePrice - serviceFee,
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:75:5
+-       `SELECT user_id, tier FROM providers WHERE id = $1`,
++       ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:76:5
+-       [bk.provider_id],
++       [],
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:78:7
+-     if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
++     if (true) throw createAppError('Provider not found.', 404);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:78:7
+-     if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
++     if (false) throw createAppError('Provider not found.', 404);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:78:7
+-     if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
++     if (providerRow.rows.length !== 0) throw createAppError('Provider not found.', 404);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:78:59
+-     if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
++     if (providerRow.rows.length === 0) throw createAppError("", 404);
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:82:39
+-     const commissionAmount = Math.round(servicePrice * commissionRate);
++     const commissionAmount = Math.round(servicePrice / commissionRate);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:83:69
+-     const guaranteeFundRate = await settingsService.getSettingPercent('guarantee_fund_rate');
++     const guaranteeFundRate = await settingsService.getSettingPercent("");
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:84:48
+-     const guaranteeFundContribution = Math.round(serviceFee * guaranteeFundRate);
++     const guaranteeFundContribution = Math.round(serviceFee / guaranteeFundRate);
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:86:28
+-     const providerReceives = servicePrice - commissionAmount;
++     const providerReceives = servicePrice + commissionAmount;
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:87:27
+-     const platformRetains = commissionAmount + serviceFee - guaranteeFundContribution;
++     const platformRetains = commissionAmount + serviceFee + guaranteeFundContribution;
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:87:27
+-     const platformRetains = commissionAmount + serviceFee - guaranteeFundContribution;
++     const platformRetains = commissionAmount - serviceFee - guaranteeFundContribution;
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:89:20
+-     const totalOut = providerReceives + platformRetains + guaranteeFundContribution;
++     const totalOut = providerReceives + platformRetains - guaranteeFundContribution;
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:89:20
+-     const totalOut = providerReceives + platformRetains + guaranteeFundContribution;
++     const totalOut = providerReceives - platformRetains + guaranteeFundContribution;
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:90:7
+-     if (totalOut !== totalAmount) {
++     if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:90:7
+-     if (totalOut !== totalAmount) {
++     if (false) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:90:7
+-     if (totalOut !== totalAmount) {
++     if (totalOut === totalAmount) {
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:90:33
+-     if (totalOut !== totalAmount) {
+-       const diff = totalAmount - totalOut;
+-       if (Math.abs(diff) <= 2) {
+-         logger.debug('Rounding adjustment in escrow release', { bookingId, diff });
+-       } else {
+-         logger.error('MONEY CONSERVATION VIOLATION in escrow release', {
+-           bookingId, servicePrice, serviceFee, totalAmount, totalOut, diff,
+-           providerReceives, platformRetains, guaranteeFundContribution,
+-         });
+-         throw createAppError('Internal accounting error. Please contact support.', 500);
+-       }
+-     }
++     if (totalOut !== totalAmount) {}
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:91:18
+-       const diff = totalAmount - totalOut;
++       const diff = totalAmount + totalOut;
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:92:9
+-       if (Math.abs(diff) <= 2) {
++       if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:92:9
+-       if (Math.abs(diff) <= 2) {
++       if (false) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:92:9
+-       if (Math.abs(diff) <= 2) {
++       if (Math.abs(diff) < 2) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:92:9
+-       if (Math.abs(diff) <= 2) {
++       if (Math.abs(diff) > 2) {
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:92:30
+-       if (Math.abs(diff) <= 2) {
+-         logger.debug('Rounding adjustment in escrow release', { bookingId, diff });
+-       } else {
++       if (Math.abs(diff) <= 2) {} else {
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:93:20
+-         logger.debug('Rounding adjustment in escrow release', { bookingId, diff });
++         logger.debug("", { bookingId, diff });
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/escrow.service.ts:93:61
+-         logger.debug('Rounding adjustment in escrow release', { bookingId, diff });
++         logger.debug('Rounding adjustment in escrow release', {});
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:94:12
+-       } else {
+-         logger.error('MONEY CONSERVATION VIOLATION in escrow release', {
+-           bookingId, servicePrice, serviceFee, totalAmount, totalOut, diff,
+-           providerReceives, platformRetains, guaranteeFundContribution,
+-         });
+-         throw createAppError('Internal accounting error. Please contact support.', 500);
+-       }
++       } else {}
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:95:20
+-         logger.error('MONEY CONSERVATION VIOLATION in escrow release', {
++         logger.error("", {
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/escrow.service.ts:95:70
+-         logger.error('MONEY CONSERVATION VIOLATION in escrow release', {
+-           bookingId, servicePrice, serviceFee, totalAmount, totalOut, diff,
+-           providerReceives, platformRetains, guaranteeFundContribution,
+-         });
++         logger.error('MONEY CONSERVATION VIOLATION in escrow release', {});
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:99:28
+-         throw createAppError('Internal accounting error. Please contact support.', 500);
++         throw createAppError("", 500);
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:108:42
+-     await db.transaction(async (client) => {
+-       const escrowGuard = await client.query(
+-         `UPDATE bookings SET escrow_status = 'released', updated_at = NOW()
+-          WHERE id = $1 AND escrow_status = 'held' RETURNING id`,
+-         [bookingId],
+-       );
+-       if ((escrowGuard.rowCount ?? 0) === 0) {
+-         throw createAppError('Escrow already released or not held for this booking.', 409);
+-       }
+-       await client.query(
+-         `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-         [totalAmount, escrowWallet.id],
+-       );
+-       await client.query(
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'escrow_release', $3,
+-                  (SELECT pending_balance FROM wallets WHERE id = $1),
+-                  'Escrow release for booking')`,
+-         [escrowWallet.id, bookingId, -totalAmount],
+-       );
+-       await client.query(
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-         [providerReceives, providerWallet.id],
+-       );
+-       await client.query(
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'escrow_release', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  $4)`,
+-         [providerWallet.id, bookingId, providerReceives,
+-          `Payment for booking (${Math.round(commissionRate * 100)}% commission deducted)`],
+-       );
+-       await client.query(
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-         [platformRetains, revenueWallet.id],
+-       );
+-       await client.query(
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'commission', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  'Commission + service fee from booking')`,
+-         [revenueWallet.id, bookingId, platformRetains],
+-       );
+-       await client.query(
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-         [guaranteeFundContribution, guaranteeWallet.id],
+-       );
+-       await client.query(
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'guarantee_contribution', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  'Guarantee fund contribution')`,
+-         [guaranteeWallet.id, bookingId, guaranteeFundContribution],
+-       );
+-     });
++     await db.transaction(async (client) => {});
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:110:7
+-         `UPDATE bookings SET escrow_status = 'released', updated_at = NOW()
+-          WHERE id = $1 AND escrow_status = 'held' RETURNING id`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:112:7
+-         [bookingId],
++         [],
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:114:9
+-       if ((escrowGuard.rowCount ?? 0) === 0) {
++       if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:114:9
+-       if ((escrowGuard.rowCount ?? 0) === 0) {
++       if (false) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:114:9
+-       if ((escrowGuard.rowCount ?? 0) === 0) {
++       if ((escrowGuard.rowCount ?? 0) !== 0) {
+
+[NoCoverage] LogicalOperator
+packages/api/src/services/escrow.service.ts:114:10
+-       if ((escrowGuard.rowCount ?? 0) === 0) {
++       if ((escrowGuard.rowCount && 0) === 0) {
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:114:44
+-       if ((escrowGuard.rowCount ?? 0) === 0) {
+-         throw createAppError('Escrow already released or not held for this booking.', 409);
+-       }
++       if ((escrowGuard.rowCount ?? 0) === 0) {}
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:115:28
+-         throw createAppError('Escrow already released or not held for this booking.', 409);
++         throw createAppError("", 409);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:119:7
+-         `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:120:7
+-         [totalAmount, escrowWallet.id],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:123:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'escrow_release', $3,
+-                  (SELECT pending_balance FROM wallets WHERE id = $1),
+-                  'Escrow release for booking')`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:127:7
+-         [escrowWallet.id, bookingId, -totalAmount],
++         [],
+
+[NoCoverage] UnaryOperator
+packages/api/src/services/escrow.service.ts:127:36
+-         [escrowWallet.id, bookingId, -totalAmount],
++         [escrowWallet.id, bookingId, +totalAmount],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:131:7
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:132:7
+-         [providerReceives, providerWallet.id],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:135:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'escrow_release', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  $4)`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:139:7
+-         [providerWallet.id, bookingId, providerReceives,
+-          `Payment for booking (${Math.round(commissionRate * 100)}% commission deducted)`],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:140:8
+-          `Payment for booking (${Math.round(commissionRate * 100)}% commission deducted)`],
++          ``],
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:140:43
+-          `Payment for booking (${Math.round(commissionRate * 100)}% commission deducted)`],
++          `Payment for booking (${Math.round(commissionRate / 100)}% commission deducted)`],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:144:7
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:145:7
+-         [platformRetains, revenueWallet.id],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:148:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'commission', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  'Commission + service fee from booking')`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:152:7
+-         [revenueWallet.id, bookingId, platformRetains],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:156:7
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:157:7
+-         [guaranteeFundContribution, guaranteeWallet.id],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:160:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'guarantee_contribution', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  'Guarantee fund contribution')`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:164:7
+-         [guaranteeWallet.id, bookingId, guaranteeFundContribution],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:172:61
+-       serviceFeeRate: await settingsService.getSettingPercent('service_fee_rate'),
++       serviceFeeRate: await settingsService.getSettingPercent(""),
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:179:15
+-     logger.info('Escrow released', { bookingId, breakdown });
++     logger.info("", { bookingId, breakdown });
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/escrow.service.ts:179:34
+-     logger.info('Escrow released', { bookingId, breakdown });
++     logger.info('Escrow released', {});
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:193:5
+-       `SELECT b.id, b.customer_id, b.provider_id, b.service_price, b.service_fee, b.total_amount, b.status, b.scheduled_at
+-        FROM bookings b WHERE b.id = $1`,
++       ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:195:5
+-       [bookingId],
++       [],
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:198:7
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (true) throw createAppError('Booking not found.', 404);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:198:7
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (false) throw createAppError('Booking not found.', 404);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:198:7
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (booking.rows.length !== 0) throw createAppError('Booking not found.', 404);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:198:55
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (booking.rows.length === 0) throw createAppError("", 404);
+
+[NoCoverage] BooleanLiteral
+packages/api/src/services/escrow.service.ts:201:7
+-     if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
++     if (bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:201:7
+-     if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
++     if (true) throw createAppError('No provider assigned to this booking.', 409);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:201:7
+-     if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
++     if (false) throw createAppError('No provider assigned to this booking.', 409);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:201:45
+-     if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
++     if (!bk.provider_id) throw createAppError("", 409);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:202:7
+-     if (remainingAmount <= 0) throw createAppError('No remaining amount to release.', 400);
++     if (true) throw createAppError('No remaining amount to release.', 400);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:202:7
+-     if (remainingAmount <= 0) throw createAppError('No remaining amount to release.', 400);
++     if (false) throw createAppError('No remaining amount to release.', 400);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:202:7
+-     if (remainingAmount <= 0) throw createAppError('No remaining amount to release.', 400);
++     if (remainingAmount < 0) throw createAppError('No remaining amount to release.', 400);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:202:7
+-     if (remainingAmount <= 0) throw createAppError('No remaining amount to release.', 400);
++     if (remainingAmount > 0) throw createAppError('No remaining amount to release.', 400);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:202:50
+-     if (remainingAmount <= 0) throw createAppError('No remaining amount to release.', 400);
++     if (remainingAmount <= 0) throw createAppError("", 400);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:205:7
+-     if (totalAmount <= 0) throw createAppError('Booking total amount is zero ΓÇö cannot calculate partial release.', 409);
++     if (true) throw createAppError('Booking total amount is zero ΓÇö cannot calculate partial release.', 409);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:205:7
+-     if (totalAmount <= 0) throw createAppError('Booking total amount is zero ΓÇö cannot calculate partial release.', 409);
++     if (false) throw createAppError('Booking total amount is zero ΓÇö cannot calculate partial release.', 409);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:205:7
+-     if (totalAmount <= 0) throw createAppError('Booking total amount is zero ΓÇö cannot calculate partial release.', 409);
++     if (totalAmount < 0) throw createAppError('Booking total amount is zero ΓÇö cannot calculate partial release.', 409);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:205:7
+-     if (totalAmount <= 0) throw createAppError('Booking total amount is zero ΓÇö cannot calculate partial release.', 409);
++     if (totalAmount > 0) throw createAppError('Booking total amount is zero ΓÇö cannot calculate partial release.', 409);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:205:46
+-     if (totalAmount <= 0) throw createAppError('Booking total amount is zero ΓÇö cannot calculate partial release.', 409);
++     if (totalAmount <= 0) throw createAppError("", 409);
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:206:27
+-     const retentionFactor = remainingAmount / totalAmount;
++     const retentionFactor = remainingAmount * totalAmount;
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:207:47
+-     const proportionalServicePrice = Math.round(Number(bk.service_price) * retentionFactor);
++     const proportionalServicePrice = Math.round(Number(bk.service_price) / retentionFactor);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:210:5
+-       `SELECT user_id, tier FROM providers WHERE id = $1`,
++       ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:211:5
+-       [bk.provider_id],
++       [],
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:213:7
+-     if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
++     if (true) throw createAppError('Provider not found.', 404);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:213:7
+-     if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
++     if (false) throw createAppError('Provider not found.', 404);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:213:7
+-     if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
++     if (providerRow.rows.length !== 0) throw createAppError('Provider not found.', 404);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:213:59
+-     if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
++     if (providerRow.rows.length === 0) throw createAppError("", 404);
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:223:42
+-     await db.transaction(async (client) => {
+-       const escrowGuard = await client.query(
+-         `UPDATE bookings SET escrow_status = 'released', updated_at = NOW()
+-          WHERE id = $1 AND escrow_status = 'partially_refunded' RETURNING id`,
+-         [bookingId],
+-       );
+-       if ((escrowGuard.rowCount ?? 0) === 0) {
+-         throw createAppError('Escrow not in partially-refunded state for this booking.', 409);
+-       }
+-       await client.query(
+-         `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-         [remainingAmount, escrowWallet.id],
+-       );
+-       await client.query(
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'escrow_release', $3,
+-                  (SELECT pending_balance FROM wallets WHERE id = $1),
+-                  'Partial escrow release ΓÇö remaining after dispute refund')`,
+-         [escrowWallet.id, bookingId, -remainingAmount],
+-       );
+-       await client.query(
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-         [breakdown.providerReceives, providerWallet.id],
+-       );
+-       await client.query(
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'escrow_release', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  $4)`,
+-         [providerWallet.id, bookingId, breakdown.providerReceives,
+-          `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
+-       );
+-       const platformAmount = remainingAmount - breakdown.providerReceives - breakdown.guaranteeFundContribution;
+-       await client.query(
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-         [platformAmount, revenueWallet.id],
+-       );
+-       await client.query(
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'commission', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  'Partial commission + fee from dispute resolution')`,
+-         [revenueWallet.id, bookingId, platformAmount],
+-       );
+-       await client.query(
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-         [breakdown.guaranteeFundContribution, guaranteeWallet.id],
+-       );
+-       await client.query(
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'guarantee_contribution', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  'Guarantee fund contribution from partial dispute release')`,
+-         [guaranteeWallet.id, bookingId, breakdown.guaranteeFundContribution],
+-       );
+-     });
++     await db.transaction(async (client) => {});
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:225:7
+-         `UPDATE bookings SET escrow_status = 'released', updated_at = NOW()
+-          WHERE id = $1 AND escrow_status = 'partially_refunded' RETURNING id`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:227:7
+-         [bookingId],
++         [],
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:229:9
+-       if ((escrowGuard.rowCount ?? 0) === 0) {
++       if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:229:9
+-       if ((escrowGuard.rowCount ?? 0) === 0) {
++       if (false) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:229:9
+-       if ((escrowGuard.rowCount ?? 0) === 0) {
++       if ((escrowGuard.rowCount ?? 0) !== 0) {
+
+[NoCoverage] LogicalOperator
+packages/api/src/services/escrow.service.ts:229:10
+-       if ((escrowGuard.rowCount ?? 0) === 0) {
++       if ((escrowGuard.rowCount && 0) === 0) {
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:229:44
+-       if ((escrowGuard.rowCount ?? 0) === 0) {
+-         throw createAppError('Escrow not in partially-refunded state for this booking.', 409);
+-       }
++       if ((escrowGuard.rowCount ?? 0) === 0) {}
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:230:28
+-         throw createAppError('Escrow not in partially-refunded state for this booking.', 409);
++         throw createAppError("", 409);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:234:7
+-         `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:235:7
+-         [remainingAmount, escrowWallet.id],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:238:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'escrow_release', $3,
+-                  (SELECT pending_balance FROM wallets WHERE id = $1),
+-                  'Partial escrow release ΓÇö remaining after dispute refund')`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:242:7
+-         [escrowWallet.id, bookingId, -remainingAmount],
++         [],
+
+[NoCoverage] UnaryOperator
+packages/api/src/services/escrow.service.ts:242:36
+-         [escrowWallet.id, bookingId, -remainingAmount],
++         [escrowWallet.id, bookingId, +remainingAmount],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:246:7
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:247:7
+-         [breakdown.providerReceives, providerWallet.id],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:250:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'escrow_release', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  $4)`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:254:7
+-         [providerWallet.id, bookingId, breakdown.providerReceives,
+-          `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:255:8
+-          `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
++          ``],
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:255:57
+-          `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
++          `Partial payment for booking (after ${Math.round((1 - retentionFactor) / 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:255:58
+-          `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
++          `Partial payment for booking (after ${Math.round((1 + retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:255:109
+-          `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
++          `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate / 100)}% commission deducted)`],
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:258:28
+-       const platformAmount = remainingAmount - breakdown.providerReceives - breakdown.guaranteeFundContribution;
++       const platformAmount = remainingAmount - breakdown.providerReceives + breakdown.guaranteeFundContribution;
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:258:28
+-       const platformAmount = remainingAmount - breakdown.providerReceives - breakdown.guaranteeFundContribution;
++       const platformAmount = remainingAmount + breakdown.providerReceives - breakdown.guaranteeFundContribution;
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:260:7
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:261:7
+-         [platformAmount, revenueWallet.id],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:264:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'commission', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  'Partial commission + fee from dispute resolution')`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:268:7
+-         [revenueWallet.id, bookingId, platformAmount],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:272:7
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:273:7
+-         [breakdown.guaranteeFundContribution, guaranteeWallet.id],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:276:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'guarantee_contribution', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  'Guarantee fund contribution from partial dispute release')`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:280:7
+-         [guaranteeWallet.id, bookingId, breakdown.guaranteeFundContribution],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:284:15
+-     logger.info('Partial escrow released', { bookingId, remainingAmount, breakdown });
++     logger.info("", { bookingId, remainingAmount, breakdown });
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/escrow.service.ts:284:42
+-     logger.info('Partial escrow released', { bookingId, remainingAmount, breakdown });
++     logger.info('Partial escrow released', {});
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:296:18
+-   ): Promise<void> {
+-     if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
+-     const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+-     if (Number(escrowWallet.pending_balance) < refundAmount) {
+-       throw createAppError('Insufficient escrow balance for refund.', 409);
+-     }
+-     await db.transaction(async (client) => {
+-       await client.query(
+-         `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-         [refundAmount, escrowWallet.id],
+-       );
+-       await client.query(
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'refund', $3,
+-                  (SELECT pending_balance FROM wallets WHERE id = $1),
+-                  $4)`,
+-         [escrowWallet.id, bookingId, -refundAmount, `Refund: ${reason}`],
+-       );
+-     });
+-     await paymentService.processRefund(bookingId, refundAmount, reason);
+-     logger.info('Escrow refund processed', { bookingId, refundAmount, reason });
+-   }
++   ): Promise<void> {}
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:297:7
+-     if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
++     if (true) throw createAppError('Refund amount must be positive.', 400);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:297:7
+-     if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
++     if (false) throw createAppError('Refund amount must be positive.', 400);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:297:7
+-     if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
++     if (refundAmount < 0) throw createAppError('Refund amount must be positive.', 400);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:297:7
+-     if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
++     if (refundAmount > 0) throw createAppError('Refund amount must be positive.', 400);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:297:47
+-     if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
++     if (refundAmount <= 0) throw createAppError("", 400);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:300:7
+-     if (Number(escrowWallet.pending_balance) < refundAmount) {
++     if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:300:7
+-     if (Number(escrowWallet.pending_balance) < refundAmount) {
++     if (false) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:300:7
+-     if (Number(escrowWallet.pending_balance) < refundAmount) {
++     if (Number(escrowWallet.pending_balance) <= refundAmount) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:300:7
+-     if (Number(escrowWallet.pending_balance) < refundAmount) {
++     if (Number(escrowWallet.pending_balance) >= refundAmount) {
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:300:60
+-     if (Number(escrowWallet.pending_balance) < refundAmount) {
+-       throw createAppError('Insufficient escrow balance for refund.', 409);
+-     }
++     if (Number(escrowWallet.pending_balance) < refundAmount) {}
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:301:26
+-       throw createAppError('Insufficient escrow balance for refund.', 409);
++       throw createAppError("", 409);
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:304:42
+-     await db.transaction(async (client) => {
+-       await client.query(
+-         `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-         [refundAmount, escrowWallet.id],
+-       );
+-       await client.query(
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'refund', $3,
+-                  (SELECT pending_balance FROM wallets WHERE id = $1),
+-                  $4)`,
+-         [escrowWallet.id, bookingId, -refundAmount, `Refund: ${reason}`],
+-       );
+-     });
++     await db.transaction(async (client) => {});
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:306:7
+-         `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:307:7
+-         [refundAmount, escrowWallet.id],
++         [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:311:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'refund', $3,
+-                  (SELECT pending_balance FROM wallets WHERE id = $1),
+-                  $4)`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:315:7
+-         [escrowWallet.id, bookingId, -refundAmount, `Refund: ${reason}`],
++         [],
+
+[NoCoverage] UnaryOperator
+packages/api/src/services/escrow.service.ts:315:36
+-         [escrowWallet.id, bookingId, -refundAmount, `Refund: ${reason}`],
++         [escrowWallet.id, bookingId, +refundAmount, `Refund: ${reason}`],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:315:51
+-         [escrowWallet.id, bookingId, -refundAmount, `Refund: ${reason}`],
++         [escrowWallet.id, bookingId, -refundAmount, ``],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:320:15
+-     logger.info('Escrow refund processed', { bookingId, refundAmount, reason });
++     logger.info("", { bookingId, refundAmount, reason });
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/escrow.service.ts:320:42
+-     logger.info('Escrow refund processed', { bookingId, refundAmount, reason });
++     logger.info('Escrow refund processed', {});
+
+[NoCoverage] BooleanLiteral
+packages/api/src/services/escrow.service.ts:330:20
+-     customerNoShow = false,
++     customerNoShow = true,
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:333:5
+-       `SELECT id, customer_id, provider_id, service_price, service_fee, total_amount, status, escrow_status, scheduled_at FROM bookings WHERE id = $1`,
++       ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:334:5
+-       [bookingId],
++       [],
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:337:7
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (false) throw createAppError('Booking not found.', 404);
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:337:7
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (booking.rows.length !== 0) throw createAppError('Booking not found.', 404);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:337:55
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (booking.rows.length === 0) throw createAppError("", 404);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:340:37
+-     const alreadyProcessed = new Set(['refunded', 'partially_refunded', 'released']);
++     const alreadyProcessed = new Set(["", 'partially_refunded', 'released']);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:340:49
+-     const alreadyProcessed = new Set(['refunded', 'partially_refunded', 'released']);
++     const alreadyProcessed = new Set(['refunded', "", 'released']);
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:340:71
+-     const alreadyProcessed = new Set(['refunded', 'partially_refunded', 'released']);
++     const alreadyProcessed = new Set(['refunded', 'partially_refunded', ""]);
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:341:7
+-     if (bk.escrow_status && alreadyProcessed.has(bk.escrow_status)) {
++     if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:341:7
+-     if (bk.escrow_status && alreadyProcessed.has(bk.escrow_status)) {
++     if (false) {
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:341:67
+-     if (bk.escrow_status && alreadyProcessed.has(bk.escrow_status)) {
+-       throw createAppError(`Cancellation already processed for this booking (escrow_status: ${bk.escrow_status}).`, 409);
+-     }
++     if (bk.escrow_status && alreadyProcessed.has(bk.escrow_status)) {}
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:342:26
+-       throw createAppError(`Cancellation already processed for this booking (escrow_status: ${bk.escrow_status}).`, 409);
++       throw createAppError(``, 409);
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:356:31
+-     const totalCustomerRefund = refund.customerRefundAmount + feeRefund;
++     const totalCustomerRefund = refund.customerRefundAmount - feeRefund;
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:357:7
+-     if (totalCustomerRefund > 0) {
++     if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:357:7
+-     if (totalCustomerRefund > 0) {
++     if (false) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:357:7
+-     if (totalCustomerRefund > 0) {
++     if (totalCustomerRefund >= 0) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:357:7
+-     if (totalCustomerRefund > 0) {
++     if (totalCustomerRefund <= 0) {
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:357:32
+-     if (totalCustomerRefund > 0) {
+-       await refundFromEscrow(bookingId, totalCustomerRefund, 'Cancellation refund (service price + service fee)');
+-     }
++     if (totalCustomerRefund > 0) {}
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:358:60
+-       await refundFromEscrow(bookingId, totalCustomerRefund, 'Cancellation refund (service price + service fee)');
++       await refundFromEscrow(bookingId, totalCustomerRefund, "");
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:361:7
+-     if (refund.providerCompensationAmount > 0 && bk.provider_id) {
++     if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:361:7
+-     if (refund.providerCompensationAmount > 0 && bk.provider_id) {
++     if (false) {
+
+[NoCoverage] LogicalOperator
+packages/api/src/services/escrow.service.ts:361:7
+-     if (refund.providerCompensationAmount > 0 && bk.provider_id) {
++     if (refund.providerCompensationAmount > 0 || bk.provider_id) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:361:7
+-     if (refund.providerCompensationAmount > 0 && bk.provider_id) {
++     if (true && bk.provider_id) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:361:7
+-     if (refund.providerCompensationAmount > 0 && bk.provider_id) {
++     if (refund.providerCompensationAmount >= 0 && bk.provider_id) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:361:7
+-     if (refund.providerCompensationAmount > 0 && bk.provider_id) {
++     if (refund.providerCompensationAmount <= 0 && bk.provider_id) {
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:361:64
+-     if (refund.providerCompensationAmount > 0 && bk.provider_id) {
+-       const providerRow = await db.query<ProviderRow>(
+-         `SELECT user_id, tier FROM providers WHERE id = $1`,
+-         [bk.provider_id],
+-       );
+-       if (providerRow.rows.length > 0) {
+-         const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+-         const providerWallet = await walletService.getUserWallet(providerRow.rows[0]!.user_id, 'provider');
+-         await db.transaction(async (client) => {
+-           await client.query(
+-             `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-             [refund.providerCompensationAmount, escrowWallet.id],
+-           );
+-           await client.query(
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT pending_balance FROM wallets WHERE id = $1),
+-                      'Escrow release for provider cancellation compensation')`,
+-             [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
+-           );
+-           await client.query(
+-             `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-             [refund.providerCompensationAmount, providerWallet.id],
+-           );
+-           await client.query(
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT available_balance FROM wallets WHERE id = $1),
+-                      'Cancellation compensation')`,
+-             [providerWallet.id, bookingId, refund.providerCompensationAmount],
+-           );
+-         });
+-       }
+-     }
++     if (refund.providerCompensationAmount > 0 && bk.provider_id) {}
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:363:7
+-         `SELECT user_id, tier FROM providers WHERE id = $1`,
++         ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:364:7
+-         [bk.provider_id],
++         [],
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:366:9
+-       if (providerRow.rows.length > 0) {
++       if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:366:9
+-       if (providerRow.rows.length > 0) {
++       if (false) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:366:9
+-       if (providerRow.rows.length > 0) {
++       if (providerRow.rows.length >= 0) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:366:9
+-       if (providerRow.rows.length > 0) {
++       if (providerRow.rows.length <= 0) {
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:366:38
+-       if (providerRow.rows.length > 0) {
+-         const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+-         const providerWallet = await walletService.getUserWallet(providerRow.rows[0]!.user_id, 'provider');
+-         await db.transaction(async (client) => {
+-           await client.query(
+-             `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-             [refund.providerCompensationAmount, escrowWallet.id],
+-           );
+-           await client.query(
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT pending_balance FROM wallets WHERE id = $1),
+-                      'Escrow release for provider cancellation compensation')`,
+-             [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
+-           );
+-           await client.query(
+-             `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-             [refund.providerCompensationAmount, providerWallet.id],
+-           );
+-           await client.query(
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT available_balance FROM wallets WHERE id = $1),
+-                      'Cancellation compensation')`,
+-             [providerWallet.id, bookingId, refund.providerCompensationAmount],
+-           );
+-         });
+-       }
++       if (providerRow.rows.length > 0) {}
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:370:46
+-         await db.transaction(async (client) => {
+-           await client.query(
+-             `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-             [refund.providerCompensationAmount, escrowWallet.id],
+-           );
+-           await client.query(
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT pending_balance FROM wallets WHERE id = $1),
+-                      'Escrow release for provider cancellation compensation')`,
+-             [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
+-           );
+-           await client.query(
+-             `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-             [refund.providerCompensationAmount, providerWallet.id],
+-           );
+-           await client.query(
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT available_balance FROM wallets WHERE id = $1),
+-                      'Cancellation compensation')`,
+-             [providerWallet.id, bookingId, refund.providerCompensationAmount],
+-           );
+-         });
++         await db.transaction(async (client) => {});
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:372:11
+-             `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
++             ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:373:11
+-             [refund.providerCompensationAmount, escrowWallet.id],
++             [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:376:11
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT pending_balance FROM wallets WHERE id = $1),
+-                      'Escrow release for provider cancellation compensation')`,
++             ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:380:11
+-             [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
++             [],
+
+[NoCoverage] UnaryOperator
+packages/api/src/services/escrow.service.ts:380:40
+-             [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
++             [escrowWallet.id, bookingId, +refund.providerCompensationAmount],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:384:11
+-             `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++             ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:385:11
+-             [refund.providerCompensationAmount, providerWallet.id],
++             [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:388:11
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT available_balance FROM wallets WHERE id = $1),
+-                      'Cancellation compensation')`,
++             ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:392:11
+-             [providerWallet.id, bookingId, refund.providerCompensationAmount],
++             [],
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:398:7
+-     if (customerNoShow && serviceFee > 0) {
++     if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:398:7
+-     if (customerNoShow && serviceFee > 0) {
++     if (false) {
+
+[NoCoverage] LogicalOperator
+packages/api/src/services/escrow.service.ts:398:7
+-     if (customerNoShow && serviceFee > 0) {
++     if (customerNoShow || serviceFee > 0) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:398:25
+-     if (customerNoShow && serviceFee > 0) {
++     if (customerNoShow && true) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:398:25
+-     if (customerNoShow && serviceFee > 0) {
++     if (customerNoShow && serviceFee >= 0) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:398:25
+-     if (customerNoShow && serviceFee > 0) {
++     if (customerNoShow && serviceFee <= 0) {
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:398:41
+-     if (customerNoShow && serviceFee > 0) {
+-       const revenueWallet = await walletService.getPlatformWallet('platform_revenue');
+-       const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+-       await db.transaction(async (client) => {
+-         await client.query(
+-           `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-           [serviceFee, escrowWallet.id],
+-         );
+-         await client.query(
+-           `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-            VALUES ($1, $2, 'escrow_release', $3,
+-                    (SELECT pending_balance FROM wallets WHERE id = $1),
+-                    'Service fee retained ΓÇö customer no-show')`,
+-           [escrowWallet.id, bookingId, -serviceFee],
+-         );
+-         await client.query(
+-           `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-           [serviceFee, revenueWallet.id],
+-         );
+-         await client.query(
+-           `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-            VALUES ($1, $2, 'commission', $3,
+-                    (SELECT available_balance FROM wallets WHERE id = $1),
+-                    'Service fee from customer no-show')`,
+-           [revenueWallet.id, bookingId, serviceFee],
+-         );
+-       });
+-     }
++     if (customerNoShow && serviceFee > 0) {}
+
+[NoCoverage] BlockStatement
+packages/api/src/services/escrow.service.ts:401:44
+-       await db.transaction(async (client) => {
+-         await client.query(
+-           `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-           [serviceFee, escrowWallet.id],
+-         );
+-         await client.query(
+-           `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-            VALUES ($1, $2, 'escrow_release', $3,
+-                    (SELECT pending_balance FROM wallets WHERE id = $1),
+-                    'Service fee retained ΓÇö customer no-show')`,
+-           [escrowWallet.id, bookingId, -serviceFee],
+-         );
+-         await client.query(
+-           `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-           [serviceFee, revenueWallet.id],
+-         );
+-         await client.query(
+-           `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-            VALUES ($1, $2, 'commission', $3,
+-                    (SELECT available_balance FROM wallets WHERE id = $1),
+-                    'Service fee from customer no-show')`,
+-           [revenueWallet.id, bookingId, serviceFee],
+-         );
+-       });
++       await db.transaction(async (client) => {});
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:403:9
+-           `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
++           ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:404:9
+-           [serviceFee, escrowWallet.id],
++           [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:407:9
+-           `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-            VALUES ($1, $2, 'escrow_release', $3,
+-                    (SELECT pending_balance FROM wallets WHERE id = $1),
+-                    'Service fee retained ΓÇö customer no-show')`,
++           ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:411:9
+-           [escrowWallet.id, bookingId, -serviceFee],
++           [],
+
+[NoCoverage] UnaryOperator
+packages/api/src/services/escrow.service.ts:411:38
+-           [escrowWallet.id, bookingId, -serviceFee],
++           [escrowWallet.id, bookingId, +serviceFee],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:414:9
+-           `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++           ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:415:9
+-           [serviceFee, revenueWallet.id],
++           [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:418:9
+-           `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-            VALUES ($1, $2, 'commission', $3,
+-                    (SELECT available_balance FROM wallets WHERE id = $1),
+-                    'Service fee from customer no-show')`,
++           ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:422:9
+-           [revenueWallet.id, bookingId, serviceFee],
++           [],
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:428:7
+-     if (refund.customerRefundPercent >= 1.0) {
++     if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:428:7
+-     if (refund.customerRefundPercent >= 1.0) {
++     if (false) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:428:7
+-     if (refund.customerRefundPercent >= 1.0) {
++     if (refund.customerRefundPercent > 1.0) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:428:7
+-     if (refund.customerRefundPercent >= 1.0) {
++     if (refund.customerRefundPercent < 1.0) {
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:429:20
+-       escrowStatus = 'refunded';
++       escrowStatus = "";
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:430:14
+-     } else if (refund.customerRefundPercent <= 0) {
++     } else if (true) {
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/escrow.service.ts:430:14
+-     } else if (refund.customerRefundPercent <= 0) {
++     } else if (false) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:430:14
+-     } else if (refund.customerRefundPercent <= 0) {
++     } else if (refund.customerRefundPercent < 0) {
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/escrow.service.ts:430:14
+-     } else if (refund.customerRefundPercent <= 0) {
++     } else if (refund.customerRefundPercent > 0) {
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:431:20
+-       escrowStatus = 'released';
++       escrowStatus = "";
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:433:20
+-       escrowStatus = 'partially_refunded';
++       escrowStatus = "";
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:436:5
+-       `UPDATE bookings SET escrow_status = $1, updated_at = NOW() WHERE id = $2`,
++       ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:437:5
+-       [escrowStatus, bookingId],
++       [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/escrow.service.ts:440:15
+-     logger.info('Cancellation processed', { bookingId, escrowStatus, refund });
++     logger.info("", { bookingId, escrowStatus, refund });
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/escrow.service.ts:440:41
+-     logger.info('Cancellation processed', { bookingId, escrowStatus, refund });
++     logger.info('Cancellation processed', {});
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:14:22
+-   const CACHE_PREFIX = 'settings:';
+
++   const CACHE_PREFIX = "";
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:15:23
+-   const CACHE_ALL_KEY = 'settings:__all__';
+
++   const CACHE_ALL_KEY = "";
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:21:29
+-     commission_rate_founding: '10',
+
++     commission_rate_founding: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:22:24
+-     commission_rate_new: '15',
+
++     commission_rate_new: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:23:29
+-     commission_rate_verified: '13',
+
++     commission_rate_verified: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:24:24
+-     commission_rate_pro: '11',
+
++     commission_rate_pro: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:25:26
+-     commission_rate_elite: '9',
+
++     commission_rate_elite: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:28:21
+-     service_fee_rate: '10',
+
++     service_fee_rate: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:29:20
+-     service_fee_min: '2500',
+
++     service_fee_min: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:30:20
+-     service_fee_max: '50000',
+
++     service_fee_max: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:31:24
+-     guarantee_fund_rate: '1.5',
+
++     guarantee_fund_rate: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:32:13
+-     vat_rate: '12',
+
++     vat_rate: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:35:30
+-     escrow_auto_confirm_hours: '24',
+
++     escrow_auto_confirm_hours: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:36:32
+-     escrow_dispute_window_hours: '48',
+
++     escrow_dispute_window_hours: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:37:27
+-     minimum_payment_amount: '10000',
+
++     minimum_payment_amount: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:38:30
+-     minimum_withdrawal_amount: '10000',
+
++     minimum_withdrawal_amount: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:39:31
+-     withdrawal_processing_days: '3',
+
++     withdrawal_processing_days: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:42:27
+-     cancel_refund_over_24h: '100',
+
++     cancel_refund_over_24h: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:43:27
+-     cancel_refund_2_to_24h: '100',
+
++     cancel_refund_2_to_24h: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:44:26
+-     cancel_refund_1_to_2h: '90',
+
++     cancel_refund_1_to_2h: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:45:30
+-     cancel_refund_30min_to_1h: '80',
+
++     cancel_refund_30min_to_1h: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:46:30
+-     cancel_refund_under_30min: '70',
+
++     cancel_refund_under_30min: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:47:35
+-     cancel_refund_provider_arrived: '50',
+
++     cancel_refund_provider_arrived: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:48:34
+-     cancel_refund_customer_noshow: '0',
+
++     cancel_refund_customer_noshow: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:51:33
+-     max_property_damage_coverage: '2500000',
+
++     max_property_damage_coverage: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:52:23
+-     max_theft_coverage: '1000000',
+
++     max_theft_coverage: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:53:24
+-     max_injury_coverage: '5000000',
+
++     max_injury_coverage: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:54:32
+-     damage_deductible_threshold: '500000',
+
++     damage_deductible_threshold: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:55:29
+-     damage_deductible_amount: '50000',
+
++     damage_deductible_amount: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:56:23
+-     claim_window_hours: '48',
+
++     claim_window_hours: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:57:29
+-     auto_suspend_claim_count: '3',
+
++     auto_suspend_claim_count: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:58:27
+-     provider_recovery_rate: '100',
+
++     provider_recovery_rate: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:61:15
+-     otp_length: '6',
+
++     otp_length: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:62:23
+-     otp_expiry_minutes: '5',
+
++     otp_expiry_minutes: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:63:21
+-     otp_max_attempts: '3',
+
++     otp_max_attempts: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:64:25
+-     otp_cooldown_seconds: '60',
+
++     otp_cooldown_seconds: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:65:23
+-     jwt_access_expires: '15m',
+
++     jwt_access_expires: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:66:24
+-     jwt_refresh_expires: '30d',
+
++     jwt_refresh_expires: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:67:32
+-     admin_session_timeout_hours: '8',
+
++     admin_session_timeout_hours: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:70:28
+-     provider_noshow_minutes: '30',
+
++     provider_noshow_minutes: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:71:28
+-     nbi_expiry_warning_days: '30',
+
++     nbi_expiry_warning_days: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:72:26
+-     max_service_radius_km: '50',
+
++     max_service_radius_km: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:73:23
+-     quote_expiry_hours: '48',
+
++     quote_expiry_hours: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:74:27
+-     max_quotes_per_booking: '5',
+
++     max_quotes_per_booking: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:77:25
+-     rate_limit_window_ms: '900000',
+
++     rate_limit_window_ms: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:78:28
+-     rate_limit_max_requests: '100',
+
++     rate_limit_max_requests: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:79:28
+-     suspicious_ip_threshold: '10',
+
++     suspicious_ip_threshold: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:80:22
+-     captcha_threshold: '3',
+
++     captcha_threshold: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:83:25
+-     cache_ttl_categories: '86400',
+
++     cache_ttl_categories: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:84:31
+-     cache_ttl_provider_profile: '1800',
+
++     cache_ttl_provider_profile: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:85:29
+-     cache_ttl_search_results: '300',
+
++     cache_ttl_search_results: "",
+
+Ran all tests for this mutant.
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:131:36
+-       const cached = await redis.get(`${CACHE_PREFIX}${key}`);
+
++       const cached = await redis.get(``);
+
+Tests ran:
+    runtime-config-e2e getSetting fallback chain returns cached value on Redis hit (no DB call)
+    runtime-config-e2e getSetting fallback chain falls back to DB on cache miss and warms cache
+    runtime-config-e2e getSetting fallback chain falls back to SETTING_DEFAULTS when DB row is missing
+  and 1 more test!
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:133:17
+-     } catch (err) {
+
+-       logger.warn('Settings cache read failed', { key, error: (err as Error).message });
+
+-     }
+
++     } catch (err) {}
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:134:17
+-       logger.warn('Settings cache read failed', { key, error: (err as Error).message });
+
++       logger.warn("", { key, error: (err as Error).message });
+
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/settings.service.ts:134:47
+-       logger.warn('Settings cache read failed', { key, error: (err as Error).message });
+
++       logger.warn('Settings cache read failed', {});
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:140:7
+-         `SELECT value FROM platform_settings WHERE key = $1 AND is_active = TRUE`,
+
++         ``,
+
+Tests ran:
+    runtime-config-e2e getSetting fallback chain falls back to DB on cache miss and warms cache
+    runtime-config-e2e getSetting fallback chain falls back to SETTING_DEFAULTS when DB row is missing
+    runtime-config-e2e getSetting fallback chain throws 404 when key is unknown and not in defaults
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/settings.service.ts:141:7
+-         [key],
+
++         [],
+
+Tests ran:
+    runtime-config-e2e getSetting fallback chain falls back to DB on cache miss and warms cache
+    runtime-config-e2e getSetting fallback chain falls back to SETTING_DEFAULTS when DB row is missing
+    runtime-config-e2e getSetting fallback chain throws 404 when key is unknown and not in defaults
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:143:9
+-       if (result.rows.length > 0) {
+
++       if (true) {
+
+Tests ran:
+    runtime-config-e2e getSetting fallback chain falls back to DB on cache miss and warms cache
+    runtime-config-e2e getSetting fallback chain falls back to SETTING_DEFAULTS when DB row is missing
+    runtime-config-e2e getSetting fallback chain throws 404 when key is unknown and not in defaults
+
+
+[Survived] EqualityOperator
+packages/api/src/services/settings.service.ts:143:9
+-       if (result.rows.length > 0) {
+
++       if (result.rows.length >= 0) {
+
+Tests ran:
+    runtime-config-e2e getSetting fallback chain falls back to DB on cache miss and warms cache
+    runtime-config-e2e getSetting fallback chain falls back to SETTING_DEFAULTS when DB row is missing
+    runtime-config-e2e getSetting fallback chain throws 404 when key is unknown and not in defaults
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:146:25
+-           await redis.set(`${CACHE_PREFIX}${key}`, val, 'EX', CACHE_TTL);
+
++           await redis.set(``, val, 'EX', CACHE_TTL);
+
+Tests ran:
+    runtime-config-e2e getSetting fallback chain falls back to DB on cache miss and warms cache
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:147:26
+-         } catch (cacheErr) {
+
+-           logger.warn('Settings cache write failed', { key, error: (cacheErr as Error).message });
+
+-         }
+
++         } catch (cacheErr) {}
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:148:21
+-           logger.warn('Settings cache write failed', { key, error: (cacheErr as Error).message });
+
++           logger.warn("", { key, error: (cacheErr as Error).message });
+
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/settings.service.ts:148:52
+-           logger.warn('Settings cache write failed', { key, error: (cacheErr as Error).message });
+
++           logger.warn('Settings cache write failed', {});
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:152:17
+-     } catch (err) {
+
+-       logger.error('Settings DB read failed', { key, error: (err as Error).message });
+
+-     }
+
++     } catch (err) {}
+
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/settings.service.ts:153:45
+-       logger.error('Settings DB read failed', { key, error: (err as Error).message });
+
++       logger.error('Settings DB read failed', {});
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:153:18
+-       logger.error('Settings DB read failed', { key, error: (err as Error).message });
+
++       logger.error("", { key, error: (err as Error).message });
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:160:24
+-     throw createAppError(`Setting "${key}" not found.`, 404);
+
++     throw createAppError(``, 404);
+
+Tests ran:
+    runtime-config-e2e getSetting fallback chain throws 404 when key is unknown and not in defaults
+
+
+[NoCoverage] ArithmeticOperator
+packages/api/src/services/settings.service.ts:168:10
+-     return Number(await getSetting(key)) / 100;
+
++     return Number(await getSetting(key)) * 100;
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:177:10
+-     return val === 'true' || val === '1';
+
++     return true;
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:177:10
+-     return val === 'true' || val === '1';
+
++     return false;
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:177:10
+-     return val === 'true' || val === '1';
+
++     return false || val === '1';
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:177:18
+-     return val === 'true' || val === '1';
+
++     return val === "" || val === '1';
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:177:28
+-     return val === 'true' || val === '1';
+
++     return val === 'true' || false;
+
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/settings.service.ts:177:28
+-     return val === 'true' || val === '1';
+
++     return val === 'true' || val !== '1';
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:177:36
+-     return val === 'true' || val === '1';
+
++     return val === 'true' || val === "";
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:182:36
+-       return await getSettingPercent(`commission_rate_${tier}`);
+
++       return await getSettingPercent(``);
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:184:30
+-       return getSettingPercent('commission_rate_new');
+
++       return getSettingPercent("");
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:191:7
+-     try {
+
+-       const cached = await redis.get(CACHE_ALL_KEY);
+
+-       if (cached) {
+
+-         try {
+
+-           return JSON.parse(cached) as SettingRow[];
+
+-         } catch (parseErr) {
+
+-           logger.warn('Settings cache JSON parse failed', { error: (parseErr as Error).message });
+
+-         }
+
+-       }
+
+-     } catch (err) {
+
++     try {} catch (err) {
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:193:17
+-       if (cached) {
+
+-         try {
+
+-           return JSON.parse(cached) as SettingRow[];
+
+-         } catch (parseErr) {
+
+-           logger.warn('Settings cache JSON parse failed', { error: (parseErr as Error).message });
+
+-         }
+
+-       }
+
++       if (cached) {}
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:194:11
+-         try {
+
+-           return JSON.parse(cached) as SettingRow[];
+
+-         } catch (parseErr) {
+
++         try {} catch (parseErr) {
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:196:26
+-         } catch (parseErr) {
+
+-           logger.warn('Settings cache JSON parse failed', { error: (parseErr as Error).message });
+
+-         }
+
++         } catch (parseErr) {}
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:197:21
+-           logger.warn('Settings cache JSON parse failed', { error: (parseErr as Error).message });
+
++           logger.warn("", { error: (parseErr as Error).message });
+
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/settings.service.ts:197:57
+-           logger.warn('Settings cache JSON parse failed', { error: (parseErr as Error).message });
+
++           logger.warn('Settings cache JSON parse failed', {});
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:200:17
+-     } catch (err) {
+
+-       logger.warn('Settings cache read (all) failed', { error: (err as Error).message });
+
+-     }
+
++     } catch (err) {}
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:201:17
+-       logger.warn('Settings cache read (all) failed', { error: (err as Error).message });
+
++       logger.warn("", { error: (err as Error).message });
+
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/settings.service.ts:201:53
+-       logger.warn('Settings cache read (all) failed', { error: (err as Error).message });
+
++       logger.warn('Settings cache read (all) failed', {});
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:205:5
+-       `SELECT * FROM platform_settings ORDER BY category, display_order`,
+
++       ``,
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:208:7
+-     try {
+
+-       await redis.set(CACHE_ALL_KEY, JSON.stringify(result.rows), 'EX', CACHE_TTL);
+
+-     } catch (err) {
+
++     try {} catch (err) {
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:210:17
+-     } catch (err) {
+
+-       logger.warn('Settings cache write (all) failed', { error: (err as Error).message });
+
+-     }
+
++     } catch (err) {}
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:211:17
+-       logger.warn('Settings cache write (all) failed', { error: (err as Error).message });
+
++       logger.warn("", { error: (err as Error).message });
+
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/settings.service.ts:211:54
+-       logger.warn('Settings cache write (all) failed', { error: (err as Error).message });
+
++       logger.warn('Settings cache write (all) failed', {});
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:219:5
+-       `SELECT * FROM platform_settings WHERE category = $1 ORDER BY display_order`,
+
++       ``,
+
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/settings.service.ts:220:5
+-       [category],
+
++       [],
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:227:5
+-       `SELECT category, COUNT(*)::text AS count FROM platform_settings
+
+-        GROUP BY category ORDER BY category`,
+
++       ``,
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:238:7
+-     if (value_type === 'number' || value_type === 'percent' || value_type === 'currency' || value_type === 'integer') {
+
++     if (true) {
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values below the configured minimum
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+  and 1 more test!
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:238:34
+-     if (value_type === 'number' || value_type === 'percent' || value_type === 'currency' || value_type === 'integer') {
+
++     if (value_type === 'number' || false || value_type === 'currency' || value_type === 'integer') {
+
+Tests ran:
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:238:62
+-     if (value_type === 'number' || value_type === 'percent' || value_type === 'currency' || value_type === 'integer') {
+
++     if (value_type === 'number' || value_type === 'percent' || false || value_type === 'integer') {
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:238:49
+-     if (value_type === 'number' || value_type === 'percent' || value_type === 'currency' || value_type === 'integer') {
+
++     if (value_type === 'number' || value_type === "" || value_type === 'currency' || value_type === 'integer') {
+
+Tests ran:
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:238:77
+-     if (value_type === 'number' || value_type === 'percent' || value_type === 'currency' || value_type === 'integer') {
+
++     if (value_type === 'number' || value_type === 'percent' || value_type === "" || value_type === 'integer') {
+
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/settings.service.ts:238:91
+-     if (value_type === 'number' || value_type === 'percent' || value_type === 'currency' || value_type === 'integer') {
+
++     if (value_type === 'number' || value_type === 'percent' || value_type === 'currency' || value_type !== 'integer') {
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:240:9
+-       if (Number.isNaN(num)) {
+
++       if (false) {
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values below the configured minimum
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+  and 1 more test!
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:241:28
+-         throw createAppError(`Setting "${key}" requires a numeric value.`, 400);
+
++         throw createAppError(``, 400);
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:240:28
+-       if (Number.isNaN(num)) {
+
+-         throw createAppError(`Setting "${key}" requires a numeric value.`, 400);
+
+-       }
+
++       if (Number.isNaN(num)) {}
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:243:9
+-       if (value_type === 'integer' && !Number.isInteger(num)) {
+
++       if (false) {
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values below the configured minimum
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+  and 1 more test!
+
+
+[Survived] LogicalOperator
+packages/api/src/services/settings.service.ts:243:9
+-       if (value_type === 'integer' && !Number.isInteger(num)) {
+
++       if (value_type === 'integer' || !Number.isInteger(num)) {
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values below the configured minimum
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+  and 1 more test!
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:243:9
+-       if (value_type === 'integer' && !Number.isInteger(num)) {
+
++       if (true && !Number.isInteger(num)) {
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values below the configured minimum
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+  and 1 more test!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/settings.service.ts:243:9
+-       if (value_type === 'integer' && !Number.isInteger(num)) {
+
++       if (value_type !== 'integer' && !Number.isInteger(num)) {
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values below the configured minimum
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+  and 1 more test!
+
+
+[NoCoverage] BooleanLiteral
+packages/api/src/services/settings.service.ts:243:37
+-       if (value_type === 'integer' && !Number.isInteger(num)) {
+
++       if (value_type === 'integer' && Number.isInteger(num)) {
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:243:61
+-       if (value_type === 'integer' && !Number.isInteger(num)) {
+
+-         throw createAppError(`Setting "${key}" requires a whole number.`, 400);
+
+-       }
+
++       if (value_type === 'integer' && !Number.isInteger(num)) {}
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:244:28
+-         throw createAppError(`Setting "${key}" requires a whole number.`, 400);
+
++         throw createAppError(``, 400);
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:246:9
+-       if (min_value !== null && num < Number(min_value)) {
+
++       if (true && num < Number(min_value)) {
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values below the configured minimum
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+  and 1 more test!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/settings.service.ts:246:31
+-       if (min_value !== null && num < Number(min_value)) {
+
++       if (min_value !== null && num <= Number(min_value)) {
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values below the configured minimum
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:247:28
+-         throw createAppError(`Setting "${key}" minimum is ${min_value}.`, 400);
+
++         throw createAppError(``, 400);
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values below the configured minimum
+
+
+[Survived] EqualityOperator
+packages/api/src/services/settings.service.ts:249:31
+-       if (max_value !== null && num > Number(max_value)) {
+
++       if (max_value !== null && num >= Number(max_value)) {
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:250:28
+-         throw createAppError(`Setting "${key}" maximum is ${max_value}.`, 400);
+
++         throw createAppError(``, 400);
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:254:7
+-     if (value_type === 'boolean' && newValue !== 'true' && newValue !== 'false') {
+
++     if (false) {
+
+Tests ran:
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:254:22
+-     if (value_type === 'boolean' && newValue !== 'true' && newValue !== 'false') {
+
++     if (value_type === "" && newValue !== 'true' && newValue !== 'false') {
+
+Tests ran:
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:254:35
+-     if (value_type === 'boolean' && newValue !== 'true' && newValue !== 'false') {
+
++     if (value_type === 'boolean' && true && newValue !== 'false') {
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:254:48
+-     if (value_type === 'boolean' && newValue !== 'true' && newValue !== 'false') {
+
++     if (value_type === 'boolean' && newValue !== "" && newValue !== 'false') {
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:254:58
+-     if (value_type === 'boolean' && newValue !== 'true' && newValue !== 'false') {
+
++     if (value_type === 'boolean' && newValue !== 'true' && true) {
+
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/settings.service.ts:254:58
+-     if (value_type === 'boolean' && newValue !== 'true' && newValue !== 'false') {
+
++     if (value_type === 'boolean' && newValue !== 'true' && newValue === 'false') {
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:254:71
+-     if (value_type === 'boolean' && newValue !== 'true' && newValue !== 'false') {
+
++     if (value_type === 'boolean' && newValue !== 'true' && newValue !== "") {
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:254:80
+-     if (value_type === 'boolean' && newValue !== 'true' && newValue !== 'false') {
+
+-       throw createAppError(`Setting "${key}" must be true or false.`, 400);
+
+-     }
+
++     if (value_type === 'boolean' && newValue !== 'true' && newValue !== 'false') {}
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:255:26
+-       throw createAppError(`Setting "${key}" must be true or false.`, 400);
+
++       throw createAppError(``, 400);
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:258:25
+-     if (allowed_values && allowed_values.length > 0 && !allowed_values.includes(newValue)) {
+
++     if (allowed_values && true && !allowed_values.includes(newValue)) {
+
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/settings.service.ts:258:25
+-     if (allowed_values && allowed_values.length > 0 && !allowed_values.includes(newValue)) {
+
++     if (allowed_values && allowed_values.length >= 0 && !allowed_values.includes(newValue)) {
+
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/settings.service.ts:258:25
+-     if (allowed_values && allowed_values.length > 0 && !allowed_values.includes(newValue)) {
+
++     if (allowed_values && allowed_values.length <= 0 && !allowed_values.includes(newValue)) {
+
+
+[NoCoverage] BooleanLiteral
+packages/api/src/services/settings.service.ts:258:54
+-     if (allowed_values && allowed_values.length > 0 && !allowed_values.includes(newValue)) {
+
++     if (allowed_values && allowed_values.length > 0 && allowed_values.includes(newValue)) {
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:258:90
+-     if (allowed_values && allowed_values.length > 0 && !allowed_values.includes(newValue)) {
+
+-       throw createAppError(`Setting "${key}" must be one of: ${allowed_values.join(', ')}`, 400);
+
+-     }
+
++     if (allowed_values && allowed_values.length > 0 && !allowed_values.includes(newValue)) {}
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:259:26
+-       throw createAppError(`Setting "${key}" must be one of: ${allowed_values.join(', ')}`, 400);
+
++       throw createAppError(``, 400);
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:259:82
+-       throw createAppError(`Setting "${key}" must be one of: ${allowed_values.join(', ')}`, 400);
+
++       throw createAppError(`Setting "${key}" must be one of: ${allowed_values.join("")}`, 400);
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:274:5
+-       `SELECT * FROM platform_settings WHERE key = $1`,
+
++       ``,
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values below the configured minimum
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+  and 1 more test!
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/settings.service.ts:275:5
+-       [key],
+
++       [],
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values below the configured minimum
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+  and 1 more test!
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:277:7
+-     if (current.rows.length === 0) {
+
++     if (false) {
+
+Tests ran:
+    runtime-config-e2e updateSetting validation rejects values below the configured minimum
+    runtime-config-e2e updateSetting validation rejects values above the configured maximum
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+  and 1 more test!
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:277:34
+-     if (current.rows.length === 0) {
+
+-       throw createAppError(`Setting "${key}" not found.`, 404);
+
+-     }
+
++     if (current.rows.length === 0) {}
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:278:26
+-       throw createAppError(`Setting "${key}" not found.`, 404);
+
++       throw createAppError(``, 404);
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:287:5
+-       `UPDATE platform_settings
+
+-          SET value = $1, updated_by = $2, updated_at = NOW()
+
+-        WHERE key = $3
+
+-        RETURNING *`,
+
++       ``,
+
+Tests ran:
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/settings.service.ts:298:5
+-       [setting.id, key, oldValue, newValue, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
+
++       [],
+
+Tests ran:
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[Survived] LogicalOperator
+packages/api/src/services/settings.service.ts:298:54
+-       [setting.id, key, oldValue, newValue, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
+
++       [setting.id, key, oldValue, newValue, changedBy, reason && null, ipAddress ?? null, userAgent ?? null],
+
+Tests ran:
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[Survived] LogicalOperator
+packages/api/src/services/settings.service.ts:298:70
+-       [setting.id, key, oldValue, newValue, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
+
++       [setting.id, key, oldValue, newValue, changedBy, reason ?? null, ipAddress && null, userAgent ?? null],
+
+Tests ran:
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[Survived] LogicalOperator
+packages/api/src/services/settings.service.ts:298:89
+-       [setting.id, key, oldValue, newValue, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
+
++       [setting.id, key, oldValue, newValue, changedBy, reason ?? null, ipAddress ?? null, userAgent && null],
+
+Tests ran:
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:303:15
+-     logger.info('Platform setting updated', {
+
++     logger.info("", {
+
+Tests ran:
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:305:38
+-       oldValue: setting.is_sensitive ? '[REDACTED]' : oldValue,
+
++       oldValue: setting.is_sensitive ? "" : oldValue,
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/settings.service.ts:303:43
+-     logger.info('Platform setting updated', {
+
+-       key,
+
+-       oldValue: setting.is_sensitive ? '[REDACTED]' : oldValue,
+
+-       newValue: setting.is_sensitive ? '[REDACTED]' : newValue,
+
+-       changedBy,
+
+-       reason,
+
+-     });
+
++     logger.info('Platform setting updated', {});
+
+Tests ran:
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:306:38
+-       newValue: setting.is_sensitive ? '[REDACTED]' : newValue,
+
++       newValue: setting.is_sensitive ? "" : newValue,
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:325:10
+-     while (idx < updates.length) {
+
++     while (false) {
+
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/settings.service.ts:325:10
+-     while (idx < updates.length) {
+
++     while (idx <= updates.length) {
+
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/settings.service.ts:325:10
+-     while (idx < updates.length) {
+
++     while (idx >= updates.length) {
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:325:32
+-     while (idx < updates.length) {
+
+-       const u = updates[idx]!;
+
+-       const result = await updateSetting(u.key, u.value, changedBy, reason, ipAddress, userAgent);
+
+-       results.push(result);
+
+-       idx += 1;
+
+-     }
+
++     while (idx < updates.length) {}
+
+
+[NoCoverage] AssignmentOperator
+packages/api/src/services/settings.service.ts:329:5
+-       idx += 1;
+
++       idx -= 1;
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:336:5
+-       `SELECT * FROM platform_settings WHERE key = $1`,
+
++       ``,
+
+Tests ran:
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/settings.service.ts:337:5
+-       [key],
+
++       [],
+
+Tests ran:
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:339:7
+-     if (current.rows.length === 0) {
+
++     if (false) {
+
+Tests ran:
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:339:34
+-     if (current.rows.length === 0) {
+
+-       throw createAppError(`Setting "${key}" not found.`, 404);
+
+-     }
+
++     if (current.rows.length === 0) {}
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:340:26
+-       throw createAppError(`Setting "${key}" not found.`, 404);
+
++       throw createAppError(``, 404);
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:342:72
+-     return updateSetting(key, current.rows[0]!.default_value, changedBy, 'Reset to default');
+
++     return updateSetting(key, current.rows[0]!.default_value, changedBy, "");
+
+Tests ran:
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:347:5
+-       `SELECT sa.*
+
+-          FROM platform_settings_audit sa
+
+-         WHERE sa.setting_key = $1
+
+-         ORDER BY sa.created_at DESC
+
+-         LIMIT $2`,
+
++       ``,
+
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/settings.service.ts:352:5
+-       [key, limit],
+
++       [],
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:363:17
+-     } catch (err) {
+
+-       logger.warn('Settings cache bust failed', { key, error: (err as Error).message });
+
+-     }
+
++     } catch (err) {}
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:361:21
+-       await redis.del(`${CACHE_PREFIX}${key}`);
+
++       await redis.del(``);
+
+Tests ran:
+    runtime-config-e2e updateSetting side effects writes audit row and busts cache on success
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:364:17
+-       logger.warn('Settings cache bust failed', { key, error: (err as Error).message });
+
++       logger.warn("", { key, error: (err as Error).message });
+
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/settings.service.ts:364:47
+-       logger.warn('Settings cache bust failed', { key, error: (err as Error).message });
+
++       logger.warn('Settings cache bust failed', {});
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:368:53
+-   export async function bustAllCache(): Promise<void> {
+
+-     try {
+
+-       const keys = await redis.keys(`${CACHE_PREFIX}*`);
+
+-       if (keys.length > 0) await redis.del(...keys);
+
+-     } catch (err) {
+
+-       logger.warn('Settings cache flush-all failed', { error: (err as Error).message });
+
+-     }
+
+-   }
+
++   export async function bustAllCache(): Promise<void> {}
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:369:7
+-     try {
+
+-       const keys = await redis.keys(`${CACHE_PREFIX}*`);
+
+-       if (keys.length > 0) await redis.del(...keys);
+
+-     } catch (err) {
+
++     try {} catch (err) {
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:370:35
+-       const keys = await redis.keys(`${CACHE_PREFIX}*`);
+
++       const keys = await redis.keys(``);
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:371:9
+-       if (keys.length > 0) await redis.del(...keys);
+
++       if (true) await redis.del(...keys);
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:371:9
+-       if (keys.length > 0) await redis.del(...keys);
+
++       if (false) await redis.del(...keys);
+
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/settings.service.ts:371:9
+-       if (keys.length > 0) await redis.del(...keys);
+
++       if (keys.length >= 0) await redis.del(...keys);
+
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/settings.service.ts:371:9
+-       if (keys.length > 0) await redis.del(...keys);
+
++       if (keys.length <= 0) await redis.del(...keys);
+
+
+[NoCoverage] BlockStatement
+packages/api/src/services/settings.service.ts:372:17
+-     } catch (err) {
+
+-       logger.warn('Settings cache flush-all failed', { error: (err as Error).message });
+
+-     }
+
++     } catch (err) {}
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:373:17
+-       logger.warn('Settings cache flush-all failed', { error: (err as Error).message });
+
++       logger.warn("", { error: (err as Error).message });
+
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/settings.service.ts:373:52
+-       logger.warn('Settings cache flush-all failed', { error: (err as Error).message });
+
++       logger.warn('Settings cache flush-all failed', {});
+
+
+[NoCoverage] ObjectLiteral
+packages/api/src/services/settings.service.ts:380:10
+-     return {
+
+-       appVersion: '0.1.0',
+
+-       currency: 'PHP',
+
+-       currencySymbol: '\u20B1',
+
+-       timezone: 'Asia/Manila',
+
+-       serviceFeeRate: await getSettingPercent('service_fee_rate'),
+
+-       serviceFeeMin: await getSettingNumber('service_fee_min'),
+
+-       serviceFeeMax: await getSettingNumber('service_fee_max'),
+
+-       escrowAutoConfirmHours: await getSettingInteger('escrow_auto_confirm_hours'),
+
+-       escrowDisputeWindowHours: await getSettingInteger('escrow_dispute_window_hours'),
+
+-       otpLength: await getSettingInteger('otp_length'),
+
+-       otpCooldownSeconds: await getSettingInteger('otp_cooldown_seconds'),
+
+-       minimumPaymentAmount: await getSettingNumber('minimum_payment_amount'),
+
+-       minimumWithdrawalAmount: await getSettingNumber('minimum_withdrawal_amount'),
+
+-       maxPropertyDamageCoverage: await getSettingNumber('max_property_damage_coverage'),
+
+-       maxTheftCoverage: await getSettingNumber('max_theft_coverage'),
+
+-       maxInjuryCoverage: await getSettingNumber('max_injury_coverage'),
+
+-       claimWindowHours: await getSettingInteger('claim_window_hours'),
+
+-       quoteExpiryHours: await getSettingInteger('quote_expiry_hours'),
+
+-       maxQuotesPerBooking: await getSettingInteger('max_quotes_per_booking'),
+
+-       maxServiceRadiusKm: await getSettingInteger('max_service_radius_km'),
+
+-     };
+
++     return {};
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:381:17
+-       appVersion: '0.1.0',
+
++       appVersion: "",
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:382:15
+-       currency: 'PHP',
+
++       currency: "",
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:383:21
+-       currencySymbol: '\u20B1',
+
++       currencySymbol: "",
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:384:15
+-       timezone: 'Asia/Manila',
+
++       timezone: "",
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:385:45
+-       serviceFeeRate: await getSettingPercent('service_fee_rate'),
+
++       serviceFeeRate: await getSettingPercent(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:386:43
+-       serviceFeeMin: await getSettingNumber('service_fee_min'),
+
++       serviceFeeMin: await getSettingNumber(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:387:43
+-       serviceFeeMax: await getSettingNumber('service_fee_max'),
+
++       serviceFeeMax: await getSettingNumber(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:388:53
+-       escrowAutoConfirmHours: await getSettingInteger('escrow_auto_confirm_hours'),
+
++       escrowAutoConfirmHours: await getSettingInteger(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:389:55
+-       escrowDisputeWindowHours: await getSettingInteger('escrow_dispute_window_hours'),
+
++       escrowDisputeWindowHours: await getSettingInteger(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:390:40
+-       otpLength: await getSettingInteger('otp_length'),
+
++       otpLength: await getSettingInteger(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:391:49
+-       otpCooldownSeconds: await getSettingInteger('otp_cooldown_seconds'),
+
++       otpCooldownSeconds: await getSettingInteger(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:392:50
+-       minimumPaymentAmount: await getSettingNumber('minimum_payment_amount'),
+
++       minimumPaymentAmount: await getSettingNumber(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:393:53
+-       minimumWithdrawalAmount: await getSettingNumber('minimum_withdrawal_amount'),
+
++       minimumWithdrawalAmount: await getSettingNumber(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:394:55
+-       maxPropertyDamageCoverage: await getSettingNumber('max_property_damage_coverage'),
+
++       maxPropertyDamageCoverage: await getSettingNumber(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:395:46
+-       maxTheftCoverage: await getSettingNumber('max_theft_coverage'),
+
++       maxTheftCoverage: await getSettingNumber(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:396:47
+-       maxInjuryCoverage: await getSettingNumber('max_injury_coverage'),
+
++       maxInjuryCoverage: await getSettingNumber(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:397:47
+-       claimWindowHours: await getSettingInteger('claim_window_hours'),
+
++       claimWindowHours: await getSettingInteger(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:398:47
+-       quoteExpiryHours: await getSettingInteger('quote_expiry_hours'),
+
++       quoteExpiryHours: await getSettingInteger(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:399:50
+-       maxQuotesPerBooking: await getSettingInteger('max_quotes_per_booking'),
+
++       maxQuotesPerBooking: await getSettingInteger(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:400:49
+-       maxServiceRadiusKm: await getSettingInteger('max_service_radius_km'),
+
++       maxServiceRadiusKm: await getSettingInteger(""),
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:435:29
+-       value: s.is_sensitive ? '\u2022\u2022\u2022\u2022\u2022\u2022' : s.value,
+
++       value: s.is_sensitive ? "" : s.value,
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:437:15
+-       minValue: s.min_value !== null ? Number(s.min_value) : null,
+
++       minValue: true ? Number(s.min_value) : null,
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:437:15
+-       minValue: s.min_value !== null ? Number(s.min_value) : null,
+
++       minValue: false ? Number(s.min_value) : null,
+
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/settings.service.ts:437:15
+-       minValue: s.min_value !== null ? Number(s.min_value) : null,
+
++       minValue: s.min_value === null ? Number(s.min_value) : null,
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:438:15
+-       maxValue: s.max_value !== null ? Number(s.max_value) : null,
+
++       maxValue: true ? Number(s.max_value) : null,
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:438:15
+-       maxValue: s.max_value !== null ? Number(s.max_value) : null,
+
++       maxValue: false ? Number(s.max_value) : null,
+
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/settings.service.ts:438:15
+-       maxValue: s.max_value !== null ? Number(s.max_value) : null,
+
++       maxValue: s.max_value === null ? Number(s.max_value) : null,
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:446:16
+-       isDefault: s.value === s.default_value,
+
++       isDefault: true,
+
+
+[NoCoverage] ConditionalExpression
+packages/api/src/services/settings.service.ts:446:16
+-       isDefault: s.value === s.default_value,
+
++       isDefault: false,
+
+
+[NoCoverage] EqualityOperator
+packages/api/src/services/settings.service.ts:446:16
+-       isDefault: s.value === s.default_value,
+
++       isDefault: s.value !== s.default_value,
+
+
+Ran 8.56 tests per mutant on average.
+-----------------------|------------------|----------|-----------|------------|----------|----------|
+                       | % Mutation score |          |           |            |          |          |
+File                   |  total | covered | # killed | # timeout | # survived | # no cov | # errors |
+-----------------------|--------|---------|----------|-----------|------------|----------|----------|
+All files              |  14.57 |   45.71 |       80 |         0 |         95 |      374 |       88 |
+ commission.service.ts |  78.26 |   83.72 |       36 |         0 |          7 |        3 |       14 |
+ escrow.service.ts     |   0.00 |    0.00 |        0 |         0 |          0 |      256 |       25 |
+ settings.service.ts   |  17.81 |   33.33 |       44 |         0 |         88 |      115 |       49 |
+-----------------------|--------|---------|----------|-----------|------------|----------|----------|
+[91m08:21:21 (12304) ERROR MutationTestReportHelper[39m Final mutation score 14.57 under breaking threshold 60, setting exit code to 1 (failure).
+[32m08:21:21 (12304) INFO MutationTestReportHelper[39m (improve mutation score or set `thresholds.break = null` to prevent this error in the future)
+[32m08:21:21 (12304) INFO HtmlReporter[39m Your report can be found at: file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/.ai-coder/checkpoints/logs/PHASE-03/stryker-report.html
+[32m08:21:21 (12304) INFO MutationTestExecutor[39m Done in 7 minutes 38 seconds.
+
+FAIL: Mutation score below threshold.
+This means tests have phantom assertions or weak coverage.
+DO NOT proceed. Strengthen tests until mutation score >= 60%.

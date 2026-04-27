@@ -1,0 +1,500 @@
+
+================================================================
+  gate-1-typecheck
+================================================================
+
+> onservice-onsite-app@0.1.0 typecheck
+> npm run typecheck --workspaces --if-present
+
+
+> @onservice/admin@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @onservice/mobile@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @onservice/api@0.1.0 typecheck
+> tsc --noEmit
+
+Γ£à gate-1-typecheck
+
+================================================================
+  gate-1-lint
+================================================================
+
+> onservice-onsite-app@0.1.0 lint
+> eslint .
+
+Γ£à gate-1-lint
+
+================================================================
+  gate-1-forbidden
+================================================================
+--- gate-1-forbidden ---
+Absolute violations in repo: 5
+Violations introduced by this phase: 0
+Violations remaining (deferred to later phases): 5
+Sample (first 10):
+  - apps/admin/src/pages/PricingRulesPage.tsx:595:                          if (window.confirm(`Delete rule "${rule.name}"? This cannot be undone.`)) {
+  [DESC: window.confirm]
+  - apps/mobile/src/components/ui/SuccessAnimation.tsx:31:    hapticSuccess().catch(() => {});  [DESC: empty .catch()]
+  - apps/mobile/src/components/ui/Toast.tsx:63:      triggerHaptic(type).catch(() => {});  [DESC: empty .catch()]
+  - apps/mobile/src/services/upload.service.ts:42:    } as RNFormDataFile as unknown as Blob);  [DESC: double cast]
+  - packages/api/src/middleware/cache.middleware.ts:29:        cacheSet(key, { body, statusCode: res.statusCode }, ttlSeconds).catch(() => {});  [DESC: empty .catch()]
+GATE: PASS (no new violations introduced by PHASE-03)
+Γ£à gate-1-forbidden
+
+================================================================
+  gate-1-emoji
+================================================================
+--- gate-1-emoji ---
+Absolute violations in repo: 0
+Violations introduced by this phase: 0
+GATE: PASS (no new violations introduced by PHASE-03)
+Γ£à gate-1-emoji
+
+================================================================
+  gate-1-phantom-tests
+================================================================
+--- gate-1-phantom-tests ---
+Absolute violations in repo: 0
+Violations introduced by this phase: 0
+GATE: PASS (no new violations introduced by PHASE-03)
+Γ£à gate-1-phantom-tests
+
+================================================================
+  gate-1-deps
+================================================================
+Checking: ./apps/admin/package.json
+  WARN: jq not installed. Skipping detailed check (install jq to enforce).
+Checking: ./apps/mobile/package.json
+  WARN: jq not installed. Skipping detailed check (install jq to enforce).
+Checking: ./package.json
+  WARN: jq not installed. Skipping detailed check (install jq to enforce).
+Checking: ./packages/api/package.json
+  WARN: jq not installed. Skipping detailed check (install jq to enforce).
+
+PASS: No forbidden dependencies. Review any WARN lines.
+Γ£à gate-1-deps
+
+================================================================
+  gate-2-alltests
+================================================================
+
+> onservice-onsite-app@0.1.0 api:test
+> npm run test --workspace=packages/api
+
+
+> @onservice/api@0.1.0 test
+> jest --passWithNoTests
+
+PASS __tests__/wallet-type-isolation.test.ts
+PASS __tests__/booking-state-machine.test.ts
+PASS __tests__/auth-validators.test.ts
+PASS __tests__/address-validators.test.ts
+PASS __tests__/payout-validators.test.ts
+PASS __tests__/tip-validators.test.ts
+PASS __tests__/messaging-validators.test.ts
+PASS __tests__/suki-validators.test.ts
+PASS __tests__/review-validators.test.ts
+PASS __tests__/referral-validators.test.ts
+PASS __tests__/admin-validators.test.ts
+PASS __tests__/payment-validators.test.ts
+PASS __tests__/notification-template-validators.test.ts
+PASS __tests__/dispute-validators.test.ts
+PASS __tests__/matching.test.ts
+PASS __tests__/provider-validators.test.ts
+PASS __tests__/commission.test.ts
+PASS __tests__/escrow-money-conservation.test.ts
+PASS __tests__/booking-validators.test.ts
+PASS __tests__/runtime-config-e2e.test.ts
+  ΓùÅ Console
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin-user-id","key":"service_fee_rate","newValue":"12","oldValue":"10","reason":"tuning","service":"onservice-api","timestamp":"2026-04-28 06:37:06"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin-user-id","key":"service_fee_rate","newValue":"10","oldValue":"99","reason":"Reset to default","service":"onservice-api","timestamp":"2026-04-28 06:37:06"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS __tests__/booking-price-lookup.test.ts
+PASS __tests__/dispute-refund-processing.test.ts
+
+Test Suites: 22 passed, 22 total
+Tests:       332 passed, 332 total
+Snapshots:   0 total
+Time:        3.165 s
+Ran all test suites.
+Γ£à gate-2-alltests
+
+================================================================
+  gate-3-mutations
+================================================================
+INFO: Stryker not installed. Installing now...
+npm error code ERESOLVE
+npm error ERESOLVE could not resolve
+npm error
+npm error While resolving: eslint-plugin-react@7.37.5
+npm error Found: eslint@10.2.0
+npm error node_modules/eslint
+npm error   peer eslint@"^6.0.0 || ^7.0.0 || >=8.0.0" from @eslint-community/eslint-utils@4.9.1
+npm error   node_modules/@eslint-community/eslint-utils
+npm error     @eslint-community/eslint-utils@"^4.9.1" from @typescript-eslint/utils@8.58.2
+npm error     node_modules/@typescript-eslint/utils
+npm error       @typescript-eslint/utils@"8.58.2" from @typescript-eslint/eslint-plugin@8.58.2
+npm error       node_modules/@typescript-eslint/eslint-plugin
+npm error         dev @typescript-eslint/eslint-plugin@"^8.58.2" from the root project
+npm error       1 more (@typescript-eslint/type-utils)
+npm error     @eslint-community/eslint-utils@"^4.8.0" from eslint@10.2.0
+npm error   peerOptional eslint@"^10.0.0" from @eslint/js@10.0.1
+npm error   node_modules/@eslint/js
+npm error     dev @eslint/js@"^10.0.1" from the root project
+npm error   6 more (@typescript-eslint/eslint-plugin, ...)
+npm error
+npm error Could not resolve dependency:
+npm error peer eslint@"^3 || ^4 || ^5 || ^6 || ^7 || ^8 || ^9.7" from eslint-plugin-react@7.37.5
+npm error node_modules/eslint-plugin-react
+npm error   dev eslint-plugin-react@"^7.37.5" from the root project
+npm error
+npm error Conflicting peer dependency: eslint@9.39.4
+npm error node_modules/eslint
+npm error   peer eslint@"^3 || ^4 || ^5 || ^6 || ^7 || ^8 || ^9.7" from eslint-plugin-react@7.37.5
+npm error   node_modules/eslint-plugin-react
+npm error     dev eslint-plugin-react@"^7.37.5" from the root project
+npm error
+npm error Fix the upstream dependency conflict, or retry
+npm error this command with --force or --legacy-peer-deps
+npm error to accept an incorrect (and potentially broken) dependency resolution.
+npm error
+npm error
+npm error For a full report see:
+npm error C:\Users\kmoul\AppData\Local\npm-cache\_logs\2026-04-27T22_37_10_676Z-eresolve-report.txt
+npm error A complete log of this run can be found in: C:\Users\kmoul\AppData\Local\npm-cache\_logs\2026-04-27T22_37_10_676Z-debug-0.log
+
+Γ¥î gate-3-mutations failed (see .ai-coder/checkpoints/logs/PHASE-03/gates/gate-3-mutations.log)
+
+INFO: No mutation test documents (may be N/A if phase didn't touch money code).
+Γ£à Gate 4: visual report exists at .ai-coder/checkpoints/logs/PHASE-03/visual/REPORT.md
+
+================================================================
+  gate-5-money
+================================================================
+=== Money Conservation Tests ===
+Started: 2026-04-27T22:37:19Z
+
+--- Running: packages/api/__tests__/escrow-money-conservation.test.ts ---
+PASS packages/api/__tests__/escrow-money-conservation.test.ts
+  Escrow Money Conservation (Phase 03 ΓÇö async)
+    ΓêÜ conserves money: providerReceives + platformRetains === servicePrice + serviceFee (2 ms)
+    ΓêÜ applies 15% commission on service_price for new tier (1 ms)
+    ΓêÜ calculates guarantee fund as 1.5% of service fee
+    ΓêÜ passes the exact example: 50000 price, new tier (1 ms)
+    ΓêÜ conserves money for all tiers and price tiers (2 ms)
+    ΓêÜ ensures all amounts are integers (centavos) (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        0.394 s, estimated 2 s
+Ran all test suites matching packages/api/__tests__/escrow-money-conservation.test.ts.
+PASS: packages/api/__tests__/escrow-money-conservation.test.ts
+
+--- Running: packages/api/__tests__/commission.test.ts ---
+PASS packages/api/__tests__/commission.test.ts
+  Commission Calculation Engine (Phase 03 ΓÇö async)
+    calculateCommission
+      ΓêÜ should apply 15% commission for new providers (2 ms)
+      ΓêÜ should apply 13% commission for verified providers (2 ms)
+      ΓêÜ should apply 11% commission for pro providers (1 ms)
+      ΓêÜ should apply 9% commission for elite providers
+      ΓêÜ should default to new tier for unknown tiers
+      ΓêÜ should calculate 10% service fee (1 ms)
+      ΓêÜ should enforce minimum service fee of 2500 centavos
+      ΓêÜ should enforce maximum service fee of 50000 centavos
+      ΓêÜ should allocate 1.5% of service fee to guarantee fund
+      ΓêÜ should ensure provider + platform = service price + service fee (1 ms)
+      ΓêÜ should handle small amounts correctly
+    calculateCancellationRefund (Phase 03 settings-backed schedule)
+      ΓêÜ 100% refund if >24h before scheduled time
+      ΓêÜ 100% refund if 2-24h before
+      ΓêÜ 90% refund if 1-2h before
+      ΓêÜ 80% refund if 30min-1h before (1 ms)
+      ΓêÜ 70% refund if <30min before or after scheduled (provider not arrived)
+      ΓêÜ 50% refund if provider has arrived
+      ΓêÜ 0% refund for customer no-show
+      ΓêÜ rounds amounts to nearest centavo
+
+Test Suites: 1 passed, 1 total
+Tests:       19 passed, 19 total
+Snapshots:   0 total
+Time:        0.399 s, estimated 2 s
+Ran all test suites matching packages/api/__tests__/commission.test.ts.
+PASS: packages/api/__tests__/commission.test.ts
+
+--- Running: packages/api/__tests__/dispute-refund-processing.test.ts ---
+PASS packages/api/__tests__/dispute-refund-processing.test.ts
+  Dispute Refund Processing (Phase 03 ΓÇö async)
+    full refund scenarios
+      ΓêÜ 100% customer refund for >24h cancellation (2 ms)
+      ΓêÜ refund + compensation always equals service price (1 ms)
+    partial refund scenarios
+      ΓêÜ 90% refund for 1-2h cancellation
+      ΓêÜ 50% refund when provider already arrived (1 ms)
+    no-show scenarios
+      ΓêÜ 0% refund for customer no-show
+    money conservation across all refund tiers
+      ΓêÜ conserves money: >24h, price=10000 (1 ms)
+      ΓêÜ conserves money: >24h, price=50000
+      ΓêÜ conserves money: >24h, price=100000
+      ΓêÜ conserves money: >24h, price=250000
+      ΓêÜ conserves money: >24h, price=500000
+      ΓêÜ conserves money: 2-24h, price=10000 (1 ms)
+      ΓêÜ conserves money: 2-24h, price=50000
+      ΓêÜ conserves money: 2-24h, price=100000
+      ΓêÜ conserves money: 2-24h, price=250000
+      ΓêÜ conserves money: 2-24h, price=500000 (1 ms)
+      ΓêÜ conserves money: 1-2h, price=10000
+      ΓêÜ conserves money: 1-2h, price=50000
+      ΓêÜ conserves money: 1-2h, price=100000
+      ΓêÜ conserves money: 1-2h, price=250000 (1 ms)
+      ΓêÜ conserves money: 1-2h, price=500000
+      ΓêÜ conserves money: 30m-1h, price=10000
+      ΓêÜ conserves money: 30m-1h, price=50000
+      ΓêÜ conserves money: 30m-1h, price=100000 (1 ms)
+      ΓêÜ conserves money: 30m-1h, price=250000
+      ΓêÜ conserves money: 30m-1h, price=500000 (1 ms)
+      ΓêÜ conserves money: <30m, price=10000
+      ΓêÜ conserves money: <30m, price=50000
+      ΓêÜ conserves money: <30m, price=100000
+      ΓêÜ conserves money: <30m, price=250000
+      ΓêÜ conserves money: <30m, price=500000 (1 ms)
+      ΓêÜ conserves money: arrived, price=10000
+      ΓêÜ conserves money: arrived, price=50000
+      ΓêÜ conserves money: arrived, price=100000
+      ΓêÜ conserves money: arrived, price=250000
+      ΓêÜ conserves money: arrived, price=500000
+      ΓêÜ conserves money: no-show, price=10000 (1 ms)
+      ΓêÜ conserves money: no-show, price=50000
+      ΓêÜ conserves money: no-show, price=100000
+      ΓêÜ conserves money: no-show, price=250000
+      ΓêÜ conserves money: no-show, price=500000
+
+Test Suites: 1 passed, 1 total
+Tests:       40 passed, 40 total
+Snapshots:   0 total
+Time:        0.401 s, estimated 2 s
+Ran all test suites matching packages/api/__tests__/dispute-refund-processing.test.ts.
+PASS: packages/api/__tests__/dispute-refund-processing.test.ts
+
+--- Running: packages/api/__tests__/wallet-type-isolation.test.ts ---
+PASS packages/api/__tests__/wallet-type-isolation.test.ts
+  Wallet Type Isolation
+    ΓêÜ should produce distinct wallet keys for customer vs provider types (1 ms)
+    ΓêÜ should produce same wallet key for same user + same type
+    ΓêÜ should produce correct SQL for getUserWallet query
+    ΓêÜ should support all valid wallet types (2 ms)
+    ΓêÜ should generate unique wallet IDs per (user_id, type) pair
+    ΓêÜ should handle platform wallets without user_id (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        0.301 s, estimated 2 s
+Ran all test suites matching packages/api/__tests__/wallet-type-isolation.test.ts.
+PASS: packages/api/__tests__/wallet-type-isolation.test.ts
+
+--- Running: packages/api/__tests__/booking-state-machine.test.ts ---
+PASS packages/api/__tests__/booking-state-machine.test.ts
+  Booking State Machine
+    canTransition
+      ΓêÜ should allow requested ΓåÆ matched (1 ms)
+      ΓêÜ should allow requested ΓåÆ quoted
+      ΓêÜ should allow requested ΓåÆ cancelled_by_customer
+      ΓêÜ should NOT allow requested ΓåÆ payment_pending directly (must go through matched) (1 ms)
+      ΓêÜ should allow matched ΓåÆ payment_pending
+      ΓêÜ should allow paid ΓåÆ provider_en_route
+      ΓêÜ should allow provider_en_route ΓåÆ provider_arrived (2 ms)
+      ΓêÜ should allow in_progress ΓåÆ completed_by_provider (1 ms)
+      ΓêÜ should allow completed_by_provider ΓåÆ confirmed
+      ΓêÜ should allow completed_by_provider ΓåÆ disputed
+      ΓêÜ should allow confirmed ΓåÆ payout_ready
+      ΓêÜ should allow payout_ready ΓåÆ paid_out
+    invalid transitions
+      ΓêÜ should reject requested ΓåÆ paid (skip payment_pending)
+      ΓêÜ should reject requested ΓåÆ in_progress (skip multiple states)
+      ΓêÜ should reject completed_by_provider ΓåÆ requested (backwards)
+      ΓêÜ should reject paid_out ΓåÆ anything (terminal state)
+      ΓêÜ should reject cancelled_by_customer ΓåÆ anything (terminal state)
+      ΓêÜ should reject cancelled_by_provider ΓåÆ anything (terminal state)
+      ΓêÜ should reject cancelled_by_admin ΓåÆ anything (terminal state)
+      ΓêÜ should reject confirmed ΓåÆ disputed (too late)
+      ΓêÜ should reject in_progress ΓåÆ cancelled_by_customer
+    admin cancellation
+      ΓêÜ should allow admin cancellation from requested
+      ΓêÜ should allow admin cancellation from quoted
+      ΓêÜ should allow admin cancellation from matched
+      ΓêÜ should allow admin cancellation from payment_pending
+      ΓêÜ should allow admin cancellation from paid
+      ΓêÜ should allow admin cancellation from provider_en_route
+      ΓêÜ should allow admin cancellation from provider_arrived
+      ΓêÜ should allow admin cancellation from in_progress
+      ΓêÜ should NOT allow admin cancellation from terminal states (1 ms)
+    escrow flow
+      ΓêÜ should follow the full happy path: requested ΓåÆ paid_out
+      ΓêÜ should follow the fixed-price path: requested ΓåÆ matched ΓåÆ payment_pending ΓåÆ paid_out
+      ΓêÜ should follow the quote-based path (1 ms)
+      ΓêÜ should follow the dispute path
+    VALID_TRANSITIONS completeness
+      ΓêÜ should have an entry for every status (1 ms)
+      ΓêÜ should have terminal states with empty transitions
+
+Test Suites: 1 passed, 1 total
+Tests:       36 passed, 36 total
+Snapshots:   0 total
+Time:        0.29 s, estimated 2 s
+Ran all test suites matching packages/api/__tests__/booking-state-machine.test.ts.
+PASS: packages/api/__tests__/booking-state-machine.test.ts
+
+--- Running: packages/api/__tests__/booking-price-lookup.test.ts ---
+PASS packages/api/__tests__/booking-price-lookup.test.ts
+  Booking Price Lookup (Phase 03 ΓÇö async)
+    ΓêÜ calculates commission based on service_price, not total_amount (2 ms)
+    ΓêÜ handles zero service price (2 ms)
+    ΓêÜ calculates correct service fee from service_price (1 ms)
+    ΓêÜ enforces minimum service fee of 2500 centavos
+    ΓêÜ enforces maximum service fee of 50000 centavos
+    ΓêÜ computes total_amount as servicePrice + serviceFee for all tiers (1 ms)
+    ΓêÜ uses service_price for provider receives, not total_amount
+
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        0.367 s, estimated 2 s
+Ran all test suites matching packages/api/__tests__/booking-price-lookup.test.ts.
+PASS: packages/api/__tests__/booking-price-lookup.test.ts
+
+PASS: All money tests passed.
+Γ£à gate-5-money
+
+================================================================
+  gate-5-migrations
+================================================================
+--- Checking migration numbering ---
+Latest: 051_platform_settings_audit.sql
+Total: 51 migrations
+
+--- Checking migration immutability ---
+WARN: 001_create_users.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 002_create_providers.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 003_create_services.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 004_create_bookings.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 005_create_wallets.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 006_create_messages.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 007_create_reviews.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 008_create_disputes.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 009_create_audit_log.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 045_support_tickets.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 046_admin_staff_roles.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 047_admin_totp_2fa.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 048_review_tags_private_note.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 049_provider_cancellation_tracking.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 050_platform_settings_rich_schema.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+WARN: 051_platform_settings_audit.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 51 behavior, write a NEW migration.
+DATABASE_URL not set; skipping live run.
+
+--- Code references vs migrations (heuristic) ---
+WARN: code references 'activity' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'b' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'cohort_sizes' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'cohort_users' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'p' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'revenue' not seen in CREATE TABLE. Verify it's a CTE / alias.
+
+PASS: Migration verification clean.
+Γ£à gate-5-migrations
+
+================================================================
+  gate-5-n-plus-1
+================================================================
+--- Checking for N+1 query patterns ---
+--- gate-5-n-plus-1 (suspicious patterns) ---
+Absolute violations in repo: 17
+Violations introduced by this phase: 1
+Violations remaining (deferred to later phases): 16
+Sample (first 10):
+  - packages/api/src/services/admin-analytics.service.ts:273:        .map(([period, value]) => ({
+  - packages/api/src/services/admin-analytics.service.ts:659:  for (const tier of tiers) {
+  - packages/api/src/services/booking.service.ts:156:    for (const addon of params.addons) {
+  - packages/api/src/services/booking.service.ts:600:    for (const item of data.lineItems) {
+  - packages/api/src/services/booking.service.ts:653:  const quoteIds = quotes.rows.map(q => q.id);
+  - packages/api/src/services/catalog.service.ts:211:  for (const a of addons) {
+  - packages/api/src/services/data-management.service.ts:341:  for (const req of expired.rows) {
+  - packages/api/src/services/invoice.service.ts:148:      for (const booking of bookings.rows) {
+  - packages/api/src/services/invoice.service.ts:306:    for (const inv of result.rows) {
+  - packages/api/src/services/invoice.service.ts:92:  for (const account of activeAccounts.rows) {
+  ... (full list in gate log)
+
+--- gate-5-n-plus-1 (unjustified SAFE-N+1 markers) ---
+Absolute violations in repo: 0
+Violations introduced by this phase: 0
+
+WARN/FAIL: PHASE-03 introduced 1 suspicious N+1 pattern location(s):
+packages/api/src/services/settings.service.ts:322:  for (const { key, value } of updates) {
+
+Each must be reviewed. If genuinely O(N) DB calls, refactor (WHERE id IN, JOIN, batch loader).
+If intentional and bounded, add comment '// SAFE-N+1: <reason>' on the loop line.
+
+Γ¥î gate-5-n-plus-1 failed (see .ai-coder/checkpoints/logs/PHASE-03/gates/gate-5-n-plus-1.log)
+
+
+================================================================
+  gate-6-evidence-audit
+================================================================
+Validating referenced artifacts...
+
+PASS: Evidence manifest validated. All artifacts present and sized.
+      Manifest: .ai-coder/checkpoints/logs/PHASE-03/EVIDENCE-MANIFEST.md
+      Honesty:  .ai-coder/checkpoints/logs/PHASE-03/HONESTY-CHECK.md
+Γ£à gate-6-evidence-audit
+Baseline-debt summary: .ai-coder/checkpoints/logs/PHASE-03/BASELINE-DEBT.md
+
+================================================================
+  Hashing all artifacts (cryptographic chain of evidence)
+================================================================
+Hashes written to .ai-coder/checkpoints/logs/PHASE-03/HASHES.sha256
+Ken can verify with: cd .ai-coder/checkpoints/logs/PHASE-03 && sha256sum -c HASHES.sha256
+
+================================================================
+  FINAL STATUS: FAIL
+================================================================
+
+Γ¥î Phase PHASE-03 has FAILED verification.
+
+Failures:
+  - gate-3-mutations failed (see .ai-coder/checkpoints/logs/PHASE-03/gates/gate-3-mutations.log)
+  - gate-5-n-plus-1 failed (see .ai-coder/checkpoints/logs/PHASE-03/gates/gate-5-n-plus-1.log)
+
+AI coder: DO NOT send phase report. Fix the issues and re-run.
+AI coder: DO NOT mark this phase complete.
+AI coder: Per the constitution, lying about phase status is a violation.

@@ -8,6 +8,7 @@ import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePushNotifications } from '@/services/push.service';
+import { fetchPlatformConfig } from '@/services/config.service';
 import { OfflineBanner } from '@/components/ui';
 
 const sentryDsn = Constants.expoConfig?.extra?.sentryDsn as string | undefined;
@@ -49,6 +50,8 @@ function RootLayout(): React.ReactElement {
 
   useEffect(() => {
     hydrate();
+    // Phase 03 — pull runtime platform config; failures fall back silently to defaults.
+    void fetchPlatformConfig();
   }, [hydrate]);
 
   return (

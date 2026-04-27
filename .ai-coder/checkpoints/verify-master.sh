@@ -94,18 +94,13 @@ if [ -z "$(ls ${GATE_DIR}/gate-2-boundaries-*.md 2>/dev/null)" ]; then
 fi
 
 # ===== GATE 3 — ADVERSARIAL SELF-REVIEW =====
-# Mutation testing: only run on phases that actually MODIFIED money services.
-# (Bug fix from Phase 00: previously checked baseline-files.sha256 which lists every
-# TS file in the repo, so the trigger fired every phase regardless of diff.)
+# Mutation testing: TD-005 baseline-delta scoping. The mutation script
+# itself (with --phase) intersects the sacred-files roster with files
+# changed since baseline and skips if the intersection is empty. The
+# absolute-launch sweep is verify-mutation-coverage-full.sh (Phase 12,
+# Constitution Article 13).
 if [ -f "${LOG_DIR}/preflight/baseline-commit.txt" ]; then
-  BASELINE=$(cat "${LOG_DIR}/preflight/baseline-commit.txt")
-  MONEY_TOUCHED=$(git diff --name-only "$BASELINE" HEAD 2>/dev/null \
-    | grep -E "(escrow|commission|dispute|payout|wallet|booking)\.service\.ts" || true)
-  if [ -n "$MONEY_TOUCHED" ]; then
-    run_gate "gate-3-mutations" "bash .ai-coder/checkpoints/verify-mutation-coverage.sh" || true
-  else
-    echo "INFO: Phase did not modify money services; mutation gate skipped."
-  fi
+  run_gate "gate-3-mutations" "bash .ai-coder/checkpoints/verify-mutation-coverage.sh --phase ${PHASE}" || true
 fi
 
 # Verify pre-mortem and future-bugs docs

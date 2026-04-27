@@ -149,3 +149,48 @@ verify-no-forbidden.sh has the right idiom: `EXCLUDE='--exclude-dir=node_modules
 ### Why this is harness debt, not Phase 01 debt
 
 Phase 00 happened to pass this gate quickly because mobile node_modules was nearly empty at the time (mobile install never succeeded prior to Phase 01 due to TD-003). Phase 01 is the first phase whose `apps/mobile/node_modules` is fully populated. The latent harness bug surfaced as a hang the first time the populated tree was scanned. The fix is in the script itself, not in Phase 01's product code.
+
+
+## TD-005 — Mutation gate scope architecturally mismatched (RESOLVED)
+
+**Discovered:** PHASE-03 verification (commit `63b8b9e`).
+**Owning trigger:** Any phase that touches sacred (money) code; absolute gate at PHASE-12.
+**Estimate:** 1 hour. **Actual:** ~1 hour.
+
+### Problem
+
+`verify-mutation-coverage.sh` ran Stryker over the entire sacred-files roster on every phase, regardless of which sacred files the phase had actually touched. PHASE-03 only modified `commission.service.ts` and `settings.service.ts` but the gate also tried to mutate `escrow`, `dispute`, `booking`, `payout`, `wallet`, `refund` — files whose tests are deferred to their respective implementation phases. Result: the gate failed for reasons unrelated to the phase under test.
+
+This was inconsistent with the TD-001 baseline-delta pattern already adopted for forbidden / emoji / phantom-tests / N+1 gates, which gate "what this phase touched" and defer the rest to BASELINE-DEBT and the owning phase.
+
+### Fix applied (per-phase delta scoping)
+
+1. `verify-mutation-coverage.sh` now accepts `--phase PHASE-NN`, sources `lib/baseline-diff.sh`, intersects the sacred-files roster with `files_changed_since_baseline`, and:
+   - **Empty intersection** → logs `INFO: Phase did not touch any sacred files; mutation gate skipped (TD-005).` and exits 0.
+   - **Non-empty intersection** → writes a dynamic Stryker config to `.ai-coder/checkpoints/logs/PHASE-NN/stryker.config.generated.json` (mutate = intersection only; thresholds high:80, low:60, break:60; testRunner: jest with custom `projectType` pointing at `packages/api/jest.config.js`; checkers: typescript with `tsconfigFile: packages/api/tsconfig.json`) and runs `npx stryker run <config>`.
+2. `verify-master.sh` now invokes `verify-mutation-coverage.sh --phase $PHASE` unconditionally and lets the script self-skip; the previous `MONEY_TOUCHED` grep duplicate-check has been removed.
+
+### Fix applied (launch-readiness full sweep)
+
+1. New `verify-mutation-coverage-full.sh` mirrors the legacy behavior: mutates the entire sacred roster (skipping files that don't exist yet), no `--phase` flag.
+2. New `npm run mutation:full` script in root `package.json` exposes it.
+3. AUTONOMOUS-EXECUTION-PROTOCOL.md adds gate item #17 (PHASE-12 only): `npm run mutation:full` must return exit 0 before launch.
+4. CONSTITUTION.md Article 13 adds the "Mutation-coverage enforcement (TD-005)" paragraph documenting per-phase delta scope + PHASE-12 absolute sweep + the deliberate strict-git-diff limitation.
+
+### Deliberate limitation (do not over-engineer)
+
+The per-phase scope uses **strict git-diff** intersection. If a phase modifies a non-sacred helper (e.g. `db.ts`) imported transitively by a sacred file, that sacred file's mutations are NOT re-run. Transitive-impact analysis is out of scope; the PHASE-12 full sweep is the safety net. If a real bug ever ships through this gap, file a follow-up TD.
+
+### Acceptance criteria — all met
+
+- [x] `verify-mutation-coverage.sh --phase PHASE-NN` skips gracefully when no sacred files changed.
+- [x] `verify-mutation-coverage.sh --phase PHASE-NN` mutates only the touched sacred files when some changed.
+- [x] `verify-mutation-coverage-full.sh` exists and mutates the full roster.
+- [x] `npm run mutation:full` invokes the full sweep.
+- [x] `verify-master.sh` passes `--phase $PHASE` and no longer duplicates the diff check.
+- [x] CONSTITUTION.md Article 13 and AUTONOMOUS-EXECUTION-PROTOCOL.md updated.
+- [x] Same TD-002 install flags (`--legacy-peer-deps --no-workspaces`) preserved in both scripts.
+
+### Note on numbering
+
+The user spec referenced this work as "TD-003"; the TD-003 slot was already occupied by the resolved expo-device entry, so this work is recorded as TD-005 (next free number after TD-004).

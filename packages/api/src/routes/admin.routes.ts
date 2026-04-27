@@ -1526,88 +1526,9 @@ router.get(
 );
 
 // ─── Platform Settings ──────────────────────────────────────
-
-interface SettingRow {
-  key: string;
-  value: unknown;
-  description: string | null;
-  updated_by: string | null;
-  updated_at: Date;
-  created_at: Date;
-}
-
-router.get(
-  '/settings',
-  authMiddleware,
-  requireAdmin,
-  async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    try {
-      const result = await db.query<SettingRow>(
-        `SELECT * FROM platform_settings ORDER BY key ASC`,
-      );
-
-      res.json({
-        success: true,
-        data: result.rows.map((s) => ({
-          key: s.key,
-          value: s.value,
-          description: s.description,
-          updatedBy: s.updated_by,
-          updatedAt: s.updated_at,
-        })),
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-router.put(
-  '/settings/:key',
-  authMiddleware,
-  requireSuperAdmin,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    try {
-      const { key } = req.params;
-      const { value } = req.body;
-
-      if (value === undefined || value === null) {
-        throw createAppError('Value is required.', 400);
-      }
-
-      const result = await db.query<SettingRow>(
-        `UPDATE platform_settings
-         SET value = $1::jsonb, updated_by = $2, updated_at = NOW()
-         WHERE key = $3
-         RETURNING *`,
-        [JSON.stringify(value), req.user!.userId, key],
-      );
-
-      if (result.rows.length === 0) {
-        throw createAppError('Setting not found.', 404);
-      }
-
-      const s = result.rows[0]!;
-      logger.info('Platform setting updated', {
-        key,
-        value,
-        updatedBy: req.user!.userId,
-      });
-
-      res.json({
-        success: true,
-        data: {
-          key: s.key,
-          value: s.value,
-          description: s.description,
-          updatedBy: s.updated_by,
-          updatedAt: s.updated_at,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
+// Phase 03: the inline /settings and /settings/:key handlers that previously
+// lived here have moved to packages/api/src/routes/settings.routes.ts and are
+// mounted at /api/v1/admin/settings (see server.ts). The new service is
+// schema-aware (categories, validation, audit, cache).
 
 export default router;

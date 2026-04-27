@@ -54,6 +54,8 @@ import accountRoutes from './routes/account.routes';
 import promotionRoutes from './routes/promotion.routes';
 import supportTicketRoutes from './routes/support-ticket.routes';
 import staffRoutes from './routes/staff.routes';
+import settingsRoutes from './routes/settings.routes';
+import * as settingsService from './services/settings.service';
 import { db } from './models/db';
 import { redis } from './config/redis.config';
 
@@ -137,7 +139,28 @@ app.use('/api/v1/reviews', reviewRoutes);
 app.use('/api/v1/disputes', disputeRoutes);
 app.use('/api/v1/wallet', walletRoutes);
 app.use('/api/v1/payments', paymentRoutes);
+// Phase 03: settings routes are mounted BEFORE generic admin routes so the
+// more specific /admin/settings path wins over /admin/* fallthrough.
+app.use('/api/v1/admin/settings', settingsRoutes);
 app.use('/api/v1/admin', adminRoutes);
+
+// Phase 03: public client config endpoint (no auth required).
+app.get('/api/v1/config', async (_req, res) => {
+  try {
+    const config = await settingsService.getClientConfig();
+    res.json({ success: true, data: config });
+  } catch {
+    res.json({
+      success: true,
+      data: {
+        appVersion: '0.1.0',
+        currency: 'PHP',
+        currencySymbol: '\u20B1',
+        timezone: 'Asia/Manila',
+      },
+    });
+  }
+});
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/notification-templates', notificationTemplateRoutes);
 app.use('/api/v1/messaging', messagingRoutes);

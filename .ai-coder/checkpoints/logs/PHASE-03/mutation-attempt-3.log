@@ -1,0 +1,2447 @@
+--- gate-3-mutations (TD-005 baseline-delta scope) ---
+Phase:            PHASE-03
+Sacred roster:    8 files
+Touched by phase: 3 file(s)
+  - packages/api/src/services/escrow.service.ts
+  - packages/api/src/services/commission.service.ts
+  - packages/api/src/services/settings.service.ts
+Untouched (deferred to their implementation phases / Phase 12 sweep):
+  - packages/api/src/services/dispute.service.ts
+  - packages/api/src/services/booking.service.ts
+  - packages/api/src/services/payout.service.ts
+  - packages/api/src/services/wallet.service.ts
+  - packages/api/src/services/refund.service.ts
+
+Stryker config: .ai-coder/checkpoints/logs/PHASE-03/stryker.config.generated.json
+Running mutation testing on 3 file(s)...
+
+[32m08:43:03 (24620) INFO ProjectReader[39m Found 3 of 728 file(s) to be mutated.
+[32m08:43:03 (24620) INFO Instrumenter[39m Instrumented 3 source file(s) with 637 mutant(s)
+[32m08:43:03 (24620) INFO ConcurrencyTokenProvider[39m Creating 2 checker process(es) and 2 test runner process(es).
+[32m08:43:15 (24620) INFO BroadcastReporter[39m Detected that current console does not support the "progress" reporter, downgrading to "progress-append-only" reporter
+[32m08:43:15 (24620) INFO DryRunExecutor[39m Starting initial test run (jest test runner with "perTest" coverage analysis). This may take a while.
+[32m08:43:17 (24620) INFO DryRunExecutor[39m Initial test run succeeded. Ran 224 tests in 1 second (net 89 ms, overhead 1356 ms).
+[33m08:43:17 (24620) WARN MutantTestPlanner[39m Detected 52 static mutants (8% of total) that are estimated to take 67% of the time running the tests!
+  You might want to enable "ignoreStatic" to ignore these static mutants for your next run. 
+  For more information about static mutants visit: https://stryker-mutator.io/docs/mutation-testing-elements/static-mutants
+  (disable "warnings.slow" to ignore this warning)
+Mutation testing 0% (elapsed: <1m, remaining: ~42m) 3/637 tested (0 survived, 0 timed out)
+Mutation testing 1% (elapsed: <1m, remaining: ~19m) 14/637 tested (0 survived, 0 timed out)
+Mutation testing 2% (elapsed: <1m, remaining: ~18m) 25/637 tested (0 survived, 0 timed out)
+Mutation testing 3% (elapsed: <1m, remaining: ~19m) 36/637 tested (2 survived, 0 timed out)
+Mutation testing 4% (elapsed: <1m, remaining: ~19m) 48/637 tested (7 survived, 0 timed out)
+Mutation testing 4% (elapsed: ~1m, remaining: ~20m) 60/637 tested (7 survived, 0 timed out)
+Mutation testing 4% (elapsed: ~1m, remaining: ~22m) 65/637 tested (9 survived, 0 timed out)
+Mutation testing 5% (elapsed: ~1m, remaining: ~22m) 76/637 tested (12 survived, 0 timed out)
+Mutation testing 6% (elapsed: ~1m, remaining: ~22m) 87/637 tested (14 survived, 0 timed out)
+Mutation testing 6% (elapsed: ~1m, remaining: ~23m) 99/637 tested (25 survived, 0 timed out)
+Mutation testing 7% (elapsed: ~1m, remaining: ~23m) 110/637 tested (28 survived, 0 timed out)
+Mutation testing 7% (elapsed: ~2m, remaining: ~23m) 122/637 tested (29 survived, 0 timed out)
+Mutation testing 8% (elapsed: ~2m, remaining: ~24m) 133/637 tested (35 survived, 0 timed out)
+Mutation testing 8% (elapsed: ~2m, remaining: ~25m) 145/637 tested (40 survived, 0 timed out)
+Mutation testing 8% (elapsed: ~2m, remaining: ~25m) 156/637 tested (46 survived, 0 timed out)
+Mutation testing 9% (elapsed: ~2m, remaining: ~25m) 167/637 tested (52 survived, 0 timed out)
+Mutation testing 9% (elapsed: ~2m, remaining: ~25m) 178/637 tested (55 survived, 0 timed out)
+Mutation testing 10% (elapsed: ~3m, remaining: ~26m) 189/637 tested (58 survived, 0 timed out)
+Mutation testing 10% (elapsed: ~3m, remaining: ~26m) 200/637 tested (61 survived, 0 timed out)
+Mutation testing 10% (elapsed: ~3m, remaining: ~27m) 211/637 tested (65 survived, 0 timed out)
+Mutation testing 11% (elapsed: ~3m, remaining: ~27m) 222/637 tested (71 survived, 0 timed out)
+Mutation testing 11% (elapsed: ~3m, remaining: ~28m) 233/637 tested (77 survived, 0 timed out)
+Mutation testing 12% (elapsed: ~3m, remaining: ~27m) 244/637 tested (79 survived, 0 timed out)
+Mutation testing 13% (elapsed: ~4m, remaining: ~26m) 255/637 tested (85 survived, 0 timed out)
+Mutation testing 13% (elapsed: ~4m, remaining: ~25m) 265/637 tested (88 survived, 0 timed out)
+Mutation testing 14% (elapsed: ~4m, remaining: ~24m) 277/637 tested (89 survived, 0 timed out)
+Mutation testing 15% (elapsed: ~4m, remaining: ~24m) 287/637 tested (94 survived, 0 timed out)
+Mutation testing 16% (elapsed: ~4m, remaining: ~24m) 297/637 tested (99 survived, 0 timed out)
+Mutation testing 16% (elapsed: ~4m, remaining: ~24m) 307/637 tested (106 survived, 0 timed out)
+Mutation testing 16% (elapsed: ~5m, remaining: ~24m) 319/637 tested (114 survived, 0 timed out)
+Mutation testing 17% (elapsed: ~5m, remaining: ~24m) 329/637 tested (118 survived, 0 timed out)
+Mutation testing 17% (elapsed: ~5m, remaining: ~24m) 340/637 tested (119 survived, 0 timed out)
+Mutation testing 24% (elapsed: ~5m, remaining: ~17m) 346/637 tested (120 survived, 0 timed out)
+Mutation testing 38% (elapsed: ~5m, remaining: ~9m) 357/637 tested (120 survived, 0 timed out)
+Mutation testing 52% (elapsed: ~5m, remaining: ~5m) 368/637 tested (120 survived, 0 timed out)
+Mutation testing 66% (elapsed: ~6m, remaining: ~2m) 379/637 tested (120 survived, 0 timed out)
+Mutation testing 82% (elapsed: ~6m, remaining: ~1m) 391/637 tested (120 survived, 0 timed out)
+Mutation testing 85% (elapsed: ~6m, remaining: ~1m) 402/637 tested (124 survived, 0 timed out)
+Mutation testing 86% (elapsed: ~6m, remaining: <1m) 413/637 tested (126 survived, 0 timed out)
+Mutation testing 87% (elapsed: ~6m, remaining: <1m) 425/637 tested (133 survived, 0 timed out)
+Mutation testing 87% (elapsed: ~6m, remaining: ~1m) 435/637 tested (133 survived, 0 timed out)
+Mutation testing 87% (elapsed: ~7m, remaining: ~1m) 447/637 tested (135 survived, 0 timed out)
+Mutation testing 87% (elapsed: ~7m, remaining: ~1m) 458/637 tested (143 survived, 0 timed out)
+Mutation testing 88% (elapsed: ~7m, remaining: <1m) 470/637 tested (146 survived, 0 timed out)
+Mutation testing 92% (elapsed: ~7m, remaining: <1m) 481/637 tested (146 survived, 0 timed out)
+Mutation testing 93% (elapsed: ~7m, remaining: <1m) 492/637 tested (146 survived, 0 timed out)
+Mutation testing 94% (elapsed: ~7m, remaining: <1m) 503/637 tested (147 survived, 0 timed out)
+Mutation testing 95% (elapsed: ~8m, remaining: <1m) 513/637 tested (149 survived, 0 timed out)
+Mutation testing 96% (elapsed: ~8m, remaining: <1m) 525/637 tested (150 survived, 0 timed out)
+Mutation testing 97% (elapsed: ~8m, remaining: <1m) 535/637 tested (150 survived, 0 timed out)
+Mutation testing 97% (elapsed: ~8m, remaining: <1m) 547/637 tested (152 survived, 0 timed out)
+Mutation testing 98% (elapsed: ~8m, remaining: <1m) 558/637 tested (157 survived, 0 timed out)
+Mutation testing 98% (elapsed: ~8m, remaining: <1m) 570/637 tested (159 survived, 0 timed out)
+Mutation testing 99% (elapsed: ~9m, remaining: <1m) 580/637 tested (161 survived, 1 timed out)
+Mutation testing 99% (elapsed: ~9m, remaining: <1m) 591/637 tested (164 survived, 1 timed out)
+Mutation testing 99% (elapsed: ~9m, remaining: <1m) 602/637 tested (169 survived, 1 timed out)
+Mutation testing 99% (elapsed: ~9m, remaining: <1m) 613/637 tested (174 survived, 1 timed out)
+Mutation testing 99% (elapsed: ~9m, remaining: <1m) 624/637 tested (185 survived, 1 timed out)
+Mutation testing 99% (elapsed: ~9m, remaining: n/a) 635/637 tested (186 survived, 1 timed out)
+
+All tests
+  booking-price-lookup.test.ts
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) calculates commission based on service_price, not total_amount [line 30] (covered 13)
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) handles zero service price [line 39] (covered 13)
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) calculates correct service fee from service_price [line 45] (covered 13)
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) enforces minimum service fee of 2500 centavos [line 53] (covered 13)
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) enforces maximum service fee of 50000 centavos [line 58] (covered 13)
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) computes total_amount as servicePrice + serviceFee for all tiers [line 63] (covered 13)
+    ~ Booking Price Lookup (Phase 03 ΓÇö async) uses service_price for provider receives, not total_amount [line 77] (covered 13)
+  commission.test.ts
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should apply 15% commission for new providers [line 40] (killed 2)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should apply 13% commission for verified providers [line 47] (covered 13)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should apply 11% commission for pro providers [line 53] (covered 13)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should apply 9% commission for elite providers [line 59] (covered 13)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should default to new tier for unknown tiers [line 65] (covered 13)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should calculate 10% service fee [line 70] (killed 6)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should enforce minimum service fee of 2500 centavos [line 76] (covered 13)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should enforce maximum service fee of 50000 centavos [line 81] (covered 13)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should allocate 1.5% of service fee to guarantee fund [line 86] (killed 2)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should ensure provider + platform = service price + service fee [line 92] (killed 1)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCommission should handle small amounts correctly [line 99] (covered 13)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time [line 109] (killed 6)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before [line 116] (covered 29)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 90% refund if 1-2h before [line 121] (covered 25)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 80% refund if 30min-1h before [line 128] (killed 1)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 70% refund if <30min before or after scheduled (provider not arrived) [line 133] (killed 1)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 50% refund if provider has arrived [line 140] (killed 2)
+    Γ£ô Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 0% refund for customer no-show [line 146] (killed 2)
+    ~ Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) rounds amounts to nearest centavo [line 152] (covered 25)
+  dispute-refund-processing.test.ts
+    Γ£ô Dispute Refund Processing (Phase 03 ΓÇö async) full refund scenarios 100% customer refund for >24h cancellation [line 28] (killed 7)
+    Γ£ô Dispute Refund Processing (Phase 03 ΓÇö async) full refund scenarios refund + compensation always equals service price [line 35] (killed 2)
+    Γ£ô Dispute Refund Processing (Phase 03 ΓÇö async) partial refund scenarios 90% refund for 1-2h cancellation [line 43] (killed 1)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) partial refund scenarios 50% refund when provider already arrived [line 50] (covered 13)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) no-show scenarios 0% refund for customer no-show [line 59] (covered 10)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: >24h, price=10000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: >24h, price=50000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: >24h, price=100000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: >24h, price=250000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: >24h, price=500000 [line 81] (covered 28)
+    Γ£ô Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 2-24h, price=10000 [line 81] (killed 1)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 2-24h, price=50000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 2-24h, price=100000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 2-24h, price=250000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 2-24h, price=500000 [line 81] (covered 28)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 1-2h, price=10000 [line 81] (covered 24)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 1-2h, price=50000 [line 81] (covered 24)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 1-2h, price=100000 [line 81] (covered 24)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 1-2h, price=250000 [line 81] (covered 24)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 1-2h, price=500000 [line 81] (covered 24)
+    Γ£ô Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 30m-1h, price=10000 [line 81] (killed 1)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 30m-1h, price=50000 [line 81] (covered 20)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 30m-1h, price=100000 [line 81] (covered 20)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 30m-1h, price=250000 [line 81] (covered 20)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: 30m-1h, price=500000 [line 81] (covered 20)
+    Γ£ô Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: <30m, price=10000 [line 81] (killed 1)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: <30m, price=50000 [line 81] (covered 16)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: <30m, price=100000 [line 81] (covered 16)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: <30m, price=250000 [line 81] (covered 16)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: <30m, price=500000 [line 81] (covered 16)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: arrived, price=10000 [line 81] (covered 12)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: arrived, price=50000 [line 81] (covered 12)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: arrived, price=100000 [line 81] (covered 12)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: arrived, price=250000 [line 81] (covered 12)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: arrived, price=500000 [line 81] (covered 12)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: no-show, price=10000 [line 81] (covered 10)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: no-show, price=50000 [line 81] (covered 10)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: no-show, price=100000 [line 81] (covered 10)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: no-show, price=250000 [line 81] (covered 10)
+    ~ Dispute Refund Processing (Phase 03 ΓÇö async) money conservation across all refund tiers conserves money: no-show, price=500000 [line 81] (covered 10)
+  escrow-async-integration.test.ts
+    Γ£ô releaseEscrow throws 404 when booking not found [line 117] (killed 2)
+    Γ£ô releaseEscrow throws 409 when booking status is not in releasable set [line 123] (killed 4)
+    Γ£ô releaseEscrow accepts releasable status "confirmed" [line 131] (killed 16)
+    Γ£ô releaseEscrow accepts releasable status "paid" [line 131] (killed 1)
+    Γ£ô releaseEscrow accepts releasable status "resolved" [line 131] (killed 1)
+    Γ£ô releaseEscrow throws 409 when no provider assigned [line 144] (killed 1)
+    Γ£ô releaseEscrow throws 400 when service_price <= 0 [line 152] (killed 2)
+    Γ£ô releaseEscrow throws 404 when provider row not found [line 161] (killed 1)
+    Γ£ô releaseEscrow throws 500 when money conservation violation > 2 cents [line 168] (killed 6)
+    Γ£ô releaseEscrow logs but proceeds when conservation diff <= 2 cents [line 182] (killed 3)
+    Γ£ô releaseEscrow throws 409 when escrow guard rowCount is 0 (already released) [line 195] (killed 3)
+    Γ£ô releaseEscrow happy path: writes 4 wallet UPDATE+INSERT pairs with correct amounts [line 207] (killed 12)
+    Γ£ô releasePartialEscrow throws 404 when booking not found [line 263] (killed 2)
+    Γ£ô releasePartialEscrow throws 409 when no provider [line 269] (killed 3)
+    Γ£ô releasePartialEscrow throws 400 when remainingAmount <= 0 [line 277] (killed 4)
+    Γ£ô releasePartialEscrow throws 409 when totalAmount <= 0 [line 283] (killed 4)
+    Γ£ô releasePartialEscrow throws 404 when provider row missing [line 291] (killed 3)
+    Γ£ô releasePartialEscrow throws 409 when escrow guard rowCount is 0 [line 298] (killed 5)
+    Γ£ô releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund [line 313] (killed 15)
+    Γ£ô handleCancellation throws 404 when booking not found [line 368] (killed 2)
+    Γ£ô handleCancellation throws 409 when escrow_status is already-processed "refunded" [line 374] (killed 3)
+    Γ£ô handleCancellation throws 409 when escrow_status is already-processed "partially_refunded" [line 374] (killed 1)
+    Γ£ô handleCancellation throws 409 when escrow_status is already-processed "released" [line 374] (killed 1)
+    Γ£ô handleCancellation full-refund path (>=24h): escrow_status set to "refunded", processRefund called with full amount [line 385] (killed 17)
+    Γ£ô handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called [line 411] (killed 5)
+    Γ£ô handleCancellation partial-refund path: escrow_status set to "partially_refunded" [line 436] (killed 2)
+    Γ£ô handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet [line 457] (killed 5)
+    Γ£ô handleCancellation skips provider compensation when providerCompensationAmount === 0 [line 481] (killed 5)
+    Γ£ô handleCancellation skips provider compensation when provider not found [line 501] (killed 6)
+    Γ£ô holdInEscrow looks up the platform_escrow wallet and calls walletService.holdEscrow [line 529] (killed 1)
+    Γ£ô refundFromEscrow throws 400 when refundAmount <= 0 [line 540] (killed 2)
+    Γ£ô refundFromEscrow throws 409 when escrow pending balance is insufficient [line 545] (killed 2)
+    Γ£ô refundFromEscrow happy path: writes wallet update + tx and calls processRefund [line 555] (killed 3)
+  escrow-money-conservation.test.ts
+    ~ Escrow Money Conservation (Phase 03 ΓÇö async) conserves money: providerReceives + platformRetains === servicePrice + serviceFee [line 30] (covered 13)
+    ~ Escrow Money Conservation (Phase 03 ΓÇö async) applies 15% commission on service_price for new tier [line 39] (covered 13)
+    ~ Escrow Money Conservation (Phase 03 ΓÇö async) calculates guarantee fund as 1.5% of service fee [line 45] (covered 13)
+    ~ Escrow Money Conservation (Phase 03 ΓÇö async) passes the exact example: 50000 price, new tier [line 51] (covered 13)
+    ~ Escrow Money Conservation (Phase 03 ΓÇö async) conserves money for all tiers and price tiers [line 61] (covered 13)
+    ~ Escrow Money Conservation (Phase 03 ΓÇö async) ensures all amounts are integers (centavos) [line 77] (covered 13)
+  runtime-config-e2e.test.ts
+    ~ runtime-config-e2e getSetting fallback chain returns cached value on Redis hit (no DB call) [line 72] (covered 6)
+    ~ runtime-config-e2e getSetting fallback chain falls back to DB on cache miss and warms cache [line 79] (covered 17)
+    ~ runtime-config-e2e getSetting fallback chain falls back to SETTING_DEFAULTS when DB row is missing [line 88] (covered 16)
+    ~ runtime-config-e2e getSetting fallback chain throws 404 when key is unknown and not in defaults [line 95] (covered 17)
+    ~ runtime-config-e2e updateSetting validation rejects values below the configured minimum [line 104] (covered 36)
+    ~ runtime-config-e2e updateSetting validation rejects values above the configured maximum [line 113] (covered 44)
+    Γ£ô runtime-config-e2e updateSetting side effects writes audit row and busts cache on success [line 124] (killed 1)
+    Γ£ô runtime-config-e2e resetToDefault writes the default_value back to the row [line 147] (killed 1)
+  settings-service.test.ts
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["commission_rate_founding"] === "10" [line 133] (killed 2)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["commission_rate_new"] === "15" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["commission_rate_verified"] === "13" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["commission_rate_pro"] === "11" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["commission_rate_elite"] === "9" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["service_fee_rate"] === "10" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["service_fee_min"] === "2500" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["service_fee_max"] === "50000" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["guarantee_fund_rate"] === "1.5" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["vat_rate"] === "12" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["escrow_auto_confirm_hours"] === "24" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["escrow_dispute_window_hours"] === "48" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["minimum_payment_amount"] === "10000" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["minimum_withdrawal_amount"] === "10000" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["withdrawal_processing_days"] === "3" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["cancel_refund_over_24h"] === "100" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["cancel_refund_2_to_24h"] === "100" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["cancel_refund_1_to_2h"] === "90" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["cancel_refund_30min_to_1h"] === "80" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["cancel_refund_under_30min"] === "70" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["cancel_refund_provider_arrived"] === "50" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["cancel_refund_customer_noshow"] === "0" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["max_property_damage_coverage"] === "2500000" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["max_theft_coverage"] === "1000000" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["max_injury_coverage"] === "5000000" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["damage_deductible_threshold"] === "500000" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["damage_deductible_amount"] === "50000" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["claim_window_hours"] === "48" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["auto_suspend_claim_count"] === "3" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["provider_recovery_rate"] === "100" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["otp_length"] === "6" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["otp_expiry_minutes"] === "5" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["otp_max_attempts"] === "3" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["otp_cooldown_seconds"] === "60" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["jwt_access_expires"] === "15m" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["jwt_refresh_expires"] === "30d" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["admin_session_timeout_hours"] === "8" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["provider_noshow_minutes"] === "30" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["nbi_expiry_warning_days"] === "30" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["max_service_radius_km"] === "50" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["quote_expiry_hours"] === "48" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["max_quotes_per_booking"] === "5" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["rate_limit_window_ms"] === "900000" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["rate_limit_max_requests"] === "100" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["suspicious_ip_threshold"] === "10" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["captcha_threshold"] === "3" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["cache_ttl_categories"] === "86400" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["cache_ttl_provider_profile"] === "1800" [line 133] (killed 1)
+    Γ£ô SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) SETTING_DEFAULTS["cache_ttl_search_results"] === "300" [line 133] (killed 1)
+    Γ£ÿ SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants) contains exactly the expected keys (no extras, no missing) [line 140] (covered 0)
+    Γ£ô getSetting fallback chain ΓÇö extra branches uses Redis cache and never touches DB on hit [line 148] (killed 1)
+    Γ£ô getSetting fallback chain ΓÇö extra branches hits DB and warms cache on Redis miss [line 155] (killed 7)
+    ~ getSetting fallback chain ΓÇö extra branches logs and continues when Redis read throws [line 168] (covered 17)
+    ~ getSetting fallback chain ΓÇö extra branches logs and continues when cache write throws [line 175] (covered 20)
+    ~ getSetting fallback chain ΓÇö extra branches falls back to SETTING_DEFAULTS when DB throws [line 183] (covered 15)
+    ~ getSetting fallback chain ΓÇö extra branches throws 404 when key has no DB row and no default [line 190] (covered 17)
+    Γ£ô getSetting fallback chain ΓÇö extra branches parameterizes the SELECT with is_active = TRUE [line 197] (killed 2)
+    ~ typed getters getSettingNumber parses as float [line 213] (covered 7)
+    Γ£ô typed getters getSettingPercent divides by 100 [line 217] (killed 1)
+    ~ typed getters getSettingInteger rounds [line 221] (covered 7)
+    Γ£ô typed getters getSettingBoolean returns true for "true" [line 225] (killed 3)
+    Γ£ô typed getters getSettingBoolean returns true for "1" [line 231] (killed 3)
+    Γ£ô typed getters getSettingBoolean returns false for "false" [line 237] (killed 1)
+    ~ typed getters getSettingBoolean returns false for arbitrary string [line 243] (covered 16)
+    ~ getCommissionRate returns the tier-specific rate as a percent [line 251] (covered 11)
+    ~ getCommissionRate falls back to "new" when the tier-specific key throws [line 256] (covered 24)
+    Γ£ô getAllSettings returns parsed cache when present [line 267] (killed 3)
+    ~ getAllSettings falls through to DB when cache JSON parse fails [line 276] (covered 12)
+    Γ£ô getAllSettings reads from DB and caches when miss [line 284] (killed 2)
+    ~ getAllSettings continues when Redis read throws [line 297] (covered 8)
+    ~ getAllSettings continues when cache write throws [line 304] (covered 10)
+    Γ£ô getSettingsByCategory + getCategories getSettingsByCategory parameterizes by category [line 314] (killed 2)
+    ~ getSettingsByCategory + getCategories getCategories converts COUNT(*) text to number [line 322] (covered 4)
+    Γ£ô validateSettingValue rejects NaN for numeric [line 338] (killed 10)
+    Γ£ô validateSettingValue rejects non-integer when value_type is integer [line 347] (killed 7)
+    Γ£ô validateSettingValue accepts valid integer when value_type is integer [line 356] (killed 12)
+    Γ£ô validateSettingValue rejects below min for percent [line 365] (killed 7)
+    Γ£ô validateSettingValue rejects above max for currency [line 374] (killed 8)
+    Γ£ô validateSettingValue accepts in-range numeric [line 383] (killed 1)
+    Γ£ô validateSettingValue rejects boolean that is neither "true" nor "false" [line 392] (killed 6)
+    Γ£ô validateSettingValue accepts boolean "true" [line 401] (killed 2)
+    Γ£ô validateSettingValue accepts boolean "false" [line 410] (killed 2)
+    Γ£ô validateSettingValue rejects value not in allowed_values [line 419] (killed 4)
+    ~ validateSettingValue accepts value in allowed_values [line 428] (covered 37)
+    Γ£ô updateSetting throws 404 when key does not exist in DB [line 439] (killed 3)
+    Γ£ô updateSetting writes audit row with correct columns [line 446] (killed 5)
+    ~ updateSetting passes null for absent reason / ip / ua [line 475] (covered 64)
+    Γ£ô updateSetting busts the per-key cache on success [line 495] (killed 3)
+    ~ updateSetting rejects validation failure before touching UPDATE/INSERT [line 506] (covered 44)
+    ~ updateSetting returns the UPDATE-RETURNING row [line 516] (covered 64)
+    Γ£ô bulkUpdateSettings returns empty array for empty input without touching DB [line 528] (killed 2)
+    Γ£ô bulkUpdateSettings processes each update sequentially and returns all rows [line 534] (killed 2)
+    ~ bulkUpdateSettings propagates the first failure and stops [line 555] (covered 14)
+    Γ£ô resetToDefault throws 404 if the key does not exist [line 568] (killed 3)
+    Γ£ô resetToDefault writes default_value back through updateSetting [line 575] (killed 2)
+    Γ£ô getSettingAuditHistory queries by key with default limit 50 [line 595] (killed 1)
+    ~ getSettingAuditHistory respects an explicit limit [line 601] (covered 3)
+    ~ getSettingAuditHistory returns the rows [line 607] (covered 3)
+    ~ cache management bustCache deletes per-key + all-key [line 616] (covered 3)
+    ~ cache management bustCache swallows redis errors [line 622] (covered 6)
+    Γ£ô cache management bustAllCache deletes all matching keys when present [line 627] (killed 4)
+    Γ£ô cache management bustAllCache no-ops cleanly when no keys match [line 633] (killed 2)
+    ~ cache management bustAllCache swallows redis errors [line 639] (covered 6)
+    Γ£ô getClientConfig returns the public client bundle with the expected static fields and resolved settings [line 646] (killed 5)
+    Γ£ô formatSetting redacts value when is_sensitive is true [line 663] (killed 1)
+    ~ formatSetting exposes value when is_sensitive is false [line 668] (covered 11)
+    Γ£ô formatSetting isDefault === true when value matches default_value [line 673] (killed 2)
+    Γ£ô formatSetting isDefault === false when value differs from default_value [line 678] (killed 1)
+    Γ£ô formatSetting coerces min_value and max_value strings to numbers [line 683] (killed 4)
+    Γ£ô formatSetting passes null for null min/max [line 691] (killed 2)
+    ~ formatSetting preserves all 1:1 fields verbatim [line 699] (covered 11)
+
+[Survived] EqualityOperator
+packages/api/src/services/commission.service.ts:84:14
+-     } else if (hoursUntilScheduled < 0.5) {
++     } else if (hoursUntilScheduled <= 0.5) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 90% refund if 1-2h before
+  and 31 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/commission.service.ts:86:14
+-     } else if (hoursUntilScheduled < 1) {
++     } else if (hoursUntilScheduled <= 1) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 90% refund if 1-2h before
+  and 25 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/commission.service.ts:88:14
+-     } else if (hoursUntilScheduled < 2) {
++     } else if (hoursUntilScheduled <= 2) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 90% refund if 1-2h before
+  and 19 more tests!
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/commission.service.ts:90:14
+-     } else if (hoursUntilScheduled < 24) {
++     } else if (true) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Dispute Refund Processing (Phase 03 ΓÇö async) full refund scenarios 100% customer refund for >24h cancellation
+  and 10 more tests!
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/commission.service.ts:90:14
+-     } else if (hoursUntilScheduled < 24) {
++     } else if (false) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Dispute Refund Processing (Phase 03 ΓÇö async) full refund scenarios 100% customer refund for >24h cancellation
+  and 10 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/commission.service.ts:90:14
+-     } else if (hoursUntilScheduled < 24) {
++     } else if (hoursUntilScheduled <= 24) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Dispute Refund Processing (Phase 03 ΓÇö async) full refund scenarios 100% customer refund for >24h cancellation
+  and 10 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/commission.service.ts:90:14
+-     } else if (hoursUntilScheduled < 24) {
++     } else if (hoursUntilScheduled >= 24) {
+Tests ran:
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if >24h before scheduled time
+    Commission Calculation Engine (Phase 03 ΓÇö async) calculateCancellationRefund (Phase 03 settings-backed schedule) 100% refund if 2-24h before
+    Dispute Refund Processing (Phase 03 ΓÇö async) full refund scenarios 100% customer refund for >24h cancellation
+  and 10 more tests!
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/commission.service.ts:109:5
+-       `SELECT tier FROM providers WHERE id = $1`,
++       ``,
+
+[NoCoverage] ArrayDeclaration
+packages/api/src/services/commission.service.ts:110:5
+-       [providerId],
++       [],
+
+[NoCoverage] StringLiteral
+packages/api/src/services/commission.service.ts:112:34
+-     return result.rows[0]?.tier ?? 'new';
++     return result.rows[0]?.tier ?? "";
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:34:15
+-     logger.info('Escrow hold created', { bookingId, amount });
++     logger.info("", { bookingId, amount });
+Tests ran:
+    holdInEscrow looks up the platform_escrow wallet and calls walletService.holdEscrow
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:47:5
+-       `SELECT b.id, b.customer_id, b.provider_id, b.service_price, b.service_fee, b.total_amount, b.status, b.scheduled_at
+-        FROM bookings b WHERE b.id = $1`,
++       ``,
+Tests ran:
+    releaseEscrow throws 404 when booking not found
+    releaseEscrow throws 409 when booking status is not in releasable set
+    releaseEscrow accepts releasable status "confirmed"
+  and 9 more tests!
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/escrow.service.ts:34:38
+-     logger.info('Escrow hold created', { bookingId, amount });
++     logger.info('Escrow hold created', {});
+Tests ran:
+    holdInEscrow looks up the platform_escrow wallet and calls walletService.holdEscrow
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:49:5
+-       [bookingId],
++       [],
+Tests ran:
+    releaseEscrow throws 404 when booking not found
+    releaseEscrow throws 409 when booking status is not in releasable set
+    releaseEscrow accepts releasable status "confirmed"
+  and 9 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:52:55
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (booking.rows.length === 0) throw createAppError("", 404);
+Tests ran:
+    releaseEscrow throws 404 when booking not found
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:57:26
+-       throw createAppError(`Cannot release escrow ΓÇö booking status is "${bk.status}".`, 409);
++       throw createAppError(``, 409);
+Tests ran:
+    releaseEscrow throws 409 when booking status is not in releasable set
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:60:45
+-     if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
++     if (!bk.provider_id) throw createAppError("", 409);
+Tests ran:
+    releaseEscrow throws 409 when no provider assigned
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:65:47
+-     if (servicePrice <= 0) throw createAppError('Invalid booking amount.', 400);
++     if (servicePrice <= 0) throw createAppError("", 400);
+Tests ran:
+    releaseEscrow throws 400 when service_price <= 0
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/escrow.service.ts:67:7
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
++     if (true) {
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 5 more tests!
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/escrow.service.ts:67:7
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
++     if (false) {
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 5 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/escrow.service.ts:67:7
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
++     if (Math.abs(totalAmount - (servicePrice + serviceFee)) >= 1) {
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 5 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/escrow.service.ts:67:7
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
++     if (Math.abs(totalAmount - (servicePrice + serviceFee)) <= 1) {
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 5 more tests!
+
+
+[Survived] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:67:16
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
++     if (Math.abs(totalAmount + (servicePrice + serviceFee)) > 1) {
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 5 more tests!
+
+
+[Survived] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:67:31
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
++     if (Math.abs(totalAmount - (servicePrice - serviceFee)) > 1) {
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 5 more tests!
+
+
+[Survived] BlockStatement
+packages/api/src/services/escrow.service.ts:67:64
+-     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
+-       logger.error('Booking amount mismatch detected', {
+-         bookingId, servicePrice, serviceFee, totalAmount,
+-         expected: servicePrice + serviceFee,
+-       });
+-     }
++     if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {}
+Tests ran:
+    releaseEscrow throws 500 when money conservation violation > 2 cents
+    releaseEscrow logs but proceeds when conservation diff <= 2 cents
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:68:18
+-       logger.error('Booking amount mismatch detected', {
++       logger.error("", {
+Tests ran:
+    releaseEscrow throws 500 when money conservation violation > 2 cents
+    releaseEscrow logs but proceeds when conservation diff <= 2 cents
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/escrow.service.ts:68:54
+-       logger.error('Booking amount mismatch detected', {
+-         bookingId, servicePrice, serviceFee, totalAmount,
+-         expected: servicePrice + serviceFee,
+-       });
++       logger.error('Booking amount mismatch detected', {});
+Tests ran:
+    releaseEscrow throws 500 when money conservation violation > 2 cents
+    releaseEscrow logs but proceeds when conservation diff <= 2 cents
+
+
+[Survived] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:70:17
+-         expected: servicePrice + serviceFee,
++         expected: servicePrice - serviceFee,
+Tests ran:
+    releaseEscrow throws 500 when money conservation violation > 2 cents
+    releaseEscrow logs but proceeds when conservation diff <= 2 cents
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:75:5
+-       `SELECT user_id, tier FROM providers WHERE id = $1`,
++       ``,
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 5 more tests!
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:76:5
+-       [bk.provider_id],
++       [],
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 5 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:78:59
+-     if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
++     if (providerRow.rows.length === 0) throw createAppError("", 404);
+Tests ran:
+    releaseEscrow throws 404 when provider row not found
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/escrow.service.ts:90:7
+-     if (totalOut !== totalAmount) {
++     if (true) {
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 4 more tests!
+
+
+[Survived] BlockStatement
+packages/api/src/services/escrow.service.ts:92:30
+-       if (Math.abs(diff) <= 2) {
+-         logger.debug('Rounding adjustment in escrow release', { bookingId, diff });
+-       } else {
++       if (Math.abs(diff) <= 2) {} else {
+Tests ran:
+    releaseEscrow logs but proceeds when conservation diff <= 2 cents
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:93:20
+-         logger.debug('Rounding adjustment in escrow release', { bookingId, diff });
++         logger.debug("", { bookingId, diff });
+Tests ran:
+    releaseEscrow logs but proceeds when conservation diff <= 2 cents
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/escrow.service.ts:93:61
+-         logger.debug('Rounding adjustment in escrow release', { bookingId, diff });
++         logger.debug('Rounding adjustment in escrow release', {});
+Tests ran:
+    releaseEscrow logs but proceeds when conservation diff <= 2 cents
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:95:20
+-         logger.error('MONEY CONSERVATION VIOLATION in escrow release', {
++         logger.error("", {
+Tests ran:
+    releaseEscrow throws 500 when money conservation violation > 2 cents
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/escrow.service.ts:95:70
+-         logger.error('MONEY CONSERVATION VIOLATION in escrow release', {
+-           bookingId, servicePrice, serviceFee, totalAmount, totalOut, diff,
+-           providerReceives, platformRetains, guaranteeFundContribution,
+-         });
++         logger.error('MONEY CONSERVATION VIOLATION in escrow release', {});
+Tests ran:
+    releaseEscrow throws 500 when money conservation violation > 2 cents
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:99:28
+-         throw createAppError('Internal accounting error. Please contact support.', 500);
++         throw createAppError("", 500);
+Tests ran:
+    releaseEscrow throws 500 when money conservation violation > 2 cents
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:110:7
+-         `UPDATE bookings SET escrow_status = 'released', updated_at = NOW()
+-          WHERE id = $1 AND escrow_status = 'held' RETURNING id`,
++         ``,
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 3 more tests!
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:112:7
+-         [bookingId],
++         [],
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 3 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:115:28
+-         throw createAppError('Escrow already released or not held for this booking.', 409);
++         throw createAppError("", 409);
+Tests ran:
+    releaseEscrow throws 409 when escrow guard rowCount is 0 (already released)
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:119:7
+-         `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:123:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'escrow_release', $3,
+-                  (SELECT pending_balance FROM wallets WHERE id = $1),
+-                  'Escrow release for booking')`,
++         ``,
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:131:7
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:135:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'escrow_release', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  $4)`,
++         ``,
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:140:8
+-          `Payment for booking (${Math.round(commissionRate * 100)}% commission deducted)`],
++          ``],
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:140:43
+-          `Payment for booking (${Math.round(commissionRate * 100)}% commission deducted)`],
++          `Payment for booking (${Math.round(commissionRate / 100)}% commission deducted)`],
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:144:7
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:148:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'commission', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  'Commission + service fee from booking')`,
++         ``,
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:156:7
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:160:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'guarantee_contribution', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  'Guarantee fund contribution')`,
++         ``,
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:172:61
+-       serviceFeeRate: await settingsService.getSettingPercent('service_fee_rate'),
++       serviceFeeRate: await settingsService.getSettingPercent(""),
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:179:15
+-     logger.info('Escrow released', { bookingId, breakdown });
++     logger.info("", { bookingId, breakdown });
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/escrow.service.ts:179:34
+-     logger.info('Escrow released', { bookingId, breakdown });
++     logger.info('Escrow released', {});
+Tests ran:
+    releaseEscrow accepts releasable status "confirmed"
+    releaseEscrow accepts releasable status "paid"
+    releaseEscrow accepts releasable status "resolved"
+  and 2 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:193:5
+-       `SELECT b.id, b.customer_id, b.provider_id, b.service_price, b.service_fee, b.total_amount, b.status, b.scheduled_at
+-        FROM bookings b WHERE b.id = $1`,
++       ``,
+Tests ran:
+    releasePartialEscrow throws 404 when booking not found
+    releasePartialEscrow throws 409 when no provider
+    releasePartialEscrow throws 400 when remainingAmount <= 0
+  and 4 more tests!
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:195:5
+-       [bookingId],
++       [],
+Tests ran:
+    releasePartialEscrow throws 404 when booking not found
+    releasePartialEscrow throws 409 when no provider
+    releasePartialEscrow throws 400 when remainingAmount <= 0
+  and 4 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:198:55
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (booking.rows.length === 0) throw createAppError("", 404);
+Tests ran:
+    releasePartialEscrow throws 404 when booking not found
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:201:45
+-     if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
++     if (!bk.provider_id) throw createAppError("", 409);
+Tests ran:
+    releasePartialEscrow throws 409 when no provider
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:202:50
+-     if (remainingAmount <= 0) throw createAppError('No remaining amount to release.', 400);
++     if (remainingAmount <= 0) throw createAppError("", 400);
+Tests ran:
+    releasePartialEscrow throws 400 when remainingAmount <= 0
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:205:46
+-     if (totalAmount <= 0) throw createAppError('Booking total amount is zero ΓÇö cannot calculate partial release.', 409);
++     if (totalAmount <= 0) throw createAppError("", 409);
+Tests ran:
+    releasePartialEscrow throws 409 when totalAmount <= 0
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:210:5
+-       `SELECT user_id, tier FROM providers WHERE id = $1`,
++       ``,
+Tests ran:
+    releasePartialEscrow throws 404 when provider row missing
+    releasePartialEscrow throws 409 when escrow guard rowCount is 0
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:211:5
+-       [bk.provider_id],
++       [],
+Tests ran:
+    releasePartialEscrow throws 404 when provider row missing
+    releasePartialEscrow throws 409 when escrow guard rowCount is 0
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:213:59
+-     if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
++     if (providerRow.rows.length === 0) throw createAppError("", 404);
+Tests ran:
+    releasePartialEscrow throws 404 when provider row missing
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:225:7
+-         `UPDATE bookings SET escrow_status = 'released', updated_at = NOW()
+-          WHERE id = $1 AND escrow_status = 'partially_refunded' RETURNING id`,
++         ``,
+Tests ran:
+    releasePartialEscrow throws 409 when escrow guard rowCount is 0
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:227:7
+-         [bookingId],
++         [],
+Tests ran:
+    releasePartialEscrow throws 409 when escrow guard rowCount is 0
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:230:28
+-         throw createAppError('Escrow not in partially-refunded state for this booking.', 409);
++         throw createAppError("", 409);
+Tests ran:
+    releasePartialEscrow throws 409 when escrow guard rowCount is 0
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:234:7
+-         `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:238:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'escrow_release', $3,
+-                  (SELECT pending_balance FROM wallets WHERE id = $1),
+-                  'Partial escrow release ΓÇö remaining after dispute refund')`,
++         ``,
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:246:7
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:250:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'escrow_release', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  $4)`,
++         ``,
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:255:8
+-          `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
++          ``],
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:255:57
+-          `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
++          `Partial payment for booking (after ${Math.round((1 - retentionFactor) / 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:255:58
+-          `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
++          `Partial payment for booking (after ${Math.round((1 + retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] ArithmeticOperator
+packages/api/src/services/escrow.service.ts:255:109
+-          `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
++          `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate / 100)}% commission deducted)`],
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:260:7
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:264:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'commission', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  'Partial commission + fee from dispute resolution')`,
++         ``,
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:272:7
+-         `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:276:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'guarantee_contribution', $3,
+-                  (SELECT available_balance FROM wallets WHERE id = $1),
+-                  'Guarantee fund contribution from partial dispute release')`,
++         ``,
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:284:15
+-     logger.info('Partial escrow released', { bookingId, remainingAmount, breakdown });
++     logger.info("", { bookingId, remainingAmount, breakdown });
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/escrow.service.ts:284:42
+-     logger.info('Partial escrow released', { bookingId, remainingAmount, breakdown });
++     logger.info('Partial escrow released', {});
+Tests ran:
+    releasePartialEscrow happy path: platformAmount = remaining - providerReceives - guaranteeFund
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:297:47
+-     if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
++     if (refundAmount <= 0) throw createAppError("", 400);
+Tests ran:
+    refundFromEscrow throws 400 when refundAmount <= 0
+
+
+[Survived] EqualityOperator
+packages/api/src/services/escrow.service.ts:300:7
+-     if (Number(escrowWallet.pending_balance) < refundAmount) {
++     if (Number(escrowWallet.pending_balance) <= refundAmount) {
+Tests ran:
+    handleCancellation full-refund path (>=24h): escrow_status set to "refunded", processRefund called with full amount
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+  and 4 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:301:26
+-       throw createAppError('Insufficient escrow balance for refund.', 409);
++       throw createAppError("", 409);
+Tests ran:
+    refundFromEscrow throws 409 when escrow pending balance is insufficient
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:306:7
+-         `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
++         ``,
+Tests ran:
+    handleCancellation full-refund path (>=24h): escrow_status set to "refunded", processRefund called with full amount
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+  and 3 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:311:7
+-         `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-          VALUES ($1, $2, 'refund', $3,
+-                  (SELECT pending_balance FROM wallets WHERE id = $1),
+-                  $4)`,
++         ``,
+Tests ran:
+    handleCancellation full-refund path (>=24h): escrow_status set to "refunded", processRefund called with full amount
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+  and 3 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:315:51
+-         [escrowWallet.id, bookingId, -refundAmount, `Refund: ${reason}`],
++         [escrowWallet.id, bookingId, -refundAmount, ``],
+Tests ran:
+    handleCancellation full-refund path (>=24h): escrow_status set to "refunded", processRefund called with full amount
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+  and 3 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:320:15
+-     logger.info('Escrow refund processed', { bookingId, refundAmount, reason });
++     logger.info("", { bookingId, refundAmount, reason });
+Tests ran:
+    handleCancellation full-refund path (>=24h): escrow_status set to "refunded", processRefund called with full amount
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+  and 3 more tests!
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/escrow.service.ts:320:42
+-     logger.info('Escrow refund processed', { bookingId, refundAmount, reason });
++     logger.info('Escrow refund processed', {});
+Tests ran:
+    handleCancellation full-refund path (>=24h): escrow_status set to "refunded", processRefund called with full amount
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+  and 3 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:333:5
+-       `SELECT id, customer_id, provider_id, service_price, service_fee, total_amount, status, escrow_status, scheduled_at FROM bookings WHERE id = $1`,
++       ``,
+Tests ran:
+    handleCancellation throws 404 when booking not found
+    handleCancellation throws 409 when escrow_status is already-processed "refunded"
+    handleCancellation throws 409 when escrow_status is already-processed "partially_refunded"
+  and 7 more tests!
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:334:5
+-       [bookingId],
++       [],
+Tests ran:
+    handleCancellation throws 404 when booking not found
+    handleCancellation throws 409 when escrow_status is already-processed "refunded"
+    handleCancellation throws 409 when escrow_status is already-processed "partially_refunded"
+  and 7 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:337:55
+-     if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
++     if (booking.rows.length === 0) throw createAppError("", 404);
+Tests ran:
+    handleCancellation throws 404 when booking not found
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:342:26
+-       throw createAppError(`Cancellation already processed for this booking (escrow_status: ${bk.escrow_status}).`, 409);
++       throw createAppError(``, 409);
+Tests ran:
+    handleCancellation throws 409 when escrow_status is already-processed "refunded"
+    handleCancellation throws 409 when escrow_status is already-processed "partially_refunded"
+    handleCancellation throws 409 when escrow_status is already-processed "released"
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:358:60
+-       await refundFromEscrow(bookingId, totalCustomerRefund, 'Cancellation refund (service price + service fee)');
++       await refundFromEscrow(bookingId, totalCustomerRefund, "");
+Tests ran:
+    handleCancellation full-refund path (>=24h): escrow_status set to "refunded", processRefund called with full amount
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+  and 2 more tests!
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/escrow.service.ts:361:7
+-     if (refund.providerCompensationAmount > 0 && bk.provider_id) {
++     if (false) {
+Tests ran:
+    handleCancellation full-refund path (>=24h): escrow_status set to "refunded", processRefund called with full amount
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+  and 3 more tests!
+
+
+[Survived] BlockStatement
+packages/api/src/services/escrow.service.ts:361:64
+-     if (refund.providerCompensationAmount > 0 && bk.provider_id) {
+-       const providerRow = await db.query<ProviderRow>(
+-         `SELECT user_id, tier FROM providers WHERE id = $1`,
+-         [bk.provider_id],
+-       );
+-       if (providerRow.rows.length > 0) {
+-         const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+-         const providerWallet = await walletService.getUserWallet(providerRow.rows[0]!.user_id, 'provider');
+-         await db.transaction(async (client) => {
+-           await client.query(
+-             `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-             [refund.providerCompensationAmount, escrowWallet.id],
+-           );
+-           await client.query(
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT pending_balance FROM wallets WHERE id = $1),
+-                      'Escrow release for provider cancellation compensation')`,
+-             [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
+-           );
+-           await client.query(
+-             `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-             [refund.providerCompensationAmount, providerWallet.id],
+-           );
+-           await client.query(
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT available_balance FROM wallets WHERE id = $1),
+-                      'Cancellation compensation')`,
+-             [providerWallet.id, bookingId, refund.providerCompensationAmount],
+-           );
+-         });
+-       }
+-     }
++     if (refund.providerCompensationAmount > 0 && bk.provider_id) {}
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+  and 1 more test!
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:363:7
+-         `SELECT user_id, tier FROM providers WHERE id = $1`,
++         ``,
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+  and 1 more test!
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:364:7
+-         [bk.provider_id],
++         [],
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+  and 1 more test!
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/escrow.service.ts:366:9
+-       if (providerRow.rows.length > 0) {
++       if (false) {
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+  and 1 more test!
+
+
+[Survived] BlockStatement
+packages/api/src/services/escrow.service.ts:366:38
+-       if (providerRow.rows.length > 0) {
+-         const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+-         const providerWallet = await walletService.getUserWallet(providerRow.rows[0]!.user_id, 'provider');
+-         await db.transaction(async (client) => {
+-           await client.query(
+-             `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-             [refund.providerCompensationAmount, escrowWallet.id],
+-           );
+-           await client.query(
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT pending_balance FROM wallets WHERE id = $1),
+-                      'Escrow release for provider cancellation compensation')`,
+-             [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
+-           );
+-           await client.query(
+-             `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-             [refund.providerCompensationAmount, providerWallet.id],
+-           );
+-           await client.query(
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT available_balance FROM wallets WHERE id = $1),
+-                      'Cancellation compensation')`,
+-             [providerWallet.id, bookingId, refund.providerCompensationAmount],
+-           );
+-         });
+-       }
++       if (providerRow.rows.length > 0) {}
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] BlockStatement
+packages/api/src/services/escrow.service.ts:370:46
+-         await db.transaction(async (client) => {
+-           await client.query(
+-             `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-             [refund.providerCompensationAmount, escrowWallet.id],
+-           );
+-           await client.query(
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT pending_balance FROM wallets WHERE id = $1),
+-                      'Escrow release for provider cancellation compensation')`,
+-             [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
+-           );
+-           await client.query(
+-             `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-             [refund.providerCompensationAmount, providerWallet.id],
+-           );
+-           await client.query(
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT available_balance FROM wallets WHERE id = $1),
+-                      'Cancellation compensation')`,
+-             [providerWallet.id, bookingId, refund.providerCompensationAmount],
+-           );
+-         });
++         await db.transaction(async (client) => {});
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:372:11
+-             `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
++             ``,
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:373:11
+-             [refund.providerCompensationAmount, escrowWallet.id],
++             [],
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:376:11
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT pending_balance FROM wallets WHERE id = $1),
+-                      'Escrow release for provider cancellation compensation')`,
++             ``,
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:380:11
+-             [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
++             [],
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] UnaryOperator
+packages/api/src/services/escrow.service.ts:380:40
+-             [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
++             [escrowWallet.id, bookingId, +refund.providerCompensationAmount],
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:384:11
+-             `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++             ``,
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:388:11
+-             `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-              VALUES ($1, $2, 'escrow_release', $3,
+-                      (SELECT available_balance FROM wallets WHERE id = $1),
+-                      'Cancellation compensation')`,
++             ``,
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:385:11
+-             [refund.providerCompensationAmount, providerWallet.id],
++             [],
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:392:11
+-             [providerWallet.id, bookingId, refund.providerCompensationAmount],
++             [],
+Tests ran:
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/escrow.service.ts:398:25
+-     if (customerNoShow && serviceFee > 0) {
++     if (customerNoShow && true) {
+Tests ran:
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] EqualityOperator
+packages/api/src/services/escrow.service.ts:398:25
+-     if (customerNoShow && serviceFee > 0) {
++     if (customerNoShow && serviceFee >= 0) {
+Tests ran:
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] BlockStatement
+packages/api/src/services/escrow.service.ts:401:44
+-       await db.transaction(async (client) => {
+-         await client.query(
+-           `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+-           [serviceFee, escrowWallet.id],
+-         );
+-         await client.query(
+-           `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-            VALUES ($1, $2, 'escrow_release', $3,
+-                    (SELECT pending_balance FROM wallets WHERE id = $1),
+-                    'Service fee retained ΓÇö customer no-show')`,
+-           [escrowWallet.id, bookingId, -serviceFee],
+-         );
+-         await client.query(
+-           `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+-           [serviceFee, revenueWallet.id],
+-         );
+-         await client.query(
+-           `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-            VALUES ($1, $2, 'commission', $3,
+-                    (SELECT available_balance FROM wallets WHERE id = $1),
+-                    'Service fee from customer no-show')`,
+-           [revenueWallet.id, bookingId, serviceFee],
+-         );
+-       });
++       await db.transaction(async (client) => {});
+Tests ran:
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:403:9
+-           `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
++           ``,
+Tests ran:
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:404:9
+-           [serviceFee, escrowWallet.id],
++           [],
+Tests ran:
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:407:9
+-           `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-            VALUES ($1, $2, 'escrow_release', $3,
+-                    (SELECT pending_balance FROM wallets WHERE id = $1),
+-                    'Service fee retained ΓÇö customer no-show')`,
++           ``,
+Tests ran:
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:411:9
+-           [escrowWallet.id, bookingId, -serviceFee],
++           [],
+Tests ran:
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] UnaryOperator
+packages/api/src/services/escrow.service.ts:411:38
+-           [escrowWallet.id, bookingId, -serviceFee],
++           [escrowWallet.id, bookingId, +serviceFee],
+Tests ran:
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:414:9
+-           `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
++           ``,
+Tests ran:
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:415:9
+-           [serviceFee, revenueWallet.id],
++           [],
+Tests ran:
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:418:9
+-           `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+-            VALUES ($1, $2, 'commission', $3,
+-                    (SELECT available_balance FROM wallets WHERE id = $1),
+-                    'Service fee from customer no-show')`,
++           ``,
+Tests ran:
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/escrow.service.ts:422:9
+-           [revenueWallet.id, bookingId, serviceFee],
++           [],
+Tests ran:
+    handleCancellation customer-noshow path: feeRefund=0, retains service fee in revenue wallet
+
+
+[Survived] StringLiteral
+packages/api/src/services/escrow.service.ts:440:15
+-     logger.info('Cancellation processed', { bookingId, escrowStatus, refund });
++     logger.info("", { bookingId, escrowStatus, refund });
+Tests ran:
+    handleCancellation full-refund path (>=24h): escrow_status set to "refunded", processRefund called with full amount
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+  and 3 more tests!
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/escrow.service.ts:440:41
+-     logger.info('Cancellation processed', { bookingId, escrowStatus, refund });
++     logger.info('Cancellation processed', {});
+Tests ran:
+    handleCancellation full-refund path (>=24h): escrow_status set to "refunded", processRefund called with full amount
+    handleCancellation no-refund path: escrow_status set to "released", processRefund NOT called
+    handleCancellation partial-refund path: escrow_status set to "partially_refunded"
+  and 3 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:131:36
+-       const cached = await redis.get(`${CACHE_PREFIX}${key}`);
+
++       const cached = await redis.get(``);
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches uses Redis cache and never touches DB on hit
+    getSetting fallback chain ΓÇö extra branches hits DB and warms cache on Redis miss
+    getSetting fallback chain ΓÇö extra branches logs and continues when Redis read throws
+  and 18 more tests!
+
+
+[Survived] BlockStatement
+packages/api/src/services/settings.service.ts:133:17
+-     } catch (err) {
+
+-       logger.warn('Settings cache read failed', { key, error: (err as Error).message });
+
+-     }
+
++     } catch (err) {}
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches logs and continues when Redis read throws
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:134:17
+-       logger.warn('Settings cache read failed', { key, error: (err as Error).message });
+
++       logger.warn("", { key, error: (err as Error).message });
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches logs and continues when Redis read throws
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/settings.service.ts:134:47
+-       logger.warn('Settings cache read failed', { key, error: (err as Error).message });
+
++       logger.warn('Settings cache read failed', {});
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches logs and continues when Redis read throws
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:143:9
+-       if (result.rows.length > 0) {
+
++       if (true) {
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches hits DB and warms cache on Redis miss
+    getSetting fallback chain ΓÇö extra branches logs and continues when Redis read throws
+    getSetting fallback chain ΓÇö extra branches logs and continues when cache write throws
+  and 6 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/settings.service.ts:143:9
+-       if (result.rows.length > 0) {
+
++       if (result.rows.length >= 0) {
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches hits DB and warms cache on Redis miss
+    getSetting fallback chain ΓÇö extra branches logs and continues when Redis read throws
+    getSetting fallback chain ΓÇö extra branches logs and continues when cache write throws
+  and 6 more tests!
+
+
+[Survived] BlockStatement
+packages/api/src/services/settings.service.ts:147:26
+-         } catch (cacheErr) {
+
+-           logger.warn('Settings cache write failed', { key, error: (cacheErr as Error).message });
+
+-         }
+
++         } catch (cacheErr) {}
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches logs and continues when cache write throws
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:148:21
+-           logger.warn('Settings cache write failed', { key, error: (cacheErr as Error).message });
+
++           logger.warn("", { key, error: (cacheErr as Error).message });
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches logs and continues when cache write throws
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/settings.service.ts:148:52
+-           logger.warn('Settings cache write failed', { key, error: (cacheErr as Error).message });
+
++           logger.warn('Settings cache write failed', {});
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches logs and continues when cache write throws
+
+
+[Survived] BlockStatement
+packages/api/src/services/settings.service.ts:152:17
+-     } catch (err) {
+
+-       logger.error('Settings DB read failed', { key, error: (err as Error).message });
+
+-     }
+
++     } catch (err) {}
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches falls back to SETTING_DEFAULTS when DB throws
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:153:18
+-       logger.error('Settings DB read failed', { key, error: (err as Error).message });
+
++       logger.error("", { key, error: (err as Error).message });
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches falls back to SETTING_DEFAULTS when DB throws
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/settings.service.ts:153:45
+-       logger.error('Settings DB read failed', { key, error: (err as Error).message });
+
++       logger.error('Settings DB read failed', {});
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches falls back to SETTING_DEFAULTS when DB throws
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:160:24
+-     throw createAppError(`Setting "${key}" not found.`, 404);
+
++     throw createAppError(``, 404);
+
+Tests ran:
+    getSetting fallback chain ΓÇö extra branches throws 404 when key has no DB row and no default
+    getCommissionRate falls back to "new" when the tier-specific key throws
+    runtime-config-e2e getSetting fallback chain throws 404 when key is unknown and not in defaults
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:182:36
+-       return await getSettingPercent(`commission_rate_${tier}`);
+
++       return await getSettingPercent(``);
+
+Tests ran:
+    getCommissionRate returns the tier-specific rate as a percent
+    getCommissionRate falls back to "new" when the tier-specific key throws
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:184:30
+-       return getSettingPercent('commission_rate_new');
+
++       return getSettingPercent("");
+
+Tests ran:
+    getCommissionRate falls back to "new" when the tier-specific key throws
+
+
+[Survived] BlockStatement
+packages/api/src/services/settings.service.ts:196:26
+-         } catch (parseErr) {
+
+-           logger.warn('Settings cache JSON parse failed', { error: (parseErr as Error).message });
+
+-         }
+
++         } catch (parseErr) {}
+
+Tests ran:
+    getAllSettings falls through to DB when cache JSON parse fails
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:197:21
+-           logger.warn('Settings cache JSON parse failed', { error: (parseErr as Error).message });
+
++           logger.warn("", { error: (parseErr as Error).message });
+
+Tests ran:
+    getAllSettings falls through to DB when cache JSON parse fails
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/settings.service.ts:197:57
+-           logger.warn('Settings cache JSON parse failed', { error: (parseErr as Error).message });
+
++           logger.warn('Settings cache JSON parse failed', {});
+
+Tests ran:
+    getAllSettings falls through to DB when cache JSON parse fails
+
+
+[Survived] BlockStatement
+packages/api/src/services/settings.service.ts:200:17
+-     } catch (err) {
+
+-       logger.warn('Settings cache read (all) failed', { error: (err as Error).message });
+
+-     }
+
++     } catch (err) {}
+
+Tests ran:
+    getAllSettings continues when Redis read throws
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:201:17
+-       logger.warn('Settings cache read (all) failed', { error: (err as Error).message });
+
++       logger.warn("", { error: (err as Error).message });
+
+Tests ran:
+    getAllSettings continues when Redis read throws
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/settings.service.ts:201:53
+-       logger.warn('Settings cache read (all) failed', { error: (err as Error).message });
+
++       logger.warn('Settings cache read (all) failed', {});
+
+Tests ran:
+    getAllSettings continues when Redis read throws
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:205:5
+-       `SELECT * FROM platform_settings ORDER BY category, display_order`,
+
++       ``,
+
+Tests ran:
+    getAllSettings falls through to DB when cache JSON parse fails
+    getAllSettings reads from DB and caches when miss
+    getAllSettings continues when Redis read throws
+  and 1 more test!
+
+
+[Survived] BlockStatement
+packages/api/src/services/settings.service.ts:210:17
+-     } catch (err) {
+
+-       logger.warn('Settings cache write (all) failed', { error: (err as Error).message });
+
+-     }
+
++     } catch (err) {}
+
+Tests ran:
+    getAllSettings continues when cache write throws
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:211:17
+-       logger.warn('Settings cache write (all) failed', { error: (err as Error).message });
+
++       logger.warn("", { error: (err as Error).message });
+
+Tests ran:
+    getAllSettings continues when cache write throws
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/settings.service.ts:211:54
+-       logger.warn('Settings cache write (all) failed', { error: (err as Error).message });
+
++       logger.warn('Settings cache write (all) failed', {});
+
+Tests ran:
+    getAllSettings continues when cache write throws
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:227:5
+-       `SELECT category, COUNT(*)::text AS count FROM platform_settings
+
+-        GROUP BY category ORDER BY category`,
+
++       ``,
+
+Tests ran:
+    getSettingsByCategory + getCategories getCategories converts COUNT(*) text to number
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:243:9
+-       if (value_type === 'integer' && !Number.isInteger(num)) {
+
++       if (true && !Number.isInteger(num)) {
+
+Tests ran:
+    validateSettingValue rejects non-integer when value_type is integer
+    validateSettingValue accepts valid integer when value_type is integer
+    validateSettingValue rejects below min for percent
+  and 13 more tests!
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:246:9
+-       if (min_value !== null && num < Number(min_value)) {
+
++       if (true && num < Number(min_value)) {
+
+Tests ran:
+    validateSettingValue accepts valid integer when value_type is integer
+    validateSettingValue rejects below min for percent
+    validateSettingValue rejects above max for currency
+  and 12 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/settings.service.ts:246:31
+-       if (min_value !== null && num < Number(min_value)) {
+
++       if (min_value !== null && num <= Number(min_value)) {
+
+Tests ran:
+    validateSettingValue rejects below min for percent
+    validateSettingValue rejects above max for currency
+    validateSettingValue accepts in-range numeric
+  and 4 more tests!
+
+
+[Survived] EqualityOperator
+packages/api/src/services/settings.service.ts:249:31
+-       if (max_value !== null && num > Number(max_value)) {
+
++       if (max_value !== null && num >= Number(max_value)) {
+
+Tests ran:
+    validateSettingValue rejects above max for currency
+    validateSettingValue accepts in-range numeric
+    updateSetting rejects validation failure before touching UPDATE/INSERT
+  and 2 more tests!
+
+
+[Survived] ConditionalExpression
+packages/api/src/services/settings.service.ts:258:25
+-     if (allowed_values && allowed_values.length > 0 && !allowed_values.includes(newValue)) {
+
++     if (allowed_values && true && !allowed_values.includes(newValue)) {
+
+Tests ran:
+    validateSettingValue rejects value not in allowed_values
+    validateSettingValue accepts value in allowed_values
+
+
+[Survived] EqualityOperator
+packages/api/src/services/settings.service.ts:258:25
+-     if (allowed_values && allowed_values.length > 0 && !allowed_values.includes(newValue)) {
+
++     if (allowed_values && allowed_values.length >= 0 && !allowed_values.includes(newValue)) {
+
+Tests ran:
+    validateSettingValue rejects value not in allowed_values
+    validateSettingValue accepts value in allowed_values
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:259:82
+-       throw createAppError(`Setting "${key}" must be one of: ${allowed_values.join(', ')}`, 400);
+
++       throw createAppError(`Setting "${key}" must be one of: ${allowed_values.join("")}`, 400);
+
+Tests ran:
+    validateSettingValue rejects value not in allowed_values
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:274:5
+-       `SELECT * FROM platform_settings WHERE key = $1`,
+
++       ``,
+
+Tests ran:
+    updateSetting throws 404 when key does not exist in DB
+    updateSetting writes audit row with correct columns
+    updateSetting passes null for absent reason / ip / ua
+  and 10 more tests!
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/settings.service.ts:275:5
+-       [key],
+
++       [],
+
+Tests ran:
+    updateSetting throws 404 when key does not exist in DB
+    updateSetting writes audit row with correct columns
+    updateSetting passes null for absent reason / ip / ua
+  and 10 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:278:26
+-       throw createAppError(`Setting "${key}" not found.`, 404);
+
++       throw createAppError(``, 404);
+
+Tests ran:
+    updateSetting throws 404 when key does not exist in DB
+    bulkUpdateSettings propagates the first failure and stops
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:287:5
+-       `UPDATE platform_settings
+
+-          SET value = $1, updated_by = $2, updated_at = NOW()
+
+-        WHERE key = $3
+
+-        RETURNING *`,
+
++       ``,
+
+Tests ran:
+    updateSetting writes audit row with correct columns
+    updateSetting passes null for absent reason / ip / ua
+    updateSetting busts the per-key cache on success
+  and 5 more tests!
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:303:15
+-     logger.info('Platform setting updated', {
+
++     logger.info("", {
+
+Tests ran:
+    updateSetting writes audit row with correct columns
+    updateSetting passes null for absent reason / ip / ua
+    updateSetting busts the per-key cache on success
+  and 5 more tests!
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:305:38
+-       oldValue: setting.is_sensitive ? '[REDACTED]' : oldValue,
+
++       oldValue: setting.is_sensitive ? "" : oldValue,
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/settings.service.ts:303:43
+-     logger.info('Platform setting updated', {
+
+-       key,
+
+-       oldValue: setting.is_sensitive ? '[REDACTED]' : oldValue,
+
+-       newValue: setting.is_sensitive ? '[REDACTED]' : newValue,
+
+-       changedBy,
+
+-       reason,
+
+-     });
+
++     logger.info('Platform setting updated', {});
+
+Tests ran:
+    updateSetting writes audit row with correct columns
+    updateSetting passes null for absent reason / ip / ua
+    updateSetting busts the per-key cache on success
+  and 5 more tests!
+
+
+[NoCoverage] StringLiteral
+packages/api/src/services/settings.service.ts:306:38
+-       newValue: setting.is_sensitive ? '[REDACTED]' : newValue,
+
++       newValue: setting.is_sensitive ? "" : newValue,
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:336:5
+-       `SELECT * FROM platform_settings WHERE key = $1`,
+
++       ``,
+
+Tests ran:
+    resetToDefault throws 404 if the key does not exist
+    resetToDefault writes default_value back through updateSetting
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[Survived] ArrayDeclaration
+packages/api/src/services/settings.service.ts:337:5
+-       [key],
+
++       [],
+
+Tests ran:
+    resetToDefault throws 404 if the key does not exist
+    resetToDefault writes default_value back through updateSetting
+    runtime-config-e2e resetToDefault writes the default_value back to the row
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:340:26
+-       throw createAppError(`Setting "${key}" not found.`, 404);
+
++       throw createAppError(``, 404);
+
+Tests ran:
+    resetToDefault throws 404 if the key does not exist
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:347:5
+-       `SELECT sa.*
+
+-          FROM platform_settings_audit sa
+
+-         WHERE sa.setting_key = $1
+
+-         ORDER BY sa.created_at DESC
+
+-         LIMIT $2`,
+
++       ``,
+
+Tests ran:
+    getSettingAuditHistory queries by key with default limit 50
+    getSettingAuditHistory respects an explicit limit
+    getSettingAuditHistory returns the rows
+
+
+[Survived] BlockStatement
+packages/api/src/services/settings.service.ts:363:17
+-     } catch (err) {
+
+-       logger.warn('Settings cache bust failed', { key, error: (err as Error).message });
+
+-     }
+
++     } catch (err) {}
+
+Tests ran:
+    cache management bustCache swallows redis errors
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:364:17
+-       logger.warn('Settings cache bust failed', { key, error: (err as Error).message });
+
++       logger.warn("", { key, error: (err as Error).message });
+
+Tests ran:
+    cache management bustCache swallows redis errors
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/settings.service.ts:364:47
+-       logger.warn('Settings cache bust failed', { key, error: (err as Error).message });
+
++       logger.warn('Settings cache bust failed', {});
+
+Tests ran:
+    cache management bustCache swallows redis errors
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:370:35
+-       const keys = await redis.keys(`${CACHE_PREFIX}*`);
+
++       const keys = await redis.keys(``);
+
+Tests ran:
+    cache management bustAllCache deletes all matching keys when present
+    cache management bustAllCache no-ops cleanly when no keys match
+    cache management bustAllCache swallows redis errors
+
+
+[Survived] BlockStatement
+packages/api/src/services/settings.service.ts:372:17
+-     } catch (err) {
+
+-       logger.warn('Settings cache flush-all failed', { error: (err as Error).message });
+
+-     }
+
++     } catch (err) {}
+
+Tests ran:
+    cache management bustAllCache swallows redis errors
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:373:17
+-       logger.warn('Settings cache flush-all failed', { error: (err as Error).message });
+
++       logger.warn("", { error: (err as Error).message });
+
+Tests ran:
+    cache management bustAllCache swallows redis errors
+
+
+[Survived] ObjectLiteral
+packages/api/src/services/settings.service.ts:373:52
+-       logger.warn('Settings cache flush-all failed', { error: (err as Error).message });
+
++       logger.warn('Settings cache flush-all failed', {});
+
+Tests ran:
+    cache management bustAllCache swallows redis errors
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:385:45
+-       serviceFeeRate: await getSettingPercent('service_fee_rate'),
+
++       serviceFeeRate: await getSettingPercent(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:386:43
+-       serviceFeeMin: await getSettingNumber('service_fee_min'),
+
++       serviceFeeMin: await getSettingNumber(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:387:43
+-       serviceFeeMax: await getSettingNumber('service_fee_max'),
+
++       serviceFeeMax: await getSettingNumber(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:388:53
+-       escrowAutoConfirmHours: await getSettingInteger('escrow_auto_confirm_hours'),
+
++       escrowAutoConfirmHours: await getSettingInteger(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:389:55
+-       escrowDisputeWindowHours: await getSettingInteger('escrow_dispute_window_hours'),
+
++       escrowDisputeWindowHours: await getSettingInteger(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:390:40
+-       otpLength: await getSettingInteger('otp_length'),
+
++       otpLength: await getSettingInteger(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:391:49
+-       otpCooldownSeconds: await getSettingInteger('otp_cooldown_seconds'),
+
++       otpCooldownSeconds: await getSettingInteger(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:392:50
+-       minimumPaymentAmount: await getSettingNumber('minimum_payment_amount'),
+
++       minimumPaymentAmount: await getSettingNumber(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:393:53
+-       minimumWithdrawalAmount: await getSettingNumber('minimum_withdrawal_amount'),
+
++       minimumWithdrawalAmount: await getSettingNumber(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:394:55
+-       maxPropertyDamageCoverage: await getSettingNumber('max_property_damage_coverage'),
+
++       maxPropertyDamageCoverage: await getSettingNumber(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:395:46
+-       maxTheftCoverage: await getSettingNumber('max_theft_coverage'),
+
++       maxTheftCoverage: await getSettingNumber(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:396:47
+-       maxInjuryCoverage: await getSettingNumber('max_injury_coverage'),
+
++       maxInjuryCoverage: await getSettingNumber(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:397:47
+-       claimWindowHours: await getSettingInteger('claim_window_hours'),
+
++       claimWindowHours: await getSettingInteger(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:398:47
+-       quoteExpiryHours: await getSettingInteger('quote_expiry_hours'),
+
++       quoteExpiryHours: await getSettingInteger(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:399:50
+-       maxQuotesPerBooking: await getSettingInteger('max_quotes_per_booking'),
+
++       maxQuotesPerBooking: await getSettingInteger(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+[Survived] StringLiteral
+packages/api/src/services/settings.service.ts:400:49
+-       maxServiceRadiusKm: await getSettingInteger('max_service_radius_km'),
+
++       maxServiceRadiusKm: await getSettingInteger(""),
+
+Tests ran:
+    getClientConfig returns the public client bundle with the expected static fields and resolved settings
+
+
+Ran 23.66 tests per mutant on average.
+-----------------------|------------------|----------|-----------|------------|----------|----------|
+                       | % Mutation score |          |           |            |          |          |
+File                   |  total | covered | # killed | # timeout | # survived | # no cov | # errors |
+-----------------------|--------|---------|----------|-----------|------------|----------|----------|
+All files              |  65.21 |   65.81 |      357 |         1 |        186 |        5 |       88 |
+ commission.service.ts |  78.26 |   83.72 |       36 |         0 |          7 |        3 |       14 |
+ escrow.service.ts     |  55.86 |   55.86 |      143 |         0 |        113 |        0 |       25 |
+ settings.service.ts   |  72.47 |   73.06 |      178 |         1 |         66 |        2 |       49 |
+-----------------------|--------|---------|----------|-----------|------------|----------|----------|
+[32m08:53:09 (24620) INFO MutationTestReportHelper[39m Final mutation score of 65.21 is greater than or equal to break threshold 60
+[32m08:53:09 (24620) INFO HtmlReporter[39m Your report can be found at: file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/.ai-coder/checkpoints/logs/PHASE-03/stryker-report.html
+[32m08:53:09 (24620) INFO MutationTestExecutor[39m Done in 10 minutes 6 seconds.
+
+PASS: Mutation score >= 60% threshold for the 3 mutated file(s).
+Detailed report: .ai-coder/checkpoints/logs/PHASE-03/stryker-report.html

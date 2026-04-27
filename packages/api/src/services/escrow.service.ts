@@ -1,10 +1,10 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
-import { platformConfig } from '../config/platform.config';
 import * as walletService from './wallet.service';
 import * as commissionService from './commission.service';
 import * as paymentService from './payment.service';
+import * as settingsService from './settings.service';
 
 interface BookingAmountRow {
   id: string;
@@ -78,10 +78,10 @@ export async function releaseEscrow(bookingId: string): Promise<commissionServic
   if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
   const provider = providerRow.rows[0]!;
 
-  const commissionRate = platformConfig.commissionRates[provider.tier]
-    ?? platformConfig.commissionRates['new']!;
+  const commissionRate = await settingsService.getCommissionRate(provider.tier);
   const commissionAmount = Math.round(servicePrice * commissionRate);
-  const guaranteeFundContribution = Math.round(serviceFee * platformConfig.guaranteeFundRate);
+  const guaranteeFundRate = await settingsService.getSettingPercent('guarantee_fund_rate');
+  const guaranteeFundContribution = Math.round(serviceFee * guaranteeFundRate);
 
   const providerReceives = servicePrice - commissionAmount;
   const platformRetains = commissionAmount + serviceFee - guaranteeFundContribution;
@@ -169,7 +169,7 @@ export async function releaseEscrow(bookingId: string): Promise<commissionServic
     servicePrice,
     commissionRate,
     commissionAmount,
-    serviceFeeRate: platformConfig.serviceFeeRate,
+    serviceFeeRate: await settingsService.getSettingPercent('service_fee_rate'),
     serviceFeeAmount: serviceFee,
     guaranteeFundContribution,
     providerReceives,
@@ -213,7 +213,7 @@ export async function releasePartialEscrow(
   if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
   const provider = providerRow.rows[0]!;
 
-  const breakdown = commissionService.calculateCommission(proportionalServicePrice, provider.tier);
+  const breakdown = await commissionService.calculateCommission(proportionalServicePrice, provider.tier);
 
   const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
   const revenueWallet = await walletService.getPlatformWallet('platform_revenue');
@@ -345,7 +345,7 @@ export async function handleCancellation(
   const cancellationBase = Number(bk.service_price);
   const serviceFee = Number(bk.service_fee);
 
-  const refund = commissionService.calculateCancellationRefund(
+  const refund = await commissionService.calculateCancellationRefund(
     cancellationBase,
     hoursUntilScheduled,
     providerArrived,

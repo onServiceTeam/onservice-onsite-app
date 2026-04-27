@@ -1,5 +1,5 @@
 import { db } from '../models/db';
-import { platformConfig } from '../config/platform.config';
+import * as settingsService from './settings.service';
 
 interface ProviderTierRow {
   tier: string;
@@ -16,17 +16,30 @@ export interface CommissionBreakdown {
   platformRetains: number;
 }
 
-export function calculateCommission(servicePrice: number, providerTier: string): CommissionBreakdown {
-  const commissionRate = platformConfig.commissionRates[providerTier] ?? platformConfig.commissionRates['new']!;
+/**
+ * Calculate commission breakdown for a booking.
+ *
+ * Phase 03: now async — reads commission rate, service-fee rate, fee min/max,
+ * and guarantee-fund rate from the runtime settings service (DB → Redis →
+ * in-memory defaults). Pure math otherwise.
+ */
+export async function calculateCommission(
+  servicePrice: number,
+  providerTier: string,
+): Promise<CommissionBreakdown> {
+  const commissionRate = await settingsService.getCommissionRate(providerTier);
   const commissionAmount = Math.round(servicePrice * commissionRate);
 
-  const serviceFeeRate = platformConfig.serviceFeeRate;
+  const serviceFeeRate = await settingsService.getSettingPercent('service_fee_rate');
   let serviceFeeAmount = Math.round(servicePrice * serviceFeeRate);
 
-  serviceFeeAmount = Math.max(serviceFeeAmount, platformConfig.minimumServiceFee);
-  serviceFeeAmount = Math.min(serviceFeeAmount, platformConfig.maximumServiceFee);
+  const minFee = await settingsService.getSettingNumber('service_fee_min');
+  const maxFee = await settingsService.getSettingNumber('service_fee_max');
+  serviceFeeAmount = Math.max(serviceFeeAmount, minFee);
+  serviceFeeAmount = Math.min(serviceFeeAmount, maxFee);
 
-  const guaranteeFundContribution = Math.round(serviceFeeAmount * platformConfig.guaranteeFundRate);
+  const guaranteeFundRate = await settingsService.getSettingPercent('guarantee_fund_rate');
+  const guaranteeFundContribution = Math.round(serviceFeeAmount * guaranteeFundRate);
 
   const providerReceives = servicePrice - commissionAmount;
   const platformRetains = commissionAmount + serviceFeeAmount;
@@ -51,43 +64,37 @@ export interface CancellationRefund {
 }
 
 /**
- * FR-102: Cancellation refund rules based on timing (per spec).
+ * FR-102: cancellation refund split based on timing.
  *
- * Spec tiers:
- *   - >2h before scheduled: 100% customer / 0% provider
- *   - <2h before scheduled: 80% customer / 20% provider
- *   - Provider has arrived:  50% customer / 50% provider
- *   - Customer no-show:       0% customer / 100% provider
- *
- * @param servicePrice in centavos
- * @param hoursUntilScheduled hours until the scheduled service time (negative = after scheduled time)
- * @param providerArrived whether the provider has already arrived at the location
- * @param customerNoShow whether the customer failed to show up
+ * Phase 03: now async — reads cancel_refund_* settings. Returned percentages
+ * are 0..1 fractions (e.g. 0.80) for compatibility with prior callers.
  */
-export function calculateCancellationRefund(
+export async function calculateCancellationRefund(
   servicePrice: number,
   hoursUntilScheduled: number,
   providerArrived: boolean,
   customerNoShow = false,
-): CancellationRefund {
-  let customerRefundPercent: number;
-  let providerCompensationPercent: number;
-
-  const splits = platformConfig.cancellationRefundSplits;
+): Promise<CancellationRefund> {
+  let customerRefundPercentInt: number; // 0..100
 
   if (customerNoShow) {
-    customerRefundPercent = splits.customerNoShow.customerRefund;
-    providerCompensationPercent = splits.customerNoShow.providerCompensation;
+    customerRefundPercentInt = await settingsService.getSettingNumber('cancel_refund_customer_noshow');
   } else if (providerArrived) {
-    customerRefundPercent = splits.providerArrived.customerRefund;
-    providerCompensationPercent = splits.providerArrived.providerCompensation;
+    customerRefundPercentInt = await settingsService.getSettingNumber('cancel_refund_provider_arrived');
+  } else if (hoursUntilScheduled < 0.5) {
+    customerRefundPercentInt = await settingsService.getSettingNumber('cancel_refund_under_30min');
+  } else if (hoursUntilScheduled < 1) {
+    customerRefundPercentInt = await settingsService.getSettingNumber('cancel_refund_30min_to_1h');
   } else if (hoursUntilScheduled < 2) {
-    customerRefundPercent = splits.lessThan2Hours.customerRefund;
-    providerCompensationPercent = splits.lessThan2Hours.providerCompensation;
+    customerRefundPercentInt = await settingsService.getSettingNumber('cancel_refund_1_to_2h');
+  } else if (hoursUntilScheduled < 24) {
+    customerRefundPercentInt = await settingsService.getSettingNumber('cancel_refund_2_to_24h');
   } else {
-    customerRefundPercent = splits.moreThan2Hours.customerRefund;
-    providerCompensationPercent = splits.moreThan2Hours.providerCompensation;
+    customerRefundPercentInt = await settingsService.getSettingNumber('cancel_refund_over_24h');
   }
+
+  const customerRefundPercent = customerRefundPercentInt / 100;
+  const providerCompensationPercent = 1 - customerRefundPercent;
 
   return {
     customerRefundPercent,

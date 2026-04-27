@@ -92,6 +92,7 @@ If during a phase, the AI coder discovers that:
 
 - **All phases (PHASE-00..PHASE-12)** — gate is `bash .ai-coder/checkpoints/verify-phase.sh PHASE-NN`, which is a thin wrapper around `verify-master.sh PHASE-NN` (full 6-gate gauntlet: mechanical, behavioral, adversarial, visual, integration, evidence).
 - Per **TD-001** (resolved), every gate that surface-scans the repo (forbidden patterns, emoji-as-icon, phantom tests, N+1) is **baseline-delta-aware**: it accepts `--phase PHASE-NN`, reports both absolute and phase-introduced violation counts, and **fails only on violations introduced by this phase**. Pre-existing violations are reported informationally and accumulated by `verify-master.sh` into `BASELINE-DEBT.md`.
+- Per **TD-005** (resolved), the mutation-coverage gate is also baseline-delta-scoped. `verify-mutation-coverage.sh --phase PHASE-NN` mutates only the sacred (money-handling) files this phase actually touched and skips entirely when the intersection is empty. The full sacred-roster sweep (`verify-mutation-coverage-full.sh` / `npm run mutation:full`) is the **absolute launch gate** and MUST pass at PHASE-12. Per-phase mutation gating is therefore "did you regress what you touched?" while launch readiness is "does the entire sacred surface pass?". A sacred file untouched by every PHASE-01..11 is still gated at PHASE-12.
 - **PHASE-02** remains the primary cleanup phase. Its job is to drive the absolute-violation counts in `BASELINE-DEBT.md` to zero. Until PHASE-02 completes, absolute counts will be non-zero and that is **expected, not a regression** — but each later phase must still introduce zero new violations, and any deferred items must be enumerated in the phase's `EVIDENCE-MANIFEST.md` "Deferred to later phases" section.
 - `verify-bootstrap.sh` remains in the tree as a focused PHASE-00 preflight (scripts/templates/tokens/baseline-capture present) and may be invoked explicitly by the Phase 00 plan, but is no longer dispatched by `verify-phase.sh`.
 
@@ -115,6 +116,7 @@ For the AI coder to auto-proceed from PHASE-NN to PHASE-NN+1, ALL of the followi
 14. Honesty check exists with substantive answers: `.ai-coder/checkpoints/logs/PHASE-NN/HONESTY-CHECK.md`
 15. Hash chain generated: `.ai-coder/checkpoints/logs/PHASE-NN/HASHES.sha256`
 16. Baseline-debt summary generated: `.ai-coder/checkpoints/logs/PHASE-NN/BASELINE-DEBT.md` (auto-written by `verify-master.sh`); absolute counts must be **non-increasing** vs the prior phase's `BASELINE-DEBT.md`
+17. **(PHASE-12 ONLY — launch readiness)** `npm run mutation:full` (a.k.a. `bash .ai-coder/checkpoints/verify-mutation-coverage-full.sh`) returns exit code 0. Every sacred file passes mutation testing at ≥60%. The per-phase mutation gate (item covered by gate 1) only mutates files touched by the phase; PHASE-12 is the absolute gate per TD-005.
 
 If ALL pass: the AI coder auto-proceeds to PHASE-NN+1.
 

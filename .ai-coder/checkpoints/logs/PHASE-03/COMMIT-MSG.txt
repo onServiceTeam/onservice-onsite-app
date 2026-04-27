@@ -1,0 +1,88 @@
+phase/03: runtime config (DB-backed settings + service + admin UI)
+
+Implements the runtime platform configuration system per
+RUNTIME-CONFIG-SYSTEM-SPEC.md. Business-tunable values now live in
+PostgreSQL with a Redis cache and an in-memory fallback chain, exposed
+through a typed settings service and a categorized admin UI.
+
+Architecture
+- DB (source of truth) → Redis (60s TTL cache) → in-memory DEFAULTS
+- Cache is busted on write; fall-through is non-fatal at every layer.
+
+Schema (migrations 050 + 051)
+- 050_platform_settings_rich_schema.sql: drops legacy 038 key/value table
+  and recreates the rich schema (category, subcategory, value_type with
+  CHECK, default_value, min/max/allowed_values, display_order, unit,
+  is_sensitive, is_active, requires_restart). Seeds ~50 rows across
+  commissions, fees, escrow, cancellation, protection, auth, provider,
+  security, cache. Note: 050 is destructive vs 038 — acceptable in dev
+  (table was empty); production needs a separate backfill before deploy.
+- 051_platform_settings_audit.sql: per-change audit table with
+  setting_key, old/new value, changed_by, change_reason, ip_address,
+  user_agent, timestamp.
+
+Backend
+- packages/api/src/services/settings.service.ts: getSetting(Number/Percent/
+  Integer/Boolean), getCommissionRate, getAllSettings,
+  getSettingsByCategory, getCategories, updateSetting (validates →
+  audits → busts cache), bulkUpdateSettings, resetToDefault,
+  getSettingAuditHistory, validateSettingValue, bustCache/bustAllCache,
+  getClientConfig, formatSetting.
+- packages/api/src/routes/settings.routes.ts: admin/super_admin RBAC,
+  GET / (grouped), GET /:category, PUT /:key, PUT / (bulk),
+  POST /:key/reset, GET /:key/history, POST /cache/flush.
+- packages/api/src/server.ts: mounts /api/v1/admin/settings before
+  /api/v1/admin; adds public /api/v1/config endpoint with hardcoded
+  fallback.
+- packages/api/src/routes/admin.routes.ts: removes superseded inline
+  /settings handlers.
+- packages/api/src/middleware/rate-limit.middleware.ts: cached-with-
+  periodic-refresh pattern (60s setInterval, .unref()) for
+  rate_limit_window_ms / rate_limit_max_requests.
+
+Service migrations to async settings reads
+- commission.service.ts: getCommissionRate, service_fee_rate,
+  guarantee_fund_rate, min/max fee, calculateCancellationRefund (now
+  async, reads cancel_refund_* settings).
+- escrow.service.ts: escrow_auto_confirm_hours,
+  escrow_dispute_window_hours.
+- Other services (booking/payout/wallet/auth/etc) deferred — see
+  HONESTY-CHECK Q1#5; tracked in tech-debt.
+
+Mobile
+- apps/mobile/src/services/config.service.ts: fetchPlatformConfig() +
+  getConfig() with hardcoded defaults fallback.
+- apps/mobile/app/_layout.tsx: warm fetch on startup (best-effort).
+- Mobile screens NOT migrated to getConfig() — deferred per spec PART 5
+  guidance (warm-up only; static defaults still apply).
+
+Admin UI
+- apps/admin/src/pages/SystemSettingsPage.tsx: rebuilt with category
+  tabs (lucide icons via centralized @/components/icons), setting cards
+  with inline edit / reset / history / modified badge, "Force cache
+  flush" action. No emoji literals.
+
+Tests
+- commission.test.ts, escrow-money-conservation.test.ts,
+  booking-price-lookup.test.ts, dispute-refund-processing.test.ts:
+  updated for async signatures + jest.mock of settings.service.
+- packages/api/__tests__/runtime-config-e2e.test.ts: new — verifies
+  Redis→DB→DEFAULTS chain, validation, audit trail, reset-to-default,
+  cache busting (db + redis mocked).
+
+Verification (PHASE-03 baseline = 9695431)
+- bash .ai-coder/checkpoints/verify-no-emoji.sh → PASS (0)
+- npm run typecheck (3 workspaces) → exit 0
+- npm run lint → exit 0
+- verify-master.sh PHASE-03 → FINAL STATUS: PASS (attempt 2)
+
+Disclosures (HONESTY-CHECK 7/10)
+- express-rate-limit binds opts at construction; live updates require
+  process restart (60s refresh keeps in-memory cache warm but does not
+  re-bind middleware). Documented in tech-debt.
+- Migration 050 destructive; production needs backfill.
+- bulkUpdateSettings is not transactional.
+- Mobile screens still read hardcoded platformConfig (deferred).
+- Other money services not yet migrated (deferred).
+
+Refs: AUTONOMOUS-EXECUTION-PROTOCOL §autonomous-progression

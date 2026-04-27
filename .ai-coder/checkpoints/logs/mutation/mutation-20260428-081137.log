@@ -1,0 +1,26 @@
+[32m08:11:39 (37116) INFO ProjectReader[39m Found 3 of 719 file(s) to be mutated.
+[32m08:11:39 (37116) INFO Instrumenter[39m Instrumented 3 source file(s) with 637 mutant(s)
+[32m08:11:40 (37116) INFO ConcurrencyTokenProvider[39m Creating 2 checker process(es) and 2 test runner process(es).
+[32m08:11:51 (37116) INFO BroadcastReporter[39m Detected that current console does not support the "progress" reporter, downgrading to "progress-append-only" reporter
+[91m08:11:52 (37116) ERROR Stryker[39m Unexpected error occurred while running Stryker StrykerError: Error: MODULE_NOT_FOUND (undefined) Error: Cannot find module 'C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\.stryker-tmp\sandbox2183332\packages\api\jest.config.js'
+Require stack:
+- C:\Users\kmoul\OneDrive\Documents\GitHub\onservice-onsite-app\node_modules\@stryker-mutator\util\dist\src\require-resolve.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1421:15)
+    at require.resolve (node:internal/modules/helpers:163:19)
+    at resolveFromCwd (file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/node_modules/@stryker-mutator/util/dist/src/require-resolve.js:16:20)
+    at CustomJestConfigLoader.requireResolve [as requireFromCwd] (file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/node_modules/@stryker-mutator/util/dist/src/require-resolve.js:8:20)
+    at CustomJestConfigLoader.readConfigFromJestConfigFile (file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/node_modules/@stryker-mutator/jest-runner/dist/src/config-loaders/custom-jest-config-loader.js:53:31)
+    at CustomJestConfigLoader.readConfigManually (file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/node_modules/@stryker-mutator/jest-runner/dist/src/config-loaders/custom-jest-config-loader.js:46:40)
+    at CustomJestConfigLoader.loadConfig (file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/node_modules/@stryker-mutator/jest-runner/dist/src/config-loaders/custom-jest-config-loader.js:25:25)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async JestTestRunner.init (file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/node_modules/@stryker-mutator/jest-runner/dist/src/jest-test-runner.js:59:32)
+    at async ChildProcessTestRunnerWorker.init (file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/node_modules/@stryker-mutator/core/dist/src/test-runner/child-process-test-runner-worker.js:16:13)
+    at ChildProcess.<anonymous> (file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/node_modules/@stryker-mutator/core/dist/src/child-proxy/child-process-proxy.js:121:72)
+    at ChildProcess.emit (node:events:508:28)
+    at emit (node:internal/child_process:949:14)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  innerError: undefined
+}
+[32m08:11:52 (37116) INFO Stryker[39m This might be a known problem with a solution documented in our troubleshooting guide.
+[32m08:11:52 (37116) INFO Stryker[39m You can find it at https://stryker-mutator.io/docs/stryker-js/troubleshooting/
+[32m08:11:52 (37116) INFO Stryker[39m Still having trouble figuring out what went wrong? Try `npx stryker run --fileLogLevel trace --logLevel debug` to get some more info.
