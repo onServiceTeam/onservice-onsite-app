@@ -6,34 +6,50 @@ Cross-phase tech-debt items that don't fit any single phase's scope. Each item n
 
 ## TD-001 — Make `verify-master.sh` baseline-delta-aware
 
+**Status:** RESOLVED 2026-04-28 on `phase/00-bootstrap` (commit follows this entry).
 **Discovered:** PHASE-00 (2026-04-27)
 **Owning trigger:** Whenever the maintainer wants per-phase gates to fire only on changes introduced by that phase, instead of on whole-repo state.
-**Estimate:** 2–4 hours of harness work.
+**Estimate:** 2–4 hours of harness work. **Actual:** ~3 hours.
 
-### Problem
+### Resolution summary
 
-`verify-master.sh` measures **absolute repo state**: `verify-no-forbidden.sh` greps the entire `apps/`/`packages/` tree, `verify-no-emoji.sh` likewise, etc. Each phase that does not specifically clean baseline debt currently must enumerate the pre-existing hits in its `EVIDENCE-MANIFEST.md` "Deferred to later phases" section. This is correct (transparency over silent acceptance) but tedious and prone to inconsistency across phases.
+Implemented as a discrete sub-phase before Phase 01 content work. See the
+`[2026-04-28T00:19:00+08:00]` entry in
+`.ai-coder/checkpoints/logs/PHASE-00/sanity-checks.log` for the full change list.
 
-### Proposed change
+Key deliverables:
 
-For each gate that grep's the codebase, compare the *current* hit set against a *baseline* hit set captured at the phase's preflight step. Fail only on **new** hits introduced this phase. Pass with an INFO line if the baseline hit set is unchanged.
+- New shared helper `.ai-coder/checkpoints/lib/baseline-diff.sh`
+  (`get_baseline_commit`, `files_changed_since_baseline`, `filter_to_phase_diff`,
+  `report_baseline_delta`).
+- `verify-no-forbidden.sh`, `verify-no-emoji.sh`, `verify-no-phantom-tests.sh`,
+  `verify-no-n-plus-1.sh` rewritten to accept `--phase PHASE-NN` and report
+  absolute-vs-introduced; legacy mode preserved for pre-commit hooks.
+- `verify-master.sh` passes `--phase ${PHASE}` to all four; writes
+  `BASELINE-DEBT.md` aggregating absolute counts at end of phase; hardened
+  `set -o pipefail` interactions; sanity-counter now uses `git diff --numstat`
+  with awk-based exclusion of governance-import paths so it counts code
+  changes only.
+- `verify-evidence-manifest.sh` corrected to look in `gates/` subdirectory.
+- `verify-phase.sh` is now a thin wrapper over `verify-master.sh`; the
+  PHASE-00 special case is gone.
+- `.ai-coder/AUTONOMOUS-EXECUTION-PROTOCOL.md` "auto-proceed gate criteria"
+  rewritten; criterion #16 (BASELINE-DEBT.md non-increasing) added.
+- `.ai-coder/CONSTITUTION.md` Article 13 amended with the baseline-delta
+  enforcement paragraph.
 
-Implementation sketch:
+### Acceptance criteria — all met
 
-1. During each phase's preflight, run each grep-based gate against the baseline commit and store the hits at `logs/PHASE-NN/preflight/<gate>.baseline.txt`.
-2. At gate-run time, run the gate against current HEAD and store hits at `logs/PHASE-NN/gates/<gate>.head.txt`.
-3. Compute `diff baseline.txt head.txt`. If only deletions or no change → PASS. If any additions → FAIL with the new hits highlighted.
-4. Phase 02 (the cleanup phase) explicitly produces deletions, which is a PASS.
-
-### Why not now
-
-Out of Phase 00 scope. Phase 00 (bootstrap) installs the verification machinery; redesigning the machinery's evaluation semantics is a separate change. The current per-phase deferral system (named items in manifest) is acceptable until at least Phase 02 ships.
-
-### Acceptance criteria when implemented
-
-- Adding a new forbidden pattern in any phase causes that phase's `gate-1-forbidden` to fail.
-- Phase 02 (which deletes existing forbidden patterns) passes `gate-1-forbidden` on the first attempt.
-- Phases that touch unrelated code do not need to enumerate baseline debt in their manifests.
+- `verify-master.sh PHASE-00` exits 0 against current HEAD.
+- All four delta-aware gates report `absolute > 0`, `introduced = 0`,
+  `GATE: PASS` (forbidden=5, emoji=196, phantom=0, n+1=16).
+- Adding a new forbidden pattern in any later phase will cause that phase's
+  `gate-1-forbidden` to fail (delta semantics verified — Phase 00's own
+  introduced count is 0 because all baseline debt sits in files Phase 00 did
+  not touch).
+- Phase 02 cleanup will produce deletions and pass naturally.
+- Future phases do not need to enumerate every baseline-debt item in their
+  manifest — the absolute counts roll forward via `BASELINE-DEBT.md`.
 
 ---
 

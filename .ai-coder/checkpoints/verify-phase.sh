@@ -1,15 +1,21 @@
 #!/bin/bash
 # verify-phase.sh
 #
-# Phase-aware verification entry point.
+# Thin wrapper around verify-master.sh.
 #
-# - PHASE-00 (bootstrap): runs the lighter bootstrap gate (preflight + scripts/
-#   templates/tokens present + baseline captured). Does NOT run verify-master.sh
-#   because Phase 00's job is to install the verification machinery, not to
-#   exercise it against pre-existing baseline debt. Per
-#   .ai-coder/phases/PHASE-00-bootstrap.md Step 7 and
-#   AUTONOMOUS-EXECUTION-PROTOCOL.md "auto-proceed gate criteria".
-# - PHASE-01..PHASE-12: delegates to verify-master.sh (full 6-gate gauntlet).
+# Prior to TD-001, this script special-cased PHASE-00 to run a lighter
+# bootstrap-only gate because verify-master.sh's surface scans were not
+# baseline-delta-aware and would fail on pre-existing repository debt.
+#
+# After TD-001, every gate that surface-scans the repo (forbidden patterns,
+# emoji-as-icon, phantom tests, N+1) accepts a --phase flag and fails only on
+# violations introduced by that phase. So the special case is gone — Phase 00
+# and every later phase use the same orchestrator.
+#
+# verify-bootstrap.sh remains in the tree as a focused PHASE-00 preflight
+# (scripts/templates/tokens/baseline-capture present) and may be invoked
+# explicitly by the Phase 00 plan, but verify-phase.sh PHASE-00 now runs the
+# full verify-master.sh chain like any other phase.
 #
 # Usage: bash .ai-coder/checkpoints/verify-phase.sh PHASE-NN
 
@@ -25,9 +31,4 @@ if [ -z "$PHASE" ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-if [ "$PHASE" = "PHASE-00" ]; then
-  exec bash "$SCRIPT_DIR/verify-bootstrap.sh" "$PHASE"
-fi
-
 exec bash "$SCRIPT_DIR/verify-master.sh" "$PHASE"

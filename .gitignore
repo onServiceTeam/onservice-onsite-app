@@ -24,6 +24,12 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Evidence chain (governance) — these .log files are part of the audit trail
+!.ai-coder/checkpoints/logs/**/*.log
+# But exclude transient/timestamped run logs that get regenerated on every invocation
+.ai-coder/checkpoints/logs/PHASE-*/verify-master-attempt-*.log
+.ai-coder/checkpoints/logs/money-conservation-*.log
+
 # Testing
 coverage/
 

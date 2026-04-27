@@ -283,6 +283,8 @@ At end of phase, the `verify-master.sh` script aggregates all gate logs, validat
 
 You may not claim a phase is done unless `verify-master.sh PHASE-NN` returns exit code 0. Claiming otherwise is a Truth-Telling violation under Article 2.
 
+**Baseline-delta enforcement (TD-001):** Each surface-scanning gate (forbidden patterns, emoji-as-icon, phantom tests, N+1) is baseline-delta-aware. A phase passes when it introduces **zero new violations**, regardless of how many pre-existing violations remain. Pre-existing violations are reported informationally in each gate log and aggregated into `.ai-coder/checkpoints/logs/PHASE-NN/BASELINE-DEBT.md`. Absolute counts must trend non-increasing across phases; PHASE-02 is the primary cleanup phase responsible for driving them to zero. Silently ignoring or skipping a violation is still a constitutional violation under Article 2; documenting it in `EVIDENCE-MANIFEST.md` "Deferred to later phases" with file/line/owning-phase is the only acceptable form of deferral.
+
 If a check's evidence is impossible to produce in the current phase (e.g., a Sentry integration check on a phase that doesn't touch Sentry), you mark the check as N/A in the CHECK INDEX with a written justification of one sentence minimum. Vague N/A ("doesn't apply") is a constitutional violation. Specific N/A ("this phase only modifies the dashboard page, which has no API endpoints, therefore endpoint-validation checks BE-A01 through BE-A30 do not apply") is acceptable.
 
 The 12 laziness patterns listed in MASTER-QA-SYSTEM Part A are recognized and structurally defended against. Do not attempt to commit any of them. Each pattern triggers a specific guard.

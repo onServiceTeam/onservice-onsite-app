@@ -1,0 +1,40 @@
+INFO: Stryker not installed. Installing now...
+npm error code ERESOLVE
+npm error ERESOLVE could not resolve
+npm error
+npm error While resolving: eslint-plugin-react@7.37.5
+npm error Found: eslint@10.2.0
+npm error node_modules/eslint
+npm error   peer eslint@"^6.0.0 || ^7.0.0 || >=8.0.0" from @eslint-community/eslint-utils@4.9.1
+npm error   node_modules/@eslint-community/eslint-utils
+npm error     @eslint-community/eslint-utils@"^4.9.1" from @typescript-eslint/utils@8.58.2
+npm error     node_modules/@typescript-eslint/utils
+npm error       @typescript-eslint/utils@"8.58.2" from @typescript-eslint/eslint-plugin@8.58.2
+npm error       node_modules/@typescript-eslint/eslint-plugin
+npm error         dev @typescript-eslint/eslint-plugin@"^8.58.2" from the root project
+npm error       1 more (@typescript-eslint/type-utils)
+npm error     @eslint-community/eslint-utils@"^4.8.0" from eslint@10.2.0
+npm error   peerOptional eslint@"^10.0.0" from @eslint/js@10.0.1
+npm error   node_modules/@eslint/js
+npm error     dev @eslint/js@"^10.0.1" from the root project
+npm error   6 more (@typescript-eslint/eslint-plugin, ...)
+npm error
+npm error Could not resolve dependency:
+npm error peer eslint@"^3 || ^4 || ^5 || ^6 || ^7 || ^8 || ^9.7" from eslint-plugin-react@7.37.5
+npm error node_modules/eslint-plugin-react
+npm error   dev eslint-plugin-react@"^7.37.5" from the root project
+npm error
+npm error Conflicting peer dependency: eslint@9.39.4
+npm error node_modules/eslint
+npm error   peer eslint@"^3 || ^4 || ^5 || ^6 || ^7 || ^8 || ^9.7" from eslint-plugin-react@7.37.5
+npm error   node_modules/eslint-plugin-react
+npm error     dev eslint-plugin-react@"^7.37.5" from the root project
+npm error
+npm error Fix the upstream dependency conflict, or retry
+npm error this command with --force or --legacy-peer-deps
+npm error to accept an incorrect (and potentially broken) dependency resolution.
+npm error
+npm error
+npm error For a full report see:
+npm error C:\Users\kmoul\AppData\Local\npm-cache\_logs\2026-04-27T15_13_29_696Z-eresolve-report.txt
+npm error A complete log of this run can be found in: C:\Users\kmoul\AppData\Local\npm-cache\_logs\2026-04-27T15_13_29_696Z-debug-0.log

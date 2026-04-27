@@ -1,0 +1,15 @@
+OK: verify-master.sh
+OK: verify-phase.sh
+OK: verify-bootstrap.sh
+OK: verify-no-forbidden.sh
+OK: verify-no-emoji.sh
+OK: verify-no-phantom-tests.sh
+OK: verify-deps.sh
+OK: verify-money-conservation.sh
+OK: verify-migrations.sh
+OK: verify-no-n-plus-1.sh
+OK: verify-mutation-coverage.sh
+OK: verify-screens.sh
+OK: verify-database.sh
+OK: verify-clean-state.sh
+OK: verify-evidence-manifest.sh

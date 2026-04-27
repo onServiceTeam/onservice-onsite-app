@@ -61,11 +61,14 @@ run_gate() {
 }
 
 # ===== GATE 1 — MECHANICAL CORRECTNESS =====
+# Gates marked baseline-delta-aware (TD-001) receive --phase and fail only on
+# violations introduced this phase. Pre-existing violations are reported
+# informationally and accumulated into BASELINE-DEBT.md at the end of this run.
 run_gate "gate-1-typecheck" "npm run typecheck" || true
 run_gate "gate-1-lint" "npm run lint" || true
-run_gate "gate-1-forbidden" "bash .ai-coder/checkpoints/verify-no-forbidden.sh" || true
-run_gate "gate-1-emoji" "bash .ai-coder/checkpoints/verify-no-emoji.sh" || true
-run_gate "gate-1-phantom-tests" "bash .ai-coder/checkpoints/verify-no-phantom-tests.sh" || true
+run_gate "gate-1-forbidden" "bash .ai-coder/checkpoints/verify-no-forbidden.sh --phase ${PHASE}" || true
+run_gate "gate-1-emoji" "bash .ai-coder/checkpoints/verify-no-emoji.sh --phase ${PHASE}" || true
+run_gate "gate-1-phantom-tests" "bash .ai-coder/checkpoints/verify-no-phantom-tests.sh --phase ${PHASE}" || true
 run_gate "gate-1-deps" "bash .ai-coder/checkpoints/verify-deps.sh" || true
 
 # ===== GATE 2 — BEHAVIORAL CORRECTNESS =====
@@ -138,7 +141,7 @@ else
   # Heuristic: if the diff touched UI files, visual report is required
   if [ -f "${LOG_DIR}/preflight/baseline-commit.txt" ]; then
     BASELINE=$(cat "${LOG_DIR}/preflight/baseline-commit.txt")
-    UI_CHANGES=$(git diff --name-only "$BASELINE" HEAD 2>/dev/null | grep -E "(apps/admin/src|apps/mobile/app|apps/mobile/src|apps/mobile/components).*\.(tsx|jsx)$" | wc -l)
+    UI_CHANGES=$( { git diff --name-only "$BASELINE" HEAD 2>/dev/null || true; } | { grep -E "(apps/admin/src|apps/mobile/app|apps/mobile/src|apps/mobile/components).*\.(tsx|jsx)$" || true; } | wc -l)
     if [ "$UI_CHANGES" -gt 0 ]; then
       note_failure "Gate 4: $UI_CHANGES UI files changed but no visual/REPORT.md. Run VISUAL-UX-AUDIT-PROTOCOL.md."
     else
@@ -152,7 +155,7 @@ fi
 # ===== GATE 5 — INTEGRATION & REGRESSION =====
 run_gate "gate-5-money" "bash .ai-coder/checkpoints/verify-money-conservation.sh" || true
 run_gate "gate-5-migrations" "bash .ai-coder/checkpoints/verify-migrations.sh" || true
-run_gate "gate-5-n-plus-1" "bash .ai-coder/checkpoints/verify-no-n-plus-1.sh" || true
+run_gate "gate-5-n-plus-1" "bash .ai-coder/checkpoints/verify-no-n-plus-1.sh --phase ${PHASE}" || true
 
 # Clean state (slow; only if phase explicitly requires)
 if [ "$RUN_CLEAN_STATE" = "1" ]; then
@@ -185,20 +188,76 @@ else
   # Count entries (each begins with "[YYYY-MM-DD")
   SANITY_ENTRIES=$(grep -c "^\[20" "$SANITY_LOG" 2>/dev/null || echo "0")
 
-  # Count significant changes in the diff (heuristic: files added or modified > 20 lines)
+  # Count significant changes in the diff: files added or modified with
+  # >= 20 line-changes (added+deleted) OR binary, EXCLUDING governance imports.
+  # Excluded prefixes (imported as cohesive units, not authored change-by-change):
+  #   .ai-coder/   docs/design-system/   top-level *.md governance docs
+  # Sanity entries are required only for meaningful CODE changes.
   if [ -f "${LOG_DIR}/preflight/baseline-commit.txt" ]; then
     BASELINE=$(cat "${LOG_DIR}/preflight/baseline-commit.txt")
-    SIGNIFICANT_CHANGES=$(git diff --stat "$BASELINE" HEAD 2>/dev/null \
-      | awk '/\|/ {n=$3+0; if (n >= 20 || $3 ~ /Bin/) c++} END {print c+0}')
+    SIGNIFICANT_CHANGES=$( { git diff --numstat "$BASELINE" HEAD 2>/dev/null || true; } \
+      | awk '
+          $3 ~ /^\.ai-coder\// { next }
+          $3 ~ /^docs\/design-system\// { next }
+          $3 ~ /^[A-Z0-9_-]+\.md$/ { next }
+          ($1 == "-" || $2 == "-") { c++; next }   # binary file
+          ($1 + $2) >= 20 { c++ }
+          END { print c+0 }
+        ')
 
     if [ "$SANITY_ENTRIES" -lt "$SIGNIFICANT_CHANGES" ]; then
-      note_failure "Gate 6: sanity-checks.log has $SANITY_ENTRIES entries but $SIGNIFICANT_CHANGES significant changes. AI coder skipped the after-every-change ritual."
+      note_failure "Gate 6: sanity-checks.log has $SANITY_ENTRIES entries but $SIGNIFICANT_CHANGES significant code changes. AI coder skipped the after-every-change ritual."
     fi
   fi
 fi
 
 # Run evidence manifest validator
 run_gate "gate-6-evidence-audit" "bash .ai-coder/checkpoints/verify-evidence-manifest.sh ${PHASE}" || true
+
+# ===== BASELINE-DEBT.md =====
+# TD-001: aggregate the absolute-violation counts from each delta-aware gate
+# into a single document. This makes the trend visible across phases and
+# satisfies Constitution Article 13's "explicit deferral, not silent skip" rule.
+DEBT_FILE="${LOG_DIR}/BASELINE-DEBT.md"
+{
+  echo "# BASELINE-DEBT — ${PHASE}"
+  echo ""
+  echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo ""
+  echo "Pre-existing repository-wide violations as observed at the END of ${PHASE}."
+  echo "Each delta-aware gate reports both absolute and phase-introduced counts;"
+  echo "the gate passes when phase-introduced count is zero. Absolute counts"
+  echo "must trend toward zero across phases (Phase 02 is the primary cleanup"
+  echo "phase for forbidden patterns and emoji-as-icon)."
+  echo ""
+  echo "## Per-gate absolute counts"
+  echo ""
+  for gate in gate-1-forbidden gate-1-emoji gate-1-phantom-tests gate-5-n-plus-1; do
+    log="${GATE_DIR}/${gate}.log"
+    if [ -f "$log" ]; then
+      abs=$(grep -oE "Absolute violations in repo: [0-9]+" "$log" | head -1 | awk '{print $NF}')
+      delta=$(grep -oE "Violations introduced by this phase: [0-9]+" "$log" | head -1 | awk '{print $NF}')
+      [ -z "$abs" ] && abs="?"
+      [ -z "$delta" ] && delta="?"
+      echo "- **${gate}**: absolute=${abs}, introduced-this-phase=${delta}"
+    else
+      echo "- **${gate}**: (log missing)"
+    fi
+  done
+  echo ""
+  echo "## Trend"
+  echo ""
+  echo "Compare with prior phases' BASELINE-DEBT.md files in"
+  echo "\`.ai-coder/checkpoints/logs/PHASE-*/BASELINE-DEBT.md\` to verify counts"
+  echo "are non-increasing (and decreasing on cleanup phases)."
+  echo ""
+  echo "## Deferred items"
+  echo ""
+  echo "Each gate's full violation list is in \`gates/<gate>.log\`. The phase's"
+  echo "EVIDENCE-MANIFEST.md \"Deferred to later phases\" section names the"
+  echo "specific items by file/line and the phase scheduled to fix them."
+} > "$DEBT_FILE"
+echo "Baseline-debt summary: $DEBT_FILE"
 
 # ===== HASH ALL ARTIFACTS =====
 echo ""

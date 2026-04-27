@@ -81,16 +81,16 @@ required_logs=(
 )
 
 for required in "${required_logs[@]}"; do
-  if [ ! -f "${LOG_DIR}/${required}" ]; then
-    echo "FAIL: Required gate log missing: ${required}"
+  if [ ! -f "${LOG_DIR}/gates/${required}" ]; then
+    echo "FAIL: Required gate log missing: gates/${required}"
     EXIT_CODE=1
   fi
 done
 
 # 6. Gate 1 typecheck log must contain "0 errors" (or equivalent)
-if [ -f "${LOG_DIR}/gate-1-typecheck.log" ]; then
-  if grep -qE "(error TS|errors found|[1-9][0-9]* errors)" "${LOG_DIR}/gate-1-typecheck.log"; then
-    if ! grep -qE "(0 errors|Found 0 errors)" "${LOG_DIR}/gate-1-typecheck.log"; then
+if [ -f "${LOG_DIR}/gates/gate-1-typecheck.log" ]; then
+  if grep -qE "(error TS|errors found|[1-9][0-9]* errors)" "${LOG_DIR}/gates/gate-1-typecheck.log"; then
+    if ! grep -qE "(0 errors|Found 0 errors)" "${LOG_DIR}/gates/gate-1-typecheck.log"; then
       echo "FAIL: gate-1-typecheck.log shows TypeScript errors. Phase NOT done."
       EXIT_CODE=1
     fi
@@ -98,15 +98,15 @@ if [ -f "${LOG_DIR}/gate-1-typecheck.log" ]; then
 fi
 
 # 7. Gate 2 alltests log must contain a passing line and no failing line
-if [ -f "${LOG_DIR}/gate-2-alltests.log" ]; then
-  if grep -qE "(failed|FAIL)" "${LOG_DIR}/gate-2-alltests.log"; then
+if [ -f "${LOG_DIR}/gates/gate-2-alltests.log" ]; then
+  if grep -qE "(failed|FAIL)" "${LOG_DIR}/gates/gate-2-alltests.log"; then
     # Allow the word "fail" only in benign contexts (e.g., test descriptions)
-    if grep -qE "Tests:.*[1-9][0-9]* failed" "${LOG_DIR}/gate-2-alltests.log"; then
+    if grep -qE "Tests:.*[1-9][0-9]* failed" "${LOG_DIR}/gates/gate-2-alltests.log"; then
       echo "FAIL: gate-2-alltests.log shows test failures. Phase NOT done."
       EXIT_CODE=1
     fi
   fi
-  if ! grep -qE "Tests:.*passed" "${LOG_DIR}/gate-2-alltests.log"; then
+  if ! grep -qE "Tests:.*passed" "${LOG_DIR}/gates/gate-2-alltests.log"; then
     echo "WARN: gate-2-alltests.log does not show a 'Tests: N passed' line."
     echo "      Verify the test suite actually ran."
   fi

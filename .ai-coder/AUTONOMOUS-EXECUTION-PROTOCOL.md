@@ -90,18 +90,19 @@ If during a phase, the AI coder discovers that:
 
 ### Which gate applies per phase
 
-- **PHASE-00 (bootstrap)** — gate is `bash .ai-coder/checkpoints/verify-phase.sh PHASE-00`, which dispatches to `verify-bootstrap.sh`. This is the lighter gate: it confirms preflight is clean (typecheck, lint, api:test all exit 0), all checkpoint scripts and templates and design tokens are installed, baseline commit and file-hash manifest are captured, and the required evidence artifacts (EVIDENCE-MANIFEST.md, HONESTY-CHECK.md, checks/INDEX.md, sanity-checks.log) exist. Phase 00's job is to install the verification machinery, not to exercise it against pre-existing baseline debt.
-- **PHASE-01..PHASE-12** — gate is `bash .ai-coder/checkpoints/verify-master.sh PHASE-NN` (full 6-gate gauntlet: mechanical, behavioral, adversarial, visual, integration, evidence).
-- **PHASE-02** is the cleanup phase. After PHASE-02 completes, `verify-master.sh` should pass cleanly on the entire codebase. Until then, `verify-master.sh` may surface pre-existing baseline debt (forbidden patterns, emoji-as-icon, etc.) — that is **expected, not a regression**. Such items must be tracked in each phase's `EVIDENCE-MANIFEST.md` "Deferred to later phases" section, never silently ignored.
+- **All phases (PHASE-00..PHASE-12)** — gate is `bash .ai-coder/checkpoints/verify-phase.sh PHASE-NN`, which is a thin wrapper around `verify-master.sh PHASE-NN` (full 6-gate gauntlet: mechanical, behavioral, adversarial, visual, integration, evidence).
+- Per **TD-001** (resolved), every gate that surface-scans the repo (forbidden patterns, emoji-as-icon, phantom tests, N+1) is **baseline-delta-aware**: it accepts `--phase PHASE-NN`, reports both absolute and phase-introduced violation counts, and **fails only on violations introduced by this phase**. Pre-existing violations are reported informationally and accumulated by `verify-master.sh` into `BASELINE-DEBT.md`.
+- **PHASE-02** remains the primary cleanup phase. Its job is to drive the absolute-violation counts in `BASELINE-DEBT.md` to zero. Until PHASE-02 completes, absolute counts will be non-zero and that is **expected, not a regression** — but each later phase must still introduce zero new violations, and any deferred items must be enumerated in the phase's `EVIDENCE-MANIFEST.md` "Deferred to later phases" section.
+- `verify-bootstrap.sh` remains in the tree as a focused PHASE-00 preflight (scripts/templates/tokens/baseline-capture present) and may be invoked explicitly by the Phase 00 plan, but is no longer dispatched by `verify-phase.sh`.
 
 ### Required gate exit codes
 
 For the AI coder to auto-proceed from PHASE-NN to PHASE-NN+1, ALL of the following must be true:
 
-1. `bash .ai-coder/checkpoints/verify-phase.sh PHASE-NN` returns exit code 0 (Phase 00 → verify-bootstrap.sh; Phase 01+ → verify-master.sh)
-2. `bash .ai-coder/checkpoints/verify-no-forbidden.sh` returns exit code 0
-3. `bash .ai-coder/checkpoints/verify-no-emoji.sh` returns exit code 0 (after Phase 02)
-4. `bash .ai-coder/checkpoints/verify-no-phantom-tests.sh` returns exit code 0
+1. `bash .ai-coder/checkpoints/verify-phase.sh PHASE-NN` returns exit code 0 (delegates to `verify-master.sh PHASE-NN`)
+2. `bash .ai-coder/checkpoints/verify-no-forbidden.sh --phase PHASE-NN` returns exit code 0 (also covered by gate 1)
+3. `bash .ai-coder/checkpoints/verify-no-emoji.sh --phase PHASE-NN` returns exit code 0 (also covered by gate 1)
+4. `bash .ai-coder/checkpoints/verify-no-phantom-tests.sh --phase PHASE-NN` returns exit code 0 (also covered by gate 1)
 5. `bash .ai-coder/checkpoints/verify-money-conservation.sh` returns exit code 0
 6. `bash .ai-coder/checkpoints/verify-deps.sh` returns exit code 0
 7. The full test suite passes: `npm run api:test` (no failures, no skips beyond pre-existing baseline)
@@ -113,6 +114,7 @@ For the AI coder to auto-proceed from PHASE-NN to PHASE-NN+1, ALL of the followi
 13. Evidence manifest exists: `.ai-coder/checkpoints/logs/PHASE-NN/EVIDENCE-MANIFEST.md` with attestation
 14. Honesty check exists with substantive answers: `.ai-coder/checkpoints/logs/PHASE-NN/HONESTY-CHECK.md`
 15. Hash chain generated: `.ai-coder/checkpoints/logs/PHASE-NN/HASHES.sha256`
+16. Baseline-debt summary generated: `.ai-coder/checkpoints/logs/PHASE-NN/BASELINE-DEBT.md` (auto-written by `verify-master.sh`); absolute counts must be **non-increasing** vs the prior phase's `BASELINE-DEBT.md`
 
 If ALL pass: the AI coder auto-proceeds to PHASE-NN+1.
 

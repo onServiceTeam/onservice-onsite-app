@@ -1,0 +1,135 @@
+
+================================================================
+  gate-1-typecheck
+================================================================
+
+> onservice-onsite-app@0.1.0 typecheck
+> npm run typecheck --workspaces --if-present
+
+
+> @onservice/admin@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @onservice/mobile@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @onservice/api@0.1.0 typecheck
+> tsc --noEmit
+
+PASS: gate-1-typecheck
+
+================================================================
+  gate-1-lint
+================================================================
+
+> onservice-onsite-app@0.1.0 lint
+> eslint .
+
+PASS: gate-1-lint
+
+================================================================
+  gate-2-alltests
+================================================================
+
+> onservice-onsite-app@0.1.0 api:test
+> npm run test --workspace=packages/api
+
+
+> @onservice/api@0.1.0 test
+> jest --passWithNoTests
+
+PASS __tests__/booking-state-machine.test.ts
+PASS __tests__/wallet-type-isolation.test.ts
+PASS __tests__/notification-template-validators.test.ts
+PASS __tests__/provider-validators.test.ts
+PASS __tests__/review-validators.test.ts
+PASS __tests__/messaging-validators.test.ts
+PASS __tests__/booking-validators.test.ts
+PASS __tests__/referral-validators.test.ts
+PASS __tests__/payment-validators.test.ts
+PASS __tests__/admin-validators.test.ts
+PASS __tests__/matching.test.ts
+PASS __tests__/dispute-refund-processing.test.ts
+PASS __tests__/payout-validators.test.ts
+PASS __tests__/suki-validators.test.ts
+PASS __tests__/dispute-validators.test.ts
+PASS __tests__/auth-validators.test.ts
+PASS __tests__/escrow-money-conservation.test.ts
+PASS __tests__/commission.test.ts
+PASS __tests__/address-validators.test.ts
+PASS __tests__/tip-validators.test.ts
+PASS __tests__/booking-price-lookup.test.ts
+
+Test Suites: 21 passed, 21 total
+Tests:       320 passed, 320 total
+Snapshots:   0 total
+Time:        3.209 s
+Ran all test suites.
+PASS: gate-2-alltests
+
+================================================================
+  bootstrap-1-scripts-installed
+================================================================
+OK: verify-master.sh
+OK: verify-phase.sh
+OK: verify-bootstrap.sh
+OK: verify-no-forbidden.sh
+OK: verify-no-emoji.sh
+OK: verify-no-phantom-tests.sh
+OK: verify-deps.sh
+OK: verify-money-conservation.sh
+OK: verify-migrations.sh
+OK: verify-no-n-plus-1.sh
+OK: verify-mutation-coverage.sh
+OK: verify-screens.sh
+OK: verify-database.sh
+OK: verify-clean-state.sh
+OK: verify-evidence-manifest.sh
+
+================================================================
+  bootstrap-2-templates-installed
+================================================================
+OK: PHASE-LOG-TEMPLATE.md
+OK: BUG-REPORT-TEMPLATE.md
+OK: SCREEN-AUDIT-TEMPLATE.md
+OK: EVIDENCE-MANIFEST-TEMPLATE.md
+OK: HONESTY-CHECK-TEMPLATE.md
+
+================================================================
+  bootstrap-3-design-tokens
+================================================================
+OK: docs/design-system/tokens.json
+OK: tokens.json contains PHP currency symbol
+
+================================================================
+  bootstrap-4-baseline-captured
+================================================================
+OK: baseline-commit.txt = 322330a6cae99ca956cab1c4a1690005887f7e48
+OK: baseline-files.sha256 (238 files hashed)
+
+================================================================
+  bootstrap-5-sanity-log
+================================================================
+OK: sanity-checks.log has 2 timestamped entries
+
+================================================================
+  bootstrap-6-evidence-artifacts
+================================================================
+OK: EVIDENCE-MANIFEST.md (8050 bytes)
+OK: HONESTY-CHECK.md (6454 bytes)
+OK: checks/INDEX.md (3412 bytes)
+
+================================================================
+  Hashing all artifacts (cryptographic chain of evidence)
+================================================================
+Hashes written to .ai-coder/checkpoints/logs/PHASE-00/HASHES.sha256 (34 files)
+
+================================================================
+  FINAL STATUS: PASS
+================================================================
+
+Phase PHASE-00 bootstrap verification PASSED.
+Evidence: .ai-coder/checkpoints/logs/PHASE-00
+Hash chain: .ai-coder/checkpoints/logs/PHASE-00/HASHES.sha256
