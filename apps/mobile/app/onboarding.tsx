@@ -12,12 +12,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { storage } from '@/services/api';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import type { ComponentType } from 'react';
+import { Home, Shield, Star } from '@/components/icons';
+
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
 
 const { width } = Dimensions.get('window');
 
 interface Slide {
   id: string;
-  icon: string;
+  icon: IconComponent;
   title: string;
   description: string;
   bgColor: string;
@@ -26,7 +31,7 @@ interface Slide {
 const slides: Slide[] = [
   {
     id: '1',
-    icon: '🏠',
+    icon: Home,
     title: 'Home Services\nOn Demand',
     description:
       'From cleaning to plumbing, electrical to aircon — book trusted professionals in your area.',
@@ -34,7 +39,7 @@ const slides: Slide[] = [
   },
   {
     id: '2',
-    icon: '🛡️',
+    icon: Shield,
     title: 'SiguradoShield™\nProtection',
     description:
       'Every booking is covered. Your payment is held in escrow until you confirm the job is done right. If anything goes wrong, we make it right.',
@@ -42,7 +47,7 @@ const slides: Slide[] = [
   },
   {
     id: '3',
-    icon: '⭐',
+    icon: Star,
     title: 'Vetted & Verified\nProviders',
     description:
       'Every provider is NBI-cleared, ID-verified, and rated by customers just like you.',
@@ -77,13 +82,16 @@ export default function OnboardingScreen(): React.ReactElement {
     router.replace('/auth/login');
   };
 
-  const renderSlide = ({ item }: { item: Slide }): React.ReactElement => (
-    <View style={[styles.slide, { width, backgroundColor: item.bgColor }]}>
-      <Text style={styles.slideIcon}>{item.icon}</Text>
-      <Text style={styles.slideTitle}>{item.title}</Text>
-      <Text style={styles.slideDescription}>{item.description}</Text>
-    </View>
-  );
+  const renderSlide = ({ item }: { item: Slide }): React.ReactElement => {
+    const SlideIcon = item.icon;
+    return (
+      <View style={[styles.slide, { width, backgroundColor: item.bgColor }]}>
+        <View style={styles.slideIconWrap}><SlideIcon size={96} color={colors.white} /></View>
+        <Text style={styles.slideTitle}>{item.title}</Text>
+        <Text style={styles.slideDescription}>{item.description}</Text>
+      </View>
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom + spacing.base }]}>
@@ -142,6 +150,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
   },
   slideIcon: { fontSize: 80, marginBottom: spacing.xl },
+  slideIconWrap: { marginBottom: spacing.xl, alignItems: 'center' as const },
   slideTitle: {
     ...typography.h1,
     color: colors.white,

@@ -6,15 +6,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { fileDispute, type DisputeEvidence } from '@/services/booking.service';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, borderRadius } from '@/config/theme';
+import type { ComponentType } from 'react';
+import { Ban, Wrench, ThumbsDown, AlertOctagon, Lock, Coins, CircleHelp, AlertTriangle } from '@/components/icons';
 
-const DISPUTE_TYPES = [
-  { value: 'no_show', label: 'No Show', desc: 'Provider did not arrive', icon: '🚫' },
-  { value: 'incomplete', label: 'Incomplete Work', desc: 'Job was left unfinished', icon: '🔧' },
-  { value: 'substandard', label: 'Substandard Quality', desc: 'Work quality is unsatisfactory', icon: '👎' },
-  { value: 'damage', label: 'Property Damage', desc: 'My property was damaged', icon: '🏚️' },
-  { value: 'theft', label: 'Theft', desc: 'Items missing after service', icon: '🔒' },
-  { value: 'overcharge', label: 'Overcharge', desc: 'Charged more than agreed', icon: '💰' },
-  { value: 'other', label: 'Other', desc: 'Something else happened', icon: '❓' },
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
+
+const DISPUTE_TYPES: ReadonlyArray<{ value: string; label: string; desc: string; icon: IconComponent }> = [
+  { value: 'no_show', label: 'No Show', desc: 'Provider did not arrive', icon: Ban },
+  { value: 'incomplete', label: 'Incomplete Work', desc: 'Job was left unfinished', icon: Wrench },
+  { value: 'substandard', label: 'Substandard Quality', desc: 'Work quality is unsatisfactory', icon: ThumbsDown },
+  { value: 'damage', label: 'Property Damage', desc: 'My property was damaged', icon: AlertOctagon },
+  { value: 'theft', label: 'Theft', desc: 'Items missing after service', icon: Lock },
+  { value: 'overcharge', label: 'Overcharge', desc: 'Charged more than agreed', icon: Coins },
+  { value: 'other', label: 'Other', desc: 'Something else happened', icon: CircleHelp },
 ] as const;
 
 const EVIDENCE_REQUIRED = new Set(['damage', 'theft']);
@@ -72,7 +77,7 @@ export default function DisputeScreen(): React.ReactElement {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
         <View style={styles.warningBox}>
-          <Text style={styles.warningIcon}>⚠️</Text>
+          <View style={styles.warningIconWrap}><AlertTriangle size={22} color={colors.warning} /></View>
           <Text style={styles.warningText}>
             Disputes must be filed within 48 hours of job completion. Please provide accurate details.
           </Text>
@@ -80,22 +85,25 @@ export default function DisputeScreen(): React.ReactElement {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>What happened?</Text>
-          {DISPUTE_TYPES.map((type) => (
-            <TouchableOpacity
-              key={type.value}
-              style={[styles.typeOption, disputeType === type.value && styles.typeSelected]}
-              onPress={() => setDisputeType(type.value)}
-            >
-              <Text style={styles.typeIcon}>{type.icon}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.typeLabel, disputeType === type.value && styles.typeLabelSelected]}>
-                  {type.label}
-                </Text>
-                <Text style={styles.typeDesc}>{type.desc}</Text>
-              </View>
-              {disputeType === type.value && <Text style={styles.checkMark}>✓</Text>}
-            </TouchableOpacity>
-          ))}
+          {DISPUTE_TYPES.map((type) => {
+            const TypeIcon = type.icon;
+            return (
+              <TouchableOpacity
+                key={type.value}
+                style={[styles.typeOption, disputeType === type.value && styles.typeSelected]}
+                onPress={() => setDisputeType(type.value)}
+              >
+                <View style={styles.typeIconWrap}><TypeIcon size={22} color={colors.primary} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.typeLabel, disputeType === type.value && styles.typeLabelSelected]}>
+                    {type.label}
+                  </Text>
+                  <Text style={styles.typeDesc}>{type.desc}</Text>
+                </View>
+                {disputeType === type.value && <Text style={styles.checkMark}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <View style={styles.section}>
@@ -191,6 +199,7 @@ const styles = StyleSheet.create({
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
   warningBox: { flexDirection: 'row', gap: 10, backgroundColor: colors.warningLight, borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: colors.warning },
   warningIcon: { fontSize: 20 },
+  warningIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },
   warningText: { flex: 1, fontSize: 13, color: colors.warning, lineHeight: 18 },
   section: { marginBottom: spacing.lg },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
@@ -199,6 +208,7 @@ const styles = StyleSheet.create({
   typeOption: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },
   typeSelected: { borderColor: colors.error, backgroundColor: colors.errorLight },
   typeIcon: { fontSize: 22 },
+  typeIconWrap: { marginRight: spacing.sm, width: 28, alignItems: 'center' as const },
   typeLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
   typeLabelSelected: { color: colors.error },
   typeDesc: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },

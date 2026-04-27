@@ -23,6 +23,7 @@ import { Button, Input } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Wrench } from '@/components/icons';
 
 export default function ManageServicesScreen(): React.ReactElement {
   const router = useRouter();
@@ -123,7 +124,7 @@ export default function ManageServicesScreen(): React.ReactElement {
           <ActivityIndicator size="large" color={colors.secondary} style={{ marginTop: spacing.xl }} />
         ) : services.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🛠</Text>
+            <View style={styles.emptyIconWrap}><Wrench size={48} color={colors.textTertiary} /></View>
             <Text style={styles.emptyText}>No services added yet</Text>
             <Text style={styles.emptyHint}>Add services you can offer to customers</Text>
           </View>
@@ -262,6 +263,7 @@ const styles = StyleSheet.create({
 
   empty: { alignItems: 'center', paddingTop: spacing.xxl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
+  emptyIconWrap: { marginBottom: spacing.base, alignItems: 'center' as const },
   emptyText: { ...typography.body, color: colors.text, fontWeight: '600' },
   emptyHint: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
 

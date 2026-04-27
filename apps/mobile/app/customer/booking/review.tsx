@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createReview, type CreateReviewPayload } from '@/services/review.service';
 import { Button, Input } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Star, Lock } from '@/components/icons';
 
 const STAR_OPTIONS = [1, 2, 3, 4, 5];
 const SUB_CATEGORIES = [
@@ -48,7 +49,7 @@ function StarRow({
     <View style={styles.starRow}>
       {STAR_OPTIONS.map((star) => (
         <TouchableOpacity key={star} onPress={() => onChange(star)} activeOpacity={0.6}>
-          <Text style={{ fontSize: size, opacity: star <= value ? 1 : 0.25 }}>⭐</Text>
+          <Star size={size} color={star <= value ? colors.warning : colors.textTertiary} fill={star <= value ? colors.warning : 'none'} />
         </TouchableOpacity>
       ))}
     </View>
@@ -216,7 +217,10 @@ export default function ReviewScreen(): React.ReactElement {
             style={styles.commentInput}
             hint={privateNote.length > 0 ? `${privateNote.length} / 1000 characters` : undefined}
           />
-          <Text style={styles.privateNoteHint}>🔒 This note is only visible to our support team, not the provider or public.</Text>
+          <View style={styles.privateNoteRow}>
+            <Lock size={14} color={colors.textSecondary} />
+            <Text style={styles.privateNoteHint}> This note is only visible to our support team, not the provider or public.</Text>
+          </View>
         </View>
       </ScrollView>
 
@@ -306,6 +310,7 @@ const styles = StyleSheet.create({
 
   privateNoteSection: { marginBottom: spacing.base },
   privateNoteHint: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.xs },
+  privateNoteRow: { flexDirection: 'row' as const, alignItems: 'center' as const, marginTop: spacing.xs },
 
   bottomBar: {
     backgroundColor: colors.background,

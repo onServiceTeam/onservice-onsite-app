@@ -7,6 +7,7 @@ import api from '@/services/api';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
+import { CheckCircle2, Lock } from '@/components/icons';
 
 export default function JobCompletionScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
@@ -50,7 +51,7 @@ export default function JobCompletionScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.base }]}>
       <View style={styles.content}>
         <View style={styles.iconCircle}>
-          <Text style={styles.icon}>✅</Text>
+          <CheckCircle2 size={48} color={colors.success} />
         </View>
 
         <Text style={styles.title}>Job Complete!</Text>
@@ -60,7 +61,7 @@ export default function JobCompletionScreen(): React.ReactElement {
         </Text>
 
         <View style={styles.infoCard}>
-          <Text style={styles.infoIcon}>🔒</Text>
+          <View style={styles.infoIconWrap}><Lock size={20} color={colors.primary} /></View>
           <Text style={styles.infoText}>
             Once confirmed, payment will be released from escrow to the provider.
             You have {platformConfig.escrowDisputeWindowHours} hours after completion to file a dispute if needed.
@@ -119,6 +120,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   infoIcon: { fontSize: 20, marginRight: spacing.sm },
+  infoIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },
   infoText: { ...typography.bodySmall, color: colors.success, flex: 1 },
 
   autoConfirmCard: {

@@ -9,22 +9,27 @@ import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import type { ComponentType } from 'react';
+import { Smartphone, CreditCard, Wallet, ScanLine, Shield } from '@/components/icons';
+
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
 
 type PaymentMethod = NonNullable<BookingDraft['paymentMethod']>;
 
 interface PaymentOption {
   id: PaymentMethod;
   label: string;
-  icon: string;
+  icon: IconComponent;
   description: string;
 }
 
 const PAYMENT_METHODS: PaymentOption[] = [
-  { id: 'gcash', label: 'GCash', icon: '💚', description: 'Pay with GCash e-wallet' },
-  { id: 'maya', label: 'Maya', icon: '💜', description: 'Pay with Maya e-wallet' },
-  { id: 'card', label: 'Credit/Debit Card', icon: '💳', description: 'Visa, Mastercard' },
-  { id: 'wallet', label: 'Wallet Balance', icon: '👛', description: 'Pay from your onService wallet' },
-  { id: 'qrph', label: 'QR Ph', icon: '📱', description: 'Scan to pay via QR Ph' },
+  { id: 'gcash', label: 'GCash', icon: Smartphone, description: 'Pay with GCash e-wallet' },
+  { id: 'maya', label: 'Maya', icon: Smartphone, description: 'Pay with Maya e-wallet' },
+  { id: 'card', label: 'Credit/Debit Card', icon: CreditCard, description: 'Visa, Mastercard' },
+  { id: 'wallet', label: 'Wallet Balance', icon: Wallet, description: 'Pay from your onService wallet' },
+  { id: 'qrph', label: 'QR Ph', icon: ScanLine, description: 'Scan to pay via QR Ph' },
 ];
 
 export default function CheckoutScreen(): React.ReactElement {
@@ -140,25 +145,28 @@ export default function CheckoutScreen(): React.ReactElement {
 
         {/* Payment methods */}
         <Text style={styles.sectionTitle}>Choose Payment Method</Text>
-        {PAYMENT_METHODS.map((method) => (
-          <TouchableOpacity
-            key={method.id}
-            style={[styles.methodCard, selectedMethod === method.id && styles.methodSelected]}
-            onPress={() => handleMethodSelect(method.id)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.methodIcon}>{method.icon}</Text>
-            <View style={styles.methodInfo}>
-              <Text style={styles.methodLabel}>{method.label}</Text>
-              <Text style={styles.methodDesc}>{method.description}</Text>
-            </View>
-            <View
-              style={[styles.radio, selectedMethod === method.id && styles.radioSelected]}
+        {PAYMENT_METHODS.map((method) => {
+          const MIcon = method.icon;
+          return (
+            <TouchableOpacity
+              key={method.id}
+              style={[styles.methodCard, selectedMethod === method.id && styles.methodSelected]}
+              onPress={() => handleMethodSelect(method.id)}
+              activeOpacity={0.7}
             >
-              {selectedMethod === method.id && <View style={styles.radioDot} />}
-            </View>
-          </TouchableOpacity>
-        ))}
+              <View style={styles.methodIconWrap}><MIcon size={24} color={colors.primary} /></View>
+              <View style={styles.methodInfo}>
+                <Text style={styles.methodLabel}>{method.label}</Text>
+                <Text style={styles.methodDesc}>{method.description}</Text>
+              </View>
+              <View
+                style={[styles.radio, selectedMethod === method.id && styles.radioSelected]}
+              >
+                {selectedMethod === method.id && <View style={styles.radioDot} />}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
 
         {/* Escrow info */}
         <TouchableOpacity
@@ -166,7 +174,7 @@ export default function CheckoutScreen(): React.ReactElement {
           onPress={() => router.push('/customer/safety')}
           activeOpacity={0.7}
         >
-          <Text style={styles.escrowIcon}>🛡️</Text>
+          <View style={styles.escrowIconWrap}><Shield size={22} color={colors.primary} /></View>
           <Text style={styles.escrowText}>
             Protected by SiguradoShield™. Your payment is held in escrow until you confirm the job is complete.
           </Text>
@@ -267,6 +275,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight,
   },
   methodIcon: { fontSize: 24, marginRight: spacing.md },
+  methodIconWrap: { marginRight: spacing.md, width: 28, alignItems: 'center' as const },
   methodInfo: { flex: 1 },
   methodLabel: { ...typography.body, fontWeight: '600', color: colors.text },
   methodDesc: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
@@ -297,6 +306,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   escrowIcon: { fontSize: 20, marginRight: spacing.sm },
+  escrowIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },
   escrowText: { ...typography.bodySmall, color: colors.success, flex: 1 },
 
   priceBreakdown: {

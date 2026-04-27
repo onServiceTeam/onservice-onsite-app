@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { KpiCard, Badge } from '@/components/ui';
+import { Coins, Lock, Shield, TrendingUp } from '@/components/icons';
 
 interface RevenueRow {
   date: string;
@@ -137,22 +138,22 @@ export default function FinancialsPage(): React.ReactElement {
             <KpiCard
               title="Platform Revenue"
               value={formatCurrency(kpis?.platformWallets?.revenue ?? 0)}
-              icon="💰"
+              icon={<Coins size={20} className="text-emerald-600" />}
             />
             <KpiCard
               title="Escrow Held"
               value={formatCurrency(kpis?.platformWallets?.escrow ?? 0)}
-              icon="🔒"
+              icon={<Lock size={20} className="text-blue-600" />}
             />
             <KpiCard
               title="Guarantee Fund"
               value={formatCurrency(kpis?.platformWallets?.guaranteeFund ?? 0)}
-              icon="🛡️"
+              icon={<Shield size={20} className="text-indigo-600" />}
             />
             <KpiCard
               title="Today's Revenue"
               value={formatCurrency(kpis?.todayRevenue ?? 0)}
-              icon="📈"
+              icon={<TrendingUp size={20} className="text-emerald-600" />}
             />
           </>
         )}

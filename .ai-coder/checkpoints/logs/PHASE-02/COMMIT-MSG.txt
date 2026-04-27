@@ -1,0 +1,41 @@
+phase/02: icon replacement (emoji → lucide components, 196 → 0)
+
+Drives all emoji-as-iconography violations to zero across admin and mobile
+surfaces, replacing string emoji glyphs with typed lucide icon components
+routed through the centralized re-export modules.
+
+Scope
+- Admin: 7 files (Sidebar, KpiCard, Audit/Catalog/Dashboard/Financials/PricingRules pages)
+- Mobile: 49 files (tabs, customer flows, provider flows, notifications, accessibility config)
+- Centralized icon module extended (~146 → ~174 named re-exports) in:
+    apps/admin/src/components/icons/index.ts
+    apps/mobile/src/components/icons/index.ts
+
+Notable type/shape changes
+- KpiCard `icon` prop: string → ComponentType<{size?,color?}>
+- NOTIFICATION_ICONS maps (customer + provider): Record<string,string> →
+  Record<string,IconComponent>; renderer pattern uses fallback `?? Bell`.
+- Mobile tab bars use centralized icons; empty/error states use AlertTriangle/Bell.
+- accessibility.ts: '⚠' → '!' (content string, not iconography).
+
+Verification (PHASE-02 baseline = 05c1f74)
+- bash .ai-coder/checkpoints/verify-no-emoji.sh → PASS (0 violations, was 196)
+- npm run typecheck (all 3 workspaces) → exit 0
+- npm run lint → exit 0
+- verify-master.sh PHASE-02 → FINAL STATUS: PASS (all 6 gates)
+- Visual evidence: 5 PNG screenshots (admin sidebar/login at 1920/1440/1280/768/375)
+  Limitation disclosed in HONESTY-CHECK.md: unauthenticated routes only;
+  no mobile screenshots (Expo Go required, deferred).
+
+Evidence
+- .ai-coder/checkpoints/logs/PHASE-02/EVIDENCE-MANIFEST.md (22+ claims, attested)
+- .ai-coder/checkpoints/logs/PHASE-02/HONESTY-CHECK.md (7.5/10 self-rating)
+- .ai-coder/checkpoints/logs/PHASE-02/HASHES.sha256
+- .ai-coder/checkpoints/logs/PHASE-02/BASELINE-DEBT.md
+
+Technical debt
+- TD-002 (eslint peer-dep / Stryker) still outstanding; not blocking.
+- TD-003 resolved in Phase 01.
+- N+1 patterns (16) and migration warnings unchanged from baseline; deferred.
+
+Refs: AUTONOMOUS-EXECUTION-PROTOCOL §"drive absolute counts to zero"

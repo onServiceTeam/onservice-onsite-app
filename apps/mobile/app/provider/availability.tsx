@@ -24,6 +24,7 @@ import {
 } from '@/services/provider-api.service';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { AlertTriangle, Calendar, ClipboardList } from '@/components/icons';
 
 export default function AvailabilitySettingsScreen(): React.ReactElement {
   const router = useRouter();
@@ -134,7 +135,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
   if (isError) {
     return (
       <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-        <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+        <View style={{ marginBottom: 12, alignItems: 'center' }}><AlertTriangle size={48} color={colors.error} /></View>
         <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
         <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load availability settings. Please try again.</Text>
         <TouchableOpacity onPress={() => { void invalidateAll(); }} style={{ backgroundColor: colors.secondary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10, minHeight: 44, justifyContent: 'center' as const }}>
@@ -260,7 +261,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
 
         {futureOverrides.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📅</Text>
+            <View style={styles.emptyIconWrap}><Calendar size={48} color={colors.textSecondary} /></View>
             <Text style={styles.emptyTitle}>No Date Overrides</Text>
             <Text style={styles.emptyDesc}>
               Your weekly schedule is active. Add overrides to block specific dates or set custom hours when you need time off.
@@ -292,7 +293,8 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
           style={styles.scheduleLink}
           onPress={(): void => { router.push('/provider/schedule'); }}
         >
-          <Text style={styles.scheduleLinkText}>📋 Edit Weekly Schedule →</Text>
+          <ClipboardList size={16} color={colors.primary} />
+          <Text style={styles.scheduleLinkText}> Edit Weekly Schedule →</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -400,6 +402,7 @@ const styles = StyleSheet.create({
 
   emptyState: { alignItems: 'center', paddingVertical: spacing.xxl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.sm },
+  emptyIconWrap: { marginBottom: spacing.sm, alignItems: 'center' as const },
   emptyTitle: { ...typography.body, fontWeight: '700', color: colors.text, marginBottom: spacing.xs },
   emptyDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', paddingHorizontal: spacing.lg },
 
@@ -425,6 +428,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.divider,
     alignItems: 'center',
+    flexDirection: 'row' as const,
+    justifyContent: 'center' as const,
   },
   scheduleLinkText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
 });

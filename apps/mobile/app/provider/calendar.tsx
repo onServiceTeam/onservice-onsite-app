@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getCalendarData, type CalendarJob, type AvailabilityOverride } from '@/services/provider-api.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Settings } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -113,7 +114,7 @@ export default function ProviderCalendarScreen(): React.ReactElement {
           onPress={(): void => { router.push('/provider/availability'); }}
           style={styles.settingsBtn}
         >
-          <Text style={styles.settingsBtnText}>⚙️</Text>
+          <Settings size={22} color={colors.text} />
         </TouchableOpacity>
       </View>
 

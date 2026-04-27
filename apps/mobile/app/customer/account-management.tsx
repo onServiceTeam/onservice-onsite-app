@@ -15,6 +15,7 @@ import {
   type AccountDeletionEntry,
 } from '@/services/data-management.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Package, AlertTriangle, CheckCircle2, XCircle, Hourglass } from '@/components/icons';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-PH', {
@@ -138,7 +139,7 @@ export default function AccountManagementScreen(): React.ReactElement {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardIcon}>📦</Text>
+          <View style={styles.cardIconWrap}><Package size={28} color={colors.primary} /></View>
           <Text style={styles.cardTitle}>Export My Data</Text>
           <Text style={styles.cardDesc}>
             Download a copy of all your personal information, bookings, reviews, messages, and wallet history.
@@ -165,14 +166,19 @@ export default function AccountManagementScreen(): React.ReactElement {
           {(exportQuery.data?.length ?? 0) > 0 && (
             <View style={styles.exportHistory}>
               <Text style={styles.exportHistoryTitle}>Recent Exports</Text>
-              {exportQuery.data!.slice(0, 3).map((exp) => (
-                <View key={exp.id} style={styles.exportRow}>
-                  <Text style={styles.exportStatus}>
-                    {exp.status === 'completed' ? '✅' : exp.status === 'failed' ? '❌' : '⏳'} {exp.format.toUpperCase()}
-                  </Text>
-                  <Text style={styles.exportDate}>{formatDate(exp.createdAt)}</Text>
-                </View>
-              ))}
+              {exportQuery.data!.slice(0, 3).map((exp) => {
+                const StatusIcon = exp.status === 'completed' ? CheckCircle2 : exp.status === 'failed' ? XCircle : Hourglass;
+                const statusColor = exp.status === 'completed' ? colors.success : exp.status === 'failed' ? colors.error : colors.textSecondary;
+                return (
+                  <View key={exp.id} style={styles.exportRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <StatusIcon size={14} color={statusColor} />
+                      <Text style={styles.exportStatus}> {exp.format.toUpperCase()}</Text>
+                    </View>
+                    <Text style={styles.exportDate}>{formatDate(exp.createdAt)}</Text>
+                  </View>
+                );
+              })}
             </View>
           )}
         </View>
@@ -180,7 +186,7 @@ export default function AccountManagementScreen(): React.ReactElement {
         <View style={styles.divider} />
 
         <View style={styles.card}>
-          <Text style={styles.cardIcon}>⚠️</Text>
+          <View style={styles.cardIconWrap}><AlertTriangle size={28} color={colors.error} /></View>
           <Text style={[styles.cardTitle, { color: colors.error }]}>Delete My Account</Text>
 
           {isDeletionLoading ? (
@@ -301,6 +307,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   cardIcon: { fontSize: 28, marginBottom: spacing.sm },
+  cardIconWrap: { marginBottom: spacing.sm, alignItems: 'flex-start' as const },
   cardTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   cardDesc: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.md },
 

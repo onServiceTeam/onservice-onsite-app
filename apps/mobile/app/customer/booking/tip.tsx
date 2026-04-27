@@ -9,6 +9,7 @@ import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { AlertTriangle } from '@/components/icons';
 
 const TIP_PERCENTAGES = [10, 15, 20] as const;
 
@@ -83,7 +84,7 @@ export default function TipScreen(): React.ReactElement {
   if (bookingError) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
-        <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+        <View style={{ marginBottom: 12, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
         <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
         <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load booking details. Please try again.</Text>
         <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10, minHeight: 44, justifyContent: 'center' as const }}>

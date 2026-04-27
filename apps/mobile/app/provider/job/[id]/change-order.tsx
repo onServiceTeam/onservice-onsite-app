@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { createChangeOrder } from '@/services/booking.service';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Info } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
 import { formatPHP } from '@/utils/currency';
 
@@ -51,7 +52,7 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
         <View style={styles.infoBox}>
-          <Text style={styles.infoIcon}>ℹ️</Text>
+          <View style={styles.infoIconWrap}><Info size={20} color={colors.primary} /></View>
           <Text style={styles.infoText}>
             Change orders request additional payment for work beyond the original scope. The customer must approve before you proceed.
           </Text>
@@ -160,6 +161,7 @@ const styles = StyleSheet.create({
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
   infoBox: { flexDirection: 'row', gap: spacing.sm + 2, backgroundColor: colors.primaryLight, borderRadius: borderRadius.lg, padding: spacing.md + 2, marginBottom: spacing.lg - 4, borderWidth: 1, borderColor: colors.primary },
   infoIcon: { fontSize: 18 },
+  infoIconWrap: { alignItems: 'center' as const, marginRight: 8 },
   infoText: { flex: 1, ...typography.caption, color: colors.primary, lineHeight: 18 },
   section: { marginBottom: spacing.lg },
   sectionTitle: { ...typography.body, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },

@@ -1,0 +1,5 @@
+/bin/bash: line 7: : No such file or directory
+sort: cannot read: '': No such file or directory
+grep: : No such file or directory
+----
+grep: : No such file or directory

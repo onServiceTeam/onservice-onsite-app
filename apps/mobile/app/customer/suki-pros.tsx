@@ -7,12 +7,17 @@ import { getMemberships, getTiers, redeemPoints, type SukiMembership, type SukiT
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
+import type { ComponentType } from 'react';
+import { Sparkle, Star, Award, Crown, AlertTriangle, Heart, Home as HomeIcon } from '@/components/icons';
 
-const TIER_COLORS: Record<string, { bg: string; text: string; border: string; emoji: string }> = {
-  new: { bg: colors.backgroundSecondary, text: colors.textSecondary, border: colors.border, emoji: '🌱' },
-  regular: { bg: colors.backgroundSecondary, text: colors.textSecondary, border: colors.border, emoji: '⭐' },
-  suki: { bg: colors.warningLight, text: colors.warning, border: colors.warning, emoji: '🌟' },
-  super_suki: { bg: colors.errorLight, text: colors.error, border: colors.error, emoji: '💎' },
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
+
+const TIER_COLORS: Record<string, { bg: string; text: string; border: string; icon: IconComponent }> = {
+  new: { bg: colors.backgroundSecondary, text: colors.textSecondary, border: colors.border, icon: Sparkle },
+  regular: { bg: colors.backgroundSecondary, text: colors.textSecondary, border: colors.border, icon: Star },
+  suki: { bg: colors.warningLight, text: colors.warning, border: colors.warning, icon: Award },
+  super_suki: { bg: colors.errorLight, text: colors.error, border: colors.error, icon: Crown },
 };
 
 const TIER_DISPLAY: Record<string, string> = {
@@ -24,9 +29,10 @@ const TIER_DISPLAY: Record<string, string> = {
 
 function TierBadge({ tier }: { tier: string }): React.ReactElement {
   const c = TIER_COLORS[tier] ?? TIER_COLORS.new!;
+  const TierIcon = c.icon;
   return (
     <View style={[styles.tierBadge, { backgroundColor: c.bg, borderColor: c.border }]}>
-      <Text style={styles.tierEmoji}>{c.emoji}</Text>
+      <TierIcon size={14} color={c.text} />
       <Text style={[styles.tierText, { color: c.text }]}>
         {TIER_DISPLAY[tier] ?? tier}
       </Text>
@@ -179,7 +185,7 @@ export default function SukiProsScreen(): React.ReactElement {
         </View>
       ) : isError ? (
         <View style={styles.centerBox}>
-          <Text style={styles.emptyEmoji}>⚠️</Text>
+          <View style={styles.emptyEmojiWrap}><AlertTriangle size={48} color={colors.error} /></View>
           <Text style={styles.emptyTitle}>Failed to load</Text>
           <Text style={styles.emptyDesc}>Something went wrong. Please try again.</Text>
           <TouchableOpacity onPress={() => void refetch()} style={[styles.redeemBtn, { marginTop: spacing.base, paddingHorizontal: 24 }]}>
@@ -189,7 +195,7 @@ export default function SukiProsScreen(): React.ReactElement {
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           <View style={styles.heroSection}>
-            <Text style={styles.heroEmoji}>🤝</Text>
+            <View style={styles.heroEmojiWrap}><Heart size={48} color={colors.primary} /></View>
             <Text style={styles.heroTitle}>Suki Loyalty Program</Text>
             <Text style={styles.heroDesc}>
               Build relationships with your favorite providers. The more you book, the more you earn!
@@ -207,9 +213,10 @@ export default function SukiProsScreen(): React.ReactElement {
               <Text style={styles.tiersTitle}>Loyalty Tiers</Text>
               {tiers.map((tier) => {
                 const tierColor = TIER_COLORS[tier.name] ?? TIER_COLORS.regular!;
+                const RowIcon = tierColor.icon;
                 return (
                   <View key={tier.name} style={styles.tierRow}>
-                    <Text style={{ fontSize: 20 }}>{tierColor.emoji}</Text>
+                    <RowIcon size={20} color={tierColor.text} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.tierName}>
                         {TIER_DISPLAY[tier.name] ?? tier.name}
@@ -227,7 +234,7 @@ export default function SukiProsScreen(): React.ReactElement {
 
           {(memberships ?? []).length === 0 ? (
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyEmoji}>🏠</Text>
+              <View style={styles.emptyEmojiWrap}><HomeIcon size={48} color={colors.textSecondary} /></View>
               <Text style={styles.emptyTitle}>No Suki Relationships Yet</Text>
               <Text style={styles.emptyDesc}>
                 Complete bookings with the same provider to start building Suki loyalty and earn points!
@@ -266,6 +273,7 @@ const styles = StyleSheet.create({
   centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   heroSection: { alignItems: 'center', marginBottom: 20 },
   heroEmoji: { fontSize: 48, marginBottom: spacing.sm },
+  heroEmojiWrap: { marginBottom: spacing.sm, alignItems: 'center' as const },
   heroTitle: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 6 },
   heroDesc: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   tiersCard: { backgroundColor: colors.white, borderRadius: 16, padding: spacing.base, borderWidth: 1, borderColor: colors.border, marginBottom: 20 },
@@ -301,6 +309,7 @@ const styles = StyleSheet.create({
   lastBooking: { fontSize: 11, color: colors.textTertiary, marginTop: spacing.sm },
   emptyBox: { alignItems: 'center', paddingVertical: 40 },
   emptyEmoji: { fontSize: 48, marginBottom: spacing.md },
+  emptyEmojiWrap: { marginBottom: spacing.md, alignItems: 'center' as const },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 6 },
   emptyDesc: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 280 },
 });

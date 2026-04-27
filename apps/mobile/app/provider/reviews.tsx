@@ -18,6 +18,7 @@ import api from '@/services/api';
 import { Button } from '@/components/ui';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { AlertTriangle, Star } from '@/components/icons';
 
 interface ReviewImage {
   id: string;
@@ -259,7 +260,7 @@ export default function ProviderReviewsScreen(): React.ReactElement {
 
       {isError ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>⚠️</Text>
+          <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
           <Text style={styles.emptyText}>Failed to load reviews.</Text>
           <TouchableOpacity onPress={onRefresh} style={{ marginTop: spacing.base }}>
             <Text style={{ color: colors.secondary, fontWeight: '600' }}>Try Again</Text>
@@ -288,7 +289,7 @@ export default function ProviderReviewsScreen(): React.ReactElement {
               <ActivityIndicator size="large" color={colors.secondary} style={styles.loader} />
             ) : (
               <View style={styles.empty}>
-                <Text style={styles.emptyIcon}>⭐</Text>
+                <View style={styles.emptyIconWrap}><Star size={48} color={colors.textTertiary} /></View>
                 <Text style={styles.emptyText}>No reviews yet</Text>
                 <Text style={styles.emptyHint}>Reviews from customers will appear here</Text>
               </View>
@@ -391,6 +392,7 @@ const styles = StyleSheet.create({
   loader: { marginTop: spacing.xl },
   empty: { alignItems: 'center', paddingTop: spacing.xxl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
+  emptyIconWrap: { marginBottom: spacing.base, alignItems: 'center' as const },
   emptyText: { ...typography.body, color: colors.textSecondary },
   emptyHint: { ...typography.bodySmall, color: colors.textTertiary, marginTop: spacing.xs },
 });

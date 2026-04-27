@@ -21,6 +21,7 @@ import { updateBookingStatus } from '@/services/provider-api.service';
 import { getSocket } from '@/services/socket.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Wrench, Coins } from '@/components/icons';
 
 const COUNTDOWN_SECONDS = 60;
 
@@ -171,7 +172,7 @@ export default function NewJobModal(): React.ReactElement | null {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconBadge}>
-              <Text style={styles.icon}>🔧</Text>
+              <Wrench size={28} color={colors.primary} />
             </View>
             <View style={styles.headerText}>
               <Text style={styles.title}>New Job Request!</Text>
@@ -191,7 +192,10 @@ export default function NewJobModal(): React.ReactElement | null {
             </View>
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>💰 Earnings</Text>
+              <View style={styles.detailLabelRow}>
+                <Coins size={14} color={colors.textSecondary} />
+                <Text style={styles.detailLabel}> Earnings</Text>
+              </View>
               <Text style={styles.amountText}>{formatPHP(job.amount)}</Text>
             </View>
           </View>
@@ -300,6 +304,10 @@ const styles = StyleSheet.create({
   detailLabel: {
     ...typography.bodySmall,
     color: colors.textSecondary,
+  },
+  detailLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   detailValue: {
     ...typography.bodySmall,

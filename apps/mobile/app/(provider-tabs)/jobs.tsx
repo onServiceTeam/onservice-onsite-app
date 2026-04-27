@@ -14,6 +14,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { getProviderBookings } from '@/services/provider-api.service';
 import type { Booking } from '@/services/booking.service';
 import { Badge } from '@/components/ui';
+import { AlertTriangle, Inbox, CheckCircle2, Ban } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative, formatDateTime, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -117,7 +118,7 @@ export default function ProviderJobsScreen(): React.ReactElement {
 
       {isError ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>⚠️</Text>
+          <AlertTriangle size={40} color={colors.error} style={styles.emptyIconImg} />
           <Text style={styles.emptyText}>Failed to load jobs.</Text>
           <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
             <Text style={styles.retryText}>Try Again</Text>
@@ -149,9 +150,13 @@ export default function ProviderJobsScreen(): React.ReactElement {
               <ActivityIndicator size="large" color={colors.secondary} style={styles.loader} />
             ) : (
               <View style={styles.empty}>
-                <Text style={styles.emptyIcon}>
-                  {filter === 'active' ? '📭' : filter === 'completed' ? '✅' : '🚫'}
-                </Text>
+                {filter === 'active' ? (
+                  <Inbox size={40} color={colors.textTertiary} style={styles.emptyIconImg} />
+                ) : filter === 'completed' ? (
+                  <CheckCircle2 size={40} color={colors.success} style={styles.emptyIconImg} />
+                ) : (
+                  <Ban size={40} color={colors.textTertiary} style={styles.emptyIconImg} />
+                )}
                 <Text style={styles.emptyText}>
                   {filter === 'active'
                     ? 'No active jobs'
@@ -210,6 +215,7 @@ const styles = StyleSheet.create({
   loader: { marginTop: spacing.xl },
   empty: { alignItems: 'center', paddingTop: spacing.xxl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
+  emptyIconImg: { marginBottom: spacing.base },
   emptyText: { ...typography.body, color: colors.textSecondary },
   retryButton: { marginTop: spacing.base },
   retryText: { ...typography.body, color: colors.secondary, fontWeight: '600' },

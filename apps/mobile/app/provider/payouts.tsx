@@ -16,6 +16,7 @@ import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatRelative } from '@/utils/date';
 import { Badge } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { AlertTriangle, Banknote } from '@/components/icons';
 
 interface Payout {
   id: string;
@@ -124,7 +125,7 @@ export default function PayoutsScreen(): React.ReactElement {
 
       {isError ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>⚠️</Text>
+          <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
           <Text style={styles.emptyText}>Failed to load payouts.</Text>
           <TouchableOpacity onPress={onRefresh} style={{ marginTop: spacing.base }}>
             <Text style={{ color: colors.secondary, fontWeight: '600' }}>Try Again</Text>
@@ -152,7 +153,7 @@ export default function PayoutsScreen(): React.ReactElement {
               <ActivityIndicator size="large" color={colors.secondary} style={styles.loader} />
             ) : (
               <View style={styles.empty}>
-                <Text style={styles.emptyIcon}>💸</Text>
+                <View style={styles.emptyIconWrap}><Banknote size={48} color={colors.textTertiary} /></View>
                 <Text style={styles.emptyText}>No payouts yet</Text>
                 <Text style={styles.emptyHint}>Completed withdrawals will appear here</Text>
               </View>
@@ -207,6 +208,7 @@ const styles = StyleSheet.create({
   loader: { marginTop: spacing.xl },
   empty: { alignItems: 'center', paddingTop: spacing.xxl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
+  emptyIconWrap: { marginBottom: spacing.base, alignItems: 'center' as const },
   emptyText: { ...typography.body, color: colors.textSecondary },
   emptyHint: { ...typography.bodySmall, color: colors.textTertiary, marginTop: spacing.xs },
 });

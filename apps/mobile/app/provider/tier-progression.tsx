@@ -14,6 +14,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getTierProgression, type TierRequirement } from '@/services/provider-api.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import type { ComponentType } from 'react';
+import { Sparkle, CheckCircle2, Star, Crown, AlertTriangle } from '@/components/icons';
+
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
 
 const TIER_COLORS: Record<string, string> = {
   new: colors.tierNew,
@@ -22,11 +27,11 @@ const TIER_COLORS: Record<string, string> = {
   elite: colors.tierElite,
 };
 
-const TIER_ICONS: Record<string, string> = {
-  new: '🌱',
-  verified: '✅',
-  pro: '⭐',
-  elite: '👑',
+const TIER_ICONS: Record<string, IconComponent> = {
+  new: Sparkle,
+  verified: CheckCircle2,
+  pro: Star,
+  elite: Crown,
 };
 
 export default function TierProgressionScreen(): React.ReactElement {
@@ -49,7 +54,7 @@ export default function TierProgressionScreen(): React.ReactElement {
   if (isError || !data) {
     return (
       <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-        <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+        <View style={{ marginBottom: 12, alignItems: 'center' }}><AlertTriangle size={48} color={colors.error} /></View>
         <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
         <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load tier progression. Please try again.</Text>
         <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
@@ -76,7 +81,7 @@ export default function TierProgressionScreen(): React.ReactElement {
       >
         {/* Current Tier Card */}
         <View style={[styles.currentCard, { borderLeftColor: TIER_COLORS[currentTier] ?? colors.primary }]}>
-          <Text style={styles.currentIcon}>{TIER_ICONS[currentTier] ?? '🌱'}</Text>
+          {(() => { const TierIcon = TIER_ICONS[currentTier] ?? Sparkle; return (<View style={styles.currentIconWrap}><TierIcon size={36} color={TIER_COLORS[currentTier] ?? colors.primary} /></View>); })()}
           <View style={styles.currentInfo}>
             <Text style={styles.currentLabel}>Current Tier</Text>
             <Text style={[styles.currentTier, { color: TIER_COLORS[currentTier] ?? colors.text }]}>
@@ -94,14 +99,16 @@ export default function TierProgressionScreen(): React.ReactElement {
             </Text>
 
             <View style={styles.progressBar}>
-              {allTiers.map((tier, idx) => (
+              {allTiers.map((tier, idx) => {
+                const TierDotIcon = TIER_ICONS[tier.tier] ?? Sparkle;
+                return (
                 <View key={tier.tier} style={styles.progressStep}>
                   <View style={[
                     styles.progressDot,
                     idx <= currentIdx && { backgroundColor: TIER_COLORS[tier.tier] ?? colors.primary },
                     idx > currentIdx && styles.progressDotInactive,
                   ]}>
-                    <Text style={styles.progressDotText}>{TIER_ICONS[tier.tier]}</Text>
+                    <TierDotIcon size={14} color={colors.white} />
                   </View>
                   <Text style={[
                     styles.progressLabel,
@@ -116,7 +123,8 @@ export default function TierProgressionScreen(): React.ReactElement {
                     ]} />
                   )}
                 </View>
-              ))}
+                );
+              })}
             </View>
 
             {/* Requirements Checklist */}
@@ -171,7 +179,7 @@ export default function TierProgressionScreen(): React.ReactElement {
 
         {!nextTier && (
           <View style={styles.maxTierCard}>
-            <Text style={styles.maxTierIcon}>🏆</Text>
+            <View style={styles.maxTierIconWrap}><Crown size={48} color={colors.warning} /></View>
             <Text style={styles.maxTierTitle}>You're at the highest tier!</Text>
             <Text style={styles.maxTierText}>
               You enjoy the lowest commission rate ({currentCommission}%) and all premium benefits.
@@ -217,10 +225,11 @@ function RequirementRow({ label, current, met, progressPct }: {
 }
 
 function TierCard({ tier, isCurrent }: { tier: TierRequirement; isCurrent: boolean }): React.ReactElement {
+  const TierIcon = TIER_ICONS[tier.tier] ?? Sparkle;
   return (
     <View style={[styles.tierCard, isCurrent && styles.tierCardCurrent, isCurrent && { borderColor: TIER_COLORS[tier.tier] }]}>
       <View style={styles.tierCardHeader}>
-        <Text style={styles.tierCardIcon}>{TIER_ICONS[tier.tier] ?? '🌱'}</Text>
+        <View style={styles.tierCardIconWrap}><TierIcon size={28} color={TIER_COLORS[tier.tier] ?? colors.text} /></View>
         <View style={styles.tierCardInfo}>
           <Text style={[styles.tierCardName, { color: TIER_COLORS[tier.tier] ?? colors.text }]}>
             {tier.tier.charAt(0).toUpperCase() + tier.tier.slice(1)}
@@ -270,6 +279,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   currentIcon: { fontSize: 40, marginRight: spacing.base },
+  currentIconWrap: { marginRight: spacing.base, alignItems: 'center' as const, justifyContent: 'center' as const },
   currentInfo: { flex: 1 },
   currentLabel: { ...typography.caption, color: colors.textTertiary, marginBottom: 2 },
   currentTier: { ...typography.h3, fontWeight: '700', marginBottom: 2 },
@@ -377,6 +387,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   maxTierIcon: { fontSize: 48, marginBottom: spacing.sm },
+  maxTierIconWrap: { marginBottom: spacing.sm, alignItems: 'center' as const },
   maxTierTitle: { ...typography.h3, color: colors.text, textAlign: 'center', marginBottom: spacing.xs },
   maxTierText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
 
@@ -393,6 +404,7 @@ const styles = StyleSheet.create({
   },
   tierCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
   tierCardIcon: { fontSize: 24, marginRight: spacing.md },
+  tierCardIconWrap: { marginRight: spacing.md, alignItems: 'center' as const, justifyContent: 'center' as const },
   tierCardInfo: { flex: 1 },
   tierCardName: { ...typography.body, fontWeight: '700' },
   tierCardCommission: { ...typography.caption, color: colors.textSecondary },

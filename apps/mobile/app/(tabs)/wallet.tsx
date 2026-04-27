@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, type ComponentType } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,22 @@ import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import {
+  CreditCard,
+  Lock,
+  Unlock,
+  BarChart3,
+  Banknote,
+  Undo2,
+  Building2,
+  ClipboardList,
+  Shield,
+  Repeat,
+  AlertTriangle,
+} from '@/components/icons';
+
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
 
 interface Transaction {
   id: string;
@@ -29,16 +45,16 @@ interface Transaction {
   createdAt: string;
 }
 
-const TRANSACTION_ICONS: Record<string, string> = {
-  payment: '💳',
-  escrow_hold: '🔒',
-  escrow_release: '🔓',
-  commission: '📊',
-  payout: '💸',
-  refund: '↩️',
-  withdrawal: '🏦',
-  service_fee: '📋',
-  guarantee_contribution: '🛡️',
+const TRANSACTION_ICONS: Record<string, IconComponent> = {
+  payment: CreditCard,
+  escrow_hold: Lock,
+  escrow_release: Unlock,
+  commission: BarChart3,
+  payout: Banknote,
+  refund: Undo2,
+  withdrawal: Building2,
+  service_fee: ClipboardList,
+  guarantee_contribution: Shield,
 };
 
 export default function WalletScreen(): React.ReactElement {
@@ -104,18 +120,21 @@ export default function WalletScreen(): React.ReactElement {
     </View>
   );
 
-  const renderTransaction = ({ item }: { item: Transaction }): React.ReactElement => (
-    <View style={styles.txRow}>
-      <Text style={styles.txIcon}>{TRANSACTION_ICONS[item.type] ?? '💱'}</Text>
-      <View style={styles.txInfo}>
-        <Text style={styles.txDescription} numberOfLines={1}>{item.description}</Text>
-        <Text style={styles.txDate}>{formatDateTime(item.createdAt)}</Text>
+  const renderTransaction = ({ item }: { item: Transaction }): React.ReactElement => {
+    const Icon = TRANSACTION_ICONS[item.type] ?? Repeat;
+    return (
+      <View style={styles.txRow}>
+        <View style={styles.txIconWrap}><Icon size={22} color={colors.primary} /></View>
+        <View style={styles.txInfo}>
+          <Text style={styles.txDescription} numberOfLines={1}>{item.description}</Text>
+          <Text style={styles.txDate}>{formatDateTime(item.createdAt)}</Text>
+        </View>
+        <Text style={[styles.txAmount, item.amount >= 0 ? styles.txCredit : styles.txDebit]}>
+          {item.amount >= 0 ? '+' : ''}{formatPHP(Math.abs(item.amount))}
+        </Text>
       </View>
-      <Text style={[styles.txAmount, item.amount >= 0 ? styles.txCredit : styles.txDebit]}>
-        {item.amount >= 0 ? '+' : ''}{formatPHP(Math.abs(item.amount))}
-      </Text>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
@@ -123,7 +142,7 @@ export default function WalletScreen(): React.ReactElement {
 
       {isError ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>⚠️</Text>
+          <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
           <Text style={styles.emptyText}>Failed to load wallet data.</Text>
           <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
             <Text style={styles.retryText}>Try Again</Text>
@@ -145,7 +164,7 @@ export default function WalletScreen(): React.ReactElement {
               <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
             ) : (
               <View style={styles.empty}>
-                <Text style={styles.emptyIcon}>💳</Text>
+                <View style={styles.emptyIconWrap}><CreditCard size={48} color={colors.textSecondary} /></View>
                 <Text style={styles.emptyText}>No transactions yet</Text>
               </View>
             )
@@ -190,6 +209,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
   },
   txIcon: { fontSize: 24, marginRight: spacing.md },
+  txIconWrap: { marginRight: spacing.md, width: 28, alignItems: 'center' as const },
   txInfo: { flex: 1 },
   txDescription: { ...typography.body, color: colors.text },
   txDate: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
@@ -200,6 +220,7 @@ const styles = StyleSheet.create({
   loader: { marginTop: spacing.xl },
   empty: { alignItems: 'center', paddingTop: spacing.xxl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
+  emptyIconWrap: { marginBottom: spacing.base },
   emptyText: { ...typography.body, color: colors.textSecondary },
   retryButton: { marginTop: spacing.base },
   retryText: { ...typography.body, color: colors.primary, fontWeight: '600' },

@@ -10,14 +10,19 @@ import { getWalletBalance, topUpWallet } from '@/services/payment.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
+import type { ComponentType } from 'react';
+import { Smartphone, CreditCard, ScanLine } from '@/components/icons';
+
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
 
 const QUICK_AMOUNTS = [10000, 25000, 50000, 100000, 200000, 500000];
 
-const PAYMENT_METHODS: { id: string; label: string; icon: string }[] = [
-  { id: 'gcash', label: 'GCash', icon: '💚' },
-  { id: 'maya', label: 'Maya', icon: '💜' },
-  { id: 'card', label: 'Credit/Debit Card', icon: '💳' },
-  { id: 'qrph', label: 'QR Ph', icon: '📱' },
+const PAYMENT_METHODS: { id: string; label: string; icon: IconComponent }[] = [
+  { id: 'gcash', label: 'GCash', icon: Smartphone },
+  { id: 'maya', label: 'Maya', icon: Smartphone },
+  { id: 'card', label: 'Credit/Debit Card', icon: CreditCard },
+  { id: 'qrph', label: 'QR Ph', icon: ScanLine },
 ];
 
 export default function WalletTopUpScreen(): React.ReactElement {
@@ -138,19 +143,22 @@ export default function WalletTopUpScreen(): React.ReactElement {
         )}
 
         <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Payment Method</Text>
-        {PAYMENT_METHODS.map((method) => (
+        {PAYMENT_METHODS.map((method) => {
+          const MIcon = method.icon;
+          return (
           <TouchableOpacity
             key={method.id}
             style={[styles.methodOption, selectedMethod === method.id && styles.methodSelected]}
             onPress={() => setSelectedMethod(method.id)}
           >
-            <Text style={styles.methodIcon}>{method.icon}</Text>
+            <View style={styles.methodIconWrap}><MIcon size={20} color={colors.primary} /></View>
             <Text style={[styles.methodText, selectedMethod === method.id && styles.methodTextSelected]}>
               {method.label}
             </Text>
             {selectedMethod === method.id && <Text style={styles.methodCheck}>✓</Text>}
           </TouchableOpacity>
-        ))}
+          );
+        })}
 
         <View style={styles.footer}>
           {topUpMutation.isPending ? (
@@ -227,6 +235,7 @@ const styles = StyleSheet.create({
   },
   methodSelected: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   methodIcon: { fontSize: 20, marginRight: spacing.md },
+  methodIconWrap: { marginRight: spacing.md, width: 28, alignItems: 'center' as const },
   methodText: { ...typography.body, color: colors.textSecondary, flex: 1 },
   methodTextSelected: { color: colors.primary, fontWeight: '600' },
   methodCheck: { fontSize: 16, color: colors.primary, fontWeight: '700' },

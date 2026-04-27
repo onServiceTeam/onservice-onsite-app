@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking } from 'r
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Mail, Phone } from '@/components/icons';
 
 interface FAQItem {
   q: string;
@@ -136,7 +137,7 @@ export default function HelpScreen(): React.ReactElement {
             style={styles.contactBtn}
             onPress={() => Linking.openURL('mailto:support@onservice.ph')}
           >
-            <Text style={styles.contactBtnIcon}>✉️</Text>
+            <View style={styles.contactBtnIconWrap}><Mail size={22} color={colors.primary} /></View>
             <View style={styles.contactBtnInfo}>
               <Text style={styles.contactBtnLabel}>Email Support</Text>
               <Text style={styles.contactBtnValue}>support@onservice.ph</Text>
@@ -147,7 +148,7 @@ export default function HelpScreen(): React.ReactElement {
             style={styles.contactBtn}
             onPress={() => Linking.openURL('tel:+63281234567')}
           >
-            <Text style={styles.contactBtnIcon}>📞</Text>
+            <View style={styles.contactBtnIconWrap}><Phone size={22} color={colors.primary} /></View>
             <View style={styles.contactBtnInfo}>
               <Text style={styles.contactBtnLabel}>Call Us</Text>
               <Text style={styles.contactBtnValue}>+63 2 8123 4567</Text>
@@ -221,6 +222,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   contactBtnIcon: { fontSize: 22, marginRight: spacing.base },
+  contactBtnIconWrap: { marginRight: spacing.base, width: 28, alignItems: 'center' as const },
   contactBtnInfo: { flex: 1 },
   contactBtnLabel: { ...typography.body, fontWeight: '600', color: colors.text },
   contactBtnValue: { ...typography.caption, color: colors.primary },

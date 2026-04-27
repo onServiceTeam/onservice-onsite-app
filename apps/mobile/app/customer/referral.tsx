@@ -7,6 +7,7 @@ import { getMyCode, getMyReferrals, redeemCode } from '@/services/referral.servi
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
+import { AlertTriangle, ClipboardList } from '@/components/icons';
 
 export default function ReferralScreen(): React.ReactElement {
   const router = useRouter();
@@ -79,7 +80,7 @@ export default function ReferralScreen(): React.ReactElement {
         </View>
       ) : isError ? (
         <View style={styles.centerBox}>
-          <Text style={{ fontSize: 48, marginBottom: spacing.md }}>⚠️</Text>
+          <View style={{ marginBottom: spacing.md, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
           <Text style={styles.heroTitle}>Failed to load</Text>
           <TouchableOpacity onPress={refetchAll} style={[styles.redeemBtn, { marginTop: spacing.base, paddingVertical: 12 }]}>
             <Text style={styles.redeemBtnText}>Retry</Text>
@@ -101,7 +102,10 @@ export default function ReferralScreen(): React.ReactElement {
               <Text style={styles.codeText}>{code.code}</Text>
               <View style={styles.codeActions}>
                 <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
-                  <Text style={styles.copyBtnText}>📋 Copy</Text>
+                  <View style={styles.copyBtnRow}>
+                    <ClipboardList size={14} color={colors.primary} />
+                    <Text style={styles.copyBtnText}> Copy</Text>
+                  </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
                   <Text style={styles.shareBtnText}>📤 Share</Text>
@@ -214,6 +218,7 @@ const styles = StyleSheet.create({
   codeText: { fontSize: 32, fontWeight: '900', color: colors.text, letterSpacing: 4, marginBottom: spacing.base },
   codeActions: { flexDirection: 'row', gap: spacing.md },
   copyBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.md, backgroundColor: colors.backgroundSecondary },
+  copyBtnRow: { flexDirection: 'row' as const, alignItems: 'center' as const },
   copyBtnText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
   shareBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.md, backgroundColor: colors.info },
   shareBtnText: { fontSize: 14, fontWeight: '600', color: colors.white },

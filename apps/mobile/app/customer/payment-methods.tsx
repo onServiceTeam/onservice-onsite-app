@@ -4,13 +4,18 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import type { ComponentType } from 'react';
+import { Smartphone, CreditCard, ScanLine, Wallet, Coins } from '@/components/icons';
 
-const AVAILABLE_METHODS = [
-  { type: 'gcash' as const, label: 'GCash', icon: '📱', desc: 'Pay via GCash e-wallet' },
-  { type: 'maya' as const, label: 'Maya', icon: '💜', desc: 'Pay via Maya e-wallet' },
-  { type: 'card' as const, label: 'Credit/Debit Card', icon: '💳', desc: 'Visa, Mastercard' },
-  { type: 'qrph' as const, label: 'QR Ph', icon: '📷', desc: 'Scan to pay via QR Ph' },
-  { type: 'wallet' as const, label: 'Wallet Balance', icon: '👛', desc: 'Pay using your onService wallet' },
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
+
+const AVAILABLE_METHODS: ReadonlyArray<{ type: string; label: string; icon: IconComponent; desc: string }> = [
+  { type: 'gcash', label: 'GCash', icon: Smartphone, desc: 'Pay via GCash e-wallet' },
+  { type: 'maya', label: 'Maya', icon: Smartphone, desc: 'Pay via Maya e-wallet' },
+  { type: 'card', label: 'Credit/Debit Card', icon: CreditCard, desc: 'Visa, Mastercard' },
+  { type: 'qrph', label: 'QR Ph', icon: ScanLine, desc: 'Scan to pay via QR Ph' },
+  { type: 'wallet', label: 'Wallet Balance', icon: Wallet, desc: 'Pay using your onService wallet' },
 ];
 
 export default function PaymentMethodsScreen(): React.ReactElement {
@@ -47,20 +52,23 @@ export default function PaymentMethodsScreen(): React.ReactElement {
           Choose any of these methods during checkout. Payment is processed securely at the time of booking.
         </Text>
 
-        {AVAILABLE_METHODS.map((m) => (
-          <TouchableOpacity
-            key={m.type}
-            style={styles.methodCard}
-            onPress={(): void => { handleMethodInfo(m.label); }}
-          >
-            <Text style={styles.methodIcon}>{m.icon}</Text>
-            <View style={styles.methodInfo}>
-              <Text style={styles.methodLabel}>{m.label}</Text>
-              <Text style={styles.methodDesc}>{m.desc}</Text>
-            </View>
-            <Text style={styles.methodArrow}>›</Text>
-          </TouchableOpacity>
-        ))}
+        {AVAILABLE_METHODS.map((m) => {
+          const MIcon = m.icon;
+          return (
+            <TouchableOpacity
+              key={m.type}
+              style={styles.methodCard}
+              onPress={(): void => { handleMethodInfo(m.label); }}
+            >
+              <View style={styles.methodIconWrap}><MIcon size={24} color={colors.primary} /></View>
+              <View style={styles.methodInfo}>
+                <Text style={styles.methodLabel}>{m.label}</Text>
+                <Text style={styles.methodDesc}>{m.desc}</Text>
+              </View>
+              <Text style={styles.methodArrow}>›</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <View style={styles.infoBox}>
@@ -72,7 +80,10 @@ export default function PaymentMethodsScreen(): React.ReactElement {
       </View>
 
       <View style={styles.escrowBox}>
-        <Text style={styles.escrowTitle}>💰 Escrow Protection</Text>
+        <View style={styles.escrowTitleRow}>
+          <Coins size={18} color={colors.primary} />
+          <Text style={styles.escrowTitle}> Escrow Protection</Text>
+        </View>
         <Text style={styles.escrowText}>
           Your payment is not released to the provider until you confirm the job is complete.
           If there's an issue, you can file a dispute for a fair resolution.
@@ -115,6 +126,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   methodIcon: { fontSize: 24 },
+  methodIconWrap: { alignItems: 'center' as const, justifyContent: 'center' as const, width: 28 },
+  escrowTitleRow: { flexDirection: 'row' as const, alignItems: 'center' as const, marginBottom: spacing.xs },
   methodInfo: { flex: 1 },
   methodLabel: { ...typography.body, fontWeight: '600', color: colors.text },
   methodDesc: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },

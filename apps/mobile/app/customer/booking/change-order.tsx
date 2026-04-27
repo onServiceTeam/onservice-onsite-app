@@ -9,6 +9,7 @@ import {
 } from '@/services/booking.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { ClipboardList } from '@/components/icons';
 
 const PAYMENT_METHOD = { id: 'wallet', label: 'Wallet Balance', icon: '👛' } as const;
 
@@ -153,7 +154,7 @@ export default function ChangeOrderScreen(): React.ReactElement {
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           {(orders ?? []).length === 0 ? (
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyEmoji}>📋</Text>
+              <View style={styles.emptyEmojiWrap}><ClipboardList size={48} color={colors.textTertiary} /></View>
               <Text style={styles.emptyTitle}>No Change Orders</Text>
               <Text style={styles.emptyDesc}>If the provider finds additional work is needed, change orders will appear here.</Text>
             </View>
@@ -253,6 +254,7 @@ const styles = StyleSheet.create({
   centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyBox: { alignItems: 'center', paddingVertical: 40 },
   emptyEmoji: { fontSize: 48, marginBottom: spacing.md },
+  emptyEmojiWrap: { marginBottom: spacing.md, alignItems: 'center' as const },
   emptyTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   emptyDesc: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   orderCard: { backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border },

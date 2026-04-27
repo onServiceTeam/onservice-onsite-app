@@ -1,0 +1,55 @@
+EMOJI ICONOGRAPHY DETECTED (196):
+apps/admin/src/components/Sidebar.tsx:11:  { to: '/disputes', icon: 'ΓÜû∩╕Å', label: 'Disputes' },
+apps/admin/src/components/Sidebar.tsx:12:  { to: '/financials', icon: '≡ƒÆ░', label: 'Financials' },
+apps/admin/src/components/Sidebar.tsx:13:  { to: '/payouts', icon: '≡ƒÆ╕', label: 'Payouts' },
+apps/admin/src/components/Sidebar.tsx:16:  { to: '/business-accounts', icon: '≡ƒÅó', label: 'Business' },
+apps/admin/src/components/Sidebar.tsx:18:  { to: '/analytics', icon: '≡ƒôê', label: 'Analytics' },
+apps/admin/src/components/Sidebar.tsx:21:  { to: '/staff', icon: '≡ƒæñ', label: 'Staff & Roles' },
+apps/admin/src/components/Sidebar.tsx:22:  { to: '/settings', icon: 'ΓÜÖ∩╕Å', label: 'Settings' },
+apps/admin/src/components/Sidebar.tsx:5:  { to: '/', icon: '≡ƒôè', label: 'Dashboard' },
+apps/admin/src/components/Sidebar.tsx:6:  { to: '/providers', icon: '≡ƒöº', label: 'Providers' },
+apps/admin/src/components/Sidebar.tsx:7:  { to: '/customers', icon: '≡ƒæÑ', label: 'Customers' },
+apps/admin/src/components/Sidebar.tsx:8:  { to: '/bookings', icon: '≡ƒôï', label: 'Bookings' },
+apps/admin/src/components/Sidebar.tsx:9:  { to: '/catalog', icon: '≡ƒôª', label: 'Catalog' },
+apps/admin/src/pages/AuditLogPage.tsx:120:          <p className="text-4xl mb-3">≡ƒôï</p>
+apps/admin/src/pages/CatalogPage.tsx:445:            <p className="text-4xl mb-3">≡ƒôª</p>
+apps/admin/src/pages/DashboardPage.tsx:46:        <p className="text-4xl mb-3">ΓÜá∩╕Å</p>
+apps/admin/src/pages/DashboardPage.tsx:66:        <KpiCard title="Today's Revenue" value={formatCurrency(data.todayRevenue)} icon="≡ƒÆ░" />
+apps/admin/src/pages/DashboardPage.tsx:67:        <KpiCard title="Active Bookings" value={data.activeBookings} icon="≡ƒôï" />
+apps/admin/src/pages/DashboardPage.tsx:68:        <KpiCard title="Pending Disputes" value={data.pendingDisputes} icon="ΓÜá∩╕Å" />
+apps/admin/src/pages/DashboardPage.tsx:69:        <KpiCard title="New Signups Today" value={data.newSignupsToday} icon="≡ƒæñ" />
+apps/admin/src/pages/DashboardPage.tsx:73:        <KpiCard title="Provider Approvals Queue" value={data.pendingProviderApprovals} icon="≡ƒöº" />
+apps/admin/src/pages/DashboardPage.tsx:74:        <KpiCard title="Today's Bookings" value={data.todayBookings} icon="≡ƒôà" />
+apps/admin/src/pages/FinancialsPage.tsx:140:              icon="≡ƒÆ░"
+apps/admin/src/pages/FinancialsPage.tsx:145:              icon="≡ƒöÆ"
+apps/admin/src/pages/FinancialsPage.tsx:150:              icon="≡ƒ¢í∩╕Å"
+apps/admin/src/pages/FinancialsPage.tsx:155:              icon="≡ƒôê"
+apps/admin/src/pages/PricingRulesPage.tsx:43:  peak_hours: '≡ƒôê Peak Hours',
+apps/admin/src/pages/PricingRulesPage.tsx:509:          <p className="text-4xl mb-3">≡ƒôê</p>
+apps/mobile/app/(provider-tabs)/_layout.tsx:27:            tabBarIcon: ({ focused }) => <TabIcon emoji="≡ƒôè" focused={focused} />,
+apps/mobile/app/(provider-tabs)/_layout.tsx:34:            tabBarIcon: ({ focused }) => <TabIcon emoji="≡ƒöº" focused={focused} />,
+apps/mobile/app/(provider-tabs)/_layout.tsx:41:            tabBarIcon: ({ focused }) => <TabIcon emoji="≡ƒÆ░" focused={focused} />,
+apps/mobile/app/(provider-tabs)/_layout.tsx:48:            tabBarIcon: ({ focused }) => <TabIcon emoji="≡ƒæñ" focused={focused} />,
+apps/mobile/app/(provider-tabs)/dashboard.tsx:105:        <Text style={styles.errorEmoji}>ΓÜá∩╕Å</Text>
+apps/mobile/app/(provider-tabs)/dashboard.tsx:140:          <Text style={styles.notifIcon}>≡ƒöö</Text>
+apps/mobile/app/(provider-tabs)/dashboard.tsx:170:              {profile.rating != null ? `Γ¡É ${profile.rating.toFixed(1)}` : 'ΓÇö'}
+apps/mobile/app/(provider-tabs)/dashboard.tsx:262:          <Text style={styles.actionIcon}>≡ƒôà</Text>
+apps/mobile/app/(provider-tabs)/dashboard.tsx:269:          <Text style={styles.actionIcon}>≡ƒ¢á</Text>
+apps/mobile/app/(provider-tabs)/dashboard.tsx:276:          <Text style={styles.actionIcon}>≡ƒÆ│</Text>
+apps/mobile/app/(provider-tabs)/earnings.tsx:115:          <Text style={styles.infoIcon}>≡ƒÆ░</Text>
+apps/mobile/app/(provider-tabs)/earnings.tsx:120:          <Text style={styles.infoIcon}>≡ƒôè</Text>
+apps/mobile/app/(provider-tabs)/earnings.tsx:149:          <Text style={styles.emptyIcon}>ΓÜá∩╕Å</Text>
+apps/mobile/app/(provider-tabs)/earnings.tsx:171:                <Text style={styles.emptyIcon}>≡ƒÆ│</Text>
+apps/mobile/app/(provider-tabs)/earnings.tsx:34:  payment: '≡ƒÆ│',
+apps/mobile/app/(provider-tabs)/earnings.tsx:35:  escrow_hold: '≡ƒöÆ',
+apps/mobile/app/(provider-tabs)/earnings.tsx:36:  escrow_release: '≡ƒöô',
+apps/mobile/app/(provider-tabs)/earnings.tsx:37:  commission: '≡ƒôè',
+apps/mobile/app/(provider-tabs)/earnings.tsx:38:  payout: '≡ƒÆ╕',
+apps/mobile/app/(provider-tabs)/earnings.tsx:39:  refund: 'Γå⌐∩╕Å',
+apps/mobile/app/(provider-tabs)/earnings.tsx:41:  service_fee: '≡ƒôï',
+apps/mobile/app/(provider-tabs)/earnings.tsx:42:  guarantee_contribution: '≡ƒ¢í∩╕Å',
+apps/mobile/app/(provider-tabs)/jobs.tsx:120:          <Text style={styles.emptyIcon}>ΓÜá∩╕Å</Text>
+... and 146 more
+
+FAIL: Emoji detected as iconography. Replace with lucide icons.
+If a specific use is intentional content (not iconography), add '// emoji-allowed' comment.

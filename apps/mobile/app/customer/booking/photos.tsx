@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { AlertTriangle } from '@/components/icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const THUMB_SIZE = (SCREEN_WIDTH - spacing.base * 2 - spacing.sm * 2) / 3;
@@ -72,7 +73,7 @@ export default function BookingPhotosScreen(): React.ReactElement {
           </View>
         ) : bookingError ? (
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyEmoji}>⚠️</Text>
+            <View style={styles.emptyEmojiWrap}><AlertTriangle size={48} color={colors.error} /></View>
             <Text style={styles.emptyTitle}>Could not load photos</Text>
             <Text style={styles.emptyDesc}>Please check your connection and try again.</Text>
             <TouchableOpacity onPress={() => void refetch()} style={styles.retryButton}>
@@ -190,6 +191,7 @@ const styles = StyleSheet.create({
 
   emptyBox: { alignItems: 'center', paddingVertical: spacing.xxl },
   emptyEmoji: { fontSize: 48, marginBottom: spacing.md },
+  emptyEmojiWrap: { marginBottom: spacing.md, alignItems: 'center' as const },
   emptyTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   emptyDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', lineHeight: 20, paddingHorizontal: spacing.lg },
   loadingCenter: { alignItems: 'center', paddingTop: 60 },

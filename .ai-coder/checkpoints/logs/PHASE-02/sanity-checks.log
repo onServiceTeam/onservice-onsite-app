@@ -1,0 +1,38 @@
+[2026-04-28T01:00:00+08:00] PHASE-02 preflight captured
+
+baseline-commit: 05c1f7490c65f46214abc1fbac0b7eac2d511307 (Phase 01 PASS)
+baseline-files: 214 entries (sha256, scoped to apps/admin/src + apps/mobile/{app,src})
+typecheck-admin: PASS
+typecheck-mobile: PASS
+typecheck-api: PASS
+lint: PASS
+emoji-baseline (verify-no-emoji.sh, no flag): FAIL with absolute=196 (expected; this phase's primary cleanup target)
+forbidden-baseline (--phase): 0 introduced (5 absolute pre-existing per Phase 01 BASELINE-DEBT.md)
+
+Beginning Step 2 (admin sidebar + KpiCard + DashboardPage emoji replacement).
+
+[2026-04-28T01:45:00+08:00] Admin batch complete
+
+Replaced: Sidebar.tsx, KpiCard.tsx, DashboardPage.tsx, FinancialsPage.tsx, PricingRulesPage.tsx, AuditLogPage.tsx, CatalogPage.tsx
+Mobile tab/provider-tab layouts replaced (4 files).
+Mobile provider-tabs screens replaced (5 files: dashboard, earnings, jobs, provider-profile + helpers).
+typecheck-admin: PASS
+typecheck-mobile: PASS
+emoji running count: 196 -> 133
+
+Continuing with mobile customer/* and provider/* batches.
+
+[2026-04-28T02:20:44+08:00] PHASE-02 implementation complete
+
+Replacements: 196 emoji-as-icon -> 0 across admin (7 files) and mobile (49 files).
+Centralized icon module extended (mobile): ~140 lucide-react-native re-exports.
+typecheck-admin: PASS
+typecheck-mobile: PASS
+typecheck-api: PASS
+lint: PASS
+verify-no-emoji.sh (no flag): PASS (0 violations)
+verify-no-forbidden.sh --phase PHASE-02: 0 introduced
+visual: 5 PNG screenshots captured via msedge --headless against admin dev server (port 7382), per-screen folder = admin-sidebar/
+
+Beginning evidence pack assembly.
+

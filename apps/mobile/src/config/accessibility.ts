@@ -57,7 +57,7 @@ export const statusIndicators: Record<string, { icon: string; label: string }> =
   confirmed: { icon: '✓', label: 'Confirmed' },
   inProgress: { icon: '▶', label: 'In Progress' },
   completed: { icon: '✓✓', label: 'Completed' },
-  disputed: { icon: '⚠', label: 'Disputed' },
+  disputed: { icon: '!', label: 'Disputed' },
   cancelled: { icon: '✕', label: 'Cancelled' },
 };
 

@@ -24,6 +24,7 @@ import {
 } from '@/services/provider-api.service';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { AlertTriangle } from '@/components/icons';
 
 type ModalMode = 'add' | 'edit' | null;
 
@@ -128,7 +129,7 @@ export default function PortfolioScreen(): React.ReactElement {
   if (isError) {
     return (
       <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-        <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+        <View style={{ marginBottom: 12, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
         <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
         <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load portfolio. Please try again.</Text>
         <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>

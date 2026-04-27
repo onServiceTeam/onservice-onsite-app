@@ -7,16 +7,22 @@ import { useQuery } from '@tanstack/react-query';
 import { getProviderSukiCustomers, type SukiCustomer } from '@/services/suki.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import type { ComponentType } from 'react';
+import { Sparkle, Star, Award, Crown, AlertTriangle, ClipboardList, Heart } from '@/components/icons';
 
-const TIER_DISPLAY: Record<string, { label: string; emoji: string; color: string }> = {
-  new: { label: 'New', emoji: '🌱', color: colors.textSecondary },
-  regular: { label: 'Regular', emoji: '⭐', color: colors.textSecondary },
-  suki: { label: 'Suki', emoji: '🌟', color: colors.warning },
-  super_suki: { label: 'Super Suki', emoji: '💎', color: colors.error },
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
+
+const TIER_DISPLAY: Record<string, { label: string; icon: IconComponent; color: string }> = {
+  new: { label: 'New', icon: Sparkle, color: colors.textSecondary },
+  regular: { label: 'Regular', icon: Star, color: colors.textSecondary },
+  suki: { label: 'Suki', icon: Award, color: colors.warning },
+  super_suki: { label: 'Super Suki', icon: Crown, color: colors.error },
 };
 
 function CustomerCard({ customer }: { customer: SukiCustomer }): React.ReactElement {
   const tierInfo = TIER_DISPLAY[customer.tier] ?? TIER_DISPLAY.new!;
+  const TierIcon = tierInfo.icon;
 
   return (
     <View style={styles.card}>
@@ -29,7 +35,7 @@ function CustomerCard({ customer }: { customer: SukiCustomer }): React.ReactElem
         <View style={styles.cardInfo}>
           <Text style={styles.customerName}>{customer.customerName}</Text>
           <View style={styles.tierRow}>
-            <Text style={styles.tierEmoji}>{tierInfo.emoji}</Text>
+            <TierIcon size={12} color={tierInfo.color} />
             <Text style={[styles.tierLabel, { color: tierInfo.color }]}>{tierInfo.label}</Text>
           </View>
         </View>
@@ -86,7 +92,7 @@ export default function ProviderSukiCustomersScreen(): React.ReactElement {
         </View>
       ) : isError ? (
         <View style={styles.centerBox}>
-          <Text style={styles.errorEmoji}>⚠️</Text>
+          <View style={styles.errorEmojiWrap}><AlertTriangle size={48} color={colors.error} /></View>
           <Text style={styles.errorText}>Failed to load customers</Text>
           <TouchableOpacity onPress={() => void refetch()} style={styles.retryButton}>
             <Text style={styles.retryText}>Try Again</Text>
@@ -109,7 +115,7 @@ export default function ProviderSukiCustomersScreen(): React.ReactElement {
           }
           ListHeaderComponent={
             <View style={styles.heroSection}>
-              <Text style={styles.heroEmoji}>🤝</Text>
+              <View style={styles.heroEmojiWrap}><Heart size={48} color={colors.primary} /></View>
               <Text style={styles.heroTitle}>Your Repeat Customers</Text>
               <Text style={styles.heroDesc}>
                 Customers who book you multiple times build Suki loyalty and earn discounts.
@@ -118,7 +124,7 @@ export default function ProviderSukiCustomersScreen(): React.ReactElement {
           }
           ListEmptyComponent={
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyEmoji}>📋</Text>
+              <View style={styles.emptyEmojiWrap}><ClipboardList size={48} color={colors.textSecondary} /></View>
               <Text style={styles.emptyTitle}>No Suki Customers Yet</Text>
               <Text style={styles.emptyDesc}>
                 As customers rebook your services, they will appear here with their loyalty tier and stats.
@@ -149,12 +155,14 @@ const styles = StyleSheet.create({
   headerPlaceholder: { width: 30 },
   centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   errorEmoji: { fontSize: 48, marginBottom: spacing.md },
+  errorEmojiWrap: { marginBottom: spacing.md, alignItems: 'center' as const },
   errorText: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md },
   retryButton: { marginTop: spacing.sm },
   retryText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
   listContent: { padding: spacing.base, paddingBottom: 40 },
   heroSection: { alignItems: 'center', marginBottom: spacing.lg },
   heroEmoji: { fontSize: 48, marginBottom: spacing.sm },
+  heroEmojiWrap: { marginBottom: spacing.sm, alignItems: 'center' as const },
   heroTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
   heroDesc: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
   card: {
@@ -194,6 +202,7 @@ const styles = StyleSheet.create({
   statLabel: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
   emptyBox: { alignItems: 'center', paddingVertical: spacing.xxl },
   emptyEmoji: { fontSize: 48, marginBottom: spacing.md },
+  emptyEmojiWrap: { marginBottom: spacing.md, alignItems: 'center' as const },
   emptyTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   emptyDesc: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 22, maxWidth: 280 },
 });

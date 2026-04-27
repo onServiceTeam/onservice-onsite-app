@@ -16,6 +16,7 @@ import type { Subcategory } from '@/services/catalog.service';
 import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Star, AlertTriangle } from '@/components/icons';
 
 interface ProviderResult {
   id: string;
@@ -142,7 +143,10 @@ export default function SearchScreen(): React.ReactElement {
           <Text style={styles.providerName}>{prov.businessName}</Text>
           <View style={styles.providerMeta}>
             {prov.averageRating != null && (
-              <Text style={styles.providerRating}>⭐ {prov.averageRating.toFixed(1)}</Text>
+              <View style={styles.providerRatingRow}>
+                <Star size={12} color={colors.warning} fill={colors.warning} />
+                <Text style={styles.providerRating}> {prov.averageRating.toFixed(1)}</Text>
+              </View>
             )}
             {prov.totalReviews > 0 && (
               <Text style={styles.providerReviews}>({prov.totalReviews} reviews)</Text>
@@ -183,7 +187,7 @@ export default function SearchScreen(): React.ReactElement {
 
       {isError && (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>⚠️</Text>
+          <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
           <Text style={styles.emptyTitle}>Search failed</Text>
           <Text style={styles.emptySubtitle}>Something went wrong. Please try again.</Text>
         </View>
@@ -280,6 +284,7 @@ const styles = StyleSheet.create({
   providerName: { ...typography.body, fontWeight: '600', color: colors.text },
   providerMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: 4 },
   providerRating: { ...typography.caption, color: colors.text },
+  providerRatingRow: { flexDirection: 'row' as const, alignItems: 'center' as const },
   providerReviews: { ...typography.caption, color: colors.textSecondary },
   providerCity: { ...typography.caption, color: colors.textSecondary },
   providerBadge: {
@@ -293,6 +298,7 @@ const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: spacing.xl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
+  emptyIconWrap: { marginBottom: spacing.base, alignItems: 'center' as const },
   emptyTitle: { ...typography.h3, color: colors.text, textAlign: 'center', marginBottom: spacing.sm },
   emptySubtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
 });

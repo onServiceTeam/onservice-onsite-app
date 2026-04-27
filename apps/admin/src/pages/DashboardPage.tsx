@@ -3,6 +3,16 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { KpiCard } from '@/components/ui';
+import {
+  AlertTriangle,
+  Coins,
+  ClipboardList,
+  UserPlus,
+  Wrench,
+  Calendar,
+  AlertCircle,
+  Clock,
+} from '@/components/icons';
 
 interface DashboardKpis {
   todayRevenue: number;
@@ -43,7 +53,7 @@ export default function DashboardPage(): React.ReactElement {
   if (isError || !data) {
     return (
       <div className="text-center py-20">
-        <p className="text-4xl mb-3">⚠️</p>
+        <AlertTriangle size={40} className="mx-auto mb-3 text-amber-500" />
         <p className="text-[var(--color-text-secondary)] mb-3">Failed to load dashboard data.</p>
         <button
           onClick={() => void refetch()}
@@ -63,17 +73,17 @@ export default function DashboardPage(): React.ReactElement {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard title="Today's Revenue" value={formatCurrency(data.todayRevenue)} icon="💰" />
-        <KpiCard title="Active Bookings" value={data.activeBookings} icon="📋" />
-        <KpiCard title="Pending Disputes" value={data.pendingDisputes} icon="⚠️" />
-        <KpiCard title="New Signups Today" value={data.newSignupsToday} icon="👤" />
+        <KpiCard title="Today's Revenue" value={formatCurrency(data.todayRevenue)} icon={<Coins size={20} className="text-emerald-600" />} />
+        <KpiCard title="Active Bookings" value={data.activeBookings} icon={<ClipboardList size={20} className="text-blue-600" />} />
+        <KpiCard title="Pending Disputes" value={data.pendingDisputes} icon={<AlertTriangle size={20} className={data.pendingDisputes > 0 ? 'text-red-600' : 'text-slate-400'} />} />
+        <KpiCard title="New Signups Today" value={data.newSignupsToday} icon={<UserPlus size={20} className="text-blue-600" />} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard title="Provider Approvals Queue" value={data.pendingProviderApprovals} icon="🔧" />
-        <KpiCard title="Today's Bookings" value={data.todayBookings} icon="📅" />
-        <KpiCard title="Escalated Disputes" value={data.alerts.escalatedDisputes} icon="🚨" />
-        <KpiCard title="Stale Disputes (48h+)" value={data.alerts.staleDisputes} icon="⏰" />
+        <KpiCard title="Provider Approvals Queue" value={data.pendingProviderApprovals} icon={<Wrench size={20} className="text-blue-600" />} />
+        <KpiCard title="Today's Bookings" value={data.todayBookings} icon={<Calendar size={20} className="text-blue-600" />} />
+        <KpiCard title="Escalated Disputes" value={data.alerts.escalatedDisputes} icon={<AlertCircle size={20} className={data.alerts.escalatedDisputes > 0 ? 'text-red-600' : 'text-slate-400'} />} />
+        <KpiCard title="Stale Disputes (48h+)" value={data.alerts.staleDisputes} icon={<Clock size={20} className={data.alerts.staleDisputes > 0 ? 'text-amber-600' : 'text-slate-400'} />} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

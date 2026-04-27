@@ -3,7 +3,7 @@ import React from 'react';
 interface KpiCardProps {
   title: string;
   value: string | number;
-  icon: string;
+  icon: React.ReactNode;
   change?: string;
   changeType?: 'positive' | 'negative' | 'neutral';
 }
@@ -17,7 +17,7 @@ export default function KpiCard({ title, value, icon, change, changeType = 'neut
   return (
     <div className="bg-white rounded-xl border border-[var(--color-border)] p-5 hover:shadow-sm transition-shadow">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-2xl">{icon}</span>
+        <span className="text-[var(--color-text-secondary)]">{icon}</span>
         {change && (
           <span className={`text-xs font-medium ${changeColor}`}>{change}</span>
         )}

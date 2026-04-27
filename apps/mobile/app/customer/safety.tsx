@@ -14,29 +14,38 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import { formatPHP } from '@/utils/currency';
+import type { ComponentType } from 'react';
+import { CheckCircle2, Lock, Shield, Star } from '@/components/icons';
+
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const COVERAGE_CARDS = [
+const COVERAGE_CARDS: Array<{ icon: IconComponent; iconColor: string; title: string; desc: string }> = [
   {
-    icon: '✅',
+    icon: CheckCircle2,
+    iconColor: colors.success,
     title: 'Verified Pros',
     desc: 'Every provider is NBI-cleared, ID-verified, and rated by real customers.',
   },
   {
-    icon: '🔒',
+    icon: Lock,
+    iconColor: colors.primary,
     title: 'Escrow Payment',
     desc: 'Your payment is held securely until you confirm the job is done right.',
   },
   {
-    icon: '🛡️',
+    icon: Shield,
+    iconColor: colors.primary,
     title: 'Damage Protection',
     desc: `Property damage covered up to ${formatPHP(platformConfig.siguradoShieldMaxCoverage)} per incident.`,
   },
   {
-    icon: '⭐',
+    icon: Star,
+    iconColor: colors.warning,
     title: 'Quality Guarantee',
     desc: 'Substandard work? Get a full refund or free redo by a different provider.',
   },
@@ -125,7 +134,7 @@ export default function SafetyScreen(): React.ReactElement {
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <View style={styles.hero}>
-          <Text style={styles.heroShield}>🛡️</Text>
+          <View style={styles.heroShieldWrap}><Shield size={52} color={colors.primary} /></View>
           <Text style={styles.heroTitle}>You're Protected</Text>
           <Text style={styles.heroSubtitle}>
             Every booking includes SiguradoShield™ protection up to {formatPHP(platformConfig.siguradoShieldMaxCoverage)}.
@@ -135,13 +144,16 @@ export default function SafetyScreen(): React.ReactElement {
 
         {/* Coverage Cards */}
         <View style={styles.cardsGrid}>
-          {COVERAGE_CARDS.map((card) => (
-            <View key={card.title} style={styles.card}>
-              <Text style={styles.cardIcon}>{card.icon}</Text>
-              <Text style={styles.cardTitle}>{card.title}</Text>
-              <Text style={styles.cardDesc}>{card.desc}</Text>
-            </View>
-          ))}
+          {COVERAGE_CARDS.map((card) => {
+            const CardIcon = card.icon;
+            return (
+              <View key={card.title} style={styles.card}>
+                <View style={styles.cardIconWrap}><CardIcon size={28} color={card.iconColor} /></View>
+                <Text style={styles.cardTitle}>{card.title}</Text>
+                <Text style={styles.cardDesc}>{card.desc}</Text>
+              </View>
+            );
+          })}
         </View>
 
         {/* How It Works */}
@@ -248,6 +260,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   heroShield: { fontSize: 52, marginBottom: spacing.sm },
+  heroShieldWrap: { marginBottom: spacing.sm, alignItems: 'center' as const },
   heroTitle: { ...typography.h1, color: colors.primary, marginBottom: spacing.xs },
   heroSubtitle: {
     ...typography.body,
@@ -271,6 +284,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   cardIcon: { fontSize: 28, marginBottom: spacing.xs },
+  cardIconWrap: { marginBottom: spacing.xs, alignItems: 'flex-start' as const },
   cardTitle: { ...typography.h3, color: colors.text, fontSize: 15, marginBottom: 4 },
   cardDesc: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 17 },
 

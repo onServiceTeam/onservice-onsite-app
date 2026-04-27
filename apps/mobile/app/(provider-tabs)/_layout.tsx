@@ -1,11 +1,16 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Text, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { colors, typography } from '@/config/theme';
 import NewJobModal from '@/components/provider/NewJobModal';
+import { LayoutDashboard, Wrench, Coins, User } from '@/components/icons';
 
-function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }): React.ReactElement {
-  return <Text style={[styles.icon, focused && styles.iconFocused]}>{emoji}</Text>;
+type TabIconProps = { focused: boolean; color: string };
+
+function tabIcon(Icon: React.ComponentType<{ size?: number; color?: string }>): (props: TabIconProps) => React.ReactElement {
+  return ({ focused, color }) => (
+    <Icon size={focused ? 24 : 22} color={focused ? colors.secondary : color ?? colors.textTertiary} />
+  );
 }
 
 export default function ProviderTabLayout(): React.ReactElement {
@@ -24,28 +29,28 @@ export default function ProviderTabLayout(): React.ReactElement {
           name="dashboard"
           options={{
             title: 'Dashboard',
-            tabBarIcon: ({ focused }) => <TabIcon emoji="📊" focused={focused} />,
+            tabBarIcon: tabIcon(LayoutDashboard),
           }}
         />
         <Tabs.Screen
           name="jobs"
           options={{
             title: 'Jobs',
-            tabBarIcon: ({ focused }) => <TabIcon emoji="🔧" focused={focused} />,
+            tabBarIcon: tabIcon(Wrench),
           }}
         />
         <Tabs.Screen
           name="earnings"
           options={{
             title: 'Earnings',
-            tabBarIcon: ({ focused }) => <TabIcon emoji="💰" focused={focused} />,
+            tabBarIcon: tabIcon(Coins),
           }}
         />
         <Tabs.Screen
           name="provider-profile"
           options={{
             title: 'Profile',
-            tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />,
+            tabBarIcon: tabIcon(User),
           }}
         />
       </Tabs>
@@ -67,6 +72,4 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: '600',
   },
-  icon: { fontSize: 22, opacity: 0.5 },
-  iconFocused: { opacity: 1 },
 });

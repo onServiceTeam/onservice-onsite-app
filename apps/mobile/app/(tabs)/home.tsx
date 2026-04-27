@@ -22,6 +22,26 @@ import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
+import type { ComponentType } from 'react';
+import {
+  Sparkles,
+  Wrench,
+  Zap,
+  Paintbrush2,
+  Snowflake,
+  Bug,
+  Package,
+  Hammer,
+  Plug,
+  Bell,
+  Search,
+  Shield,
+  Home as HomeIcon,
+  AlertTriangle,
+} from '@/components/icons';
+
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
 
 interface SukiProvider {
   id: string;
@@ -46,20 +66,20 @@ async function getUnreadNotificationCount(): Promise<number> {
   return res.data.meta?.unread ?? 0;
 }
 
-const CATEGORY_ICONS: Record<string, string> = {
-  cleaning: '🧹',
-  plumbing: '🔧',
-  electrical: '⚡',
-  painting: '🎨',
-  aircon: '❄️',
-  'aircon-services': '❄️',
-  pest: '🐜',
-  'pest-control': '🐜',
-  moving: '📦',
-  carpentry: '🪚',
-  appliance: '🔌',
-  'appliance-repair': '🔌',
-  'general-maintenance': '🔨',
+const CATEGORY_ICONS: Record<string, IconComponent> = {
+  cleaning: Sparkles,
+  plumbing: Wrench,
+  electrical: Zap,
+  painting: Paintbrush2,
+  aircon: Snowflake,
+  'aircon-services': Snowflake,
+  pest: Bug,
+  'pest-control': Bug,
+  moving: Package,
+  carpentry: Hammer,
+  appliance: Plug,
+  'appliance-repair': Plug,
+  'general-maintenance': Hammer,
 };
 
 function getBookingStatusColor(status: string): string {
@@ -175,7 +195,7 @@ export default function HomeScreen(): React.ReactElement {
           style={styles.notifButton}
           onPress={() => router.push('/customer/notifications')}
         >
-          <Text style={styles.notifIcon}>🔔</Text>
+          <Bell size={22} color={colors.text} />
           {unreadCount > 0 && (
             <View style={styles.notifBadge}>
               <Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
@@ -230,7 +250,7 @@ export default function HomeScreen(): React.ReactElement {
         style={styles.searchBar}
         onPress={() => router.push('/customer/search')}
       >
-        <Text style={styles.searchIcon}>🔍</Text>
+        <View style={styles.searchIconWrap}><Search size={16} color={colors.textTertiary} /></View>
         <Text style={styles.searchPlaceholder}>Search services or providers...</Text>
       </Pressable>
 
@@ -285,7 +305,7 @@ export default function HomeScreen(): React.ReactElement {
   );
 
   const renderCategoryItem = ({ item }: { item: Category }): React.ReactElement => {
-    const icon = CATEGORY_ICONS[item.slug] ?? CATEGORY_ICONS[item.name.toLowerCase()] ?? '🔨';
+    const Icon = CATEGORY_ICONS[item.slug] ?? CATEGORY_ICONS[item.name.toLowerCase()] ?? Hammer;
     return (
       <TouchableOpacity
         style={styles.categoryItem}
@@ -293,7 +313,7 @@ export default function HomeScreen(): React.ReactElement {
         activeOpacity={0.7}
       >
         <View style={styles.categoryIconBg}>
-          <Text style={styles.categoryIcon}>{icon}</Text>
+          <Icon size={28} color={colors.primary} />
         </View>
         <Text style={styles.categoryLabel} numberOfLines={1}>
           {item.name}
@@ -392,7 +412,7 @@ export default function HomeScreen(): React.ReactElement {
         onPress={() => router.push('/customer/safety')}
         activeOpacity={0.7}
       >
-        <Text style={styles.shieldBannerIcon}>🛡️</Text>
+        <View style={styles.shieldBannerIconWrap}><Shield size={28} color={colors.primary} /></View>
         <View style={styles.shieldBannerContent}>
           <Text style={styles.shieldBannerTitle}>SiguradoShield™ Protection</Text>
           <Text style={styles.shieldBannerText}>
@@ -404,7 +424,7 @@ export default function HomeScreen(): React.ReactElement {
       {/* Empty state for new users */}
       {activeBookings.length === 0 && recentBookings.length === 0 && (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>🏡</Text>
+          <View style={styles.emptyIconWrap}><HomeIcon size={48} color={colors.textSecondary} /></View>
           <Text style={styles.emptyTitle}>Book your first service!</Text>
           <Text style={styles.emptySubtitle}>
             Choose a category above to get started with trusted home service professionals.
@@ -428,7 +448,7 @@ export default function HomeScreen(): React.ReactElement {
   if (categoriesQuery.isError && categories.length === 0) {
     return (
       <View style={[styles.container, styles.centeredState, { paddingTop: insets.top + 80 }]}>
-        <Text style={styles.emptyIcon}>⚠️</Text>
+        <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
         <Text style={styles.emptyTitle}>Could not load services</Text>
         <Text style={styles.emptySubtitle}>Please check your connection and try again.</Text>
         <TouchableOpacity onPress={onRefresh} style={styles.retryBtn}>
@@ -557,6 +577,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   searchIcon: { fontSize: 16, marginRight: spacing.sm },
+  searchIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
   searchPlaceholder: { ...typography.body, color: colors.textTertiary },
 
   categoryRow: {
@@ -743,6 +764,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxl,
   },
   emptyIcon: { fontSize: 64, marginBottom: spacing.base },
+  emptyIconWrap: { marginBottom: spacing.base, alignItems: 'center' as const },
   emptyTitle: {
     ...typography.h3,
     color: colors.text,
@@ -766,6 +788,7 @@ const styles = StyleSheet.create({
     borderColor: colors.info,
   },
   shieldBannerIcon: { fontSize: 28, marginRight: spacing.md },
+  shieldBannerIconWrap: { marginRight: spacing.md, width: 32, alignItems: 'center' as const },
   shieldBannerContent: { flex: 1 },
   shieldBannerTitle: { ...typography.body, fontWeight: '700', color: colors.infoDark, marginBottom: 2 },
   shieldBannerText: { ...typography.bodySmall, color: colors.info },

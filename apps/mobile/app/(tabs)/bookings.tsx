@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { AlertTriangle, ClipboardList } from '@/components/icons';
 
 type StatusFilter = 'all' | 'active' | 'completed' | 'cancelled';
 
@@ -147,7 +148,7 @@ export default function BookingsScreen(): React.ReactElement {
         </View>
       ) : isError ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>⚠️</Text>
+          <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
           <Text style={styles.emptyTitle}>Something went wrong</Text>
           <Text style={styles.emptySubtitle}>Could not load your bookings.</Text>
           <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
@@ -175,7 +176,7 @@ export default function BookingsScreen(): React.ReactElement {
           ) : null}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyIcon}>📋</Text>
+              <View style={styles.emptyIconWrap}><ClipboardList size={48} color={colors.textTertiary} /></View>
               <Text style={styles.emptyTitle}>No bookings yet</Text>
               <Text style={styles.emptySubtitle}>
                 {filter === 'all'
@@ -236,6 +237,7 @@ const styles = StyleSheet.create({
   footer: { paddingVertical: spacing.lg },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
   emptyIcon: { fontSize: 64, marginBottom: spacing.base },
+  emptyIconWrap: { marginBottom: spacing.base, alignItems: 'center' as const },
   emptyTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
   emptySubtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
   retryButton: { marginTop: spacing.base },

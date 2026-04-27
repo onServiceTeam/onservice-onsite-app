@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from 'r
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { ScrollText, Lock } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
 import { formatPHP } from '@/utils/currency';
 
@@ -131,7 +132,11 @@ export default function TermsScreen(): React.ReactElement {
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
         <View style={styles.introCard}>
-          <Text style={styles.introEmoji}>{activeTab === 'terms' ? '📜' : '🔒'}</Text>
+          <View style={styles.introEmojiWrap}>
+            {activeTab === 'terms'
+              ? <ScrollText size={48} color={colors.primary} />
+              : <Lock size={48} color={colors.primary} />}
+          </View>
           <Text style={styles.introTitle}>
             {activeTab === 'terms' ? 'Terms of Service' : 'Privacy Policy'}
           </Text>
@@ -203,6 +208,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.base,
   },
   introEmoji: { fontSize: 40, marginBottom: spacing.sm },
+  introEmojiWrap: { marginBottom: spacing.sm, alignItems: 'center' as const },
   introTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
   introDate: { ...typography.caption, color: colors.textTertiary },
 

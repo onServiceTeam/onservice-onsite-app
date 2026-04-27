@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { AlertTriangle } from '@/components/icons';
 
 interface RecurringDetail {
   id: string;
@@ -151,7 +152,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
     if (isError) {
       return (
         <View style={[styles.center, { paddingTop: insets.top, padding: 24 }]}>
-          <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+          <View style={{ marginBottom: 12, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
           <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
           <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load recurring booking details. Please try again.</Text>
           <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>

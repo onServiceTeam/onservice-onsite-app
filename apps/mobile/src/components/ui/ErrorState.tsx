@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { AlertTriangle } from '@/components/icons';
 
 interface ErrorStateProps {
   title?: string;
@@ -22,7 +23,9 @@ export function ErrorState({
       accessibilityRole="alert"
       accessibilityLabel={`${title}. ${message}`}
     >
-      <Text style={styles.icon} accessibilityElementsHidden={true}>⚠️</Text>
+      <View style={styles.iconWrap} accessibilityElementsHidden={true}>
+        <AlertTriangle size={48} color={colors.error} />
+      </View>
       <Text style={styles.title} maxFontSizeMultiplier={2}>{title}</Text>
       <Text style={styles.message} maxFontSizeMultiplier={2}>{message}</Text>
       {onRetry ? (
@@ -55,6 +58,10 @@ const styles = StyleSheet.create({
   icon: {
     fontSize: 40,
     marginBottom: spacing.base,
+  },
+  iconWrap: {
+    marginBottom: spacing.base,
+    alignItems: 'center' as const,
   },
   title: {
     ...typography.h3,

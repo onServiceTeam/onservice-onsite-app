@@ -10,11 +10,16 @@ import * as addressService from '@/services/address.service';
 import type { SavedAddress } from '@/services/address.service';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import type { ComponentType } from 'react';
+import { Home as HomeIcon, Briefcase, Pin, AlertTriangle } from '@/components/icons';
 
-const LABEL_OPTIONS: Array<{ value: SavedAddress['label']; icon: string }> = [
-  { value: 'Home', icon: '🏠' },
-  { value: 'Work', icon: '💼' },
-  { value: 'Other', icon: '📍' },
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
+
+const LABEL_OPTIONS: Array<{ value: SavedAddress['label']; icon: IconComponent }> = [
+  { value: 'Home', icon: HomeIcon },
+  { value: 'Work', icon: Briefcase },
+  { value: 'Other', icon: Pin },
 ];
 
 export default function AddressesScreen(): React.ReactElement {
@@ -147,7 +152,7 @@ export default function AddressesScreen(): React.ReactElement {
           <Text style={styles.title}>My Addresses</Text>
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+          <View style={{ marginBottom: 12, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
           <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
           <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load addresses. Please try again.</Text>
           <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
@@ -159,11 +164,11 @@ export default function AddressesScreen(): React.ReactElement {
   }
 
   const renderAddress = ({ item }: { item: SavedAddress }): React.ReactElement => {
-    const icon = LABEL_OPTIONS.find((l) => l.value === item.label)?.icon ?? '📍';
+    const ItemIcon = LABEL_OPTIONS.find((l) => l.value === item.label)?.icon ?? Pin;
     return (
       <View style={[styles.addressCard, item.isDefault && styles.addressCardDefault]}>
         <View style={styles.addressHeader}>
-          <Text style={styles.addressIcon}>{icon}</Text>
+          <View style={styles.addressIconWrap}><ItemIcon size={22} color={colors.primary} /></View>
           <View style={styles.addressInfo}>
             <View style={styles.addressLabelRow}>
               <Text style={styles.addressLabel}>{item.label}</Text>
@@ -210,18 +215,21 @@ export default function AddressesScreen(): React.ReactElement {
         <ScrollView style={styles.formBody} showsVerticalScrollIndicator={false}>
           <Text style={styles.formLabel}>Label</Text>
           <View style={styles.labelGrid}>
-            {LABEL_OPTIONS.map((opt) => (
+            {LABEL_OPTIONS.map((opt) => {
+              const ChipIcon = opt.icon;
+              return (
               <TouchableOpacity
                 key={opt.value}
                 style={[styles.labelChip, label === opt.value && styles.labelChipActive]}
                 onPress={() => setLabel(opt.value)}
               >
-                <Text style={styles.labelChipIcon}>{opt.icon}</Text>
+                <View style={styles.labelChipIconWrap}><ChipIcon size={18} color={label === opt.value ? colors.primary : colors.textSecondary} /></View>
                 <Text style={[styles.labelChipText, label === opt.value && styles.labelChipTextActive]}>
                   {opt.value}
                 </Text>
               </TouchableOpacity>
-            ))}
+              );
+            })}
           </View>
 
           <Text style={styles.formLabel}>Full Address *</Text>
@@ -375,6 +383,7 @@ const styles = StyleSheet.create({
   addressCardDefault: { borderColor: colors.primary },
   addressHeader: { flexDirection: 'row', marginBottom: spacing.sm },
   addressIcon: { fontSize: 24, marginRight: spacing.base, marginTop: 2 },
+  addressIconWrap: { marginRight: spacing.base, marginTop: 2, width: 28, alignItems: 'center' as const },
   addressInfo: { flex: 1 },
   addressLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   addressLabel: { ...typography.body, fontWeight: '700', color: colors.text, marginRight: spacing.sm },
@@ -444,6 +453,7 @@ const styles = StyleSheet.create({
   },
   labelChipActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   labelChipIcon: { fontSize: 18 },
+  labelChipIconWrap: { alignItems: 'center' as const, justifyContent: 'center' as const, marginRight: spacing.xs },
   labelChipText: { ...typography.bodySmall, fontWeight: '600', color: colors.textSecondary },
   labelChipTextActive: { color: colors.primary },
   input: {

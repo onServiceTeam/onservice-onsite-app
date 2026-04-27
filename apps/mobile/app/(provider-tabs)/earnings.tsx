@@ -17,6 +17,25 @@ import { formatPHP } from '@/utils/currency';
 import { formatDateTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
+import {
+  CreditCard,
+  Lock,
+  Unlock,
+  BarChart3,
+  Banknote,
+  Undo2,
+  Building2,
+  ClipboardList,
+  Shield,
+  Gift,
+  Repeat,
+  Coins,
+  AlertTriangle,
+} from '@/components/icons';
+import type { ComponentType } from 'react';
+
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
 
 interface Transaction {
   id: string;
@@ -30,18 +49,20 @@ interface Transaction {
   createdAt: string;
 }
 
-const TRANSACTION_ICONS: Record<string, string> = {
-  payment: '💳',
-  escrow_hold: '🔒',
-  escrow_release: '🔓',
-  commission: '📊',
-  payout: '💸',
-  refund: '↩️',
-  withdrawal: '🏦',
-  service_fee: '📋',
-  guarantee_contribution: '🛡️',
-  tip: '🎁',
+const TRANSACTION_ICONS: Record<string, IconComponent> = {
+  payment: CreditCard,
+  escrow_hold: Lock,
+  escrow_release: Unlock,
+  commission: BarChart3,
+  payout: Banknote,
+  refund: Undo2,
+  withdrawal: Building2,
+  service_fee: ClipboardList,
+  guarantee_contribution: Shield,
+  tip: Gift,
 };
+
+const FALLBACK_ICON: IconComponent = Repeat;
 
 export default function EarningsScreen(): React.ReactElement {
   const router = useRouter();
@@ -112,12 +133,12 @@ export default function EarningsScreen(): React.ReactElement {
 
       <View style={styles.infoRow}>
         <View style={styles.infoCard}>
-          <Text style={styles.infoIcon}>💰</Text>
+          <Coins size={22} color={colors.primary} style={styles.infoIconImg} />
           <Text style={styles.infoLabel}>Min Withdrawal</Text>
           <Text style={styles.infoValue}>{formatPHP(platformConfig.minimumWithdrawalAmount)}</Text>
         </View>
         <View style={styles.infoCard}>
-          <Text style={styles.infoIcon}>📊</Text>
+          <BarChart3 size={22} color={colors.primary} style={styles.infoIconImg} />
           <Text style={styles.infoLabel}>Commission</Text>
           <Text style={styles.infoValue}>{`${Math.round((platformConfig.commissionRates.elite ?? 0.09) * 100)}-${Math.round((platformConfig.commissionRates.new ?? 0.15) * 100)}%`}</Text>
         </View>
@@ -127,18 +148,21 @@ export default function EarningsScreen(): React.ReactElement {
     </View>
   );
 
-  const renderTransaction = ({ item }: { item: Transaction }): React.ReactElement => (
-    <View style={styles.txRow}>
-      <Text style={styles.txIcon}>{TRANSACTION_ICONS[item.type] ?? '💱'}</Text>
-      <View style={styles.txInfo}>
-        <Text style={styles.txDescription} numberOfLines={1}>{item.description}</Text>
-        <Text style={styles.txDate}>{formatDateTime(item.createdAt)}</Text>
+  const renderTransaction = ({ item }: { item: Transaction }): React.ReactElement => {
+    const Icon = TRANSACTION_ICONS[item.type] ?? FALLBACK_ICON;
+    return (
+      <View style={styles.txRow}>
+        <View style={styles.txIconWrap}><Icon size={20} color={colors.primary} /></View>
+        <View style={styles.txInfo}>
+          <Text style={styles.txDescription} numberOfLines={1}>{item.description}</Text>
+          <Text style={styles.txDate}>{formatDateTime(item.createdAt)}</Text>
+        </View>
+        <Text style={[styles.txAmount, item.amount >= 0 ? styles.txCredit : styles.txDebit]}>
+          {item.amount >= 0 ? '+' : ''}{formatPHP(Math.abs(item.amount))}
+        </Text>
       </View>
-      <Text style={[styles.txAmount, item.amount >= 0 ? styles.txCredit : styles.txDebit]}>
-        {item.amount >= 0 ? '+' : ''}{formatPHP(Math.abs(item.amount))}
-      </Text>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
@@ -146,7 +170,7 @@ export default function EarningsScreen(): React.ReactElement {
 
       {isError ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>⚠️</Text>
+          <AlertTriangle size={40} color={colors.error} style={styles.emptyIconImg} />
           <Text style={styles.emptyText}>Failed to load earnings data.</Text>
           <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
             <Text style={styles.retryText}>Try Again</Text>
@@ -168,7 +192,7 @@ export default function EarningsScreen(): React.ReactElement {
               <ActivityIndicator size="large" color={colors.secondary} style={styles.loader} />
             ) : (
               <View style={styles.empty}>
-                <Text style={styles.emptyIcon}>💳</Text>
+                <CreditCard size={40} color={colors.textTertiary} style={styles.emptyIconImg} />
                 <Text style={styles.emptyText}>No transactions yet</Text>
                 <Text style={styles.emptyHint}>Complete jobs to start earning</Text>
               </View>
@@ -212,6 +236,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   infoIcon: { fontSize: 24, marginBottom: spacing.xs },
+  infoIconImg: { marginBottom: spacing.xs },
   infoLabel: { ...typography.caption, color: colors.textTertiary, marginBottom: 2 },
   infoValue: { ...typography.body, color: colors.text, fontWeight: '700' },
 
@@ -226,6 +251,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
   },
   txIcon: { fontSize: 24, marginRight: spacing.md },
+  txIconWrap: { marginRight: spacing.md, width: 28, alignItems: 'center' },
   txInfo: { flex: 1 },
   txDescription: { ...typography.body, color: colors.text },
   txDate: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
@@ -236,6 +262,7 @@ const styles = StyleSheet.create({
   loader: { marginTop: spacing.xl },
   empty: { alignItems: 'center', paddingTop: spacing.xxl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
+  emptyIconImg: { marginBottom: spacing.base },
   emptyText: { ...typography.body, color: colors.textSecondary },
   emptyHint: { ...typography.bodySmall, color: colors.textTertiary, marginTop: spacing.xs },
   retryButton: { marginTop: spacing.base },

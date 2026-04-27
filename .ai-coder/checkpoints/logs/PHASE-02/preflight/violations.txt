@@ -1,0 +1,261 @@
+TOTAL=196
+--- BY FILE ---
+     12 apps/mobile/app/(provider-tabs)/earnings.tsx
+     12 apps/admin/src/components/Sidebar.tsx
+     10 apps/mobile/app/(tabs)/wallet.tsx
+      9 apps/mobile/app/provider/notifications.tsx
+      9 apps/mobile/app/customer/notifications.tsx
+      8 apps/mobile/app/(tabs)/home.tsx
+      8 apps/mobile/app/(provider-tabs)/provider-profile.tsx
+      7 apps/admin/src/pages/DashboardPage.tsx
+      6 apps/mobile/app/customer/provider/[id].tsx
+      6 apps/mobile/app/(provider-tabs)/dashboard.tsx
+      5 apps/mobile/app/customer/safety.tsx
+      5 apps/mobile/app/customer/booking/dispute.tsx
+      4 apps/mobile/app/provider-onboarding/categories.tsx
+      4 apps/mobile/app/(tabs)/profile.tsx
+      4 apps/mobile/app/(tabs)/_layout.tsx
+      4 apps/mobile/app/(provider-tabs)/_layout.tsx
+      4 apps/admin/src/pages/FinancialsPage.tsx
+      3 apps/mobile/app/provider/tier-progression.tsx
+      3 apps/mobile/app/provider/suki-customers.tsx
+      3 apps/mobile/app/provider/help.tsx
+      3 apps/mobile/app/provider/availability.tsx
+      3 apps/mobile/app/provider/account-management.tsx
+      3 apps/mobile/app/onboarding.tsx
+      3 apps/mobile/app/customer/suki-pros.tsx
+      3 apps/mobile/app/customer/payment-methods.tsx
+      3 apps/mobile/app/customer/booking/checkout.tsx
+      3 apps/mobile/app/customer/account-management.tsx
+      2 apps/mobile/src/components/provider/NewJobModal.tsx
+      2 apps/mobile/app/provider/reviews.tsx
+      2 apps/mobile/app/provider/payouts.tsx
+      2 apps/mobile/app/provider-onboarding/role-select.tsx
+      2 apps/mobile/app/customer/wallet-topup.tsx
+      2 apps/mobile/app/customer/search.tsx
+      2 apps/mobile/app/customer/referral.tsx
+      2 apps/mobile/app/customer/help.tsx
+      2 apps/mobile/app/customer/booking/review.tsx
+      2 apps/mobile/app/customer/booking/complete.tsx
+      2 apps/mobile/app/customer/addresses.tsx
+      2 apps/mobile/app/(tabs)/bookings.tsx
+      2 apps/mobile/app/(provider-tabs)/jobs.tsx
+      2 apps/admin/src/pages/PricingRulesPage.tsx
+      1 apps/mobile/src/config/accessibility.ts
+      1 apps/mobile/src/components/ui/ErrorState.tsx
+      1 apps/mobile/app/provider/services.tsx
+      1 apps/mobile/app/provider/portfolio.tsx
+      1 apps/mobile/app/provider/job/active.tsx
+      1 apps/mobile/app/provider/job/[id]/change-order.tsx
+      1 apps/mobile/app/provider/job/[id].tsx
+      1 apps/mobile/app/provider/certifications.tsx
+      1 apps/mobile/app/provider/calendar.tsx
+      1 apps/mobile/app/provider-onboarding/review-pending.tsx
+      1 apps/mobile/app/customer/terms.tsx
+      1 apps/mobile/app/customer/recurring/index.tsx
+      1 apps/mobile/app/customer/recurring/[id].tsx
+      1 apps/mobile/app/customer/booking/tip.tsx
+      1 apps/mobile/app/customer/booking/photos.tsx
+      1 apps/mobile/app/customer/booking/make-recurring.tsx
+      1 apps/mobile/app/customer/booking/confirm.tsx
+      1 apps/mobile/app/customer/booking/change-order.tsx
+      1 apps/mobile/app/customer/address-picker.tsx
+      1 apps/admin/src/pages/CatalogPage.tsx
+      1 apps/admin/src/pages/AuditLogPage.tsx
+--- ALL ---
+apps/admin/src/components/Sidebar.tsx:11:  { to: '/disputes', icon: 'ΓÜû∩╕Å', label: 'Disputes' },
+apps/admin/src/components/Sidebar.tsx:12:  { to: '/financials', icon: '≡ƒÆ░', label: 'Financials' },
+apps/admin/src/components/Sidebar.tsx:13:  { to: '/payouts', icon: '≡ƒÆ╕', label: 'Payouts' },
+apps/admin/src/components/Sidebar.tsx:16:  { to: '/business-accounts', icon: '≡ƒÅó', label: 'Business' },
+apps/admin/src/components/Sidebar.tsx:18:  { to: '/analytics', icon: '≡ƒôê', label: 'Analytics' },
+apps/admin/src/components/Sidebar.tsx:21:  { to: '/staff', icon: '≡ƒæñ', label: 'Staff & Roles' },
+apps/admin/src/components/Sidebar.tsx:22:  { to: '/settings', icon: 'ΓÜÖ∩╕Å', label: 'Settings' },
+apps/admin/src/components/Sidebar.tsx:5:  { to: '/', icon: '≡ƒôè', label: 'Dashboard' },
+apps/admin/src/components/Sidebar.tsx:6:  { to: '/providers', icon: '≡ƒöº', label: 'Providers' },
+apps/admin/src/components/Sidebar.tsx:7:  { to: '/customers', icon: '≡ƒæÑ', label: 'Customers' },
+apps/admin/src/components/Sidebar.tsx:8:  { to: '/bookings', icon: '≡ƒôï', label: 'Bookings' },
+apps/admin/src/components/Sidebar.tsx:9:  { to: '/catalog', icon: '≡ƒôª', label: 'Catalog' },
+apps/admin/src/pages/AuditLogPage.tsx:120:          <p className="text-4xl mb-3">≡ƒôï</p>
+apps/admin/src/pages/CatalogPage.tsx:445:            <p className="text-4xl mb-3">≡ƒôª</p>
+apps/admin/src/pages/DashboardPage.tsx:46:        <p className="text-4xl mb-3">ΓÜá∩╕Å</p>
+apps/admin/src/pages/DashboardPage.tsx:66:        <KpiCard title="Today's Revenue" value={formatCurrency(data.todayRevenue)} icon="≡ƒÆ░" />
+apps/admin/src/pages/DashboardPage.tsx:67:        <KpiCard title="Active Bookings" value={data.activeBookings} icon="≡ƒôï" />
+apps/admin/src/pages/DashboardPage.tsx:68:        <KpiCard title="Pending Disputes" value={data.pendingDisputes} icon="ΓÜá∩╕Å" />
+apps/admin/src/pages/DashboardPage.tsx:69:        <KpiCard title="New Signups Today" value={data.newSignupsToday} icon="≡ƒæñ" />
+apps/admin/src/pages/DashboardPage.tsx:73:        <KpiCard title="Provider Approvals Queue" value={data.pendingProviderApprovals} icon="≡ƒöº" />
+apps/admin/src/pages/DashboardPage.tsx:74:        <KpiCard title="Today's Bookings" value={data.todayBookings} icon="≡ƒôà" />
+apps/admin/src/pages/FinancialsPage.tsx:140:              icon="≡ƒÆ░"
+apps/admin/src/pages/FinancialsPage.tsx:145:              icon="≡ƒöÆ"
+apps/admin/src/pages/FinancialsPage.tsx:150:              icon="≡ƒ¢í∩╕Å"
+apps/admin/src/pages/FinancialsPage.tsx:155:              icon="≡ƒôê"
+apps/admin/src/pages/PricingRulesPage.tsx:43:  peak_hours: '≡ƒôê Peak Hours',
+apps/admin/src/pages/PricingRulesPage.tsx:509:          <p className="text-4xl mb-3">≡ƒôê</p>
+apps/mobile/app/(provider-tabs)/_layout.tsx:27:            tabBarIcon: ({ focused }) => <TabIcon emoji="≡ƒôè" focused={focused} />,
+apps/mobile/app/(provider-tabs)/_layout.tsx:34:            tabBarIcon: ({ focused }) => <TabIcon emoji="≡ƒöº" focused={focused} />,
+apps/mobile/app/(provider-tabs)/_layout.tsx:41:            tabBarIcon: ({ focused }) => <TabIcon emoji="≡ƒÆ░" focused={focused} />,
+apps/mobile/app/(provider-tabs)/_layout.tsx:48:            tabBarIcon: ({ focused }) => <TabIcon emoji="≡ƒæñ" focused={focused} />,
+apps/mobile/app/(provider-tabs)/dashboard.tsx:105:        <Text style={styles.errorEmoji}>ΓÜá∩╕Å</Text>
+apps/mobile/app/(provider-tabs)/dashboard.tsx:140:          <Text style={styles.notifIcon}>≡ƒöö</Text>
+apps/mobile/app/(provider-tabs)/dashboard.tsx:170:              {profile.rating != null ? `Γ¡É ${profile.rating.toFixed(1)}` : 'ΓÇö'}
+apps/mobile/app/(provider-tabs)/dashboard.tsx:262:          <Text style={styles.actionIcon}>≡ƒôà</Text>
+apps/mobile/app/(provider-tabs)/dashboard.tsx:269:          <Text style={styles.actionIcon}>≡ƒ¢á</Text>
+apps/mobile/app/(provider-tabs)/dashboard.tsx:276:          <Text style={styles.actionIcon}>≡ƒÆ│</Text>
+apps/mobile/app/(provider-tabs)/earnings.tsx:115:          <Text style={styles.infoIcon}>≡ƒÆ░</Text>
+apps/mobile/app/(provider-tabs)/earnings.tsx:120:          <Text style={styles.infoIcon}>≡ƒôè</Text>
+apps/mobile/app/(provider-tabs)/earnings.tsx:149:          <Text style={styles.emptyIcon}>ΓÜá∩╕Å</Text>
+apps/mobile/app/(provider-tabs)/earnings.tsx:171:                <Text style={styles.emptyIcon}>≡ƒÆ│</Text>
+apps/mobile/app/(provider-tabs)/earnings.tsx:34:  payment: '≡ƒÆ│',
+apps/mobile/app/(provider-tabs)/earnings.tsx:35:  escrow_hold: '≡ƒöÆ',
+apps/mobile/app/(provider-tabs)/earnings.tsx:36:  escrow_release: '≡ƒöô',
+apps/mobile/app/(provider-tabs)/earnings.tsx:37:  commission: '≡ƒôè',
+apps/mobile/app/(provider-tabs)/earnings.tsx:38:  payout: '≡ƒÆ╕',
+apps/mobile/app/(provider-tabs)/earnings.tsx:39:  refund: 'Γå⌐∩╕Å',
+apps/mobile/app/(provider-tabs)/earnings.tsx:41:  service_fee: '≡ƒôï',
+apps/mobile/app/(provider-tabs)/earnings.tsx:42:  guarantee_contribution: '≡ƒ¢í∩╕Å',
+apps/mobile/app/(provider-tabs)/jobs.tsx:120:          <Text style={styles.emptyIcon}>ΓÜá∩╕Å</Text>
+apps/mobile/app/(provider-tabs)/jobs.tsx:153:                  {filter === 'active' ? '≡ƒô¡' : filter === 'completed' ? 'Γ£à' : '≡ƒÜ½'}
+apps/mobile/app/(provider-tabs)/provider-profile.tsx:100:        <Text style={styles.errorEmoji}>ΓÜá∩╕Å</Text>
+apps/mobile/app/(provider-tabs)/provider-profile.tsx:163:              {profile.rating != null ? `Γ¡É ${profile.rating.toFixed(1)}` : 'New'}
+apps/mobile/app/(provider-tabs)/provider-profile.tsx:264:          <Text style={styles.menuIcon}>≡ƒôà</Text>
+apps/mobile/app/(provider-tabs)/provider-profile.tsx:269:          <Text style={styles.menuIcon}>≡ƒ¢á</Text>
+apps/mobile/app/(provider-tabs)/provider-profile.tsx:284:          <Text style={styles.menuIcon}>Γ¡É</Text>
+apps/mobile/app/(provider-tabs)/provider-profile.tsx:289:          <Text style={styles.menuIcon}>≡ƒÆ╕</Text>
+apps/mobile/app/(provider-tabs)/provider-profile.tsx:294:          <Text style={styles.menuIcon}>≡ƒöö</Text>
+apps/mobile/app/(provider-tabs)/provider-profile.tsx:299:          <Text style={styles.menuIcon}>ΓÜÖ∩╕Å</Text>
+apps/mobile/app/(tabs)/_layout.tsx:25:          tabBarIcon: ({ focused }) => <TabIcon emoji="≡ƒÅá" focused={focused} />,
+apps/mobile/app/(tabs)/_layout.tsx:32:          tabBarIcon: ({ focused }) => <TabIcon emoji="≡ƒôï" focused={focused} />,
+apps/mobile/app/(tabs)/_layout.tsx:39:          tabBarIcon: ({ focused }) => <TabIcon emoji="≡ƒÆ░" focused={focused} />,
+apps/mobile/app/(tabs)/_layout.tsx:46:          tabBarIcon: ({ focused }) => <TabIcon emoji="≡ƒæñ" focused={focused} />,
+apps/mobile/app/(tabs)/bookings.tsx:150:          <Text style={styles.emptyIcon}>ΓÜá∩╕Å</Text>
+apps/mobile/app/(tabs)/bookings.tsx:178:              <Text style={styles.emptyIcon}>≡ƒôï</Text>
+apps/mobile/app/(tabs)/home.tsx:178:          <Text style={styles.notifIcon}>≡ƒöö</Text>
+apps/mobile/app/(tabs)/home.tsx:395:        <Text style={styles.shieldBannerIcon}>≡ƒ¢í∩╕Å</Text>
+apps/mobile/app/(tabs)/home.tsx:431:        <Text style={styles.emptyIcon}>ΓÜá∩╕Å</Text>
+apps/mobile/app/(tabs)/home.tsx:51:  plumbing: '≡ƒöº',
+apps/mobile/app/(tabs)/home.tsx:53:  painting: '≡ƒÄ¿',
+apps/mobile/app/(tabs)/home.tsx:54:  aircon: 'Γ¥ä∩╕Å',
+apps/mobile/app/(tabs)/home.tsx:55:  'aircon-services': 'Γ¥ä∩╕Å',
+apps/mobile/app/(tabs)/home.tsx:58:  moving: '≡ƒôª',
+apps/mobile/app/(tabs)/profile.tsx:77:    { label: 'SiguradoShield\u2122 Protection', icon: '≡ƒ¢í∩╕Å', onPress: () => router.push('/customer/safety') },
+apps/mobile/app/(tabs)/profile.tsx:79:    { label: 'Payment Methods', icon: '≡ƒÆ│', onPress: () => router.push('/customer/payment-methods') },
+apps/mobile/app/(tabs)/profile.tsx:80:    { label: 'Notification Settings', icon: '≡ƒöö', onPress: () => router.push('/customer/notification-settings') },
+apps/mobile/app/(tabs)/profile.tsx:83:    { label: 'Account & Data', icon: '≡ƒöÉ', onPress: () => router.push('/customer/account-management') },
+apps/mobile/app/(tabs)/wallet.tsx:126:          <Text style={styles.emptyIcon}>ΓÜá∩╕Å</Text>
+apps/mobile/app/(tabs)/wallet.tsx:148:                <Text style={styles.emptyIcon}>≡ƒÆ│</Text>
+apps/mobile/app/(tabs)/wallet.tsx:33:  payment: '≡ƒÆ│',
+apps/mobile/app/(tabs)/wallet.tsx:34:  escrow_hold: '≡ƒöÆ',
+apps/mobile/app/(tabs)/wallet.tsx:35:  escrow_release: '≡ƒöô',
+apps/mobile/app/(tabs)/wallet.tsx:36:  commission: '≡ƒôè',
+apps/mobile/app/(tabs)/wallet.tsx:37:  payout: '≡ƒÆ╕',
+apps/mobile/app/(tabs)/wallet.tsx:38:  refund: 'Γå⌐∩╕Å',
+apps/mobile/app/(tabs)/wallet.tsx:40:  service_fee: '≡ƒôï',
+apps/mobile/app/(tabs)/wallet.tsx:41:  guarantee_contribution: '≡ƒ¢í∩╕Å',
+apps/mobile/app/customer/account-management.tsx:141:          <Text style={styles.cardIcon}>≡ƒôª</Text>
+apps/mobile/app/customer/account-management.tsx:171:                    {exp.status === 'completed' ? 'Γ£à' : exp.status === 'failed' ? 'Γ¥î' : 'ΓÅ│'} {exp.format.toUpperCase()}
+apps/mobile/app/customer/account-management.tsx:183:          <Text style={styles.cardIcon}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/address-picker.tsx:66:const LABEL_ICONS: Record<string, string> = { Home: '≡ƒÅá', Work: '≡ƒÅó', Other: '≡ƒôî' };
+apps/mobile/app/customer/addresses.tsx:150:          <Text style={{ fontSize: 48, marginBottom: 12 }}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/addresses.tsx:15:  { value: 'Home', icon: '≡ƒÅá' },
+apps/mobile/app/customer/booking/change-order.tsx:156:              <Text style={styles.emptyEmoji}>≡ƒôï</Text>
+apps/mobile/app/customer/booking/checkout.tsx:169:          <Text style={styles.escrowIcon}>≡ƒ¢í∩╕Å</Text>
+apps/mobile/app/customer/booking/checkout.tsx:25:  { id: 'card', label: 'Credit/Debit Card', icon: '≡ƒÆ│', description: 'Visa, Mastercard' },
+apps/mobile/app/customer/booking/checkout.tsx:27:  { id: 'qrph', label: 'QR Ph', icon: '≡ƒô▒', description: 'Scan to pay via QR Ph' },
+apps/mobile/app/customer/booking/complete.tsx:53:          <Text style={styles.icon}>Γ£à</Text>
+apps/mobile/app/customer/booking/complete.tsx:63:          <Text style={styles.infoIcon}>≡ƒöÆ</Text>
+apps/mobile/app/customer/booking/confirm.tsx:93:          <Text style={styles.infoIcon}>≡ƒ¢í∩╕Å</Text>
+apps/mobile/app/customer/booking/dispute.tsx:12:  { value: 'incomplete', label: 'Incomplete Work', desc: 'Job was left unfinished', icon: '≡ƒöº' },
+apps/mobile/app/customer/booking/dispute.tsx:14:  { value: 'damage', label: 'Property Damage', desc: 'My property was damaged', icon: '≡ƒÅÜ∩╕Å' },
+apps/mobile/app/customer/booking/dispute.tsx:15:  { value: 'theft', label: 'Theft', desc: 'Items missing after service', icon: '≡ƒöÆ' },
+apps/mobile/app/customer/booking/dispute.tsx:16:  { value: 'overcharge', label: 'Overcharge', desc: 'Charged more than agreed', icon: '≡ƒÆ░' },
+apps/mobile/app/customer/booking/dispute.tsx:75:          <Text style={styles.warningIcon}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/booking/make-recurring.tsx:95:        <Text style={{ fontSize: 48, marginBottom: 12 }}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/booking/photos.tsx:75:            <Text style={styles.emptyEmoji}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/booking/review.tsx:219:          <Text style={styles.privateNoteHint}>≡ƒöÆ This note is only visible to our support team, not the provider or public.</Text>
+apps/mobile/app/customer/booking/review.tsx:51:          <Text style={{ fontSize: size, opacity: star <= value ? 1 : 0.25 }}>Γ¡É</Text>
+apps/mobile/app/customer/booking/tip.tsx:86:        <Text style={{ fontSize: 48, marginBottom: 12 }}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/help.tsx:139:            <Text style={styles.contactBtnIcon}>Γ£ë∩╕Å</Text>
+apps/mobile/app/customer/help.tsx:150:            <Text style={styles.contactBtnIcon}>≡ƒô₧</Text>
+apps/mobile/app/customer/notifications.tsx:107:          <Text style={{ fontSize: 48, marginBottom: 12 }}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/notifications.tsx:130:              <Text style={styles.emptyIcon}>≡ƒöö</Text>
+apps/mobile/app/customer/notifications.tsx:24:  booking_confirmed: 'Γ£à',
+apps/mobile/app/customer/notifications.tsx:25:  provider_assigned: '≡ƒæñ',
+apps/mobile/app/customer/notifications.tsx:26:  provider_en_route: '≡ƒÜù',
+apps/mobile/app/customer/notifications.tsx:29:  payment_released: '≡ƒÆ░',
+apps/mobile/app/customer/notifications.tsx:30:  dispute_update: 'ΓÜû∩╕Å',
+apps/mobile/app/customer/notifications.tsx:31:  review_received: 'Γ¡É',
+apps/mobile/app/customer/notifications.tsx:77:      <Text style={styles.icon}>{NOTIFICATION_ICONS[item.type] ?? '≡ƒöö'}</Text>
+apps/mobile/app/customer/payment-methods.tsx:11:  { type: 'card' as const, label: 'Credit/Debit Card', icon: '≡ƒÆ│', desc: 'Visa, Mastercard' },
+apps/mobile/app/customer/payment-methods.tsx:75:        <Text style={styles.escrowTitle}>≡ƒÆ░ Escrow Protection</Text>
+apps/mobile/app/customer/payment-methods.tsx:9:  { type: 'gcash' as const, label: 'GCash', icon: '≡ƒô▒', desc: 'Pay via GCash e-wallet' },
+apps/mobile/app/customer/provider/[id].tsx:103:        <Text style={styles.errorEmoji}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/provider/[id].tsx:181:                <Text style={styles.infoBadgeText}>≡ƒ¢á {provider.yearsExperience}+ yrs exp</Text>
+apps/mobile/app/customer/provider/[id].tsx:186:                <Text style={styles.infoBadgeText}>Γ£à {Math.round(provider.acceptanceRate)}% accept</Text>
+apps/mobile/app/customer/provider/[id].tsx:266:                  <Text style={styles.certIconText}>{cert.isVerified ? 'Γ£à' : '≡ƒô£'}</Text>
+apps/mobile/app/customer/provider/[id].tsx:338:          <Text style={styles.shieldBadgeIcon}>≡ƒ¢í∩╕Å</Text>
+apps/mobile/app/customer/provider/[id].tsx:44:      {'Γ¡É'.repeat(full)} {rating.toFixed(1)}
+apps/mobile/app/customer/recurring/[id].tsx:154:          <Text style={{ fontSize: 48, marginBottom: 12 }}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/recurring/index.tsx:119:          <Text style={{ fontSize: 48, marginBottom: 12 }}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/referral.tsx:104:                  <Text style={styles.copyBtnText}>≡ƒôï Copy</Text>
+apps/mobile/app/customer/referral.tsx:82:          <Text style={{ fontSize: 48, marginBottom: spacing.md }}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/safety.tsx:128:          <Text style={styles.heroShield}>≡ƒ¢í∩╕Å</Text>
+apps/mobile/app/customer/safety.tsx:24:    icon: 'Γ£à',
+apps/mobile/app/customer/safety.tsx:29:    icon: '≡ƒöÆ',
+apps/mobile/app/customer/safety.tsx:34:    icon: '≡ƒ¢í∩╕Å',
+apps/mobile/app/customer/safety.tsx:39:    icon: 'Γ¡É',
+apps/mobile/app/customer/search.tsx:145:              <Text style={styles.providerRating}>Γ¡É {prov.averageRating.toFixed(1)}</Text>
+apps/mobile/app/customer/search.tsx:186:          <Text style={styles.emptyIcon}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/suki-pros.tsx:13:  regular: { bg: colors.backgroundSecondary, text: colors.textSecondary, border: colors.border, emoji: 'Γ¡É' },
+apps/mobile/app/customer/suki-pros.tsx:182:          <Text style={styles.emptyEmoji}>ΓÜá∩╕Å</Text>
+apps/mobile/app/customer/suki-pros.tsx:230:              <Text style={styles.emptyEmoji}>≡ƒÅá</Text>
+apps/mobile/app/customer/terms.tsx:134:          <Text style={styles.introEmoji}>{activeTab === 'terms' ? '≡ƒô£' : '≡ƒöÆ'}</Text>
+apps/mobile/app/customer/wallet-topup.tsx:19:  { id: 'card', label: 'Credit/Debit Card', icon: '≡ƒÆ│' },
+apps/mobile/app/customer/wallet-topup.tsx:20:  { id: 'qrph', label: 'QR Ph', icon: '≡ƒô▒' },
+apps/mobile/app/onboarding.tsx:29:    icon: '≡ƒÅá',
+apps/mobile/app/onboarding.tsx:37:    icon: '≡ƒ¢í∩╕Å',
+apps/mobile/app/onboarding.tsx:45:    icon: 'Γ¡É',
+apps/mobile/app/provider-onboarding/categories.tsx:107:          <Text style={{ fontSize: 48, marginBottom: 12 }}>ΓÜá∩╕Å</Text>
+apps/mobile/app/provider-onboarding/categories.tsx:12:  cleaning: '≡ƒº╣', plumbing: '≡ƒöº', electrical: 'ΓÜí', painting: '≡ƒÄ¿',
+apps/mobile/app/provider-onboarding/categories.tsx:13:  aircon: 'Γ¥ä∩╕Å', 'aircon-services': 'Γ¥ä∩╕Å', pest: '≡ƒÉ£', 'pest-control': '≡ƒÉ£',
+apps/mobile/app/provider-onboarding/categories.tsx:14:  moving: '≡ƒôª', carpentry: '≡ƒ¬Ü', appliance: '≡ƒöî', 'appliance-repair': '≡ƒöî',
+apps/mobile/app/provider-onboarding/review-pending.tsx:14:        <Text style={styles.icon}>≡ƒôï</Text>
+apps/mobile/app/provider-onboarding/role-select.tsx:34:          <Text style={styles.roleIcon}>≡ƒÅá</Text>
+apps/mobile/app/provider-onboarding/role-select.tsx:49:          <Text style={styles.roleIcon}>≡ƒöº</Text>
+apps/mobile/app/provider/account-management.tsx:141:          <Text style={styles.cardIcon}>≡ƒôª</Text>
+apps/mobile/app/provider/account-management.tsx:171:                    {exp.status === 'completed' ? 'Γ£à' : exp.status === 'failed' ? 'Γ¥î' : 'ΓÅ│'} {exp.format.toUpperCase()}
+apps/mobile/app/provider/account-management.tsx:183:          <Text style={styles.cardIcon}>ΓÜá∩╕Å</Text>
+apps/mobile/app/provider/availability.tsx:137:        <Text style={{ fontSize: 48, marginBottom: 12 }}>ΓÜá∩╕Å</Text>
+apps/mobile/app/provider/availability.tsx:263:            <Text style={styles.emptyIcon}>≡ƒôà</Text>
+apps/mobile/app/provider/availability.tsx:295:          <Text style={styles.scheduleLinkText}>≡ƒôï Edit Weekly Schedule ΓåÆ</Text>
+apps/mobile/app/provider/calendar.tsx:116:          <Text style={styles.settingsBtnText}>ΓÜÖ∩╕Å</Text>
+apps/mobile/app/provider/certifications.tsx:156:        <Text style={{ fontSize: 48, marginBottom: 12 }}>ΓÜá∩╕Å</Text>
+apps/mobile/app/provider/help.tsx:115:          <Text style={styles.heroIcon}>≡ƒ¢á∩╕Å</Text>
+apps/mobile/app/provider/help.tsx:156:            <Text style={styles.contactBtnIcon}>Γ£ë∩╕Å</Text>
+apps/mobile/app/provider/help.tsx:167:            <Text style={styles.contactBtnIcon}>≡ƒô₧</Text>
+apps/mobile/app/provider/job/[id].tsx:219:              <Text style={styles.navigateIcon}>≡ƒù║∩╕Å</Text>
+apps/mobile/app/provider/job/[id]/change-order.tsx:54:          <Text style={styles.infoIcon}>Γä╣∩╕Å</Text>
+apps/mobile/app/provider/job/active.tsx:192:              <Text style={styles.navIcon}>≡ƒù║∩╕Å</Text>
+apps/mobile/app/provider/notifications.tsx:106:          <Text style={{ fontSize: 48, marginBottom: 12 }}>ΓÜá∩╕Å</Text>
+apps/mobile/app/provider/notifications.tsx:125:              <Text style={styles.emptyIcon}>≡ƒöö</Text>
+apps/mobile/app/provider/notifications.tsx:24:  new_booking: '≡ƒôï',
+apps/mobile/app/provider/notifications.tsx:25:  booking_assigned: 'Γ£à',
+apps/mobile/app/provider/notifications.tsx:27:  payment_received: '≡ƒÆ░',
+apps/mobile/app/provider/notifications.tsx:28:  dispute_opened: 'ΓÜû∩╕Å',
+apps/mobile/app/provider/notifications.tsx:29:  review_received: 'Γ¡É',
+apps/mobile/app/provider/notifications.tsx:30:  payout_completed: '≡ƒÆ╕',
+apps/mobile/app/provider/notifications.tsx:76:      <Text style={styles.icon}>{NOTIFICATION_ICONS[item.type] ?? '≡ƒöö'}</Text>
+apps/mobile/app/provider/payouts.tsx:127:          <Text style={styles.emptyIcon}>ΓÜá∩╕Å</Text>
+apps/mobile/app/provider/payouts.tsx:155:                <Text style={styles.emptyIcon}>≡ƒÆ╕</Text>
+apps/mobile/app/provider/portfolio.tsx:131:        <Text style={{ fontSize: 48, marginBottom: 12 }}>ΓÜá∩╕Å</Text>
+apps/mobile/app/provider/reviews.tsx:262:          <Text style={styles.emptyIcon}>ΓÜá∩╕Å</Text>
+apps/mobile/app/provider/reviews.tsx:291:                <Text style={styles.emptyIcon}>Γ¡É</Text>
+apps/mobile/app/provider/services.tsx:126:            <Text style={styles.emptyIcon}>≡ƒ¢á</Text>
+apps/mobile/app/provider/suki-customers.tsx:121:              <Text style={styles.emptyEmoji}>≡ƒôï</Text>
+apps/mobile/app/provider/suki-customers.tsx:13:  regular: { label: 'Regular', emoji: 'Γ¡É', color: colors.textSecondary },
+apps/mobile/app/provider/suki-customers.tsx:89:          <Text style={styles.errorEmoji}>ΓÜá∩╕Å</Text>
+apps/mobile/app/provider/tier-progression.tsx:27:  verified: 'Γ£à',
+apps/mobile/app/provider/tier-progression.tsx:28:  pro: 'Γ¡É',
+apps/mobile/app/provider/tier-progression.tsx:52:        <Text style={{ fontSize: 48, marginBottom: 12 }}>ΓÜá∩╕Å</Text>
+apps/mobile/src/components/provider/NewJobModal.tsx:174:              <Text style={styles.icon}>≡ƒöº</Text>
+apps/mobile/src/components/provider/NewJobModal.tsx:194:              <Text style={styles.detailLabel}>≡ƒÆ░ Earnings</Text>
+apps/mobile/src/components/ui/ErrorState.tsx:25:      <Text style={styles.icon} accessibilityElementsHidden={true}>ΓÜá∩╕Å</Text>
+apps/mobile/src/config/accessibility.ts:60:  disputed: { icon: 'ΓÜá', label: 'Disputed' },

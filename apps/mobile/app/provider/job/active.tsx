@@ -9,6 +9,7 @@ import { updateBookingStatus } from '@/services/provider-api.service';
 import { Badge, Button } from '@/components/ui';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { MapIcon } from '@/components/icons';
 import { useLocation } from '@/hooks/useLocation';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -189,7 +190,7 @@ export default function ActiveJobScreen(): React.ReactElement {
           )}
           {booking.status === 'provider_en_route' && booking.latitude && booking.longitude && (
             <TouchableOpacity style={styles.navButton} onPress={handleNavigateToJob}>
-              <Text style={styles.navIcon}>🗺️</Text>
+              <MapIcon size={22} color={colors.primary} />
             </TouchableOpacity>
           )}
         </View>

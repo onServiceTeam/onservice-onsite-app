@@ -10,6 +10,11 @@ import { Button } from '@/components/ui';
 import * as addressService from '@/services/address.service';
 import type { SavedAddress } from '@/services/address.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import type { ComponentType } from 'react';
+import { Home as HomeIcon, Building2, Pin } from '@/components/icons';
+
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
 
 const MANILA_REGION: Region = {
   latitude: 14.5995,
@@ -63,7 +68,7 @@ function guessRegionFromCoordinates(lat: number, lng: number): { city: string; p
   return { city: closest.city, province: closest.province };
 }
 
-const LABEL_ICONS: Record<string, string> = { Home: '🏠', Work: '🏢', Other: '📌' };
+const LABEL_ICONS: Record<string, IconComponent> = { Home: HomeIcon, Work: Building2, Other: Pin };
 
 export default function AddressPickerScreen(): React.ReactElement {
   const router = useRouter();
@@ -252,15 +257,17 @@ export default function AddressPickerScreen(): React.ReactElement {
       {savedAddresses && savedAddresses.length > 0 && searchResults.length === 0 && (
         <View style={styles.savedSection}>
           <Text style={styles.savedLabel}>Saved Addresses</Text>
-          {savedAddresses.map((addr) => (
+          {savedAddresses.map((addr) => {
+            const SavedIcon = LABEL_ICONS[addr.label] ?? Pin;
+            return (
             <TouchableOpacity
               key={addr.id}
               style={styles.savedItem}
               onPress={() => handleSelectSaved(addr)}
             >
-              <Text style={styles.savedIcon}>
-                {LABEL_ICONS[addr.label] ?? '📌'}
-              </Text>
+              <View style={styles.savedIconWrap}>
+                <SavedIcon size={20} color={colors.primary} />
+              </View>
               <View style={styles.savedText}>
                 <Text style={styles.savedAddrLabel}>{addr.label}</Text>
                 <Text style={styles.savedAddr} numberOfLines={1}>
@@ -273,7 +280,8 @@ export default function AddressPickerScreen(): React.ReactElement {
                 </View>
               )}
             </TouchableOpacity>
-          ))}
+            );
+          })}
         </View>
       )}
 
@@ -412,6 +420,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   savedIcon: { fontSize: 16 },
+  savedIconWrap: { alignItems: 'center' as const, justifyContent: 'center' as const, width: 24 },
   savedText: { flex: 1 },
   savedAddrLabel: { ...typography.bodySmall, fontWeight: '600', color: colors.text },
   savedAddr: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },

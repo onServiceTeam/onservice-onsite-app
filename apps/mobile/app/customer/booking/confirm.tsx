@@ -8,6 +8,7 @@ import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDate, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Shield } from '@/components/icons';
 
 export default function BookingConfirmScreen(): React.ReactElement {
   const router = useRouter();
@@ -90,7 +91,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
           onPress={() => router.push('/customer/safety')}
           activeOpacity={0.7}
         >
-          <Text style={styles.infoIcon}>🛡️</Text>
+          <View style={styles.infoIconWrap}><Shield size={22} color={colors.primary} /></View>
           <Text style={styles.infoText}>
             Protected by SiguradoShield™. Your payment is secured in escrow and will only
             be released when you confirm the job is done to your satisfaction.
@@ -218,6 +219,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   infoIcon: { fontSize: 20, marginRight: spacing.sm },
+  infoIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },
   infoText: { ...typography.bodySmall, color: colors.success, flex: 1 },
 
   stepsCard: {

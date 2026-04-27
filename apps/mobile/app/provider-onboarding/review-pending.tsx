@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { ClipboardList } from '@/components/icons';
 
 export default function ReviewPendingScreen(): React.ReactElement {
   const router = useRouter();
@@ -11,7 +12,7 @@ export default function ReviewPendingScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
-        <Text style={styles.icon}>📋</Text>
+        <View style={styles.iconWrap}><ClipboardList size={64} color={colors.primary} /></View>
         <Text style={styles.title}>Application Under Review</Text>
         <Text style={styles.subtitle}>
           Thank you for applying to become an onService provider!
@@ -77,6 +78,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xxl,
   },
   icon: { fontSize: 64, textAlign: 'center', marginBottom: spacing.base },
+  iconWrap: { marginBottom: spacing.base, alignItems: 'center' as const },
   title: { ...typography.h1, color: colors.text, textAlign: 'center', marginBottom: spacing.sm },
   subtitle: {
     ...typography.body,

@@ -7,12 +7,17 @@ import { getCategories, type Category } from '@/services/catalog.service';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 import { Input, Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import type { ComponentType } from 'react';
+import { Sparkles, Wrench, Zap, Paintbrush2, Snowflake, Bug, Package, Hammer, Plug, AlertTriangle } from '@/components/icons';
 
-const CATEGORY_ICONS: Record<string, string> = {
-  cleaning: '🧹', plumbing: '🔧', electrical: '⚡', painting: '🎨',
-  aircon: '❄️', 'aircon-services': '❄️', pest: '🐜', 'pest-control': '🐜',
-  moving: '📦', carpentry: '🪚', appliance: '🔌', 'appliance-repair': '🔌',
-  'general-maintenance': '🔨',
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
+
+const CATEGORY_ICONS: Record<string, IconComponent> = {
+  cleaning: Sparkles, plumbing: Wrench, electrical: Zap, painting: Paintbrush2,
+  aircon: Snowflake, 'aircon-services': Snowflake, pest: Bug, 'pest-control': Bug,
+  moving: Package, carpentry: Hammer, appliance: Plug, 'appliance-repair': Plug,
+  'general-maintenance': Hammer,
 };
 
 export default function CategoriesScreen(): React.ReactElement {
@@ -53,14 +58,14 @@ export default function CategoriesScreen(): React.ReactElement {
 
   const renderCategory = ({ item }: { item: Category }): React.ReactElement => {
     const isSelected = selected.has(item.id);
-    const icon = CATEGORY_ICONS[item.slug] ?? '🔨';
+    const Icon = CATEGORY_ICONS[item.slug] ?? Hammer;
     return (
       <TouchableOpacity
         style={[styles.catItem, isSelected && styles.catItemSelected]}
         onPress={() => toggleCategory(item.id)}
         activeOpacity={0.7}
       >
-        <Text style={styles.catIcon}>{icon}</Text>
+        <View style={styles.catIconWrap}><Icon size={28} color={isSelected ? colors.primary : colors.text} /></View>
         <Text style={[styles.catLabel, isSelected && styles.catLabelSelected]} numberOfLines={2}>
           {item.name}
         </Text>
@@ -104,7 +109,7 @@ export default function CategoriesScreen(): React.ReactElement {
         </View>
       ) : isError ? (
         <View style={styles.loadingContainer}>
-          <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+          <View style={{ marginBottom: 12, alignItems: 'center' }}><AlertTriangle size={48} color={colors.error} /></View>
           <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
           <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load categories. Please try again.</Text>
           <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: borderRadius.md }}>
@@ -172,6 +177,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight,
   },
   catIcon: { fontSize: 28, marginBottom: spacing.xs },
+  catIconWrap: { marginBottom: spacing.xs, alignItems: 'center' as const },
   catLabel: { ...typography.caption, color: colors.text, textAlign: 'center', fontWeight: '500' },
   catLabelSelected: { color: colors.primary, fontWeight: '700' },
   catCheck: {

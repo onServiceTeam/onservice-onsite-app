@@ -1,25 +1,51 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  Wrench,
+  Users,
+  ClipboardList,
+  Package,
+  TrendingUp,
+  Scale,
+  Coins,
+  Banknote,
+  Megaphone,
+  Repeat,
+  Building2,
+  MapPin,
+  LineChart,
+  Search,
+  Ticket,
+  User,
+  Settings,
+} from '@/components/icons';
 
-const NAV_ITEMS = [
-  { to: '/', icon: '📊', label: 'Dashboard' },
-  { to: '/providers', icon: '🔧', label: 'Providers' },
-  { to: '/customers', icon: '👥', label: 'Customers' },
-  { to: '/bookings', icon: '📋', label: 'Bookings' },
-  { to: '/catalog', icon: '📦', label: 'Catalog' },
-  { to: '/pricing-rules', icon: '💹', label: 'Pricing Rules' },
-  { to: '/disputes', icon: '⚖️', label: 'Disputes' },
-  { to: '/financials', icon: '💰', label: 'Financials' },
-  { to: '/payouts', icon: '💸', label: 'Payouts' },
-  { to: '/notification-templates', icon: '📣', label: 'Templates' },
-  { to: '/recurring', icon: '🔄', label: 'Recurring' },
-  { to: '/business-accounts', icon: '🏢', label: 'Business' },
-  { to: '/service-areas', icon: '📍', label: 'Service Areas' },
-  { to: '/analytics', icon: '📈', label: 'Analytics' },
-  { to: '/audit-log', icon: '🔍', label: 'Audit Log' },
-  { to: '/support-tickets', icon: '🎫', label: 'Support' },
-  { to: '/staff', icon: '👤', label: 'Staff & Roles' },
-  { to: '/settings', icon: '⚙️', label: 'Settings' },
+type NavItem = {
+  to: string;
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  label: string;
+};
+
+const NAV_ITEMS: NavItem[] = [
+  { to: '/', Icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/providers', Icon: Wrench, label: 'Providers' },
+  { to: '/customers', Icon: Users, label: 'Customers' },
+  { to: '/bookings', Icon: ClipboardList, label: 'Bookings' },
+  { to: '/catalog', Icon: Package, label: 'Catalog' },
+  { to: '/pricing-rules', Icon: TrendingUp, label: 'Pricing Rules' },
+  { to: '/disputes', Icon: Scale, label: 'Disputes' },
+  { to: '/financials', Icon: Coins, label: 'Financials' },
+  { to: '/payouts', Icon: Banknote, label: 'Payouts' },
+  { to: '/notification-templates', Icon: Megaphone, label: 'Templates' },
+  { to: '/recurring', Icon: Repeat, label: 'Recurring' },
+  { to: '/business-accounts', Icon: Building2, label: 'Business' },
+  { to: '/service-areas', Icon: MapPin, label: 'Service Areas' },
+  { to: '/analytics', Icon: LineChart, label: 'Analytics' },
+  { to: '/audit-log', Icon: Search, label: 'Audit Log' },
+  { to: '/support-tickets', Icon: Ticket, label: 'Support' },
+  { to: '/staff', Icon: User, label: 'Staff & Roles' },
+  { to: '/settings', Icon: Settings, label: 'Settings' },
 ];
 
 export default function Sidebar(): React.ReactElement {
@@ -45,7 +71,7 @@ export default function Sidebar(): React.ReactElement {
               }`
             }
           >
-            <span className="text-base">{item.icon}</span>
+            <item.Icon size={18} className="shrink-0" />
             {item.label}
           </NavLink>
         ))}

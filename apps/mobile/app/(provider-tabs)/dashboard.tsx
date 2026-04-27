@@ -21,6 +21,7 @@ import {
 } from '@/services/provider-api.service';
 import type { Booking } from '@/services/booking.service';
 import { Badge } from '@/components/ui';
+import { AlertTriangle, Bell, Calendar, Wrench, CreditCard, Inbox } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -102,7 +103,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
   if (profileQuery.isError) {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <Text style={styles.errorEmoji}>⚠️</Text>
+        <AlertTriangle size={48} color={colors.error} style={styles.errorIcon} />
         <Text style={styles.errorText}>Failed to load your profile.</Text>
         <TouchableOpacity onPress={() => void profileQuery.refetch()}>
           <Text style={styles.retryText}>Try Again</Text>
@@ -137,7 +138,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
           style={styles.notifButton}
           onPress={() => router.push('/provider/notifications')}
         >
-          <Text style={styles.notifIcon}>🔔</Text>
+          <Bell size={22} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -167,7 +168,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>
-              {profile.rating != null ? `⭐ ${profile.rating.toFixed(1)}` : '—'}
+              {profile.rating != null ? profile.rating.toFixed(1) : '—'}
             </Text>
             <Text style={styles.statLabel}>Rating</Text>
           </View>
@@ -196,7 +197,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
 
         {activeJobs.length === 0 ? (
           <View style={styles.emptyJobs}>
-            <Text style={styles.emptyIcon}>📭</Text>
+            <Inbox size={40} color={colors.textTertiary} style={styles.emptyIconImg} />
             <Text style={styles.emptyText}>No active jobs right now</Text>
             <Text style={styles.emptyHint}>
               {profile?.isAvailable
@@ -259,21 +260,21 @@ export default function ProviderDashboardScreen(): React.ReactElement {
           style={styles.actionButton}
           onPress={() => router.push('/provider/calendar')}
         >
-          <Text style={styles.actionIcon}>📅</Text>
+          <Calendar size={24} color={colors.primary} style={styles.actionIconImg} />
           <Text style={styles.actionLabel}>Calendar</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => router.push('/provider/services')}
         >
-          <Text style={styles.actionIcon}>🛠</Text>
+          <Wrench size={24} color={colors.primary} style={styles.actionIconImg} />
           <Text style={styles.actionLabel}>Services</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => router.push('/(provider-tabs)/earnings')}
         >
-          <Text style={styles.actionIcon}>💳</Text>
+          <CreditCard size={24} color={colors.primary} style={styles.actionIconImg} />
           <Text style={styles.actionLabel}>Earnings</Text>
         </TouchableOpacity>
       </View>
@@ -287,6 +288,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { alignItems: 'center', justifyContent: 'center' },
   errorEmoji: { fontSize: 48, marginBottom: spacing.base },
+  errorIcon: { marginBottom: spacing.base },
+  emptyIconImg: { marginBottom: spacing.sm },
+  actionIconImg: { marginBottom: spacing.xs },
   errorText: { ...typography.body, color: colors.error, marginBottom: spacing.md },
   retryText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
   scrollContent: { paddingHorizontal: spacing.base, paddingBottom: 20 },

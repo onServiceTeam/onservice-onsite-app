@@ -19,17 +19,25 @@ import {
 } from '@/services/notification.service';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import type { ComponentType } from 'react';
+import {
+  CheckCircle2, User, Car, MapPin, PartyPopper, Coins, Scale,
+  Star, Gift, Bell, AlertTriangle,
+} from '@/components/icons';
 
-const NOTIFICATION_ICONS: Record<string, string> = {
-  booking_confirmed: '✅',
-  provider_assigned: '👤',
-  provider_en_route: '🚗',
-  provider_arrived: '📍',
-  job_completed: '🎉',
-  payment_released: '💰',
-  dispute_update: '⚖️',
-  review_received: '⭐',
-  promo: '🎁',
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
+
+const NOTIFICATION_ICONS: Record<string, IconComponent> = {
+  booking_confirmed: CheckCircle2,
+  provider_assigned: User,
+  provider_en_route: Car,
+  provider_arrived: MapPin,
+  job_completed: PartyPopper,
+  payment_released: Coins,
+  dispute_update: Scale,
+  review_received: Star,
+  promo: Gift,
 };
 
 export default function NotificationsScreen(): React.ReactElement {
@@ -68,13 +76,15 @@ export default function NotificationsScreen(): React.ReactElement {
     }
   };
 
-  const renderItem = ({ item }: { item: Notification }): React.ReactElement => (
+  const renderItem = ({ item }: { item: Notification }): React.ReactElement => {
+    const Icon = NOTIFICATION_ICONS[item.type] ?? Bell;
+    return (
     <TouchableOpacity
       style={[styles.card, !item.isRead && styles.cardUnread]}
       onPress={() => void handleNotificationPress(item)}
       activeOpacity={0.7}
     >
-      <Text style={styles.icon}>{NOTIFICATION_ICONS[item.type] ?? '🔔'}</Text>
+      <View style={styles.iconWrap}><Icon size={22} color={colors.primary} /></View>
       <View style={styles.cardContent}>
         <Text style={[styles.cardTitle, !item.isRead && styles.cardTitleUnread]}>{item.title}</Text>
         <Text style={styles.cardBody} numberOfLines={2}>{item.body}</Text>
@@ -82,7 +92,8 @@ export default function NotificationsScreen(): React.ReactElement {
       </View>
       {!item.isRead && <View style={styles.unreadDot} />}
     </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -104,7 +115,7 @@ export default function NotificationsScreen(): React.ReactElement {
         </View>
       ) : isError ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+          <View style={{ marginBottom: 12 }}><AlertTriangle size={48} color={colors.error} /></View>
           <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
           <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load notifications. Please try again.</Text>
           <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
@@ -127,7 +138,7 @@ export default function NotificationsScreen(): React.ReactElement {
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyIcon}>🔔</Text>
+              <View style={styles.emptyIconWrap}><Bell size={48} color={colors.textTertiary} /></View>
               <Text style={styles.emptyText}>No notifications yet</Text>
             </View>
           }
@@ -165,6 +176,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
   },
   cardUnread: { backgroundColor: colors.primaryLight },
+  iconWrap: { marginRight: spacing.md, marginTop: 2, width: 28, alignItems: 'center' as const },
+  emptyIconWrap: { marginBottom: spacing.base },
   icon: { fontSize: 24, marginRight: spacing.md, marginTop: 2 },
   cardContent: { flex: 1 },
   cardTitle: { ...typography.body, color: colors.text },

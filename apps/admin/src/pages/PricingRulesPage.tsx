@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { Badge, Pagination } from '@/components/ui';
+import { TrendingUp } from '@/components/icons';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -38,9 +39,9 @@ const TYPE_VARIANT: Record<string, 'warning' | 'danger' | 'info'> = {
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  rush: '⚡ Rush',
-  holiday: '🎉 Holiday',
-  peak_hours: '📈 Peak Hours',
+  rush: 'Rush',
+  holiday: 'Holiday',
+  peak_hours: 'Peak Hours',
 };
 
 function formatMultiplier(m: number): string {
@@ -506,7 +507,7 @@ export default function PricingRulesPage(): React.ReactElement {
         </div>
       ) : rules.length === 0 ? (
         <div className="text-center py-16 text-[var(--color-text-secondary)]">
-          <p className="text-4xl mb-3">📈</p>
+          <TrendingUp size={40} className="mx-auto mb-3 text-slate-400" />
           <p className="font-medium">No pricing rules yet.</p>
           <p className="text-sm mt-1">Create one to enable surge pricing for rush hours, holidays, or peak periods.</p>
         </div>

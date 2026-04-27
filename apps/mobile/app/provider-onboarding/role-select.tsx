@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { storage } from '@/services/api';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Home as HomeIcon, Wrench } from '@/components/icons';
 
 export default function RoleSelectScreen(): React.ReactElement {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function RoleSelectScreen(): React.ReactElement {
           onPress={handleCustomer}
           activeOpacity={0.7}
         >
-          <Text style={styles.roleIcon}>🏠</Text>
+          <View style={styles.roleIconWrap}><HomeIcon size={36} color={colors.primary} /></View>
           <View style={styles.roleInfo}>
             <Text style={styles.roleTitle}>I need services</Text>
             <Text style={styles.roleDesc}>
@@ -46,7 +47,7 @@ export default function RoleSelectScreen(): React.ReactElement {
           onPress={handleProvider}
           activeOpacity={0.7}
         >
-          <Text style={styles.roleIcon}>🔧</Text>
+          <View style={styles.roleIconWrap}><Wrench size={36} color={colors.primary} /></View>
           <View style={styles.roleInfo}>
             <Text style={styles.roleTitle}>I provide services</Text>
             <Text style={styles.roleDesc}>
@@ -84,6 +85,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight,
   },
   roleIcon: { fontSize: 36, marginRight: spacing.base },
+  roleIconWrap: { marginRight: spacing.base, width: 44, alignItems: 'center' as const },
   roleInfo: { flex: 1 },
   roleTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   roleDesc: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 18 },

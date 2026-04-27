@@ -19,6 +19,7 @@ import { Badge, Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Star, AlertTriangle, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText, Shield } from '@/components/icons';
 
 const TIER_COLORS: Record<string, string> = {
   new: colors.tierNew,
@@ -38,11 +39,11 @@ const TIER_LABELS: Record<string, string> = {
 
 function StarDisplay({ rating }: { rating: number | null }): React.ReactElement {
   if (rating == null) return <Text style={styles.noRating}>New</Text>;
-  const full = Math.floor(rating);
   return (
-    <Text style={styles.ratingStars}>
-      {'⭐'.repeat(full)} {rating.toFixed(1)}
-    </Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+      <Star size={14} color={colors.warning} />
+      <Text style={styles.ratingStars}>{rating.toFixed(1)}</Text>
+    </View>
   );
 }
 
@@ -100,7 +101,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
   if (providerError) {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top, padding: 24 }]}>
-        <Text style={styles.errorEmoji}>⚠️</Text>
+        <View style={styles.errorEmojiWrap}><AlertTriangle size={48} color={colors.error} /></View>
         <Text style={styles.errorTitle}>Something went wrong</Text>
         <Text style={styles.errorSubtitle}>Failed to load provider profile. Please try again.</Text>
         <TouchableOpacity onPress={() => void refetchProvider()} style={styles.retryButton}>
@@ -178,27 +179,32 @@ export default function ProviderProfileScreen(): React.ReactElement {
           <View style={styles.badgeRow}>
             {provider.yearsExperience != null && (
               <View style={styles.infoBadge}>
-                <Text style={styles.infoBadgeText}>🛠 {provider.yearsExperience}+ yrs exp</Text>
+                <Wrench size={12} color={colors.text} />
+                <Text style={styles.infoBadgeText}> {provider.yearsExperience}+ yrs exp</Text>
               </View>
             )}
             {provider.acceptanceRate != null && provider.acceptanceRate >= 80 && (
               <View style={styles.infoBadge}>
-                <Text style={styles.infoBadgeText}>✅ {Math.round(provider.acceptanceRate)}% accept</Text>
+                <CheckCircle2 size={12} color={colors.success} />
+                <Text style={styles.infoBadgeText}> {Math.round(provider.acceptanceRate)}% accept</Text>
               </View>
             )}
             {provider.serviceRadiusKm != null && (
               <View style={styles.infoBadge}>
-                <Text style={styles.infoBadgeText}>📍 {provider.serviceRadiusKm} km radius</Text>
+                <MapPin size={12} color={colors.text} />
+                <Text style={styles.infoBadgeText}> {provider.serviceRadiusKm} km radius</Text>
               </View>
             )}
             {provider.sukiCount > 0 && (
               <View style={styles.infoBadge}>
-                <Text style={styles.infoBadgeText}>💚 {provider.sukiCount} Suki{provider.sukiCount !== 1 ? 's' : ''}</Text>
+                <Heart size={12} color={colors.success} />
+                <Text style={styles.infoBadgeText}> {provider.sukiCount} Suki{provider.sukiCount !== 1 ? 's' : ''}</Text>
               </View>
             )}
             {provider.city && (
               <View style={styles.infoBadge}>
-                <Text style={styles.infoBadgeText}>🏙 {provider.city}{provider.province ? `, ${provider.province}` : ''}</Text>
+                <Building size={12} color={colors.text} />
+                <Text style={styles.infoBadgeText}> {provider.city}{provider.province ? `, ${provider.province}` : ''}</Text>
               </View>
             )}
           </View>
@@ -263,7 +269,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
             {provider.certifications.map((cert) => (
               <View key={cert.id} style={styles.certRow}>
                 <View style={styles.certIcon}>
-                  <Text style={styles.certIconText}>{cert.isVerified ? '✅' : '📜'}</Text>
+                  {cert.isVerified ? <CheckCircle2 size={18} color={colors.success} /> : <ScrollText size={18} color={colors.textSecondary} />}
                 </View>
                 <View style={styles.certInfo}>
                   <Text style={styles.certName}>{cert.name}</Text>
@@ -335,7 +341,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
           onPress={() => router.push('/customer/safety')}
           activeOpacity={0.7}
         >
-          <Text style={styles.shieldBadgeIcon}>🛡️</Text>
+          <View style={styles.shieldBadgeIconWrap}><Shield size={22} color={colors.primary} /></View>
           <Text style={styles.shieldBadgeText}>
             Bookings through onService include SiguradoShield™ protection
           </Text>
@@ -417,6 +423,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
   },
   infoBadgeText: { ...typography.caption, color: colors.textSecondary },
 
@@ -561,11 +569,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   shieldBadgeIcon: { fontSize: 22 },
+  shieldBadgeIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },
   shieldBadgeText: { ...typography.bodySmall, color: colors.infoDark, flex: 1 },
 
   bottomSpacer: { height: 100 },
 
   errorEmoji: { fontSize: 48, marginBottom: 12 },
+  errorEmojiWrap: { marginBottom: 12, alignItems: 'center' as const },
   errorTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
   errorSubtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center' as const, marginBottom: spacing.base },
   retryButton: { backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: borderRadius.md },

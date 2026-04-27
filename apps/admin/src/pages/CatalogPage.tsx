@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { Badge } from '@/components/ui';
+import { Package } from '@/components/icons';
 
 const CURRENCY_SYMBOL = '₱';
 
@@ -442,7 +443,7 @@ export default function CatalogPage(): React.ReactElement {
 
         {(data ?? []).length === 0 && (
           <div className="text-center py-12 text-[var(--color-text-secondary)]">
-            <p className="text-4xl mb-3">📦</p>
+            <Package size={40} className="mx-auto mb-3 text-slate-400" />
             <p>No categories yet. Create one to get started.</p>
           </div>
         )}

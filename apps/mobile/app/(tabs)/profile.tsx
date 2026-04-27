@@ -8,6 +8,11 @@ import api from '@/services/api';
 import type { ApiResponse } from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
+import type { ComponentType } from 'react';
+import { Shield, MapPin, CreditCard, Bell, HelpCircle, FileText, KeyRound } from '@/components/icons';
+
+type IconProps = { size?: number; color?: string };
+type IconComponent = ComponentType<IconProps>;
 
 export default function ProfileScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
@@ -73,14 +78,14 @@ export default function ProfileScreen(): React.ReactElement {
     }
   };
 
-  const menuItems = [
-    { label: 'SiguradoShield\u2122 Protection', icon: '🛡️', onPress: () => router.push('/customer/safety') },
-    { label: 'My Addresses', icon: '📍', onPress: () => router.push('/customer/addresses') },
-    { label: 'Payment Methods', icon: '💳', onPress: () => router.push('/customer/payment-methods') },
-    { label: 'Notification Settings', icon: '🔔', onPress: () => router.push('/customer/notification-settings') },
-    { label: 'Help & Support', icon: '❓', onPress: () => router.push('/customer/help') },
-    { label: 'Terms & Privacy', icon: '📄', onPress: () => router.push('/customer/terms') },
-    { label: 'Account & Data', icon: '🔐', onPress: () => router.push('/customer/account-management') },
+  const menuItems: Array<{ label: string; icon: IconComponent; onPress: () => void }> = [
+    { label: 'SiguradoShield™ Protection', icon: Shield, onPress: () => router.push('/customer/safety') },
+    { label: 'My Addresses', icon: MapPin, onPress: () => router.push('/customer/addresses') },
+    { label: 'Payment Methods', icon: CreditCard, onPress: () => router.push('/customer/payment-methods') },
+    { label: 'Notification Settings', icon: Bell, onPress: () => router.push('/customer/notification-settings') },
+    { label: 'Help & Support', icon: HelpCircle, onPress: () => router.push('/customer/help') },
+    { label: 'Terms & Privacy', icon: FileText, onPress: () => router.push('/customer/terms') },
+    { label: 'Account & Data', icon: KeyRound, onPress: () => router.push('/customer/account-management') },
   ];
 
   return (
@@ -148,18 +153,21 @@ export default function ProfileScreen(): React.ReactElement {
       </View>
 
       <View style={styles.menu}>
-        {menuItems.map((item) => (
-          <TouchableOpacity
-            key={item.label}
-            style={styles.menuItem}
-            onPress={item.onPress}
-            activeOpacity={0.6}
-          >
-            <Text style={styles.menuIcon}>{item.icon}</Text>
-            <Text style={styles.menuLabel}>{item.label}</Text>
-            <Text style={styles.menuArrow}>›</Text>
-          </TouchableOpacity>
-        ))}
+        {menuItems.map((item) => {
+          const ItemIcon = item.icon;
+          return (
+            <TouchableOpacity
+              key={item.label}
+              style={styles.menuItem}
+              onPress={item.onPress}
+              activeOpacity={0.6}
+            >
+              <View style={styles.menuIconWrap}><ItemIcon size={20} color={colors.text} /></View>
+              <Text style={styles.menuLabel}>{item.label}</Text>
+              <Text style={styles.menuArrow}>›</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <Button
@@ -214,6 +222,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   menuIcon: { fontSize: 20, marginRight: spacing.md, width: 28 },
+  menuIconWrap: { marginRight: spacing.md, width: 28, alignItems: 'center' as const },
   menuLabel: { ...typography.body, color: colors.text, flex: 1 },
   menuArrow: { fontSize: 22, color: colors.textTertiary },
   logoutButton: { marginBottom: spacing.base },

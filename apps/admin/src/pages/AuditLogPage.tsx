@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { adminConfig } from '@/config/admin.config';
+import { ClipboardList } from '@/components/icons';
 
 interface AuditEntry {
   id: string;
@@ -117,7 +118,7 @@ export default function AuditLogPage(): React.ReactElement {
         </div>
       ) : entries.length === 0 ? (
         <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-12 text-center">
-          <p className="text-4xl mb-3">📋</p>
+          <ClipboardList size={40} className="mx-auto mb-3 text-slate-400" />
           <p className="font-medium text-[var(--color-text)]">No audit entries found</p>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
             {actionFilter || entityTypeFilter ? 'Try adjusting your filters.' : 'Audit entries will appear as system actions occur.'}

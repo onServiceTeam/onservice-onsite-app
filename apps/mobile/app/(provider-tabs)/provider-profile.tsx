@@ -14,6 +14,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
 import { getMyProfile, updateMyProfile } from '@/services/provider-api.service';
 import { Badge, Button, Input } from '@/components/ui';
+import {
+  AlertTriangle,
+  Calendar,
+  Wrench,
+  Camera,
+  Award,
+  Star,
+  Banknote,
+  Bell,
+  Settings,
+} from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
@@ -97,7 +108,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
   if (isError && !profile) {
     return (
       <View style={[styles.container, styles.errorCenter, { paddingTop: insets.top + 80 }]}>
-        <Text style={styles.errorEmoji}>⚠️</Text>
+        <AlertTriangle size={48} color={colors.error} style={styles.errorIcon} />
         <Text style={styles.title}>Could not load profile</Text>
         <TouchableOpacity onPress={() => void refetch()} style={styles.retryButton}>
           <Text style={styles.retryText}>Try Again</Text>
@@ -160,7 +171,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Rating</Text>
             <Text style={styles.detailValue}>
-              {profile.rating != null ? `⭐ ${profile.rating.toFixed(1)}` : 'New'}
+              {profile.rating != null ? profile.rating.toFixed(1) : 'New'}
             </Text>
           </View>
           <View style={styles.detailRow}>
@@ -261,42 +272,42 @@ export default function ProviderProfileScreen(): React.ReactElement {
 
       <View style={styles.section}>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/schedule')}>
-          <Text style={styles.menuIcon}>📅</Text>
+          <Calendar size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Manage Schedule</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/services')}>
-          <Text style={styles.menuIcon}>🛠</Text>
+          <Wrench size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Manage Services</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={(): void => { router.push('/provider/portfolio'); }}>
-          <Text style={styles.menuIcon}>📷</Text>
+          <Camera size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Portfolio Photos</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={(): void => { router.push('/provider/certifications'); }}>
-          <Text style={styles.menuIcon}>📜</Text>
+          <Award size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Certifications</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/reviews')}>
-          <Text style={styles.menuIcon}>⭐</Text>
+          <Star size={22} color={colors.warning} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>My Reviews</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/payouts')}>
-          <Text style={styles.menuIcon}>💸</Text>
+          <Banknote size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Payout History</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/notifications')}>
-          <Text style={styles.menuIcon}>🔔</Text>
+          <Bell size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Notifications</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/settings')}>
-          <Text style={styles.menuIcon}>⚙️</Text>
+          <Settings size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Settings</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
@@ -318,6 +329,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.base },
   errorCenter: { alignItems: 'center' },
   errorEmoji: { fontSize: 40, marginBottom: spacing.base },
+  errorIcon: { marginBottom: spacing.base },
   retryButton: { marginTop: spacing.base },
   retryText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
   scrollContent: { paddingBottom: 20 },
@@ -390,6 +402,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
   },
   menuIcon: { fontSize: 20, marginRight: spacing.md },
+  menuIconImg: { marginRight: spacing.md },
   menuLabel: { ...typography.body, color: colors.text, flex: 1 },
   menuArrow: { fontSize: 22, color: colors.textTertiary },
 

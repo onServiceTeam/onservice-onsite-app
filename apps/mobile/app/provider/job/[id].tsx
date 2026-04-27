@@ -19,6 +19,7 @@ import { Badge, Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatRelative, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { MapIcon } from '@/components/icons';
 import { useLocation } from '@/hooks/useLocation';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -216,7 +217,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           </Text>
           {booking.latitude && booking.longitude && (
             <TouchableOpacity onPress={handleNavigate} style={styles.navigateButton}>
-              <Text style={styles.navigateIcon}>🗺️</Text>
+              <View style={styles.navigateIconWrap}><MapIcon size={20} color={colors.primary} /></View>
               <Text style={styles.navigateText}>Open in Maps</Text>
             </TouchableOpacity>
           )}
@@ -347,6 +348,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   navigateIcon: { fontSize: 20, marginRight: spacing.sm },
+  navigateIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },
   navigateText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
 
   earningsSection: {

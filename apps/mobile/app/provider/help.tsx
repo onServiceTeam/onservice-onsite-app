@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking } from 'r
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Wrench, Mail, Phone } from '@/components/icons';
 
 interface FAQItem {
   q: string;
@@ -112,7 +113,7 @@ export default function ProviderHelpScreen(): React.ReactElement {
 
       <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
         <View style={styles.heroCard}>
-          <Text style={styles.heroIcon}>🛠️</Text>
+          <View style={styles.heroIconWrap}><Wrench size={36} color={colors.primary} /></View>
           <Text style={styles.heroTitle}>Provider Support</Text>
           <Text style={styles.heroSubtitle}>
             Find answers to common questions about jobs, earnings, and your provider account.
@@ -153,7 +154,7 @@ export default function ProviderHelpScreen(): React.ReactElement {
             style={styles.contactBtn}
             onPress={() => Linking.openURL('mailto:providers@onservice.ph')}
           >
-            <Text style={styles.contactBtnIcon}>✉️</Text>
+            <View style={styles.contactBtnIconWrap}><Mail size={22} color={colors.primary} /></View>
             <View style={styles.contactBtnInfo}>
               <Text style={styles.contactBtnLabel}>Email Provider Support</Text>
               <Text style={styles.contactBtnValue}>providers@onservice.ph</Text>
@@ -164,7 +165,7 @@ export default function ProviderHelpScreen(): React.ReactElement {
             style={styles.contactBtn}
             onPress={() => Linking.openURL('tel:+63281234567')}
           >
-            <Text style={styles.contactBtnIcon}>📞</Text>
+            <View style={styles.contactBtnIconWrap}><Phone size={22} color={colors.primary} /></View>
             <View style={styles.contactBtnInfo}>
               <Text style={styles.contactBtnLabel}>Call Us</Text>
               <Text style={styles.contactBtnValue}>+63 2 8123 4567</Text>
@@ -203,6 +204,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroIcon: { fontSize: 40, marginBottom: spacing.sm },
+  heroIconWrap: { marginBottom: spacing.sm, alignItems: 'center' as const },
   heroTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
   heroSubtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
   section: { marginBottom: spacing.lg },
@@ -238,6 +240,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   contactBtnIcon: { fontSize: 22, marginRight: spacing.base },
+  contactBtnIconWrap: { marginRight: spacing.base, alignItems: 'center' as const },
   contactBtnInfo: { flex: 1 },
   contactBtnLabel: { ...typography.body, fontWeight: '600', color: colors.text },
   contactBtnValue: { ...typography.caption, color: colors.secondary },

@@ -1,10 +1,15 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Text, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { colors, typography } from '@/config/theme';
+import { Home, ClipboardList, Wallet, User } from '@/components/icons';
 
-function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }): React.ReactElement {
-  return <Text style={[styles.icon, focused && styles.iconFocused]}>{emoji}</Text>;
+type TabIconProps = { focused: boolean; color: string };
+
+function tabIcon(Icon: React.ComponentType<{ size?: number; color?: string }>): (props: TabIconProps) => React.ReactElement {
+  return ({ focused, color }) => (
+    <Icon size={focused ? 24 : 22} color={focused ? colors.primary : color ?? colors.textTertiary} />
+  );
 }
 
 export default function TabLayout(): React.ReactElement {
@@ -22,28 +27,28 @@ export default function TabLayout(): React.ReactElement {
         name="home"
         options={{
           title: 'Home',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} />,
+          tabBarIcon: tabIcon(Home),
         }}
       />
       <Tabs.Screen
         name="bookings"
         options={{
           title: 'Bookings',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📋" focused={focused} />,
+          tabBarIcon: tabIcon(ClipboardList),
         }}
       />
       <Tabs.Screen
         name="wallet"
         options={{
           title: 'Wallet',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="💰" focused={focused} />,
+          tabBarIcon: tabIcon(Wallet),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />,
+          tabBarIcon: tabIcon(User),
         }}
       />
     </Tabs>
@@ -61,6 +66,4 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: '600',
   },
-  icon: { fontSize: 22, opacity: 0.5 },
-  iconFocused: { opacity: 1 },
 });
