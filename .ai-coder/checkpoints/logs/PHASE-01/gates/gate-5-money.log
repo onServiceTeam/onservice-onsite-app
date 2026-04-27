@@ -1,0 +1,191 @@
+=== Money Conservation Tests ===
+Started: 2026-04-27T17:23:24Z
+
+--- Running: packages/api/__tests__/escrow-money-conservation.test.ts ---
+PASS packages/api/__tests__/escrow-money-conservation.test.ts
+  Escrow Money Conservation
+    √ should conserve money: providerReceives + platformRetains === servicePrice + serviceFee (2 ms)
+    √ should apply 15% commission on service_price for new tier (1 ms)
+    √ should calculate guarantee fund as 1.5% of service fee
+    √ should pass the exact example: 50000 price, new tier (1 ms)
+    √ should conserve money for all tiers (3 ms)
+    √ should ensure all amounts are integers (centavos)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        0.496 s, estimated 2 s
+Ran all test suites matching packages/api/__tests__/escrow-money-conservation.test.ts.
+PASS: packages/api/__tests__/escrow-money-conservation.test.ts
+
+--- Running: packages/api/__tests__/commission.test.ts ---
+PASS packages/api/__tests__/commission.test.ts
+  Commission Calculation Engine
+    calculateCommission
+      √ should apply 15% commission for new providers (2 ms)
+      √ should apply 13% commission for verified providers (1 ms)
+      √ should apply 11% commission for pro providers
+      √ should apply 9% commission for elite providers
+      √ should default to new tier for unknown tiers
+      √ should calculate 10% service fee (1 ms)
+      √ should enforce minimum service fee of ₱25.00 (2500 centavos)
+      √ should enforce maximum service fee of ₱500.00 (50000 centavos)
+      √ should allocate 1.5% of service fee to guarantee fund
+      √ should ensure provider + platform = service price + service fee
+      √ should handle small amounts correctly
+    calculateCancellationRefund (FR-102 per spec)
+      √ should give 100% refund if >24h before scheduled time (1 ms)
+      √ should give 100% refund if 2-24h before scheduled time
+      √ should give 80% refund if <2h before (per spec)
+      √ should give 80% refund if 30min-1h before (per spec)
+      √ should give 80% refund if <30min before (per spec) (1 ms)
+      √ should give 80% refund if after scheduled time and provider not arrived (per spec)
+      √ should give 50% refund if provider has arrived
+      √ should give 0% refund for customer no-show (per spec)
+      √ should round amounts to nearest centavo (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       20 passed, 20 total
+Snapshots:   0 total
+Time:        0.527 s, estimated 2 s
+Ran all test suites matching packages/api/__tests__/commission.test.ts.
+PASS: packages/api/__tests__/commission.test.ts
+
+--- Running: packages/api/__tests__/dispute-refund-processing.test.ts ---
+PASS packages/api/__tests__/dispute-refund-processing.test.ts
+  Dispute Refund Processing
+    full refund scenarios
+      √ should calculate 100% customer refund for >24h cancellation (2 ms)
+      √ should ensure refund + compensation equals service price
+    partial refund scenarios
+      √ should calculate 80% refund for <2h cancellation
+      √ should calculate 50% refund when provider already arrived (1 ms)
+    no-show scenarios
+      √ should give 0% refund for customer no-show
+    money conservation across all refund tiers
+      √ should conserve money: >24h cancellation, price=10000 (1 ms)
+      √ should conserve money: >24h cancellation, price=50000
+      √ should conserve money: >24h cancellation, price=100000 (1 ms)
+      √ should conserve money: >24h cancellation, price=250000
+      √ should conserve money: >24h cancellation, price=500000
+      √ should conserve money: 2-24h cancellation, price=10000
+      √ should conserve money: 2-24h cancellation, price=50000
+      √ should conserve money: 2-24h cancellation, price=100000
+      √ should conserve money: 2-24h cancellation, price=250000
+      √ should conserve money: 2-24h cancellation, price=500000
+      √ should conserve money: <2h cancellation, price=10000
+      √ should conserve money: <2h cancellation, price=50000 (1 ms)
+      √ should conserve money: <2h cancellation, price=100000
+      √ should conserve money: <2h cancellation, price=250000
+      √ should conserve money: <2h cancellation, price=500000
+      √ should conserve money: <1h cancellation, price=10000 (1 ms)
+      √ should conserve money: <1h cancellation, price=50000
+      √ should conserve money: <1h cancellation, price=100000
+      √ should conserve money: <1h cancellation, price=250000 (1 ms)
+      √ should conserve money: <1h cancellation, price=500000 (2 ms)
+      √ should conserve money: provider arrived, price=10000
+      √ should conserve money: provider arrived, price=50000
+      √ should conserve money: provider arrived, price=100000 (1 ms)
+      √ should conserve money: provider arrived, price=250000
+      √ should conserve money: provider arrived, price=500000
+      √ should conserve money: customer no-show, price=10000
+      √ should conserve money: customer no-show, price=50000 (1 ms)
+      √ should conserve money: customer no-show, price=100000
+      √ should conserve money: customer no-show, price=250000
+      √ should conserve money: customer no-show, price=500000
+
+Test Suites: 1 passed, 1 total
+Tests:       35 passed, 35 total
+Snapshots:   0 total
+Time:        0.473 s, estimated 2 s
+Ran all test suites matching packages/api/__tests__/dispute-refund-processing.test.ts.
+PASS: packages/api/__tests__/dispute-refund-processing.test.ts
+
+--- Running: packages/api/__tests__/wallet-type-isolation.test.ts ---
+PASS packages/api/__tests__/wallet-type-isolation.test.ts
+  Wallet Type Isolation
+    √ should produce distinct wallet keys for customer vs provider types (1 ms)
+    √ should produce same wallet key for same user + same type
+    √ should produce correct SQL for getUserWallet query (1 ms)
+    √ should support all valid wallet types (2 ms)
+    √ should generate unique wallet IDs per (user_id, type) pair
+    √ should handle platform wallets without user_id
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        0.35 s, estimated 2 s
+Ran all test suites matching packages/api/__tests__/wallet-type-isolation.test.ts.
+PASS: packages/api/__tests__/wallet-type-isolation.test.ts
+
+--- Running: packages/api/__tests__/booking-state-machine.test.ts ---
+PASS packages/api/__tests__/booking-state-machine.test.ts
+  Booking State Machine
+    canTransition
+      √ should allow requested → matched (1 ms)
+      √ should allow requested → quoted
+      √ should allow requested → cancelled_by_customer (1 ms)
+      √ should NOT allow requested → payment_pending directly (must go through matched)
+      √ should allow matched → payment_pending
+      √ should allow paid → provider_en_route (1 ms)
+      √ should allow provider_en_route → provider_arrived
+      √ should allow in_progress → completed_by_provider
+      √ should allow completed_by_provider → confirmed
+      √ should allow completed_by_provider → disputed
+      √ should allow confirmed → payout_ready
+      √ should allow payout_ready → paid_out
+    invalid transitions
+      √ should reject requested → paid (skip payment_pending)
+      √ should reject requested → in_progress (skip multiple states) (1 ms)
+      √ should reject completed_by_provider → requested (backwards)
+      √ should reject paid_out → anything (terminal state)
+      √ should reject cancelled_by_customer → anything (terminal state)
+      √ should reject cancelled_by_provider → anything (terminal state)
+      √ should reject cancelled_by_admin → anything (terminal state)
+      √ should reject confirmed → disputed (too late)
+      √ should reject in_progress → cancelled_by_customer
+    admin cancellation
+      √ should allow admin cancellation from requested
+      √ should allow admin cancellation from quoted
+      √ should allow admin cancellation from matched
+      √ should allow admin cancellation from payment_pending (1 ms)
+      √ should allow admin cancellation from paid
+      √ should allow admin cancellation from provider_en_route
+      √ should allow admin cancellation from provider_arrived
+      √ should allow admin cancellation from in_progress
+      √ should NOT allow admin cancellation from terminal states
+    escrow flow
+      √ should follow the full happy path: requested → paid_out
+      √ should follow the fixed-price path: requested → matched → payment_pending → paid_out (1 ms)
+      √ should follow the quote-based path
+      √ should follow the dispute path
+    VALID_TRANSITIONS completeness
+      √ should have an entry for every status (4 ms)
+      √ should have terminal states with empty transitions (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       36 passed, 36 total
+Snapshots:   0 total
+Time:        0.359 s, estimated 2 s
+Ran all test suites matching packages/api/__tests__/booking-state-machine.test.ts.
+PASS: packages/api/__tests__/booking-state-machine.test.ts
+
+--- Running: packages/api/__tests__/booking-price-lookup.test.ts ---
+PASS packages/api/__tests__/booking-price-lookup.test.ts
+  Booking Price Lookup
+    √ should calculate commission based on service_price, not total_amount (2 ms)
+    √ should not accept zero service price
+    √ should calculate correct service fee from service_price (1 ms)
+    √ should enforce minimum service fee of 2500 centavos
+    √ should enforce maximum service fee of 50000 centavos
+    √ should compute total_amount as servicePrice + serviceFee (2 ms)
+    √ should use service_price for provider receives, not total_amount
+
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        0.518 s, estimated 2 s
+Ran all test suites matching packages/api/__tests__/booking-price-lookup.test.ts.
+PASS: packages/api/__tests__/booking-price-lookup.test.ts
+
+PASS: All money tests passed.

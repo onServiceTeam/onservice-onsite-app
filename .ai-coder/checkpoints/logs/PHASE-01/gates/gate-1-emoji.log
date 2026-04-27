@@ -1,0 +1,17 @@
+--- gate-1-emoji ---
+Absolute violations in repo: 196
+Violations introduced by this phase: 0
+Violations remaining (deferred to later phases): 196
+Sample (first 10):
+  - apps/admin/src/components/Sidebar.tsx:11:  { to: '/disputes', icon: '⚖️', label: 'Disputes' },
+  - apps/admin/src/components/Sidebar.tsx:12:  { to: '/financials', icon: '💰', label: 'Financials' },
+  - apps/admin/src/components/Sidebar.tsx:13:  { to: '/payouts', icon: '💸', label: 'Payouts' },
+  - apps/admin/src/components/Sidebar.tsx:16:  { to: '/business-accounts', icon: '🏢', label: 'Business' },
+  - apps/admin/src/components/Sidebar.tsx:18:  { to: '/analytics', icon: '📈', label: 'Analytics' },
+  - apps/admin/src/components/Sidebar.tsx:21:  { to: '/staff', icon: '👤', label: 'Staff & Roles' },
+  - apps/admin/src/components/Sidebar.tsx:22:  { to: '/settings', icon: '⚙️', label: 'Settings' },
+  - apps/admin/src/components/Sidebar.tsx:5:  { to: '/', icon: '📊', label: 'Dashboard' },
+  - apps/admin/src/components/Sidebar.tsx:6:  { to: '/providers', icon: '🔧', label: 'Providers' },
+  - apps/admin/src/components/Sidebar.tsx:7:  { to: '/customers', icon: '👥', label: 'Customers' },
+  ... (full list in gate log)
+GATE: PASS (no new violations introduced by PHASE-01)

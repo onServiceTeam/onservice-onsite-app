@@ -1,0 +1,35 @@
+
+> onservice-onsite-app@0.1.0 api:test
+> npm run test --workspace=packages/api
+
+
+> @onservice/api@0.1.0 test
+> jest --passWithNoTests
+
+PASS __tests__/wallet-type-isolation.test.ts
+PASS __tests__/booking-state-machine.test.ts
+PASS __tests__/suki-validators.test.ts
+PASS __tests__/payment-validators.test.ts
+PASS __tests__/admin-validators.test.ts
+PASS __tests__/tip-validators.test.ts
+PASS __tests__/messaging-validators.test.ts
+PASS __tests__/notification-template-validators.test.ts
+PASS __tests__/address-validators.test.ts
+PASS __tests__/booking-validators.test.ts
+PASS __tests__/referral-validators.test.ts
+PASS __tests__/auth-validators.test.ts
+PASS __tests__/payout-validators.test.ts
+PASS __tests__/provider-validators.test.ts
+PASS __tests__/dispute-validators.test.ts
+PASS __tests__/review-validators.test.ts
+PASS __tests__/matching.test.ts
+PASS __tests__/commission.test.ts
+PASS __tests__/escrow-money-conservation.test.ts
+PASS __tests__/booking-price-lookup.test.ts
+PASS __tests__/dispute-refund-processing.test.ts
+
+Test Suites: 21 passed, 21 total
+Tests:       320 passed, 320 total
+Snapshots:   0 total
+Time:        3.09 s
+Ran all test suites.

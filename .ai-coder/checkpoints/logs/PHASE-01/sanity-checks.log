@@ -1,0 +1,108 @@
+[] PHASE-01 preflight captured
+
+baseline-commit: e6e09da7f8a29d097edb1bc6695895ebcb579a3c
+baseline-files: 558 entries (sha256)
+typecheck-admin: PASS
+typecheck-mobile: PASS
+typecheck-api: PASS
+api-test: 320/320 PASS
+lint: PASS
+
+Beginning Step 2 (install lucide icon libraries).
+[] PHASE-01 preflight captured
+
+baseline-commit: e6e09da7f8a29d097edb1bc6695895ebcb579a3c
+baseline-files: 558 entries (sha256)
+typecheck-admin: PASS
+typecheck-mobile: PASS
+typecheck-api: PASS
+api-test: 320/320 PASS
+lint: PASS
+
+Beginning Step 2 (install lucide icon libraries).
+
+[2026-04-28T00:30:41+08:00] PHASE-01 preflight captured
+
+baseline-commit: e6e09da7f8a29d097edb1bc6695895ebcb579a3c
+baseline-files: 558 entries (sha256)
+typecheck-admin: PASS
+typecheck-mobile: PASS
+typecheck-api: PASS
+api-test: 320/320 PASS
+lint: PASS
+
+Beginning Step 2 (install lucide icon libraries).
+
+[2026-04-28T00:39:10+08:00] Step 2-7 complete: design system installed
+
+Installed (apps/admin, --save-exact, --legacy-peer-deps, --no-workspaces):
+  lucide-react@0.456.0
+  class-variance-authority@0.7.1
+  @radix-ui/react-dialog@1.1.2
+  @radix-ui/react-tabs@1.1.1
+  @radix-ui/react-select@2.1.2
+  @radix-ui/react-checkbox@1.1.2
+  @radix-ui/react-switch@1.1.1
+  @radix-ui/react-tooltip@1.1.4
+  @radix-ui/react-label@2.1.0
+
+Installed (apps/mobile, --save-exact, --legacy-peer-deps, --no-workspaces):
+  lucide-react-native@0.456.0
+  react-native-svg@15.8.0
+
+Baseline fix (TD-003): apps/mobile/package.json had expo-device@~7.3.0 which does
+not exist on npm (only 50.0.x .. 56.0-canary published). Bumped to ~55.0.15
+(latest stable, aligned with the Expo SDK 55 declared in the package description).
+Without this fix, npm install in apps/mobile/ ETARGETs and Phase 01 cannot
+install its mobile dep. Required workaround used --no-workspaces because the
+root workspace install attempts to resolve every workspace's tree.
+
+Created:
+  apps/admin/src/components/icons/index.ts (centralized lucide-react re-exports)
+  apps/mobile/src/components/icons/index.ts (centralized lucide-react-native re-exports)
+  apps/admin/src/components/ui/Button.tsx (CVA-based variants)
+  apps/admin/src/components/ui/Card.tsx (Card + Header/Title/Description/Content/Footer)
+  apps/admin/src/components/ui/Dialog.tsx (Radix-wrapped)
+  apps/admin/src/components/ui/Tabs.tsx (Radix-wrapped)
+  apps/admin/src/components/ui/Select.tsx (Radix-wrapped)
+  apps/admin/src/components/ui/Input.tsx
+  apps/admin/src/components/ui/Label.tsx (Radix-wrapped)
+  apps/admin/src/components/ui/Textarea.tsx
+  apps/admin/src/components/ui/Checkbox.tsx (Radix-wrapped)
+  apps/admin/src/components/ui/Switch.tsx (Radix-wrapped)
+  apps/admin/src/components/ui/Tooltip.tsx (Radix-wrapped)
+  apps/admin/src/components/ui/Skeleton.tsx
+  apps/admin/src/components/ui/EmptyState.tsx
+  apps/admin/src/components/ui/LoadingState.tsx
+  apps/admin/src/components/ui/ErrorState.tsx
+  apps/admin/src/components/ui/Chart.tsx (recharts wrapper + theme palette)
+
+Updated:
+  apps/admin/src/components/ui/index.ts (re-export new primitives)
+  apps/admin/src/index.css (additive design-token CSS variables;
+    existing brand vars preserved to avoid touching downstream consumers)
+
+Verification:
+  typecheck-admin: PASS
+  typecheck-mobile: PASS
+
+icon-catalog.md was already created in Phase 00 with the canonical 73-emoji
+mapping; no edits made (Phase 02 will execute the actual emoji replacement
+using this catalog and the new icon modules).
+
+No existing screens modified. visual gate (UI changes) is N/A for Phase 01.
+
+Beginning evidence-pack assembly + verify-phase.sh PHASE-01.
+
+[2026-04-28T00:50:15+08:00] Lint fix: added DOM-element globals to root eslint.config.js
+Issue: 14 'no-undef' errors on HTMLButtonElement / HTMLDivElement / HTMLTextAreaElement in new Phase 01 ui/ files.
+Fix: extended eslint.config.js globals to include HTMLButtonElement, HTMLDivElement, HTMLTextAreaElement, HTMLLabelElement, HTMLSpanElement, HTMLParagraphElement, HTMLHeadingElement, SVGSVGElement.
+Also added explicit React.ReactElement return types to DialogHeader/DialogFooter (cleared 2 explicit-function-return-type warnings).
+Re-ran npm run lint: 0 errors, 0 warnings (exit 0).
+Re-ran per-workspace typecheck: admin / mobile / api all PASS.
+
+[2026-04-28T01:10:57+08:00] Harness fix: verify-no-phantom-tests.sh excluded node_modules (TD-004)
+Issue: gate-1-phantom-tests hung > 15 min during verify-master.sh PHASE-01 run because the script grep -r'd through apps/mobile/node_modules.
+Fix: scoped TEST_DIRS to mobile subpaths (app/src/components/__tests__), added --exclude-dir=node_modules/dist/build/.expo/coverage to all grep calls, pruned find walks similarly.
+Re-ran: verify-no-phantom-tests.sh --phase PHASE-01 completes in ~5s, exits 0, absolute=0, introduced=0.
+Documented as TD-004 (RESOLVED) in tech-debt.md.

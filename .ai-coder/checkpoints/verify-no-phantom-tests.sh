@@ -19,7 +19,16 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-TEST_DIRS="packages/api/__tests__ packages/api/src apps/admin/src apps/mobile"
+TEST_DIRS="packages/api/__tests__ packages/api/src apps/admin/src apps/mobile/app apps/mobile/src apps/mobile/components apps/mobile/__tests__"
+# Filter dirs to those that exist (apps/mobile/__tests__ may not exist on all checkouts).
+filtered=""
+for d in $TEST_DIRS; do [ -d "$d" ] && filtered="$filtered $d"; done
+TEST_DIRS="$filtered"
+
+# Excludes: node_modules and build outputs. Phase 01 added many large npm packages
+# under apps/mobile/node_modules; without these excludes, grep -r walks them all
+# and the gate hangs on minified bundles. (TD-004, fixed in Phase 01.)
+EXCLUDE='--exclude-dir=node_modules --exclude-dir=dist --exclude-dir=build --exclude-dir=.next --exclude-dir=coverage --exclude-dir=.expo'
 
 VIOLATIONS_FILE=$(mktemp)
 trap "rm -f $VIOLATIONS_FILE ${VIOLATIONS_FILE}.delta" EXIT
@@ -28,7 +37,7 @@ trap "rm -f $VIOLATIONS_FILE ${VIOLATIONS_FILE}.delta" EXIT
 collect() {
   local pattern="$1"
   local description="$2"
-  grep -rnE "$pattern" $TEST_DIRS 2>/dev/null \
+  grep -rnE $EXCLUDE "$pattern" $TEST_DIRS 2>/dev/null \
     | grep -E "\.(test|spec)\.(ts|tsx|js|jsx)" \
     | while IFS= read -r hit; do
         printf '%s\n' "${hit}  [DESC: ${description}]"
@@ -57,7 +66,9 @@ collect "catch.*\{\s*\}" "empty catch block in test"
 collect "catch.*\{\s*//.*\s*\}" "comment-only catch block"
 
 # Tests that mock the module under test (file-level violation reported as line 0)
-for testfile in $(find $TEST_DIRS -name "*.test.ts" -o -name "*.spec.ts" 2>/dev/null); do
+# Find excludes node_modules and other build artifacts (TD-004).
+TEST_FILES=$(find $TEST_DIRS \( -path '*/node_modules' -o -path '*/dist' -o -path '*/build' -o -path '*/.expo' -o -path '*/coverage' \) -prune -o \( -name "*.test.ts" -o -name "*.spec.ts" \) -print 2>/dev/null)
+for testfile in $TEST_FILES; do
   service_name=$(basename "$testfile" | sed 's/\.\(test\|spec\)\.ts$//')
   if grep -qE "jest\.mock\(['\"].*${service_name}['\"]" "$testfile" 2>/dev/null; then
     printf '%s\n' "${testfile}:0:  [DESC: mocks the module under test (${service_name})]" >> "$VIOLATIONS_FILE"
@@ -65,7 +76,7 @@ for testfile in $(find $TEST_DIRS -name "*.test.ts" -o -name "*.spec.ts" 2>/dev/
 done
 
 # Tests with no expect/assert at all
-for testfile in $(find $TEST_DIRS -name "*.test.ts" -o -name "*.spec.ts" 2>/dev/null); do
+for testfile in $TEST_FILES; do
   if ! grep -qE "(expect\(|assert\(|assert\.|should\.)" "$testfile" 2>/dev/null; then
     printf '%s\n' "${testfile}:0:  [DESC: no expect/assert calls]" >> "$VIOLATIONS_FILE"
   fi

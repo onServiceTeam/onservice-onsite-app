@@ -18,6 +18,18 @@
   --color-text-secondary: #64748B;
   --color-text-tertiary: #94A3B8;
   --color-border: #E2E8F0;
+
+  /* Phase 01 — design-token additions (semantic, status, typography) */
+  --color-border-strong: #C6C6C6;
+  --color-text-tertiary-2: #8D8D8D;
+  --color-success-bg: #DEFBE6;
+  --color-warning-bg: #FCF4D6;
+  --color-danger-bg: #FFF1F1;
+  --color-info: #0043CE;
+  --color-info-bg: #EDF5FF;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', Menlo, monospace;
 }
 
 body {

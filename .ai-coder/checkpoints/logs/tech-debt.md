@@ -86,3 +86,66 @@ Phase 00 does not touch money services, so `gate-3-mutations` is correctly skipp
 ## How to add an entry
 
 Use the format `TD-NNN — <one-line summary>` followed by Discovered / Owning trigger / Estimate / Problem / Proposed change / Why not now / Acceptance criteria. Append; do not reorder existing entries.
+
+---
+
+## TD-003 — apps/mobile/package.json had non-existent `expo-device@~7.3.0` (RESOLVED)
+
+**Status:** RESOLVED 2026-04-28 in Phase 01 (commit follows the Phase 01 commit).
+**Discovered:** PHASE-01 (2026-04-28) when `npm install lucide-react-native` ETARGETed because npm tries to resolve the whole package.json.
+**Owning trigger:** Phase 01 install of icon library.
+**Estimate:** 5 minutes (single-line version bump). **Actual:** ~5 minutes plus documentation.
+
+### Problem
+
+`apps/mobile/package.json` declared `"expo-device": "~7.3.0"` but no published 7.x version exists on the npm registry — only `~50.0.x` through `~55.0.x` and SDK 56 canaries. The package description ("Expo SDK 55") and every other Expo dep in the file pinned `~55.0.x`, making this a clear typo (likely meant `~55.0.0` or `~5.7.0` from an earlier mis-edit).
+
+The bug is invisible at typecheck time because `npx tsc --noEmit` only reads imported modules, and nothing in apps/mobile imports `expo-device` yet. It surfaces the moment any phase tries `npm install` inside `apps/mobile/` (or at the workspace root, which transitively resolves mobile).
+
+### Fix applied
+
+Bumped `"expo-device"` to `"~55.0.15"` (latest stable 55.0.x, aligned with the Expo SDK 55 declared throughout the rest of the file). Single-line change to `apps/mobile/package.json`. Verified by:
+
+- `cd apps/mobile && npm install --save-exact --legacy-peer-deps --no-workspaces lucide-react-native@0.456.0 react-native-svg@15.8.0` succeeds.
+- `npx tsc --noEmit` in apps/mobile remains green.
+
+### Why `--legacy-peer-deps` and `--no-workspaces` are still required
+
+Two separate baseline-debt issues remain at the workspace root, both pre-existing and untouched by Phase 01:
+
+1. `eslint-plugin-react@7.37.5` peer-restricts to `eslint@<=9.7` while root has `eslint@10.2.0` (also seen in TD-002). Resolving with `--legacy-peer-deps` is the agreed cheapest fix.
+2. The npm workspace install resolves every workspace's tree at once, which would also surface any other typo'd version in any workspace. `--no-workspaces` scopes the install to the current workspace only.
+
+Phase 02 cleanup should:
+
+- Audit `apps/mobile/package.json` for any other typo'd version pins.
+- Resolve the eslint-plugin-react peer chain (TD-002), at which point `--legacy-peer-deps` should not be needed.
+- Run `npm install` at the workspace root and confirm exit 0 without flags.
+
+
+## TD-004 — verify-no-phantom-tests.sh hangs walking node_modules (RESOLVED)
+
+**Status:** RESOLVED 2026-04-28 in Phase 01.
+**Discovered:** PHASE-01 (2026-04-28) when `verify-master.sh PHASE-01` hung at gate-1-phantom-tests for >15 minutes after Phase 01's installs populated `apps/mobile/node_modules` with the full RN dep tree.
+**Owning trigger:** Any phase that grows `apps/mobile/node_modules`.
+**Estimate:** 10 minutes. **Actual:** ~15 minutes including investigation.
+
+### Problem
+
+`verify-no-phantom-tests.sh` listed `TEST_DIRS="packages/api/__tests__ packages/api/src apps/admin/src apps/mobile"`. The trailing `apps/mobile` covers the entire mobile workspace, including `apps/mobile/node_modules`. Every `collect()` call ran `grep -rnE "" ` with no `--exclude-dir=node_modules`. With Phase 01's node_modules populated (lucide-react-native, react-native-svg, plus their transitives — many minified bundles), grep effectively never returned and the gate hung.
+
+verify-no-forbidden.sh has the right idiom: `EXCLUDE='--exclude-dir=node_modules ...'` passed to grep. verify-no-phantom-tests.sh did not.
+
+### Fix applied
+
+1. Replaced `apps/mobile` with the explicit subpaths `apps/mobile/app apps/mobile/src apps/mobile/components apps/mobile/__tests__` and filtered to ones that exist.
+2. Added `EXCLUDE='--exclude-dir=node_modules --exclude-dir=dist --exclude-dir=build --exclude-dir=.next --exclude-dir=coverage --exclude-dir=.expo'` and passed it to every `grep -rnE` inside `collect()`.
+3. Replaced the two `find  -name "*.test.ts" -o -name "*.spec.ts"` calls with a single `find` that prunes `node_modules`/`dist`/`build`/`.expo`/`coverage` and reuses the result via ``.
+
+### Verification
+
+`bash .ai-coder/checkpoints/verify-no-phantom-tests.sh --phase PHASE-01` now completes in ~5 seconds and reports `Absolute violations in repo: 0 / Violations introduced by this phase: 0 / GATE: PASS`.
+
+### Why this is harness debt, not Phase 01 debt
+
+Phase 00 happened to pass this gate quickly because mobile node_modules was nearly empty at the time (mobile install never succeeded prior to Phase 01 due to TD-003). Phase 01 is the first phase whose `apps/mobile/node_modules` is fully populated. The latent harness bug surfaced as a hang the first time the populated tree was scanned. The fix is in the script itself, not in Phase 01's product code.
