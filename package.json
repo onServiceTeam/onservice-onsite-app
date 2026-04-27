@@ -21,7 +21,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "loadtest:smoke": "k6 run load-tests/full-suite.js -e PROFILE=smoke",
     "loadtest:load": "k6 run load-tests/full-suite.js -e PROFILE=load",
     "loadtest:stress": "k6 run load-tests/full-suite.js -e PROFILE=stress",

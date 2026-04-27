@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import { check, sleep, group } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
-import { apiUrl, jsonHeaders, authHeaders, PROFILES, NFR_THRESHOLDS } from '../config.js';
+import { apiUrl, jsonHeaders, PROFILES, NFR_THRESHOLDS } from '../config.js';
 
 const loginDuration = new Trend('login_duration');
 const otpVerifyDuration = new Trend('otp_verify_duration');

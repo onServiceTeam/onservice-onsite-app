@@ -75,7 +75,7 @@ export default [
         allowHigherOrderFunctions: true,
         allowDirectConstAssertionInArrowFunctions: true,
       }],
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'react/react-in-jsx-scope': 'off',
     },
   },
@@ -89,6 +89,41 @@ export default [
     },
   },
   {
-    ignores: ['node_modules/', 'dist/', 'build/', '.expo/', 'coverage/'],
+    // Test files: provide Jest globals so 'no-undef' does not fire on
+    // describe/it/expect/etc. Scoped to test paths only.
+    files: [
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/*.spec.ts',
+      '**/*.spec.tsx',
+      '**/__tests__/**',
+    ],
+    languageOptions: {
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        beforeAll: 'readonly',
+        afterEach: 'readonly',
+        afterAll: 'readonly',
+        jest: 'readonly',
+      },
+    },
+  },
+  {
+    // k6 load-test scripts: provide k6 runtime globals (__ENV, __VU, __ITER).
+    files: ['load-tests/**/*.js'],
+    languageOptions: {
+      globals: {
+        __ENV: 'readonly',
+        __VU: 'readonly',
+        __ITER: 'readonly',
+      },
+    },
+  },
+  {
+    ignores: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.expo/**', '**/coverage/**'],
   },
 ];

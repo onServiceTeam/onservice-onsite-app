@@ -4,7 +4,6 @@ import { Rate, Trend } from 'k6/metrics';
 import { apiUrl, jsonHeaders, authHeaders, PROFILES, NFR_THRESHOLDS } from '../config.js';
 
 const webhookDuration = new Trend('webhook_duration');
-const paymentGetDuration = new Trend('payment_get_duration');
 const walletGetDuration = new Trend('wallet_get_duration');
 const paymentFailRate = new Rate('payment_fail_rate');
 
@@ -15,7 +14,6 @@ export const options = {
   thresholds: {
     ...NFR_THRESHOLDS,
     webhook_duration: ['p(95)<500'],
-    payment_get_duration: ['p(95)<300'],
     wallet_get_duration: ['p(95)<200'],
     payment_fail_rate: ['rate<0.02'],
   },

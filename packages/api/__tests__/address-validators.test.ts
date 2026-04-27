@@ -34,25 +34,25 @@ describe('Address Validators', () => {
     });
 
     it('should require fullAddress', () => {
-      const { fullAddress, ...rest } = validAddress;
+      const { fullAddress: _fullAddress, ...rest } = validAddress;
       const result = createAddressSchema.safeParse(rest);
       expect(result.success).toBe(false);
     });
 
     it('should require barangay', () => {
-      const { barangay, ...rest } = validAddress;
+      const { barangay: _barangay, ...rest } = validAddress;
       const result = createAddressSchema.safeParse(rest);
       expect(result.success).toBe(false);
     });
 
     it('should require city', () => {
-      const { city, ...rest } = validAddress;
+      const { city: _city, ...rest } = validAddress;
       const result = createAddressSchema.safeParse(rest);
       expect(result.success).toBe(false);
     });
 
     it('should require province', () => {
-      const { province, ...rest } = validAddress;
+      const { province: _province, ...rest } = validAddress;
       const result = createAddressSchema.safeParse(rest);
       expect(result.success).toBe(false);
     });
