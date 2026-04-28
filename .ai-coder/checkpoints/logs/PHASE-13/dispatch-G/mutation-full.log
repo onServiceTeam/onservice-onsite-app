@@ -1,0 +1,84 @@
+INFO: sacred file does not exist yet (deferred to its phase): packages/api/src/services/refund.service.ts
+--- gate-3-mutations-full (launch-readiness sweep) ---
+Mutating 7 sacred file(s):
+  - packages/api/src/services/escrow.service.ts
+  - packages/api/src/services/commission.service.ts
+  - packages/api/src/services/dispute.service.ts
+  - packages/api/src/services/booking.service.ts
+  - packages/api/src/services/payout.service.ts
+  - packages/api/src/services/wallet.service.ts
+  - packages/api/src/services/settings.service.ts
+
+Stryker config: .ai-coder/checkpoints/logs/mutation/stryker.config.full.generated.json
+This may take 10-30 minutes. Output streamed below.
+
+[32m05:47:26 (37680) INFO ProjectReader[39m Found 7 of 1267 file(s) to be mutated.
+[32m05:47:27 (37680) INFO Instrumenter[39m Instrumented 7 source file(s) with 2237 mutant(s)
+[32m05:47:28 (37680) INFO ConcurrencyTokenProvider[39m Creating 2 checker process(es) and 2 test runner process(es).
+[32m05:47:44 (37680) INFO BroadcastReporter[39m Detected that current console does not support the "progress" reporter, downgrading to "progress-append-only" reporter
+[32m05:47:45 (37680) INFO DryRunExecutor[39m Starting initial test run (jest test runner with "perTest" coverage analysis). This may take a while.
+[32m05:47:50 (37680) INFO DryRunExecutor[39m Initial test run succeeded. Ran 350 tests in 5 seconds (net 586 ms, overhead 4359 ms).
+[33m05:47:50 (37680) WARN MutantTestPlanner[39m Detected 52 static mutants (2% of total) that are estimated to take 61% of the time running the tests!
+  You might want to enable "ignoreStatic" to ignore these static mutants for your next run. 
+  For more information about static mutants visit: https://stryker-mutator.io/docs/mutation-testing-elements/static-mutants
+  (disable "warnings.slow" to ignore this warning)
+Mutation testing 0% (elapsed: <1m, remaining: n/a) 0/2237 tested (0 survived, 0 timed out)
+Mutation testing 0% (elapsed: <1m, remaining: ~3h 10m) 11/2237 tested (0 survived, 0 timed out)
+Mutation testing 0% (elapsed: <1m, remaining: ~1h 46m) 28/2237 tested (0 survived, 0 timed out)
+Mutation testing 0% (elapsed: <1m, remaining: ~1h 19m) 47/2237 tested (0 survived, 0 timed out)
+Mutation testing 1% (elapsed: <1m, remaining: ~1h 18m) 68/2237 tested (0 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~1m, remaining: ~1h 21m) 86/2237 tested (1 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~1m, remaining: ~1h 26m) 104/2237 tested (2 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~1m, remaining: ~1h 30m) 124/2237 tested (3 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~1m, remaining: ~1h 35m) 144/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~1m, remaining: ~1h 31m) 161/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~1m, remaining: ~1h 38m) 180/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~2m, remaining: ~1h 47m) 186/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~2m, remaining: ~1h 55m) 201/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~2m, remaining: ~2h 4m) 216/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~2m, remaining: ~2h 13m) 234/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~2m, remaining: ~2h 22m) 258/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~2m, remaining: ~2h 31m) 276/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~3m, remaining: ~2h 40m) 300/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~3m, remaining: ~2h 49m) 318/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~3m, remaining: ~2h 58m) 342/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~3m, remaining: ~3h 7m) 360/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~3m, remaining: ~3h 16m) 384/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~3m, remaining: ~3h 25m) 402/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~4m, remaining: ~3h 34m) 426/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~4m, remaining: ~3h 42m) 447/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~4m, remaining: ~3h 51m) 468/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~4m, remaining: ~4h 0m) 486/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~4m, remaining: ~4h 9m) 502/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~4m, remaining: ~4h 18m) 516/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~5m, remaining: ~4h 27m) 530/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~5m, remaining: ~4h 36m) 544/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~5m, remaining: ~4h 45m) 566/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~5m, remaining: ~4h 54m) 596/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~5m, remaining: ~5h 3m) 626/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~5m, remaining: ~5h 12m) 654/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~6m, remaining: ~5h 21m) 682/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~6m, remaining: ~5h 30m) 704/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~6m, remaining: ~5h 38m) 718/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~6m, remaining: ~5h 47m) 732/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~6m, remaining: ~5h 56m) 746/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~6m, remaining: ~6h 5m) 760/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~7m, remaining: ~6h 14m) 774/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~7m, remaining: ~6h 23m) 788/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~7m, remaining: ~6h 32m) 802/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~7m, remaining: ~6h 41m) 816/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~7m, remaining: ~6h 50m) 828/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~7m, remaining: ~6h 59m) 842/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~8m, remaining: ~7h 8m) 856/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~8m, remaining: ~7h 17m) 870/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~8m, remaining: ~7h 25m) 884/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~8m, remaining: ~7h 34m) 898/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~8m, remaining: ~7h 43m) 910/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~8m, remaining: ~7h 52m) 926/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~9m, remaining: ~8h 1m) 938/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~9m, remaining: ~8h 10m) 950/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~9m, remaining: ~8h 19m) 966/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~9m, remaining: ~8h 28m) 978/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~9m, remaining: ~8h 37m) 994/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~9m, remaining: ~8h 46m) 1006/2237 tested (7 survived, 0 timed out)
+Mutation testing 1% (elapsed: ~10m, remaining: ~8h 55m) 1022/2237 tested (7 survived, 0 timed out)
