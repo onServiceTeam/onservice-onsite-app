@@ -362,6 +362,7 @@ export default function ServiceAreasPage(): React.ReactElement {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search areas..."
+            aria-label="Search service areas by name"
             className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)]"
           />
           <button type="submit"
@@ -373,6 +374,7 @@ export default function ServiceAreasPage(): React.ReactElement {
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          aria-label="Filter service areas by status"
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]"
         >
           <option value="">All Statuses</option>

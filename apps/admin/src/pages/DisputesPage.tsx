@@ -223,6 +223,7 @@ export default function DisputesPage(): React.ReactElement {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search by dispute or booking ID..."
+            aria-label="Search disputes by dispute or booking ID"
             className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm w-72 focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
           />
           <button type="submit" className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-lg hover:opacity-90 transition-opacity">
@@ -232,6 +233,7 @@ export default function DisputesPage(): React.ReactElement {
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          aria-label="Filter disputes by status"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Statuses</option>
@@ -243,6 +245,7 @@ export default function DisputesPage(): React.ReactElement {
         <select
           value={tierFilter}
           onChange={(e) => { setTierFilter(e.target.value); setPage(1); }}
+          aria-label="Filter disputes by tier"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Tiers</option>

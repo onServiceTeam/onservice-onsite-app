@@ -200,6 +200,7 @@ export default function ProvidersPage(): React.ReactElement {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search by name or phone..."
+            aria-label="Search providers by name or phone"
             className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
           />
           <button
@@ -212,6 +213,7 @@ export default function ProvidersPage(): React.ReactElement {
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          aria-label="Filter providers by status"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Statuses</option>
@@ -224,6 +226,7 @@ export default function ProvidersPage(): React.ReactElement {
         <select
           value={tierFilter}
           onChange={(e) => { setTierFilter(e.target.value); setPage(1); }}
+          aria-label="Filter providers by tier"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Tiers</option>

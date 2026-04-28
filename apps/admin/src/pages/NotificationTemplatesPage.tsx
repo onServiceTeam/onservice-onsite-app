@@ -234,6 +234,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
         <select
           value={typeFilter}
           onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+          aria-label="Filter templates by type"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Types</option>
@@ -250,6 +251,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
         <select
           value={channelFilter}
           onChange={(e) => { setChannelFilter(e.target.value); setPage(1); }}
+          aria-label="Filter templates by channel"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Channels</option>

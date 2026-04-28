@@ -255,7 +255,6 @@ export default function ConsentVersionsPage(): React.ReactElement {
                 onChange={(e) => setConsentType(e.target.value)}
                 placeholder="e.g., privacy_policy"
                 aria-required="true"
-                aria-label="Consent type"
                 aria-describedby="cv-type-help"
                 maxLength={50}
               />
@@ -274,7 +273,6 @@ export default function ConsentVersionsPage(): React.ReactElement {
                 onChange={(e) => setVersionStr(e.target.value)}
                 placeholder="e.g., 1.2 or 2026-04-28"
                 aria-required="true"
-                aria-label="Version identifier"
                 maxLength={20}
               />
             </div>
@@ -285,7 +283,6 @@ export default function ConsentVersionsPage(): React.ReactElement {
                 type="date"
                 value={effectiveDate}
                 onChange={(e) => setEffectiveDate(e.target.value)}
-                aria-label="Effective date"
               />
             </div>
             <div>
@@ -297,7 +294,6 @@ export default function ConsentVersionsPage(): React.ReactElement {
                 placeholder="Justify the version bump. What changed? What rights are affected?"
                 rows={4}
                 aria-required="true"
-                aria-label="Change summary"
                 aria-describedby="cv-summary-help"
               />
               <p id="cv-summary-help" className="text-xs text-slate-500 mt-1">

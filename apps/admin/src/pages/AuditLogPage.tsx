@@ -88,6 +88,7 @@ export default function AuditLogPage(): React.ReactElement {
           placeholder="Filter by action (e.g. POST)"
           value={actionFilter}
           onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
+          aria-label="Filter audit log by action"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] w-60"
         />
         <input
@@ -95,6 +96,7 @@ export default function AuditLogPage(): React.ReactElement {
           placeholder="Filter by entity type"
           value={entityTypeFilter}
           onChange={(e) => { setEntityTypeFilter(e.target.value); setPage(1); }}
+          aria-label="Filter audit log by entity type"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] w-60"
         />
         {(actionFilter || entityTypeFilter) && (

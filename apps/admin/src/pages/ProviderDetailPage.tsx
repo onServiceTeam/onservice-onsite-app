@@ -460,7 +460,7 @@ function JobsTab({ providerId }: { providerId: string }): React.ReactElement {
   return (
     <div className="space-y-4 mt-4">
       <div className="flex items-center gap-3 flex-wrap">
-        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="px-3 py-2 border rounded text-sm">
+        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} aria-label="Filter bookings by status" className="px-3 py-2 border rounded text-sm">
           <option value="">All statuses</option>
           <option value="completed">Completed</option>
           <option value="confirmed">Confirmed</option>

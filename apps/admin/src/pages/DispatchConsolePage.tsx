@@ -431,7 +431,7 @@ export default function DispatchConsolePage(): React.ReactElement {
 
         <div className="flex flex-wrap items-center gap-2">
           <select
-            aria-label="City"
+            aria-label="Filter by city"
             value={cityFilter}
             onChange={(e) => setCityFilter(e.target.value)}
             className="text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
@@ -440,7 +440,7 @@ export default function DispatchConsolePage(): React.ReactElement {
             {cityOptions.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <select
-            aria-label="Status"
+            aria-label="Filter by status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
@@ -449,7 +449,7 @@ export default function DispatchConsolePage(): React.ReactElement {
             {statusOptions.map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
           </select>
           <select
-            aria-label="Service"
+            aria-label="Filter by service"
             value={serviceFilter}
             onChange={(e) => setServiceFilter(e.target.value)}
             className="text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"

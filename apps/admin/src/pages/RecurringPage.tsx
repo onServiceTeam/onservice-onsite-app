@@ -178,6 +178,7 @@ export default function RecurringPage(): React.ReactElement {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search by customer or location..."
+            aria-label="Search recurring bookings by customer or location"
             className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)]"
           />
           <button
@@ -191,6 +192,7 @@ export default function RecurringPage(): React.ReactElement {
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          aria-label="Filter recurring bookings by status"
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]"
         >
           <option value="">All Statuses</option>
