@@ -121,7 +121,7 @@ npm install
 
 ### Read these three docs yourself first (~30 minutes)
 
-- [`docs/ai-coder/HONEST-AUDIT.md`](HONEST-AUDIT.md) — what was wrong
+- [`docs/audits/HONEST-AUDIT.md`](../audits/HONEST-AUDIT.md) — what was wrong
   in earlier plans and what is actually in the codebase right now.
 - [`docs/strategy/STRATEGY.md`](../strategy/STRATEGY.md) — city
   decisions, scope decisions, what we are actually building.
