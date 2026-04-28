@@ -11,11 +11,11 @@ You are the sole developer building the onService Philippine Home Services Marke
 
 ## YOUR SPECIFICATION DOCUMENTS
 
-Two master specification documents live in this repo root. **READ THEM FULLY before writing any code.** They are your bible:
+Two master specification documents live in the repo. **READ THEM FULLY before writing any code.** They are your bible:
 
-1. **`COMPLETE-PH-Home-Services-Platform-Specification.md`** — The business model, monetization architecture, all user stories for 7 user types (25+ customer stories, 16+ provider stories, 8+ admin stories), screen-by-screen UI/UX specifications for 55+ screens, Philippine regulatory compliance (DTI, SEC, BIR, NPC, DOLE), complete payment architecture (PayMongo integration, escrow flow, GCash/Maya), admin panel specification, dispute resolution system (3-tier with 5 scenario walkthroughs), service category bible, security and fraud detection, database schema, API endpoints, and the complete Google Stitch design audit with specific fixes needed.
+1. **`docs/architecture/SPEC.md`** — The business model, monetization architecture, all user stories for 7 user types (25+ customer stories, 16+ provider stories, 8+ admin stories), screen-by-screen UI/UX specifications for 55+ screens, Philippine regulatory compliance (DTI, SEC, BIR, NPC, DOLE), complete payment architecture (PayMongo integration, escrow flow, GCash/Maya), admin panel specification, dispute resolution system (3-tier with 5 scenario walkthroughs), service category bible, security and fraud detection, database schema, API endpoints, and the complete Google Stitch design audit with specific fixes needed.
 
-2. **`EXPANSION-v2-SDLC-SRS-Infrastructure-Issues.md`** — The full SDLC with 10 sprint plan, formal Software Requirements Specification (functional requirements FR-001 through FR-153, non-functional requirements NFR-001 through NFR-007), infrastructure scaling from 0 to 1M concurrent users (4 stages), PgBouncer configuration, table partitioning SQL, database indexes, Redis caching strategy, detailed screen component trees with every state (loading/empty/error/offline), 200+ identified issues to avoid, and sprint-by-sprint screen build order with hour estimates.
+2. **`docs/architecture/EXPANSION.md`** — The full SDLC with 10 sprint plan, formal Software Requirements Specification (functional requirements FR-001 through FR-153, non-functional requirements NFR-001 through NFR-007), infrastructure scaling from 0 to 1M concurrent users (4 stages), PgBouncer configuration, table partitioning SQL, database indexes, Redis caching strategy, detailed screen component trees with every state (loading/empty/error/offline), 200+ identified issues to avoid, and sprint-by-sprint screen build order with hour estimates.
 
 **When Ken asks you to build something, ALWAYS cross-reference these documents first.** If the spec says one thing and Ken says another in the moment, ask Ken to confirm — his live instruction overrides the spec, but flag the discrepancy so the spec can be updated.
 
@@ -85,8 +85,8 @@ Two master specification documents live in this repo root. **READ THEM FULLY bef
 
 ```
 onservice-onsite-app/
-├── COMPLETE-PH-Home-Services-Platform-Specification.md    ← Spec v1
-├── EXPANSION-v2-SDLC-SRS-Infrastructure-Issues.md         ← Spec v2
+├── docs/architecture/SPEC.md                              ← Spec v1
+├── docs/architecture/EXPANSION.md                         ← Spec v2
 ├── .cursorrules                                           ← THIS FILE
 ├── package.json
 ├── tsconfig.json
@@ -362,9 +362,9 @@ export const borderRadius = {
 When Ken tells you to build a screen, follow this exact process:
 
 ### Step 1: Read the Spec
-- Open `COMPLETE-PH-Home-Services-Platform-Specification.md`
+- Open `docs/architecture/SPEC.md`
 - Find the screen in Chapter 3 (screen inventory) and any related user stories in Chapter 2
-- Open `EXPANSION-v2-SDLC-SRS-Infrastructure-Issues.md`
+- Open `docs/architecture/EXPANSION.md`
 - Find the screen in Section 4 (detailed screen specs) and Section 6 (build order)
 - Check the issues database (Section 5) for any known issues related to this screen
 
