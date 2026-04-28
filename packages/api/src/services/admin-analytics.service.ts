@@ -270,7 +270,7 @@ export async function getCohortAnalysis(
       cohortSize: data.size,
       periods: Array.from(data.periods.entries())
         .sort((a, b) => a[0] - b[0])
-        .map(([period, value]) => ({
+        .map(([period, value]) => ({ // SAFE-N+1: in-memory cohort/period nested mapping over already-aggregated Map; no DB calls.
           period,
           value,
           percentage: data.size > 0 ? Math.round((value / data.size) * 10000) / 100 : 0,
@@ -996,7 +996,7 @@ export async function getRevenueTrend(days: number): Promise<RevenueTrendPoint[]
     [n],
   );
 
-  return rows.rows.map((r) => ({
+  return rows.rows.map((r) => ({ // SAFE-N+1: in-memory row-to-DTO projection of LIMIT-bounded daily series; no DB calls inside map.
     date: r.date,
     gmv: Number(r.gmv),
     revenue: Number(r.revenue),
@@ -1017,7 +1017,7 @@ export async function getBookingVolumeByCategory(days: number): Promise<BookingV
     [n],
   );
 
-  return rows.rows.map((r) => ({ category: r.category, count: Number(r.count) }));
+  return rows.rows.map((r) => ({ category: r.category, count: Number(r.count) })); // SAFE-N+1: in-memory row-to-DTO projection of LIMIT-12 result; no DB calls inside map.
 }
 
 export async function getCustomerAcquisitionFunnel(days: number): Promise<AcquisitionFunnel> {

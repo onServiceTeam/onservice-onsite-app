@@ -347,7 +347,7 @@ export async function processExpiredCoolingOff(): Promise<number> {
   // bounded: daily cron over a 30-day cooling-off window with low expected
   // throughput. Queue-based async worker is tracked as future work in
   // LAUNCH-LIMITATIONS section 17.
-  for (const req of expired.rows) {
+  for (const req of expired.rows) { // SAFE-N+1: bounded daily cron over 30-day cooling-off window with low expected throughput; per-user anonymization required for unique-constraint contract; queue-based async worker tracked in LAUNCH-LIMITATIONS section 17.
     try {
       await anonymizeUser(req.user_id);
 

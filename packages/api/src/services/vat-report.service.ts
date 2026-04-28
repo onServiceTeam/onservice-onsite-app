@@ -591,7 +591,7 @@ export async function listVatReports(
     params,
   );
 
-  return { rows: result.rows.map(mapReportRow), total };
+  return { rows: result.rows.map(mapReportRow), total }; // SAFE-N+1: in-memory row-to-DTO mapping of LIMIT-paginated result; no DB calls inside map.
 }
 
 // ─────────────────────────────────────────────────────────────────

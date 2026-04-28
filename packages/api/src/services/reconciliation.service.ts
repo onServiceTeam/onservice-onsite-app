@@ -225,7 +225,7 @@ export async function runDailyReconciliation(
   let escrowTotal = 0;
   let revenueTotal = 0;
   let guaranteeTotal = 0;
-  for (const row of platformTotals.rows) {
+  for (const row of platformTotals.rows) { // SAFE-N+1: in-memory aggregation of bounded result set (3 platform-account types); no DB calls inside loop.
     const total = Number(row.total);
     if (row.type === 'platform_escrow') escrowTotal = total;
     else if (row.type === 'platform_revenue') revenueTotal = total;
@@ -453,7 +453,7 @@ export async function listRecentSnapshots(
       LIMIT $1`,
     [safeLimit],
   );
-  return result.rows.map((r) => mapSnapshotRow(r));
+  return result.rows.map((r) => mapSnapshotRow(r)); // SAFE-N+1: in-memory row-to-DTO mapping of LIMIT-bounded recent snapshots; no DB calls inside map.
 }
 
 export async function listAlertedSnapshots(
@@ -467,5 +467,5 @@ export async function listAlertedSnapshots(
       LIMIT $1`,
     [safeLimit],
   );
-  return result.rows.map((r) => mapSnapshotRow(r));
+  return result.rows.map((r) => mapSnapshotRow(r)); // SAFE-N+1: in-memory row-to-DTO mapping of LIMIT-bounded alerted snapshots; no DB calls inside map.
 }

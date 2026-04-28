@@ -1,0 +1,771 @@
+=== verify-master start: 2026-04-28T22:18:38Z ===
+
+================================================================
+  gate-1-typecheck
+================================================================
+
+> onservice-onsite-app@0.1.0 typecheck
+> npm run typecheck --workspaces --if-present
+
+
+> @onservice/admin@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @onservice/mobile@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @onservice/api@0.1.0 typecheck
+> tsc --noEmit
+
+✅ gate-1-typecheck
+
+================================================================
+  gate-1-lint
+================================================================
+
+> onservice-onsite-app@0.1.0 lint
+> eslint .
+
+✅ gate-1-lint
+
+================================================================
+  gate-1-forbidden
+================================================================
+--- gate-1-forbidden ---
+Absolute violations in repo: 0
+Violations introduced by this phase: 0
+GATE: PASS (no new violations introduced by PHASE-13)
+✅ gate-1-forbidden
+
+================================================================
+  gate-1-emoji
+================================================================
+--- gate-1-emoji ---
+Absolute violations in repo: 0
+Violations introduced by this phase: 0
+GATE: PASS (no new violations introduced by PHASE-13)
+✅ gate-1-emoji
+
+================================================================
+  gate-1-phantom-tests
+================================================================
+--- gate-1-phantom-tests ---
+Absolute violations in repo: 0
+Violations introduced by this phase: 0
+GATE: PASS (no new violations introduced by PHASE-13)
+✅ gate-1-phantom-tests
+
+================================================================
+  gate-1-deps
+================================================================
+Checking: ./apps/admin/package.json
+  WARN: jq not installed. Skipping detailed check (install jq to enforce).
+Checking: ./apps/mobile/package.json
+  WARN: jq not installed. Skipping detailed check (install jq to enforce).
+Checking: ./package.json
+  WARN: jq not installed. Skipping detailed check (install jq to enforce).
+Checking: ./packages/api/package.json
+  WARN: jq not installed. Skipping detailed check (install jq to enforce).
+
+PASS: No forbidden dependencies. Review any WARN lines.
+✅ gate-1-deps
+
+================================================================
+  gate-1-design-tokens
+================================================================
+[verify-design-tokens] SKIP: jq not installed (required to parse tokens.json). Install jq locally or in CI to enable this gate.
+✅ gate-1-design-tokens
+
+================================================================
+  gate-2-alltests
+================================================================
+
+> onservice-onsite-app@0.1.0 api:test
+> npm run test --workspace=packages/api
+
+
+> @onservice/api@0.1.0 test
+> jest --passWithNoTests
+
+PASS __tests__/socket-admin.test.ts
+PASS __tests__/provider-validators.test.ts
+PASS __tests__/provider-admin.test.ts
+  ● Console
+
+    console.log
+      [32minfo[39m: Provider wallet adjustment {"adminUserId":"33333333-3333-3333-3333-333333333333","deltaAmount":250,"newBalance":750,"providerId":"11111111-1111-1111-1111-111111111111","reason":"guarantee fund top-up case #42","service":"onservice-api","timestamp":"2026-04-29 06:24:06","walletId":"w1"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Provider wallet adjustment {"adminUserId":"33333333-3333-3333-3333-333333333333","deltaAmount":-300,"newBalance":700,"providerId":"11111111-1111-1111-1111-111111111111","reason":"reversal of erroneous credit","service":"onservice-api","timestamp":"2026-04-29 06:24:06","walletId":"w1"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS __tests__/booking-validators.test.ts
+PASS __tests__/tip-validators.test.ts
+PASS __tests__/address-validators.test.ts
+PASS __tests__/compliance-admin.test.ts
+PASS __tests__/suki-validators.test.ts
+PASS __tests__/referral-validators.test.ts
+PASS __tests__/notification-template-validators.test.ts
+PASS __tests__/messaging-validators.test.ts
+PASS __tests__/payment-validators.test.ts
+PASS __tests__/payout-validators.test.ts
+PASS __tests__/review-validators.test.ts
+PASS __tests__/customer-admin.test.ts
+  ● Console
+
+    console.log
+      [32minfo[39m: Customer status updated {"action":"suspend","adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","newIsActive":false,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Customer status updated {"action":"reactivate","adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","newIsActive":true,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Customer status updated {"action":"flag_fraud","adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","newIsActive":true,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Customer status updated {"action":"suspend","adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","newIsActive":false,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Customer wallet credit {"adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","deltaAmount":250,"newBalance":750,"reason":"goodwill for delayed booking","service":"onservice-api","timestamp":"2026-04-29 06:24:07","walletId":"w1"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Customer wallet credit {"adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","deltaAmount":1000,"newBalance":1000,"reason":"first-time signup credit","service":"onservice-api","timestamp":"2026-04-29 06:24:07","walletId":"w-new"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Customer wallet credit {"adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","deltaAmount":-300,"newBalance":700,"reason":"reversal of duplicate credit","service":"onservice-api","timestamp":"2026-04-29 06:24:07","walletId":"w1"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS __tests__/smoke.test.ts
+PASS __tests__/dispute-validators.test.ts
+PASS __tests__/admin-validators.test.ts
+PASS __tests__/runtime-config-e2e.test.ts
+  ● Console
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin-user-id","key":"service_fee_rate","newValue":"12","oldValue":"10","reason":"tuning","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin-user-id","key":"service_fee_rate","newValue":"10","oldValue":"99","reason":"Reset to default","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS __tests__/settings-service.test.ts
+  ● Console
+
+    console.log
+      [33mwarn[39m: Settings cache read failed {"error":"redis down","key":"service_fee_rate","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [33mwarn[39m: Settings cache write failed {"error":"cache write fail","key":"service_fee_rate","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: Settings DB read failed {"error":"db down","key":"service_fee_rate","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [33mwarn[39m: Settings cache JSON parse failed {"error":"Expected property name or '}' in JSON at position 1 (line 1 column 2)","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [33mwarn[39m: Settings cache read (all) failed {"error":"boom","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [33mwarn[39m: Settings cache write (all) failed {"error":"write fail","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin-id","key":"service_fee_rate","newValue":"12","oldValue":"10","reason":"tuning","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin","key":"service_fee_rate","newValue":"12","oldValue":"10","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin","key":"service_fee_rate","newValue":"12","oldValue":"10","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin","key":"service_fee_rate","newValue":"12","oldValue":"10","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin","key":"service_fee_rate","newValue":"20","oldValue":"10","reason":"bulk","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin","key":"service_fee_min","newValue":"21","oldValue":"10","reason":"bulk","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin","key":"service_fee_rate","newValue":"10","oldValue":"99","reason":"Reset to default","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [33mwarn[39m: Settings cache bust failed {"error":"boom","key":"service_fee_rate","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [33mwarn[39m: Settings cache flush-all failed {"error":"boom","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS __tests__/auth-validators.test.ts
+PASS __tests__/wallet-type-isolation.test.ts
+PASS __tests__/admin-analytics-tier-aggregate.test.ts
+PASS __tests__/design-tokens-sync.test.ts
+PASS __tests__/booking-state-machine.test.ts
+PASS __tests__/compliance-dsr-flow.test.ts
+PASS __tests__/logger-pii-masking.test.ts
+PASS __tests__/marketing-admin.test.ts
+PASS __tests__/matching.test.ts
+PASS __tests__/bigint-money-precision.test.ts
+PASS __tests__/hcaptcha-verify.test.ts
+  ● Console
+
+    console.log
+      [33mwarn[39m: hCaptcha verify failed {"err":"Error: network down","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: HCAPTCHA_SECRET missing in production {"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS __tests__/cors-allowlist.test.ts
+PASS __tests__/escrow-money-conservation.test.ts
+PASS __tests__/admin-analytics-dashboard.test.ts
+PASS __tests__/booking-dispute-admin.test.ts
+PASS __tests__/commission.test.ts
+PASS __tests__/invoice-bulk-batch.test.ts
+PASS __tests__/booking-price-lookup.test.ts
+PASS __tests__/dispute-refund-processing.test.ts
+PASS __tests__/escrow-async-integration.test.ts
+  ● Console
+
+    console.log
+      [32minfo[39m: Escrow released {"bookingId":"b1","breakdown":{"commissionAmount":15000,"commissionRate":0.15,"guaranteeFundContribution":150,"platformRetains":24850,"providerReceives":85000,"serviceFeeAmount":10000,"serviceFeeRate":0.1,"servicePrice":100000},"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: OR issuance failed after escrow release (audit-only side effect) {"bookingId":"b1","error":"Cannot read properties of undefined (reading 'rows')","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow released {"bookingId":"b1","breakdown":{"commissionAmount":15000,"commissionRate":0.15,"guaranteeFundContribution":150,"platformRetains":24850,"providerReceives":85000,"serviceFeeAmount":10000,"serviceFeeRate":0.1,"servicePrice":100000},"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: OR issuance failed after escrow release (audit-only side effect) {"bookingId":"b1","error":"Cannot read properties of undefined (reading 'rows')","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow released {"bookingId":"b1","breakdown":{"commissionAmount":15000,"commissionRate":0.15,"guaranteeFundContribution":150,"platformRetains":24850,"providerReceives":85000,"serviceFeeAmount":10000,"serviceFeeRate":0.1,"servicePrice":100000},"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: OR issuance failed after escrow release (audit-only side effect) {"bookingId":"b1","error":"Cannot read properties of undefined (reading 'rows')","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: Booking amount mismatch detected {"bookingId":"b1","expected":110000,"service":"onservice-api","serviceFee":10000,"servicePrice":100000,"timestamp":"2026-04-29 06:24:07","totalAmount":110100}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: MONEY CONSERVATION VIOLATION in escrow release {"bookingId":"b1","diff":100,"guaranteeFundContribution":150,"platformRetains":24850,"providerReceives":85000,"service":"onservice-api","serviceFee":10000,"servicePrice":100000,"timestamp":"2026-04-29 06:24:07","totalAmount":110100,"totalOut":110000}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: Booking amount mismatch detected {"bookingId":"b1","expected":110000,"service":"onservice-api","serviceFee":10000,"servicePrice":100000,"timestamp":"2026-04-29 06:24:07","totalAmount":110002}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [34mdebug[39m: Rounding adjustment in escrow release {"bookingId":"b1","diff":2,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow released {"bookingId":"b1","breakdown":{"commissionAmount":15000,"commissionRate":0.15,"guaranteeFundContribution":150,"platformRetains":24850,"providerReceives":85000,"serviceFeeAmount":10000,"serviceFeeRate":0.1,"servicePrice":100000},"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: OR issuance failed after escrow release (audit-only side effect) {"bookingId":"b1","error":"Cannot read properties of undefined (reading 'rows')","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow released {"bookingId":"b1","breakdown":{"commissionAmount":11000,"commissionRate":0.11,"guaranteeFundContribution":150,"platformRetains":20850,"providerReceives":89000,"serviceFeeAmount":10000,"serviceFeeRate":0.1,"servicePrice":100000},"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: OR issuance failed after escrow release (audit-only side effect) {"bookingId":"b1","error":"Cannot read properties of undefined (reading 'rows')","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow released {"bookingId":"b1","breakdown":{"commissionAmount":11000,"commissionRate":0.11,"guaranteeFundContribution":150,"platformRetains":20850,"providerReceives":89000,"serviceFeeAmount":10000,"serviceFeeRate":0.1,"servicePrice":100000},"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: OR issuance failed after escrow release (audit-only side effect) {"bookingId":"b1","error":"Cannot read properties of undefined (reading 'rows')","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Partial escrow released {"bookingId":"b1","breakdown":{"commissionAmount":7500,"commissionRate":0.15,"guaranteeFundContribution":75,"platformRetains":12500,"providerReceives":42500,"serviceFeeAmount":5000,"serviceFeeRate":0.1,"servicePrice":50000},"remainingAmount":55000,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Partial escrow released {"bookingId":"b1","breakdown":{"commissionAmount":7500,"commissionRate":0.15,"guaranteeFundContribution":75,"platformRetains":12500,"providerReceives":42500,"serviceFeeAmount":5000,"serviceFeeRate":0.1,"servicePrice":50000},"remainingAmount":55000,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow refund processed {"bookingId":"b1","reason":"Cancellation refund (service price + service fee)","refundAmount":110000,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Cancellation processed {"bookingId":"b1","escrowStatus":"refunded","refund":{"customerRefundAmount":100000,"customerRefundPercent":1,"providerCompensationAmount":0,"providerCompensationPercent":0},"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow refund processed {"bookingId":"b1","reason":"Cancellation refund (service price + service fee)","refundAmount":10000,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Cancellation processed {"bookingId":"b1","escrowStatus":"released","refund":{"customerRefundAmount":0,"customerRefundPercent":0,"providerCompensationAmount":50000,"providerCompensationPercent":1},"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow refund processed {"bookingId":"b1","reason":"Cancellation refund (service price + service fee)","refundAmount":60000,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Cancellation processed {"bookingId":"b1","escrowStatus":"partially_refunded","refund":{"customerRefundAmount":50000,"customerRefundPercent":0.5,"providerCompensationAmount":25000,"providerCompensationPercent":0.5},"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Cancellation processed {"bookingId":"b1","escrowStatus":"released","refund":{"customerRefundAmount":0,"customerRefundPercent":0,"providerCompensationAmount":100000,"providerCompensationPercent":1},"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow refund processed {"bookingId":"b1","reason":"Cancellation refund (service price + service fee)","refundAmount":110000,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Cancellation processed {"bookingId":"b1","escrowStatus":"refunded","refund":{"customerRefundAmount":100000,"customerRefundPercent":1,"providerCompensationAmount":0,"providerCompensationPercent":0},"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow refund processed {"bookingId":"b1","reason":"Cancellation refund (service price + service fee)","refundAmount":60000,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Cancellation processed {"bookingId":"b1","escrowStatus":"partially_refunded","refund":{"customerRefundAmount":50000,"customerRefundPercent":0.5,"providerCompensationAmount":25000,"providerCompensationPercent":0.5},"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow hold created {"amount":50000,"bookingId":"b1","service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow refund processed {"bookingId":"b1","reason":"cancellation","refundAmount":50000,"service":"onservice-api","timestamp":"2026-04-29 06:24:07"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS __tests__/booking-admin-message.test.ts
+PASS __tests__/financial-bir-admin.test.ts
+PASS __tests__/admin-a11y-baseline.test.tsx
+PASS __tests__/auth-password-rehash.test.ts (5.142 s)
+A worker process has failed to exit gracefully and has been force exited. This is likely caused by tests leaking due to improper teardown. Try running with --detectOpenHandles to find leaks. Active timers can also cause this, ensure that .unref() was called on them.
+
+Test Suites: 44 passed, 44 total
+Tests:       876 passed, 876 total
+Snapshots:   0 total
+Time:        7.366 s
+Ran all test suites.
+✅ gate-2-alltests
+
+================================================================
+  gate-3-mutations
+================================================================
+--- gate-3-mutations (TD-005 baseline-delta scope) ---
+Phase:            PHASE-13
+Sacred roster:    8 files
+Touched by phase: 0 file(s)
+Untouched (deferred to their implementation phases / Phase 12 sweep):
+  - packages/api/src/services/escrow.service.ts
+  - packages/api/src/services/commission.service.ts
+  - packages/api/src/services/dispute.service.ts
+  - packages/api/src/services/booking.service.ts
+  - packages/api/src/services/payout.service.ts
+  - packages/api/src/services/wallet.service.ts
+  - packages/api/src/services/refund.service.ts
+  - packages/api/src/services/settings.service.ts
+
+INFO: Phase did not touch any sacred files; mutation gate skipped (TD-005).
+✅ gate-3-mutations
+INFO: No mutation test documents (may be N/A if phase didn't touch money code).
+INFO: Gate 4 visual audit DEFERRED (see .ai-coder/checkpoints/logs/PHASE-13/visual/DEFERRAL.md).
+
+================================================================
+  gate-4-load
+================================================================
+[verify-load] SKIP: LOADTEST_BASE_URL not set
+✅ gate-4-load
+
+================================================================
+  gate-5-money
+================================================================
+=== Money Conservation Tests ===
+Started: 2026-04-28T22:24:14Z
+
+--- Running: packages/api/__tests__/escrow-money-conservation.test.ts ---
+PASS packages/api/__tests__/escrow-money-conservation.test.ts
+  Escrow Money Conservation (Phase 03 — async)
+    √ conserves money: providerReceives + platformRetains === servicePrice + serviceFee (2 ms)
+    √ applies 15% commission on service_price for new tier (1 ms)
+    √ calculates guarantee fund as 1.5% of service fee
+    √ passes the exact example: 50000 price, new tier (1 ms)
+    √ conserves money for all tiers and price tiers (2 ms)
+    √ ensures all amounts are integers (centavos) (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        0.437 s, estimated 1 s
+Ran all test suites matching packages/api/__tests__/escrow-money-conservation.test.ts.
+PASS: packages/api/__tests__/escrow-money-conservation.test.ts
+
+--- Running: packages/api/__tests__/commission.test.ts ---
+PASS packages/api/__tests__/commission.test.ts
+  Commission Calculation Engine (Phase 03 — async)
+    calculateCommission
+      √ should apply 15% commission for new providers (2 ms)
+      √ should apply 13% commission for verified providers
+      √ should apply 11% commission for pro providers
+      √ should apply 9% commission for elite providers
+      √ should default to new tier for unknown tiers (1 ms)
+      √ should calculate 10% service fee
+      √ should enforce minimum service fee of 2500 centavos
+      √ should enforce maximum service fee of 50000 centavos (1 ms)
+      √ should allocate 1.5% of service fee to guarantee fund
+      √ should ensure provider + platform = service price + service fee
+      √ should handle small amounts correctly
+    calculateCancellationRefund (Phase 03 settings-backed schedule)
+      √ 100% refund if >24h before scheduled time
+      √ 100% refund if 2-24h before
+      √ 90% refund if 1-2h before
+      √ 80% refund if 30min-1h before (1 ms)
+      √ 70% refund if <30min before or after scheduled (provider not arrived)
+      √ 50% refund if provider has arrived
+      √ 0% refund for customer no-show
+      √ rounds amounts to nearest centavo (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       19 passed, 19 total
+Snapshots:   0 total
+Time:        0.447 s, estimated 1 s
+Ran all test suites matching packages/api/__tests__/commission.test.ts.
+PASS: packages/api/__tests__/commission.test.ts
+
+--- Running: packages/api/__tests__/dispute-refund-processing.test.ts ---
+PASS packages/api/__tests__/dispute-refund-processing.test.ts
+  Dispute Refund Processing (Phase 03 — async)
+    full refund scenarios
+      √ 100% customer refund for >24h cancellation (2 ms)
+      √ refund + compensation always equals service price
+    partial refund scenarios
+      √ 90% refund for 1-2h cancellation (1 ms)
+      √ 50% refund when provider already arrived
+    no-show scenarios
+      √ 0% refund for customer no-show
+    money conservation across all refund tiers
+      √ conserves money: >24h, price=10000 (1 ms)
+      √ conserves money: >24h, price=50000
+      √ conserves money: >24h, price=100000
+      √ conserves money: >24h, price=250000 (1 ms)
+      √ conserves money: >24h, price=500000
+      √ conserves money: 2-24h, price=10000 (1 ms)
+      √ conserves money: 2-24h, price=50000
+      √ conserves money: 2-24h, price=100000
+      √ conserves money: 2-24h, price=250000
+      √ conserves money: 2-24h, price=500000 (1 ms)
+      √ conserves money: 1-2h, price=10000
+      √ conserves money: 1-2h, price=50000
+      √ conserves money: 1-2h, price=100000
+      √ conserves money: 1-2h, price=250000 (1 ms)
+      √ conserves money: 1-2h, price=500000
+      √ conserves money: 30m-1h, price=10000
+      √ conserves money: 30m-1h, price=50000
+      √ conserves money: 30m-1h, price=100000 (1 ms)
+      √ conserves money: 30m-1h, price=250000
+      √ conserves money: 30m-1h, price=500000 (2 ms)
+      √ conserves money: <30m, price=10000
+      √ conserves money: <30m, price=50000
+      √ conserves money: <30m, price=100000 (1 ms)
+      √ conserves money: <30m, price=250000
+      √ conserves money: <30m, price=500000
+      √ conserves money: arrived, price=10000
+      √ conserves money: arrived, price=50000
+      √ conserves money: arrived, price=100000 (1 ms)
+      √ conserves money: arrived, price=250000
+      √ conserves money: arrived, price=500000
+      √ conserves money: no-show, price=10000
+      √ conserves money: no-show, price=50000
+      √ conserves money: no-show, price=100000 (1 ms)
+      √ conserves money: no-show, price=250000
+      √ conserves money: no-show, price=500000
+
+Test Suites: 1 passed, 1 total
+Tests:       40 passed, 40 total
+Snapshots:   0 total
+Time:        0.455 s, estimated 1 s
+Ran all test suites matching packages/api/__tests__/dispute-refund-processing.test.ts.
+PASS: packages/api/__tests__/dispute-refund-processing.test.ts
+
+--- Running: packages/api/__tests__/wallet-type-isolation.test.ts ---
+PASS packages/api/__tests__/wallet-type-isolation.test.ts
+  Wallet Type Isolation
+    √ should produce distinct wallet keys for customer vs provider types (2 ms)
+    √ should produce same wallet key for same user + same type (1 ms)
+    √ should produce correct SQL for getUserWallet query
+    √ should support all valid wallet types (3 ms)
+    √ should generate unique wallet IDs per (user_id, type) pair
+    √ should handle platform wallets without user_id (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        0.384 s, estimated 1 s
+Ran all test suites matching packages/api/__tests__/wallet-type-isolation.test.ts.
+PASS: packages/api/__tests__/wallet-type-isolation.test.ts
+
+--- Running: packages/api/__tests__/booking-state-machine.test.ts ---
+PASS packages/api/__tests__/booking-state-machine.test.ts
+  Booking State Machine
+    canTransition
+      √ should allow requested → matched (2 ms)
+      √ should allow requested → quoted
+      √ should allow requested → cancelled_by_customer
+      √ should NOT allow requested → payment_pending directly (must go through matched)
+      √ should allow matched → payment_pending (3 ms)
+      √ should allow paid → provider_en_route
+      √ should allow provider_en_route → provider_arrived
+      √ should allow in_progress → completed_by_provider
+      √ should allow completed_by_provider → confirmed (1 ms)
+      √ should allow completed_by_provider → disputed
+      √ should allow confirmed → payout_ready
+      √ should allow payout_ready → paid_out
+    invalid transitions
+      √ should reject requested → paid (skip payment_pending)
+      √ should reject requested → in_progress (skip multiple states)
+      √ should reject completed_by_provider → requested (backwards)
+      √ should reject paid_out → anything (terminal state)
+      √ should reject cancelled_by_customer → anything (terminal state)
+      √ should reject cancelled_by_provider → anything (terminal state)
+      √ should reject cancelled_by_admin → anything (terminal state)
+      √ should reject confirmed → disputed (too late) (1 ms)
+      √ should reject in_progress → cancelled_by_customer
+    admin cancellation
+      √ should allow admin cancellation from requested
+      √ should allow admin cancellation from quoted
+      √ should allow admin cancellation from matched
+      √ should allow admin cancellation from payment_pending
+      √ should allow admin cancellation from paid
+      √ should allow admin cancellation from provider_en_route
+      √ should allow admin cancellation from provider_arrived
+      √ should allow admin cancellation from in_progress
+      √ should NOT allow admin cancellation from terminal states
+    escrow flow
+      √ should follow the full happy path: requested → paid_out
+      √ should follow the fixed-price path: requested → matched → payment_pending → paid_out (1 ms)
+      √ should follow the quote-based path
+      √ should follow the dispute path
+    VALID_TRANSITIONS completeness
+      √ should have an entry for every status (1 ms)
+      √ should have terminal states with empty transitions (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       36 passed, 36 total
+Snapshots:   0 total
+Time:        0.354 s, estimated 1 s
+Ran all test suites matching packages/api/__tests__/booking-state-machine.test.ts.
+PASS: packages/api/__tests__/booking-state-machine.test.ts
+
+--- Running: packages/api/__tests__/booking-price-lookup.test.ts ---
+PASS packages/api/__tests__/booking-price-lookup.test.ts
+  Booking Price Lookup (Phase 03 — async)
+    √ calculates commission based on service_price, not total_amount (2 ms)
+    √ handles zero service price
+    √ calculates correct service fee from service_price (1 ms)
+    √ enforces minimum service fee of 2500 centavos
+    √ enforces maximum service fee of 50000 centavos (1 ms)
+    √ computes total_amount as servicePrice + serviceFee for all tiers (2 ms)
+    √ uses service_price for provider receives, not total_amount
+
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        0.437 s, estimated 1 s
+Ran all test suites matching packages/api/__tests__/booking-price-lookup.test.ts.
+PASS: packages/api/__tests__/booking-price-lookup.test.ts
+
+PASS: All money tests passed.
+✅ gate-5-money
+
+================================================================
+  gate-5-migrations
+================================================================
+--- Checking migration numbering ---
+Latest: 059_money_columns_to_bigint.sql
+Total: 59 migrations
+
+--- Checking migration immutability ---
+DATABASE_URL not set; skipping live run.
+
+--- Code references vs migrations (heuristic) ---
+WARN: code references 'activity' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'b' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'bookings_by_customer' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'cohort_sizes' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'cohort_users' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'consistency' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'eligible' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'gmv' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'gps_checkins' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'issued_at' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'latest_three' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'p' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'period_bookings' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'ranked' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'receipts' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'registered_customers' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'rev' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'revenue' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'series' not seen in CREATE TABLE. Verify it's a CTE / alias.
+
+PASS: Migration verification clean.
+✅ gate-5-migrations
+
+================================================================
+  gate-5-n-plus-1
+================================================================
+--- Checking for N+1 query patterns ---
+--- gate-5-n-plus-1 (suspicious patterns) ---
+Absolute violations in repo: 10
+Violations introduced by this phase: 0
+Violations remaining (deferred to later phases): 10
+Sample (first 10):
+  - packages/api/src/services/booking.service.ts:157:    for (const addon of params.addons) {
+  - packages/api/src/services/booking.service.ts:629:    for (const item of data.lineItems) {
+  - packages/api/src/services/booking.service.ts:682:  const quoteIds = quotes.rows.map(q => q.id);
+  - packages/api/src/services/catalog.service.ts:211:  for (const a of addons) {
+  - packages/api/src/services/compliance.service.ts:401:  return { rows: rowsResult.rows.map((r) => mapDsr(r)), total };
+  - packages/api/src/services/marketing-admin.service.ts:322:  return { rows: rowsResult.rows.map(mapPromo), total };
+  - packages/api/src/services/marketing-admin.service.ts:555:  return { rows: rowsResult.rows.map(mapCampaign), total };
+  - packages/api/src/services/recurring.service.ts:350:  for (const rb of dueBookings.rows) {
+  - packages/api/src/services/service-area.service.ts:440:  for (const entry of waitlistEntries.rows) {
+  - packages/api/src/services/slot-waitlist.service.ts:141:  const ids = waitlistEntries.rows.map((e) => e.id);
+
+--- gate-5-n-plus-1 (unjustified SAFE-N+1 markers) ---
+Absolute violations in repo: 0
+Violations introduced by this phase: 0
+GATE: PASS (no new N+1 patterns introduced by PHASE-13)
+✅ gate-5-n-plus-1
+
+================================================================
+  gate-6-evidence-audit
+================================================================
+Validating referenced artifacts...
+
+PASS: Evidence manifest validated. All artifacts present and sized.
+      Manifest: .ai-coder/checkpoints/logs/PHASE-13/EVIDENCE-MANIFEST.md
+      Honesty:  .ai-coder/checkpoints/logs/PHASE-13/HONESTY-CHECK.md
+✅ gate-6-evidence-audit
+Baseline-debt summary: .ai-coder/checkpoints/logs/PHASE-13/BASELINE-DEBT.md
+
+================================================================
+  Hashing all artifacts (cryptographic chain of evidence)
+================================================================
+Hashes written to .ai-coder/checkpoints/logs/PHASE-13/HASHES.sha256
+Ken can verify with: sha256sum -c .ai-coder/checkpoints/logs/PHASE-13/HASHES.sha256  (run from repo root)
+
+================================================================
+  FINAL STATUS: PASS
+================================================================
+
+✅ Phase PHASE-13 has passed all verification gates.
+
+Evidence directory: .ai-coder/checkpoints/logs/PHASE-13
+Evidence manifest:  .ai-coder/checkpoints/logs/PHASE-13/EVIDENCE-MANIFEST.md
+Honesty check:      .ai-coder/checkpoints/logs/PHASE-13/HONESTY-CHECK.md
+Check index:        .ai-coder/checkpoints/logs/PHASE-13/checks/INDEX.md
+Hash chain:         .ai-coder/checkpoints/logs/PHASE-13/HASHES.sha256
+
+AI coder: Send the phase report to Ken.
+Ken: Review the evidence manifest and check index.
+=== verify-master end: 2026-04-28T22:24:45Z rc=0 ===

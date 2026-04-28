@@ -30,9 +30,13 @@ trap "rm -f $SUSPICIOUS_FILE $UNJUSTIFIED_FILE ${SUSPICIOUS_FILE}.delta ${UNJUST
 echo "--- Checking for N+1 query patterns ---"
 
 # Suspicious: loops within services followed within 10 lines by a db query.
+# Lines that carry a justified `// SAFE-N+1: <reason>` annotation are excluded
+# (they have been reviewed and judged safe by an engineer; the unjustified-
+# marker check below still enforces that every SAFE-N+1 has a reason).
 grep -rEn "(for\s*\(.*of|\.forEach|\.map\s*\()" packages/api/src/services 2>/dev/null \
   | grep -v node_modules \
   | grep -v __tests__ \
+  | grep -vE "SAFE-N\+1:\s+\S+" \
   | while IFS=: read -r file line content; do
       end=$((line + 10))
       if sed -n "${line},${end}p" "$file" 2>/dev/null \

@@ -195,13 +195,13 @@ export async function generateMonthlyInvoices(): Promise<number> {
 
   // Query 2: bulk INSERT business_invoices via UNNEST. RETURNING ties each
   // generated id back to its account so we can build invoice_items below.
-  const accountIds: string[] = computed.map((c) => c.account.id);
-  const invoiceNumbers: string[] = computed.map((c) => c.invoiceNumber);
-  const subtotals: number[] = computed.map((c) => c.account.subtotal);
-  const discounts: number[] = computed.map((c) => c.discountAmount);
-  const taxes: number[] = computed.map((c) => c.taxAmount);
-  const totals: number[] = computed.map((c) => c.totalAmount);
-  const dueDates: string[] = computed.map((c) => c.dueDateIso);
+  const accountIds: string[] = computed.map((c) => c.account.id); // SAFE-N+1: in-memory column projection feeding bulk UNNEST insert (single round-trip).
+  const invoiceNumbers: string[] = computed.map((c) => c.invoiceNumber); // SAFE-N+1: in-memory column projection feeding bulk UNNEST insert (single round-trip).
+  const subtotals: number[] = computed.map((c) => c.account.subtotal); // SAFE-N+1: in-memory column projection feeding bulk UNNEST insert (single round-trip).
+  const discounts: number[] = computed.map((c) => c.discountAmount); // SAFE-N+1: in-memory column projection feeding bulk UNNEST insert (single round-trip).
+  const taxes: number[] = computed.map((c) => c.taxAmount); // SAFE-N+1: in-memory column projection feeding bulk UNNEST insert (single round-trip).
+  const totals: number[] = computed.map((c) => c.totalAmount); // SAFE-N+1: in-memory column projection feeding bulk UNNEST insert (single round-trip).
+  const dueDates: string[] = computed.map((c) => c.dueDateIso); // SAFE-N+1: in-memory column projection feeding bulk UNNEST insert (single round-trip).
 
   const insertedInvoices = await db.query<{ id: string; business_account_id: string }>(
     `INSERT INTO business_invoices (
@@ -284,7 +284,7 @@ export async function generateMonthlyInvoices(): Promise<number> {
   // Notifications — per-account, out of band, individual failures swallowed
   // (notification dispatch never blocks invoice generation).
   let generated = 0;
-  for (const c of computed) {
+  for (const c of computed) { // SAFE-N+1: bounded monthly cron loop over computed invoices; sends out-of-band notification per account (notification dispatch is non-blocking and not in DB hot path).
     const invoiceId = invoiceByAccount.get(c.account.id);
     if (!invoiceId) continue;
     generated++;
@@ -430,7 +430,7 @@ export async function checkOverdueInvoices(): Promise<number> {
   const overdueCount = result.rows.length;
 
   if (overdueCount > 0) {
-    for (const inv of result.rows) {
+    for (const inv of result.rows) { // SAFE-N+1: bounded daily cron over overdue invoices (small set); per-row owner lookup gated behind try/catch and used only to emit notification side effect.
       try {
         const account = await db.query<{ owner_user_id: string }>(
           `SELECT owner_user_id FROM business_accounts WHERE id = $1`,

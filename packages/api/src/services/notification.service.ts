@@ -421,13 +421,13 @@ export async function updateNotificationPreferences(
 
   sets.push('updated_at = NOW()');
 
-  const insertCols = PREF_COLUMNS.map((c) => c).join(', ');
-  const insertVals = PREF_COLUMNS.map((col) => {
+  const insertCols = PREF_COLUMNS.map((c) => c).join(', '); // SAFE-N+1: in-memory column-name string projection for INSERT statement (no DB calls).
+  const insertVals = PREF_COLUMNS.map((col) => { // SAFE-N+1: in-memory value projection feeding parameterized INSERT (no DB calls inside map).
     const camelKey = Object.entries(mapping).find(([, v]) => v === col)?.[0];
     const val = camelKey ? prefs[camelKey as keyof NotificationPrefs] : undefined;
     return val !== undefined ? val : DEFAULT_PREFS[camelKey as keyof NotificationPrefs];
   });
-  const insertPlaceholders = insertVals.map((_, i) => `$${idx + i}`).join(', ');
+  const insertPlaceholders = insertVals.map((_, i) => `$${idx + i}`).join(', '); // SAFE-N+1: in-memory placeholder string assembly (no DB calls).
 
   const result = await db.query<NotificationPrefRow>(
     `INSERT INTO notification_preferences (user_id, ${insertCols})

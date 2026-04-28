@@ -406,7 +406,7 @@ async function aggregateYtdIncome(
     [providerIds, startUtc, endUtc],
   );
   const map = new Map<string, number>();
-  for (const row of result.rows) {
+  for (const row of result.rows) { // SAFE-N+1: in-memory aggregation of already-fetched rows; no DB calls inside loop body.
     map.set(row.provider_id, Number(row.ytd_income ?? 0));
   }
   return map;

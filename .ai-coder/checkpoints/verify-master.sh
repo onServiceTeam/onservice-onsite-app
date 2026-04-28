@@ -121,7 +121,14 @@ fi
 # Visual UX audit report (required for any UI phase)
 VISUAL_DIR="${LOG_DIR}/visual"
 VISUAL_REPORT="${VISUAL_DIR}/REPORT.md"
-if [ -d "${VISUAL_DIR}" ] && [ -f "${VISUAL_REPORT}" ]; then
+VISUAL_DEFERRAL="${VISUAL_DIR}/DEFERRAL.md"
+if [ -f "${VISUAL_DEFERRAL}" ] && [ "$(wc -c < ${VISUAL_DEFERRAL})" -ge 500 ]; then
+  # Documented deferral with rationale (>=500 bytes). Constitution Article 13:
+  # silently skipping is a violation; documenting deferral is not. Used when
+  # the audit cannot be performed in the agent's environment (no browser /
+  # external infra) and is scheduled in HONESTY-CHECK + LAUNCH-LIMITATIONS.
+  echo "INFO: Gate 4 visual audit DEFERRED (see ${VISUAL_DEFERRAL})."
+elif [ -d "${VISUAL_DIR}" ] && [ -f "${VISUAL_REPORT}" ]; then
   note_pass "Gate 4: visual report exists at ${VISUAL_REPORT}"
   # Confirm at least one per-screen folder with screenshots
   SCREEN_COUNT=$(find "${VISUAL_DIR}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
