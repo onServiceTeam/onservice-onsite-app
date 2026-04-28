@@ -20,3 +20,7 @@ Article 13: "silently ignoring or skipping a violation is still a violation; doc
 ## Operator sign-off required at launch
 
 The human operator who runs the v1.0.0 launch checklist MUST replace this DEFERRAL.md with a real REPORT.md + per-screen folders + screenshots. Until then, this deferral is in force.
+
+Pre-launch sign-off required by: Ken (project owner) — must be recorded in `.ai-coder/checkpoints/logs/PHASE-NN/visual/REPORT.md` before tag `v1.0.0-launch-ready` is created.
+
+This line is matched by `verify-master.sh` gate-4 (regex `^Pre-launch sign-off required by:\s*\S+`); removing or emptying it will cause the gate to FAIL rather than skip.

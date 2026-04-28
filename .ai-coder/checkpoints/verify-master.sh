@@ -122,12 +122,17 @@ fi
 VISUAL_DIR="${LOG_DIR}/visual"
 VISUAL_REPORT="${VISUAL_DIR}/REPORT.md"
 VISUAL_DEFERRAL="${VISUAL_DIR}/DEFERRAL.md"
-if [ -f "${VISUAL_DEFERRAL}" ] && [ "$(wc -c < ${VISUAL_DEFERRAL})" -ge 500 ]; then
-  # Documented deferral with rationale (>=500 bytes). Constitution Article 13:
-  # silently skipping is a violation; documenting deferral is not. Used when
-  # the audit cannot be performed in the agent's environment (no browser /
-  # external infra) and is scheduled in HONESTY-CHECK + LAUNCH-LIMITATIONS.
-  echo "INFO: Gate 4 visual audit DEFERRED (see ${VISUAL_DEFERRAL})."
+VISUAL_DEFERRAL_MIN_BYTES=1500
+VISUAL_DEFERRAL_SIGNOFF_RE="^Pre-launch sign-off required by:[[:space:]]*\S+"
+if [ -f "${VISUAL_DEFERRAL}" ]; then
+  DEFERRAL_BYTES=$(wc -c < "${VISUAL_DEFERRAL}")
+  if [ "${DEFERRAL_BYTES}" -lt "${VISUAL_DEFERRAL_MIN_BYTES}" ]; then
+    note_failure "Gate 4: ${VISUAL_DEFERRAL} is ${DEFERRAL_BYTES} bytes; minimum ${VISUAL_DEFERRAL_MIN_BYTES} required for a substantive deferral."
+  elif ! grep -qE "${VISUAL_DEFERRAL_SIGNOFF_RE}" "${VISUAL_DEFERRAL}"; then
+    note_failure "Gate 4: ${VISUAL_DEFERRAL} missing required sign-off line. Must contain a line matching: Pre-launch sign-off required by: <NAME>"
+  else
+    echo "INFO: Gate 4 visual audit DEFERRED (see ${VISUAL_DEFERRAL}; ${DEFERRAL_BYTES} bytes; sign-off line present)."
+  fi
 elif [ -d "${VISUAL_DIR}" ] && [ -f "${VISUAL_REPORT}" ]; then
   note_pass "Gate 4: visual report exists at ${VISUAL_REPORT}"
   # Confirm at least one per-screen folder with screenshots

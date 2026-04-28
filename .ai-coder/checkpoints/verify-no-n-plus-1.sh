@@ -30,13 +30,13 @@ trap "rm -f $SUSPICIOUS_FILE $UNJUSTIFIED_FILE ${SUSPICIOUS_FILE}.delta ${UNJUST
 echo "--- Checking for N+1 query patterns ---"
 
 # Suspicious: loops within services followed within 10 lines by a db query.
-# Lines that carry a justified `// SAFE-N+1: <reason>` annotation are excluded
-# (they have been reviewed and judged safe by an engineer; the unjustified-
-# marker check below still enforces that every SAFE-N+1 has a reason).
+# Lines that carry a justified `// SAFE-N+1: <reason>` annotation are excluded.
+# Reason text must be SUBSTANTIVE: at least 40 chars after the colon-space.
+# This prevents drive-by `// SAFE-N+1: x` placeholder annotations.
 grep -rEn "(for\s*\(.*of|\.forEach|\.map\s*\()" packages/api/src/services 2>/dev/null \
   | grep -v node_modules \
   | grep -v __tests__ \
-  | grep -vE "SAFE-N\+1:\s+\S+" \
+  | grep -vE "SAFE-N\+1:\s+\S.{40,}" \
   | while IFS=: read -r file line content; do
       end=$((line + 10))
       if sed -n "${line},${end}p" "$file" 2>/dev/null \
@@ -48,9 +48,10 @@ grep -rEn "(for\s*\(.*of|\.forEach|\.map\s*\()" packages/api/src/services 2>/dev
 sort -u -o "$SUSPICIOUS_FILE" "$SUSPICIOUS_FILE"
 SUSPICIOUS_ABS=$(wc -l < "$SUSPICIOUS_FILE" | tr -d ' ')
 
-# Unjustified SAFE-N+1 markers (must be `// SAFE-N+1: <reason>`).
+# Unjustified SAFE-N+1 markers — reason text must be SUBSTANTIVE: at least 40
+# characters after the colon-space. A bare `// SAFE-N+1: x` is now unjustified.
 grep -rn "SAFE-N+1" packages/api/src 2>/dev/null \
-  | grep -vE "SAFE-N\+1:\s+\S+" >> "$UNJUSTIFIED_FILE" || true
+  | grep -vE "SAFE-N\+1:\s+\S.{40,}" >> "$UNJUSTIFIED_FILE" || true
 
 sort -u -o "$UNJUSTIFIED_FILE" "$UNJUSTIFIED_FILE"
 UNJUSTIFIED_ABS=$(wc -l < "$UNJUSTIFIED_FILE" | tr -d ' ')
