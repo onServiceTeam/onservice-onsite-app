@@ -208,8 +208,9 @@ function NpcTab(): React.ReactElement {
                 <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
-            <label className="flex items-center gap-2 text-sm">
+            <label htmlFor="filter-compliance-overdue-only" className="flex items-center gap-2 text-sm">
               <input
+                id="filter-compliance-overdue-only"
                 type="checkbox"
                 checked={overdueOnly}
                 onChange={(e) => setOverdueOnly(e.target.checked)}
