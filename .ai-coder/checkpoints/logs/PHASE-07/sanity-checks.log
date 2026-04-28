@@ -1,0 +1,43 @@
+Phase 07 sanity checks (after-every-change ritual)
+
+[PRE-FLIGHT]
+- branch: phase/07-booking-360 from a8a2b2d (Phase 06 head)
+- npx tsc --noEmit (api): clean
+- npx eslint packages/api/src --max-warnings=0: clean
+
+[BACKEND - SERVICES]
+- packages/api/src/services/booking-admin.service.ts (922 lines, 9 exports)
+  - tsc clean, eslint clean
+- packages/api/src/services/dispute-admin.service.ts (712 lines, 6 exports)
+  - tsc clean, eslint clean
+
+[BACKEND - ROUTES]
+- packages/api/src/routes/booking-admin.routes.ts wired in server.ts
+- packages/api/src/routes/dispute-admin.routes.ts wired in server.ts
+- mounted BEFORE generic /api/v1/admin to avoid path shadowing
+
+[MIGRATION]
+- 054_booking_admin_action_types.sql adds 4 new action_type values (additive, no data writes)
+
+[TESTS]
+- packages/api/__tests__/booking-dispute-admin.test.ts: 50 tests, all pass
+- Full jest suite: 644/644 pass (was 594; +50)
+
+[FRONTEND]
+- apps/admin/src/pages/BookingDetailPage.tsx (1067 lines, 5 tabs)
+- apps/admin/src/pages/DisputeDetailPage.tsx (867 lines, two-column + resolution form)
+- apps/admin/src/App.tsx: /bookings/:id and /disputes/:id added (lazy)
+- apps/admin/src/pages/BookingsPage.tsx: ID column wrapped in Link
+- apps/admin/src/pages/DisputesPage.tsx: ID column wrapped in Link
+- npx tsc --noEmit (admin): clean
+- npx eslint apps/admin/src --max-warnings=0: clean
+- npm run build (admin): success (BookingDetailPage 21.44kB / DisputeDetailPage in vendor chunk)
+
+[DOCS]
+- .ai-coder/checkpoints/logs/PHASE-07/gates/gate-2-paper-trace-phase-07.md
+- .ai-coder/checkpoints/logs/PHASE-07/gates/gate-2-boundaries-phase-07.md
+- .ai-coder/checkpoints/logs/PHASE-07/gates/gate-3-premortem.md
+- .ai-coder/checkpoints/logs/PHASE-07/gates/gate-3-future-bugs.md
+- .ai-coder/checkpoints/logs/PHASE-07/HONESTY-CHECK.md
+- .ai-coder/checkpoints/logs/PHASE-07/EVIDENCE-MANIFEST.md
+- .ai-coder/checkpoints/logs/PHASE-07/checks/INDEX.md

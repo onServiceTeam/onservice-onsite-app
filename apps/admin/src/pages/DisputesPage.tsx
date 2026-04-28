@@ -1,4 +1,5 @@
 import React, { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -131,7 +132,7 @@ export default function DisputesPage(): React.ReactElement {
       key: 'id',
       header: 'Dispute',
       render: (r) => (
-        <span className="font-mono text-xs text-[var(--color-text)]">{r.id.slice(0, 8)}</span>
+        <Link to={`/disputes/${r.id}`} className="font-mono text-xs text-[var(--color-link)] hover:underline">{r.id.slice(0, 8)}</Link>
       ),
     },
     {

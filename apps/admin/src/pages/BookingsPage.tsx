@@ -1,4 +1,5 @@
 import React, { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
@@ -79,7 +80,7 @@ export default function BookingsPage(): React.ReactElement {
       key: 'id',
       header: 'Booking ID',
       render: (r) => (
-        <span className="font-mono text-xs text-[var(--color-text)]">{r.id.slice(0, 8)}</span>
+        <Link to={`/bookings/${r.id}`} className="font-mono text-xs text-[var(--color-link)] hover:underline">{r.id.slice(0, 8)}</Link>
       ),
     },
     {

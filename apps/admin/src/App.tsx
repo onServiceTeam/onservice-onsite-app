@@ -10,8 +10,10 @@ const ProviderDetailPage = lazy(() => import('@/pages/ProviderDetailPage'));
 const CustomersPage = lazy(() => import('@/pages/CustomersPage'));
 const CustomerDetailPage = lazy(() => import('@/pages/CustomerDetailPage'));
 const BookingsPage = lazy(() => import('@/pages/BookingsPage'));
+const BookingDetailPage = lazy(() => import('@/pages/BookingDetailPage'));
 const CatalogPage = lazy(() => import('@/pages/CatalogPage'));
 const DisputesPage = lazy(() => import('@/pages/DisputesPage'));
+const DisputeDetailPage = lazy(() => import('@/pages/DisputeDetailPage'));
 const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'));
 const PayoutsPage = lazy(() => import('@/pages/PayoutsPage'));
 const NotificationTemplatesPage = lazy(() => import('@/pages/NotificationTemplatesPage'));
@@ -42,8 +44,10 @@ export default function App(): React.ReactElement {
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/customers/:id" element={<CustomerDetailPage />} />
         <Route path="/bookings" element={<BookingsPage />} />
+        <Route path="/bookings/:id" element={<BookingDetailPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
         <Route path="/disputes" element={<DisputesPage />} />
+        <Route path="/disputes/:id" element={<DisputeDetailPage />} />
         <Route path="/financials" element={<FinancialsPage />} />
         <Route path="/payouts" element={<PayoutsPage />} />
         <Route path="/notification-templates" element={<NotificationTemplatesPage />} />

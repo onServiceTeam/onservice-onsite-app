@@ -1,0 +1,22 @@
+--- Checking for N+1 query patterns ---
+--- gate-5-n-plus-1 (suspicious patterns) ---
+Absolute violations in repo: 18
+Violations introduced by this phase: 0
+Violations remaining (deferred to later phases): 18
+Sample (first 10):
+  - packages/api/src/services/admin-analytics.service.ts:273:        .map(([period, value]) => ({
+  - packages/api/src/services/admin-analytics.service.ts:659:  for (const tier of tiers) {
+  - packages/api/src/services/admin-analytics.service.ts:973:  return rows.rows.map((r) => ({
+  - packages/api/src/services/admin-analytics.service.ts:994:  return rows.rows.map((r) => ({ category: r.category, count: Number(r.count) }));
+  - packages/api/src/services/booking.service.ts:156:    for (const addon of params.addons) {
+  - packages/api/src/services/booking.service.ts:600:    for (const item of data.lineItems) {
+  - packages/api/src/services/booking.service.ts:653:  const quoteIds = quotes.rows.map(q => q.id);
+  - packages/api/src/services/catalog.service.ts:211:  for (const a of addons) {
+  - packages/api/src/services/data-management.service.ts:341:  for (const req of expired.rows) {
+  - packages/api/src/services/invoice.service.ts:148:      for (const booking of bookings.rows) {
+  ... (full list in gate log)
+
+--- gate-5-n-plus-1 (unjustified SAFE-N+1 markers) ---
+Absolute violations in repo: 0
+Violations introduced by this phase: 0
+GATE: PASS (no new N+1 patterns introduced by PHASE-07)

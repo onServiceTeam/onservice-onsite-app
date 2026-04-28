@@ -38,6 +38,8 @@ import paymentRoutes from './routes/payment.routes';
 import adminRoutes from './routes/admin.routes';
 import providerAdminRoutes from './routes/provider-admin.routes';
 import customerAdminRoutes from './routes/customer-admin.routes';
+import bookingAdminRoutes from './routes/booking-admin.routes';
+import disputeAdminRoutes from './routes/dispute-admin.routes';
 import webhookRoutes from './routes/webhook.routes';
 import notificationRoutes from './routes/notification.routes';
 import notificationTemplateRoutes from './routes/notification-template.routes';
@@ -150,6 +152,11 @@ app.use('/api/v1/admin/providers', providerAdminRoutes);
 // Phase 06: customer 360 sub-routes mounted BEFORE generic admin routes so
 // `/admin/customers/:id/...` match before any `/admin/customers` (list) fallthrough.
 app.use('/api/v1/admin/customers', customerAdminRoutes);
+// Phase 07: booking 360 + dispute detail sub-routes mounted BEFORE generic
+// admin routes so `/admin/bookings/:id/...` and `/admin/disputes/:id/...` match
+// before any `/admin/bookings` or `/admin/disputes` (list) fallthrough.
+app.use('/api/v1/admin/bookings', bookingAdminRoutes);
+app.use('/api/v1/admin/disputes', disputeAdminRoutes);
 app.use('/api/v1/admin', adminRoutes);
 
 // Phase 03: public client config endpoint (no auth required).
