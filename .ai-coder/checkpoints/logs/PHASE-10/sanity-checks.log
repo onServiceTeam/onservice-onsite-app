@@ -1,0 +1,8 @@
+[Phase 10] sanity ritual log
+- branch: phase/10-real-time-dispatch
+- baseline tsc + lint: clean
+- after every meaningful change: tsc + eslint + jest (where applicable) + lint
+- final state: 749/749 jest pass, all tsc clean, repo-root lint clean, admin build success
+- new artifacts: socket-admin.test.ts (14 tests), use-admin-socket.ts hook, DispatchConsolePage.tsx (Leaflet map)
+- sacred-file touches: socket.service.ts append-only; booking + dispute services additive emit hooks (try/catch + logger.warn)
+- 4 npm deps added (--legacy-peer-deps): socket.io-client, leaflet, react-leaflet, @types/leaflet

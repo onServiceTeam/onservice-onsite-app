@@ -27,6 +27,7 @@ const SupportTicketsPage = lazy(() => import('@/pages/SupportTicketsPage'));
 const StaffRolesPage = lazy(() => import('@/pages/StaffRolesPage'));
 const PricingRulesPage = lazy(() => import('@/pages/PricingRulesPage'));
 const MarketingPage = lazy(() => import('@/pages/MarketingPage'));
+const DispatchConsolePage = lazy(() => import('@/pages/DispatchConsolePage'));
 
 export default function App(): React.ReactElement {
   const hydrate = useAuthStore((s) => s.hydrate);
@@ -61,6 +62,7 @@ export default function App(): React.ReactElement {
         <Route path="/staff" element={<StaffRolesPage />} />
         <Route path="/settings" element={<SystemSettingsPage />} />
         <Route path="/marketing" element={<MarketingPage />} />
+        <Route path="/dispatch" element={<DispatchConsolePage />} />
         <Route path="/pricing-rules" element={<PricingRulesPage />} />
       </Route>
     </Routes>

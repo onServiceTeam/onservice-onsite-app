@@ -6,6 +6,7 @@ import { logger } from '../utils/logger';
 import * as pricingService from './pricing.service';
 import * as slotWaitlistService from './slot-waitlist.service';
 import * as sukiService from './suki.service';
+import * as socketService from './socket.service';
 
 interface BookingRow {
   id: string;
@@ -170,6 +171,21 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
     surgeAmount,
     addonsCount: params.addons?.length ?? 0,
   });
+
+  try {
+    socketService.emitAdminEvent(socketService.ADMIN_EVENTS.BOOKING_CREATED, {
+      id: newBooking.id,
+      status: newBooking.status,
+      customerId: newBooking.customer_id,
+      providerId: newBooking.provider_id,
+      totalCentavos: Number(newBooking.total_amount),
+    });
+  } catch (e) {
+    logger.warn('Admin socket emit failed', {
+      event: 'booking:created',
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
 
   if (params.waitlistId) {
     try {
@@ -366,6 +382,19 @@ export async function transitionBookingStatus(
       to: newStatus,
       userId,
     });
+
+    try {
+      socketService.emitAdminEvent(socketService.ADMIN_EVENTS.BOOKING_STATUS_CHANGED, {
+        id: bookingId,
+        oldStatus: currentStatus,
+        newStatus,
+      });
+    } catch (e) {
+      logger.warn('Admin socket emit failed', {
+        event: 'booking:status_changed',
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
 
     if (newStatus === 'cancelled_by_provider' || newStatus === 'cancelled_by_admin') {
       const dateStr = updated.scheduled_at.toISOString().split('T')[0]!;

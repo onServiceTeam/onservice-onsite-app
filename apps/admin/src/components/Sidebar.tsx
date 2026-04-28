@@ -19,6 +19,7 @@ import {
   Ticket,
   User,
   Settings,
+  Activity,
 } from '@/components/icons';
 
 type NavItem = {
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/providers', Icon: Wrench, label: 'Providers' },
   { to: '/customers', Icon: Users, label: 'Customers' },
   { to: '/bookings', Icon: ClipboardList, label: 'Bookings' },
+  { to: '/dispatch', Icon: Activity, label: 'Dispatch' },
   { to: '/catalog', Icon: Package, label: 'Catalog' },
   { to: '/pricing-rules', Icon: TrendingUp, label: 'Pricing Rules' },
   { to: '/disputes', Icon: Scale, label: 'Disputes' },

@@ -5,6 +5,7 @@ import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { useAdminSocketEvent } from '@/lib/use-admin-socket';
 
 interface Dispute {
   id: string;
@@ -65,6 +66,10 @@ export default function DisputesPage(): React.ReactElement {
   const [internalNotes, setInternalNotes] = useState('');
   const [actionError, setActionError] = useState('');
   const [actionType, setActionType] = useState<'resolve' | 'escalate' | null>(null);
+
+  useAdminSocketEvent<{ id: string }>('dispute:filed', () => {
+    void queryClient.invalidateQueries({ queryKey: ['adminDisputes'] });
+  });
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['adminDisputes', page, statusFilter, tierFilter, search],

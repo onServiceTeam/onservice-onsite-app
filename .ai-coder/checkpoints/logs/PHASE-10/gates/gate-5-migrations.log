@@ -1,0 +1,69 @@
+--- Checking migration numbering ---
+Latest: 056_marketing_promos_campaigns.sql
+Total: 56 migrations
+
+--- Checking migration immutability ---
+WARN: 001_create_users.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 002_create_providers.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 003_create_services.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 004_create_bookings.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 005_create_wallets.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 006_create_messages.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 007_create_reviews.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 008_create_disputes.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 009_create_audit_log.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 045_support_tickets.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 046_admin_staff_roles.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 047_admin_totp_2fa.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 048_review_tags_private_note.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 049_provider_cancellation_tracking.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 050_platform_settings_rich_schema.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 051_platform_settings_audit.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 052_provider_admin_notes.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 053_wallet_transactions_adjustment.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 054_booking_admin_action_types.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 055_financial_bir.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+WARN: 056_marketing_promos_campaigns.sql has uncommitted changes. Migrations should be append-only.
+      To fix migration 56 behavior, write a NEW migration.
+DATABASE_URL not set; skipping live run.
+
+--- Code references vs migrations (heuristic) ---
+WARN: code references 'activity' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'b' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'bookings_by_customer' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'cohort_sizes' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'cohort_users' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'consistency' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'gmv' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'gps_checkins' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'issued_at' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'latest_three' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'p' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'ranked' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'receipts' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'registered_customers' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'rev' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'revenue' not seen in CREATE TABLE. Verify it's a CTE / alias.
+WARN: code references 'series' not seen in CREATE TABLE. Verify it's a CTE / alias.
+
+PASS: Migration verification clean.

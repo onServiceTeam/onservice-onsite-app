@@ -1,0 +1,593 @@
+/**
+ * Phase 10 — Real-Time Dispatch Console.
+ *
+ * Three-panel admin tool that visualises live booking + provider activity:
+ *   - Header: title, live counters, filters (city / status / service), refresh.
+ *   - Map (top): react-leaflet OSM with custom markers per booking status and
+ *     online-provider markers. Click → side detail panel.
+ *   - Bottom-left: ACTIVE BOOKINGS list (capped at 50 rows). Reassign / Cancel
+ *     / Message buttons are Phase 10 stubs (window.alert).
+ *   - Bottom-right: ALERT TAIL — last 20 admin alerts streamed via socket.
+ *
+ * Data sources:
+ *   - GET /api/v1/admin/bookings?status=active&limit=100  (graceful empty
+ *     fallback if endpoint returns 404).
+ *   - GET /api/v1/admin/providers?online=true&limit=200   (same fallback).
+ *   - Live socket events: booking:created, booking:status_changed,
+ *     booking:gps_update, alert:new (see use-admin-socket.ts).
+ */
+
+import L from 'leaflet';
+import iconUrl from 'leaflet/dist/images/marker-icon.png';
+import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
+import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
+import 'leaflet/dist/leaflet.css';
+import React, { useEffect, useMemo, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
+import {
+  useAdminSocketEvent,
+  useAdminSocketStatus,
+  type AdminSocketStatus,
+} from '@/lib/use-admin-socket';
+import { Activity, RefreshCw, MapPin, AlertCircle } from '@/components/icons';
+
+// Vite ships broken default icon URLs; merge in the bundled assets.
+L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+interface DispatchBooking {
+  id: string;
+  status: string;
+  customerId: string;
+  customerName: string | null;
+  providerId: string | null;
+  providerName: string | null;
+  categoryName: string | null;
+  city: string | null;
+  totalAmount: number;
+  latitude: number | null;
+  longitude: number | null;
+  scheduledAt: string | null;
+  etaMinutes: number | null;
+}
+
+interface DispatchProvider {
+  id: string;
+  name: string;
+  latitude: number | null;
+  longitude: number | null;
+  city: string | null;
+}
+
+interface ListEnvelope<T> {
+  rows?: T[];
+  data?: T[];
+}
+
+interface AdminAlert {
+  id: string;
+  severity: 'info' | 'warning' | 'danger';
+  title: string;
+  description: string;
+  createdAt: string;
+}
+
+interface BookingCreatedPayload {
+  id: string;
+  status: string;
+  customerId: string;
+  providerId: string | null;
+  totalCentavos: number;
+}
+
+interface BookingStatusChangedPayload {
+  id: string;
+  oldStatus: string;
+  newStatus: string;
+}
+
+interface BookingGpsUpdatePayload {
+  id: string;
+  lat: number;
+  lng: number;
+}
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+const MANILA: [number, number] = [14.5995, 120.9842];
+const DEFAULT_ZOOM = 11;
+
+const STATUS_COLORS: Record<string, string> = {
+  pending: '#f59e0b',
+  requested: '#f59e0b',
+  quoted: '#f59e0b',
+  matched: '#3b82f6',
+  paid: '#3b82f6',
+  provider_en_route: '#3b82f6',
+  provider_arrived: '#3b82f6',
+  in_progress: '#3b82f6',
+  completed: '#10b981',
+  completed_by_provider: '#10b981',
+  confirmed: '#10b981',
+  disputed: '#ef4444',
+};
+
+function statusColor(status: string): string {
+  return STATUS_COLORS[status] ?? '#64748b';
+}
+
+function formatStatus(s: string): string {
+  return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ─── Marker icon factories ──────────────────────────────────────────────────
+
+function bookingIcon(status: string): L.DivIcon {
+  const color = statusColor(status);
+  return L.divIcon({
+    className: 'dispatch-booking-icon',
+    html: `<div style="background:${color};border:2px solid white;border-radius:50%;width:18px;height:18px;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  });
+}
+
+const providerIcon = L.divIcon({
+  className: 'dispatch-provider-icon',
+  html: '<div style="background:#22c55e;border:2px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>',
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
+});
+
+// ─── Data fetch helpers ─────────────────────────────────────────────────────
+
+function unwrap<T>(payload: ListEnvelope<T> | undefined): T[] {
+  if (!payload) return [];
+  if (Array.isArray(payload.rows)) return payload.rows;
+  if (Array.isArray(payload.data)) return payload.data;
+  return [];
+}
+
+async function fetchBookings(): Promise<DispatchBooking[]> {
+  try {
+    const res = await api.get<ListEnvelope<DispatchBooking>>(
+      '/api/v1/admin/bookings?status=active&limit=100',
+    );
+    return unwrap(res.data);
+  } catch (err) {
+    // Endpoint may not exist yet — render empty rather than blow up.
+    // eslint-disable-next-line no-console
+    console.warn('Dispatch: bookings endpoint failed, rendering empty', err);
+    return [];
+  }
+}
+
+async function fetchProviders(): Promise<DispatchProvider[]> {
+  try {
+    const res = await api.get<ListEnvelope<DispatchProvider>>(
+      '/api/v1/admin/providers?online=true&limit=200',
+    );
+    return unwrap(res.data);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('Dispatch: providers endpoint failed, rendering empty', err);
+    return [];
+  }
+}
+
+// ─── Status badge ───────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: AdminSocketStatus }): React.ReactElement {
+  const color =
+    status === 'connected' ? 'bg-emerald-500' : status === 'connecting' ? 'bg-amber-400' : 'bg-slate-400';
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+      <span className={`inline-block w-2 h-2 rounded-full ${color}`} />
+      {status === 'connected' ? 'Live' : status === 'connecting' ? 'Connecting…' : 'Offline'}
+    </span>
+  );
+}
+
+// ─── Page ───────────────────────────────────────────────────────────────────
+
+export default function DispatchConsolePage(): React.ReactElement {
+  const queryClient = useQueryClient();
+  const socketStatus = useAdminSocketStatus();
+
+  const bookingsQuery = useQuery({
+    queryKey: ['dispatch', 'bookings'],
+    queryFn: fetchBookings,
+    refetchInterval: 60_000,
+  });
+  const providersQuery = useQuery({
+    queryKey: ['dispatch', 'providers'],
+    queryFn: fetchProviders,
+    refetchInterval: 60_000,
+  });
+
+  const [cityFilter, setCityFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [serviceFilter, setServiceFilter] = useState<string>('');
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<AdminAlert[]>([]);
+
+  const allBookings: DispatchBooking[] = useMemo(
+    () => bookingsQuery.data ?? [],
+    [bookingsQuery.data],
+  );
+  const allProviders: DispatchProvider[] = useMemo(
+    () => providersQuery.data ?? [],
+    [providersQuery.data],
+  );
+
+  // ─── Derived filter option lists ────────────────────────────────────────
+  const cityOptions = useMemo(() => {
+    const set = new Set<string>();
+    allBookings.forEach((b) => { if (b.city) set.add(b.city); });
+    return Array.from(set).sort();
+  }, [allBookings]);
+
+  const serviceOptions = useMemo(() => {
+    const set = new Set<string>();
+    allBookings.forEach((b) => { if (b.categoryName) set.add(b.categoryName); });
+    return Array.from(set).sort();
+  }, [allBookings]);
+
+  const statusOptions = useMemo(() => {
+    const set = new Set<string>();
+    allBookings.forEach((b) => set.add(b.status));
+    return Array.from(set).sort();
+  }, [allBookings]);
+
+  const filteredBookings = useMemo(() => {
+    return allBookings.filter((b) => {
+      if (cityFilter && b.city !== cityFilter) return false;
+      if (statusFilter && b.status !== statusFilter) return false;
+      if (serviceFilter && b.categoryName !== serviceFilter) return false;
+      return true;
+    });
+  }, [allBookings, cityFilter, statusFilter, serviceFilter]);
+
+  const visibleBookings = filteredBookings.slice(0, 50);
+
+  // ─── Live event subscriptions ───────────────────────────────────────────
+
+  useAdminSocketEvent<BookingCreatedPayload>('booking:created', (payload) => {
+    queryClient.setQueryData<DispatchBooking[]>(['dispatch', 'bookings'], (prev) => {
+      const list = prev ?? [];
+      if (list.some((b) => b.id === payload.id)) return list;
+      const stub: DispatchBooking = {
+        id: payload.id,
+        status: payload.status,
+        customerId: payload.customerId,
+        customerName: null,
+        providerId: payload.providerId,
+        providerName: null,
+        categoryName: null,
+        city: null,
+        totalAmount: payload.totalCentavos,
+        latitude: null,
+        longitude: null,
+        scheduledAt: null,
+        etaMinutes: null,
+      };
+      return [stub, ...list];
+    });
+  });
+
+  useAdminSocketEvent<BookingStatusChangedPayload>('booking:status_changed', (payload) => {
+    queryClient.setQueryData<DispatchBooking[]>(['dispatch', 'bookings'], (prev) => {
+      if (!prev) return prev;
+      return prev.map((b) => (b.id === payload.id ? { ...b, status: payload.newStatus } : b));
+    });
+  });
+
+  useAdminSocketEvent<BookingGpsUpdatePayload>('booking:gps_update', (payload) => {
+    queryClient.setQueryData<DispatchBooking[]>(['dispatch', 'bookings'], (prev) => {
+      if (!prev) return prev;
+      return prev.map((b) =>
+        b.id === payload.id ? { ...b, latitude: payload.lat, longitude: payload.lng } : b,
+      );
+    });
+  });
+
+  useAdminSocketEvent<AdminAlert>('alert:new', (payload) => {
+    setAlerts((prev) => {
+      const next = [payload, ...prev];
+      return next.slice(0, 20);
+    });
+  });
+
+  // ─── Live counters ──────────────────────────────────────────────────────
+  const activeBookingCount = filteredBookings.length;
+  const onlineProviderCount = allProviders.length;
+
+  const selectedBooking = useMemo(
+    () => allBookings.find((b) => b.id === selectedBookingId) ?? null,
+    [allBookings, selectedBookingId],
+  );
+
+  // ─── Action stubs ───────────────────────────────────────────────────────
+  function handleReassign(b: DispatchBooking): void {
+    window.alert(`Phase 10 stub: reassign booking ${b.id}`);
+  }
+  function handleCancel(b: DispatchBooking): void {
+    window.alert(`Phase 10 stub: cancel booking ${b.id}`);
+  }
+  function handleMessage(b: DispatchBooking): void {
+    window.alert(`Phase 10 stub: message customer for booking ${b.id}`);
+  }
+
+  function handleRefresh(): void {
+    void bookingsQuery.refetch();
+    void providersQuery.refetch();
+  }
+
+  // Resize fix for leaflet inside flex panels — invalidate after first paint.
+  const [mapKey] = useState(() => `dispatch-map-${Date.now()}`);
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-4rem)] gap-3 p-4">
+      {/* ── Header ──────────────────────────────────────────────────── */}
+      <header className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-lg px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-3">
+          <Activity size={22} className="text-[var(--color-primary)]" />
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">Dispatch Console</h1>
+            <div className="flex items-center gap-3 text-xs text-slate-600">
+              <span><strong>{activeBookingCount}</strong> active bookings</span>
+              <span>·</span>
+              <span><strong>{onlineProviderCount}</strong> providers online</span>
+              <span>·</span>
+              <StatusBadge status={socketStatus} />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="City"
+            value={cityFilter}
+            onChange={(e) => setCityFilter(e.target.value)}
+            className="text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
+          >
+            <option value="">All cities</option>
+            {cityOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select
+            aria-label="Status"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
+          >
+            <option value="">All statuses</option>
+            {statusOptions.map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
+          </select>
+          <select
+            aria-label="Service"
+            value={serviceFilter}
+            onChange={(e) => setServiceFilter(e.target.value)}
+            className="text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
+          >
+            <option value="">All services</option>
+            {serviceOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="inline-flex items-center gap-1.5 text-sm border border-slate-300 rounded px-3 py-1.5 bg-white hover:bg-slate-50"
+          >
+            <RefreshCw size={14} />
+            Refresh
+          </button>
+        </div>
+      </header>
+
+      {/* ── Map ─────────────────────────────────────────────────────── */}
+      <section className="flex-1 min-h-[280px] bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+        <MapContainer
+          key={mapKey}
+          center={MANILA}
+          zoom={DEFAULT_ZOOM}
+          scrollWheelZoom
+          style={{ height: '100%', width: '100%' }}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          {filteredBookings
+            .filter((b) => b.latitude != null && b.longitude != null)
+            .map((b) => (
+              <Marker
+                key={`booking-${b.id}`}
+                position={[b.latitude as number, b.longitude as number]}
+                icon={bookingIcon(b.status)}
+                eventHandlers={{ click: () => setSelectedBookingId(b.id) }}
+              >
+                <Popup>
+                  <div className="text-xs">
+                    <div className="font-semibold">{b.categoryName ?? 'Booking'}</div>
+                    <div>{formatStatus(b.status)}</div>
+                    <div>{formatCurrency(b.totalAmount)}</div>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+          {allProviders
+            .filter((p) => p.latitude != null && p.longitude != null)
+            .map((p) => (
+              <Marker
+                key={`provider-${p.id}`}
+                position={[p.latitude as number, p.longitude as number]}
+                icon={providerIcon}
+              >
+                <Popup>
+                  <div className="text-xs">
+                    <div className="font-semibold">{p.name}</div>
+                    <div>{p.city ?? '—'}</div>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+        </MapContainer>
+      </section>
+
+      {/* ── Bottom panels ───────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 h-[260px]">
+        {/* Active bookings list */}
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden">
+          <div className="px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700">Active Bookings</h2>
+            <span className="text-xs text-slate-500">
+              Showing {visibleBookings.length} of {filteredBookings.length}
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {bookingsQuery.isLoading && (
+              <div className="p-4 text-sm text-slate-500">Loading bookings…</div>
+            )}
+            {!bookingsQuery.isLoading && visibleBookings.length === 0 && (
+              <div className="p-4 text-sm text-slate-500">No active bookings.</div>
+            )}
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50 sticky top-0">
+                <tr className="text-left text-slate-500">
+                  <th className="px-3 py-2">ID</th>
+                  <th className="px-3 py-2">Service</th>
+                  <th className="px-3 py-2">Amount</th>
+                  <th className="px-3 py-2">Customer → Provider</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">ETA</th>
+                  <th className="px-3 py-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleBookings.map((b) => (
+                  <tr
+                    key={b.id}
+                    className={`border-t border-slate-100 hover:bg-slate-50 ${
+                      selectedBookingId === b.id ? 'bg-slate-50' : ''
+                    }`}
+                    onClick={() => setSelectedBookingId(b.id)}
+                  >
+                    <td className="px-3 py-2 font-mono text-slate-700">{b.id.slice(0, 8)}</td>
+                    <td className="px-3 py-2">{b.categoryName ?? '—'}</td>
+                    <td className="px-3 py-2 font-medium">{formatCurrency(b.totalAmount)}</td>
+                    <td className="px-3 py-2">
+                      {(b.customerName ?? 'Customer')} → {b.providerName ?? '(unassigned)'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className="inline-block px-2 py-0.5 rounded text-white text-[10px]"
+                        style={{ background: statusColor(b.status) }}
+                      >
+                        {formatStatus(b.status)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">{b.etaMinutes != null ? `${b.etaMinutes}m` : '—'}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleReassign(b); }}
+                        className="text-[var(--color-link)] hover:underline mr-2"
+                      >
+                        Reassign
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleCancel(b); }}
+                        className="text-red-600 hover:underline mr-2"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleMessage(b); }}
+                        className="text-slate-600 hover:underline"
+                      >
+                        Message
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Alert tail */}
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden">
+          <div className="px-4 py-2 border-b border-slate-200 flex items-center gap-2">
+            <AlertCircle size={14} className="text-amber-500" />
+            <h2 className="text-sm font-semibold text-slate-700">Live Alerts</h2>
+            <span className="ml-auto text-xs text-slate-500">{alerts.length}</span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {alerts.length === 0 && (
+              <div className="p-4 text-xs text-slate-500">No alerts received yet.</div>
+            )}
+            <ul>
+              {alerts.map((a) => (
+                <li key={a.id} className="px-4 py-2 border-b border-slate-100 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-block w-1.5 h-1.5 rounded-full ${
+                        a.severity === 'danger'
+                          ? 'bg-red-500'
+                          : a.severity === 'warning'
+                            ? 'bg-amber-500'
+                            : 'bg-blue-500'
+                      }`}
+                    />
+                    <span className="font-medium text-slate-800">{a.title}</span>
+                  </div>
+                  <div className="text-slate-500 mt-0.5">{a.description}</div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Detail side-panel (overlay) ─────────────────────────────── */}
+      {selectedBooking && (
+        <div className="fixed top-0 right-0 bottom-0 w-80 bg-white border-l border-slate-200 shadow-lg z-30 flex flex-col">
+          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MapPin size={16} className="text-slate-500" />
+              <h3 className="text-sm font-semibold">Booking detail</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedBookingId(null)}
+              className="text-slate-500 hover:text-slate-900 text-sm"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="p-4 text-xs space-y-2 overflow-y-auto">
+            <div><strong>ID:</strong> <span className="font-mono">{selectedBooking.id}</span></div>
+            <div><strong>Status:</strong> {formatStatus(selectedBooking.status)}</div>
+            <div><strong>Service:</strong> {selectedBooking.categoryName ?? '—'}</div>
+            <div><strong>Amount:</strong> {formatCurrency(selectedBooking.totalAmount)}</div>
+            <div><strong>Customer:</strong> {selectedBooking.customerName ?? '—'}</div>
+            <div><strong>Provider:</strong> {selectedBooking.providerName ?? '(unassigned)'}</div>
+            <div><strong>City:</strong> {selectedBooking.city ?? '—'}</div>
+            <div><strong>Scheduled:</strong> {selectedBooking.scheduledAt ?? '—'}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

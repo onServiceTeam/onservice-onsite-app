@@ -2,6 +2,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as escrowService from './escrow.service';
+import * as socketService from './socket.service';
 
 interface DisputeRow {
   id: string;
@@ -170,6 +171,19 @@ export async function fileDispute(
     } catch (err) {
       logger.error('Failed to process auto-resolve refund', { disputeId: dispute.id, bookingId, error: err instanceof Error ? err.message : 'Unknown' });
     }
+  }
+
+  try {
+    socketService.emitAdminEvent(socketService.ADMIN_EVENTS.DISPUTE_FILED, {
+      id: dispute.id,
+      bookingId,
+      status: dispute.status,
+    });
+  } catch (e) {
+    logger.warn('Admin socket emit failed', {
+      event: 'dispute:filed',
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 
   return dispute;

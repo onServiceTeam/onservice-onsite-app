@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
+import { useAdminSocketEvent } from '@/lib/use-admin-socket';
 import {
   KpiCard,
   Button,
@@ -83,7 +84,12 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 export default function DashboardPage(): React.ReactElement {
+  const queryClient = useQueryClient();
   const [range, setRange] = useState<DateRange>('today');
+
+  useAdminSocketEvent<{ id: string }>('alert:new', () => {
+    void queryClient.invalidateQueries({ queryKey: ['dashboard-alerts'] });
+  });
 
   const kpis = useQuery({
     queryKey: ['dashboard-kpis', range],

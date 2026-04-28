@@ -65,6 +65,11 @@ export function initSocketServer(httpServer: HttpServer): Server {
     socket.join(`user:${userId}`);
     logger.debug('Socket connected', { userId, socketId: socket.id });
 
+    if (socket.userRole === 'admin' || socket.userRole === 'super_admin') {
+      socket.join('admin:global');
+      logger.debug('Admin socket joined admin:global', { userId });
+    }
+
     socket.on('join:conversation', async (conversationId: string) => {
       try {
         await messagingService.getConversationById(conversationId, userId);
@@ -166,4 +171,43 @@ export function emitToUser(userId: string, event: string, data: unknown): void {
 
 export function emitToConversation(conversationId: string, event: string, data: unknown): void {
   io?.to(`conversation:${conversationId}`).emit(event, data);
+}
+
+// ─── Phase 10: Real-time admin dispatch console ─────────────────────────────
+
+/**
+ * Emit an event to all connected admin/super_admin sockets (room admin:global).
+ * No-op when the socket server has not been initialized (e.g. during unit
+ * tests that do not boot the HTTP server).
+ */
+export function emitAdminEvent(event: string, data: unknown): void {
+  io?.to('admin:global').emit(event, data);
+}
+
+/**
+ * Canonical list of admin-facing socket events. Callers should reference these
+ * constants rather than raw strings so the event surface stays discoverable
+ * and consistent across services.
+ */
+export const ADMIN_EVENTS = {
+  BOOKING_CREATED: 'booking:created',
+  BOOKING_STATUS_CHANGED: 'booking:status_changed',
+  BOOKING_PROVIDER_ASSIGNED: 'booking:provider_assigned',
+  BOOKING_GPS_UPDATE: 'booking:gps_update',
+  DISPUTE_FILED: 'dispute:filed',
+  DISPUTE_RESOLVED: 'dispute:resolved',
+  PROVIDER_ONLINE: 'provider:online',
+  PROVIDER_OFFLINE: 'provider:offline',
+  ALERT_NEW: 'alert:new',
+} as const;
+
+export type AdminEvent = typeof ADMIN_EVENTS[keyof typeof ADMIN_EVENTS];
+
+/**
+ * TEST-ONLY helper. Allows unit tests to inject a mocked `io` instance (or
+ * reset to null) without booting an actual HTTP/Socket.IO server. Production
+ * code MUST NOT call this — use {@link initSocketServer} instead.
+ */
+export function _setIoForTest(mockIo: Server | null): void {
+  io = mockIo;
 }

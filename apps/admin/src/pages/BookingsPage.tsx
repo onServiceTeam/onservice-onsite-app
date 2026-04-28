@@ -1,10 +1,11 @@
 import React, { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
 import { adminConfig } from '@/config/admin.config';
+import { useAdminSocketEvent } from '@/lib/use-admin-socket';
 
 interface Booking {
   id: string;
@@ -53,10 +54,15 @@ function formatStatus(s: string): string {
 }
 
 export default function BookingsPage(): React.ReactElement {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [searchInput, setSearchInput] = useState('');
+
+  useAdminSocketEvent<{ id: string }>('booking:status_changed', () => {
+    void queryClient.invalidateQueries({ queryKey: ['adminBookings'] });
+  });
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['adminBookings', page, search, statusFilter],
