@@ -48,6 +48,78 @@ function formatUserResponse(u: UserProfileRow): Record<string, unknown> {
 
 const router = Router();
 
+// Custom middleware for the 2FA enrolment flow: accepts EITHER a normal admin
+// access token OR a short-lived `pre_auth_2fa_setup` token issued by
+// /admin/login when an admin lacks TOTP. Sets req.isSetupToken=true when the
+// caller is using the setup token so the handler can mint full session tokens
+// after successful enable.
+interface AdminSetupRequest extends AuthenticatedRequest {
+  isSetupToken?: boolean;
+}
+
+function adminAuthOrSetupToken(
+  req: AdminSetupRequest,
+  _res: Response,
+  next: NextFunction,
+): void {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    next(createAppError('Authentication required.', 401));
+    return;
+  }
+  const token = authHeader.slice('Bearer '.length);
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    next(createAppError('Server configuration error.', 500));
+    return;
+  }
+  void (async () => {
+    try {
+      const jwt = await import('jsonwebtoken');
+      const payload = jwt.default.verify(token, secret) as {
+        userId: string;
+        role: 'customer' | 'provider' | 'admin' | 'super_admin';
+        type?: string;
+        iat: number;
+        exp: number;
+      };
+      if (payload.type === 'pre_auth_2fa_setup') {
+        if (payload.role !== 'admin' && payload.role !== 'super_admin') {
+          next(createAppError('Admin role required.', 403));
+          return;
+        }
+        req.user = {
+          userId: payload.userId,
+          role: payload.role,
+          iat: payload.iat,
+          exp: payload.exp,
+        };
+        req.isSetupToken = true;
+        next();
+        return;
+      }
+      if (payload.type === 'pre_auth_2fa' || payload.type === 'refresh') {
+        next(createAppError('Invalid authentication token.', 401));
+        return;
+      }
+      if (payload.role !== 'admin' && payload.role !== 'super_admin') {
+        next(createAppError('Admin role required.', 403));
+        return;
+      }
+      req.user = {
+        userId: payload.userId,
+        role: payload.role,
+        iat: payload.iat,
+        exp: payload.exp,
+      };
+      req.isSetupToken = false;
+      next();
+    } catch {
+      next(createAppError('Invalid or expired authentication token.', 401));
+    }
+  })();
+}
+
 const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.RATE_LIMIT_AUTH_MAX_REQUESTS) || 10,
@@ -418,6 +490,38 @@ router.post(
         return;
       }
 
+      // Force 2FA enrollment for admin/super_admin accounts that have not yet
+      // configured TOTP. Issue a short-lived `pre_auth_2fa_setup` token that
+      // grants access ONLY to /admin/2fa/setup and /admin/2fa/enable.
+      if (user.role === 'admin' || user.role === 'super_admin') {
+        const jwtSetup = await import('jsonwebtoken');
+        const setupSecret = process.env.JWT_SECRET;
+        if (!setupSecret) throw new Error('JWT_SECRET is not configured');
+        const preAuthToken = jwtSetup.default.sign(
+          { userId: user.id, role: user.role, type: 'pre_auth_2fa_setup' },
+          setupSecret,
+          { algorithm: 'HS256', expiresIn: 300 },
+        );
+
+        await securityService.logSecurityEvent({
+          userId: user.id,
+          eventType: 'admin_login_2fa_setup_required',
+          ipAddress: clientIp,
+          metadata: { email },
+        });
+
+        res.json({
+          success: true,
+          data: {
+            requires2FASetup: true,
+            preAuthToken,
+            userId: user.id,
+            user: formatUserResponse(user),
+          },
+        });
+        return;
+      }
+
       await db.query(
         `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
         [user.id],
@@ -550,8 +654,8 @@ router.post(
 // --- Admin 2FA: Setup (generate secret + QR URI) ---
 router.post(
   '/admin/2fa/setup',
-  authMiddleware,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  adminAuthOrSetupToken,
+  async (req: AdminSetupRequest, res: Response, next: NextFunction) => {
     try {
       const userId = req.user!.userId;
       const role = req.user!.role;
@@ -601,8 +705,8 @@ router.post(
 // --- Admin 2FA: Enable (verify setup code to activate) ---
 router.post(
   '/admin/2fa/enable',
-  authMiddleware,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  adminAuthOrSetupToken,
+  async (req: AdminSetupRequest, res: Response, next: NextFunction) => {
     try {
       const userId = req.user!.userId;
       const role = req.user!.role;
@@ -644,6 +748,32 @@ router.post(
       );
 
       logger.info('Admin 2FA enabled', { userId });
+
+      // When enrolment was forced via the pre_auth_2fa_setup token, mint full
+      // tokens so the admin completes login in one round-trip instead of being
+      // forced to log in again and supply a code.
+      if (req.isSetupToken) {
+        const fullUser = await db.query<UserProfileRow>(
+          `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at FROM users WHERE id = $1`,
+          [userId],
+        );
+        await db.query(
+          `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
+          [userId],
+        );
+        const tokens = await authService.createTokenPair(userId, role);
+        res.json({
+          success: true,
+          data: {
+            message: 'Two-factor authentication is now enabled.',
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            user: formatUserResponse(fullUser.rows[0]!),
+            sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
+          },
+        });
+        return;
+      }
 
       res.json({
         success: true,

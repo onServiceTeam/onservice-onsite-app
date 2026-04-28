@@ -1,0 +1,15 @@
+2026-04-28T00:00:00Z phase-12 start: state already-done verified (api Sentry, mobile Sentry, TOTP endpoints, k6 load tests).
+2026-04-28T00:01:00Z installed @sentry/react@8.40.0 in apps/admin (--legacy-peer-deps).
+2026-04-28T00:02:00Z wired Sentry init in apps/admin/src/main.tsx (env-guarded; tracesSampleRate=0.1).
+2026-04-28T00:03:00Z wrapped routes in <Sentry.ErrorBoundary> in apps/admin/src/App.tsx.
+2026-04-28T00:04:00Z extended apps/admin/src/vite-env.d.ts with ImportMetaEnv (VITE_API_URL + VITE_SENTRY_DSN).
+2026-04-28T00:05:00Z auth.routes.ts: added adminAuthOrSetupToken middleware accepting either admin access JWT or pre_auth_2fa_setup token.
+2026-04-28T00:06:00Z auth.routes.ts: /admin/login now returns requires2FASetup + preAuthToken<5min, type=pre_auth_2fa_setup> for admin/super_admin without TOTP.
+2026-04-28T00:07:00Z auth.routes.ts: /admin/2fa/setup + /admin/2fa/enable accept both auth modes; /enable mints full session tokens when called via setup token.
+2026-04-28T00:08:00Z LoginPage.tsx: added requires2FASetup branch with inline secret/uri panel + handle2FAEnrol that calls /enable then completeLogin.
+2026-04-28T00:09:00Z created __tests__/smoke.test.ts (13 tests covering health, validators, money conservation, state machine, commission, TOTP, audit-CSV, admin guard, JWT expiry).
+2026-04-28T00:10:00Z smoke tests green: 13 passed; full Jest suite: 802 passed (789 baseline + 13 smoke).
+2026-04-28T00:11:00Z packages/api typecheck + lint clean.
+2026-04-28T00:12:00Z created docs/DEPLOYMENT.md (~190 lines: API/admin/mobile deploy, env inventory, rollback, on-call, smoke gate).
+2026-04-28T00:13:00Z created docs/SECURITY-POSTURE.md (SEC-001..009 verification table; 3 DEFERRED with reasons).
+2026-04-28T00:14:00Z created gates/gate-3-future-bugs.md (SEC-004 / SEC-005 / SEC-009 carry-forward + JWT rotation note).
