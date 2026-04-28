@@ -21,6 +21,7 @@ import PDFDocument from 'pdfkit';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { uploadBirDocument } from '../utils/s3-bir';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -249,25 +250,20 @@ async function buildOrPdf(
 }
 
 /**
- * If S3 is configured (AWS_S3_BUCKET + AWS_REGION), returns the canonical
- * receipt URL. Real upload via the AWS SDK is intentionally deferred — tests
- * mock this function. Returns null when S3 is not configured.
+ * Uploads the official-receipt PDF to the configured S3 bucket with
+ * server-side encryption. Returns the canonical URL on success, or null
+ * when S3 is not configured. Bucket-level hardening (versioning,
+ * Object Lock for retention) is configured via infra outside this
+ * service — see EVIDENCE-MANIFEST (deferred-to-infra).
  */
 async function uploadPdf(orNumber: string, pdf: Buffer): Promise<string | null> {
-  const bucket = process.env.AWS_S3_BUCKET;
-  const region = process.env.AWS_REGION;
-  if (!bucket || !region) {
-    logger.warn('Skipping OR PDF upload — AWS_S3_BUCKET / AWS_REGION not set', {
-      orNumber,
-      pdfBytes: pdf.length,
-    });
+  const key = `receipts/${orNumber}.pdf`;
+  const result = await uploadBirDocument(pdf, key, 'application/pdf');
+  if (!result) {
+    logger.warn('Skipping OR PDF upload — S3 not configured', { orNumber, key });
     return null;
   }
-  // TODO(phase-08): implement real S3 upload via @aws-sdk/client-s3 once the
-  // SDK + credentials are added to the API package. Today we only return the
-  // canonical URL so downstream code (and tests) can rely on a stable shape.
-  logger.info('OR PDF upload (stub)', { orNumber, pdfBytes: pdf.length, bucket, region });
-  return `https://${bucket}.s3.${region}.amazonaws.com/receipts/${orNumber}.pdf`;
+  return result.url;
 }
 
 // ─────────────────────────────────────────────────────────────────

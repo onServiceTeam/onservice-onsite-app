@@ -60,7 +60,10 @@ export function ToastProvider(): React.ReactElement | null {
 
   useEffect(() => {
     if (visible) {
-      triggerHaptic(type).catch(() => {});
+      triggerHaptic(type).catch((err: unknown) => {
+        // Haptics are best-effort — device may not support them; non-fatal.
+        void err;
+      });
 
       Animated.parallel([
         Animated.spring(translateY, {

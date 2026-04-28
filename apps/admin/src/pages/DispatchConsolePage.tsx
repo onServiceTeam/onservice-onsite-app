@@ -24,14 +24,26 @@ import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import 'leaflet/dist/leaflet.css';
 import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import {
   useAdminSocketEvent,
   useAdminSocketStatus,
   type AdminSocketStatus,
 } from '@/lib/use-admin-socket';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Label,
+  Textarea,
+} from '@/components/ui';
 import { Activity, RefreshCw, MapPin, AlertCircle } from '@/components/icons';
 
 // Vite ships broken default icon URLs; merge in the bundled assets.
@@ -159,9 +171,11 @@ async function fetchBookings(): Promise<DispatchBooking[]> {
     );
     return unwrap(res.data);
   } catch (err) {
-    // Endpoint may not exist yet — render empty rather than blow up.
-    // eslint-disable-next-line no-console
-    console.warn('Dispatch: bookings endpoint failed, rendering empty', err);
+    // Endpoint may not exist yet — surface as a non-blocking warning toast
+    // and render an empty list rather than tearing down the page.
+    toast.warning('Live bookings feed unavailable — showing empty list.', {
+      description: err instanceof Error ? err.message : String(err),
+    });
     return [];
   }
 }
@@ -173,8 +187,9 @@ async function fetchProviders(): Promise<DispatchProvider[]> {
     );
     return unwrap(res.data);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.warn('Dispatch: providers endpoint failed, rendering empty', err);
+    toast.warning('Online-providers feed unavailable — showing empty list.', {
+      description: err instanceof Error ? err.message : String(err),
+    });
     return [];
   }
 }
@@ -311,15 +326,75 @@ export default function DispatchConsolePage(): React.ReactElement {
     [allBookings, selectedBookingId],
   );
 
-  // ─── Action stubs ───────────────────────────────────────────────────────
+  // ─── Action handlers (dialogs) ──────────────────────────────────
+  const [reassignTarget, setReassignTarget] = useState<DispatchBooking | null>(null);
+  const [reassignProviderId, setReassignProviderId] = useState<string>('');
+  const [reassignReason, setReassignReason] = useState<string>('');
+
+  const [cancelTarget, setCancelTarget] = useState<DispatchBooking | null>(null);
+  const [cancelReason, setCancelReason] = useState<string>('');
+
+  const [messageTarget, setMessageTarget] = useState<DispatchBooking | null>(null);
+  const [messageBody, setMessageBody] = useState<string>('');
+
+  const reassignMutation = useMutation({
+    mutationFn: async (vars: { bookingId: string; newProviderId: string; reason: string }) => {
+      await api.post(`/api/v1/admin/bookings/${vars.bookingId}/reassign`, {
+        newProviderId: vars.newProviderId,
+        reason: vars.reason,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Booking reassigned.');
+      setReassignTarget(null);
+      setReassignProviderId('');
+      setReassignReason('');
+      void queryClient.invalidateQueries({ queryKey: ['dispatch', 'bookings'] });
+    },
+    onError: (err) => toast.error(`Reassign failed: ${getErrorMessage(err)}`),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async (vars: { bookingId: string; reason: string }) => {
+      await api.post(`/api/v1/admin/bookings/${vars.bookingId}/cancel`, {
+        reason: vars.reason,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Booking cancelled.');
+      setCancelTarget(null);
+      setCancelReason('');
+      void queryClient.invalidateQueries({ queryKey: ['dispatch', 'bookings'] });
+    },
+    onError: (err) => toast.error(`Cancel failed: ${getErrorMessage(err)}`),
+  });
+
+  const messageMutation = useMutation({
+    mutationFn: async (vars: { bookingId: string; message: string }) => {
+      await api.post(`/api/v1/admin/bookings/${vars.bookingId}/message`, {
+        message: vars.message,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Message sent to customer.');
+      setMessageTarget(null);
+      setMessageBody('');
+    },
+    onError: (err) => toast.error(`Message failed: ${getErrorMessage(err)}`),
+  });
+
   function handleReassign(b: DispatchBooking): void {
-    window.alert(`Phase 10 stub: reassign booking ${b.id}`);
+    setReassignTarget(b);
+    setReassignProviderId('');
+    setReassignReason('');
   }
   function handleCancel(b: DispatchBooking): void {
-    window.alert(`Phase 10 stub: cancel booking ${b.id}`);
+    setCancelTarget(b);
+    setCancelReason('');
   }
   function handleMessage(b: DispatchBooking): void {
-    window.alert(`Phase 10 stub: message customer for booking ${b.id}`);
+    setMessageTarget(b);
+    setMessageBody('');
   }
 
   function handleRefresh(): void {
@@ -588,6 +663,200 @@ export default function DispatchConsolePage(): React.ReactElement {
           </div>
         </div>
       )}
+
+      {/* ── Reassign dialog ─────────────────────────────────────────── */}
+      <Dialog
+        open={reassignTarget !== null}
+        onOpenChange={(open) => { if (!open) setReassignTarget(null); }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reassign booking</DialogTitle>
+            <DialogDescription>
+              {reassignTarget
+                ? `Booking ${reassignTarget.id.slice(0, 8)} — currently ${reassignTarget.providerName ?? '(unassigned)'}.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="reassign-provider">New provider</Label>
+              <select
+                id="reassign-provider"
+                value={reassignProviderId}
+                onChange={(e) => setReassignProviderId(e.target.value)}
+                className="w-full text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
+              >
+                <option value="">Select an online provider…</option>
+                {allProviders.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}{p.city ? ` — ${p.city}` : ''}
+                  </option>
+                ))}
+              </select>
+              {allProviders.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  No online providers loaded. Refresh the live feed and retry.
+                </p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="reassign-reason">Reason</Label>
+              <Textarea
+                id="reassign-reason"
+                value={reassignReason}
+                onChange={(e) => setReassignReason(e.target.value)}
+                placeholder="Why reassign? (audit trail)"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setReassignTarget(null)}
+              disabled={reassignMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!reassignTarget) return;
+                if (!reassignProviderId) {
+                  toast.warning('Pick a new provider first.');
+                  return;
+                }
+                if (reassignReason.trim().length < 5) {
+                  toast.warning('Reason must be at least 5 characters.');
+                  return;
+                }
+                reassignMutation.mutate({
+                  bookingId: reassignTarget.id,
+                  newProviderId: reassignProviderId,
+                  reason: reassignReason.trim(),
+                });
+              }}
+              disabled={reassignMutation.isPending}
+            >
+              {reassignMutation.isPending ? 'Reassigning…' : 'Reassign'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Cancel dialog ───────────────────────────────────────────── */}
+      <Dialog
+        open={cancelTarget !== null}
+        onOpenChange={(open) => { if (!open) setCancelTarget(null); }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel booking</DialogTitle>
+            <DialogDescription>
+              {cancelTarget
+                ? `Booking ${cancelTarget.id.slice(0, 8)} — ${formatCurrency(cancelTarget.totalAmount)}.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2">
+              This will refund the customer in full per current cancellation policy.
+              Detailed refund preview will arrive in Phase 14+.
+            </div>
+            <div>
+              <Label htmlFor="cancel-reason">Cancellation reason</Label>
+              <Textarea
+                id="cancel-reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Why cancel? (audit trail)"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCancelTarget(null)}
+              disabled={cancelMutation.isPending}
+            >
+              Keep booking
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!cancelTarget) return;
+                if (cancelReason.trim().length < 5) {
+                  toast.warning('Reason must be at least 5 characters.');
+                  return;
+                }
+                cancelMutation.mutate({
+                  bookingId: cancelTarget.id,
+                  reason: cancelReason.trim(),
+                });
+              }}
+              disabled={cancelMutation.isPending}
+            >
+              {cancelMutation.isPending ? 'Cancelling…' : 'Cancel booking'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Message customer dialog ─────────────────────────────────── */}
+      <Dialog
+        open={messageTarget !== null}
+        onOpenChange={(open) => { if (!open) setMessageTarget(null); }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Message customer</DialogTitle>
+            <DialogDescription>
+              {messageTarget
+                ? `Sends an admin notification to the customer on booking ${messageTarget.id.slice(0, 8)}.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label htmlFor="message-body">Message</Label>
+            <Textarea
+              id="message-body"
+              value={messageBody}
+              onChange={(e) => setMessageBody(e.target.value)}
+              placeholder="Type the message the customer will see…"
+              rows={5}
+              maxLength={2000}
+            />
+            <p className="text-xs text-slate-500 mt-1">{messageBody.length} / 2000</p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setMessageTarget(null)}
+              disabled={messageMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!messageTarget) return;
+                const trimmed = messageBody.trim();
+                if (trimmed.length < 5 || trimmed.length > 2000) {
+                  toast.warning('Message must be 5–2000 characters.');
+                  return;
+                }
+                messageMutation.mutate({
+                  bookingId: messageTarget.id,
+                  message: trimmed,
+                });
+              }}
+              disabled={messageMutation.isPending}
+            >
+              {messageMutation.isPending ? 'Sending…' : 'Send'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

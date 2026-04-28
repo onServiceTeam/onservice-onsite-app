@@ -26,6 +26,7 @@ import PDFDocument from 'pdfkit';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { uploadBirDocument } from '../utils/s3-bir';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -141,7 +142,7 @@ function ytdWindowThroughQuarter(
   return { startUtc: new Date(yearStartMs).toISOString(), endUtc };
 }
 
-function mapBatchRow(row: Record<string, unknown>): Bir2307Batch {
+function mapBatchRow(row: Bir2307BatchRow): Bir2307Batch {
   const taxQuarterNum = Number(row.tax_quarter);
   if (taxQuarterNum !== 1 && taxQuarterNum !== 2 && taxQuarterNum !== 3 && taxQuarterNum !== 4) {
     // Defensive: schema CHECK guarantees 1..4 — narrow the type for callers.
@@ -281,9 +282,12 @@ async function buildBir2307Pdf(batch: Bir2307Batch, provider: PdfProvider): Prom
 }
 
 /**
- * If S3 is configured (AWS_S3_BUCKET + AWS_REGION), returns the canonical
- * URL for the batch PDF. Real upload via the AWS SDK is intentionally
- * deferred — tests mock this. Returns null when S3 is not configured.
+ * Uploads the BIR 2307 batch PDF to the configured S3 bucket with
+ * server-side encryption. Returns the canonical URL on success, or null
+ * when S3 is not configured (so dev/test environments can still run).
+ * Bucket-level hardening (versioning, Object Lock for retention) is
+ * managed via infra outside this service — see EVIDENCE-MANIFEST
+ * (deferred-to-infra).
  */
 async function uploadPdf(
   providerId: string,
@@ -291,29 +295,9 @@ async function uploadPdf(
   quarter: number,
   pdf: Buffer,
 ): Promise<string | null> {
-  const bucket = process.env.AWS_S3_BUCKET;
-  const region = process.env.AWS_REGION;
-  if (!bucket || !region) {
-    logger.warn('Skipping BIR 2307 PDF upload — AWS_S3_BUCKET / AWS_REGION not set', {
-      providerId,
-      year,
-      quarter,
-      pdfBytes: pdf.length,
-    });
-    return null;
-  }
-  // TODO(phase-08): implement real S3 upload via @aws-sdk/client-s3 once the
-  // SDK + credentials are added to the API package. Today we only return the
-  // canonical URL so downstream code (and tests) can rely on a stable shape.
-  logger.info('BIR 2307 PDF upload (stub)', {
-    providerId,
-    year,
-    quarter,
-    pdfBytes: pdf.length,
-    bucket,
-    region,
-  });
-  return `https://${bucket}.s3.${region}.amazonaws.com/bir-2307/${year}-Q${quarter}/${providerId}.pdf`;
+  const key = `bir-2307/${year}-Q${quarter}/${providerId}.pdf`;
+  const result = await uploadBirDocument(pdf, key, 'application/pdf');
+  return result?.url ?? null;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -516,7 +500,7 @@ async function attachPdfToBatch(
       );
       const updated = upd.rows[0];
       if (updated) {
-        return mapBatchRow(updated as unknown as Record<string, unknown>);
+        return mapBatchRow(updated);
       }
     }
   } catch (err) {
@@ -616,7 +600,7 @@ export async function generateQuarterly2307Batches(
       result.batchesSkipped += 1;
       continue;
     }
-    let batch = mapBatchRow(insertedRow as unknown as Record<string, unknown>);
+    let batch = mapBatchRow(insertedRow);
 
     const providerInfo = providerInfoMap.get(providerId);
     const providerForPdf: PdfProvider = {
@@ -732,7 +716,7 @@ export async function regenerate2307ForProvider(
     return row;
   });
 
-  let batch = mapBatchRow(upserted as unknown as Record<string, unknown>);
+  let batch = mapBatchRow(upserted);
 
   const providerInfoMap = await loadProviderInfo([providerId]);
   const providerInfo = providerInfoMap.get(providerId);
@@ -787,7 +771,7 @@ export async function getBatchById(id: string): Promise<Bir2307Batch | null> {
     [id],
   );
   const row = result.rows[0];
-  return row ? mapBatchRow(row as unknown as Record<string, unknown>) : null;
+  return row ? mapBatchRow(row) : null;
 }
 
 export async function listBatchesForProvider(
@@ -819,7 +803,7 @@ export async function listBatchesForProvider(
       ORDER BY b.tax_year DESC, b.tax_quarter DESC`,
     params,
   );
-  return result.rows.map((row) => mapBatchRow(row as unknown as Record<string, unknown>));
+  return result.rows.map((row) => mapBatchRow(row));
 }
 
 export async function listBatchesForQuarter(
@@ -850,7 +834,7 @@ export async function listBatchesForQuarter(
   ]);
 
   return {
-    rows: rowsResult.rows.map((row) => mapBatchRow(row as unknown as Record<string, unknown>)),
+    rows: rowsResult.rows.map((row) => mapBatchRow(row)),
     total: Number(totalResult.rows[0]?.total ?? 0),
   };
 }

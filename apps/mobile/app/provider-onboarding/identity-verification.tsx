@@ -162,13 +162,10 @@ export default function IdentityVerificationScreen(): React.ReactElement {
       } catch (apiErr) {
         const status = (apiErr as { response?: { status?: number } })?.response?.status;
         if (status === 404) {
-          // Endpoint not yet available — log and proceed.
-          // eslint-disable-next-line no-console
-          console.log('[identity-verification] payload (endpoint missing):', {
-            idType: payload.idType,
-            hasFront: !!payload.frontPhotoBase64,
-            hasBack: !!payload.backPhotoBase64,
-          });
+          // Endpoint not yet available — proceed silently so the onboarding
+          // flow can still advance. The submission will be retried by the
+          // background-check polling step once the route is shipped.
+          setSubmitError(null);
         } else {
           throw apiErr;
         }

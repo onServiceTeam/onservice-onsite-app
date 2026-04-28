@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { cacheGet, cacheSet, buildCacheKey } from '../services/cache.service';
+import { logger } from '../utils/logger';
 
 /**
  * Express middleware that caches GET responses in Redis.
@@ -26,7 +27,12 @@ export function cacheMiddleware(ttlSeconds: number) {
     const originalJson = res.json.bind(res);
     res.json = ((body: unknown) => {
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        cacheSet(key, { body, statusCode: res.statusCode }, ttlSeconds).catch(() => {});
+        cacheSet(key, { body, statusCode: res.statusCode }, ttlSeconds).catch((err: unknown) => {
+          logger.debug('cacheSet best-effort failed in HTTP cache middleware', {
+            key,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
       }
       res.set('X-Cache', 'MISS');
       res.set('Cache-Control', `public, max-age=${ttlSeconds}`);

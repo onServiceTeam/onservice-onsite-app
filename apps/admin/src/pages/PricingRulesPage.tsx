@@ -2,7 +2,17 @@ import React, { useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
-import { Badge, Pagination } from '@/components/ui';
+import {
+  Badge,
+  Pagination,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui';
 import { TrendingUp } from '@/components/icons';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -80,6 +90,7 @@ export default function PricingRulesPage(): React.ReactElement {
   const [actionError, setActionError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<PricingRule | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PricingRule | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
   const { data, isLoading, isError } = useQuery({
@@ -591,11 +602,7 @@ export default function PricingRulesPage(): React.ReactElement {
                         {rule.isActive ? 'Disable' : 'Enable'}
                       </button>
                       <button
-                        onClick={() => {
-                          if (window.confirm(`Delete rule "${rule.name}"? This cannot be undone.`)) {
-                            deleteMutation.mutate(rule.id);
-                          }
-                        }}
+                        onClick={() => { setDeleteTarget(rule); }}
                         className="text-xs px-2.5 py-1 border border-red-200 text-red-600 rounded-md hover:bg-red-50 disabled:opacity-50"
                         disabled={isBusy}
                       >
@@ -620,6 +627,42 @@ export default function PricingRulesPage(): React.ReactElement {
           onPageChange={setPage}
         />
       )}
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete pricing rule</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? `Delete rule “${deleteTarget.name}”? This cannot be undone.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteMutation.mutate(deleteTarget.id, {
+                    onSettled: () => setDeleteTarget(null),
+                  });
+                }
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

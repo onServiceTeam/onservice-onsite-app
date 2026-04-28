@@ -28,7 +28,10 @@ export function SuccessAnimation({
       return;
     }
 
-    hapticSuccess().catch(() => {});
+    hapticSuccess().catch((err: unknown) => {
+      // Haptics are best-effort — device may not support them; non-fatal.
+      void err;
+    });
 
     Animated.sequence([
       Animated.spring(scale, {

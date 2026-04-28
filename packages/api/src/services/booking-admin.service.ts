@@ -16,6 +16,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as escrowService from './escrow.service';
+import * as notificationService from './notification.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -919,4 +920,113 @@ export async function forceCompleteBooking(
 
     return { bookingId, adminActionId };
   });
+}
+
+
+// ─────────────────────────────────────────────────────────────────
+// 10) Admin → customer message (Phase 13 — dispatch console)
+// ─────────────────────────────────────────────────────────────────
+
+export interface AdminMessageResult {
+  bookingId: string;
+  customerId: string;
+  conversationId: string | null;
+  messageId: string | null;
+  notificationId: string;
+}
+
+/**
+ * Sends an admin-originated message to the customer associated with a
+ * booking. Used by the dispatch console "Message customer" action.
+ *
+ * Behavior:
+ *  - Always creates a `notifications` row (type `new_message`) so the
+ *    customer is notified through the normal channel.
+ *  - If a `conversations` row exists for the booking, also inserts a
+ *    `messages` row with `message_type = system` and the admin as sender
+ *    so the message appears inline in the customer's chat thread.
+ *  - HTTP-layer audit (auditMiddleware on POST) captures the admin
+ *    action; we deliberately do NOT insert an `admin_actions` row
+ *    because no widening migration ships with Phase 13 (the existing
+ *    CHECK constraint on action_type does not include this verb).
+ */
+export async function sendAdminMessageToBookingCustomer(
+  bookingId: string,
+  message: string,
+  adminUserId: string,
+): Promise<AdminMessageResult> {
+  if (!bookingId || typeof bookingId !== 'string') {
+    throw createAppError('bookingId is required.', 400);
+  }
+  if (!adminUserId || typeof adminUserId !== 'string') {
+    throw createAppError('adminUserId is required.', 400);
+  }
+  const trimmed = (message ?? '').trim();
+  if (trimmed.length < 5 || trimmed.length > 2000) {
+    throw createAppError('message must be 5–2000 characters.', 400);
+  }
+
+  interface BookingRow { id: string; customer_id: string }
+  const bookingResult = await db.query<BookingRow>(
+    `SELECT id, customer_id FROM bookings WHERE id = $1`,
+    [bookingId],
+  );
+  const booking = bookingResult.rows[0];
+  if (!booking) throw createAppError('Booking not found.', 404);
+
+  interface ConversationLookupRow { id: string }
+  const conversationResult = await db.query<ConversationLookupRow>(
+    `SELECT id FROM conversations WHERE booking_id = $1`,
+    [bookingId],
+  );
+  const conversationId = conversationResult.rows[0]?.id ?? null;
+
+  let messageId: string | null = null;
+  if (conversationId) {
+    interface MessageInsertRow { id: string }
+    const insertResult = await db.query<MessageInsertRow>(
+      `INSERT INTO messages
+         (conversation_id, sender_id, content, message_type, image_url, is_flagged)
+       VALUES ($1, $2, $3, 'system', NULL, FALSE)
+       RETURNING id`,
+      [conversationId, adminUserId, trimmed],
+    );
+    messageId = insertResult.rows[0]?.id ?? null;
+    await db.query(
+      `UPDATE conversations SET updated_at = NOW() WHERE id = $1`,
+      [conversationId],
+    );
+  }
+
+  const notification = await notificationService.createNotification({
+    userId: booking.customer_id,
+    type: 'new_message',
+    title: 'Message from onService support',
+    body: trimmed.slice(0, 200),
+    data: {
+      bookingId,
+      conversationId,
+      messageId,
+      source: 'admin_dispatch_console',
+      adminUserId,
+    },
+  });
+
+  logger.info('Admin sent message to booking customer', {
+    bookingId,
+    customerId: booking.customer_id,
+    adminUserId,
+    conversationId,
+    messageId,
+    notificationId: notification.id,
+    bodyLength: trimmed.length,
+  });
+
+  return {
+    bookingId,
+    customerId: booking.customer_id,
+    conversationId,
+    messageId,
+    notificationId: notification.id,
+  };
 }

@@ -1,6 +1,7 @@
 import React, { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { useAuthStore } from '@/stores/auth.store';
@@ -641,14 +642,14 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       return res.data.data;
     },
     onSuccess: () => {
-      window.alert('Reconciliation triggered.');
+      toast.success('Reconciliation triggered.');
       setShowRun(false);
       setRunBalance('');
       setRunNotes('');
       qc.invalidateQueries({ queryKey: ['fin-reconciliation', 30] });
     },
     onError: (err) => {
-      window.alert(`Failed: ${getErrorMessage(err)}`);
+      toast.error(`Failed: ${getErrorMessage(err)}`);
     },
   });
 
@@ -662,13 +663,13 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       return res.data.data;
     },
     onSuccess: () => {
-      window.alert('Acknowledged.');
+      toast.success('Acknowledged.');
       setAckTarget(null);
       setAckNote('');
       qc.invalidateQueries({ queryKey: ['fin-reconciliation', 30] });
     },
     onError: (err) => {
-      window.alert(`Failed: ${getErrorMessage(err)}`);
+      toast.error(`Failed: ${getErrorMessage(err)}`);
     },
   });
 
@@ -677,7 +678,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
     if (runBalance.trim() !== '') {
       const n = Number(runBalance);
       if (!Number.isFinite(n)) {
-        window.alert('PayMongo balance must be a number (centavos).');
+        toast.warning('PayMongo balance must be a number (centavos).');
         return;
       }
       payload.paymongoBalance = n;
@@ -690,7 +691,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
     if (!ackTarget) return;
     const note = ackNote.trim();
     if (note.length < 5 || note.length > 1000) {
-      window.alert('Note must be 5–1000 characters.');
+      toast.warning('Note must be 5–1000 characters.');
       return;
     }
     ackMut.mutate({ id: ackTarget.id, note });
@@ -896,10 +897,10 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
       return res.data.data;
     },
     onSuccess: () => {
-      window.alert('Monthly report generated.');
+      toast.success('Monthly report generated.');
       qc.invalidateQueries({ queryKey: ['bir-overview', year] });
     },
-    onError: (err) => window.alert(`Failed: ${getErrorMessage(err)}`),
+    onError: (err) => toast.error(`Failed: ${getErrorMessage(err)}`),
   });
 
   const finalizeMonthMut = useMutation({
@@ -911,10 +912,10 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
       return res.data.data;
     },
     onSuccess: () => {
-      window.alert('Monthly report finalized.');
+      toast.success('Monthly report finalized.');
       qc.invalidateQueries({ queryKey: ['bir-overview', year] });
     },
-    onError: (err) => window.alert(`Failed: ${getErrorMessage(err)}`),
+    onError: (err) => toast.error(`Failed: ${getErrorMessage(err)}`),
   });
 
   const generateQuarterMut = useMutation({
@@ -926,10 +927,10 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
       return res.data.data;
     },
     onSuccess: () => {
-      window.alert('Quarterly batch generated.');
+      toast.success('Quarterly batch generated.');
       qc.invalidateQueries({ queryKey: ['bir-overview', year] });
     },
-    onError: (err) => window.alert(`Failed: ${getErrorMessage(err)}`),
+    onError: (err) => toast.error(`Failed: ${getErrorMessage(err)}`),
   });
 
   const q2307ListQ = useQuery({

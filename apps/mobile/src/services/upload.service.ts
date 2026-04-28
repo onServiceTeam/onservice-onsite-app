@@ -8,6 +8,16 @@ interface RNFormDataFile {
   type: string;
 }
 
+/**
+ * RN's FormData typings expect Blob | string for the value, but the runtime
+ * (Hermes / JSC) accepts a `{ uri, name, type }` descriptor. We declare a
+ * narrowed FormData-like surface so the descriptor satisfies append() without
+ * a double cast.
+ */
+interface RNFormDataLike {
+  append(name: string, value: string | RNFormDataFile): void;
+}
+
 export interface UploadedFile {
   id: string;
   url: string;
@@ -26,7 +36,8 @@ export async function uploadImages(
   }
 
   const formData = new FormData();
-  formData.append('context', context);
+  const rnForm: RNFormDataLike = formData;
+  rnForm.append('context', context);
 
   for (const uri of uris) {
     const pathPart = uri.split('?')[0] ?? uri;
@@ -35,11 +46,12 @@ export async function uploadImages(
     const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
     const type = mimeMap[safeExt] ?? 'image/jpeg';
 
-    formData.append('files', {
+    const file: RNFormDataFile = {
       uri,
       name: `photo.${safeExt}`,
       type,
-    } as RNFormDataFile as unknown as Blob);
+    };
+    rnForm.append('files', file);
   }
 
   const res = await api.post<{ success: boolean; data: UploadedFile[] }>(

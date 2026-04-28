@@ -95,24 +95,23 @@ function snapshotDateToString(value: Date | string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(value);
 }
 
-function mapSnapshotRow(row: Record<string, unknown>): ReconciliationSnapshot {
-  const r = row as unknown as SnapshotRow;
+function mapSnapshotRow(row: SnapshotRow): ReconciliationSnapshot {
   return {
-    id: r.id,
-    snapshotDate: snapshotDateToString(r.snapshot_date),
+    id: row.id,
+    snapshotDate: snapshotDateToString(row.snapshot_date),
     paymongoBalance:
-      r.paymongo_balance === null || r.paymongo_balance === undefined
+      row.paymongo_balance === null || row.paymongo_balance === undefined
         ? null
-        : Number(r.paymongo_balance),
-    platformEscrowTotal: Number(r.platform_escrow_total),
-    platformRevenueTotal: Number(r.platform_revenue_total),
-    guaranteeFundTotal: Number(r.guarantee_fund_total),
-    sumOfUserWallets: Number(r.sum_of_user_wallets),
-    expectedTotal: Number(r.expected_total),
-    discrepancy: Number(r.discrepancy),
-    discrepancyAlertSent: Boolean(r.discrepancy_alert_sent),
-    notes: r.notes,
-    createdAt: r.created_at.toISOString(),
+        : Number(row.paymongo_balance),
+    platformEscrowTotal: Number(row.platform_escrow_total),
+    platformRevenueTotal: Number(row.platform_revenue_total),
+    guaranteeFundTotal: Number(row.guarantee_fund_total),
+    sumOfUserWallets: Number(row.sum_of_user_wallets),
+    expectedTotal: Number(row.expected_total),
+    discrepancy: Number(row.discrepancy),
+    discrepancyAlertSent: Boolean(row.discrepancy_alert_sent),
+    notes: row.notes,
+    createdAt: row.created_at.toISOString(),
   };
 }
 
@@ -302,7 +301,7 @@ export async function runDailyReconciliation(
   if (!snapshotRow) {
     throw createAppError('Failed to insert reconciliation snapshot.', 500);
   }
-  const snapshot = mapSnapshotRow(snapshotRow as unknown as Record<string, unknown>);
+  const snapshot = mapSnapshotRow(snapshotRow);
 
   await insertAuditRow({
     adminId: adminUserId,
@@ -391,7 +390,7 @@ export async function acknowledgeDiscrepancy(
     return updatedRow;
   });
 
-  const snapshot = mapSnapshotRow(updated as unknown as Record<string, unknown>);
+  const snapshot = mapSnapshotRow(updated);
 
   await insertAuditRow({
     adminId: adminUserId,
@@ -426,7 +425,7 @@ export async function getSnapshotById(
   );
   const row = result.rows[0];
   if (!row) return null;
-  return mapSnapshotRow(row as unknown as Record<string, unknown>);
+  return mapSnapshotRow(row);
 }
 
 export async function getSnapshotByDate(
@@ -441,7 +440,7 @@ export async function getSnapshotByDate(
   );
   const row = result.rows[0];
   if (!row) return null;
-  return mapSnapshotRow(row as unknown as Record<string, unknown>);
+  return mapSnapshotRow(row);
 }
 
 export async function listRecentSnapshots(
@@ -454,9 +453,7 @@ export async function listRecentSnapshots(
       LIMIT $1`,
     [safeLimit],
   );
-  return result.rows.map((r) =>
-    mapSnapshotRow(r as unknown as Record<string, unknown>),
-  );
+  return result.rows.map((r) => mapSnapshotRow(r));
 }
 
 export async function listAlertedSnapshots(
@@ -470,7 +467,5 @@ export async function listAlertedSnapshots(
       LIMIT $1`,
     [safeLimit],
   );
-  return result.rows.map((r) =>
-    mapSnapshotRow(r as unknown as Record<string, unknown>),
-  );
+  return result.rows.map((r) => mapSnapshotRow(r));
 }

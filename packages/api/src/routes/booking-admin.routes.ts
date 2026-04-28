@@ -186,4 +186,26 @@ router.post(
   },
 );
 
+// ─── Admin message to customer (super_admin) ────────────────────────────────
+
+router.post(
+  '/:id/message',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const { message } = req.body ?? {};
+      if (typeof message !== 'string' || message.trim().length === 0) {
+        throw createAppError('message is required.', 400);
+      }
+      const data = await bookingAdminService.sendAdminMessageToBookingCustomer(
+        (req.params.id as string),
+        message,
+        req.user!.userId,
+      );
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
 export default router;

@@ -25,9 +25,8 @@ import { useAuthStore } from '@/stores/auth.store';
 const FALLBACK_API_URL = 'http://localhost:7383';
 
 function getApiUrl(): string {
-  // Vite exposes env via import.meta.env. Cast through unknown to keep strict.
-  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
-  return env?.VITE_API_URL ?? FALLBACK_API_URL;
+  // Vite types ImportMeta.env via vite-env.d.ts — no cast needed.
+  return import.meta.env.VITE_API_URL ?? FALLBACK_API_URL;
 }
 
 function getToken(): string | null {

@@ -13,6 +13,7 @@ import PDFDocument from 'pdfkit';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { uploadBirDocument } from '../utils/s3-bir';
 
 // ─────────────────────────────────────────────────────────────────
 // Public types
@@ -273,30 +274,17 @@ async function buildVatPdf(report: VatMonthlyReport): Promise<Buffer> {
   });
 }
 
-/** Returns canonical VAT report URL if S3 is configured; else null. */
+/** Uploads the monthly VAT report PDF to S3 with server-side encryption.
+ *  Returns the canonical URL on success, or null when S3 is not configured.
+ *  Bucket-level hardening is managed by infra (see EVIDENCE-MANIFEST). */
 async function uploadPdf(
   year: number,
   month: number,
   pdf: Buffer,
 ): Promise<string | null> {
-  const bucket = process.env.AWS_S3_BUCKET;
-  const region = process.env.AWS_REGION;
-  const key = `${year}-${String(month).padStart(2, '0')}.pdf`;
-  if (!bucket || !region) {
-    logger.warn(
-      'Skipping VAT report PDF upload — AWS_S3_BUCKET / AWS_REGION not set',
-      { key, pdfBytes: pdf.length },
-    );
-    return null;
-  }
-  // TODO(phase-08): real S3 upload via @aws-sdk/client-s3 once available.
-  logger.info('VAT report PDF upload (stub)', {
-    key,
-    pdfBytes: pdf.length,
-    bucket,
-    region,
-  });
-  return `https://${bucket}.s3.${region}.amazonaws.com/vat-reports/${key}`;
+  const key = `vat-reports/${year}-${String(month).padStart(2, '0')}.pdf`;
+  const result = await uploadBirDocument(pdf, key, 'application/pdf');
+  return result?.url ?? null;
 }
 
 // ─────────────────────────────────────────────────────────────────

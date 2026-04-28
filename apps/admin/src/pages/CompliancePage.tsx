@@ -9,6 +9,7 @@
 
 import React, { useMemo, useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
 import {
   Badge,
@@ -801,7 +802,7 @@ function ReportsTab(): React.ReactElement {
           One-click compliance posture reports for NPC, BIR, DTI, and SEC reviewers.
           Implementation tracked separately; this is the placeholder UI.
         </p>
-        <Button onClick={() => { window.alert('Not yet implemented'); }}>
+        <Button onClick={() => { toast.info('Regulatory posture report not yet implemented — ETA Phase 14.'); }}>
           Generate compliance posture report
         </Button>
       </CardContent>
