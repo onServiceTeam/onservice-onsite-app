@@ -946,9 +946,10 @@ export interface AdminMessageResult {
  *    `messages` row with `message_type = system` and the admin as sender
  *    so the message appears inline in the customer's chat thread.
  *  - HTTP-layer audit (auditMiddleware on POST) captures the admin
- *    action; we deliberately do NOT insert an `admin_actions` row
- *    because no widening migration ships with Phase 13 (the existing
- *    CHECK constraint on action_type does not include this verb).
+ *    action; since migration 058 added the `admin_message_sent` verb and
+ *    `message` target_type to the admin_actions CHECK constraints, an
+ *    `admin_actions` row IS now also written here (best-effort: the
+ *    insert is wrapped so a failure never aborts the message send).
  */
 export async function sendAdminMessageToBookingCustomer(
   bookingId: string,
@@ -1021,6 +1022,27 @@ export async function sendAdminMessageToBookingCustomer(
     notificationId: notification.id,
     bodyLength: trimmed.length,
   });
+
+  try {
+    await db.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'admin_message_sent', 'message', $2, $3::jsonb)`,
+      [
+        adminUserId,
+        messageId ?? bookingId,
+        JSON.stringify({
+          bookingId,
+          customerId: booking.customer_id,
+          conversationId,
+          messageId,
+          notificationId: notification.id,
+          bodyLength: trimmed.length,
+        }),
+      ],
+    );
+  } catch (err) {
+    logger.warn('audit_log insert failed', { err: String(err) });
+  }
 
   return {
     bookingId,

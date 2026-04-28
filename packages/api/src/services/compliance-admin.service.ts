@@ -1,0 +1,478 @@
+/**
+ * Phase 13 Dispatch C — Admin DPO actions on Data Subject Requests + consent versions.
+ *
+ * All state-changing functions write a paired admin_actions row using the
+ * verbs added in migration 058. Audit inserts are wrapped so a failure
+ * never aborts the main write (logger.warn only).
+ *
+ * Status semantics:
+ *   - markDsrComplete    : sets status='completed', completed_at=NOW().
+ *                          Idempotent guard: rejects with 409 if already completed.
+ *   - requestDsrMoreInfo : moves status to 'in_progress' (if 'received'),
+ *                          appends a note to admin_notes.
+ *   - rejectDsr          : sets status='rejected', rejection_reason=...
+ *   - escalateDsrToNpc   : status stays in_progress, appends NPC ref to admin_notes.
+ *
+ * Consent versions: there is no consent_versions table. A "published" version
+ * is simply tracked via an admin_actions audit row. The list endpoint derives
+ * version metadata from the consent_records table (distinct (type, version)
+ * tuples plus their counts) and overlays effective_at from the published
+ * audit rows when available.
+ */
+
+import { db } from '../models/db';
+import { createAppError } from '../middleware/error.middleware';
+import { logger } from '../utils/logger';
+import * as notificationService from './notification.service';
+
+interface DsrRow {
+  id: string;
+  user_id: string;
+  status: 'received' | 'in_progress' | 'completed' | 'rejected';
+  admin_notes: string | null;
+  completed_at: Date | null;
+}
+
+interface DsrAfterRow extends DsrRow {
+  request_type: string;
+  received_at: Date;
+  due_at: Date;
+  handled_by: string | null;
+  rejection_reason: string | null;
+  response_payload_url: string | null;
+}
+
+export interface DsrActionResult {
+  id: string;
+  status: 'received' | 'in_progress' | 'completed' | 'rejected';
+  completedAt: string | null;
+  handledBy: string | null;
+  adminNotes: string | null;
+  rejectionReason: string | null;
+  responsePayloadUrl: string | null;
+}
+
+function mapDsr(r: DsrAfterRow): DsrActionResult {
+  return {
+    id: r.id,
+    status: r.status,
+    completedAt: r.completed_at ? r.completed_at.toISOString() : null,
+    handledBy: r.handled_by,
+    adminNotes: r.admin_notes,
+    rejectionReason: r.rejection_reason,
+    responsePayloadUrl: r.response_payload_url,
+  };
+}
+
+async function loadDsr(dsrId: string): Promise<DsrRow> {
+  const result = await db.query<DsrRow>(
+    `SELECT id, user_id, status, admin_notes, completed_at
+       FROM data_subject_requests
+      WHERE id = $1`,
+    [dsrId],
+  );
+  const row = result.rows[0];
+  if (!row) throw createAppError('Data subject request not found.', 404);
+  return row;
+}
+
+async function writeAdminAction(
+  adminId: string,
+  actionType:
+    | 'dsr_marked_complete'
+    | 'dsr_more_info_requested'
+    | 'dsr_rejected'
+    | 'dsr_escalated_to_npc'
+    | 'consent_version_published',
+  targetType: 'dsr_request' | 'consent_version',
+  targetId: string,
+  details: Record<string, unknown>,
+  reason?: string,
+): Promise<void> {
+  try {
+    await db.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details, reason)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+      [adminId, actionType, targetType, targetId, JSON.stringify(details), reason ?? null],
+    );
+  } catch (err) {
+    logger.warn('audit_log insert failed', { err: String(err), actionType, targetId });
+  }
+}
+
+function appendNote(existing: string | null, line: string): string {
+  const stamp = new Date().toISOString();
+  const entry = `[${stamp}] ${line}`;
+  return existing && existing.length > 0 ? `${existing}\n${entry}` : entry;
+}
+
+// ─── DSR actions ──────────────────────────────────────────────────────────
+
+export async function markDsrComplete(input: {
+  dsrId: string;
+  adminUserId: string;
+  responsePayloadUrl?: string;
+}): Promise<DsrActionResult> {
+  if (!input.dsrId) throw createAppError('dsrId is required.', 400);
+  if (!input.adminUserId) throw createAppError('adminUserId is required.', 400);
+
+  const current = await loadDsr(input.dsrId);
+  if (current.status === 'completed') {
+    throw createAppError('Data subject request already completed.', 409);
+  }
+  if (current.status === 'rejected') {
+    throw createAppError('Cannot complete a rejected request.', 409);
+  }
+
+  const updateResult = await db.query<DsrAfterRow>(
+    `UPDATE data_subject_requests
+        SET status = 'completed',
+            completed_at = NOW(),
+            handled_by = $1,
+            response_payload_url = COALESCE($2, response_payload_url)
+      WHERE id = $3
+      RETURNING id, user_id, status, request_type, received_at, due_at,
+                completed_at, handled_by, admin_notes, rejection_reason,
+                response_payload_url`,
+    [input.adminUserId, input.responsePayloadUrl ?? null, input.dsrId],
+  );
+  const updated = updateResult.rows[0];
+  if (!updated) throw createAppError('Data subject request not found.', 404);
+
+  await writeAdminAction(
+    input.adminUserId,
+    'dsr_marked_complete',
+    'dsr_request',
+    input.dsrId,
+    {
+      previousStatus: current.status,
+      responsePayloadUrl: input.responsePayloadUrl ?? null,
+    },
+  );
+
+  logger.info('DSR marked complete', { dsrId: input.dsrId, adminUserId: input.adminUserId });
+  return mapDsr(updated);
+}
+
+export async function requestDsrMoreInfo(input: {
+  dsrId: string;
+  adminUserId: string;
+  infoNeeded: string;
+}): Promise<DsrActionResult> {
+  if (!input.dsrId) throw createAppError('dsrId is required.', 400);
+  if (!input.adminUserId) throw createAppError('adminUserId is required.', 400);
+  if (!input.infoNeeded || input.infoNeeded.trim().length < 10) {
+    throw createAppError('infoNeeded must be at least 10 characters.', 400);
+  }
+
+  const current = await loadDsr(input.dsrId);
+  if (current.status === 'completed' || current.status === 'rejected') {
+    throw createAppError(`Cannot request info on a ${current.status} request.`, 409);
+  }
+
+  const newNotes = appendNote(current.admin_notes, `More info requested: ${input.infoNeeded.trim()}`);
+  const nextStatus = current.status === 'received' ? 'in_progress' : current.status;
+
+  const updateResult = await db.query<DsrAfterRow>(
+    `UPDATE data_subject_requests
+        SET admin_notes = $1,
+            status = $2,
+            handled_by = $3
+      WHERE id = $4
+      RETURNING id, user_id, status, request_type, received_at, due_at,
+                completed_at, handled_by, admin_notes, rejection_reason,
+                response_payload_url`,
+    [newNotes, nextStatus, input.adminUserId, input.dsrId],
+  );
+  const updated = updateResult.rows[0];
+  if (!updated) throw createAppError('Data subject request not found.', 404);
+
+  await writeAdminAction(
+    input.adminUserId,
+    'dsr_more_info_requested',
+    'dsr_request',
+    input.dsrId,
+    { infoNeeded: input.infoNeeded.trim() },
+  );
+
+  try {
+    await notificationService.createNotification({
+      userId: current.user_id,
+      type: 'dsr_info_requested',
+      title: 'More information needed for your data request',
+      body: input.infoNeeded.trim().slice(0, 500),
+      data: {
+        dsrId: input.dsrId,
+        referenceNumber: input.dsrId.slice(-8).toUpperCase(),
+      },
+    });
+  } catch (err) {
+    logger.warn('dsr notification send failed', { err: String(err) });
+  }
+
+  logger.info('DSR more info requested', { dsrId: input.dsrId });
+  return mapDsr(updated);
+}
+
+export async function rejectDsr(input: {
+  dsrId: string;
+  adminUserId: string;
+  reason: string;
+}): Promise<DsrActionResult> {
+  if (!input.dsrId) throw createAppError('dsrId is required.', 400);
+  if (!input.adminUserId) throw createAppError('adminUserId is required.', 400);
+  if (!input.reason || input.reason.trim().length < 20) {
+    throw createAppError('Rejection reason must be at least 20 characters.', 400);
+  }
+
+  const current = await loadDsr(input.dsrId);
+  if (current.status === 'completed') {
+    throw createAppError('Cannot reject a completed request.', 409);
+  }
+  if (current.status === 'rejected') {
+    throw createAppError('Data subject request already rejected.', 409);
+  }
+
+  const updateResult = await db.query<DsrAfterRow>(
+    `UPDATE data_subject_requests
+        SET status = 'rejected',
+            rejection_reason = $1,
+            handled_by = $2,
+            completed_at = NOW()
+      WHERE id = $3
+      RETURNING id, user_id, status, request_type, received_at, due_at,
+                completed_at, handled_by, admin_notes, rejection_reason,
+                response_payload_url`,
+    [input.reason.trim(), input.adminUserId, input.dsrId],
+  );
+  const updated = updateResult.rows[0];
+  if (!updated) throw createAppError('Data subject request not found.', 404);
+
+  await writeAdminAction(
+    input.adminUserId,
+    'dsr_rejected',
+    'dsr_request',
+    input.dsrId,
+    { previousStatus: current.status },
+    input.reason.trim(),
+  );
+
+  logger.info('DSR rejected', { dsrId: input.dsrId });
+  return mapDsr(updated);
+}
+
+export async function escalateDsrToNpc(input: {
+  dsrId: string;
+  adminUserId: string;
+  npcReference: string;
+}): Promise<DsrActionResult> {
+  if (!input.dsrId) throw createAppError('dsrId is required.', 400);
+  if (!input.adminUserId) throw createAppError('adminUserId is required.', 400);
+  if (!input.npcReference || input.npcReference.trim().length < 3) {
+    throw createAppError('npcReference is required.', 400);
+  }
+
+  const current = await loadDsr(input.dsrId);
+  if (current.status === 'completed' || current.status === 'rejected') {
+    throw createAppError(`Cannot escalate a ${current.status} request.`, 409);
+  }
+
+  const ref = input.npcReference.trim();
+  const newNotes = appendNote(current.admin_notes, `Escalated to NPC: ${ref}`);
+  const nextStatus = current.status === 'received' ? 'in_progress' : current.status;
+
+  const updateResult = await db.query<DsrAfterRow>(
+    `UPDATE data_subject_requests
+        SET admin_notes = $1,
+            status = $2,
+            handled_by = $3
+      WHERE id = $4
+      RETURNING id, user_id, status, request_type, received_at, due_at,
+                completed_at, handled_by, admin_notes, rejection_reason,
+                response_payload_url`,
+    [newNotes, nextStatus, input.adminUserId, input.dsrId],
+  );
+  const updated = updateResult.rows[0];
+  if (!updated) throw createAppError('Data subject request not found.', 404);
+
+  await writeAdminAction(
+    input.adminUserId,
+    'dsr_escalated_to_npc',
+    'dsr_request',
+    input.dsrId,
+    { npcReference: ref },
+  );
+
+  logger.info('DSR escalated to NPC', { dsrId: input.dsrId, npcReference: ref });
+  return mapDsr(updated);
+}
+
+// ─── Consent versions (derived from consent_records + admin_actions) ────────
+
+export interface ConsentVersionSummary {
+  consentType: string;
+  version: string;
+  effectiveDate: string;
+  activeUsers: number;
+  totalRecords: number;
+  lastUpdated: string;
+}
+
+interface VersionRow {
+  consent_type: string;
+  version: string;
+  total_records: string;
+  active_users: string;
+  earliest_granted: Date;
+  latest_granted: Date;
+}
+
+export async function listConsentVersions(): Promise<ConsentVersionSummary[]> {
+  const result = await db.query<VersionRow>(
+    `SELECT consent_type,
+            version,
+            COUNT(*)::text AS total_records,
+            COUNT(*) FILTER (WHERE granted = TRUE AND revoked_at IS NULL)::text AS active_users,
+            MIN(granted_at) AS earliest_granted,
+            MAX(granted_at) AS latest_granted
+       FROM consent_records
+      GROUP BY consent_type, version
+      ORDER BY consent_type ASC, version DESC`,
+  );
+
+  return result.rows.map((r) => ({
+    consentType: r.consent_type,
+    version: r.version,
+    effectiveDate: r.earliest_granted.toISOString(),
+    activeUsers: Number(r.active_users),
+    totalRecords: Number(r.total_records),
+    lastUpdated: r.latest_granted.toISOString(),
+  }));
+}
+
+export interface PublishedConsentVersion {
+  id: string;
+  consentType: string;
+  version: string;
+  effectiveAt: string;
+  changeSummary: string;
+  publishedBy: string | null;
+  publishedAt: string;
+}
+
+interface PublishedRow {
+  id: string;
+  admin_id: string | null;
+  details: { consentType?: string; version?: string; effectiveAt?: string; changeSummary?: string } | null;
+  created_at: Date;
+}
+
+export async function publishConsentVersion(input: {
+  adminUserId: string;
+  consentType: string;
+  version: string;
+  effectiveAt?: string;
+  changeSummary: string;
+}): Promise<PublishedConsentVersion> {
+  if (!input.adminUserId) throw createAppError('adminUserId is required.', 400);
+  if (!input.consentType || input.consentType.trim().length === 0
+      || input.consentType.length > 50) {
+    throw createAppError('consentType is required (1-50 chars).', 400);
+  }
+  if (!input.version || input.version.trim().length === 0 || input.version.length > 20) {
+    throw createAppError('version is required (1-20 chars).', 400);
+  }
+  if (!input.changeSummary || input.changeSummary.trim().length < 30) {
+    throw createAppError('changeSummary must be at least 30 characters.', 400);
+  }
+  const effective = input.effectiveAt && input.effectiveAt.length > 0
+    ? input.effectiveAt
+    : new Date().toISOString();
+  if (Number.isNaN(new Date(effective).getTime())) {
+    throw createAppError('effectiveAt must be a valid ISO timestamp.', 400);
+  }
+
+  // Pre-check: refuse to "publish" a duplicate (consent_type, version) that already
+  // has been published (idempotency / prevent accidental republish noise).
+  const existing = await db.query<{ id: string }>(
+    `SELECT id FROM admin_actions
+      WHERE action_type = 'consent_version_published'
+        AND target_type = 'consent_version'
+        AND details->>'consentType' = $1
+        AND details->>'version' = $2
+      LIMIT 1`,
+    [input.consentType.trim(), input.version.trim()],
+  );
+  if (existing.rows.length > 0) {
+    throw createAppError(
+      `Version ${input.version} of ${input.consentType} has already been published.`,
+      409,
+    );
+  }
+
+  const result = await db.query<{ id: string; created_at: Date }>(
+    `INSERT INTO admin_actions
+       (admin_id, action_type, target_type, target_id, details, reason)
+     VALUES ($1, 'consent_version_published', 'consent_version', uuid_generate_v4(), $2::jsonb, $3)
+     RETURNING id, created_at`,
+    [
+      input.adminUserId,
+      JSON.stringify({
+        consentType: input.consentType.trim(),
+        version: input.version.trim(),
+        effectiveAt: effective,
+        changeSummary: input.changeSummary.trim(),
+      }),
+      input.changeSummary.trim(),
+    ],
+  );
+  const row = result.rows[0];
+  if (!row) throw createAppError('Failed to publish consent version.', 500);
+
+  logger.info('Consent version published', {
+    consentType: input.consentType,
+    version: input.version,
+    adminUserId: input.adminUserId,
+  });
+
+  return {
+    id: row.id,
+    consentType: input.consentType.trim(),
+    version: input.version.trim(),
+    effectiveAt: effective,
+    changeSummary: input.changeSummary.trim(),
+    publishedBy: input.adminUserId,
+    publishedAt: row.created_at.toISOString(),
+  };
+}
+
+export async function listPublishedConsentVersions(filter: {
+  consentType?: string;
+}): Promise<PublishedConsentVersion[]> {
+  const params: unknown[] = [];
+  let where = '';
+  if (filter.consentType) {
+    params.push(filter.consentType);
+    where = `AND details->>'consentType' = $${params.length}`;
+  }
+  const result = await db.query<PublishedRow>(
+    `SELECT id, admin_id, details, created_at
+       FROM admin_actions
+      WHERE action_type = 'consent_version_published'
+        AND target_type = 'consent_version'
+        ${where}
+      ORDER BY created_at DESC`,
+    params,
+  );
+
+  return result.rows.map((r) => ({
+    id: r.id,
+    consentType: r.details?.consentType ?? '',
+    version: r.details?.version ?? '',
+    effectiveAt: r.details?.effectiveAt ?? r.created_at.toISOString(),
+    changeSummary: r.details?.changeSummary ?? '',
+    publishedBy: r.admin_id,
+    publishedAt: r.created_at.toISOString(),
+  }));
+}

@@ -31,6 +31,7 @@ export default function CustomerLayout(): React.ReactElement {
       <Stack.Screen name="wallet-topup" />
       <Stack.Screen name="terms" />
       <Stack.Screen name="account-management" />
+      <Stack.Screen name="data-rights" />
     </Stack>
   );
 }

@@ -7,12 +7,19 @@ import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import * as compliance from '../services/compliance.service';
+import * as complianceAdmin from '../services/compliance-admin.service';
 
 const router = Router();
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
     throw createAppError('Admin access required.', 403);
+  }
+}
+
+function requireSuperAdmin(req: AuthenticatedRequest): void {
+  if (req.user!.role !== 'super_admin') {
+    throw createAppError('Super-admin access required.', 403);
   }
 }
 
@@ -169,6 +176,116 @@ router.get(
       requireAdmin(req);
       const data = await compliance.getDsrAlerts();
       res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+// ─── Phase 13 Dispatch C: dedicated DPO action endpoints ────────────────────
+
+router.post(
+  '/dsr/:id/complete',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const data = await complianceAdmin.markDsrComplete({
+        dsrId: req.params.id as string,
+        adminUserId: req.user!.userId,
+        responsePayloadUrl: typeof body.responsePayloadUrl === 'string'
+          ? body.responsePayloadUrl : undefined,
+      });
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/dsr/:id/request-info',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const infoNeeded = typeof body.infoNeeded === 'string' ? body.infoNeeded : '';
+      const data = await complianceAdmin.requestDsrMoreInfo({
+        dsrId: req.params.id as string,
+        adminUserId: req.user!.userId,
+        infoNeeded,
+      });
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/dsr/:id/reject',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const reason = typeof body.reason === 'string' ? body.reason : '';
+      const data = await complianceAdmin.rejectDsr({
+        dsrId: req.params.id as string,
+        adminUserId: req.user!.userId,
+        reason,
+      });
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/dsr/:id/escalate',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const npcReference = typeof body.npcReference === 'string' ? body.npcReference : '';
+      const data = await complianceAdmin.escalateDsrToNpc({
+        dsrId: req.params.id as string,
+        adminUserId: req.user!.userId,
+        npcReference,
+      });
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
+  '/consent-versions',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const [summaries, published] = await Promise.all([
+        complianceAdmin.listConsentVersions(),
+        complianceAdmin.listPublishedConsentVersions({
+          consentType: parseString(req.query.consentType),
+        }),
+      ]);
+      res.json({ success: true, data: { summaries, published } });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/consent-versions',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const data = await complianceAdmin.publishConsentVersion({
+        adminUserId: req.user!.userId,
+        consentType: typeof body.consentType === 'string' ? body.consentType : '',
+        version: typeof body.version === 'string' ? body.version : '',
+        effectiveAt: typeof body.effectiveAt === 'string' ? body.effectiveAt : undefined,
+        changeSummary: typeof body.changeSummary === 'string' ? body.changeSummary : '',
+      });
+      res.status(201).json({ success: true, data });
     } catch (error) { next(error); }
   },
 );

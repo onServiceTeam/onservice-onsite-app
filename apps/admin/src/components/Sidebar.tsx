@@ -21,6 +21,8 @@ import {
   Settings,
   Activity,
   Shield,
+  Lock,
+  FileText,
 } from '@/components/icons';
 
 type NavItem = {
@@ -47,6 +49,8 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/analytics', Icon: LineChart, label: 'Analytics' },
   { to: '/audit-log', Icon: Search, label: 'Audit Log' },
   { to: '/compliance', Icon: Shield, label: 'Compliance' },
+  { to: '/data-protection-log', Icon: Lock, label: 'Data Protection Log' },
+  { to: '/consent-versions', Icon: FileText, label: 'Consent Versions' },
   { to: '/support-tickets', Icon: Ticket, label: 'Support' },
   { to: '/staff', Icon: User, label: 'Staff & Roles' },
   { to: '/settings', Icon: Settings, label: 'Settings' },

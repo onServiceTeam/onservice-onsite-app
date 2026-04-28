@@ -30,6 +30,8 @@ const PricingRulesPage = lazy(() => import('@/pages/PricingRulesPage'));
 const MarketingPage = lazy(() => import('@/pages/MarketingPage'));
 const DispatchConsolePage = lazy(() => import('@/pages/DispatchConsolePage'));
 const CompliancePage = lazy(() => import('@/pages/CompliancePage'));
+const DataProtectionLogPage = lazy(() => import('@/pages/DataProtectionLogPage'));
+const ConsentVersionsPage = lazy(() => import('@/pages/ConsentVersionsPage'));
 
 export default function App(): React.ReactElement {
   const hydrate = useAuthStore((s) => s.hydrate);
@@ -73,6 +75,8 @@ export default function App(): React.ReactElement {
           <Route path="/marketing" element={<MarketingPage />} />
           <Route path="/dispatch" element={<DispatchConsolePage />} />
           <Route path="/compliance" element={<CompliancePage />} />
+          <Route path="/data-protection-log" element={<DataProtectionLogPage />} />
+          <Route path="/consent-versions" element={<ConsentVersionsPage />} />
           <Route path="/pricing-rules" element={<PricingRulesPage />} />
         </Route>
       </Routes>

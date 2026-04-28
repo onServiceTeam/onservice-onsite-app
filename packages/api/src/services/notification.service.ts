@@ -24,7 +24,8 @@ type NotificationType =
   | 'new_job_available' | 'job_accepted' | 'customer_cancelled'
   | 'rating_received' | 'tier_upgrade' | 'nbi_expiring'
   | 'new_message' | 'new_quote' | 'quote_accepted' | 'quote_expired'
-  | 'recurring_update' | 'business_update' | 'area_launch';
+  | 'recurring_update' | 'business_update' | 'area_launch'
+  | 'dsr_info_requested';
 
 interface CreateNotificationParams {
   userId: string;
