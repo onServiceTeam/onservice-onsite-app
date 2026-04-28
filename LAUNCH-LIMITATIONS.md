@@ -197,6 +197,41 @@ open pg `Pool`, unclosed BullMQ Redis connection, or a `setInterval`
 in cache code without `unref()`. Estimated 30 minutes to chase with
 `--detectOpenHandles`. Defer to Dispatch F or G.
 
+## 14. Schema technical debt — polymorphic discount/conversion columns
+
+Schema technical debt — `promo_codes.discount_value` and
+`ab_test_assignments.conversion_value` are polymorphic on a sibling
+type-tag column (`discount_type`, `target_metric` respectively). The
+BIGINT widening in migration 059 is conservative-correct, but a future
+migration should split each into typed columns (e.g.,
+`discount_centavos BIGINT` + `discount_basis_points INT`, with the
+discriminator preserved or deprecated). Not blocking launch; track as
+schema debt.
+
+## 15. BIGINT money parser ceiling (Phase 13 Dispatch E)
+
+BIGINT money columns are returned to JS as `Number` via
+`pg-types.setTypeParser(20, …)` registration in
+`packages/api/src/config/database.config.ts`. Safe ceiling per single
+value: ~₱90 trillion (`Number.MAX_SAFE_INTEGER` ÷ 100). Largest current
+single-row plausible value: ~₱650M (Phase 13 dispatch-E inventory §5).
+Largest plausible aggregate: ~₱100B. Future BI/analytics work that sums
+all-time platform revenue into a single column should use BigInt
+end-to-end (Option A pattern) or DECIMAL with explicit string
+passthrough — do NOT assume `Number` is safe for accumulator columns at
+platform scale beyond ₱1T cumulative GMV.
+
+## 16. Type parser scope is project-wide (Phase 13 Dispatch E)
+
+The pg-types parser registration in `database.config.ts` applies to
+EVERY pg query in the API process — there is no per-query opt-out.
+Consequently, ANY future BIGINT column (snowflake IDs, monotonic
+counters, sequence values legitimately exceeding 2^53) will be coerced
+to `Number` and may lose precision silently. Any developer adding such
+a column MUST handle this at the call site (per-query parser override
+or BigInt-aware accessor) AND document the choice. See
+`docs/MONEY-HANDLING.md` for the canonical guidance and trade-offs.
+
 ---
 
 Phase 13 owner notes: this file is the canonical place to record
