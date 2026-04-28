@@ -1,67 +1,119 @@
 # onService — Philippine Home Services Marketplace
 
-A mobile-first, on-demand home services marketplace for the Philippines. Connects customers with vetted service providers across all categories of residential and commercial on-site services with full escrow payment protection.
+A mobile-first, on-demand home services marketplace for the
+Philippines. Connects customers with vetted providers across all
+categories of residential and commercial on-site services, with full
+escrow payment protection.
 
-## Tech Stack (April 2026 — Latest Stable)
+---
+
+## Stack (April 2026 — current)
 
 | Layer | Technology | Version |
-|-------|-----------|---------|
+|---|---|---|
 | Mobile | React Native (Expo managed) | SDK 55 / RN 0.83 |
 | Admin Web | React + Tailwind CSS + shadcn/ui | React 19 + Tailwind 4.2 + shadcn v4 |
 | Backend | Node.js + Express + TypeScript | Node 24 LTS + Express 5.2 + TS 6.0 |
 | Database | PostgreSQL | 18.3 |
-| Cache | Redis | 8.6 |
+| Cache / queues | Redis | 8.6 |
 | Payments | PayMongo | Latest |
 
-## Custom Ports (no conflicts guaranteed)
+## Custom ports (collision-free)
 
 | Service | Port |
-|---------|------|
+|---|---|
 | API Server | 7381 |
 | Admin Dashboard | 7382 |
 | PostgreSQL | 7383 |
 | PgBouncer | 7384 |
 | Redis | 7385 |
 
-## Quick Start
+## Quick start
 
 ```bash
-# 1. Copy environment file
+# 1. Environment
 cp .env.example .env
 
-# 2. Start PostgreSQL 18 + Redis 8.6
+# 2. Start Postgres + Redis
 docker compose up -d
 
-# 3. Install dependencies
-npm install
+# 3. Install deps
+npm install --legacy-peer-deps
 
-# 4. Run database migrations
+# 4. Run migrations + start the API
 npm run api:dev
 ```
 
-## Project Structure
+In separate terminals:
+
+```bash
+npm run admin:dev      # http://localhost:7382
+npm run mobile:dev     # opens Expo
+```
+
+## Project structure
 
 ```
 onservice-onsite-app/
 ├── apps/
-│   ├── mobile/          # React Native (Expo SDK 55) — customer + provider
-│   └── admin/           # React web dashboard — admin panel
+│   ├── admin/                # React 19 + Tailwind 4 admin panel
+│   └── mobile/               # Expo Router customer + provider apps
 ├── packages/
-│   └── api/             # Node.js 24 + Express 5 backend
-├── docker-compose.yml   # Local dev: PostgreSQL 18 + Redis 8.6
-└── *.md                 # Specification documents
+│   ├── api/                  # Node 24 + Express 5 backend
+│   └── shared/               # Cross-target types + utils
+├── docs/
+│   ├── architecture/         # SPEC, EXPANSION, RUNTIME-CONFIG, ADMIN-SPEC, MOBILE-SPEC, DESIGN-CONTRACT
+│   ├── strategy/             # STRATEGY, MARKETING-PLAYBOOK, COMPLIANCE, INSURANCE
+│   ├── ai-coder/             # AI-CODER-PROMPT, KEN-WORKFLOW, HONEST-AUDIT
+│   ├── audits/               # Historical code audits
+│   ├── design-system/        # tokens.json, icon catalog, component contracts
+│   ├── DEPLOYMENT.md
+│   ├── SECURITY-POSTURE.md
+│   └── MONEY-HANDLING.md
+├── .ai-coder/                # Phase governance + verify-*.sh checkpoints
+├── docker-compose.yml
+├── LAUNCH-LIMITATIONS.md     # Intentional v1 caveats
+├── INFRA-CHECKLIST.md        # Pre-launch infra gate
+├── CONTRIBUTING.md
+├── CHANGELOG.md
+├── LICENSE
+└── README.md
 ```
 
-## Specification Documents
+## Where to read next
 
-1. **COMPLETE-PH-Home-Services-Platform-Specification.md** — Business model, user stories, UI/UX specs
-2. **EXPANSION-v2-SDLC-SRS-Infrastructure-Issues.md** — SDLC, SRS, infrastructure scaling
-3. **AI-CODER-MASTER-INSTRUCTIONS.md** — AI coder instructions and absolute rules
+- Founder / QA reviewer workflow: [docs/ai-coder/KEN-WORKFLOW.md](docs/ai-coder/KEN-WORKFLOW.md)
+- Canonical agent prompt: [docs/ai-coder/AI-CODER-PROMPT.md](docs/ai-coder/AI-CODER-PROMPT.md)
+- Product spec: [docs/architecture/SPEC.md](docs/architecture/SPEC.md)
+- Admin panel spec: [docs/architecture/ADMIN-SPEC.md](docs/architecture/ADMIN-SPEC.md)
+- Mobile app spec: [docs/architecture/MOBILE-SPEC.md](docs/architecture/MOBILE-SPEC.md)
+- Runtime configuration: [docs/architecture/RUNTIME-CONFIG.md](docs/architecture/RUNTIME-CONFIG.md)
+- Design contract: [docs/architecture/DESIGN-CONTRACT.md](docs/architecture/DESIGN-CONTRACT.md)
+- Money handling: [docs/MONEY-HANDLING.md](docs/MONEY-HANDLING.md)
+- Security posture: [docs/SECURITY-POSTURE.md](docs/SECURITY-POSTURE.md)
+- Deployment runbook: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- Pre-launch infra checklist: [INFRA-CHECKLIST.md](INFRA-CHECKLIST.md)
+- Intentional v1 limitations: [LAUNCH-LIMITATIONS.md](LAUNCH-LIMITATIONS.md)
+- Phase-by-phase changelog: [CHANGELOG.md](CHANGELOG.md)
 
-## Rules
+## Repo rules (non-negotiable)
 
-- Currency is ALWAYS ₱ (Philippine Peso) — never $
-- English only — no i18n framework (all Philippine apps use English)
-- All business values in config files — never hardcoded
-- TypeScript strict mode — no `any`, no `@ts-ignore`
-- Philippine data only — Filipino names, PH addresses, +63 phone numbers, Asia/Manila timezone
+- Currency is ALWAYS `₱` (Philippine Peso) — never `$`.
+- English only — no i18n framework.
+- All business values live in config files — never hardcoded.
+- TypeScript strict mode. No `any`, no `@ts-ignore`, no
+  `as unknown as X` narrowing tricks.
+- Philippine data only — Filipino names, PH addresses, `+63` phone
+  numbers, `Asia/Manila` timezone.
+- BIGINT money columns are coerced to JS `Number` at the pg-types
+  layer; see [docs/MONEY-HANDLING.md](docs/MONEY-HANDLING.md) for the
+  ceiling and trade-offs.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch model, commit
+prefix convention, and the PR checklist.
+
+## Licence
+
+Proprietary. See [LICENSE](LICENSE).
