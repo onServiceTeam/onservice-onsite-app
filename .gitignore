@@ -47,3 +47,8 @@ apps/mobile/ios/build/
 
 # Docker
 docker-compose.override.yml
+
+# phase verify-run artifacts (regenerated each run)
+/.ai-coder/checkpoints/logs/PHASE-*/HASHES.sha256
+/.ai-coder/checkpoints/logs/PHASE-*/BASELINE-DEBT.md
+/.ai-coder/checkpoints/logs/PHASE-*/gates/
