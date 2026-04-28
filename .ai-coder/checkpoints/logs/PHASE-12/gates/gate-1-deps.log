@@ -1,0 +1,10 @@
+Checking: ./apps/admin/package.json
+  WARN: jq not installed. Skipping detailed check (install jq to enforce).
+Checking: ./apps/mobile/package.json
+  WARN: jq not installed. Skipping detailed check (install jq to enforce).
+Checking: ./package.json
+  WARN: jq not installed. Skipping detailed check (install jq to enforce).
+Checking: ./packages/api/package.json
+  WARN: jq not installed. Skipping detailed check (install jq to enforce).
+
+PASS: No forbidden dependencies. Review any WARN lines.
