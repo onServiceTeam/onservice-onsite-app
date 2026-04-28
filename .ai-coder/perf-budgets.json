@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "metadata": {
+    "version": "1.0.0",
+    "updated": "2026-04-29",
+    "owner": "phase-13/dispatch-F"
+  },
+  "budgets": {
+    "p95_booking_create_ms": 500,
+    "p95_wallet_read_ms": 200,
+    "p95_admin_dashboard_ms": 1500,
+    "p99_escrow_release_ms": 1000,
+    "max_fail_rate": 0.02
+  },
+  "notes": [
+    "p95 latency is the 95th-percentile end-to-end response time as reported by k6's http_req_duration trend.",
+    "p99 escrow release is measured against POST /api/v1/admin/escrow/:id/release.",
+    "max_fail_rate is the upper bound for k6's http_req_failed rate across the load run.",
+    "These numbers are budgets, not observed measurements. Set LOADTEST_BASE_URL and LOADTEST_DATABASE_URL plus install the k6 binary to run scripts/verify-load.sh against a real environment."
+  ]
+}

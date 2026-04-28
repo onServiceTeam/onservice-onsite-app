@@ -148,6 +148,11 @@ else
   fi
 fi
 
+# ===== GATE 4 (LOAD) — PERFORMANCE BUDGETS =====
+# SKIPs cleanly when LOADTEST_BASE_URL/LOADTEST_DATABASE_URL are unset
+# or the k6 binary / k6 script is missing.
+run_gate "gate-4-load" "bash scripts/verify-load.sh" || true
+
 # ===== GATE 5 — INTEGRATION & REGRESSION =====
 run_gate "gate-5-money" "bash .ai-coder/checkpoints/verify-money-conservation.sh" || true
 run_gate "gate-5-migrations" "bash .ai-coder/checkpoints/verify-migrations.sh" || true
