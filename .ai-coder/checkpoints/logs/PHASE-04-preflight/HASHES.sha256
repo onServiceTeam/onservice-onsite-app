@@ -1,0 +1,13 @@
+b5cc8e0c4b5a1cfdc9108b11526bb1bce3f59c9ae11cecc72c3dea51ff82afb9  .ai-coder/checkpoints/logs/PHASE-04-preflight/BASELINE-DEBT.md
+eff0b09e77c3203f798d8b9c72f9a1636ad4d912d5e7e62e6afa1db3eb26f0b4  .ai-coder/checkpoints/logs/PHASE-04-preflight/gates/gate-1-deps.log
+8a878811d40b5dac59f9b784140cb96f1865994ccda9d8fdfd2bfea364ed025a  .ai-coder/checkpoints/logs/PHASE-04-preflight/gates/gate-1-emoji.log
+604abcc8e99feb9a9e440c32f33405dd87e8a57073f208b5f3d179ba1c170797  .ai-coder/checkpoints/logs/PHASE-04-preflight/gates/gate-1-forbidden.log
+304666dc03950fb30ab0c578c4db309939ca157b0194d3835ff2a9f00e35a381  .ai-coder/checkpoints/logs/PHASE-04-preflight/gates/gate-1-lint.log
+99bded01223e53a66d45894a2a8f1c7571d7d58303c08b95c9781b1c9d4fcb3a  .ai-coder/checkpoints/logs/PHASE-04-preflight/gates/gate-1-phantom-tests.log
+5bd669cfc56500ad9da3575c8c29e5487b6c7e9154d186c75c40b944855858e8  .ai-coder/checkpoints/logs/PHASE-04-preflight/gates/gate-1-typecheck.log
+b5cbb75d6bf8d83ca0fe2385dc0d74ae02f10b56e10d188ee249acb2c6381504  .ai-coder/checkpoints/logs/PHASE-04-preflight/gates/gate-2-alltests.log
+34ee87773591d593c9a27650d2d9cca9f890f63f19f0d73b6e20b288d53184ad  .ai-coder/checkpoints/logs/PHASE-04-preflight/gates/gate-2-test-count.txt
+14c3d37357ca34c9639906eb3aa4a2c266172acd5196044f32d80b6f545572a6  .ai-coder/checkpoints/logs/PHASE-04-preflight/gates/gate-5-migrations.log
+5bf9139f5e7b478b48d9bf2010b4dd1e9a12e04c5da85a94ae1981bc201683d1  .ai-coder/checkpoints/logs/PHASE-04-preflight/gates/gate-5-money.log
+1ebee00852b9fce8868a2a2dc8011b71d4dcf1f3c4b9c0af8d1e40d677f7efbd  .ai-coder/checkpoints/logs/PHASE-04-preflight/gates/gate-5-n-plus-1.log
+007c09604bc45f7251ef52ac95f709dba8307c3686bda92eab6084ffd8778380  .ai-coder/checkpoints/logs/PHASE-04-preflight/gates/gate-6-evidence-audit.log

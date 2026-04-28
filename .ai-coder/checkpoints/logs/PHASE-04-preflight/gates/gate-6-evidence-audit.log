@@ -1,0 +1,2 @@
+FAIL: Evidence manifest not found at .ai-coder/checkpoints/logs/PHASE-04-preflight/EVIDENCE-MANIFEST.md
+AI coder did not produce the required evidence manifest. Phase NOT done.

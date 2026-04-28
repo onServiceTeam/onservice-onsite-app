@@ -1,0 +1,36 @@
+PHASE-04 — Admin Dashboard — Continuous Sanity Log
+====================================================
+
+[2026-04-28T01:50Z] §0 PHASE-SCOPE PREFLIGHT
+-------------------------------------------
+Branch: phase/04-admin-dashboard @ 02aeed3 (baseline = phase/03 head)
+Diff vs baseline: empty (no implementation yet).
+
+Anticipated touches per PHASE-04-admin-dashboard.md spec:
+  - packages/api/src/services/admin-analytics.service.ts (extend with 6 new exports)
+  - packages/api/src/routes/admin.routes.ts (add 6 GET routes under /dashboard/*)
+  - apps/admin/src/pages/DashboardPage.tsx (full replacement, 107 -> ~250 lines)
+  - packages/api/__tests__/admin-analytics-dashboard.test.ts (new tests for the 6 new functions)
+
+Sacred files in anticipated diff: NONE.
+  Sacred set: escrow.service / commission.service / dispute.service / booking.service /
+              payout.service / wallet.service / settings.service / refund.* — none touched.
+  admin-analytics.service.ts is read-only analytics (SELECT-only, no money mutations) — NOT sacred.
+
+Mutation gate self-skip expected: YES (delta intersects sacred set = empty).
+Risk classification per spec: LOW ("replaces one page, doesn't touch business logic").
+
+Pre-existing baseline-debt carried in (will not regress):
+  forbidden patterns: 5  (window.confirm x1, empty .catch x3, double cast x1)
+  emoji-as-icon:      0
+  phantom tests:      0
+  lint:               PASS (gate-1-lint = green)
+  typecheck:          PASS (gate-1-typecheck = green)
+
+Plan is to revisit this entry after every meaningful change. If a sacred file
+appears in the diff at any later step, it gets flagged + a test plan in this
+log BEFORE the implementation finishes.
+[2026-04-28T01:57:40Z] STAGE: Backend - appended PHASE 04 analytics block (~440 lines) to admin-analytics.service.ts. 6 new exports (getDashboardKpis/getRevenueTrend/getBookingVolumeByCategory/getCustomerAcquisitionFunnel/getOperationalAlerts/getCitiesPerformance) + DashboardRange type guard isDashboardRange. SANITY: typecheck PASS, lint PASS. SCOPE: NOT a sacred file (read-only analytics, no money mutations).
+[2026-04-28T01:57:40Z] STAGE: Routes - added 6 GET /dashboard/* endpoints to admin.routes.ts (kpis/revenue-trend/booking-volume/acquisition-funnel/alerts/cities). All authMiddleware + requireAdmin gated. range validated via isDashboardRange. SANITY: typecheck PASS, lint PASS.
+[2026-04-28T01:57:40Z] STAGE: Frontend - extended apps/admin/src/components/ui/KpiCard.tsx with optional trendPct prop (colored badge); replaced apps/admin/src/pages/DashboardPage.tsx (~410 lines) with 8 KPI cards + 3 charts (revenue trend / booking volume / acquisition funnel) + AlertFeed + QuickActions + 3 wallet cards + Cities tile grid. Used @/components/ui Chart wrapper (NOT raw recharts) per central-vendor rule. SANITY: admin tsc --noEmit PASS, lint PASS.
+[2026-04-28T01:57:40Z] STAGE: Tests - authored packages/api/__tests__/admin-analytics-dashboard.test.ts (35 tests) mocking db.query directly. Covers isDashboardRange truth-table, kpi math (runway, pct change, zero-burn cap), days clamping, alert severity mapping (danger/warning/info), guarantee-fund threshold (30 percent of 30d burn), sort order. SANITY: jest 35/35 PASS in 0.6s. INTEGRITY: full API suite 25/25 suites 513/513 PASS - no regression.

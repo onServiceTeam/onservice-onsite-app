@@ -748,3 +748,541 @@ export function formatAbTest(t: AbTestRow): Record<string, unknown> {
     updatedAt: t.updated_at,
   };
 }
+
+// ────────────────────────────────────────────────────────────────────
+// PHASE 04 — ADMIN DASHBOARD (read-only analytics; no money mutations)
+// ────────────────────────────────────────────────────────────────────
+
+export type DashboardRange = 'today' | '7d' | '30d' | '90d' | 'ytd';
+export type AlertSeverity = 'info' | 'warning' | 'danger';
+
+export interface DashboardKpis {
+  revenue: number;
+  revenueTrendPct: number;
+  activeBookings: number;
+  pendingDisputes: number;
+  newSignups: number;
+  pendingApprovals: number;
+  todayBookings: number;
+  escalatedDisputes: number;
+  staleDisputes: number;
+  escrowBalance: number;
+  platformRevenue: number;
+  guaranteeFund: number;
+  guaranteeFundRunwayMonths: number;
+}
+
+export interface RevenueTrendPoint {
+  date: string;
+  gmv: number;
+  revenue: number;
+}
+
+export interface BookingVolumePoint {
+  category: string;
+  count: number;
+}
+
+export interface AcquisitionFunnel {
+  registered: number;
+  firstBooking: number;
+  repeatBooking: number;
+}
+
+export interface DashboardAlert {
+  id: string;
+  type: string;
+  severity: AlertSeverity;
+  title: string;
+  description: string;
+  action_url: string | null;
+  created_at: string;
+}
+
+export interface CityPerformance {
+  id: string;
+  name: string;
+  status: string;
+  activeProviders: number;
+  todayBookings: number;
+}
+
+const VALID_RANGES: ReadonlyArray<DashboardRange> = ['today', '7d', '30d', '90d', 'ytd'];
+export function isDashboardRange(v: unknown): v is DashboardRange {
+  return typeof v === 'string' && (VALID_RANGES as ReadonlyArray<string>).includes(v);
+}
+
+function rangeStartSql(range: DashboardRange): string {
+  switch (range) {
+    case 'today': return "DATE_TRUNC('day', NOW())";
+    case 'ytd':   return "DATE_TRUNC('year', NOW())";
+    case '7d':    return "NOW() - INTERVAL '7 days'";
+    case '30d':   return "NOW() - INTERVAL '30 days'";
+    case '90d':   return "NOW() - INTERVAL '90 days'";
+  }
+}
+
+function previousRangeSql(range: DashboardRange): { start: string; end: string } {
+  switch (range) {
+    case 'today':
+      return { start: "DATE_TRUNC('day', NOW() - INTERVAL '1 day')", end: "DATE_TRUNC('day', NOW())" };
+    case '7d':
+      return { start: "NOW() - INTERVAL '14 days'", end: "NOW() - INTERVAL '7 days'" };
+    case '30d':
+      return { start: "NOW() - INTERVAL '60 days'", end: "NOW() - INTERVAL '30 days'" };
+    case '90d':
+      return { start: "NOW() - INTERVAL '180 days'", end: "NOW() - INTERVAL '90 days'" };
+    case 'ytd':
+      return { start: "DATE_TRUNC('year', NOW() - INTERVAL '1 year')", end: "(NOW() - INTERVAL '1 year')" };
+  }
+}
+
+function clampDays(days: number, min: number, max: number): number {
+  if (!Number.isFinite(days)) return min;
+  const n = Math.floor(days);
+  if (n < min) return min;
+  if (n > max) return max;
+  return n;
+}
+
+function pctChange(current: number, previous: number): number {
+  if (previous <= 0) return current > 0 ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 1000) / 10;
+}
+
+export async function getDashboardKpis(range: DashboardRange): Promise<DashboardKpis> {
+  const startSql = rangeStartSql(range);
+  const prev = previousRangeSql(range);
+
+  const [
+    revRow,
+    countsRow,
+    walletsRow,
+    burnRow,
+  ] = await Promise.all([
+    db.query<{ current: string; previous: string }>(
+      `SELECT
+         COALESCE(SUM(CASE WHEN created_at >= ${startSql} THEN amount ELSE 0 END), 0)::text AS current,
+         COALESCE(SUM(CASE WHEN created_at >= ${prev.start} AND created_at < ${prev.end} THEN amount ELSE 0 END), 0)::text AS previous
+       FROM wallet_transactions
+       WHERE type IN ('commission', 'service_fee')
+         AND created_at >= ${prev.start}`,
+    ),
+    db.query<{
+      active_bookings: string;
+      pending_disputes: string;
+      new_signups: string;
+      pending_approvals: string;
+      today_bookings: string;
+      escalated_disputes: string;
+      stale_disputes: string;
+    }>(
+      `SELECT
+         (SELECT COUNT(*) FROM bookings
+            WHERE status NOT IN ('cancelled_by_customer','cancelled_by_provider','cancelled_by_admin','paid_out','confirmed','resolved'))::text AS active_bookings,
+         (SELECT COUNT(*) FROM disputes WHERE status IN ('open','under_review','escalated'))::text AS pending_disputes,
+         (SELECT COUNT(*) FROM users WHERE created_at >= ${startSql})::text AS new_signups,
+         (SELECT COUNT(*) FROM providers WHERE status = 'pending')::text AS pending_approvals,
+         (SELECT COUNT(*) FROM bookings WHERE created_at >= DATE_TRUNC('day', NOW()))::text AS today_bookings,
+         (SELECT COUNT(*) FROM disputes WHERE status = 'escalated')::text AS escalated_disputes,
+         (SELECT COUNT(*) FROM disputes WHERE status = 'open' AND created_at < NOW() - INTERVAL '48 hours')::text AS stale_disputes`,
+    ),
+    db.query<{
+      escrow: string;
+      revenue: string;
+      guarantee: string;
+    }>(
+      `SELECT
+         COALESCE((SELECT pending_balance FROM wallets WHERE type = 'platform_escrow' AND user_id IS NULL), 0)::text AS escrow,
+         COALESCE((SELECT available_balance FROM wallets WHERE type = 'platform_revenue' AND user_id IS NULL), 0)::text AS revenue,
+         COALESCE((SELECT available_balance FROM wallets WHERE type = 'guarantee_fund' AND user_id IS NULL), 0)::text AS guarantee`,
+    ),
+    db.query<{ burn: string }>(
+      `SELECT COALESCE(ABS(SUM(amount)), 0)::text AS burn
+         FROM wallet_transactions wt
+         JOIN wallets w ON w.id = wt.wallet_id
+        WHERE w.type = 'guarantee_fund'
+          AND wt.amount < 0
+          AND wt.created_at >= NOW() - INTERVAL '30 days'`,
+    ),
+  ]);
+
+  const current = Number(revRow.rows[0]?.current ?? 0);
+  const previous = Number(revRow.rows[0]?.previous ?? 0);
+  const c = countsRow.rows[0]!;
+  const w = walletsRow.rows[0]!;
+  const guarantee = Number(w.guarantee);
+  const monthlyBurn = Number(burnRow.rows[0]?.burn ?? 0);
+  const runwayMonths = monthlyBurn > 0
+    ? Math.round((guarantee / monthlyBurn) * 10) / 10
+    : 99;
+
+  return {
+    revenue: current,
+    revenueTrendPct: pctChange(current, previous),
+    activeBookings: Number(c.active_bookings),
+    pendingDisputes: Number(c.pending_disputes),
+    newSignups: Number(c.new_signups),
+    pendingApprovals: Number(c.pending_approvals),
+    todayBookings: Number(c.today_bookings),
+    escalatedDisputes: Number(c.escalated_disputes),
+    staleDisputes: Number(c.stale_disputes),
+    escrowBalance: Number(w.escrow),
+    platformRevenue: Number(w.revenue),
+    guaranteeFund: guarantee,
+    guaranteeFundRunwayMonths: runwayMonths,
+  };
+}
+
+export async function getRevenueTrend(days: number): Promise<RevenueTrendPoint[]> {
+  const n = clampDays(days, 1, 365);
+  const rows = await db.query<{ date: string; gmv: string; revenue: string }>(
+    `WITH series AS (
+       SELECT generate_series(
+         DATE_TRUNC('day', NOW()) - (($1::int - 1) || ' days')::interval,
+         DATE_TRUNC('day', NOW()),
+         INTERVAL '1 day'
+       )::date AS day
+     ),
+     gmv AS (
+       SELECT DATE_TRUNC('day', created_at)::date AS day,
+              COALESCE(SUM(amount), 0)::bigint AS amount
+         FROM wallet_transactions
+        WHERE type = 'payment'
+          AND created_at >= NOW() - (($1::int) || ' days')::interval
+        GROUP BY 1
+     ),
+     rev AS (
+       SELECT DATE_TRUNC('day', created_at)::date AS day,
+              COALESCE(SUM(amount), 0)::bigint AS amount
+         FROM wallet_transactions
+        WHERE type IN ('commission', 'service_fee')
+          AND created_at >= NOW() - (($1::int) || ' days')::interval
+        GROUP BY 1
+     )
+     SELECT to_char(s.day, 'YYYY-MM-DD') AS date,
+            COALESCE(gmv.amount, 0)::text AS gmv,
+            COALESCE(rev.amount, 0)::text AS revenue
+       FROM series s
+       LEFT JOIN gmv ON gmv.day = s.day
+       LEFT JOIN rev ON rev.day = s.day
+      ORDER BY s.day ASC`,
+    [n],
+  );
+
+  return rows.rows.map((r) => ({
+    date: r.date,
+    gmv: Number(r.gmv),
+    revenue: Number(r.revenue),
+  }));
+}
+
+export async function getBookingVolumeByCategory(days: number): Promise<BookingVolumePoint[]> {
+  const n = clampDays(days, 1, 365);
+  const rows = await db.query<{ category: string; count: string }>(
+    `SELECT COALESCE(c.name, 'Uncategorized') AS category,
+            COUNT(b.id)::text AS count
+       FROM bookings b
+       LEFT JOIN service_categories c ON c.id = b.category_id
+      WHERE b.created_at >= NOW() - (($1::int) || ' days')::interval
+      GROUP BY c.name
+      ORDER BY COUNT(b.id) DESC
+      LIMIT 12`,
+    [n],
+  );
+
+  return rows.rows.map((r) => ({ category: r.category, count: Number(r.count) }));
+}
+
+export async function getCustomerAcquisitionFunnel(days: number): Promise<AcquisitionFunnel> {
+  const n = clampDays(days, 1, 365);
+  const result = await db.query<{
+    registered: string;
+    first_booking: string;
+    repeat_booking: string;
+  }>(
+    `WITH registered_customers AS (
+       SELECT id, created_at
+         FROM users
+        WHERE role = 'customer'
+          AND created_at >= NOW() - (($1::int) || ' days')::interval
+     ),
+     bookings_by_customer AS (
+       SELECT b.customer_id, COUNT(*) AS booking_count
+         FROM bookings b
+         JOIN registered_customers rc ON rc.id = b.customer_id
+        WHERE b.created_at >= rc.created_at
+        GROUP BY b.customer_id
+     )
+     SELECT
+       (SELECT COUNT(*) FROM registered_customers)::text AS registered,
+       (SELECT COUNT(*) FROM bookings_by_customer WHERE booking_count >= 1)::text AS first_booking,
+       (SELECT COUNT(*) FROM bookings_by_customer WHERE booking_count >= 2)::text AS repeat_booking`,
+    [n],
+  );
+
+  const r = result.rows[0]!;
+  return {
+    registered: Number(r.registered),
+    firstBooking: Number(r.first_booking),
+    repeatBooking: Number(r.repeat_booking),
+  };
+}
+
+interface RawAlertRow {
+  id: string;
+  type: string;
+  severity: AlertSeverity;
+  title: string;
+  description: string;
+  action_url: string | null;
+  created_at: Date;
+}
+
+export async function getOperationalAlerts(): Promise<DashboardAlert[]> {
+  const [
+    consecOneStarRows,
+    staleDisputeRows,
+    webhookFailureRows,
+    nbiExpiringRows,
+    chronicCustomerRows,
+    underservedCityRows,
+    guaranteeFundRows,
+  ] = await Promise.all([
+    // 1. Provider with 3+ consecutive 1-star ratings (most-recent run, by created_at desc)
+    db.query<{ provider_id: string; full_name: string; consec: string; latest_at: Date }>(
+      `WITH ranked AS (
+         SELECT r.provider_id,
+                r.rating,
+                r.created_at,
+                ROW_NUMBER() OVER (PARTITION BY r.provider_id ORDER BY r.created_at DESC) AS rn
+           FROM reviews r
+       ),
+       latest_three AS (
+         SELECT provider_id,
+                BOOL_AND(rating = 1) AS all_one,
+                MAX(created_at) AS latest_at
+           FROM ranked
+          WHERE rn <= 3
+          GROUP BY provider_id
+         HAVING COUNT(*) = 3
+       )
+       SELECT lt.provider_id, p.full_name, '3' AS consec, lt.latest_at
+         FROM latest_three lt
+         JOIN providers p ON p.id = lt.provider_id
+        WHERE lt.all_one = TRUE
+        ORDER BY lt.latest_at DESC
+        LIMIT 25`,
+    ),
+    // 2. Disputes open >48h
+    db.query<{ id: string; created_at: Date }>(
+      `SELECT id, created_at
+         FROM disputes
+        WHERE status = 'open'
+          AND created_at < NOW() - INTERVAL '48 hours'
+        ORDER BY created_at ASC
+        LIMIT 25`,
+    ),
+    // 3. Webhook failures last hour (audit_log entries)
+    db.query<{ id: string; action: string; created_at: Date }>(
+      `SELECT id, action, created_at
+         FROM audit_log
+        WHERE action ILIKE '%webhook%fail%'
+          AND created_at >= NOW() - INTERVAL '1 hour'
+        ORDER BY created_at DESC
+        LIMIT 25`,
+    ),
+    // 4. Provider NBI expiring in next 7 days
+    db.query<{ provider_id: string; full_name: string; nbi_expiry_date: Date }>(
+      `SELECT id AS provider_id, full_name, nbi_expiry_date
+         FROM providers
+        WHERE status = 'approved'
+          AND nbi_expiry_date IS NOT NULL
+          AND nbi_expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+        ORDER BY nbi_expiry_date ASC
+        LIMIT 25`,
+    ),
+    // 5. Customer with 5+ disputes in last 7 days
+    db.query<{ customer_id: string; dispute_count: string; latest_at: Date }>(
+      `SELECT b.customer_id,
+              COUNT(d.id)::text AS dispute_count,
+              MAX(d.created_at) AS latest_at
+         FROM disputes d
+         JOIN bookings b ON b.id = d.booking_id
+        WHERE d.created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY b.customer_id
+       HAVING COUNT(d.id) >= 5
+        ORDER BY MAX(d.created_at) DESC
+        LIMIT 25`,
+    ),
+    // 6. Active service area with <5 active providers
+    db.query<{ id: string; name: string; active_provider_count: number }>(
+      `SELECT id, name, active_provider_count
+         FROM service_areas
+        WHERE status = 'active'
+          AND active_provider_count < 5
+        ORDER BY active_provider_count ASC, name ASC
+        LIMIT 25`,
+    ),
+    // 7. Guarantee fund balance below 30% of monthly claim burn
+    db.query<{ balance: string; burn: string }>(
+      `SELECT
+         COALESCE((SELECT available_balance FROM wallets WHERE type = 'guarantee_fund' AND user_id IS NULL), 0)::text AS balance,
+         COALESCE(
+           (SELECT ABS(SUM(wt.amount))
+              FROM wallet_transactions wt
+              JOIN wallets w ON w.id = wt.wallet_id
+             WHERE w.type = 'guarantee_fund'
+               AND wt.amount < 0
+               AND wt.created_at >= NOW() - INTERVAL '30 days'),
+           0
+         )::text AS burn`,
+    ),
+  ]);
+
+  const alerts: RawAlertRow[] = [];
+
+  for (const r of consecOneStarRows.rows) {
+    alerts.push({
+      id: `consec-1star:${r.provider_id}`,
+      type: 'provider_consecutive_one_star',
+      severity: 'danger',
+      title: `${r.full_name}: 3 consecutive 1-star reviews`,
+      description: `Quality intervention recommended. Latest: ${r.latest_at.toISOString()}.`,
+      action_url: `/providers/${r.provider_id}`,
+      created_at: r.latest_at,
+    });
+  }
+
+  for (const r of staleDisputeRows.rows) {
+    alerts.push({
+      id: `dispute-stale:${r.id}`,
+      type: 'dispute_open_over_48h',
+      severity: 'warning',
+      title: `Dispute open for over 48 hours`,
+      description: `Dispute ${r.id} opened ${r.created_at.toISOString()} and remains in 'open' status.`,
+      action_url: `/disputes/${r.id}`,
+      created_at: r.created_at,
+    });
+  }
+
+  for (const r of webhookFailureRows.rows) {
+    alerts.push({
+      id: `webhook-fail:${r.id}`,
+      type: 'paymongo_webhook_failure',
+      severity: 'danger',
+      title: 'PayMongo webhook failure',
+      description: `Audit action: ${r.action}. Investigate payment intent state.`,
+      action_url: '/audit-log',
+      created_at: r.created_at,
+    });
+  }
+
+  for (const r of nbiExpiringRows.rows) {
+    alerts.push({
+      id: `nbi-expiring:${r.provider_id}`,
+      type: 'provider_nbi_expiring',
+      severity: 'warning',
+      title: `${r.full_name}: NBI clearance expires soon`,
+      description: `Expiry date ${r.nbi_expiry_date.toISOString().slice(0, 10)}. Provider must renew to remain approved.`,
+      action_url: `/providers/${r.provider_id}`,
+      created_at: r.nbi_expiry_date,
+    });
+  }
+
+  for (const r of chronicCustomerRows.rows) {
+    alerts.push({
+      id: `chronic-customer:${r.customer_id}`,
+      type: 'customer_chronic_disputes',
+      severity: 'warning',
+      title: `Customer with ${r.dispute_count} disputes in last 7 days`,
+      description: `Customer ${r.customer_id} has ${r.dispute_count} open/recent disputes. Review for abuse pattern.`,
+      action_url: `/customers/${r.customer_id}`,
+      created_at: r.latest_at,
+    });
+  }
+
+  for (const r of underservedCityRows.rows) {
+    alerts.push({
+      id: `city-underserved:${r.id}`,
+      type: 'city_low_provider_count',
+      severity: 'info',
+      title: `${r.name}: only ${r.active_provider_count} active providers`,
+      description: 'Active service area has fewer than 5 active providers. Consider recruitment campaign.',
+      action_url: `/service-areas/${r.id}`,
+      created_at: new Date(),
+    });
+  }
+
+  const fundRow = guaranteeFundRows.rows[0];
+  if (fundRow) {
+    const balance = Number(fundRow.balance);
+    const burn = Number(fundRow.burn);
+    if (burn > 0 && balance < burn * 0.3) {
+      alerts.push({
+        id: `guarantee-fund-low:${Date.now()}`,
+        type: 'guarantee_fund_low',
+        severity: 'danger',
+        title: 'Guarantee fund below 30% of monthly claim burn',
+        description: `Balance ₱${(balance / 100).toFixed(2)} vs 30-day burn ₱${(burn / 100).toFixed(2)}. Replenishment needed.`,
+        action_url: '/financials/wallets',
+        created_at: new Date(),
+      });
+    }
+  }
+
+  alerts.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+
+  return alerts.map((a) => ({
+    id: a.id,
+    type: a.type,
+    severity: a.severity,
+    title: a.title,
+    description: a.description,
+    action_url: a.action_url,
+    created_at: a.created_at.toISOString(),
+  }));
+}
+
+export async function getCitiesPerformance(): Promise<CityPerformance[]> {
+  const rows = await db.query<{
+    id: string;
+    name: string;
+    status: string;
+    active_provider_count: number;
+    today_bookings: string;
+  }>(
+    `SELECT sa.id,
+            sa.name,
+            sa.status,
+            sa.active_provider_count,
+            COALESCE((
+              SELECT COUNT(*)
+                FROM bookings b
+                JOIN provider_service_areas psa ON psa.provider_id = b.provider_id
+               WHERE psa.service_area_id = sa.id
+                 AND b.created_at >= DATE_TRUNC('day', NOW())
+            ), 0)::text AS today_bookings
+       FROM service_areas sa
+      WHERE sa.status IN ('active', 'soft_launch', 'recruiting', 'planned')
+      ORDER BY
+        CASE sa.status
+          WHEN 'active'      THEN 0
+          WHEN 'soft_launch' THEN 1
+          WHEN 'recruiting'  THEN 2
+          ELSE 3
+        END,
+        sa.name ASC
+      LIMIT 24`,
+  );
+
+  return rows.rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    status: r.status,
+    activeProviders: Number(r.active_provider_count),
+    todayBookings: Number(r.today_bookings),
+  }));
+}
+
+

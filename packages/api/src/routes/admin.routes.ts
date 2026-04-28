@@ -44,6 +44,98 @@ router.get(
   },
 );
 
+// ── Phase 04: rich dashboard endpoints (kpis with range, charts, alerts, cities)
+router.get(
+  '/dashboard/kpis',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const rawRange = typeof req.query['range'] === 'string' ? req.query['range'] : 'today';
+      if (!adminAnalyticsService.isDashboardRange(rawRange)) {
+        throw createAppError('Invalid range. Allowed: today, 7d, 30d, 90d, ytd.', 400);
+      }
+      const data = await adminAnalyticsService.getDashboardKpis(rawRange);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/dashboard/revenue-trend',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const days = Number(req.query['days'] ?? 30);
+      const data = await adminAnalyticsService.getRevenueTrend(days);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/dashboard/booking-volume',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const days = Number(req.query['days'] ?? 7);
+      const data = await adminAnalyticsService.getBookingVolumeByCategory(days);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/dashboard/acquisition-funnel',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const days = Number(req.query['days'] ?? 30);
+      const data = await adminAnalyticsService.getCustomerAcquisitionFunnel(days);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/dashboard/alerts',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const data = await adminAnalyticsService.getOperationalAlerts();
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/dashboard/cities',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const data = await adminAnalyticsService.getCitiesPerformance();
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.get(
   '/providers',
   authMiddleware,

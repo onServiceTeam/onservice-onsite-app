@@ -1,0 +1,11 @@
+--- gate-1-forbidden ---
+Absolute violations in repo: 5
+Violations introduced by this phase: 0
+Violations remaining (deferred to later phases): 5
+Sample (first 10):
+  - apps/admin/src/pages/PricingRulesPage.tsx:595:                          if (window.confirm(`Delete rule "${rule.name}"? This cannot be undone.`)) {  [DESC: window.confirm]
+  - apps/mobile/src/components/ui/SuccessAnimation.tsx:31:    hapticSuccess().catch(() => {});  [DESC: empty .catch()]
+  - apps/mobile/src/components/ui/Toast.tsx:63:      triggerHaptic(type).catch(() => {});  [DESC: empty .catch()]
+  - apps/mobile/src/services/upload.service.ts:42:    } as RNFormDataFile as unknown as Blob);  [DESC: double cast]
+  - packages/api/src/middleware/cache.middleware.ts:29:        cacheSet(key, { body, statusCode: res.statusCode }, ttlSeconds).catch(() => {});  [DESC: empty .catch()]
+GATE: PASS (no new violations introduced by PHASE-04-preflight)
