@@ -1,0 +1,306 @@
+
+> onservice-onsite-app@0.1.0 api:test
+> npm run test --workspace=packages/api
+
+
+> @onservice/api@0.1.0 test
+> jest --passWithNoTests
+
+PASS __tests__/address-validators.test.ts
+PASS __tests__/admin-validators.test.ts
+PASS __tests__/booking-validators.test.ts
+PASS __tests__/customer-admin.test.ts
+  ● Console
+
+    console.log
+      [32minfo[39m: Customer status updated {"action":"suspend","adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","newIsActive":false,"service":"onservice-api","timestamp":"2026-04-28 11:26:53"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Customer status updated {"action":"reactivate","adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","newIsActive":true,"service":"onservice-api","timestamp":"2026-04-28 11:26:53"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Customer status updated {"action":"flag_fraud","adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","newIsActive":true,"service":"onservice-api","timestamp":"2026-04-28 11:26:53"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Customer status updated {"action":"suspend","adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","newIsActive":false,"service":"onservice-api","timestamp":"2026-04-28 11:26:53"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Customer wallet credit {"adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","deltaAmount":250,"newBalance":750,"reason":"goodwill for delayed booking","service":"onservice-api","timestamp":"2026-04-28 11:26:53","walletId":"w1"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Customer wallet credit {"adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","deltaAmount":1000,"newBalance":1000,"reason":"first-time signup credit","service":"onservice-api","timestamp":"2026-04-28 11:26:53","walletId":"w-new"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Customer wallet credit {"adminUserId":"33333333-3333-3333-3333-333333333333","customerId":"11111111-1111-1111-1111-111111111111","deltaAmount":-300,"newBalance":700,"reason":"reversal of duplicate credit","service":"onservice-api","timestamp":"2026-04-28 11:26:53","walletId":"w1"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS __tests__/provider-validators.test.ts
+PASS __tests__/wallet-type-isolation.test.ts
+PASS __tests__/referral-validators.test.ts
+PASS __tests__/payment-validators.test.ts
+PASS __tests__/booking-state-machine.test.ts
+PASS __tests__/dispute-refund-processing.test.ts
+PASS __tests__/notification-template-validators.test.ts
+PASS __tests__/dispute-validators.test.ts
+PASS __tests__/tip-validators.test.ts
+PASS __tests__/payout-validators.test.ts
+PASS __tests__/suki-validators.test.ts
+PASS __tests__/booking-price-lookup.test.ts
+PASS __tests__/admin-analytics-dashboard.test.ts
+PASS __tests__/messaging-validators.test.ts
+PASS __tests__/escrow-async-integration.test.ts
+  ● Console
+
+    console.log
+      [32minfo[39m: Escrow released {"bookingId":"b1","breakdown":{"commissionAmount":15000,"commissionRate":0.15,"guaranteeFundContribution":150,"platformRetains":24850,"providerReceives":85000,"serviceFeeAmount":10000,"serviceFeeRate":0.1,"servicePrice":100000},"service":"onservice-api","timestamp":"2026-04-28 11:26:53"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow released {"bookingId":"b1","breakdown":{"commissionAmount":15000,"commissionRate":0.15,"guaranteeFundContribution":150,"platformRetains":24850,"providerReceives":85000,"serviceFeeAmount":10000,"serviceFeeRate":0.1,"servicePrice":100000},"service":"onservice-api","timestamp":"2026-04-28 11:26:53"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow released {"bookingId":"b1","breakdown":{"commissionAmount":15000,"commissionRate":0.15,"guaranteeFundContribution":150,"platformRetains":24850,"providerReceives":85000,"serviceFeeAmount":10000,"serviceFeeRate":0.1,"servicePrice":100000},"service":"onservice-api","timestamp":"2026-04-28 11:26:53"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: Booking amount mismatch detected {"bookingId":"b1","expected":110000,"service":"onservice-api","serviceFee":10000,"servicePrice":100000,"timestamp":"2026-04-28 11:26:53","totalAmount":110100}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: MONEY CONSERVATION VIOLATION in escrow release {"bookingId":"b1","diff":100,"guaranteeFundContribution":150,"platformRetains":24850,"providerReceives":85000,"service":"onservice-api","serviceFee":10000,"servicePrice":100000,"timestamp":"2026-04-28 11:26:53","totalAmount":110100,"totalOut":110000}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: Booking amount mismatch detected {"bookingId":"b1","expected":110000,"service":"onservice-api","serviceFee":10000,"servicePrice":100000,"timestamp":"2026-04-28 11:26:53","totalAmount":110002}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [34mdebug[39m: Rounding adjustment in escrow release {"bookingId":"b1","diff":2,"service":"onservice-api","timestamp":"2026-04-28 11:26:53"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow released {"bookingId":"b1","breakdown":{"commissionAmount":15000,"commissionRate":0.15,"guaranteeFundContribution":150,"platformRetains":24850,"providerReceives":85000,"serviceFeeAmount":10000,"serviceFeeRate":0.1,"servicePrice":100000},"service":"onservice-api","timestamp":"2026-04-28 11:26:53"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow released {"bookingId":"b1","breakdown":{"commissionAmount":11000,"commissionRate":0.11,"guaranteeFundContribution":150,"platformRetains":20850,"providerReceives":89000,"serviceFeeAmount":10000,"serviceFeeRate":0.1,"servicePrice":100000},"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow released {"bookingId":"b1","breakdown":{"commissionAmount":11000,"commissionRate":0.11,"guaranteeFundContribution":150,"platformRetains":20850,"providerReceives":89000,"serviceFeeAmount":10000,"serviceFeeRate":0.1,"servicePrice":100000},"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Partial escrow released {"bookingId":"b1","breakdown":{"commissionAmount":7500,"commissionRate":0.15,"guaranteeFundContribution":75,"platformRetains":12500,"providerReceives":42500,"serviceFeeAmount":5000,"serviceFeeRate":0.1,"servicePrice":50000},"remainingAmount":55000,"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Partial escrow released {"bookingId":"b1","breakdown":{"commissionAmount":7500,"commissionRate":0.15,"guaranteeFundContribution":75,"platformRetains":12500,"providerReceives":42500,"serviceFeeAmount":5000,"serviceFeeRate":0.1,"servicePrice":50000},"remainingAmount":55000,"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow refund processed {"bookingId":"b1","reason":"Cancellation refund (service price + service fee)","refundAmount":110000,"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Cancellation processed {"bookingId":"b1","escrowStatus":"refunded","refund":{"customerRefundAmount":100000,"customerRefundPercent":1,"providerCompensationAmount":0,"providerCompensationPercent":0},"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow refund processed {"bookingId":"b1","reason":"Cancellation refund (service price + service fee)","refundAmount":10000,"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Cancellation processed {"bookingId":"b1","escrowStatus":"released","refund":{"customerRefundAmount":0,"customerRefundPercent":0,"providerCompensationAmount":50000,"providerCompensationPercent":1},"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow refund processed {"bookingId":"b1","reason":"Cancellation refund (service price + service fee)","refundAmount":60000,"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Cancellation processed {"bookingId":"b1","escrowStatus":"partially_refunded","refund":{"customerRefundAmount":50000,"customerRefundPercent":0.5,"providerCompensationAmount":25000,"providerCompensationPercent":0.5},"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Cancellation processed {"bookingId":"b1","escrowStatus":"released","refund":{"customerRefundAmount":0,"customerRefundPercent":0,"providerCompensationAmount":100000,"providerCompensationPercent":1},"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow refund processed {"bookingId":"b1","reason":"Cancellation refund (service price + service fee)","refundAmount":110000,"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Cancellation processed {"bookingId":"b1","escrowStatus":"refunded","refund":{"customerRefundAmount":100000,"customerRefundPercent":1,"providerCompensationAmount":0,"providerCompensationPercent":0},"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow refund processed {"bookingId":"b1","reason":"Cancellation refund (service price + service fee)","refundAmount":60000,"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Cancellation processed {"bookingId":"b1","escrowStatus":"partially_refunded","refund":{"customerRefundAmount":50000,"customerRefundPercent":0.5,"providerCompensationAmount":25000,"providerCompensationPercent":0.5},"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow hold created {"amount":50000,"bookingId":"b1","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Escrow refund processed {"bookingId":"b1","reason":"cancellation","refundAmount":50000,"service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS __tests__/auth-validators.test.ts
+PASS __tests__/runtime-config-e2e.test.ts
+  ● Console
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin-user-id","key":"service_fee_rate","newValue":"12","oldValue":"10","reason":"tuning","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin-user-id","key":"service_fee_rate","newValue":"10","oldValue":"99","reason":"Reset to default","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS __tests__/review-validators.test.ts
+PASS __tests__/commission.test.ts
+PASS __tests__/matching.test.ts
+PASS __tests__/provider-admin.test.ts
+  ● Console
+
+    console.log
+      [32minfo[39m: Provider wallet adjustment {"adminUserId":"33333333-3333-3333-3333-333333333333","deltaAmount":250,"newBalance":750,"providerId":"11111111-1111-1111-1111-111111111111","reason":"guarantee fund top-up case #42","service":"onservice-api","timestamp":"2026-04-28 11:26:54","walletId":"w1"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Provider wallet adjustment {"adminUserId":"33333333-3333-3333-3333-333333333333","deltaAmount":-300,"newBalance":700,"providerId":"11111111-1111-1111-1111-111111111111","reason":"reversal of erroneous credit","service":"onservice-api","timestamp":"2026-04-28 11:26:54","walletId":"w1"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS __tests__/settings-service.test.ts
+  ● Console
+
+    console.log
+      [33mwarn[39m: Settings cache read failed {"error":"redis down","key":"service_fee_rate","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [33mwarn[39m: Settings cache write failed {"error":"cache write fail","key":"service_fee_rate","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [31merror[39m: Settings DB read failed {"error":"db down","key":"service_fee_rate","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [33mwarn[39m: Settings cache JSON parse failed {"error":"Expected property name or '}' in JSON at position 1 (line 1 column 2)","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [33mwarn[39m: Settings cache read (all) failed {"error":"boom","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [33mwarn[39m: Settings cache write (all) failed {"error":"write fail","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin-id","key":"service_fee_rate","newValue":"12","oldValue":"10","reason":"tuning","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin","key":"service_fee_rate","newValue":"12","oldValue":"10","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin","key":"service_fee_rate","newValue":"12","oldValue":"10","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin","key":"service_fee_rate","newValue":"12","oldValue":"10","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin","key":"service_fee_rate","newValue":"20","oldValue":"10","reason":"bulk","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin","key":"service_fee_min","newValue":"21","oldValue":"10","reason":"bulk","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [32minfo[39m: Platform setting updated {"changedBy":"admin","key":"service_fee_rate","newValue":"10","oldValue":"99","reason":"Reset to default","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [33mwarn[39m: Settings cache bust failed {"error":"boom","key":"service_fee_rate","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+    console.log
+      [33mwarn[39m: Settings cache flush-all failed {"error":"boom","service":"onservice-api","timestamp":"2026-04-28 11:26:54"}
+
+      at Console.log (../../node_modules/winston/lib/winston/transports/console.js:87:23)
+
+PASS __tests__/escrow-money-conservation.test.ts
+
+Test Suites: 27 passed, 27 total
+Tests:       594 passed, 594 total
+Snapshots:   0 total
+Time:        4.264 s
+Ran all test suites.

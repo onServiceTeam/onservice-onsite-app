@@ -8,6 +8,7 @@ const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const ProvidersPage = lazy(() => import('@/pages/ProvidersPage'));
 const ProviderDetailPage = lazy(() => import('@/pages/ProviderDetailPage'));
 const CustomersPage = lazy(() => import('@/pages/CustomersPage'));
+const CustomerDetailPage = lazy(() => import('@/pages/CustomerDetailPage'));
 const BookingsPage = lazy(() => import('@/pages/BookingsPage'));
 const CatalogPage = lazy(() => import('@/pages/CatalogPage'));
 const DisputesPage = lazy(() => import('@/pages/DisputesPage'));
@@ -39,6 +40,7 @@ export default function App(): React.ReactElement {
         <Route path="/providers" element={<ProvidersPage />} />
         <Route path="/providers/:id" element={<ProviderDetailPage />} />
         <Route path="/customers" element={<CustomersPage />} />
+        <Route path="/customers/:id" element={<CustomerDetailPage />} />
         <Route path="/bookings" element={<BookingsPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
         <Route path="/disputes" element={<DisputesPage />} />

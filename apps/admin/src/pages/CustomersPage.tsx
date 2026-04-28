@@ -1,4 +1,5 @@
 import React, { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
@@ -53,9 +54,12 @@ export default function CustomersPage(): React.ReactElement {
       header: 'Customer',
       render: (r) => (
         <div>
-          <p className="font-medium text-[var(--color-text)]">
+          <Link
+            to={`/customers/${r.id}`}
+            className="font-medium text-[var(--color-secondary)] hover:underline"
+          >
             {[r.firstName, r.lastName].filter(Boolean).join(' ') || '(no name)'}
-          </p>
+          </Link>
           <p className="text-xs text-[var(--color-text-secondary)]">{r.phone}</p>
         </div>
       ),

@@ -1,0 +1,23 @@
+[2026-04-28T11:10:00Z] STAGE: Phase 06 baseline captured (commit 81c4406 / Phase 05 head). Branched phase/06-customer-360. typecheck=PASS, lint=PASS pre-flight.
+
+[2026-04-28 11:14:00] §1 Backend service + routes + tests
+- Created packages/api/src/services/customer-admin.service.ts (~700 lines, 8 exports incl. sacred creditCustomerWallet)
+- Created packages/api/src/routes/customer-admin.routes.ts (8 routes, mounted at /api/v1/admin/customers BEFORE /api/v1/admin)
+- Updated packages/api/src/server.ts to wire customerAdminRoutes ahead of adminRoutes (Express fallthrough preserves /admin/customers list endpoint)
+- Created packages/api/__tests__/customer-admin.test.ts (36 tests)
+- typecheck PASS | lint PASS | jest 594/594 PASS (was 558, +36 new)
+
+[2026-04-28 11:25:00] §2 Frontend CustomerDetailPage + 6 tabs
+- Created apps/admin/src/pages/CustomerDetailPage.tsx (~1090 lines, 6 inline tabs: Profile, Bookings, Payments, Disputes, Referrals, Activity)
+- Updated apps/admin/src/App.tsx with lazy /customers/:id route
+- Updated apps/admin/src/pages/CustomersPage.tsx with clickable name -> Link to detail page
+- admin typecheck PASS | lint (root, all packages) PASS | admin build PASS
+
+[2026-04-28 11:30:00] §3 Documentation artifacts authored
+- gates/gate-2-paper-trace-phase-06.md (8 traces)
+- gates/gate-2-boundaries-phase-06.md (every export covered, parameterized invariants)
+- gates/gate-3-premortem.md (5 incidents)
+- gates/gate-3-future-bugs.md (most-likely 2-week regression + 4 follow-ups)
+- HONESTY-CHECK.md (deferrals, flag_fraud encoding, SQL-literal action_type, wallet auto-create)
+- EVIDENCE-MANIFEST.md (Claims and Artifacts + Self-attestation)
+- checks/INDEX.md (every Gate ID with PASS)
