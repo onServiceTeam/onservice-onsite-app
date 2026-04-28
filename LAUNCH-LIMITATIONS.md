@@ -248,6 +248,23 @@ job per expired request to a dedicated `account-anonymization` worker,
 preserving per-row resilience while removing the synchronous per-row
 DB cost from the cron path. Not blocking launch.
 
+## 18. axe-core wired in dev console; automated assertion deferred (Phase 13 Dispatch F)
+
+`@axe-core/react` is registered in `apps/admin/src/main.tsx` behind an
+`import.meta.env.DEV` guard, so a11y violations stream to the browser
+console during local development but are tree-shaken from production
+builds. There is no automated assertion gate yet because:
+
+1. `apps/admin` has no test runner (no Vitest, no Jest config). Adding
+   one is a non-trivial change touching tsconfig, vite.config, and CI.
+2. The admin pages import `react-leaflet`, `recharts`, and other
+   browser-only modules that are not SSR-friendly under `jsdom`,
+   making a Node-only axe scan brittle.
+
+The canonical a11y assertion will land as part of the Phase 14
+Playwright e2e suite, which can drive a real browser against the dev
+server and run `@axe-core/playwright` on the canonical pages.
+
 ---
 
 Phase 13 owner notes: this file is the canonical place to record
