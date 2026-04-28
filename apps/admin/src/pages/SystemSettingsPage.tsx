@@ -359,6 +359,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                               type="button"
                               onClick={() => startEdit(s)}
                               title="Edit"
+                              aria-label={`Edit setting ${s.key}`}
                               className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
                             >
                               <Pencil className="w-4 h-4" />
@@ -367,6 +368,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                               type="button"
                               onClick={() => setHistoryKey(historyKey === s.key ? null : s.key)}
                               title="History"
+                              aria-label={`View change history for ${s.key}`}
                               className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
                             >
                               <History className="w-4 h-4" />
@@ -376,6 +378,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                               disabled={s.isDefault || resetMutation.isPending}
                               onClick={() => resetMutation.mutate(s.key)}
                               title="Reset to default"
+                              aria-label={`Reset ${s.key} to default`}
                               className="p-1.5 text-gray-500 hover:bg-gray-100 rounded disabled:opacity-30 disabled:hover:bg-transparent"
                             >
                               <RotateCcw className="w-4 h-4" />

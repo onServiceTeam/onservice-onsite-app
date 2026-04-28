@@ -168,6 +168,8 @@ export default function NotificationTemplatesPage(): React.ReactElement {
       render: (r) => (
         <button
           onClick={(e) => { e.stopPropagation(); toggleMutation.mutate({ id: r.id, isActive: !r.isActive }); }}
+          aria-label={`Toggle template ${r.slug} ${r.isActive ? 'inactive' : 'active'}`}
+          aria-pressed={r.isActive}
           className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${r.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
         >
           <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${r.isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
@@ -361,6 +363,8 @@ export default function NotificationTemplatesPage(): React.ReactElement {
                 <button
                   type="button"
                   onClick={() => setFormActive(!formActive)}
+                  aria-label={`Toggle template ${formActive ? 'inactive' : 'active'}`}
+                  aria-pressed={formActive}
                   className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${formActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
                 >
                   <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${formActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
