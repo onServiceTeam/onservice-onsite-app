@@ -1,0 +1,55 @@
+Phase 08 sanity checks (after-every-change ritual)
+
+[PRE-FLIGHT]
+- branch: phase/08-financial-and-bir from a8a2b2d... base (Phase 07 head)
+- npx tsc --noEmit (api): clean
+- npx eslint packages/api/src --max-warnings=0: clean
+
+[DEPS]
+- pdfkit@0.16.0 + @types/pdfkit@0.13.4 installed (--legacy-peer-deps; pre-existing peer dep conflict in eslint-plugin-react)
+- node -e require('pdfkit'): OK
+
+[MIGRATION]
+- 055_financial_bir.sql adds: official_receipts, or_sequences, bir_2307_batches,
+  vat_monthly_reports, reconciliation_snapshots; widens admin_actions.action_type +
+  target_type CHECK; drops admin_actions.admin_id NOT NULL.
+
+[BACKEND - SERVICES]
+- or.service.ts (~809L, 8 exports) - tsc + eslint clean
+- bir-2307.service.ts (856L, 6 exports) - tsc + eslint clean
+- vat-report.service.ts (655L, 5 exports) - tsc + eslint clean
+- reconciliation.service.ts (477L, 6 exports) - tsc + eslint clean
+- financial-admin.service.ts (1065L, 11 read-only exports) - tsc + eslint clean
+
+[BACKEND - SACRED FILE TOUCH]
+- escrow.service.ts: +1 import (orService) + ~13-line post-commit OR hook
+  wrapped in try/catch. Money math byte-for-byte identical.
+- 35/35 escrow-async-integration.test.ts pass.
+
+[BACKEND - ROUTES]
+- financial-admin.routes.ts (217L) mounted /api/v1/admin/financials
+- bir-admin.routes.ts (333L) mounted /api/v1/admin/bir
+- server.ts: 2 imports + 2 mounts BEFORE generic /api/v1/admin
+- tsc + eslint clean
+
+[TESTS]
+- financial-bir-admin.test.ts (~1581L, 58 tests) all pass first run
+- Full jest project suite: 702/702 pass (was 644; +58)
+- npx tsc --noEmit (api): clean
+- npx eslint __tests__: clean
+
+[FRONTEND]
+- FinancialsPage.tsx rebuilt 261L -> 1403L with 7 tabs
+  Overview / Escrow / Payouts / Guarantee Fund / Reconciliation / BIR Reports / Receipts
+- npx tsc --noEmit (admin): clean
+- npx eslint apps/admin/src --max-warnings=0: clean
+- npm run build (admin): success - FinancialsPage chunk 32.71 kB / 6.45 kB gzip
+
+[DOCS]
+- gates/gate-2-paper-trace-phase-08.md (377L)
+- gates/gate-2-boundaries-phase-08.md (213L)
+- gates/gate-3-premortem.md (182L)
+- gates/gate-3-future-bugs.md (157L)
+- HONESTY-CHECK.md (243L)
+- EVIDENCE-MANIFEST.md (79L)
+- checks/INDEX.md (24L)

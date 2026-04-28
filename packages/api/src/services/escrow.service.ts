@@ -5,6 +5,7 @@ import * as walletService from './wallet.service';
 import * as commissionService from './commission.service';
 import * as paymentService from './payment.service';
 import * as settingsService from './settings.service';
+import * as orService from './or.service';
 
 interface BookingAmountRow {
   id: string;
@@ -177,6 +178,24 @@ export async function releaseEscrow(bookingId: string): Promise<commissionServic
   };
 
   logger.info('Escrow released', { bookingId, breakdown });
+
+  // Phase 08: best-effort OR issuance. Failure must NOT roll back the escrow
+  // release (money math is already committed). Errors are logged for follow-up.
+  try {
+    await orService.issueOR({
+      bookingId,
+      commissionAmount,
+      serviceFeeAmount: serviceFee,
+      providerReceived: providerReceives,
+      platformRetained: platformRetains,
+    });
+  } catch (orErr) {
+    logger.error('OR issuance failed after escrow release (audit-only side effect)', {
+      bookingId,
+      error: orErr instanceof Error ? orErr.message : String(orErr),
+    });
+  }
+
   return breakdown;
 }
 
