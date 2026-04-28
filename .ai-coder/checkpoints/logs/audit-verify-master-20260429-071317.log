@@ -1,0 +1,34 @@
+
+================================================================
+  gate-1-typecheck
+================================================================
+
+> onservice-onsite-app@0.1.0 typecheck
+> npm run typecheck --workspaces --if-present
+
+
+> @onservice/admin@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @onservice/mobile@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @onservice/api@0.1.0 typecheck
+> tsc --noEmit
+
+Γ£à gate-1-typecheck
+
+================================================================
+  gate-1-lint
+================================================================
+
+> onservice-onsite-app@0.1.0 lint
+> eslint .
+
+Γ£à gate-1-lint
+
+================================================================
+  gate-1-forbidden
+================================================================
