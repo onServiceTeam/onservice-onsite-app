@@ -70,6 +70,7 @@ run_gate "gate-1-forbidden" "bash .ai-coder/checkpoints/verify-no-forbidden.sh -
 run_gate "gate-1-emoji" "bash .ai-coder/checkpoints/verify-no-emoji.sh --phase ${PHASE}" || true
 run_gate "gate-1-phantom-tests" "bash .ai-coder/checkpoints/verify-no-phantom-tests.sh --phase ${PHASE}" || true
 run_gate "gate-1-deps" "bash .ai-coder/checkpoints/verify-deps.sh" || true
+run_gate "gate-1-design-tokens" "bash scripts/verify-design-tokens.sh" || true
 
 # ===== GATE 2 — BEHAVIORAL CORRECTNESS =====
 run_gate "gate-2-alltests" "npm run api:test" || true
