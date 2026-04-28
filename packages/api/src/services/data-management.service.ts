@@ -338,6 +338,15 @@ export async function processExpiredCoolingOff(): Promise<number> {
 
   let processed = 0;
 
+  // SAFE-N+1: anonymizeUser is an essential GDPR-grade multi-table cascade
+  // (UPDATE users + DELETE addresses/push_tokens/refresh_tokens + UPDATE
+  // reviews/messages + provider rollback). A true bulk rewrite would (a)
+  // trade per-row resilience for batch-abort on a single phone/email UNIQUE
+  // collision, and (b) require generating per-user anonymized phone/email
+  // arrays in JS to preserve the unique-constraint contract. Volume is
+  // bounded: daily cron over a 30-day cooling-off window with low expected
+  // throughput. Queue-based async worker is tracked as future work in
+  // LAUNCH-LIMITATIONS section 17.
   for (const req of expired.rows) {
     try {
       await anonymizeUser(req.user_id);
@@ -350,7 +359,7 @@ export async function processExpiredCoolingOff(): Promise<number> {
       );
 
       processed++;
-      logger.info('Account deletion completed — user anonymized', { userId: req.user_id });
+      logger.info('Account deletion completed - user anonymized', { userId: req.user_id });
     } catch (err) {
       logger.error('Account deletion failed', {
         requestId: req.id,

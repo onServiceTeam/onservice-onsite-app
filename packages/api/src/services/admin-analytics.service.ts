@@ -646,6 +646,58 @@ export async function getCommissionOptimizationSuggestions(): Promise<Array<{
   rationale: string;
 }>> {
   const tiers = Object.keys(platformConfig.commissionRates);
+  if (tiers.length === 0) {
+    return [];
+  }
+
+  // Phase 13 Dispatch E — was 4 sequential queries (one per tier).
+  // Now: ONE GROUP BY query that returns metrics for every tier in a
+  // single round-trip. Tiers with zero approved providers fall back to
+  // sentinel defaults to keep the response shape unchanged.
+  const aggregated = await db.query<{
+    tier: string;
+    provider_count: string;
+    avg_quality: string;
+    avg_revenue: string;
+    avg_bookings: string;
+  }>(
+    `SELECT
+       p.tier,
+       COUNT(DISTINCT p.id)::text AS provider_count,
+       COALESCE(AVG(pqs.overall_score), 50)::text AS avg_quality,
+       COALESCE(AVG(bm.total_revenue), 0)::text AS avg_revenue,
+       COALESCE(AVG(bm.booking_count), 0)::text AS avg_bookings
+     FROM providers p
+     LEFT JOIN (
+       SELECT provider_id, MAX(computed_at) AS latest
+       FROM provider_quality_scores GROUP BY provider_id
+     ) pqs_latest ON pqs_latest.provider_id = p.id
+     LEFT JOIN provider_quality_scores pqs
+       ON pqs.provider_id = p.id AND pqs.computed_at = pqs_latest.latest
+     LEFT JOIN (
+       SELECT provider_id,
+              SUM(total_amount)::bigint AS total_revenue,
+              COUNT(*)::bigint AS booking_count
+       FROM bookings
+       WHERE status IN ('confirmed', 'payout_ready', 'paid_out')
+         AND confirmed_at >= NOW() - INTERVAL '90 days'
+       GROUP BY provider_id
+     ) bm ON bm.provider_id = p.id
+     WHERE p.tier = ANY($1::text[]) AND p.status = 'approved'
+     GROUP BY p.tier`,
+    [tiers],
+  );
+
+  const byTier = new Map<string, {
+    provider_count: string;
+    avg_quality: string;
+    avg_revenue: string;
+    avg_bookings: string;
+  }>();
+  for (const row of aggregated.rows) {
+    byTier.set(row.tier, row);
+  }
+
   const suggestions: Array<{
     tier: string;
     currentRate: number;
@@ -658,39 +710,13 @@ export async function getCommissionOptimizationSuggestions(): Promise<Array<{
 
   for (const tier of tiers) {
     const currentRate = platformConfig.commissionRates[tier]!;
+    const row = byTier.get(tier) ?? {
+      provider_count: '0',
+      avg_quality: '50',
+      avg_revenue: '0',
+      avg_bookings: '0',
+    };
 
-    const tierData = await db.query<{
-      provider_count: string;
-      avg_quality: string;
-      avg_revenue: string;
-      avg_bookings: string;
-    }>(
-      `SELECT
-         COUNT(DISTINCT p.id)::text AS provider_count,
-         COALESCE(AVG(pqs.overall_score), 50)::text AS avg_quality,
-         COALESCE(AVG(bm.total_revenue), 0)::text AS avg_revenue,
-         COALESCE(AVG(bm.booking_count), 0)::text AS avg_bookings
-       FROM providers p
-       LEFT JOIN (
-         SELECT provider_id, MAX(computed_at) AS latest
-         FROM provider_quality_scores GROUP BY provider_id
-       ) pqs_latest ON pqs_latest.provider_id = p.id
-       LEFT JOIN provider_quality_scores pqs
-         ON pqs.provider_id = p.id AND pqs.computed_at = pqs_latest.latest
-       LEFT JOIN (
-         SELECT provider_id,
-                SUM(total_amount)::bigint AS total_revenue,
-                COUNT(*)::bigint AS booking_count
-         FROM bookings
-         WHERE status IN ('confirmed', 'payout_ready', 'paid_out')
-           AND confirmed_at >= NOW() - INTERVAL '90 days'
-         GROUP BY provider_id
-       ) bm ON bm.provider_id = p.id
-       WHERE p.tier = $1 AND p.status = 'approved'`,
-      [tier],
-    );
-
-    const row = tierData.rows[0]!;
     const providerCount = Number(row.provider_count);
     const avgQuality = Number(row.avg_quality);
     const avgRevenue = Number(row.avg_revenue);

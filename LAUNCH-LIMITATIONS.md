@@ -232,6 +232,22 @@ a column MUST handle this at the call site (per-query parser override
 or BigInt-aware accessor) AND document the choice. See
 `docs/MONEY-HANDLING.md` for the canonical guidance and trade-offs.
 
+## 17. Account-deletion cooling-off processor is per-row (Phase 13 Dispatch E)
+
+`processExpiredCoolingOff` in
+`packages/api/src/services/data-management.service.ts` iterates expired
+cooling-off requests and runs the multi-table `anonymizeUser` cascade
+synchronously per row. The loop is annotated `// SAFE-N+1` because the
+cascade is essential (UPDATE users + DELETE addresses/push_tokens/
+refresh_tokens + UPDATE reviews/messages + provider rollback) and
+collapsing it into a single bulk batch trades per-row error-isolation
+for batch-abort on a single UNIQUE-constraint collision (anonymized
+phone/email). Volume is bounded by the daily cron + 30-day cooling
+window with low expected throughput. Future work: enqueue one BullMQ
+job per expired request to a dedicated `account-anonymization` worker,
+preserving per-row resilience while removing the synchronous per-row
+DB cost from the cron path. Not blocking launch.
+
 ---
 
 Phase 13 owner notes: this file is the canonical place to record

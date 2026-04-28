@@ -38,15 +38,6 @@ interface InvoiceItemRow {
   created_at: Date;
 }
 
-interface BusinessAccountForInvoicing {
-  id: string;
-  company_name: string;
-  owner_user_id: string;
-  payment_terms: string;
-  volume_discount_rate: string;
-  status: string;
-}
-
 interface BookingForInvoicing {
   id: string;
   description: string;
@@ -54,6 +45,20 @@ interface BookingForInvoicing {
   total_amount: number;
   service_price: number;
   category_name: string;
+}
+
+/**
+ * Aggregated row returned by the per-account CTE: account fields + a JSON
+ * array of all eligible bookings for the billing period + the subtotal.
+ */
+interface AccountWithBookingsRow {
+  id: string;
+  company_name: string;
+  owner_user_id: string;
+  payment_terms: string;
+  volume_discount_rate: string;
+  items: BookingForInvoicing[];
+  subtotal: number;
 }
 
 interface CountRow { count: string }
@@ -75,116 +80,238 @@ function getDueDate(invoiceDate: Date, paymentTerms: string): Date {
   return due;
 }
 
+/**
+ * Phase 13 Dispatch E — bulk B2B monthly invoicing.
+ *
+ * Old shape: O(accounts) outer loop, each iteration ran 2 SELECTs +
+ * 1 INSERT invoice + N INSERT items + 1 notification (worst case
+ * O(accounts × bookings) DB calls).
+ *
+ * New shape: at most 3 db.query() calls regardless of account count:
+ *   1. ONE CTE-aggregated SELECT — eligible accounts + their period
+ *      bookings rolled up via json_agg (LEFT-JOINed against existing
+ *      invoices to skip already-billed periods).
+ *   2. ONE bulk INSERT into business_invoices using UNNEST, RETURNING
+ *      (id, business_account_id) so we can map invoices back to bookings.
+ *   3. ONE bulk INSERT into business_invoice_items using UNNEST.
+ *
+ * Notifications are per-account (not db.query), dispatched out of band
+ * and tolerant of individual failure.
+ */
 export async function generateMonthlyInvoices(): Promise<number> {
   const now = new Date();
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const periodStart = lastMonth.toISOString().split('T')[0]!;
   const periodEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0]!;
 
-  const activeAccounts = await db.query<BusinessAccountForInvoicing>(
-    `SELECT ba.id, ba.company_name, ba.owner_user_id, ba.payment_terms, ba.volume_discount_rate, ba.status
-     FROM business_accounts ba
-     WHERE ba.status = 'active'`,
+  // Query 1: per-account aggregate. Returns ONLY accounts that
+  //   (a) are active,
+  //   (b) have no existing invoice for this period, and
+  //   (c) have at least one eligible booking in the period.
+  const aggregated = await db.query<AccountWithBookingsRow>(
+    `WITH eligible AS (
+       SELECT ba.id, ba.company_name, ba.owner_user_id, ba.payment_terms,
+              ba.volume_discount_rate
+       FROM business_accounts ba
+       LEFT JOIN business_invoices bi
+         ON bi.business_account_id = ba.id
+        AND bi.billing_period_start = $1::date
+        AND bi.billing_period_end = $2::date
+       WHERE ba.status = 'active'
+         AND bi.id IS NULL
+     ),
+     period_bookings AS (
+       SELECT e.id AS account_id,
+              b.id, b.description, b.scheduled_at,
+              b.total_amount, b.service_price,
+              sc.name AS category_name
+       FROM eligible e
+       INNER JOIN business_members bm ON bm.business_account_id = e.id
+       INNER JOIN bookings b ON b.customer_id = bm.user_id
+       LEFT JOIN service_categories sc ON b.category_id = sc.id
+       WHERE b.status IN ('confirmed', 'payout_ready', 'paid_out')
+         AND b.scheduled_at >= $1::date
+         AND b.scheduled_at < ($2::date + INTERVAL '1 day')
+     )
+     SELECT e.id, e.company_name, e.owner_user_id, e.payment_terms,
+            e.volume_discount_rate,
+            COALESCE(
+              json_agg(
+                json_build_object(
+                  'id', pb.id,
+                  'description', pb.description,
+                  'scheduled_at', pb.scheduled_at,
+                  'total_amount', pb.total_amount,
+                  'service_price', pb.service_price,
+                  'category_name', pb.category_name
+                ) ORDER BY pb.scheduled_at
+              ) FILTER (WHERE pb.id IS NOT NULL),
+              '[]'::json
+            ) AS items,
+            COALESCE(SUM(pb.service_price), 0)::bigint AS subtotal
+     FROM eligible e
+     LEFT JOIN period_bookings pb ON pb.account_id = e.id
+     GROUP BY e.id, e.company_name, e.owner_user_id, e.payment_terms,
+              e.volume_discount_rate
+     HAVING COUNT(pb.id) > 0`,
+    [periodStart, periodEnd],
   );
 
+  if (aggregated.rows.length === 0) {
+    return 0;
+  }
+
+  // Compute per-account totals in JS (math touches platform constants).
+  type ComputedInvoice = {
+    account: AccountWithBookingsRow;
+    invoiceNumber: string;
+    dueDateIso: string;
+    discountRate: number;
+    discountAmount: number;
+    taxAmount: number;
+    totalAmount: number;
+  };
+
+  const computed: ComputedInvoice[] = aggregated.rows.map((acc) => {
+    const subtotal = Number(acc.subtotal);
+    const discountRate = Number(acc.volume_discount_rate) / 100;
+    const discountAmount = Math.round(subtotal * discountRate);
+    const afterDiscount = subtotal - discountAmount;
+    const taxAmount = Math.round(afterDiscount * platformConfig.vatRate);
+    const totalAmount = afterDiscount + taxAmount;
+    const invoiceNumber = generateInvoiceNumber(now);
+    const dueDate = getDueDate(now, acc.payment_terms);
+    const dueDateIso = dueDate.toISOString().split('T')[0]!;
+    return {
+      account: { ...acc, subtotal },
+      invoiceNumber,
+      dueDateIso,
+      discountRate,
+      discountAmount,
+      taxAmount,
+      totalAmount,
+    };
+  });
+
+  // Query 2: bulk INSERT business_invoices via UNNEST. RETURNING ties each
+  // generated id back to its account so we can build invoice_items below.
+  const accountIds: string[] = computed.map((c) => c.account.id);
+  const invoiceNumbers: string[] = computed.map((c) => c.invoiceNumber);
+  const subtotals: number[] = computed.map((c) => c.account.subtotal);
+  const discounts: number[] = computed.map((c) => c.discountAmount);
+  const taxes: number[] = computed.map((c) => c.taxAmount);
+  const totals: number[] = computed.map((c) => c.totalAmount);
+  const dueDates: string[] = computed.map((c) => c.dueDateIso);
+
+  const insertedInvoices = await db.query<{ id: string; business_account_id: string }>(
+    `INSERT INTO business_invoices (
+       business_account_id, invoice_number,
+       billing_period_start, billing_period_end,
+       subtotal, discount_amount, tax_amount, total_amount,
+       status, due_date
+     )
+     SELECT * FROM UNNEST(
+       $1::uuid[], $2::text[],
+       ARRAY_FILL($3::date, ARRAY[array_length($1::uuid[], 1)]),
+       ARRAY_FILL($4::date, ARRAY[array_length($1::uuid[], 1)]),
+       $5::bigint[], $6::bigint[], $7::bigint[], $8::bigint[],
+       ARRAY_FILL('sent'::varchar, ARRAY[array_length($1::uuid[], 1)]),
+       $9::date[]
+     )
+     RETURNING id, business_account_id`,
+    [
+      accountIds, invoiceNumbers,
+      periodStart, periodEnd,
+      subtotals, discounts, taxes, totals,
+      dueDates,
+    ],
+  );
+
+  // Map account_id → invoice_id for items insert.
+  const invoiceByAccount = new Map<string, string>();
+  for (const row of insertedInvoices.rows) {
+    invoiceByAccount.set(row.business_account_id, row.id);
+  }
+
+  // Build flat arrays for the bulk items insert.
+  const itemInvoiceIds: string[] = [];
+  const itemBookingIds: string[] = [];
+  const itemDescriptions: string[] = [];
+  const itemServiceDates: string[] = [];
+  const itemUnitPrices: number[] = [];
+  const itemDiscounts: number[] = [];
+  const itemAmounts: number[] = [];
+
+  for (const c of computed) {
+    const invoiceId = invoiceByAccount.get(c.account.id);
+    if (!invoiceId) continue;
+    for (const booking of c.account.items) {
+      const unitPrice = Number(booking.service_price);
+      const itemDiscount = Math.round(unitPrice * c.discountRate);
+      const amount = unitPrice - itemDiscount;
+      const scheduledAt = booking.scheduled_at instanceof Date
+        ? booking.scheduled_at
+        : new Date(booking.scheduled_at);
+      itemInvoiceIds.push(invoiceId);
+      itemBookingIds.push(booking.id);
+      itemDescriptions.push(`${booking.category_name ?? 'Service'} - ${booking.description ?? ''}`.trim());
+      itemServiceDates.push(scheduledAt.toISOString().split('T')[0]!);
+      itemUnitPrices.push(unitPrice);
+      itemDiscounts.push(itemDiscount);
+      itemAmounts.push(amount);
+    }
+  }
+
+  // Query 3: bulk INSERT business_invoice_items via UNNEST.
+  if (itemInvoiceIds.length > 0) {
+    await db.query(
+      `INSERT INTO business_invoice_items (
+         invoice_id, booking_id, description, service_date,
+         quantity, unit_price, discount_amount, amount
+       )
+       SELECT * FROM UNNEST(
+         $1::uuid[], $2::uuid[], $3::text[], $4::date[],
+         ARRAY_FILL(1::int, ARRAY[array_length($1::uuid[], 1)]),
+         $5::bigint[], $6::bigint[], $7::bigint[]
+       )`,
+      [
+        itemInvoiceIds, itemBookingIds, itemDescriptions, itemServiceDates,
+        itemUnitPrices, itemDiscounts, itemAmounts,
+      ],
+    );
+  }
+
+  // Notifications — per-account, out of band, individual failures swallowed
+  // (notification dispatch never blocks invoice generation).
   let generated = 0;
+  for (const c of computed) {
+    const invoiceId = invoiceByAccount.get(c.account.id);
+    if (!invoiceId) continue;
+    generated++;
 
-  for (const account of activeAccounts.rows) {
     try {
-      const existingInvoice = await db.query(
-        `SELECT 1 FROM business_invoices
-         WHERE business_account_id = $1
-           AND billing_period_start = $2
-           AND billing_period_end = $3`,
-        [account.id, periodStart, periodEnd],
-      );
-
-      if (existingInvoice.rows.length > 0) continue;
-
-      const bookings = await db.query<BookingForInvoicing>(
-        `SELECT b.id, b.description, b.scheduled_at, b.total_amount, b.service_price,
-                sc.name AS category_name
-         FROM bookings b
-         INNER JOIN business_members bm ON b.customer_id = bm.user_id
-         LEFT JOIN service_categories sc ON b.category_id = sc.id
-         WHERE bm.business_account_id = $1
-           AND b.status IN ('confirmed', 'payout_ready', 'paid_out')
-           AND b.scheduled_at >= $2::date
-           AND b.scheduled_at < ($3::date + INTERVAL '1 day')
-         ORDER BY b.scheduled_at ASC`,
-        [account.id, periodStart, periodEnd],
-      );
-
-      if (bookings.rows.length === 0) continue;
-
-      const subtotal = bookings.rows.reduce((sum, b) => sum + b.service_price, 0);
-      const discountRate = Number(account.volume_discount_rate) / 100;
-      const discountAmount = Math.round(subtotal * discountRate);
-      const afterDiscount = subtotal - discountAmount;
-      const taxAmount = Math.round(afterDiscount * platformConfig.vatRate);
-      const totalAmount = afterDiscount + taxAmount;
-
-      const invoiceNumber = generateInvoiceNumber(now);
-      const dueDate = getDueDate(now, account.payment_terms);
-
-      const invoice = await db.query<InvoiceRow>(
-        `INSERT INTO business_invoices (
-          business_account_id, invoice_number,
-          billing_period_start, billing_period_end,
-          subtotal, discount_amount, tax_amount, total_amount,
-          status, due_date
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'sent', $9)
-        RETURNING *`,
-        [
-          account.id, invoiceNumber,
-          periodStart, periodEnd,
-          subtotal, discountAmount, taxAmount, totalAmount,
-          dueDate.toISOString().split('T')[0],
-        ],
-      );
-
-      const invoiceId = invoice.rows[0]!.id;
-
-      for (const booking of bookings.rows) {
-        const itemDiscount = Math.round(booking.service_price * discountRate);
-        await db.query(
-          `INSERT INTO business_invoice_items (
-            invoice_id, booking_id, description, service_date,
-            quantity, unit_price, discount_amount, amount
-          ) VALUES ($1, $2, $3, $4, 1, $5, $6, $7)`,
-          [
-            invoiceId, booking.id,
-            `${booking.category_name ?? 'Service'} — ${booking.description ?? ''}`.trim(),
-            booking.scheduled_at.toISOString().split('T')[0],
-            booking.service_price,
-            itemDiscount,
-            booking.service_price - itemDiscount,
-          ],
-        );
-      }
-
       await notificationService.createNotification({
-        userId: account.owner_user_id,
+        userId: c.account.owner_user_id,
         type: 'business_update',
         title: 'Monthly Invoice Ready',
-        body: `Invoice ${invoiceNumber} for ${formatPHP(totalAmount)} is ready. Due by ${dueDate.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}.`,
-        data: { invoiceId, invoiceNumber, totalAmount },
-      });
-
-      generated++;
-      logger.info('Monthly invoice generated', {
-        invoiceId,
-        invoiceNumber,
-        businessAccountId: account.id,
-        totalAmount,
-        itemCount: bookings.rows.length,
+        body: `Invoice ${c.invoiceNumber} for ${formatPHP(c.totalAmount)} is ready. Due by ${new Date(c.dueDateIso).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}.`,
+        data: { invoiceId, invoiceNumber: c.invoiceNumber, totalAmount: c.totalAmount },
       });
     } catch (err) {
-      logger.error('Failed to generate invoice for business account', {
-        businessAccountId: account.id,
+      logger.error('Failed to dispatch monthly-invoice notification', {
+        invoiceId,
+        businessAccountId: c.account.id,
         error: err instanceof Error ? err.message : 'Unknown',
       });
     }
+
+    logger.info('Monthly invoice generated', {
+      invoiceId,
+      invoiceNumber: c.invoiceNumber,
+      businessAccountId: c.account.id,
+      totalAmount: c.totalAmount,
+      itemCount: c.account.items.length,
+    });
   }
 
   return generated;
