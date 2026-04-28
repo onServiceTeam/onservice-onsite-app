@@ -2,6 +2,7 @@ import React, { useState, useRef, type FormEvent } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuthStore, type AdminUser } from '@/stores/auth.store';
 import api, { getErrorMessage } from '@/lib/api';
+import { Label, Input } from '@/components/ui';
 
 export default function LoginPage(): React.ReactElement {
   const navigate = useNavigate();
@@ -189,10 +190,11 @@ export default function LoginPage(): React.ReactElement {
             )}
 
             <div className="mb-5">
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">
-                Verification Code
-              </label>
-              <input
+              <Label htmlFor="enrol-totp" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">
+                Verification code
+              </Label>
+              <Input
+                id="enrol-totp"
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]{6}"
@@ -261,8 +263,9 @@ export default function LoginPage(): React.ReactElement {
             )}
 
             <div className="mb-5">
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Verification Code</label>
-              <input
+              <Label htmlFor="login-totp" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Verification code</Label>
+              <Input
+                id="login-totp"
                 ref={totpInputRef}
                 type="text"
                 inputMode="numeric"
@@ -321,8 +324,9 @@ export default function LoginPage(): React.ReactElement {
           )}
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Email</label>
-            <input
+            <Label htmlFor="login-email" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Email</Label>
+            <Input
+              id="login-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -334,8 +338,9 @@ export default function LoginPage(): React.ReactElement {
           </div>
 
           <div className="mb-5">
-            <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Password</label>
-            <input
+            <Label htmlFor="login-password" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Password</Label>
+            <Input
+              id="login-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

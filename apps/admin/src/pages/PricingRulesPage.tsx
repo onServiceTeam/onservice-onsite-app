@@ -12,6 +12,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Label,
+  Input,
+  Textarea,
 } from '@/components/ui';
 import { TrendingUp } from '@/components/icons';
 
@@ -308,25 +311,26 @@ export default function PricingRulesPage(): React.ReactElement {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                  Rule Name *
-                </label>
-                <input
+                <Label htmlFor="pr-name" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                  Rule name
+                </Label>
+                <Input
+                  id="pr-name"
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
                   placeholder="e.g. Weekend Evening Surge"
-                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
                   required
                 />
               </div>
 
               {!editing && (
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                    Type *
-                  </label>
+                  <Label htmlFor="pr-type" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                    Type
+                  </Label>
                   <select
+                    id="pr-type"
                     value={form.type}
                     onChange={(e) => setForm((p) => ({ ...p, type: e.target.value as typeof p.type }))}
                     className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
@@ -339,17 +343,17 @@ export default function PricingRulesPage(): React.ReactElement {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                  Multiplier * (1.0 – 5.0)
-                </label>
-                <input
+                <Label htmlFor="pr-multiplier" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                  Multiplier (1.0 – 5.0)
+                </Label>
+                <Input
+                  id="pr-multiplier"
                   type="number"
                   min="1.0"
                   max="5.0"
                   step="0.05"
                   value={form.multiplier}
                   onChange={(e) => setForm((p) => ({ ...p, multiplier: e.target.value }))}
-                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
                   required
                 />
               </div>
@@ -357,17 +361,17 @@ export default function PricingRulesPage(): React.ReactElement {
               {/* Rush-specific */}
               {form.type === 'rush' && (
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                    Rush Threshold (hours before service)
-                  </label>
-                  <input
+                  <Label htmlFor="pr-rush-threshold" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                    Rush threshold (hours before service)
+                  </Label>
+                  <Input
+                    id="pr-rush-threshold"
                     type="number"
                     min="1"
                     max="72"
                     value={form.rushHoursThreshold}
                     onChange={(e) => setForm((p) => ({ ...p, rushHoursThreshold: e.target.value }))}
                     placeholder="e.g. 3"
-                    className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
                   />
                 </div>
               )}
@@ -375,14 +379,14 @@ export default function PricingRulesPage(): React.ReactElement {
               {/* Holiday-specific */}
               {form.type === 'holiday' && (
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                    Holiday Date
-                  </label>
-                  <input
+                  <Label htmlFor="pr-holiday-date" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                    Holiday date
+                  </Label>
+                  <Input
+                    id="pr-holiday-date"
                     type="date"
                     value={form.holidayDate}
                     onChange={(e) => setForm((p) => ({ ...p, holidayDate: e.target.value }))}
-                    className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
                   />
                 </div>
               )}
@@ -391,37 +395,38 @@ export default function PricingRulesPage(): React.ReactElement {
               {form.type === 'peak_hours' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                      Peak Start Time
-                    </label>
-                    <input
+                    <Label htmlFor="pr-peak-start" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                      Peak start time
+                    </Label>
+                    <Input
+                      id="pr-peak-start"
                       type="time"
                       value={form.peakStartTime}
                       onChange={(e) => setForm((p) => ({ ...p, peakStartTime: e.target.value }))}
-                      className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                      Peak End Time
-                    </label>
-                    <input
+                    <Label htmlFor="pr-peak-end" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                      Peak end time
+                    </Label>
+                    <Input
+                      id="pr-peak-end"
                       type="time"
                       value={form.peakEndTime}
                       onChange={(e) => setForm((p) => ({ ...p, peakEndTime: e.target.value }))}
-                      className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-[var(--color-text)] mb-2">
-                      Days of Week (leave empty for all days)
-                    </label>
+                    <Label className="block text-sm font-medium text-[var(--color-text)] mb-2">
+                      Days of week (leave empty for all days)
+                    </Label>
                     <div className="flex gap-2 flex-wrap">
                       {DAY_NAMES.map((day, i) => (
                         <button
                           key={day}
                           type="button"
                           onClick={() => toggleDay(i)}
+                          aria-pressed={form.peakDaysOfWeek.includes(i)}
                           className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                             form.peakDaysOfWeek.includes(i)
                               ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
@@ -437,24 +442,25 @@ export default function PricingRulesPage(): React.ReactElement {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                <Label htmlFor="pr-priority" className="block text-sm font-medium text-[var(--color-text)] mb-1">
                   Priority (higher = applied first)
-                </label>
-                <input
+                </Label>
+                <Input
+                  id="pr-priority"
                   type="number"
                   min="0"
                   max="100"
                   value={form.priority}
                   onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value }))}
-                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                  Platform Surge Share (0–1)
-                </label>
-                <input
+                <Label htmlFor="pr-platform-share" className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                  Platform surge share (0–1)
+                </Label>
+                <Input
+                  id="pr-platform-share"
                   type="number"
                   min="0"
                   max="1"
@@ -462,20 +468,19 @@ export default function PricingRulesPage(): React.ReactElement {
                   value={form.platformSurgeShare}
                   onChange={(e) => setForm((p) => ({ ...p, platformSurgeShare: e.target.value }))}
                   placeholder="0.5 = 50% to platform"
-                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
                 />
               </div>
 
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1">
+                <Label htmlFor="pr-description" className="block text-sm font-medium text-[var(--color-text)] mb-1">
                   Description
-                </label>
-                <textarea
+                </Label>
+                <Textarea
+                  id="pr-description"
                   value={form.description}
                   onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
                   rows={2}
                   placeholder="Internal notes about this pricing rule"
-                  className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm resize-none"
                 />
               </div>
             </div>

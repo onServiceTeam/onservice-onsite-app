@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
+import { Label, Input, Textarea } from '@/components/ui';
 
 type TabId = 'ab-tests' | 'cohorts' | 'churn' | 'quality' | 'commission';
 
@@ -86,16 +87,28 @@ function AbTestsTab(): React.ReactElement {
 
       {showCreate && (
         <div className="bg-slate-50 p-4 rounded-lg border space-y-3">
-          <input className="w-full px-3 py-2 border rounded text-sm" placeholder="Test name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <textarea className="w-full px-3 py-2 border rounded text-sm" placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} />
+          <div className="space-y-1">
+            <Label htmlFor="ab-test-name">Test name</Label>
+            <Input id="ab-test-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g., Checkout button color" />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="ab-test-desc">Description</Label>
+            <Textarea id="ab-test-desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What hypothesis are you testing?" rows={2} />
+          </div>
           <div className="flex gap-3">
-            <select className="px-3 py-2 border rounded text-sm" value={form.targetMetric} onChange={(e) => setForm({ ...form, targetMetric: e.target.value })}>
-              <option value="conversion_rate">Conversion Rate</option>
-              <option value="average_order_value">Avg Order Value</option>
-              <option value="booking_count">Booking Count</option>
-              <option value="revenue">Revenue</option>
-            </select>
-            <input type="number" step="0.05" min="0.1" max="0.9" className="w-32 px-3 py-2 border rounded text-sm" value={form.trafficSplit} onChange={(e) => setForm({ ...form, trafficSplit: Number(e.target.value) })} />
+            <div className="space-y-1">
+              <Label htmlFor="ab-test-metric">Target metric</Label>
+              <select id="ab-test-metric" className="px-3 py-2 border rounded text-sm" value={form.targetMetric} onChange={(e) => setForm({ ...form, targetMetric: e.target.value })}>
+                <option value="conversion_rate">Conversion Rate</option>
+                <option value="average_order_value">Avg Order Value</option>
+                <option value="booking_count">Booking Count</option>
+                <option value="revenue">Revenue</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ab-test-split">Traffic split</Label>
+              <Input id="ab-test-split" type="number" step="0.05" min="0.1" max="0.9" className="w-32" value={form.trafficSplit} onChange={(e) => setForm({ ...form, trafficSplit: Number(e.target.value) })} />
+            </div>
           </div>
           <button onClick={() => createMut.mutate(form)} disabled={!form.name || createMut.isPending} className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
             {createMut.isPending ? 'Creating...' : 'Create Test'}

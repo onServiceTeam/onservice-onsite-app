@@ -2,7 +2,7 @@ import React, { useState, Fragment, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
-import { Badge } from '@/components/ui';
+import { Badge, Label, Input, Textarea } from '@/components/ui';
 import { Package } from '@/components/icons';
 
 const CURRENCY_SYMBOL = '₱';
@@ -464,43 +464,43 @@ export default function CatalogPage(): React.ReactElement {
               {isAddonModal ? (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Add-on Name</label>
-                    <input
+                    <Label htmlFor="cat-addon-name" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Add-on name</Label>
+                    <Input
+                      id="cat-addon-name"
                       type="text"
                       value={addonName}
                       onChange={(e) => setAddonName(e.target.value)}
                       required
-                      className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Description</label>
-                    <textarea
+                    <Label htmlFor="cat-addon-desc" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Description</Label>
+                    <Textarea
+                      id="cat-addon-desc"
                       value={addonDesc}
                       onChange={(e) => setAddonDesc(e.target.value)}
                       rows={2}
-                      className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Price ({CURRENCY_SYMBOL})</label>
-                      <input
+                      <Label htmlFor="cat-addon-price" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Price ({CURRENCY_SYMBOL})</Label>
+                      <Input
+                        id="cat-addon-price"
                         type="number"
                         step="0.01"
                         value={addonPrice}
                         onChange={(e) => setAddonPrice(e.target.value)}
                         required
-                        className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Display Order</label>
-                      <input
+                      <Label htmlFor="cat-addon-order" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Display order</Label>
+                      <Input
+                        id="cat-addon-order"
                         type="number"
                         value={addonOrder}
                         onChange={(e) => setAddonOrder(e.target.value)}
-                        className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                       />
                     </div>
                   </div>
@@ -508,35 +508,35 @@ export default function CatalogPage(): React.ReactElement {
               ) : (
               <>
               <div>
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Name</label>
-                <input
+                <Label htmlFor="cat-name" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Name</Label>
+                <Input
+                  id="cat-name"
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Description</label>
-                <textarea
+                <Label htmlFor="cat-description" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Description</Label>
+                <Textarea
+                  id="cat-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={2}
-                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                 />
               </div>
 
               {isCategoryModal && (
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Icon URL</label>
-                  <input
+                  <Label htmlFor="cat-icon-url" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Icon URL</Label>
+                  <Input
+                    id="cat-icon-url"
                     type="text"
                     value={iconUrl}
                     onChange={(e) => setIconUrl(e.target.value)}
                     placeholder="https://..."
-                    className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                   />
                 </div>
               )}
@@ -545,8 +545,9 @@ export default function CatalogPage(): React.ReactElement {
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Pricing Type</label>
+                      <Label htmlFor="cat-pricing-type" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Pricing type</Label>
                       <select
+                        id="cat-pricing-type"
                         value={pricingType}
                         onChange={(e) => setPricingType(e.target.value)}
                         className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
@@ -558,63 +559,63 @@ export default function CatalogPage(): React.ReactElement {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Base Price ({CURRENCY_SYMBOL})</label>
-                      <input
+                      <Label htmlFor="cat-base-price" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Base price ({CURRENCY_SYMBOL})</Label>
+                      <Input
+                        id="cat-base-price"
                         type="number"
                         step="0.01"
                         value={basePrice}
                         onChange={(e) => setBasePrice(e.target.value)}
                         placeholder="0.00"
-                        className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Min Price ({CURRENCY_SYMBOL})</label>
-                      <input
+                      <Label htmlFor="cat-min-price" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Min price ({CURRENCY_SYMBOL})</Label>
+                      <Input
+                        id="cat-min-price"
                         type="number"
                         step="0.01"
                         value={minPrice}
                         onChange={(e) => setMinPrice(e.target.value)}
                         placeholder="Optional"
-                        className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Max Price ({CURRENCY_SYMBOL})</label>
-                      <input
+                      <Label htmlFor="cat-max-price" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Max price ({CURRENCY_SYMBOL})</Label>
+                      <Input
+                        id="cat-max-price"
                         type="number"
                         step="0.01"
                         value={maxPrice}
                         onChange={(e) => setMaxPrice(e.target.value)}
                         placeholder="Optional"
-                        className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Estimated Duration (minutes)</label>
-                    <input
+                    <Label htmlFor="cat-duration" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Estimated duration (minutes)</Label>
+                    <Input
+                      id="cat-duration"
                       type="number"
                       value={estimatedDuration}
                       onChange={(e) => setEstimatedDuration(e.target.value)}
                       placeholder="Optional"
-                      className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                     />
                   </div>
                 </>
               )}
 
               <div>
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Display Order</label>
-                <input
+                <Label htmlFor="cat-display-order" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Display order</Label>
+                <Input
+                  id="cat-display-order"
                   type="number"
                   value={displayOrder}
                   onChange={(e) => setDisplayOrder(e.target.value)}
-                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                 />
               </div>
               </>
