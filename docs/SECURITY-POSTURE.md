@@ -13,11 +13,11 @@ production cutover.
 | SEC-002 | CAPTCHA after N failed OTPs | VERIFIED | `packages/api/src/routes/auth.routes.ts:87-110` checks `lockoutStatus.captchaRequired` and calls `securityService.verifyCaptchaToken`. Threshold defined in `platform.config.ts` as `captchaThreshold: 3`. Env: `CAPTCHA_SECRET_KEY`, `CAPTCHA_SITE_KEY`. |
 | SEC-003 | PayMongo webhook signature | VERIFIED | `packages/api/src/routes/webhook.routes.ts:14-50` — HMAC-SHA256 over `${timestamp}.${rawBody}`, 5-minute replay window, `crypto.timingSafeEqual` comparison. Rejects when `PAYMONGO_WEBHOOK_SECRET` is missing. |
 | SEC-004 | Government-ID encryption at rest (S3 SSE) | DEFERRED | `packages/api/src/services/upload.service.ts` issues `PutObjectCommand` without a `ServerSideEncryption` parameter (0 matches for `ServerSideEncryption|SSE|AES256|KMS`). Bucket-level default encryption can be enabled in AWS S3 / DO Spaces console as a stop-gap. See "Known gaps" below. |
-| SEC-005 | PII masking in logs | DEFERRED | `packages/api/src/utils/logger.ts` is a vanilla winston logger with no `mask`/`redact`/`sanitize` formatter. PII (emails, phones, etc.) flows directly into log output. See "Known gaps" below. |
+| SEC-005 | PII masking in logs | DONE (Phase 13 Dispatch D) | `packages/api/src/utils/logger.ts` exports `piiMaskFormat` (winston format factory) inserted into both root and console transport pipelines. Redacts PH phone (+63 / 09xx), email, TIN, SSS, PhilHealth, PayMongo IDs (`cus_/src_/pay_/link_`), JWT, and bcrypt hashes. Idempotent (skips strings that already contain `[REDACTED:`). Tests: `__tests__/logger-pii-masking.test.ts`. |
 | SEC-006 | JWT 15-min access + 30-day refresh | VERIFIED | `packages/api/src/config/platform.config.ts:88-95` — `jwtExpiresIn: '15m'`, `jwtRefreshExpiresIn: '30d'`, plus per-role overrides in `jwtExpiresInByRole`. `auth.service.ts:74-84` honours these in `createTokenPair`. Env overrides: `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`, `JWT_ADMIN_REFRESH_EXPIRES_IN`. |
 | SEC-007 | IP-level OTP brute-force detection | VERIFIED | `packages/api/src/services/security.service.ts` records `(phone, ip_address)` per attempt in `login_attempts`, ramps lockouts via `OTP_LOCKOUT_THRESHOLDS`, and exposes `cleanupOldLoginAttempts` for housekeeping. The auto-block helper at line ~430 ("`Auto-blocked: ${row.fail_count} failed login attempts`") flips offending IPs into the `blocked_ips` table. |
 | SEC-008 | Admin role check on every admin endpoint | VERIFIED | All 9 `src/routes/*admin*.ts` files import `authMiddleware`; every handler additionally enforces `role === 'admin'` or `role === 'super_admin'`. Per-file counts: `admin.routes.ts` 62/65, `bir-admin.routes.ts` 17/20, `booking-admin.routes.ts` 10/13, `compliance-admin.routes.ts` 9/10, `customer-admin.routes.ts` 9/12, `dispute-admin.routes.ts` 7/10, `financial-admin.routes.ts` 12/15, `marketing-admin.routes.ts` 11/14, `provider-admin.routes.ts` 15/18 (`authMiddleware` references / role checks). The admin route guard smoke test (`__tests__/smoke.test.ts`) walks the directory and asserts every file has at least one occurrence. |
-| SEC-009 | CSP headers on admin web | DEFERRED | `apps/admin/index.html` has no `<meta http-equiv="Content-Security-Policy">` tag. `apps/admin/vite.config.ts` has no `server.headers` entry. CSP must be served by the Vercel edge (via `vercel.json` `headers`) or by adding a meta tag — neither is in place yet. See "Known gaps" below. |
+| SEC-009 | CSP headers on admin web | DONE (Phase 13 Dispatch D) | `apps/admin/vercel.json` declares `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`. Admin `index.html` contains no inline scripts (Vite emits external bundles only). |
 
 ## Verification commands
 
@@ -54,20 +54,89 @@ grep -n "Content-Security-Policy" apps/admin/index.html apps/admin/vite.config.t
 
 ## Known gaps (carried forward)
 
-Three controls remain DEFERRED at the close of Phase 12. They are documented
-in `gates/gate-3-future-bugs.md` for the next planning cycle. Each is small
-in concept but requires either infra changes (S3 bucket policy) or careful
-per-call audit (PII masking) that exceeds the Phase 12 scope budget.
+One control remains DEFERRED at the close of Phase 13 Dispatch D.
 
 - SEC-004 (S3 SSE) — bucket-level default encryption is a one-line AWS console
   change, but the audited control wants `ServerSideEncryption: 'AES256'` on
   every `PutObjectCommand` so the contract is explicit in code.
-- SEC-005 (PII masking) — requires a winston format that walks log payloads
-  and replaces `email`, `phone`, `password*`, `token*`, and similar keys
-  with `[REDACTED]`. Estimated 50-80 LOC plus per-call-site verification.
-- SEC-009 (Admin CSP) — needs either `vercel.json` headers or an HTML meta
-  tag plus careful nonce/hash management for inline scripts. Vite's dev
-  server also needs the policy relaxed for HMR.
+
+## Phase 13 Dispatch D security hardening (additions)
+
+### Password hash format (scrypt cost migration)
+
+`hashPassword` now produces strings of the shape:
+
+```
+scrypt:131072:8:1:<16-byte-salt-hex>:<64-byte-key-hex>
+```
+
+`verifyPasswordWithRehash` accepts both the new format and the legacy
+two-part `salt:hash` (default scrypt params) so existing passwords keep
+working. When a legacy or weaker hash verifies successfully, the response
+sets `needsRehash: true` and the `/admin/login` handler opportunistically
+re-stores the password under current parameters (best-effort; logged on
+failure but never blocks login). Constants `SCRYPT_N=131072`, `r=8`, `p=1`,
+`keyLen=64`, `maxmem=256 MiB` are exported from `auth.service.ts`.
+
+### CORS allowlist
+
+`packages/api/src/server.ts` reads `ALLOWED_ORIGINS` (comma-separated;
+falls back to `APP_URL` then localhost defaults). Requests with an
+`Origin` not in the list are rejected by the `cors()` middleware. Requests
+without an `Origin` header (server-to-server, mobile native, curl) are
+permitted. Tests: `__tests__/cors-allowlist.test.ts`.
+
+### PII masking patterns
+
+The `piiMaskFormat` winston format redacts the following patterns,
+applied in this order before `winston.format.json()` and before the
+console transport's `simple()` format:
+
+| Pattern | Replacement |
+| --- | --- |
+| PH phone `+63 9XX XXX XXXX` / `09XXXXXXXXX` | `[REDACTED:phone]` |
+| TIN `NNN-NNN-NNN-NNN` | `[REDACTED:tin]` |
+| PhilHealth `NN-NNNNNNNNN-N` | `[REDACTED:philhealth]` |
+| SSS `NN-NNNNNNN-N` | `[REDACTED:sss]` |
+| PayMongo IDs `cus_/src_/pay_/link_<6+ alnum>` | `[REDACTED:paymongo]` |
+| JWT (`eyJ...` 3-segment base64url) | `[REDACTED:jwt]` |
+| bcrypt hash `$2[aby]$NN$<53 chars>` | `[REDACTED:hash]` |
+| Email `local@domain.tld` | `[REDACTED:email]` |
+
+Scrypt hashes (our `salt:hash` and `scrypt:N:r:p:salt:hash`) are NOT
+regex-redacted because the pattern would over-match arbitrary hex strings
+and bigint columns. Code paths must avoid logging the `password_hash`
+column directly.
+
+### CSP rationale (per directive)
+
+| Directive | Sources allowed | Why |
+| --- | --- | --- |
+| `default-src` | `'self'` | Deny everything by default. |
+| `script-src` | `'self'`, `browser.sentry-cdn.com`, `hcaptcha.com`, `*.hcaptcha.com` | App bundle, Sentry browser SDK loader, hCaptcha widget. No `'unsafe-inline'` because Vite builds emit external scripts only — verified `apps/admin/index.html` contains no `<script>` blocks beyond the `/src/main.tsx` module loader. |
+| `style-src` | `'self'`, `'unsafe-inline'`, `hcaptcha.com` | `'unsafe-inline'` is required for Vite/React component-level styles and CSS-in-JS; restricting further would break the app. |
+| `img-src` | `'self'`, `data:`, S3 buckets (us-east-1 + ap-southeast-1), `hcaptcha.com` | User avatars and uploaded media live in S3; `data:` covers small inline icons; hCaptcha widget assets. |
+| `connect-src` | `'self'`, `api.onservice.ph`, `*.sentry.io`, `hcaptcha.com`, `*.hcaptcha.com` | XHR/fetch destinations: API, Sentry ingest, hCaptcha. |
+| `frame-src` | `hcaptcha.com`, `*.hcaptcha.com` | hCaptcha challenge iframe. |
+| `frame-ancestors` | `'none'` | Prevents the admin from being framed by another origin (clickjacking). |
+| `form-action` | `'self'` | Forms can only submit to the admin origin. |
+| `base-uri` | `'self'` | Prevents `<base>` injection that could redirect relative URLs. |
+
+Companion headers in `vercel.json`: `X-Frame-Options: DENY` (legacy
+fallback), `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+strict-origin-when-cross-origin`, `Permissions-Policy: camera=(),
+microphone=(), geolocation=()`.
+
+### Future hardening
+
+- Add Subresource Integrity (SRI) hashes for any future CDN-served
+  scripts.
+- Enable Cross-Origin-Embedder-Policy (`require-corp`) and
+  Cross-Origin-Opener-Policy (`same-origin`) once we are confident no
+  third-party iframe (other than hCaptcha, which is already isolated)
+  will be embedded.
+- Stand up a CSP violation reporting endpoint (`Reporting-Endpoints` +
+  `report-to` directive) to surface in-the-wild violations in Sentry.
 
 ## 2FA force-enrolment flow (Phase 12)
 

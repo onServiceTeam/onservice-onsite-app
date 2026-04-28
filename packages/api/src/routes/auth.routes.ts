@@ -435,7 +435,8 @@ router.post(
         throw createAppError('Password login not configured for this account.', 401);
       }
 
-      const valid = authService.verifyPassword(password, user.password_hash);
+      const verifyOutcome = authService.verifyPasswordWithRehash(password, user.password_hash);
+      const valid = verifyOutcome.valid;
       if (!valid) {
         await securityService.recordLoginAttempt({
           phone: email,
@@ -451,6 +452,17 @@ router.post(
           metadata: { email, reason: 'invalid_password' },
         });
         throw createAppError('Invalid email or password.', 401);
+      }
+
+      // Opportunistic password rehash to migrate legacy/weaker scrypt params
+      // to the current cost factor. Best-effort — never block login on failure.
+      if (verifyOutcome.needsRehash) {
+        try {
+          const newHash = authService.hashPassword(password);
+          await db.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [newHash, user.id]);
+        } catch (err) {
+          logger.warn('opportunistic password rehash failed', { err: String(err) });
+        }
       }
 
       // Check if 2FA is enabled — require TOTP verification before issuing tokens

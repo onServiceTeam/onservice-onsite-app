@@ -146,6 +146,59 @@ INFRA-CHECKLIST item 2.3 (deny `s3:DeleteObject*`) before launch.
 
 ---
 
+## 11. hCaptcha not yet wired into user-facing flows (Phase 13 Dispatch D)
+
+Server-side verification exists in
+[packages/api/src/utils/hcaptcha.ts](packages/api/src/utils/hcaptcha.ts)
+and is fully tested, but it is not yet attached to any registration,
+login, or forgot-password endpoint because:
+
+- The API has no public registration or forgot-password routes today.
+  User onboarding is OTP-based (phone number + Semaphore SMS), and admin
+  onboarding is invitation-only (no `/auth/register` route exists).
+- Existing OTP brute-force protection is provided by the Phase 5 CAPTCHA
+  control (`securityService.verifyCaptchaToken`, threshold 3 failures)
+  documented as SEC-002 in `docs/SECURITY-POSTURE.md`.
+- Mobile hCaptcha integration is sized for post-launch — neither
+  `@hcaptcha/react-native-hcaptcha` nor a WebView fallback is wired in.
+  Mobile flows currently rely on rate limiting + OTP verification.
+- Admin web has no public registration or forgot-password page either, so
+  there is no admin form to protect.
+
+**When to revisit:** wire `verifyHCaptchaToken` into any of the
+following IF/WHEN added: (a) a public registration endpoint, (b) a
+forgot-password / self-service password reset endpoint, (c) any
+anonymous endpoint that creates persistent records (e.g., public
+contact-us, public quote-request), (d) any endpoint where rate
+limiting alone is insufficient against distributed automation (e.g.,
+referral-code redemption from unauthenticated context). The form must
+POST a `captchaToken` (or `hcaptchaToken`) field that is validated by
+`verifyHCaptchaToken` before any DB write. The neutral failure copy
+"Verification failed. Please try again." is the recommended response.
+
+## 12. Admin password rehash is opportunistic (Phase 13 Dispatch D)
+
+When an admin logs in with a hash stored under the legacy `salt:hash`
+format (or under weaker scrypt parameters), the API rehashes their
+password to the new `scrypt:N:r:p:salt:hash` format with N=131072 inside
+the same login request. If that UPDATE fails (e.g., DB momentarily
+unavailable) the login still succeeds and the legacy hash is preserved
+until the next successful login. There is no background job to force
+re-hash dormant accounts. Operators should verify the migration is
+complete via `SELECT count(*) FROM users WHERE password_hash NOT LIKE
+'scrypt:%';` before declaring the SEC hardening fully landed.
+
+## 13. Tech debt — Jest worker leak warning (pre-existing)
+
+Jest emits "A worker process has failed to exit gracefully" at the end
+of `npx jest` runs in `packages/api`. All 853 tests pass; this is a
+teardown-hygiene warning, not a test failure. Suspected causes: an
+open pg `Pool`, unclosed BullMQ Redis connection, or a `setInterval`
+in cache code without `unref()`. Estimated 30 minutes to chase with
+`--detectOpenHandles`. Defer to Dispatch F or G.
+
+---
+
 Phase 13 owner notes: this file is the canonical place to record
 "intentional v1 limitations". Add new entries as they are discovered;
 do NOT silently fix without recording the original limitation here.

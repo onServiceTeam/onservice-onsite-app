@@ -73,8 +73,23 @@ const PORT = process.env.PORT || 3001;
 
 // --- Security Middleware ---
 app.use(helmet());
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.APP_URL || 'http://localhost:3000,http://localhost:7382')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
 app.use(cors({
-  origin: process.env.APP_URL || 'http://localhost:3000',
+  origin: (origin, callback): void => {
+    // Allow no-origin requests (server-to-server, mobile apps, curl, same-origin).
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
 }));
 

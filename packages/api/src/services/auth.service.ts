@@ -54,17 +54,78 @@ function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-export function hashPassword(password: string, salt?: string): string {
-  const s = salt ?? crypto.randomBytes(16).toString('hex');
-  const h = crypto.scryptSync(password, s, 64).toString('hex');
-  return `${s}:${h}`;
+export const SCRYPT_N = 131072;
+export const SCRYPT_R = 8;
+export const SCRYPT_P = 1;
+export const SCRYPT_KEYLEN = 64;
+export const HASH_VERSION = 'scrypt';
+// OpenSSL default scrypt maxmem is 32 MiB; N=131072 r=8 needs 128*N*r = 128 MiB.
+// Cap at 256 MiB so future tuning has headroom without surprise failures.
+export const SCRYPT_MAXMEM = 256 * 1024 * 1024;
+
+export interface VerifyResult { valid: boolean; needsRehash: boolean }
+
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const h = crypto.scryptSync(password, salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P, maxmem: SCRYPT_MAXMEM }).toString('hex');
+  return `${HASH_VERSION}:${SCRYPT_N}:${SCRYPT_R}:${SCRYPT_P}:${salt}:${h}`;
 }
 
 export function verifyPassword(password: string, stored: string): boolean {
-  const [salt, key] = stored.split(':');
-  if (!salt || !key) return false;
-  const h = crypto.scryptSync(password, salt, 64).toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(key), Buffer.from(h));
+  return verifyPasswordWithRehash(password, stored).valid;
+}
+
+export function verifyPasswordWithRehash(password: string, stored: string): VerifyResult {
+  const parts = stored.split(':');
+  // New format: scrypt:N:r:p:salt:hash (6 parts)
+  if (parts.length === 6 && parts[0] === HASH_VERSION) {
+    const N = Number(parts[1]);
+    const r = Number(parts[2]);
+    const p = Number(parts[3]);
+    const salt = parts[4]!;
+    const key = parts[5]!;
+    if (!Number.isFinite(N) || !Number.isFinite(r) || !Number.isFinite(p) || !salt || !key) {
+      return { valid: false, needsRehash: false };
+    }
+    let computed: Buffer;
+    try {
+      computed = crypto.scryptSync(password, salt, SCRYPT_KEYLEN, { N, r, p, maxmem: SCRYPT_MAXMEM });
+    } catch {
+      return { valid: false, needsRehash: false };
+    }
+    let stash: Buffer;
+    try {
+      stash = Buffer.from(key, 'hex');
+    } catch {
+      return { valid: false, needsRehash: false };
+    }
+    if (stash.length !== computed.length) return { valid: false, needsRehash: false };
+    const valid = crypto.timingSafeEqual(stash, computed);
+    const needsRehash = valid && (N !== SCRYPT_N || r !== SCRYPT_R || p !== SCRYPT_P);
+    return { valid, needsRehash };
+  }
+  // Legacy format: salt:hash (2 parts, default scrypt params)
+  if (parts.length === 2) {
+    const salt = parts[0];
+    const key = parts[1];
+    if (!salt || !key) return { valid: false, needsRehash: false };
+    let computed: Buffer;
+    try {
+      computed = crypto.scryptSync(password, salt, SCRYPT_KEYLEN);
+    } catch {
+      return { valid: false, needsRehash: false };
+    }
+    let stash: Buffer;
+    try {
+      stash = Buffer.from(key, 'hex');
+    } catch {
+      return { valid: false, needsRehash: false };
+    }
+    if (stash.length !== computed.length) return { valid: false, needsRehash: false };
+    const valid = crypto.timingSafeEqual(stash, computed);
+    return { valid, needsRehash: valid };
+  }
+  return { valid: false, needsRehash: false };
 }
 
 function signAccessToken(userId: string, role: string): string {

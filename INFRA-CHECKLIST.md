@@ -104,6 +104,43 @@ files in a deployed image.
 | 8.4 | Per-environment runtime config validated by `config-validator` job before container starts. | |
 | 8.5 | DNS records under change control; production zone changes require 2-person approval. | |
 
+## 9. CORS allowlist (Phase 13 Dispatch D)
+
+The API now reads a comma-separated allowlist from `ALLOWED_ORIGINS`
+(falling back to `APP_URL`, then localhost defaults). Requests from
+origins not in the list are rejected by the `cors()` middleware.
+
+| # | Task | Signed off |
+|---|------|------------|
+| 9.1 | Set `ALLOWED_ORIGINS` in production secrets to the exact admin / marketing site origins (no wildcards, no trailing slash). Example: `https://admin.onservice.ph,https://www.onservice.ph`. | |
+| 9.2 | Verify after deploy by curling `https://api.onservice.ph` from an unlisted origin and confirming the request is rejected. | |
+| 9.3 | Update `ALLOWED_ORIGINS` whenever a new first-party web surface is added. | |
+
+## 10. hCaptcha (Phase 13 Dispatch D)
+
+Server-side verification is implemented in
+`packages/api/src/utils/hcaptcha.ts`. It is wired into the API but not yet
+into any user-facing form — see LAUNCH-LIMITATIONS for scope.
+
+| # | Task | Signed off |
+|---|------|------------|
+| 10.1 | Create an hCaptcha account at https://dashboard.hcaptcha.com and provision separate sites (and therefore site-keys + secrets) per environment (dev, staging, prod). | |
+| 10.2 | Set `HCAPTCHA_SECRET` (server-only) in API production secrets. Set `VITE_HCAPTCHA_SITE_KEY` in admin web build env. | |
+| 10.3 | Confirm dashboard monitoring (verification rate, failure reasons) is reviewed weekly during launch month. | |
+
+## 11. Admin web Content-Security-Policy (Phase 13 Dispatch D, SEC-009)
+
+CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and
+Permissions-Policy headers are declared in `apps/admin/vercel.json` and
+served by the Vercel edge.
+
+| # | Task | Signed off |
+|---|------|------------|
+| 11.1 | Verify in deploy preview: open DevTools > Network > main document, confirm `Content-Security-Policy` header is present and matches `apps/admin/vercel.json`. | |
+| 11.2 | After Sentry / hCaptcha real keys are wired, exercise both flows in deploy preview and confirm zero CSP violations in browser console. | |
+| 11.3 | When introducing any new third-party script, update CSP allowlist BEFORE merging. | |
+| 11.4 | Future hardening (post-launch): add Subresource Integrity (SRI) hashes for any CDN-served scripts, enable COEP/COOP, and stand up a CSP `report-to` endpoint. | |
+
 ---
 
 Phase 13 owner notes: items above were generated/updated during Phase 13
