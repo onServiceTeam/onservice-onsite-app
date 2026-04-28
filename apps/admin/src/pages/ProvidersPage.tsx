@@ -1,4 +1,5 @@
 import React, { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -112,9 +113,12 @@ export default function ProvidersPage(): React.ReactElement {
       header: 'Provider',
       render: (r) => (
         <div>
-          <p className="font-medium text-[var(--color-text)]">
+          <Link
+            to={`/providers/${r.id}`}
+            className="font-medium text-[var(--color-text)] hover:text-[var(--color-secondary)] hover:underline"
+          >
             {r.fullName?.trim() || r.businessName || '(no name)'}
-          </p>
+          </Link>
           <p className="text-xs text-[var(--color-text-secondary)]">{r.phone}</p>
         </div>
       ),

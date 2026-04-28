@@ -36,6 +36,7 @@ import disputeRoutes from './routes/dispute.routes';
 import walletRoutes from './routes/wallet.routes';
 import paymentRoutes from './routes/payment.routes';
 import adminRoutes from './routes/admin.routes';
+import providerAdminRoutes from './routes/provider-admin.routes';
 import webhookRoutes from './routes/webhook.routes';
 import notificationRoutes from './routes/notification.routes';
 import notificationTemplateRoutes from './routes/notification-template.routes';
@@ -142,6 +143,9 @@ app.use('/api/v1/payments', paymentRoutes);
 // Phase 03: settings routes are mounted BEFORE generic admin routes so the
 // more specific /admin/settings path wins over /admin/* fallthrough.
 app.use('/api/v1/admin/settings', settingsRoutes);
+// Phase 05: provider 360 sub-routes mounted BEFORE generic admin routes so
+// `/admin/providers/:id/profile` etc. match before any `/admin/*` fallthrough.
+app.use('/api/v1/admin/providers', providerAdminRoutes);
 app.use('/api/v1/admin', adminRoutes);
 
 // Phase 03: public client config endpoint (no auth required).

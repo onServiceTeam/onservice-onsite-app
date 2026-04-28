@@ -1,0 +1,14 @@
+[2026-04-28T02:18:53Z] STAGE: Phase 05 baseline captured (commit 931eabe6 / Phase 04 head). Branched phase/05-provider-360. typecheck=PASS, lint=PASS pre-flight.
+
+[2026-04-28 10:28:26] §1 Backend service + routes + tests
+- Created packages/api/src/services/provider-admin.service.ts (~620 lines, 14 exports)
+- Created packages/api/src/routes/provider-admin.routes.ts (16 routes, mounted at /api/v1/admin/providers BEFORE /api/v1/admin)
+- Created packages/api/migrations/053_wallet_transactions_adjustment.sql (additive: extends type CHECK to allow 'adjustment')
+- Created packages/api/__tests__/provider-admin.test.ts (45 tests)
+- typecheck PASS | lint PASS | jest 558/558 PASS (was 513, +45 new)
+
+[2026-04-28 10:32:43] §2 Frontend ProviderDetailPage + 7 tabs
+- Created apps/admin/src/pages/ProviderDetailPage.tsx (~700 lines, 7 tabs inline)
+- Updated apps/admin/src/App.tsx with lazy /providers/:id route
+- Updated apps/admin/src/pages/ProvidersPage.tsx with clickable name -> Link to detail page
+- typecheck (admin) PASS | lint (root, all packages) PASS

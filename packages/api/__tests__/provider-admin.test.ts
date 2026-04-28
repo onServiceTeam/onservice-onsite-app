@@ -1,0 +1,551 @@
+/**
+ * Phase 05 — unit tests for provider-admin service.
+ *
+ * The service is mostly read-only joins + a single money-moving operation
+ * (`adjustProviderWallet`). We mock `db.query` and `db.transaction` so each
+ * test is hermetic. Tests cover:
+ *   - shape and projection for every read endpoint
+ *   - 404 paths
+ *   - notes auth/ownership (author vs super_admin)
+ *   - validation guards (category, body, profile fields)
+ *   - wallet adjustment: balance update + paired ledger row + invariants
+ *     (money conservation: balance_after == prev + delta; rejects negative
+ *     resulting balance; rejects zero/non-integer amounts; rejects empty reason)
+ */
+
+const dbQueryMock = jest.fn();
+const dbTransactionMock = jest.fn();
+
+jest.mock('../src/models/db', () => ({
+  db: {
+    query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (cb: unknown) => dbTransactionMock(cb),
+  },
+}));
+
+import * as svc from '../src/services/provider-admin.service';
+
+beforeEach(() => {
+  dbQueryMock.mockReset();
+  dbTransactionMock.mockReset();
+});
+
+function rows<T>(data: T[]): { rows: T[]; rowCount: number } {
+  return { rows: data, rowCount: data.length };
+}
+
+const PROVIDER_ID = '11111111-1111-1111-1111-111111111111';
+const USER_ID = '22222222-2222-2222-2222-222222222222';
+const ADMIN_ID = '33333333-3333-3333-3333-333333333333';
+const NOTE_ID = '44444444-4444-4444-4444-444444444444';
+
+// ─── isNoteCategory ─────────────────────────────────────────────────────────
+
+describe('isNoteCategory', () => {
+  it.each(['general', 'quality', 'financial', 'legal'])('accepts %s', (v) => {
+    expect(svc.isNoteCategory(v)).toBe(true);
+  });
+  it.each(['', 'other', null, undefined, 7, {}])('rejects %p', (v) => {
+    expect(svc.isNoteCategory(v)).toBe(false);
+  });
+});
+
+// ─── getProviderProfile ─────────────────────────────────────────────────────
+
+describe('getProviderProfile', () => {
+  it('returns 404 when provider missing', async () => {
+    dbQueryMock.mockResolvedValueOnce(rows([]));
+    await expect(svc.getProviderProfile(PROVIDER_ID)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it('joins user row and projects nested shape', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce(
+        rows([
+          {
+            id: PROVIDER_ID,
+            user_id: USER_ID,
+            business_name: 'Acme',
+            description: 'desc',
+            tier: 'pro',
+            status: 'approved',
+            nbi_clearance_url: 'https://x/y.pdf',
+            nbi_expiry_date: new Date('2030-01-01T00:00:00Z'),
+            nbi_expiry_notified: false,
+            service_radius_km: 12,
+            average_rating: '4.50',
+            total_reviews: 10,
+            total_jobs_completed: 30,
+            latitude: '14.5',
+            longitude: '120.9',
+            city: 'Manila',
+            province: 'NCR',
+            created_at: new Date('2024-01-01T00:00:00Z'),
+            updated_at: new Date('2024-02-01T00:00:00Z'),
+            u_id: USER_ID,
+            first_name: 'Jane',
+            last_name: 'Doe',
+            phone: '+639170000000',
+            email: 'jane@example.com',
+            avatar_url: 'https://x/a.png',
+            is_verified: true,
+            is_active: true,
+            last_login_at: new Date('2024-03-01T00:00:00Z'),
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(rows([{ id: 'c1', name: 'Plumbing', base_price: 50000 }]))
+      .mockResolvedValueOnce(rows([{ id: 'a1', name: 'Makati', is_primary: true }]));
+
+    const out = await svc.getProviderProfile(PROVIDER_ID);
+    expect(out.businessName).toBe('Acme');
+    expect(out.user.fullName).toBe('Jane Doe');
+    expect(out.documents.governmentIdUrl).toBeNull();
+    expect(out.documents.selfieUrl).toBeNull();
+    expect(out.categories).toEqual([{ id: 'c1', name: 'Plumbing', basePrice: 50000 }]);
+    expect(out.serviceAreas).toEqual([{ id: 'a1', name: 'Makati', isPrimary: true }]);
+    expect(out.averageRating).toBe(4.5);
+    expect(out.latitude).toBe(14.5);
+  });
+});
+
+// ─── getProviderJobs ────────────────────────────────────────────────────────
+
+describe('getProviderJobs', () => {
+  it('clamps page/pageSize and returns total + rows', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ count: '42' }]))
+      .mockResolvedValueOnce(
+        rows([
+          {
+            id: 'b1',
+            customer_id: 'c1',
+            customer_name: 'Joe Cust',
+            category_name: 'Plumbing',
+            status: 'completed',
+            total_amount: 100000,
+            service_fee: 12000,
+            scheduled_at: new Date('2024-01-15T08:00:00Z'),
+            completed_at: new Date('2024-01-15T10:00:00Z'),
+            rating: 5,
+            has_dispute: false,
+          },
+        ]),
+      );
+
+    const out = await svc.getProviderJobs(PROVIDER_ID, 0, 999);
+    expect(out.total).toBe(42);
+    expect(out.page).toBe(1); // clamped from 0
+    expect(out.pageSize).toBe(100); // clamped from 999
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0].customerName).toBe('Joe Cust');
+    expect(out.rows[0].hasDispute).toBe(false);
+  });
+
+  it('applies status filter', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ count: '0' }]))
+      .mockResolvedValueOnce(rows([]));
+    await svc.getProviderJobs(PROVIDER_ID, 1, 20, 'completed');
+    // params array is reused/mutated across the two queries inside the service;
+    // assert the COUNT SQL placeholdered the status filter and used both keys.
+    const countSql = dbQueryMock.mock.calls[0][0] as string;
+    expect(countSql).toMatch(/COUNT\(\*\)/);
+    expect(countSql).toMatch(/b\.status = \$2/);
+    expect(dbQueryMock.mock.calls[0][1]).toEqual(
+      expect.arrayContaining([PROVIDER_ID, 'completed']),
+    );
+  });
+});
+
+// ─── getProviderFinancials ──────────────────────────────────────────────────
+
+describe('getProviderFinancials', () => {
+  it('aggregates totals and projects payouts', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ earned: '500000', commission: '50000' }]))
+      .mockResolvedValueOnce(rows([{ available: '450000', pending: '10000' }]))
+      .mockResolvedValueOnce(rows([{ month: '2024-01', amount: '200000' }]))
+      .mockResolvedValueOnce(
+        rows([
+          {
+            id: 'po1',
+            amount: 100000,
+            method: 'gcash',
+            status: 'completed',
+            created_at: new Date('2024-01-20T00:00:00Z'),
+            completed_at: new Date('2024-01-21T00:00:00Z'),
+          },
+        ]),
+      );
+
+    const out = await svc.getProviderFinancials(PROVIDER_ID);
+    expect(out.totalEarned).toBe(500000);
+    expect(out.totalCommissionPaid).toBe(50000);
+    expect(out.walletAvailable).toBe(450000);
+    expect(out.walletPending).toBe(10000);
+    expect(out.monthlyEarnings).toEqual([{ month: '2024-01', amount: 200000 }]);
+    expect(out.recentPayouts[0].amount).toBe(100000);
+  });
+});
+
+// ─── getProviderReviews + mutations ─────────────────────────────────────────
+
+describe('getProviderReviews + mutations', () => {
+  it('returns reviews with image_urls', async () => {
+    dbQueryMock.mockResolvedValueOnce(
+      rows([
+        {
+          id: 'r1',
+          booking_id: 'b1',
+          reviewer_name: 'Joe Cust',
+          rating: 4,
+          comment: 'good',
+          is_visible: true,
+          admin_response: null,
+          image_urls: ['https://x/1.png'],
+          created_at: new Date('2024-02-01T00:00:00Z'),
+        },
+      ]),
+    );
+    const out = await svc.getProviderReviews(PROVIDER_ID);
+    expect(out[0].rating).toBe(4);
+    expect(out[0].imageUrls).toEqual(['https://x/1.png']);
+  });
+
+  it('setReviewVisibility throws 404 when missing', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    await expect(svc.setReviewVisibility('rX', false)).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('setReviewAdminResponse updates row', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    await svc.setReviewAdminResponse('r1', 'Thanks for the feedback');
+    expect(dbQueryMock.mock.calls[0][1]).toEqual(['Thanks for the feedback', 'r1']);
+  });
+});
+
+// ─── getProviderDisputes ────────────────────────────────────────────────────
+
+describe('getProviderDisputes', () => {
+  it('projects resolution_type as resolutionType', async () => {
+    dbQueryMock.mockResolvedValueOnce(
+      rows([
+        {
+          id: 'd1',
+          booking_id: 'b1',
+          customer_name: 'Joe Cust',
+          status: 'resolved',
+          resolution_type: 'partial_refund',
+          created_at: new Date('2024-02-01T00:00:00Z'),
+        },
+      ]),
+    );
+    const out = await svc.getProviderDisputes(PROVIDER_ID);
+    expect(out[0].resolutionType).toBe('partial_refund');
+  });
+});
+
+// ─── getProviderActivity ────────────────────────────────────────────────────
+
+describe('getProviderActivity', () => {
+  it('merges audit + login_attempts and sorts desc', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ user_id: USER_ID, phone: '+639170000000' }]))
+      .mockResolvedValueOnce(
+        rows([
+          {
+            id: 'a1',
+            action: 'PATCH /providers/x',
+            entity_type: 'providers',
+            ip_address: '1.2.3.4',
+            user_agent: 'UA',
+            new_values: { foo: 1 },
+            created_at: new Date('2024-02-02T00:00:00Z'),
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        rows([
+          {
+            id: 'l1',
+            attempt_type: 'otp_verify',
+            success: true,
+            ip_address: '5.6.7.8',
+            user_agent: 'UA2',
+            created_at: new Date('2024-02-03T00:00:00Z'),
+          },
+        ]),
+      );
+
+    const out = await svc.getProviderActivity(PROVIDER_ID, 50);
+    expect(out).toHaveLength(2);
+    expect(out[0].source).toBe('login'); // Feb 3 first
+    expect(out[1].source).toBe('audit');
+    expect(out[0].action).toBe('otp_verify:ok');
+  });
+
+  it('throws 404 when provider missing', async () => {
+    dbQueryMock.mockResolvedValueOnce(rows([]));
+    await expect(svc.getProviderActivity(PROVIDER_ID, 10)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+});
+
+// ─── Notes CRUD ─────────────────────────────────────────────────────────────
+
+describe('Notes CRUD', () => {
+  it('listProviderNotes orders pinned desc, then created desc (delegated to SQL)', async () => {
+    dbQueryMock.mockResolvedValueOnce(
+      rows([
+        {
+          id: NOTE_ID,
+          provider_id: PROVIDER_ID,
+          author_id: ADMIN_ID,
+          author_name: 'Admin Joe',
+          category: 'general',
+          body: 'hello',
+          pinned: true,
+          created_at: new Date('2024-02-02T00:00:00Z'),
+          updated_at: new Date('2024-02-02T00:00:00Z'),
+        },
+      ]),
+    );
+    const out = await svc.listProviderNotes(PROVIDER_ID);
+    expect(out[0].pinned).toBe(true);
+    expect(out[0].authorName).toBe('Admin Joe');
+  });
+
+  it('createProviderNote rejects empty body', async () => {
+    await expect(
+      svc.createProviderNote(PROVIDER_ID, ADMIN_ID, 'general', '   ', false),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(dbQueryMock).not.toHaveBeenCalled();
+  });
+
+  it('createProviderNote rejects invalid category', async () => {
+    await expect(
+      svc.createProviderNote(
+        PROVIDER_ID,
+        ADMIN_ID,
+        'bogus' as unknown as svc.NoteCategory,
+        'body',
+        false,
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('createProviderNote inserts and returns the new row', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ id: NOTE_ID }])) // INSERT
+      .mockResolvedValueOnce(
+        rows([
+          {
+            id: NOTE_ID,
+            provider_id: PROVIDER_ID,
+            author_id: ADMIN_ID,
+            author_name: 'Admin Joe',
+            category: 'quality',
+            body: 'noted',
+            pinned: false,
+            created_at: new Date('2024-02-02T00:00:00Z'),
+            updated_at: new Date('2024-02-02T00:00:00Z'),
+          },
+        ]),
+      );
+    const out = await svc.createProviderNote(PROVIDER_ID, ADMIN_ID, 'quality', 'noted', false);
+    expect(out.id).toBe(NOTE_ID);
+    expect(out.category).toBe('quality');
+  });
+
+  it('updateProviderNote rejects non-author non-super-admin (403)', async () => {
+    dbQueryMock.mockResolvedValueOnce(rows([{ author_id: 'someone-else' }]));
+    await expect(
+      svc.updateProviderNote(NOTE_ID, ADMIN_ID, false, { body: 'new body' }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('updateProviderNote allows super-admin override', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ author_id: 'someone-else' }]))
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    await svc.updateProviderNote(NOTE_ID, ADMIN_ID, true, { body: 'new body', pinned: true });
+    expect(dbQueryMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('updateProviderNote 404 when note missing', async () => {
+    dbQueryMock.mockResolvedValueOnce(rows([]));
+    await expect(
+      svc.updateProviderNote(NOTE_ID, ADMIN_ID, true, { body: 'x' }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('deleteProviderNote rejects non-author non-super-admin (403)', async () => {
+    dbQueryMock.mockResolvedValueOnce(rows([{ author_id: 'someone-else' }]));
+    await expect(svc.deleteProviderNote(NOTE_ID, ADMIN_ID, false)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
+
+  it('deleteProviderNote ok when author', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ author_id: ADMIN_ID }]))
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    await svc.deleteProviderNote(NOTE_ID, ADMIN_ID, false);
+    expect(dbQueryMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ─── updateProviderProfile ──────────────────────────────────────────────────
+
+describe('updateProviderProfile', () => {
+  it('rejects empty businessName', async () => {
+    await expect(
+      svc.updateProviderProfile(PROVIDER_ID, { businessName: '   ' }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('clamps service radius to [1,200]', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    await svc.updateProviderProfile(PROVIDER_ID, { serviceRadiusKm: 9999 });
+    const params = dbQueryMock.mock.calls[0][1];
+    expect(params[0]).toBe(200);
+  });
+
+  it('404 when no provider matches', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    await expect(
+      svc.updateProviderProfile(PROVIDER_ID, { businessName: 'X' }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('no-op when no fields provided', async () => {
+    await svc.updateProviderProfile(PROVIDER_ID, {});
+    expect(dbQueryMock).not.toHaveBeenCalled();
+  });
+});
+
+// ─── adjustProviderWallet (SACRED — money movement) ────────────────────────
+
+describe('adjustProviderWallet', () => {
+  function setupTransaction(
+    selectRows: { id: string; available_balance: string }[],
+    insertId: string | null,
+    updateRowCount = 1,
+  ): { calls: { sql: string; params: unknown[] }[] } {
+    const calls: { sql: string; params: unknown[] }[] = [];
+    dbTransactionMock.mockImplementation(
+      async (cb: (client: { query: jest.Mock }) => unknown) => {
+        const clientQuery = jest.fn(async (sql: string, params: unknown[]) => {
+          calls.push({ sql, params });
+          if (sql.includes('SELECT w.id')) return rows(selectRows);
+          if (sql.startsWith('UPDATE wallets'))
+            return { rows: [], rowCount: updateRowCount };
+          if (sql.startsWith('INSERT INTO wallet_transactions'))
+            return rows(insertId ? [{ id: insertId }] : []);
+          return rows([]);
+        });
+        return cb({ query: clientQuery as unknown as jest.Mock });
+      },
+    );
+    return { calls };
+  }
+
+  it.each([
+    [0, 'reason ok'],
+    [1.5, 'reason ok'],
+    [Number.NaN, 'reason ok'],
+  ])('rejects invalid amount %p', async (amt) => {
+    await expect(
+      svc.adjustProviderWallet(PROVIDER_ID, amt as number, 'reason ok', ADMIN_ID),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it.each(['', '    ', 'tiny'])('rejects bad reason %p', async (r) => {
+    await expect(svc.adjustProviderWallet(PROVIDER_ID, 100, r, ADMIN_ID)).rejects.toMatchObject({
+      statusCode: 400,
+    });
+  });
+
+  it('404 when wallet missing', async () => {
+    setupTransaction([], 'tx1');
+    await expect(
+      svc.adjustProviderWallet(PROVIDER_ID, 100, 'good reason here', ADMIN_ID),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('rejects when adjustment would make balance negative', async () => {
+    setupTransaction([{ id: 'w1', available_balance: '50' }], 'tx1');
+    await expect(
+      svc.adjustProviderWallet(PROVIDER_ID, -100, 'good reason here', ADMIN_ID),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('credits wallet, writes paired adjustment ledger row, conserves money', async () => {
+    const { calls } = setupTransaction(
+      [{ id: 'w1', available_balance: '500' }],
+      'tx-id-123',
+    );
+    const result = await svc.adjustProviderWallet(
+      PROVIDER_ID,
+      250,
+      'guarantee fund top-up case #42',
+      ADMIN_ID,
+    );
+
+    expect(result).toEqual({
+      walletId: 'w1',
+      newAvailableBalance: 750,
+      transactionId: 'tx-id-123',
+    });
+
+    // money conservation: balance_after === prev + delta (= 750)
+    const insertCall = calls.find((c) => c.sql.startsWith('INSERT INTO wallet_transactions'))!;
+    expect(insertCall).toBeDefined();
+    const [walletId, amount, description, balanceAfter, refId] = insertCall.params as [
+      string,
+      number,
+      string,
+      number,
+      string,
+    ];
+    expect(walletId).toBe('w1');
+    expect(amount).toBe(250);
+    expect(balanceAfter).toBe(750);
+    expect(description).toContain(`[admin:${ADMIN_ID}]`);
+    expect(description).toContain('guarantee fund top-up case #42');
+    expect(refId).toBe(`admin_adjustment:${ADMIN_ID}`);
+
+    // wallet update used the same new balance
+    const updateCall = calls.find((c) => c.sql.startsWith('UPDATE wallets'))!;
+    expect(updateCall.params).toEqual([750, 'w1']);
+  });
+
+  it('debits wallet correctly when delta is negative', async () => {
+    const { calls } = setupTransaction(
+      [{ id: 'w1', available_balance: '1000' }],
+      'tx-id-456',
+    );
+    const result = await svc.adjustProviderWallet(
+      PROVIDER_ID,
+      -300,
+      'reversal of erroneous credit',
+      ADMIN_ID,
+    );
+    expect(result.newAvailableBalance).toBe(700);
+    const insertCall = calls.find((c) => c.sql.startsWith('INSERT INTO wallet_transactions'))!;
+    const [, amount, , balanceAfter] = insertCall.params as [string, number, string, number];
+    expect(amount).toBe(-300);
+    expect(balanceAfter).toBe(700);
+  });
+
+  it('rolls back via thrown error when ledger insert returns no id', async () => {
+    setupTransaction([{ id: 'w1', available_balance: '500' }], null);
+    await expect(
+      svc.adjustProviderWallet(PROVIDER_ID, 100, 'good reason here', ADMIN_ID),
+    ).rejects.toMatchObject({ statusCode: 500 });
+  });
+});

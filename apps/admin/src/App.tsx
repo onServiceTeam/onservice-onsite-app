@@ -6,6 +6,7 @@ import LoginPage from '@/pages/LoginPage';
 
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const ProvidersPage = lazy(() => import('@/pages/ProvidersPage'));
+const ProviderDetailPage = lazy(() => import('@/pages/ProviderDetailPage'));
 const CustomersPage = lazy(() => import('@/pages/CustomersPage'));
 const BookingsPage = lazy(() => import('@/pages/BookingsPage'));
 const CatalogPage = lazy(() => import('@/pages/CatalogPage'));
@@ -36,6 +37,7 @@ export default function App(): React.ReactElement {
       <Route element={<AdminLayout />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/providers" element={<ProvidersPage />} />
+        <Route path="/providers/:id" element={<ProviderDetailPage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/bookings" element={<BookingsPage />} />
         <Route path="/catalog" element={<CatalogPage />} />

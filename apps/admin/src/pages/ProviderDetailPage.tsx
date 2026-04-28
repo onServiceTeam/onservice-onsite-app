@@ -1,0 +1,950 @@
+import React, { useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
+import {
+  ArrowLeft,
+  Phone,
+  Mail,
+  MapPin,
+  Calendar,
+  Star,
+  AlertTriangle,
+  FileText,
+  MessageSquare,
+  Pencil,
+  Trash2,
+  Plus,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Coins,
+} from '@/components/icons';
+import api, { getErrorMessage } from '@/lib/api';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
+import Badge from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { LoadingState } from '@/components/ui/LoadingState';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { EmptyState } from '@/components/ui/EmptyState';
+import KpiCard from '@/components/ui/KpiCard';
+import Pagination from '@/components/ui/Pagination';
+import { Textarea } from '@/components/ui/Textarea';
+import { Checkbox } from '@/components/ui/Checkbox';
+import { useAuthStore } from '@/stores/auth.store';
+
+// ─── Types ────────────────────────────────────────────────────────────────
+
+interface ProviderProfile {
+  id: string;
+  userId: string;
+  businessName: string;
+  description: string;
+  tier: string;
+  status: string;
+  averageRating: number;
+  totalReviews: number;
+  totalJobsCompleted: number;
+  serviceRadiusKm: number;
+  city: string | null;
+  province: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    fullName: string;
+    phone: string;
+    email: string | null;
+    avatarUrl: string | null;
+    isVerified: boolean;
+    isActive: boolean;
+    lastLoginAt: string | null;
+  };
+  documents: {
+    nbiClearanceUrl: string | null;
+    nbiExpiryDate: string | null;
+    nbiExpiryNotified: boolean;
+    avatarUrl: string | null;
+    governmentIdUrl: string | null;
+    selfieUrl: string | null;
+  };
+  categories: { id: string; name: string; basePrice: number | null }[];
+  serviceAreas: { id: string; name: string; isPrimary: boolean }[];
+}
+
+interface JobsResult {
+  rows: {
+    id: string;
+    customerId: string;
+    customerName: string;
+    categoryName: string;
+    status: string;
+    totalAmount: number;
+    serviceFee: number;
+    scheduledAt: string;
+    completedAt: string | null;
+    rating: number | null;
+    hasDispute: boolean;
+  }[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+interface Financials {
+  totalEarned: number;
+  totalCommissionPaid: number;
+  walletAvailable: number;
+  walletPending: number;
+  monthlyEarnings: { month: string; amount: number }[];
+  recentPayouts: {
+    id: string;
+    amount: number;
+    method: string;
+    status: string;
+    createdAt: string;
+    completedAt: string | null;
+  }[];
+}
+
+interface Review {
+  id: string;
+  bookingId: string;
+  reviewerName: string;
+  rating: number;
+  comment: string;
+  isVisible: boolean;
+  adminResponse: string | null;
+  imageUrls: string[];
+  createdAt: string;
+}
+
+interface Dispute {
+  id: string;
+  bookingId: string;
+  customerName: string;
+  status: string;
+  resolutionType: string | null;
+  createdAt: string;
+}
+
+interface ActivityRow {
+  id: string;
+  source: 'audit' | 'login';
+  action: string;
+  detail: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+interface Note {
+  id: string;
+  providerId: string;
+  authorId: string;
+  authorName: string;
+  category: 'general' | 'quality' | 'financial' | 'legal';
+  body: string;
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const TABS = ['profile', 'jobs', 'financials', 'reviews', 'disputes', 'activity', 'notes'] as const;
+type TabId = (typeof TABS)[number];
+void TABS;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
+
+function formatPHP(centavos: number): string {
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    minimumFractionDigits: 2,
+  }).format(centavos / 100);
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatDateOnly(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
+}
+
+const STATUS_BADGE: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'default'> = {
+  approved: 'success',
+  pending: 'warning',
+  suspended: 'danger',
+  deactivated: 'danger',
+};
+
+const TIER_BADGE: Record<string, 'info' | 'success' | 'warning' | 'default'> = {
+  new: 'default',
+  verified: 'info',
+  pro: 'success',
+  elite: 'warning',
+};
+
+// ─── Page ─────────────────────────────────────────────────────────────────
+
+export default function ProviderDetailPage(): React.ReactElement {
+  const { id = '' } = useParams<{ id: string }>();
+  const [activeTab, setActiveTab] = useState<TabId>('profile');
+
+  const profile = useQuery({
+    queryKey: ['admin-provider-profile', id],
+    queryFn: async () => {
+      const res = await api.get<{ success: true; data: ProviderProfile }>(
+        `/api/v1/admin/providers/${id}/profile`,
+      );
+      return res.data.data;
+    },
+    enabled: Boolean(id),
+  });
+
+  if (profile.isLoading) {
+    return (
+      <div className="p-6">
+        <LoadingState label="Loading provider…" />
+      </div>
+    );
+  }
+
+  if (profile.isError || !profile.data) {
+    return (
+      <div className="p-6">
+        <ErrorState
+          description={getErrorMessage(profile.error) || 'Failed to load provider.'}
+          action={<Button size="sm" variant="outline" onClick={() => void profile.refetch()}>Retry</Button>}
+        />
+      </div>
+    );
+  }
+
+  const p = profile.data;
+
+  return (
+    <div className="p-6 space-y-6">
+      <Link
+        to="/providers"
+        className="inline-flex items-center gap-1 text-sm text-[var(--color-secondary)] hover:underline"
+      >
+        <ArrowLeft size={14} /> Back to Providers
+      </Link>
+
+      <ProviderHeader profile={p} />
+
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)}>
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="jobs">Jobs</TabsTrigger>
+          <TabsTrigger value="financials">Financials</TabsTrigger>
+          <TabsTrigger value="reviews">Reviews</TabsTrigger>
+          <TabsTrigger value="disputes">Disputes</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="notes">Notes</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="profile">
+          <ProfileTab profile={p} />
+        </TabsContent>
+        <TabsContent value="jobs">
+          <JobsTab providerId={id} />
+        </TabsContent>
+        <TabsContent value="financials">
+          <FinancialsTab providerId={id} />
+        </TabsContent>
+        <TabsContent value="reviews">
+          <ReviewsTab providerId={id} />
+        </TabsContent>
+        <TabsContent value="disputes">
+          <DisputesTab providerId={id} />
+        </TabsContent>
+        <TabsContent value="activity">
+          <ActivityTab providerId={id} />
+        </TabsContent>
+        <TabsContent value="notes">
+          <NotesTab providerId={id} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ─── Header ───────────────────────────────────────────────────────────────
+
+function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactElement {
+  return (
+    <Card className="p-5 flex items-start gap-4">
+      <div className="w-16 h-16 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center text-slate-500 text-xl font-semibold flex-shrink-0">
+        {profile.user.avatarUrl ? (
+          <img src={profile.user.avatarUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          profile.user.fullName.charAt(0).toUpperCase()
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl font-bold text-[var(--color-text)] truncate">
+            {profile.businessName || profile.user.fullName}
+          </h1>
+          <Badge label={profile.status} variant={STATUS_BADGE[profile.status] ?? 'default'} />
+          <Badge label={profile.tier} variant={TIER_BADGE[profile.tier] ?? 'default'} />
+        </div>
+        <p className="text-sm text-[var(--color-text-secondary)] mt-1">{profile.user.fullName}</p>
+        <div className="flex items-center gap-4 text-xs text-[var(--color-text-secondary)] mt-2 flex-wrap">
+          <span className="inline-flex items-center gap-1">
+            <Star size={12} /> {profile.averageRating.toFixed(2)} ({profile.totalReviews} reviews)
+          </span>
+          <span>{profile.totalJobsCompleted} jobs completed</span>
+          <span className="inline-flex items-center gap-1">
+            <Phone size={12} /> {profile.user.phone}
+          </span>
+          {profile.user.email && (
+            <span className="inline-flex items-center gap-1">
+              <Mail size={12} /> {profile.user.email}
+            </span>
+          )}
+          {profile.city && (
+            <span className="inline-flex items-center gap-1">
+              <MapPin size={12} /> {profile.city}
+              {profile.province ? `, ${profile.province}` : ''}
+            </span>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────
+
+function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactElement {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Verification Documents</h3>
+        <DocLine label="NBI Clearance" url={profile.documents.nbiClearanceUrl}
+          extra={profile.documents.nbiExpiryDate ? `expires ${formatDateOnly(profile.documents.nbiExpiryDate)}` : null} />
+        <DocLine label="Government ID" url={profile.documents.governmentIdUrl}
+          extra="not stored — see HONESTY-CHECK" />
+        <DocLine label="Selfie" url={profile.documents.selfieUrl}
+          extra="not stored — see HONESTY-CHECK" />
+        <DocLine label="Avatar" url={profile.documents.avatarUrl} extra={null} />
+      </Card>
+
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Service Categories</h3>
+        {profile.categories.length === 0 ? (
+          <p className="text-xs text-[var(--color-text-secondary)]">No categories on file.</p>
+        ) : (
+          <ul className="space-y-1">
+            {profile.categories.map((c) => (
+              <li key={c.id} className="text-sm text-[var(--color-text)] flex justify-between">
+                <span>{c.name}</span>
+                <span className="text-xs text-[var(--color-text-secondary)]">
+                  {c.basePrice !== null ? formatPHP(c.basePrice) : '—'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Service Areas</h3>
+        {profile.serviceAreas.length === 0 ? (
+          <p className="text-xs text-[var(--color-text-secondary)]">No service areas configured.</p>
+        ) : (
+          <ul className="space-y-1">
+            {profile.serviceAreas.map((a) => (
+              <li key={a.id} className="text-sm text-[var(--color-text)] flex justify-between">
+                <span>{a.name}</span>
+                {a.isPrimary && <Badge label="primary" variant="info" />}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Account</h3>
+        <DefRow k="User ID" v={profile.userId} />
+        <DefRow k="Verified" v={profile.user.isVerified ? 'Yes' : 'No'} />
+        <DefRow k="Active" v={profile.user.isActive ? 'Yes' : 'No'} />
+        <DefRow k="Last Login" v={formatDate(profile.user.lastLoginAt)} />
+        <DefRow k="Service Radius" v={`${profile.serviceRadiusKm} km`} />
+        <DefRow k="Joined" v={formatDateOnly(profile.createdAt)} />
+      </Card>
+    </div>
+  );
+}
+
+function DocLine({
+  label,
+  url,
+  extra,
+}: {
+  label: string;
+  url: string | null;
+  extra: string | null;
+}): React.ReactElement {
+  return (
+    <div className="flex items-center justify-between py-1.5 text-sm border-b border-slate-100 last:border-0">
+      <span className="text-[var(--color-text)]">{label}</span>
+      <span className="flex items-center gap-2">
+        {url ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--color-secondary)] hover:underline text-xs"
+          >
+            view
+          </a>
+        ) : (
+          <span className="text-xs text-[var(--color-text-secondary)]">missing</span>
+        )}
+        {extra && <span className="text-xs text-[var(--color-text-secondary)]">· {extra}</span>}
+      </span>
+    </div>
+  );
+}
+
+function DefRow({ k, v }: { k: string; v: React.ReactNode }): React.ReactElement {
+  return (
+    <div className="flex justify-between py-1.5 text-sm border-b border-slate-100 last:border-0">
+      <span className="text-[var(--color-text-secondary)]">{k}</span>
+      <span className="text-[var(--color-text)] font-medium truncate ml-3">{v}</span>
+    </div>
+  );
+}
+
+// ─── Jobs Tab ─────────────────────────────────────────────────────────────
+
+function JobsTab({ providerId }: { providerId: string }): React.ReactElement {
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('');
+
+  const q = useQuery({
+    queryKey: ['admin-provider-jobs', providerId, page, statusFilter],
+    queryFn: async () => {
+      const res = await api.get<{ success: true; data: JobsResult }>(
+        `/api/v1/admin/providers/${providerId}/jobs`,
+        { params: { page, pageSize: 20, status: statusFilter || undefined } },
+      );
+      return res.data.data;
+    },
+  });
+
+  if (q.isLoading) return <LoadingState label="Loading jobs…" />;
+  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
+  const data = q.data!;
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="px-3 py-2 border rounded text-sm">
+          <option value="">All statuses</option>
+          <option value="completed">Completed</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="in_progress">In progress</option>
+          <option value="disputed">Disputed</option>
+          <option value="cancelled_by_customer">Cancelled (customer)</option>
+          <option value="cancelled_by_provider">Cancelled (provider)</option>
+        </select>
+        <span className="text-xs text-[var(--color-text-secondary)]">{data.total} total</span>
+      </div>
+
+      <Card className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-xs uppercase text-[var(--color-text-secondary)] bg-slate-50">
+            <tr>
+              <th className="px-3 py-2 text-left">Date</th>
+              <th className="px-3 py-2 text-left">Customer</th>
+              <th className="px-3 py-2 text-left">Service</th>
+              <th className="px-3 py-2 text-right">Total</th>
+              <th className="px-3 py-2 text-right">Service Fee</th>
+              <th className="px-3 py-2 text-left">Status</th>
+              <th className="px-3 py-2 text-left">Rating</th>
+              <th className="px-3 py-2 text-left">Dispute</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.length === 0 ? (
+              <tr><td colSpan={8} className="text-center py-8 text-[var(--color-text-secondary)]">No jobs found.</td></tr>
+            ) : data.rows.map((row) => (
+              <tr key={row.id} className="border-t border-slate-100">
+                <td className="px-3 py-2">{formatDateOnly(row.scheduledAt)}</td>
+                <td className="px-3 py-2">{row.customerName}</td>
+                <td className="px-3 py-2">{row.categoryName}</td>
+                <td className="px-3 py-2 text-right">{formatPHP(row.totalAmount)}</td>
+                <td className="px-3 py-2 text-right">{formatPHP(row.serviceFee)}</td>
+                <td className="px-3 py-2"><Badge label={row.status} variant="default" /></td>
+                <td className="px-3 py-2">{row.rating != null ? `${row.rating} ★` : '—'}</td>
+                <td className="px-3 py-2">{row.hasDispute ? <Badge label="yes" variant="danger" /> : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+
+      {data.total > data.pageSize && (
+        <Pagination
+          page={data.page}
+          pageSize={data.pageSize}
+          total={data.total}
+          totalPages={Math.ceil(data.total / data.pageSize)}
+          onPageChange={setPage}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Financials Tab ───────────────────────────────────────────────────────
+
+function FinancialsTab({ providerId }: { providerId: string }): React.ReactElement {
+  const queryClient = useQueryClient();
+  const role = useAuthStore((s) => s.user?.role);
+  const isSuperAdmin = role === 'super_admin';
+
+  const q = useQuery({
+    queryKey: ['admin-provider-financials', providerId],
+    queryFn: async () => {
+      const res = await api.get<{ success: true; data: Financials }>(
+        `/api/v1/admin/providers/${providerId}/financials`,
+      );
+      return res.data.data;
+    },
+  });
+
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [amountPesos, setAmountPesos] = useState('');
+  const [reason, setReason] = useState('');
+  const [adjustError, setAdjustError] = useState('');
+
+  const adjust = useMutation({
+    mutationFn: async () => {
+      const centavos = Math.round(parseFloat(amountPesos) * 100);
+      await api.post(`/api/v1/admin/providers/${providerId}/wallet/adjust`, {
+        amount: centavos,
+        reason,
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-financials', providerId] });
+      setAdjustOpen(false);
+      setAmountPesos('');
+      setReason('');
+      setAdjustError('');
+    },
+    onError: (err) => setAdjustError(getErrorMessage(err)),
+  });
+
+  if (q.isLoading) return <LoadingState label="Loading financials…" />;
+  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
+  const f = q.data!;
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KpiCard title="Total Earned" value={formatPHP(f.totalEarned)} icon={<Coins size={16} />} />
+        <KpiCard title="Commission Paid" value={formatPHP(f.totalCommissionPaid)} icon={<Coins size={16} />} />
+        <KpiCard title="Wallet Available" value={formatPHP(f.walletAvailable)} icon={<Coins size={16} />} />
+        <KpiCard title="Wallet Pending" value={formatPHP(f.walletPending)} icon={<Coins size={16} />} />
+      </div>
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-[var(--color-text)]">Recent Payouts</h3>
+          {isSuperAdmin && (
+            <Button variant="outline" size="sm" onClick={() => setAdjustOpen((v) => !v)}>
+              {adjustOpen ? 'Cancel' : 'Adjust Wallet'}
+            </Button>
+          )}
+        </div>
+
+        {adjustOpen && isSuperAdmin && (
+          <div className="mb-4 p-3 border border-amber-200 bg-amber-50 rounded-lg space-y-2">
+            <p className="text-xs text-amber-800 inline-flex items-center gap-1">
+              <AlertTriangle size={12} /> Super-admin only. This writes to the wallet ledger and is audited.
+            </p>
+            {adjustError && <p className="text-xs text-red-700">{adjustError}</p>}
+            <div className="flex gap-2 flex-wrap">
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Amount in PHP (e.g. -50.00 or 25.00)"
+                value={amountPesos}
+                onChange={(e) => setAmountPesos(e.target.value)}
+                className="px-3 py-2 border rounded text-sm w-64"
+              />
+            </div>
+            <Textarea
+              rows={2}
+              placeholder="Reason (min 5 chars)"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => adjust.mutate()}
+                disabled={adjust.isPending || !amountPesos || reason.trim().length < 5}
+              >
+                Submit Adjustment
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs uppercase text-[var(--color-text-secondary)] bg-slate-50">
+              <tr>
+                <th className="px-3 py-2 text-left">Date</th>
+                <th className="px-3 py-2 text-left">Method</th>
+                <th className="px-3 py-2 text-right">Amount</th>
+                <th className="px-3 py-2 text-left">Status</th>
+                <th className="px-3 py-2 text-left">Completed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {f.recentPayouts.length === 0 ? (
+                <tr><td colSpan={5} className="text-center py-6 text-[var(--color-text-secondary)]">No payouts yet.</td></tr>
+              ) : f.recentPayouts.map((po) => (
+                <tr key={po.id} className="border-t border-slate-100">
+                  <td className="px-3 py-2">{formatDateOnly(po.createdAt)}</td>
+                  <td className="px-3 py-2">{po.method}</td>
+                  <td className="px-3 py-2 text-right">{formatPHP(po.amount)}</td>
+                  <td className="px-3 py-2"><Badge label={po.status} variant={po.status === 'completed' ? 'success' : po.status === 'failed' ? 'danger' : 'warning'} /></td>
+                  <td className="px-3 py-2">{formatDate(po.completedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Monthly Earnings (last 12)</h3>
+        {f.monthlyEarnings.length === 0 ? (
+          <p className="text-xs text-[var(--color-text-secondary)]">No earnings on record.</p>
+        ) : (
+          <ul className="space-y-1">
+            {f.monthlyEarnings.map((m) => (
+              <li key={m.month} className="text-sm flex justify-between border-b border-slate-100 py-1.5 last:border-0">
+                <span className="text-[var(--color-text-secondary)]">{m.month}</span>
+                <span className="text-[var(--color-text)] font-medium">{formatPHP(m.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ─── Reviews Tab ──────────────────────────────────────────────────────────
+
+function ReviewsTab({ providerId }: { providerId: string }): React.ReactElement {
+  const queryClient = useQueryClient();
+
+  const q = useQuery({
+    queryKey: ['admin-provider-reviews', providerId],
+    queryFn: async () => {
+      const res = await api.get<{ success: true; data: Review[] }>(
+        `/api/v1/admin/providers/${providerId}/reviews`,
+      );
+      return res.data.data;
+    },
+  });
+
+  const visibility = useMutation({
+    mutationFn: async (args: { reviewId: string; isVisible: boolean }) => {
+      await api.patch(
+        `/api/v1/admin/providers/${providerId}/reviews/${args.reviewId}/visibility`,
+        { isVisible: args.isVisible },
+      );
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin-provider-reviews', providerId] }),
+  });
+
+  if (q.isLoading) return <LoadingState label="Loading reviews…" />;
+  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
+  const reviews = q.data!;
+
+  if (reviews.length === 0) return <EmptyState title="No reviews yet" description="This provider has not received any reviews." />;
+
+  return (
+    <div className="space-y-3 mt-4">
+      {reviews.map((r) => (
+        <Card key={r.id} className={`p-4 ${!r.isVisible ? 'opacity-60' : ''}`}>
+          <div className="flex justify-between items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium text-sm">{r.reviewerName}</span>
+                <span className="text-xs text-amber-600">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+                <span className="text-xs text-[var(--color-text-secondary)]">{formatDate(r.createdAt)}</span>
+                {!r.isVisible && <Badge label="hidden" variant="warning" />}
+              </div>
+              <p className="text-sm text-[var(--color-text)] mt-1 whitespace-pre-wrap">{r.comment}</p>
+              {r.adminResponse && (
+                <p className="text-xs text-[var(--color-text-secondary)] mt-2 italic border-l-2 border-slate-300 pl-2">
+                  Admin response: {r.adminResponse}
+                </p>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => visibility.mutate({ reviewId: r.id, isVisible: !r.isVisible })}
+              disabled={visibility.isPending}
+            >
+              {r.isVisible ? <><EyeOff size={12} /> Hide</> : <><Eye size={12} /> Show</>}
+            </Button>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ─── Disputes Tab ─────────────────────────────────────────────────────────
+
+function DisputesTab({ providerId }: { providerId: string }): React.ReactElement {
+  const q = useQuery({
+    queryKey: ['admin-provider-disputes', providerId],
+    queryFn: async () => {
+      const res = await api.get<{ success: true; data: Dispute[] }>(
+        `/api/v1/admin/providers/${providerId}/disputes`,
+      );
+      return res.data.data;
+    },
+  });
+
+  if (q.isLoading) return <LoadingState label="Loading disputes…" />;
+  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
+  const disputes = q.data!;
+
+  if (disputes.length === 0) return <EmptyState title="No disputes" description="This provider has no disputes." />;
+
+  return (
+    <Card className="p-0 overflow-x-auto mt-4">
+      <table className="w-full text-sm">
+        <thead className="text-xs uppercase text-[var(--color-text-secondary)] bg-slate-50">
+          <tr>
+            <th className="px-3 py-2 text-left">Date</th>
+            <th className="px-3 py-2 text-left">Customer</th>
+            <th className="px-3 py-2 text-left">Status</th>
+            <th className="px-3 py-2 text-left">Resolution</th>
+          </tr>
+        </thead>
+        <tbody>
+          {disputes.map((d) => (
+            <tr key={d.id} className="border-t border-slate-100">
+              <td className="px-3 py-2">{formatDate(d.createdAt)}</td>
+              <td className="px-3 py-2">{d.customerName}</td>
+              <td className="px-3 py-2"><Badge label={d.status} variant={d.status === 'resolved' ? 'success' : 'warning'} /></td>
+              <td className="px-3 py-2">{d.resolutionType ?? '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
+// ─── Activity Tab ─────────────────────────────────────────────────────────
+
+function ActivityTab({ providerId }: { providerId: string }): React.ReactElement {
+  const q = useQuery({
+    queryKey: ['admin-provider-activity', providerId],
+    queryFn: async () => {
+      const res = await api.get<{ success: true; data: ActivityRow[] }>(
+        `/api/v1/admin/providers/${providerId}/activity`,
+        { params: { limit: 100 } },
+      );
+      return res.data.data;
+    },
+  });
+
+  if (q.isLoading) return <LoadingState label="Loading activity…" />;
+  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
+  const rows = q.data!;
+
+  if (rows.length === 0) return <EmptyState title="No activity" description="No recent admin actions or login attempts on file." />;
+
+  return (
+    <Card className="p-0 overflow-x-auto mt-4">
+      <table className="w-full text-sm">
+        <thead className="text-xs uppercase text-[var(--color-text-secondary)] bg-slate-50">
+          <tr>
+            <th className="px-3 py-2 text-left">Time</th>
+            <th className="px-3 py-2 text-left">Source</th>
+            <th className="px-3 py-2 text-left">Action</th>
+            <th className="px-3 py-2 text-left">IP</th>
+            <th className="px-3 py-2 text-left">User Agent</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className="border-t border-slate-100">
+              <td className="px-3 py-2 whitespace-nowrap">{formatDate(r.createdAt)}</td>
+              <td className="px-3 py-2"><Badge label={r.source} variant={r.source === 'audit' ? 'info' : 'default'} /></td>
+              <td className="px-3 py-2 font-mono text-xs">{r.action}</td>
+              <td className="px-3 py-2 text-xs">{r.ipAddress ?? '—'}</td>
+              <td className="px-3 py-2 text-xs truncate max-w-xs" title={r.userAgent ?? ''}>{r.userAgent ?? '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
+// ─── Notes Tab ────────────────────────────────────────────────────────────
+
+function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
+  const queryClient = useQueryClient();
+  const role = useAuthStore((s) => s.user?.role);
+  const isSuperAdmin = role === 'super_admin';
+  const myUserId = useAuthStore((s) => s.user?.id);
+
+  const q = useQuery({
+    queryKey: ['admin-provider-notes', providerId],
+    queryFn: async () => {
+      const res = await api.get<{ success: true; data: Note[] }>(
+        `/api/v1/admin/providers/${providerId}/notes`,
+      );
+      return res.data.data;
+    },
+  });
+
+  const [body, setBody] = useState('');
+  const [category, setCategory] = useState<'general' | 'quality' | 'financial' | 'legal'>('general');
+  const [pinned, setPinned] = useState(false);
+  const [createError, setCreateError] = useState('');
+
+  const create = useMutation({
+    mutationFn: async () => {
+      await api.post(`/api/v1/admin/providers/${providerId}/notes`, { body, category, pinned });
+    },
+    onSuccess: () => {
+      setBody('');
+      setPinned(false);
+      setCategory('general');
+      setCreateError('');
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-notes', providerId] });
+    },
+    onError: (err) => setCreateError(getErrorMessage(err)),
+  });
+
+  const togglePin = useMutation({
+    mutationFn: async (n: Note) => {
+      await api.patch(`/api/v1/admin/providers/${providerId}/notes/${n.id}`, { pinned: !n.pinned });
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin-provider-notes', providerId] }),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (noteId: string) => {
+      await api.delete(`/api/v1/admin/providers/${providerId}/notes/${noteId}`);
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin-provider-notes', providerId] }),
+  });
+
+  if (q.isLoading) return <LoadingState label="Loading notes…" />;
+  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
+  const notes = q.data!;
+
+  return (
+    <div className="space-y-4 mt-4">
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3 inline-flex items-center gap-1">
+          <Plus size={14} /> Add internal note
+        </h3>
+        {createError && <p className="text-xs text-red-700 mb-2">{createError}</p>}
+        <Textarea
+          rows={3}
+          placeholder="Internal note (not visible to provider)…"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+        />
+        <div className="flex items-center gap-3 mt-2 flex-wrap">
+          <select value={category} onChange={(e) => setCategory(e.target.value as typeof category)} className="px-3 py-2 border rounded text-sm">
+            <option value="general">General</option>
+            <option value="quality">Quality</option>
+            <option value="financial">Financial</option>
+            <option value="legal">Legal</option>
+          </select>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <Checkbox checked={pinned} onCheckedChange={(v) => setPinned(Boolean(v))} />
+            Pin to top
+          </label>
+          <Button size="sm" onClick={() => create.mutate()} disabled={create.isPending || !body.trim()}>
+            Save Note
+          </Button>
+        </div>
+      </Card>
+
+      {notes.length === 0 ? (
+        <EmptyState title="No notes yet" description="Add the first internal note above." />
+      ) : (
+        notes.map((n) => {
+          const canEdit = isSuperAdmin || n.authorId === myUserId;
+          return (
+            <Card key={n.id} className={`p-4 ${n.pinned ? 'border-amber-300 bg-amber-50/40' : ''}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <Badge label={n.category} variant="info" />
+                    {n.pinned && <Badge label="pinned" variant="warning" />}
+                    <span className="text-[var(--color-text-secondary)]">{n.authorName}</span>
+                    <span className="text-[var(--color-text-secondary)]">{formatDate(n.createdAt)}</span>
+                  </div>
+                  <p className="text-sm text-[var(--color-text)] mt-2 whitespace-pre-wrap">{n.body}</p>
+                </div>
+                {canEdit && (
+                  <div className="flex flex-col gap-1">
+                    <Button variant="outline" size="sm" onClick={() => togglePin.mutate(n)} disabled={togglePin.isPending}>
+                      {n.pinned ? 'Unpin' : 'Pin'}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => remove.mutate(n.id)} disabled={remove.isPending}>
+                      <Trash2 size={12} /> Delete
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </Card>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+// silence unused-imports warnings for icons reserved for future use
+void Pencil;
+void RefreshCw;
+void Calendar;
+void FileText;
+void MessageSquare;
+
