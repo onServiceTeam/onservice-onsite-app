@@ -1,0 +1,5 @@
+Validating referenced artifacts...
+
+PASS: Evidence manifest validated. All artifacts present and sized.
+      Manifest: .ai-coder/checkpoints/logs/PHASE-11/EVIDENCE-MANIFEST.md
+      Honesty:  .ai-coder/checkpoints/logs/PHASE-11/HONESTY-CHECK.md

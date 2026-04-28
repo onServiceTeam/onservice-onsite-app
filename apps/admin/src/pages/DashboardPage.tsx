@@ -121,6 +121,39 @@ export default function DashboardPage(): React.ReactElement {
     refetchInterval: 30_000,
   });
 
+  // Phase 11: prepend overdue/near-due DSRs as alert rows (compliance dashboard wiring).
+  const dsrAlerts = useQuery({
+    queryKey: ['dashboard-dsr-alerts'],
+    queryFn: async () => {
+      try {
+        return await fetchJson<Array<{
+          id: string;
+          requestType: string;
+          userEmail: string | null;
+          dueAt: string;
+          daysUntilDue: number;
+          isOverdue: boolean;
+        }>>('/api/v1/admin/compliance/dsr-alerts');
+      } catch {
+        return [];
+      }
+    },
+    refetchInterval: 60_000,
+  });
+
+  const mergedAlerts: OperationalAlert[] = React.useMemo(() => {
+    const dsrRows: OperationalAlert[] = (dsrAlerts.data ?? []).map((d) => ({
+      id: `dsr-${d.id}`,
+      type: 'dsr_due',
+      severity: d.isOverdue ? 'danger' : 'warning',
+      title: `DSR ${d.requestType} ${d.isOverdue ? 'OVERDUE' : 'due soon'}`,
+      description: `${d.userEmail ?? 'user'} — due ${new Date(d.dueAt).toLocaleDateString('en-PH')} (${d.daysUntilDue}d)`,
+      action_url: '/compliance',
+      created_at: new Date().toISOString(),
+    }));
+    return [...dsrRows, ...(alerts.data ?? [])];
+  }, [dsrAlerts.data, alerts.data]);
+
   const cities = useQuery({
     queryKey: ['dashboard-cities'],
     queryFn: () => fetchJson<CityPerformance[]>('/api/v1/admin/dashboard/cities'),
@@ -301,7 +334,7 @@ export default function DashboardPage(): React.ReactElement {
             <CardTitle>Operational Alerts</CardTitle>
           </CardHeader>
           <CardContent>
-            {(alerts.data ?? []).length === 0 ? (
+            {mergedAlerts.length === 0 ? (
               <EmptyState
                 title="No alerts"
                 description="All systems healthy. Nothing requires intervention right now."
@@ -309,7 +342,7 @@ export default function DashboardPage(): React.ReactElement {
               />
             ) : (
               <ul className="divide-y divide-[var(--color-border)]">
-                {(alerts.data ?? []).map((alert) => (
+                {mergedAlerts.map((alert) => (
                   <li key={alert.id} className="py-3 flex items-start gap-3">
                     <AlertCircle
                       className={

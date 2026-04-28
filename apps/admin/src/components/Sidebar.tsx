@@ -20,6 +20,7 @@ import {
   User,
   Settings,
   Activity,
+  Shield,
 } from '@/components/icons';
 
 type NavItem = {
@@ -45,6 +46,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/service-areas', Icon: MapPin, label: 'Service Areas' },
   { to: '/analytics', Icon: LineChart, label: 'Analytics' },
   { to: '/audit-log', Icon: Search, label: 'Audit Log' },
+  { to: '/compliance', Icon: Shield, label: 'Compliance' },
   { to: '/support-tickets', Icon: Ticket, label: 'Support' },
   { to: '/staff', Icon: User, label: 'Staff & Roles' },
   { to: '/settings', Icon: Settings, label: 'Settings' },

@@ -43,6 +43,8 @@ import disputeAdminRoutes from './routes/dispute-admin.routes';
 import financialAdminRoutes from './routes/financial-admin.routes';
 import birAdminRoutes from './routes/bir-admin.routes';
 import marketingAdminRoutes from './routes/marketing-admin.routes';
+import complianceAdminRoutes from './routes/compliance-admin.routes';
+import complianceRoutes from './routes/compliance.routes';
 import webhookRoutes from './routes/webhook.routes';
 import notificationRoutes from './routes/notification.routes';
 import notificationTemplateRoutes from './routes/notification-template.routes';
@@ -168,7 +170,12 @@ app.use('/api/v1/admin/bir', birAdminRoutes);
 // Phase 09: marketing admin sub-routes mounted BEFORE generic admin routes
 // so `/admin/marketing/...` matches before any `/admin/*` fallthrough.
 app.use('/api/v1/admin/marketing', marketingAdminRoutes);
+// Phase 11: compliance admin sub-routes mounted BEFORE generic admin routes
+// so `/admin/compliance/...` matches before any `/admin/*` fallthrough.
+app.use('/api/v1/admin/compliance', complianceAdminRoutes);
 app.use('/api/v1/admin', adminRoutes);
+// Phase 11: end-user compliance endpoints (DSR + consent recording).
+app.use('/api/v1/compliance', complianceRoutes);
 
 // Phase 03: public client config endpoint (no auth required).
 app.get('/api/v1/config', async (_req, res) => {

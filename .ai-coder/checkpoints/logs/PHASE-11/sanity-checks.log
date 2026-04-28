@@ -1,0 +1,10 @@
+2026-04-28T14:19:44+08:00 PHASE-11 start (branch phase/11-compliance-center, base a1c4859)
+2026-04-28T14:19:44+08:00 migration 057_compliance_consent_dsr.sql created (consent_records, data_subject_requests)
+2026-04-28T14:19:44+08:00 compliance.service.ts created (recordConsent, listConsentForUser, searchConsent, createDsr, listDsrs, getDsr, updateDsrStatus, exportAuditLogCsv, getBirCalendar, getDsrAlerts)
+2026-04-28T14:19:44+08:00 compliance-admin.routes.ts + compliance.routes.ts created and wired in server.ts (admin route mounted BEFORE generic /api/v1/admin)
+2026-04-28T14:19:44+08:00 hermetic test suite compliance-admin.test.ts: 40 tests, all pass
+2026-04-28T14:19:44+08:00 packages/api: tsc clean, eslint clean, jest 789/789 pass (32 suites)
+2026-04-28T14:19:44+08:00 apps/admin: CompliancePage.tsx created with 5 tabs (NPC, BIR, Audit, Tax stub, Reports stub)
+2026-04-28T14:19:44+08:00 apps/admin: App.tsx route /compliance added; Sidebar link with Shield icon between audit-log and support-tickets
+2026-04-28T14:19:44+08:00 DashboardPage.tsx: prepends DSR alerts (overdue + within 2 days) to operational alerts list
+2026-04-28T14:19:44+08:00 apps/admin: tsc clean, eslint clean, vite build success (CompliancePage chunk 18.57 kB / 4.97 kB gzipped)

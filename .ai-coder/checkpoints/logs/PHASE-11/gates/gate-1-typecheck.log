@@ -1,0 +1,16 @@
+
+> onservice-onsite-app@0.1.0 typecheck
+> npm run typecheck --workspaces --if-present
+
+
+> @onservice/admin@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @onservice/mobile@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @onservice/api@0.1.0 typecheck
+> tsc --noEmit
+
