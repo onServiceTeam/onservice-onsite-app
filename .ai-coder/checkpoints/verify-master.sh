@@ -259,9 +259,20 @@ echo ""
 echo "================================================================"
 echo "  Hashing all artifacts (cryptographic chain of evidence)"
 echo "================================================================"
-find "$LOG_DIR" -type f -not -name "HASHES.sha256" -exec sha256sum {} \; > "${LOG_DIR}/HASHES.sha256"
+# Exclude transient files that are rewritten on subsequent verify-master invocations
+# (sanity-checks.log is appended to; verify-master-attempt-*.log is rewritten each
+# invocation), and the hash-file/manifest itself. Sort for deterministic output
+# (find iteration order is filesystem-dependent).
+find "$LOG_DIR" -type f \
+  -not -name "HASHES.sha256" \
+  -not -name "HASHES-CORRECTED.sha256" \
+  -not -name "HASHES-CORRECTED.README.md" \
+  -not -name "sanity-checks.log" \
+  -not -name "verify-master-attempt-*.log" \
+  -exec sha256sum {} \; \
+  | sort > "${LOG_DIR}/HASHES.sha256"
 echo "Hashes written to ${LOG_DIR}/HASHES.sha256"
-echo "Ken can verify with: cd ${LOG_DIR} && sha256sum -c HASHES.sha256"
+echo "Ken can verify with: sha256sum -c ${LOG_DIR}/HASHES.sha256  (run from repo root)"
 
 # ===== FINAL STATUS =====
 echo ""

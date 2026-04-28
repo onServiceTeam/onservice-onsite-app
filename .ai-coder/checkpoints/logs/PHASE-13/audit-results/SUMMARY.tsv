@@ -1,0 +1,53 @@
+PHASE	check	committed_introduced	fresh_introduced	committed_absolute	fresh_absolute	committed_gate	fresh_gate
+PHASE-00	forbidden	0	37	5	41	PASS (no new violations introduced by PHASE-00)	?
+PHASE-00	emoji	0	0	196	0	PASS (no new violations introduced by PHASE-00)	PASS (no new violations introduced by PHASE-00)
+PHASE-00	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-00)	PASS (no new violations introduced by PHASE-00)
+PHASE-00	nplus1	0	14	16	25	PASS (no new N+1 patterns introduced by PHASE-00)	?
+PHASE-01	forbidden	0	37	5	41	PASS (no new violations introduced by PHASE-01)	?
+PHASE-01	emoji	0	0	196	0	PASS (no new violations introduced by PHASE-01)	PASS (no new violations introduced by PHASE-01)
+PHASE-01	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-01)	PASS (no new violations introduced by PHASE-01)
+PHASE-01	nplus1	0	14	16	25	PASS (no new N+1 patterns introduced by PHASE-01)	?
+PHASE-02	forbidden	0	37	5	41	PASS (no new violations introduced by PHASE-02)	?
+PHASE-02	emoji	0	0	0	0	PASS (no new violations introduced by PHASE-02)	PASS (no new violations introduced by PHASE-02)
+PHASE-02	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-02)	PASS (no new violations introduced by PHASE-02)
+PHASE-02	nplus1	0	14	16	25	PASS (no new N+1 patterns introduced by PHASE-02)	?
+PHASE-03	forbidden	0	36	5	41	PASS (no new violations introduced by PHASE-03)	?
+PHASE-03	emoji	0	0	0	0	PASS (no new violations introduced by PHASE-03)	PASS (no new violations introduced by PHASE-03)
+PHASE-03	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-03)	PASS (no new violations introduced by PHASE-03)
+PHASE-03	nplus1	0	14	16	25	PASS (no new N+1 patterns introduced by PHASE-03)	?
+PHASE-04	forbidden	0	36	5	41	PASS (no new violations introduced by PHASE-04)	?
+PHASE-04	emoji	0	0	0	0	PASS (no new violations introduced by PHASE-04)	PASS (no new violations introduced by PHASE-04)
+PHASE-04	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-04)	PASS (no new violations introduced by PHASE-04)
+PHASE-04	nplus1	0	14	18	25	PASS (no new N+1 patterns introduced by PHASE-04)	?
+PHASE-05	forbidden	0	36	5	41	PASS (no new violations introduced by PHASE-05)	?
+PHASE-05	emoji	0	0	0	0	PASS (no new violations introduced by PHASE-05)	PASS (no new violations introduced by PHASE-05)
+PHASE-05	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-05)	PASS (no new violations introduced by PHASE-05)
+PHASE-05	nplus1	0	10	18	25	PASS (no new N+1 patterns introduced by PHASE-05)	?
+PHASE-06	forbidden	0	36	5	41	PASS (no new violations introduced by PHASE-06)	?
+PHASE-06	emoji	0	0	0	0	PASS (no new violations introduced by PHASE-06)	PASS (no new violations introduced by PHASE-06)
+PHASE-06	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-06)	PASS (no new violations introduced by PHASE-06)
+PHASE-06	nplus1	0	10	18	25	PASS (no new N+1 patterns introduced by PHASE-06)	?
+PHASE-07	forbidden	0	36	5	41	PASS (no new violations introduced by PHASE-07)	?
+PHASE-07	emoji	0	0	0	0	PASS (no new violations introduced by PHASE-07)	PASS (no new violations introduced by PHASE-07)
+PHASE-07	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-07)	PASS (no new violations introduced by PHASE-07)
+PHASE-07	nplus1	0	10	18	25	PASS (no new N+1 patterns introduced by PHASE-07)	?
+PHASE-08	forbidden	0	36	33	41	PASS (no new violations introduced by PHASE-08)	?
+PHASE-08	emoji	0	0	0	0	PASS (no new violations introduced by PHASE-08)	PASS (no new violations introduced by PHASE-08)
+PHASE-08	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-08)	PASS (no new violations introduced by PHASE-08)
+PHASE-08	nplus1	0	10	22	25	PASS (no new N+1 patterns introduced by PHASE-08)	?
+PHASE-09	forbidden	0	8	34	41	PASS (no new violations introduced by PHASE-09)	?
+PHASE-09	emoji	0	0	0	0	PASS (no new violations introduced by PHASE-09)	PASS (no new violations introduced by PHASE-09)
+PHASE-09	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-09)	PASS (no new violations introduced by PHASE-09)
+PHASE-09	nplus1	0	6	24	25	PASS (no new N+1 patterns introduced by PHASE-09)	?
+PHASE-10	forbidden	0	7	40	41	PASS (no new violations introduced by PHASE-10)	?
+PHASE-10	emoji	0	0	0	0	PASS (no new violations introduced by PHASE-10)	PASS (no new violations introduced by PHASE-10)
+PHASE-10	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-10)	PASS (no new violations introduced by PHASE-10)
+PHASE-10	nplus1	0	4	24	25	PASS (no new N+1 patterns introduced by PHASE-10)	?
+PHASE-11	forbidden	0	1	41	41	PASS (no new violations introduced by PHASE-11)	?
+PHASE-11	emoji	0	0	0	0	PASS (no new violations introduced by PHASE-11)	PASS (no new violations introduced by PHASE-11)
+PHASE-11	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-11)	PASS (no new violations introduced by PHASE-11)
+PHASE-11	nplus1	0	1	25	25	PASS (no new N+1 patterns introduced by PHASE-11)	?
+PHASE-12	forbidden	0	0	41	41	PASS (no new violations introduced by PHASE-12)	PASS (no new violations introduced by PHASE-12)
+PHASE-12	emoji	0	0	0	0	PASS (no new violations introduced by PHASE-12)	PASS (no new violations introduced by PHASE-12)
+PHASE-12	phantom	0	0	0	0	PASS (no new violations introduced by PHASE-12)	PASS (no new violations introduced by PHASE-12)
+PHASE-12	nplus1	0	0	25	25	PASS (no new N+1 patterns introduced by PHASE-12)	PASS (no new N+1 patterns introduced by PHASE-12)

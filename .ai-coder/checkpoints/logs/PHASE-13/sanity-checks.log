@@ -1,0 +1,5 @@
+[2026-04-28 17:53:22] PHASE-13 Dispatch A start: branch phase/13-reconciliation off bfdd2d5; preflight tsc clean, eslint clean.
+[2026-04-28 17:53:22] Step 0 done: branch + dirs + preflight markers.
+[2026-04-28 18:30:00] Step 1 done: forensic audit complete; data sources = committed gate logs (truth-of-record) + PHASE-08 fresh spot-check (cross-validation); v1 (audit-results/) flagged inflated; v2 (audit-results-v2/) abandoned incomplete; findings written to RECONCILIATION-AUDIT.md.
+[2026-04-28 18:30:00] Step 2 done: verify-master.sh hash-emission block (line ~262) patched to exclude transient files (HASHES.sha256, HASHES-CORRECTED.sha256, HASHES-CORRECTED.README.md, sanity-checks.log, verify-master-attempt-*.log) and pipe through sort for determinism.
+[2026-04-28 18:30:00] Step 2b done: HASHES-CORRECTED.sha256 + HASHES-CORRECTED.README.md generated for all 13 phases (00..12); all 13 verify clean via sha256sum -c from repo root.

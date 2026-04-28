@@ -1,0 +1,57 @@
+--- gate-1-forbidden ---
+Absolute violations in repo: 41
+Violations introduced by this phase: 37
+Violations remaining (deferred to later phases): 4
+Sample (first 10):
+  - apps/admin/src/lib/use-admin-socket.ts:29:  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;  [DESC: double cast]
+  - apps/admin/src/pages/CompliancePage.tsx:804:        <Button onClick={() => { window.alert('Not yet implemented'); }}>  [DESC: window.alert]
+  - apps/admin/src/pages/DispatchConsolePage.tsx:164:    console.warn('Dispatch: bookings endpoint failed, rendering empty', err);  [DESC: console.warn]
+  - apps/admin/src/pages/DispatchConsolePage.tsx:177:    console.warn('Dispatch: providers endpoint failed, rendering empty', err);  [DESC: console.warn]
+  - apps/admin/src/pages/DispatchConsolePage.tsx:316:    window.alert(`Phase 10 stub: reassign booking ${b.id}`);  [DESC: window.alert]
+  - apps/admin/src/pages/DispatchConsolePage.tsx:319:    window.alert(`Phase 10 stub: cancel booking ${b.id}`);  [DESC: window.alert]
+  - apps/admin/src/pages/DispatchConsolePage.tsx:322:    window.alert(`Phase 10 stub: message customer for booking ${b.id}`);  [DESC: window.alert]
+  - apps/admin/src/pages/FinancialsPage.tsx:644:      window.alert('Reconciliation triggered.');  [DESC: window.alert]
+  - apps/admin/src/pages/FinancialsPage.tsx:651:      window.alert(`Failed: ${getErrorMessage(err)}`);  [DESC: window.alert]
+  - apps/admin/src/pages/FinancialsPage.tsx:665:      window.alert('Acknowledged.');  [DESC: window.alert]
+  ... (full list in gate log)
+
+FAIL: PHASE-02 introduced 37 new forbidden-pattern violation(s):
+apps/admin/src/lib/use-admin-socket.ts:29:  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;  [DESC: double cast]
+apps/admin/src/pages/CompliancePage.tsx:804:        <Button onClick={() => { window.alert('Not yet implemented'); }}>  [DESC: window.alert]
+apps/admin/src/pages/DispatchConsolePage.tsx:164:    console.warn('Dispatch: bookings endpoint failed, rendering empty', err);  [DESC: console.warn]
+apps/admin/src/pages/DispatchConsolePage.tsx:177:    console.warn('Dispatch: providers endpoint failed, rendering empty', err);  [DESC: console.warn]
+apps/admin/src/pages/DispatchConsolePage.tsx:316:    window.alert(`Phase 10 stub: reassign booking ${b.id}`);  [DESC: window.alert]
+apps/admin/src/pages/DispatchConsolePage.tsx:319:    window.alert(`Phase 10 stub: cancel booking ${b.id}`);  [DESC: window.alert]
+apps/admin/src/pages/DispatchConsolePage.tsx:322:    window.alert(`Phase 10 stub: message customer for booking ${b.id}`);  [DESC: window.alert]
+apps/admin/src/pages/FinancialsPage.tsx:644:      window.alert('Reconciliation triggered.');  [DESC: window.alert]
+apps/admin/src/pages/FinancialsPage.tsx:651:      window.alert(`Failed: ${getErrorMessage(err)}`);  [DESC: window.alert]
+apps/admin/src/pages/FinancialsPage.tsx:665:      window.alert('Acknowledged.');  [DESC: window.alert]
+apps/admin/src/pages/FinancialsPage.tsx:671:      window.alert(`Failed: ${getErrorMessage(err)}`);  [DESC: window.alert]
+apps/admin/src/pages/FinancialsPage.tsx:680:        window.alert('PayMongo balance must be a number (centavos).');  [DESC: window.alert]
+apps/admin/src/pages/FinancialsPage.tsx:693:      window.alert('Note must be 5–1000 characters.');  [DESC: window.alert]
+apps/admin/src/pages/FinancialsPage.tsx:899:      window.alert('Monthly report generated.');  [DESC: window.alert]
+apps/admin/src/pages/FinancialsPage.tsx:902:    onError: (err) => window.alert(`Failed: ${getErrorMessage(err)}`),  [DESC: window.alert]
+apps/admin/src/pages/FinancialsPage.tsx:914:      window.alert('Monthly report finalized.');  [DESC: window.alert]
+apps/admin/src/pages/FinancialsPage.tsx:917:    onError: (err) => window.alert(`Failed: ${getErrorMessage(err)}`),  [DESC: window.alert]
+apps/admin/src/pages/FinancialsPage.tsx:929:      window.alert('Quarterly batch generated.');  [DESC: window.alert]
+apps/admin/src/pages/FinancialsPage.tsx:932:    onError: (err) => window.alert(`Failed: ${getErrorMessage(err)}`),  [DESC: window.alert]
+apps/admin/src/pages/PricingRulesPage.tsx:595:                          if (window.confirm(`Delete rule "${rule.name}"? This cannot be undone.`)) {  [DESC: window.confirm]
+apps/mobile/app/provider-onboarding/identity-verification.tsx:167:          console.log('[identity-verification] payload (endpoint missing):', {  [DESC: console.log/debug]
+packages/api/src/services/bir-2307.service.ts:305:  // TODO(phase-08): implement real S3 upload via @aws-sdk/client-s3 once the  [DESC: TODO comment]
+packages/api/src/services/bir-2307.service.ts:519:        return mapBatchRow(updated as unknown as Record<string, unknown>);  [DESC: double cast]
+packages/api/src/services/bir-2307.service.ts:619:    let batch = mapBatchRow(insertedRow as unknown as Record<string, unknown>);  [DESC: double cast]
+packages/api/src/services/bir-2307.service.ts:735:  let batch = mapBatchRow(upserted as unknown as Record<string, unknown>);  [DESC: double cast]
+packages/api/src/services/bir-2307.service.ts:790:  return row ? mapBatchRow(row as unknown as Record<string, unknown>) : null;  [DESC: double cast]
+packages/api/src/services/bir-2307.service.ts:822:  return result.rows.map((row) => mapBatchRow(row as unknown as Record<string, unknown>));  [DESC: double cast]
+packages/api/src/services/bir-2307.service.ts:853:    rows: rowsResult.rows.map((row) => mapBatchRow(row as unknown as Record<string, unknown>)),  [DESC: double cast]
+packages/api/src/services/or.service.ts:266:  // TODO(phase-08): implement real S3 upload via @aws-sdk/client-s3 once the  [DESC: TODO comment]
+packages/api/src/services/reconciliation.service.ts:305:  const snapshot = mapSnapshotRow(snapshotRow as unknown as Record<string, unknown>);  [DESC: double cast]
+packages/api/src/services/reconciliation.service.ts:394:  const snapshot = mapSnapshotRow(updated as unknown as Record<string, unknown>);  [DESC: double cast]
+packages/api/src/services/reconciliation.service.ts:429:  return mapSnapshotRow(row as unknown as Record<string, unknown>);  [DESC: double cast]
+packages/api/src/services/reconciliation.service.ts:444:  return mapSnapshotRow(row as unknown as Record<string, unknown>);  [DESC: double cast]
+packages/api/src/services/reconciliation.service.ts:458:    mapSnapshotRow(r as unknown as Record<string, unknown>),  [DESC: double cast]
+packages/api/src/services/reconciliation.service.ts:474:    mapSnapshotRow(r as unknown as Record<string, unknown>),  [DESC: double cast]
+packages/api/src/services/reconciliation.service.ts:99:  const r = row as unknown as SnapshotRow;  [DESC: double cast]
+packages/api/src/services/vat-report.service.ts:292:  // TODO(phase-08): real S3 upload via @aws-sdk/client-s3 once available.  [DESC: TODO comment]
+
+Each is a constitutional violation under Article 4 (Code Quality Standards).
