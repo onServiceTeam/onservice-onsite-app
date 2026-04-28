@@ -1,0 +1,17 @@
+--- gate-1-forbidden ---
+Absolute violations in repo: 34
+Violations introduced by this phase: 0
+Violations remaining (deferred to later phases): 34
+Sample (first 10):
+  - apps/admin/src/pages/FinancialsPage.tsx:644:      window.alert('Reconciliation triggered.');  [DESC: window.alert]
+  - apps/admin/src/pages/FinancialsPage.tsx:651:      window.alert(`Failed: ${getErrorMessage(err)}`);  [DESC: window.alert]
+  - apps/admin/src/pages/FinancialsPage.tsx:665:      window.alert('Acknowledged.');  [DESC: window.alert]
+  - apps/admin/src/pages/FinancialsPage.tsx:671:      window.alert(`Failed: ${getErrorMessage(err)}`);  [DESC: window.alert]
+  - apps/admin/src/pages/FinancialsPage.tsx:680:        window.alert('PayMongo balance must be a number (centavos).');  [DESC: window.alert]
+  - apps/admin/src/pages/FinancialsPage.tsx:693:      window.alert('Note must be 5–1000 characters.');  [DESC: window.alert]
+  - apps/admin/src/pages/FinancialsPage.tsx:899:      window.alert('Monthly report generated.');  [DESC: window.alert]
+  - apps/admin/src/pages/FinancialsPage.tsx:902:    onError: (err) => window.alert(`Failed: ${getErrorMessage(err)}`),  [DESC: window.alert]
+  - apps/admin/src/pages/FinancialsPage.tsx:914:      window.alert('Monthly report finalized.');  [DESC: window.alert]
+  - apps/admin/src/pages/FinancialsPage.tsx:917:    onError: (err) => window.alert(`Failed: ${getErrorMessage(err)}`),  [DESC: window.alert]
+  ... (full list in gate log)
+GATE: PASS (no new violations introduced by PHASE-09)

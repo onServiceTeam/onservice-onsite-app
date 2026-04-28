@@ -1,0 +1,15 @@
+--- gate-3-mutations (TD-005 baseline-delta scope) ---
+Phase:            PHASE-09
+Sacred roster:    8 files
+Touched by phase: 0 file(s)
+Untouched (deferred to their implementation phases / Phase 12 sweep):
+  - packages/api/src/services/escrow.service.ts
+  - packages/api/src/services/commission.service.ts
+  - packages/api/src/services/dispute.service.ts
+  - packages/api/src/services/booking.service.ts
+  - packages/api/src/services/payout.service.ts
+  - packages/api/src/services/wallet.service.ts
+  - packages/api/src/services/refund.service.ts
+  - packages/api/src/services/settings.service.ts
+
+INFO: Phase did not touch any sacred files; mutation gate skipped (TD-005).

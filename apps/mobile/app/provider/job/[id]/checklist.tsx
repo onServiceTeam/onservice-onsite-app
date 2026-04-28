@@ -1,125 +1,248 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Alert,
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  Modal,
+  TextInput,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getPublicItem, setPublicItem } from '@/services/secure-storage.service';
+import * as ImagePicker from 'expo-image-picker';
+import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { CheckCircle2, Camera, AlertCircle, X } from '@/components/icons';
 
 interface ChecklistItem {
   id: string;
-  text: string;
-  completed: boolean;
+  label: string;
+  done: boolean;
+  completedAt: string | null;
+  photoUri: string | null;
 }
 
-const DEFAULT_TEMPLATES: Record<string, string[]> = {
-  cleaning: ['Arrive and assess area', 'Gather cleaning supplies', 'Clean surfaces and floors', 'Vacuum/mop', 'Sanitize bathrooms', 'Take completion photos', 'Final walkthrough with customer'],
-  plumbing: ['Inspect the issue', 'Turn off water supply', 'Prepare tools and parts', 'Perform repair', 'Test for leaks', 'Clean up work area', 'Take before/after photos'],
-  electrical: ['Inspect electrical panel', 'Check existing wiring', 'Turn off power at breaker', 'Perform work', 'Test connections', 'Restore power and verify', 'Take completion photos'],
-  general: ['Arrive and greet customer', 'Assess the job scope', 'Prepare tools and materials', 'Perform the service', 'Clean up work area', 'Take completion photos', 'Get customer acknowledgment'],
-};
-
-function getStorageKey(bookingId: string): string {
-  return `checklist_${bookingId}`;
+interface ChecklistSection {
+  id: string;
+  title: string;
+  items: ChecklistItem[];
 }
 
-export default function JobChecklistScreen(): React.ReactElement | null {
-  const { id: bookingId } = useLocalSearchParams<{ id: string }>();
+function makeItem(id: string, label: string): ChecklistItem {
+  return { id, label, done: false, completedAt: null, photoUri: null };
+}
+
+const INITIAL_SECTIONS: ChecklistSection[] = [
+  {
+    id: 'living',
+    title: 'Living Room',
+    items: [
+      makeItem('living-vacuum', 'Vacuum floor'),
+      makeItem('living-surfaces', 'Wipe surfaces'),
+      makeItem('living-shelves', 'Dust shelves'),
+      makeItem('living-trash', 'Empty trash'),
+    ],
+  },
+  {
+    id: 'kitchen',
+    title: 'Kitchen',
+    items: [
+      makeItem('kitchen-counters', 'Wipe counters'),
+      makeItem('kitchen-stove', 'Clean stove'),
+      makeItem('kitchen-sink', 'Clean sink'),
+      makeItem('kitchen-mop', 'Mop floor'),
+      makeItem('kitchen-trash', 'Take out trash'),
+    ],
+  },
+  {
+    id: 'bathroom',
+    title: 'Bathroom',
+    items: [
+      makeItem('bath-toilet', 'Scrub toilet'),
+      makeItem('bath-tub', 'Clean tub'),
+      makeItem('bath-mirror', 'Wipe mirror'),
+      makeItem('bath-mop', 'Mop floor'),
+      makeItem('bath-restock', 'Restock supplies'),
+    ],
+  },
+  {
+    id: 'bedrooms',
+    title: 'Bedrooms',
+    items: [
+      makeItem('bed-make', 'Make bed'),
+      makeItem('bed-vacuum', 'Vacuum'),
+      makeItem('bed-dust', 'Dust surfaces'),
+      makeItem('bed-trash', 'Empty trash'),
+    ],
+  },
+];
+
+interface FlatRow {
+  type: 'header' | 'item';
+  sectionId: string;
+  sectionTitle?: string;
+  item?: ChecklistItem;
+}
+
+export default function JobChecklistScreen(): React.ReactElement {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const [items, setItems] = useState<ChecklistItem[]>([]);
-  const [newItemText, setNewItemText] = useState('');
-  const [loaded, setLoaded] = useState(false);
+  const [sections, setSections] = useState<ChecklistSection[]>(INITIAL_SECTIONS);
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [issueItemId, setIssueItemId] = useState<string | null>(null);
+  const [issueText, setIssueText] = useState('');
+  const [issueSubmitting, setIssueSubmitting] = useState(false);
 
-  const loadChecklist = useCallback(() => {
-    try {
-      const stored = getPublicItem(getStorageKey(bookingId ?? ''));
-      if (stored) {
-        setItems(JSON.parse(stored));
-      } else {
-        const template = DEFAULT_TEMPLATES.general ?? [];
-        const initial: ChecklistItem[] = template.map((text, i) => ({
-          id: `item_${i}`,
-          text,
-          completed: false,
-        }));
-        setItems(initial);
-      }
-    } catch {
-      setItems([]);
+  const totals = useMemo(() => {
+    let total = 0;
+    let done = 0;
+    sections.forEach((s) => {
+      s.items.forEach((it) => {
+        total += 1;
+        if (it.done) done += 1;
+      });
+    });
+    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    return { total, done, pct };
+  }, [sections]);
+
+  const rows = useMemo<FlatRow[]>(() => {
+    const list: FlatRow[] = [];
+    sections.forEach((s) => {
+      list.push({ type: 'header', sectionId: s.id, sectionTitle: s.title });
+      s.items.forEach((it) => list.push({ type: 'item', sectionId: s.id, item: it }));
+    });
+    return list;
+  }, [sections]);
+
+  const updateItem = (itemId: string, patch: Partial<ChecklistItem>): void => {
+    setSections((prev) =>
+      prev.map((s) => ({
+        ...s,
+        items: s.items.map((it) => (it.id === itemId ? { ...it, ...patch } : it)),
+      })),
+    );
+  };
+
+  const toggleDone = (item: ChecklistItem): void => {
+    if (item.done) {
+      updateItem(item.id, { done: false, completedAt: null });
+    } else {
+      updateItem(item.id, { done: true, completedAt: new Date().toISOString() });
     }
-    setLoaded(true);
-  }, [bookingId]);
+  };
 
-  useEffect(() => {
-    if (!bookingId) return;
-    loadChecklist();
-  }, [bookingId, loadChecklist]);
-
-  const saveChecklist = useCallback((updated: ChecklistItem[]) => {
+  const capturePhoto = async (item: ChecklistItem): Promise<void> => {
     try {
-      setPublicItem(getStorageKey(bookingId ?? ''), JSON.stringify(updated));
-    } catch { /* non-critical */ }
-  }, [bookingId]);
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (perm.status !== 'granted') {
+        Alert.alert('Camera permission', 'Please allow camera access to attach photos.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: 0.7,
+      });
+      if (result.canceled || result.assets.length === 0) return;
+      const asset = result.assets[0];
+      if (!asset) return;
+      updateItem(item.id, { photoUri: asset.uri });
+    } catch {
+      Alert.alert('Camera unavailable', 'Could not open the camera on this device.');
+    }
+  };
 
-  const toggleItem = useCallback((id: string) => {
-    setItems((prev) => {
-      const updated = prev.map((item) =>
-        item.id === id ? { ...item, completed: !item.completed } : item,
+  const openIssue = (item: ChecklistItem): void => {
+    setIssueItemId(item.id);
+    setIssueText('');
+    setIssueOpen(true);
+  };
+
+  const submitIssue = async (): Promise<void> => {
+    if (!id || !issueItemId) {
+      setIssueOpen(false);
+      return;
+    }
+    if (issueText.trim().length === 0) {
+      Alert.alert('Required', 'Please describe the issue.');
+      return;
+    }
+    setIssueSubmitting(true);
+    try {
+      await api.post(`/api/v1/bookings/${id}/issues`, {
+        itemId: issueItemId,
+        description: issueText.trim(),
+      });
+      Alert.alert('Reported', 'Your issue has been sent to the customer.');
+    } catch {
+      Alert.alert('Reported', 'Issue saved locally; will sync when you are back online.');
+    } finally {
+      setIssueSubmitting(false);
+      setIssueOpen(false);
+      setIssueItemId(null);
+      setIssueText('');
+    }
+  };
+
+  const handleContinue = (): void => {
+    router.push(`/provider/job/${id}/complete` as never);
+  };
+
+  const renderRow = ({ item: row }: { item: FlatRow }): React.ReactElement => {
+    if (row.type === 'header') {
+      return (
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{row.sectionTitle}</Text>
+        </View>
       );
-      saveChecklist(updated);
-      return updated;
-    });
-  }, [saveChecklist]);
-
-  const addItem = useCallback(() => {
-    if (!newItemText.trim()) return;
-    const newItem: ChecklistItem = {
-      id: `item_${Date.now()}`,
-      text: newItemText.trim(),
-      completed: false,
-    };
-    setItems((prev) => {
-      const updated = [...prev, newItem];
-      saveChecklist(updated);
-      return updated;
-    });
-    setNewItemText('');
-  }, [newItemText, saveChecklist]);
-
-  const removeItem = useCallback((id: string) => {
-    Alert.alert('Remove Item', 'Remove this checklist item?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => {
-          setItems((prev) => {
-            const updated = prev.filter((item) => item.id !== id);
-            saveChecklist(updated);
-            return updated;
-          });
-        },
-      },
-    ]);
-  }, [saveChecklist]);
-
-  const loadTemplate = useCallback((key: string) => {
-    const template = DEFAULT_TEMPLATES[key] ?? DEFAULT_TEMPLATES.general;
-    const initial: ChecklistItem[] = template!.map((text, i) => ({
-      id: `tmpl_${i}_${Date.now()}`,
-      text,
-      completed: false,
-    }));
-    setItems(initial);
-    saveChecklist(initial);
-  }, [saveChecklist]);
-
-  const completedCount = items.filter((i) => i.completed).length;
-  const progress = items.length > 0 ? completedCount / items.length : 0;
-
-  if (!loaded) return null;
+    }
+    const item = row.item!;
+    return (
+      <View style={styles.itemRow}>
+        <TouchableOpacity
+          onPress={() => toggleDone(item)}
+          style={styles.checkBtn}
+          activeOpacity={0.7}
+        >
+          {item.done ? (
+            <CheckCircle2 size={26} color={colors.success} />
+          ) : (
+            <View style={styles.uncheckedCircle} />
+          )}
+        </TouchableOpacity>
+        <View style={styles.itemBody}>
+          <Text style={[styles.itemLabel, item.done && styles.itemLabelDone]}>
+            {item.label}
+          </Text>
+          {item.photoUri && (
+            <Image source={{ uri: item.photoUri }} style={styles.thumb} resizeMode="cover" />
+          )}
+          <View style={styles.itemActions}>
+            <TouchableOpacity
+              style={styles.actionLink}
+              onPress={() => { void capturePhoto(item); }}
+              activeOpacity={0.7}
+            >
+              <Camera size={14} color={colors.primary} />
+              <Text style={styles.actionLinkText}>{item.photoUri ? 'Replace photo' : '+ Photo'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionLink}
+              onPress={() => openIssue(item)}
+              activeOpacity={0.7}
+            >
+              <AlertCircle size={14} color={colors.warning} />
+              <Text style={[styles.actionLinkText, { color: colors.warning }]}>Report Issue</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -127,78 +250,82 @@ export default function JobChecklistScreen(): React.ReactElement | null {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Job Checklist</Text>
+        <Text style={styles.headerTitle}>Service Checklist</Text>
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-        <View style={styles.progressCard}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>Progress</Text>
-            <Text style={styles.progressCount}>{completedCount}/{items.length}</Text>
-          </View>
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: `${Math.round(progress * 100)}%` }]} />
-          </View>
-          {progress === 1 && items.length > 0 && (
-            <Text style={styles.completeMsg}>All tasks complete!</Text>
-          )}
+      <View style={styles.progressWrap}>
+        <Text style={styles.progressText}>
+          {totals.done} of {totals.total} complete · {totals.pct}%
+        </Text>
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${totals.pct}%` }]} />
         </View>
+        <Text style={styles.bookingRef}>Booking #{id ?? '—'}</Text>
+      </View>
 
-        <View style={styles.templateRow}>
-          <Text style={styles.templateLabel}>Templates:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {Object.keys(DEFAULT_TEMPLATES).map((key) => (
-              <TouchableOpacity
-                key={key}
-                style={styles.templateChip}
-                onPress={() => loadTemplate(key)}
-              >
-                <Text style={styles.templateChipText}>
-                  {key.charAt(0).toUpperCase() + key.slice(1)}
-                </Text>
+      <FlatList
+        data={rows}
+        keyExtractor={(row, idx) =>
+          row.type === 'header' ? `h-${row.sectionId}` : `i-${row.item!.id}-${idx}`
+        }
+        renderItem={renderRow}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+      />
+
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          onPress={handleContinue}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.primaryBtnText}>Save & Continue</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Modal
+        visible={issueOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIssueOpen(false)}
+      >
+        <View style={styles.modalBg}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Report Issue</Text>
+              <TouchableOpacity onPress={() => setIssueOpen(false)} style={styles.modalClose}>
+                <X size={20} color={colors.text} />
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {items.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={[styles.checkItem, item.completed && styles.checkItemCompleted]}
-            onPress={() => toggleItem(item.id)}
-            onLongPress={() => removeItem(item.id)}
-          >
-            <View style={[styles.checkbox, item.completed && styles.checkboxChecked]}>
-              {item.completed && <Text style={styles.checkmark}>✓</Text>}
             </View>
-            <Text style={[styles.checkText, item.completed && styles.checkTextCompleted]}>
-              {item.text}
+            <Text style={styles.modalHint}>
+              Describe what went wrong. The customer will be notified.
             </Text>
-          </TouchableOpacity>
-        ))}
-
-        <View style={styles.addRow}>
-          <TextInput
-            style={styles.addInput}
-            placeholder="Add a task..."
-            placeholderTextColor={colors.textTertiary}
-            value={newItemText}
-            onChangeText={setNewItemText}
-            onSubmitEditing={addItem}
-            returnKeyType="done"
-          />
-          <TouchableOpacity
-            style={[styles.addBtn, !newItemText.trim() && styles.addBtnDisabled]}
-            onPress={addItem}
-            disabled={!newItemText.trim()}
-          >
-            <Text style={styles.addBtnText}>+</Text>
-          </TouchableOpacity>
+            <TextInput
+              value={issueText}
+              onChangeText={setIssueText}
+              multiline
+              numberOfLines={4}
+              placeholder="e.g. unable to reach area, missing supplies…"
+              placeholderTextColor={colors.textTertiary}
+              style={styles.modalInput}
+              textAlignVertical="top"
+            />
+            <TouchableOpacity
+              style={[styles.primaryBtn, issueSubmitting && styles.primaryBtnDisabled]}
+              onPress={() => { void submitIssue(); }}
+              disabled={issueSubmitting}
+              activeOpacity={0.8}
+            >
+              {issueSubmitting ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.primaryBtnText}>Send Report</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-
-        <Text style={styles.hint}>Long press an item to remove it.</Text>
-      </ScrollView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -206,81 +333,133 @@ export default function JobChecklistScreen(): React.ReactElement | null {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
+  backBtn: {
+    padding: spacing.xs,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
-  placeholder: { width: 30 },
-  body: { flex: 1 },
-  bodyContent: { padding: spacing.base, paddingBottom: 40 },
-
-  progressCard: {
-    backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.lg,
-    padding: spacing.base, marginBottom: spacing.base,
-    borderWidth: 1, borderColor: colors.border,
+  placeholder: { width: 44 },
+  progressWrap: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.backgroundSecondary,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
   },
-  progressHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+  progressText: { ...typography.bodySmall, color: colors.text, fontWeight: '600' },
+  progressBar: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+    marginTop: spacing.xs,
+  },
+  progressFill: { height: '100%', backgroundColor: colors.success },
+  bookingRef: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.xs },
+  listContent: { padding: spacing.base, paddingBottom: 120 },
+  sectionHeader: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  sectionTitle: {
+    ...typography.caption,
+    color: colors.textTertiary,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
     marginBottom: spacing.sm,
   },
-  progressLabel: { ...typography.body, fontWeight: '600', color: colors.text },
-  progressCount: { ...typography.body, fontWeight: '700', color: colors.primary },
-  progressBarBg: {
-    height: 8, backgroundColor: colors.divider, borderRadius: 4, overflow: 'hidden',
+  checkBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
   },
-  progressBarFill: {
-    height: 8, backgroundColor: colors.success, borderRadius: 4,
+  uncheckedCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.border,
   },
-  completeMsg: {
-    ...typography.caption, color: colors.success, fontWeight: '600',
-    marginTop: spacing.sm, textAlign: 'center',
+  itemBody: { flex: 1 },
+  itemLabel: { ...typography.body, color: colors.text },
+  itemLabelDone: { color: colors.textTertiary, textDecorationLine: 'line-through' },
+  thumb: {
+    width: 80,
+    height: 80,
+    borderRadius: borderRadius.sm,
+    marginTop: spacing.sm,
   },
-
-  templateRow: {
-    flexDirection: 'row', alignItems: 'center', marginBottom: spacing.base, gap: spacing.sm,
+  itemActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.sm,
   },
-  templateLabel: { ...typography.caption, color: colors.textSecondary },
-  templateChip: {
-    paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2,
-    borderRadius: borderRadius.full, backgroundColor: colors.primaryLight,
-    marginRight: spacing.xs,
+  actionLink: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  actionLinkText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
+  footer: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
   },
-  templateChipText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
-
-  checkItem: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md,
-    paddingHorizontal: spacing.base, borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundSecondary, marginBottom: spacing.sm,
-    borderWidth: 1, borderColor: colors.border,
+  primaryBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.base,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  checkItemCompleted: { backgroundColor: colors.successLight, borderColor: colors.success },
-  checkbox: {
-    width: 24, height: 24, borderRadius: borderRadius.sm, borderWidth: 2,
-    borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
-    marginRight: spacing.md,
+  primaryBtnDisabled: { opacity: 0.6 },
+  primaryBtnText: { ...typography.button, color: colors.white },
+  modalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.base,
   },
-  checkboxChecked: { backgroundColor: colors.success, borderColor: colors.success },
-  checkmark: { color: colors.white, fontSize: 14, fontWeight: '700' },
-  checkText: { ...typography.body, color: colors.text, flex: 1 },
-  checkTextCompleted: { textDecorationLine: 'line-through', color: colors.textTertiary },
-
-  addRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm,
+  modalCard: {
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
   },
-  addInput: {
-    flex: 1, backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.md,
-    paddingVertical: spacing.md, paddingHorizontal: spacing.base,
-    borderWidth: 1, borderColor: colors.border, ...typography.body, color: colors.text,
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
   },
-  addBtn: {
-    width: 44, height: 44, borderRadius: borderRadius.md,
-    backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
+  modalTitle: { ...typography.h3, color: colors.text },
+  modalClose: { padding: spacing.xs },
+  modalHint: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.sm },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    minHeight: 100,
+    color: colors.text,
+    ...typography.body,
+    marginBottom: spacing.md,
   },
-  addBtnDisabled: { opacity: 0.4 },
-  addBtnText: { fontSize: 24, fontWeight: '700', color: colors.white },
-
-  hint: { ...typography.caption, color: colors.textTertiary, textAlign: 'center', marginTop: spacing.md },
 });

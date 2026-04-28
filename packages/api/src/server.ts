@@ -42,6 +42,7 @@ import bookingAdminRoutes from './routes/booking-admin.routes';
 import disputeAdminRoutes from './routes/dispute-admin.routes';
 import financialAdminRoutes from './routes/financial-admin.routes';
 import birAdminRoutes from './routes/bir-admin.routes';
+import marketingAdminRoutes from './routes/marketing-admin.routes';
 import webhookRoutes from './routes/webhook.routes';
 import notificationRoutes from './routes/notification.routes';
 import notificationTemplateRoutes from './routes/notification-template.routes';
@@ -164,6 +165,9 @@ app.use('/api/v1/admin/disputes', disputeAdminRoutes);
 // `/admin/*` fallthrough.
 app.use('/api/v1/admin/financials', financialAdminRoutes);
 app.use('/api/v1/admin/bir', birAdminRoutes);
+// Phase 09: marketing admin sub-routes mounted BEFORE generic admin routes
+// so `/admin/marketing/...` matches before any `/admin/*` fallthrough.
+app.use('/api/v1/admin/marketing', marketingAdminRoutes);
 app.use('/api/v1/admin', adminRoutes);
 
 // Phase 03: public client config endpoint (no auth required).

@@ -1,0 +1,10 @@
+[Phase 09] sanity ritual log
+- branch: phase/09-missing-stitch-screens
+- baseline tsc: clean
+- baseline lint: clean
+- after every meaningful change ran: tsc + jest (where applicable) + lint, then continued
+- final state: 735/735 jest pass, all tsc clean, repo-root lint clean, admin build success
+- new mobile screens: 8 (identity-verification, background-check-status, payment-failed, navigate, checklist, complete, service-area, skills)
+- new admin page: 1 (MarketingPage)
+- new backend service + routes + migration + 33 tests
+- sacred-file touches: server.ts +5 lines, App.tsx +2 lines, checklist.tsx full replace per spec
