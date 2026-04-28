@@ -1,0 +1,93 @@
+# Phase 13 — axe-core manual verification protocol
+
+This file documents the protocol for human-driven axe-core verification on
+the canonical admin pages. The agent cannot execute browser-based axe-core
+verification headlessly without Playwright (which is deferred to Phase 14).
+This file does NOT contain green output; instead it is a reproducible
+runbook for the human verifier.
+
+## Setup
+
+Two terminals required (api + admin dev servers).
+
+```bash
+# Terminal 1 — api (env loaded from .env.dev)
+cd packages/api
+npm run dev
+# Wait for: "Server listening on port 7780"
+
+# Terminal 2 — admin
+cd apps/admin
+npm run dev
+# Wait for: "VITE v... ready in ... ms" then note the local URL (typically http://localhost:7382)
+```
+
+The `@axe-core/react` integration was wired in Phase 13 Dispatch F at
+`apps/admin/src/main.tsx`. In dev mode it surfaces axe-core results to the
+browser DevTools console approximately every 1000 ms. No production overhead.
+
+## Canonical pages to audit
+
+For each page below: open in Chrome with DevTools console open. Wait 2-3
+seconds for axe-core to scan. Capture any output at level `serious` or
+`critical`. Acceptable result: zero serious or critical violations.
+
+| # | Page | URL path | Auth required |
+|---|---|---|---|
+| 1 | Login | `/login` | No |
+| 2 | Dashboard (post-login landing) | `/` | Yes |
+| 3 | Financials | `/financials` | Yes |
+| 4 | Dispatch console | `/dispatch` | Yes |
+| 5 | Data Protection Officer log | `/compliance/dpo-log` | Yes |
+| 6 | Consent versions | `/compliance/consent-versions` | Yes |
+| 7 | A/B tests (modal patterns) | `/ab-tests` | Yes |
+| 8 | User management (table + icon-only buttons) | `/users` | Yes |
+
+## Acceptance criterion
+
+Zero `serious` or `critical` axe-core violations on every canonical page.
+`moderate` and `minor` are allowed; record them as backlog for Phase 14
+Playwright e2e to assert on programmatically.
+
+## Recording results
+
+Create `.ai-coder/checkpoints/logs/PHASE-13/dispatch-G/axe-baseline-result.md`
+with one row per page. Format:
+
+```markdown
+| Page | Critical | Serious | Moderate | Minor | Notes |
+|---|---|---|---|---|---|
+| Login | 0 | 0 | 1 | 2 | Logo lacks alt; outlined ok |
+| Dashboard | 0 | 0 | 0 | 0 | clean |
+| ... | | | | | |
+```
+
+## Status
+
+This dispatch (Dispatch G) does NOT include the manual verification
+result. The wire-up is shipped, the protocol is documented, and the
+acceptance criterion is defined. Per LAUNCH-LIMITATIONS §18, automated
+full-page a11y assertion is deferred to Phase 14 Playwright e2e. This
+manual audit is the interim safeguard.
+
+## Why not headless from this dispatch
+
+- Playwright is not installed in this repo (Phase 14 scope).
+- The api package's jsdom environment cannot render the full admin app
+  (it pulls in router, query client, auth context, websocket clients).
+- The agent has no UI driver session in this environment.
+
+The `packages/api/__tests__/admin-a11y-baseline.test.tsx` test (4
+canonical patterns) shipped in Dispatch G IS the automated component of
+the a11y baseline for this phase. It runs in jest-axe + jsdom and
+asserts that the patterns the F sweep applied are actually accessible.
+
+It is intentionally NOT a fake green for full-page rendering. The
+honest claim is: pattern-level a11y is automated and PASS; full-page
+a11y is human-protocol-only this phase, automated in Phase 14.
+
+## When the human runs this protocol
+
+Before any pre-launch QA cycle, and again after any UI change that
+crosses ≥10 admin controls. Record results in `axe-baseline-result.md`
+as above and commit alongside the change.
