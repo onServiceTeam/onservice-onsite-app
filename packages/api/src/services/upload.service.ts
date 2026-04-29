@@ -109,12 +109,21 @@ export async function saveUploadedFile(
   if (USE_S3) {
     const { client, commands } = await getS3();
     const bucket = process.env.S3_BUCKET!;
+    // Bug 1325 fix: every uploaded object must be server-side encrypted.
+    // Prefer SSE-KMS when a key id is configured (auditable, rotatable),
+    // fall back to SSE-S3 (AES256) otherwise. The Terraform-level bucket
+    // policy denies any PutObject without one of these headers, so missing
+    // this would manifest as a 403 from AWS — fail closed.
+    const sseParams = process.env.S3_KMS_KEY_ID
+      ? { ServerSideEncryption: 'aws:kms', SSEKMSKeyId: process.env.S3_KMS_KEY_ID }
+      : { ServerSideEncryption: 'AES256' };
     await client!.send(new commands!.PutObjectCommand({
       Bucket: bucket,
       Key: objectKey,
       Body: buffer,
       ContentType: mimetype,
       CacheControl: 'public, max-age=31536000, immutable',
+      ...sseParams,
     }));
     const cdnBase = process.env.S3_CDN_URL || `https://${bucket}.s3.${process.env.S3_REGION || 'ap-southeast-1'}.amazonaws.com`;
     url = `${cdnBase}/${objectKey}`;
