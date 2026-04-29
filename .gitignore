@@ -20,6 +20,9 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 
+# Claude Code local harness settings (per-machine, not part of project doctrine)
+.claude/settings.local.json
+
 # Logs
 *.log
 npm-debug.log*
