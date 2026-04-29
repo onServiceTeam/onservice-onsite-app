@@ -1,0 +1,98 @@
+name: Gates
+
+on:
+  pull_request:
+    branches: [master, main]
+  push:
+    branches: [phase/**]
+
+env:
+  BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/master' }}
+
+jobs:
+  gate-a:
+    name: Gate A — cross-source-of-truth
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: bash scripts/gates/run-gate-a.sh
+
+  gate-b:
+    name: Gate B — bug deferral
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Determine dispatch number
+        id: dispatch
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          DISPATCH=$(echo "$BRANCH" | grep -oE "d[0-9]+" | grep -oE "[0-9]+" | head -1 || echo "")
+          echo "number=$DISPATCH" >> "$GITHUB_OUTPUT"
+      - name: Run Gate B
+        if: steps.dispatch.outputs.number != ''
+        run: bash scripts/gates/b-bug-deferral.sh "${{ steps.dispatch.outputs.number }}"
+
+  gate-c:
+    name: Gate C — constitution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/gates/c-constitution.sh
+
+  gate-d:
+    name: Gate D — visual screenshots
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "pnpm" }
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        continue-on-error: true
+      - name: Install Playwright browsers
+        run: cd apps/admin && pnpm exec playwright install chromium
+        continue-on-error: true
+      - run: bash scripts/gates/d-visual-screenshots.sh
+      - name: Upload visual diffs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs
+          path: apps/admin/test-results/
+
+  gate-e:
+    name: Gate E — mutation testing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "pnpm" }
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        continue-on-error: true
+      - run: bash scripts/gates/e-mutation-testing.sh
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: packages/api/reports/mutation/
+
+  gates-summary:
+    name: All gates passed
+    runs-on: ubuntu-latest
+    needs: [gate-a, gate-b, gate-c, gate-d, gate-e]
+    steps:
+      - run: echo "All gates green. Ready for human review."
