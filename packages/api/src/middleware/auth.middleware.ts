@@ -16,21 +16,30 @@ export interface AuthenticatedRequest extends Request {
 
 /**
  * JWT authentication middleware.
- * Verifies the Bearer token and attaches user payload to req.user.
+ * Verifies the access token and attaches user payload to req.user.
+ *
+ * Token source order (Bug 1251 fix):
+ *   1. `admin_session` HttpOnly cookie  — preferred for admin web (XSS cannot read it).
+ *   2. `Authorization: Bearer <token>` — used by mobile clients and legacy admin code.
  */
 export function authMiddleware(
   req: AuthenticatedRequest,
   _res: Response,
   next: NextFunction,
 ): void {
-  const authHeader = req.headers.authorization;
+  // Prefer the HttpOnly admin_session cookie when present.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cookieToken = ((req as any).cookies?.admin_session as string | undefined ?? '').trim();
+  let token = cookieToken;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    next(createAppError('Authentication required. Please log in.', 401));
-    return;
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      next(createAppError('Authentication required. Please log in.', 401));
+      return;
+    }
+    token = authHeader.split(' ')[1] ?? '';
   }
-
-  const token = authHeader.split(' ')[1];
 
   if (!token) {
     next(createAppError('Invalid authentication token.', 401));

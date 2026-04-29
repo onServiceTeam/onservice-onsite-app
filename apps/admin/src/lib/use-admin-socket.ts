@@ -1,21 +1,10 @@
 /**
  * Phase 10 — Admin singleton socket.io client + React hook bindings.
  *
- * Provides:
- *  - getAdminSocket() — lazily constructs (or returns the cached) Socket.IO
- *    client connected to the API server with the admin's JWT in the auth
- *    handshake. Reconnects when the token in localStorage changes (e.g. after
- *    login or refresh-token rotation handled by api.ts).
- *  - useAdminSocketEvent<T>(event, handler) — typed React hook that subscribes
- *    a handler to a server event for the lifetime of the component.
- *  - useAdminSocketStatus() — connection status badge state.
- *
- * Design notes:
- *  - The auth store does NOT hold the access token (only the user). The token
- *    lives in localStorage under 'admin_token' (see lib/api.ts), so we read
- *    it from there and re-key the connection whenever the auth state flips.
- *  - We deliberately keep this typed without `any`. Payloads are caller-typed
- *    via the generic <T> on useAdminSocketEvent.
+ * Bug 1251 fix: the access token is no longer in localStorage. Socket.io
+ * connects with `withCredentials: true` so the browser sends the
+ * admin_session HttpOnly cookie automatically. The server's socket auth
+ * middleware reads either the cookie or the (legacy) handshake-auth token.
  */
 
 import { useEffect, useState, useRef } from 'react';
@@ -25,46 +14,37 @@ import { useAuthStore } from '@/stores/auth.store';
 const FALLBACK_API_URL = 'http://localhost:7383';
 
 function getApiUrl(): string {
-  // Vite types ImportMeta.env via vite-env.d.ts — no cast needed.
   return import.meta.env.VITE_API_URL ?? FALLBACK_API_URL;
 }
 
-function getToken(): string | null {
-  try {
-    return localStorage.getItem('admin_token');
-  } catch {
-    return null;
-  }
-}
-
 let cachedSocket: Socket | null = null;
-let cachedToken: string | null = null;
+let cachedUserId: string | null = null;
 
 export function getAdminSocket(): Socket | null {
-  const token = getToken();
-  if (!token) {
+  const user = useAuthStore.getState().user;
+  if (!user) {
     if (cachedSocket) {
       cachedSocket.disconnect();
       cachedSocket = null;
-      cachedToken = null;
+      cachedUserId = null;
     }
     return null;
   }
 
-  if (cachedSocket && cachedToken === token) {
+  if (cachedSocket && cachedUserId === user.id) {
     return cachedSocket;
   }
 
-  // Token changed (rotation, fresh login, logout+login). Tear down the old
-  // socket so we never leak a stale auth context.
+  // User changed (fresh login or impersonation). Tear down the old socket so
+  // we never leak a stale auth context.
   if (cachedSocket) {
     cachedSocket.disconnect();
     cachedSocket = null;
   }
 
-  cachedToken = token;
+  cachedUserId = user.id;
   cachedSocket = socketIo(getApiUrl(), {
-    auth: { token },
+    withCredentials: true,
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: Infinity,

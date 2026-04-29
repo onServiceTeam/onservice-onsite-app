@@ -19,8 +19,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import { errorMiddleware } from './middleware/error.middleware';
 import { rateLimitMiddleware } from './middleware/rate-limit.middleware';
+import { requireAdminCsrf } from './middleware/admin-csrf.middleware';
 import { logger } from './utils/logger';
 import { platformConfig } from './config/platform.config';
 import { initSocketServer } from './services/socket.service';
@@ -102,6 +104,9 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
+// --- Cookie parsing (Bug 1251 fix — admin auth uses HttpOnly cookies) ---
+app.use(cookieParser());
+
 // --- Compression ---
 app.use(compression());
 
@@ -163,6 +168,11 @@ app.use('/api/v1/reviews', reviewRoutes);
 app.use('/api/v1/disputes', disputeRoutes);
 app.use('/api/v1/wallet', walletRoutes);
 app.use('/api/v1/payments', paymentRoutes);
+// Bug 1251 fix: every admin write request must carry an X-CSRF-Token header
+// matching the admin_csrf cookie. The middleware exempts GET/HEAD/OPTIONS so
+// reads are unaffected. The admin login endpoint sits under /api/v1/auth/admin
+// (not /api/v1/admin), so it is not blocked by this guard.
+app.use('/api/v1/admin', requireAdminCsrf);
 // Phase 03: settings routes are mounted BEFORE generic admin routes so the
 // more specific /admin/settings path wins over /admin/* fallthrough.
 app.use('/api/v1/admin/settings', settingsRoutes);

@@ -17,6 +17,11 @@ import * as authService from '../services/auth.service';
 import * as securityService from '../services/security.service';
 import { platformConfig } from '../config/platform.config';
 import { generateTotpSecret, verifyTotp, generateTotpUri, encryptSecret, decryptSecret } from '../utils/totp';
+import {
+  setAdminSessionCookies,
+  clearAdminSessionCookies,
+  revokeAdminCsrfTokens,
+} from '../utils/admin-cookies';
 
 interface UserProfileRow {
   id: string;
@@ -557,6 +562,18 @@ router.post(
 
       logger.info('Admin login', { userId: user.id, email: user.email });
 
+      // Bug 1251 fix: issue HttpOnly session + refresh cookies + JS-readable
+      // CSRF cookie. The legacy access/refresh tokens are still returned in
+      // the JSON body for backward compat with the existing admin client; the
+      // client refactor on the same PR stops reading them.
+      await setAdminSessionCookies(res, {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        adminUserId: user.id,
+        ipAddress: clientIp,
+        userAgent: req.headers['user-agent'] as string | undefined,
+      });
+
       res.json({
         success: true,
         data: {
@@ -647,6 +664,16 @@ router.post(
       );
 
       logger.info('Admin 2FA login', { userId: user.id });
+
+      // Bug 1251 fix: issue HttpOnly session + refresh cookies + JS-readable
+      // CSRF cookie after 2FA verification.
+      await setAdminSessionCookies(res, {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        adminUserId: user.id,
+        ipAddress: clientIp,
+        userAgent: req.headers['user-agent'] as string | undefined,
+      });
 
       res.json({
         success: true,
@@ -774,6 +801,16 @@ router.post(
           [userId],
         );
         const tokens = await authService.createTokenPair(userId, role);
+
+        // Bug 1251 fix: issue session cookies after forced-2FA enrolment.
+        await setAdminSessionCookies(res, {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          adminUserId: userId,
+          ipAddress: getClientIp(req),
+          userAgent: req.headers['user-agent'] as string | undefined,
+        });
+
         res.json({
           success: true,
           data: {
@@ -791,6 +828,93 @@ router.post(
         success: true,
         data: { message: 'Two-factor authentication is now enabled.' },
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Admin: Refresh access token (cookie-based) ---
+// Bug 1251 fix. Reads admin_refresh from a cookie (scoped path) and rotates
+// both access + refresh, plus mints a new CSRF token. Returns the user
+// payload only — tokens are returned only as cookies.
+router.post(
+  '/admin/refresh',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const clientIp = getClientIp(req);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const refreshFromCookie = (req as any).cookies?.admin_refresh as string | undefined;
+      if (!refreshFromCookie) {
+        throw createAppError('Missing admin refresh cookie.', 401);
+      }
+
+      const tokens = await authService.refreshAccessToken(refreshFromCookie);
+
+      // Pull the user id+role+profile for the response and for the cookie.
+      const jwt = await import('jsonwebtoken');
+      const secret = process.env.JWT_SECRET;
+      if (!secret) throw new Error('JWT_SECRET is not configured');
+      const payload = jwt.default.verify(tokens.accessToken, secret) as {
+        userId: string;
+        role: string;
+      };
+
+      const userResult = await db.query<UserProfileRow>(
+        `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at
+         FROM users WHERE id = $1 AND role IN ('admin', 'super_admin') AND is_active = TRUE`,
+        [payload.userId],
+      );
+      if (userResult.rows.length === 0) {
+        throw createAppError('Admin account not found or deactivated.', 401);
+      }
+      const user = userResult.rows[0]!;
+
+      // Revoke prior CSRF tokens for this admin so an old XSS-stolen token
+      // cannot be replayed after the refresh boundary.
+      await revokeAdminCsrfTokens(user.id);
+
+      await setAdminSessionCookies(res, {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        adminUserId: user.id,
+        ipAddress: clientIp,
+        userAgent: req.headers['user-agent'] as string | undefined,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          user: formatUserResponse(user),
+          sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- Admin: Logout (cookie-based) ---
+// Bug 1251 fix. Revokes the refresh token in the DB, marks all CSRF tokens
+// for the admin as revoked, and clears the three admin cookies on the client.
+router.post(
+  '/admin/logout',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user!.userId;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const refreshFromCookie = (req as any).cookies?.admin_refresh as string | undefined;
+
+      // Best-effort logout: revoke the specific refresh token the browser holds,
+      // or all tokens for the user if no cookie is present.
+      await authService.logout(userId, refreshFromCookie);
+      await revokeAdminCsrfTokens(userId);
+      clearAdminSessionCookies(res);
+
+      logger.info('Admin logout', { userId });
+      res.json({ success: true, data: { message: 'Logged out successfully.' } });
     } catch (error) {
       next(error);
     }
