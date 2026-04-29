@@ -17,7 +17,12 @@ build/
 Thumbs.db
 
 # IDE
-.vscode/settings.json
+# Per-developer .vscode/ files (launch.json, tasks.json, personal prefs) stay
+# local. Only settings.json is re-included so workspace-shared config (e.g.,
+# Claude Code extension defaults) propagates via the repo. Per Phase 14
+# Dispatch 01 PR #6.
+.vscode/*
+!.vscode/settings.json
 .idea/
 
 # Claude Code local harness settings (per-machine, not part of project doctrine)
