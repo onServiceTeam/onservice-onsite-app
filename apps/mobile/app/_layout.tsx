@@ -1,14 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePushNotifications } from '@/services/push.service';
 import { fetchPlatformConfig } from '@/services/config.service';
+import { initSecureStorage } from '@/services/secure-storage';
+import { migrateLegacyTokensIfNeeded } from '@/services/auth-migration';
 import { OfflineBanner } from '@/components/ui';
 
 const sentryDsn = Constants.expoConfig?.extra?.sentryDsn as string | undefined;
@@ -47,12 +49,44 @@ function PushNotificationGate(): null {
 
 function RootLayout(): React.ReactElement {
   const hydrate = useAuthStore((s) => s.hydrate);
+  // Bug 1061 fix: secure storage MUST be initialized BEFORE the auth store
+  // hydrates, because hydrate() reads tokens synchronously from secure-storage.
+  // We block the UI behind a brief activity indicator until init resolves
+  // (typical: <100ms once expo-secure-store has the cached key from prior
+  // launches; first launch generates the key once which adds another ~50ms).
+  const [secureStorageReady, setSecureStorageReady] = useState(false);
 
   useEffect(() => {
-    hydrate();
-    // Phase 03 — pull runtime platform config; failures fall back silently to defaults.
-    void fetchPlatformConfig();
+    let alive = true;
+    (async () => {
+      try {
+        await initSecureStorage();
+        await migrateLegacyTokensIfNeeded();
+      } catch (err) {
+        // If secure storage fails, capture to Sentry but do not block boot —
+        // the app falls through to a logged-out state and the user can sign
+        // in fresh. Without this guard, a corrupted keychain would brick the
+        // app on launch.
+        Sentry.captureException(err);
+      }
+      if (!alive) return;
+      hydrate();
+      // Phase 03 — pull runtime platform config; failures fall back silently to defaults.
+      void fetchPlatformConfig();
+      setSecureStorageReady(true);
+    })();
+    return () => {
+      alive = false;
+    };
   }, [hydrate]);
+
+  if (!secureStorageReady) {
+    return (
+      <View style={[styles.root, styles.bootLoader]}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={styles.root}>
@@ -77,6 +111,7 @@ function RootLayout(): React.ReactElement {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  bootLoader: { alignItems: 'center', justifyContent: 'center' },
 });
 
 export default sentryDsn ? Sentry.wrap(RootLayout) : RootLayout;

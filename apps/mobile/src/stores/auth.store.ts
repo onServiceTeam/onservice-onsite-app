@@ -1,5 +1,13 @@
 import { create } from 'zustand';
 import api, { storage } from '@/services/api';
+import {
+  getAccessToken,
+  storeTokens,
+  clearTokens,
+  getStoredUser,
+  storeUser,
+  clearStoredUser,
+} from '@/services/secure-storage';
 
 export interface User {
   id: string;
@@ -25,6 +33,13 @@ interface AuthState {
   setUser: (user: User) => void;
 }
 
+// Bug 1061 fix: tokens + user PII live in secure-storage (encrypted MMKV
+// with OS-keychain-derived key). The non-sensitive `storage` from api.ts
+// is still used for transient flags like `isNewUser` and `pushToken`.
+//
+// All read/write helpers here are SYNCHRONOUS because initSecureStorage()
+// is awaited at app boot in apps/mobile/app/_layout.tsx before this store
+// is hydrated.
 export const useAuthStore = create<AuthState>((set, _get) => ({
   user: null,
   isAuthenticated: false,
@@ -32,8 +47,8 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
   otpRequestId: null,
 
   hydrate: () => {
-    const token = storage.getString('accessToken');
-    const userJson = storage.getString('user');
+    const token = getAccessToken();
+    const userJson = getStoredUser();
     if (token && userJson) {
       try {
         const user = JSON.parse(userJson) as User;
@@ -54,9 +69,8 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
   verifyOtp: async (phone: string, code: string) => {
     const res = await api.post('/api/v1/auth/verify-otp', { phone, code });
     const { accessToken, refreshToken, user, isNewUser } = res.data.data;
-    storage.set('accessToken', accessToken);
-    storage.set('refreshToken', refreshToken);
-    storage.set('user', JSON.stringify(user));
+    storeTokens(accessToken, refreshToken);
+    storeUser(JSON.stringify(user));
     if (isNewUser) {
       storage.set('isNewUser', 'true');
     }
@@ -64,24 +78,23 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
   },
 
   register: async (_phone: string, firstName: string, lastName: string) => {
-    const token = storage.getString('accessToken');
+    const token = getAccessToken();
     if (!token) throw new Error('Must verify OTP before completing registration.');
     const res = await api.patch('/api/v1/auth/me', { firstName, lastName });
     const user = res.data.data;
-    storage.set('user', JSON.stringify(user));
+    storeUser(JSON.stringify(user));
     set({ user, isAuthenticated: true });
   },
 
   logout: () => {
-    storage.delete('accessToken');
-    storage.delete('refreshToken');
-    storage.delete('user');
+    clearTokens();
+    clearStoredUser();
     storage.delete('pushToken');
     set({ user: null, isAuthenticated: false, otpRequestId: null });
   },
 
   setUser: (user: User) => {
-    storage.set('user', JSON.stringify(user));
+    storeUser(JSON.stringify(user));
     set({ user });
   },
 }));
