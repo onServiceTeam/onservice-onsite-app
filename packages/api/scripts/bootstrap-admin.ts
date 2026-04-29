@@ -20,7 +20,7 @@
 // existing admin auth flow.
 
 import { hashPassword } from '../src/services/auth.service';
-import { db } from '../src/db';
+import { db } from '../src/models/db';
 
 const PWD = process.env.ADMIN_BOOTSTRAP_PASSWORD;
 const ROLE = (process.env.ADMIN_BOOTSTRAP_ROLE ?? 'super_admin').toLowerCase();

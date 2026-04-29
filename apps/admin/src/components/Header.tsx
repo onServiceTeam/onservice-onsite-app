@@ -7,8 +7,8 @@ export default function Header(): React.ReactElement {
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
 
-  const handleLogout = (): void => {
-    logout();
+  const handleLogout = async (): Promise<void> => {
+    await logout();
     navigate('/login');
   };
 
@@ -25,7 +25,7 @@ export default function Header(): React.ReactElement {
           </p>
         </div>
         <button
-          onClick={handleLogout}
+          onClick={() => void handleLogout()}
           className="text-xs text-[var(--color-danger)] hover:text-red-700 font-medium px-3 py-1.5 rounded-md hover:bg-red-50 transition-colors"
         >
           Logout

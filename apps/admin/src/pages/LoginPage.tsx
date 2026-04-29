@@ -66,8 +66,10 @@ export default function LoginPage(): React.ReactElement {
         return;
       }
 
-      const { accessToken, refreshToken, user } = data;
-      completeLogin(user, accessToken, refreshToken);
+      // Bug 1251 fix: server set cookies on the response. We only need the
+      // user payload for client-side state.
+      const { user } = data;
+      completeLogin(user);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -82,8 +84,8 @@ export default function LoginPage(): React.ReactElement {
 
     try {
       const res = await api.post('/api/v1/auth/admin/2fa/verify', { preAuthToken, totpCode });
-      const { accessToken, refreshToken, user } = res.data.data;
-      completeLogin(user, accessToken, refreshToken);
+      const { user } = res.data.data;
+      completeLogin(user);
     } catch (err) {
       setError(getErrorMessage(err));
       setTotpCode('');
@@ -102,14 +104,14 @@ export default function LoginPage(): React.ReactElement {
         { totpCode: enrolCode },
         { headers: { Authorization: `Bearer ${preAuthToken}` } },
       );
-      const { accessToken, refreshToken, user } = res.data.data;
-      if (!accessToken || !refreshToken || !user) {
+      const { user } = res.data.data;
+      if (!user) {
         setError('Enrollment completed but session was not issued. Please log in again.');
         setRequires2FASetup(false);
         setPreAuthToken('');
         return;
       }
-      completeLogin(user, accessToken, refreshToken);
+      completeLogin(user);
     } catch (err) {
       setError(getErrorMessage(err));
       setEnrolCode('');
@@ -118,7 +120,7 @@ export default function LoginPage(): React.ReactElement {
     }
   };
 
-  const completeLogin = (user: Record<string, unknown>, accessToken: string, refreshToken: string): void => {
+  const completeLogin = (user: Record<string, unknown>): void => {
     const role = user.role as string;
     if (role !== 'admin' && role !== 'super_admin') {
       setError('Access denied. Admin privileges required.');
@@ -135,7 +137,7 @@ export default function LoginPage(): React.ReactElement {
       avatarUrl: user.avatarUrl as string | null,
     };
 
-    login(adminUser, accessToken, refreshToken);
+    login(adminUser);
     navigate('/');
   };
 

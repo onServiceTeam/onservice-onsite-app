@@ -37,7 +37,7 @@ export default function App(): React.ReactElement {
   const hydrate = useAuthStore((s) => s.hydrate);
 
   useEffect(() => {
-    hydrate();
+    void hydrate();
   }, [hydrate]);
 
   return (

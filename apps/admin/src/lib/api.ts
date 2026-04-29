@@ -1,43 +1,66 @@
-import axios from 'axios';
+// apps/admin/src/lib/api.ts
+//
+// Bug 1251 fix: admin auth no longer keeps tokens in localStorage. Three cookies:
+//   admin_session — HttpOnly, browser sends automatically on /api requests.
+//   admin_refresh — HttpOnly, scoped to /api/v1/auth/admin/refresh.
+//   admin_csrf    — JS-readable, value echoed in X-CSRF-Token on every write.
+//
+// Threat model: an XSS payload that fetches /api/v1/admin/<x> with the same-
+// origin cookies WILL fail without a matching CSRF header — and the CSRF token
+// is rotated on every refresh, so even a token captured one hour ago is dead
+// after the next refresh boundary. SameSite=Strict on the session cookie
+// closes the cross-origin CSRF surface.
+
+import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 
 const api = axios.create({
   baseURL: '',
   headers: { 'Content-Type': 'application/json' },
+  // Send cookies on same-origin requests. Required for admin_session.
+  withCredentials: true,
 });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('admin_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+function readCsrfCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = /(?:^|;\s*)admin_csrf=([^;]+)/.exec(document.cookie);
+  return match ? decodeURIComponent(match[1]!) : null;
+}
+
+const SAFE_METHODS = new Set(['get', 'head', 'options']);
+
+api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const method = (config.method ?? 'get').toLowerCase();
+  if (!SAFE_METHODS.has(method)) {
+    const csrf = readCsrfCookie();
+    if (csrf) {
+      config.headers.set('X-CSRF-Token', csrf);
+    }
   }
   return config;
 });
 
+interface RetryConfig extends AxiosRequestConfig {
+  _retry?: boolean;
+}
+
 api.interceptors.response.use(
   (res) => res,
-  async (error) => {
-    const original = error.config;
-    if (error.response?.status === 401 && !original._retry) {
+  async (error: AxiosError) => {
+    const original = (error.config ?? {}) as RetryConfig;
+    const status = error.response?.status;
+    // Don't loop on the refresh endpoint itself.
+    const isRefresh = original.url?.endsWith('/api/v1/auth/admin/refresh') ?? false;
+
+    if (status === 401 && !original._retry && !isRefresh) {
       original._retry = true;
-      const refreshToken = localStorage.getItem('admin_refresh');
-      if (refreshToken) {
-        try {
-          const res = await axios.post('/api/v1/auth/refresh-token', { refreshToken });
-          const { accessToken, refreshToken: newRefresh } = res.data.data;
-          localStorage.setItem('admin_token', accessToken);
-          if (newRefresh) localStorage.setItem('admin_refresh', newRefresh);
-          original.headers.Authorization = `Bearer ${accessToken}`;
-          return api(original);
-        } catch {
-          localStorage.removeItem('admin_token');
-          localStorage.removeItem('admin_refresh');
-          localStorage.removeItem('admin_user');
+      try {
+        await axios.post('/api/v1/auth/admin/refresh', {}, { withCredentials: true });
+        return api(original as InternalAxiosRequestConfig);
+      } catch {
+        // Refresh failed — kick to login.
+        if (typeof window !== 'undefined') {
           window.location.href = '/login';
         }
-      } else {
-        localStorage.removeItem('admin_token');
-        localStorage.removeItem('admin_user');
-        window.location.href = '/login';
       }
     }
     return Promise.reject(error);

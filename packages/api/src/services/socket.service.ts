@@ -28,7 +28,17 @@ export function initSocketServer(httpServer: HttpServer): Server {
   });
 
   io.use((socket: AuthenticatedSocket, next) => {
-    const token = socket.handshake.auth.token as string | undefined;
+    // Bug 1251 fix: prefer the admin_session HttpOnly cookie when the browser
+    // sends one (admin web), and fall back to the legacy handshake-auth token
+    // (mobile clients still pass it explicitly).
+    let token = socket.handshake.auth.token as string | undefined;
+    if (!token) {
+      const cookieHeader = socket.handshake.headers?.cookie ?? '';
+      const match = /(?:^|;\s*)admin_session=([^;]+)/.exec(cookieHeader);
+      if (match) {
+        token = decodeURIComponent(match[1]!);
+      }
+    }
 
     if (!token) {
       next(new Error('Authentication required'));
