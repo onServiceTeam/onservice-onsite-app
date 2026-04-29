@@ -9,10 +9,13 @@ The Phase 14 design accepts these failures during Dispatches 01-13 because each 
 ## Gate A fragments
 
 ### `a-cross-source-cancellation-policy.sh`
-- **Expected to fail on master:** YES
-- **Reason:** Bug 1170/1198 — cancellation policy hardcoded in 4 places (`platform.config.ts`, `terms.tsx`, `help.tsx`, migration 050). No canonical source yet.
-- **Owning dispatch:** Dispatch 02 (Cross-source-of-truth reconciliation).
-- **Becomes BLOCKING:** after D02 PR merges.
+- **Expected to fail on master:** NO (resolved by D02 cancellation work).
+- **Reason:** Bug 1170/1198 fixed — `cancellation_policies` table is now the
+  single source of truth (admin-editable via /admin/settings/cancellation-policy).
+  Mobile `terms.tsx` and `help.tsx` consume `/api/v1/settings/cancellation-policy`.
+  Static `cancellationFees` / `cancellationRefundSplits` deleted from
+  `platform.config.ts` (api + mobile). Gate now passes locally.
+- **Status:** BLOCKING immediately on the D02 branch and going forward.
 
 ### `a-cross-source-brand-color.sh`
 - **Expected to fail on master:** YES

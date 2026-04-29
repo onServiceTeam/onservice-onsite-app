@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Mail, Phone } from '@/components/icons';
+import { fetchCancellationPolicy, policyToHelpAnswer } from '@/utils/cancellation-policy';
 
 interface FAQItem {
   q: string;
@@ -19,8 +21,9 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
         a: 'Browse service categories on the home screen, select the service you need, choose a date/time, pick your address, and proceed to checkout. You can also submit a custom job request if your needs are unique.',
       },
       {
+        // Bug 1170/1198 fix: substituted at render time with the live policy.
         q: 'Can I cancel a booking?',
-        a: 'Yes. Cancel for free up to 2 hours before the scheduled time. Cancellations within 2 hours incur a 20% fee. If the provider has already arrived, a 50% fee applies.',
+        a: 'Loading current cancellation policy…',
       },
       {
         q: 'How does the quoting system work?',
@@ -80,6 +83,30 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
 export default function HelpScreen(): React.ReactElement {
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Bug 1170/1198 fix: substitute the cancel-booking FAQ answer with the
+  // live policy. 5-minute staleTime mirrors the server cache.
+  const policyQuery = useQuery({
+    queryKey: ['cancellation-policy'],
+    queryFn: fetchCancellationPolicy,
+    staleTime: 5 * 60_000,
+  });
+
+  const sections = useMemo(() => {
+    if (!policyQuery.data) return FAQ_SECTIONS;
+    return FAQ_SECTIONS.map((section) =>
+      section.title === 'Booking & Services'
+        ? {
+            ...section,
+            items: section.items.map((item) =>
+              item.q === 'Can I cancel a booking?'
+                ? { ...item, a: policyToHelpAnswer(policyQuery.data) }
+                : item,
+            ),
+          }
+        : section,
+    );
+  }, [policyQuery.data]);
 
   const toggleFAQ = (key: string): void => {
     setExpanded((prev) => (prev === key ? null : key));

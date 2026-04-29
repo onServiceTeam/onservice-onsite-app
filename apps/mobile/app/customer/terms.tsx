@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ScrollText, Lock } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
 import { formatPHP } from '@/utils/currency';
+import { fetchCancellationPolicy, policyToTermsText } from '@/utils/cancellation-policy';
 
 interface Section {
   title: string;
@@ -29,9 +31,12 @@ const TOS_SECTIONS: Section[] = [
       'All payments are held in escrow until the customer confirms satisfactory completion or the 48-hour auto-confirmation window expires. No cash transactions are permitted through the platform.',
   },
   {
+    // Bug 1170/1198 fix: content is replaced at render time with the active
+    // policy fetched from /api/v1/settings/cancellation-policy. The
+    // placeholder below appears only on a fresh boot before the request
+    // resolves — once the cache is warm, the real text shows immediately.
     title: '4. Cancellation & Refund Policy',
-    content:
-      '24+ hours before: Full refund. 12-24 hours: 90% refund. 2-12 hours: 75% refund. Under 2 hours: 50% refund. After provider arrival: No refund (provider receives compensation).',
+    content: 'Loading current cancellation policy…',
   },
   {
     title: '5. Dispute Resolution',
@@ -95,7 +100,21 @@ export default function TermsScreen(): React.ReactElement {
   const [activeTab, setActiveTab] = useState<Tab>('terms');
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
-  const sections = activeTab === 'terms' ? TOS_SECTIONS : PRIVACY_SECTIONS;
+  // Bug 1170/1198 fix: pull the live cancellation policy and substitute
+  // section #4's content. 5-minute staleTime — same as the server cache.
+  const policyQuery = useQuery({
+    queryKey: ['cancellation-policy'],
+    queryFn: fetchCancellationPolicy,
+    staleTime: 5 * 60_000,
+  });
+
+  const sections = useMemo(() => {
+    const baseline = activeTab === 'terms' ? TOS_SECTIONS : PRIVACY_SECTIONS;
+    if (activeTab !== 'terms' || !policyQuery.data) return baseline;
+    return baseline.map((s, i) =>
+      i === 3 ? { ...s, content: policyToTermsText(policyQuery.data) } : s,
+    );
+  }, [activeTab, policyQuery.data]);
 
   const toggleSection = (index: number): void => {
     setExpandedIndex(expandedIndex === index ? null : index);

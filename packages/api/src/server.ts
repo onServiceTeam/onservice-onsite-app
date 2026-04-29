@@ -66,6 +66,8 @@ import promotionRoutes from './routes/promotion.routes';
 import supportTicketRoutes from './routes/support-ticket.routes';
 import staffRoutes from './routes/staff.routes';
 import settingsRoutes from './routes/settings.routes';
+import cancellationPolicyPublicRoutes from './routes/cancellation-policy-public.routes';
+import cancellationPolicyAdminRoutes from './routes/cancellation-policy-admin.routes';
 import * as settingsService from './services/settings.service';
 import { db } from './models/db';
 import { redis } from './config/redis.config';
@@ -176,6 +178,8 @@ app.use('/api/v1/admin', requireAdminCsrf);
 // Phase 03: settings routes are mounted BEFORE generic admin routes so the
 // more specific /admin/settings path wins over /admin/* fallthrough.
 app.use('/api/v1/admin/settings', settingsRoutes);
+// Bug 1170 / 1198 (Phase 14 Dispatch 02) — admin cancellation-policy editor.
+app.use('/api/v1/admin/cancellation-policies', cancellationPolicyAdminRoutes);
 // Phase 05: provider 360 sub-routes mounted BEFORE generic admin routes so
 // `/admin/providers/:id/profile` etc. match before any `/admin/*` fallthrough.
 app.use('/api/v1/admin/providers', providerAdminRoutes);
@@ -201,6 +205,9 @@ app.use('/api/v1/admin/compliance', complianceAdminRoutes);
 app.use('/api/v1/admin', adminRoutes);
 // Phase 11: end-user compliance endpoints (DSR + consent recording).
 app.use('/api/v1/compliance', complianceRoutes);
+
+// Bug 1170 / 1198 (Phase 14 Dispatch 02) — public cancellation-policy read.
+app.use('/api/v1/settings', cancellationPolicyPublicRoutes);
 
 // Phase 03: public client config endpoint (no auth required).
 app.get('/api/v1/config', async (_req, res) => {

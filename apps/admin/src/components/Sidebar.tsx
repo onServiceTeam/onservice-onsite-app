@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAuthStore } from '@/stores/auth.store';
 import {
   LayoutDashboard,
   Wrench,
@@ -29,6 +30,7 @@ type NavItem = {
   to: string;
   Icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;
+  superAdminOnly?: boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -54,9 +56,14 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/support-tickets', Icon: Ticket, label: 'Support' },
   { to: '/staff', Icon: User, label: 'Staff & Roles' },
   { to: '/settings', Icon: Settings, label: 'Settings' },
+  // Bug 1170-admin-ui: super_admin-only link to the cancellation-policy editor.
+  // Server enforces super_admin too; this filter just hides the link visually.
+  { to: '/settings/cancellation-policy', Icon: Settings, label: 'Cancellation Policy', superAdminOnly: true },
 ];
 
 export default function Sidebar(): React.ReactElement {
+  const role = useAuthStore((s) => s.user?.role);
+  const visibleItems = NAV_ITEMS.filter((item) => !item.superAdminOnly || role === 'super_admin');
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-60 bg-[var(--color-sidebar)] text-white flex flex-col z-20">
       <div className="px-5 py-5 border-b border-white/10">
@@ -66,7 +73,7 @@ export default function Sidebar(): React.ReactElement {
         <p className="text-xs text-slate-400 mt-0.5">Admin Panel</p>
       </div>
       <nav className="flex-1 py-3 overflow-y-auto">
-        {NAV_ITEMS.map((item) => (
+        {visibleItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

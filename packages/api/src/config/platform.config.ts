@@ -21,22 +21,12 @@ export const platformConfig = {
   minimumServiceFee: 2500,        // ₱25.00 minimum (stored in centavos)
   maximumServiceFee: 50000,       // ₱500.00 maximum (stored in centavos)
 
-  // --- Cancellation Fees ---
-  cancellationFees: {
-    beforeMatch: 0,               // Free cancellation before provider match
-    afterMatch: 0.05,             // 5% if cancelled after match
-    afterPayment: 0.10,           // 10% if cancelled after payment
-    afterEnRoute: 0.25,           // 25% if provider already en route
-    noShow: 1.0,                  // 100% for customer no-show
-  },
-
-  // --- Cancellation Refund Splits (time-based, FR-102) ---
-  cancellationRefundSplits: {
-    moreThan2Hours:       { customerRefund: 1.00, providerCompensation: 0.00 },
-    lessThan2Hours:       { customerRefund: 0.80, providerCompensation: 0.20 },
-    providerArrived:      { customerRefund: 0.50, providerCompensation: 0.50 },
-    customerNoShow:       { customerRefund: 0.00, providerCompensation: 1.00 },
-  },
+  // --- Cancellation policy ---
+  // Bug 1170/1198 fix (Phase 14 Dispatch 02): cancellation tier values are
+  // now server-canonical in the `cancellation_policies` table and admin-
+  // editable via /admin/settings/cancellation-policy. Read them through
+  // services/pricing/cancellation.service.ts — never reintroduce literal
+  // tier values here.
 
   // --- Escrow ---
   escrowAutoConfirmHours: 24,     // Auto-confirm after 24 hours
