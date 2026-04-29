@@ -1,0 +1,8 @@
+dispatch: D0
+branch: phase/14-d0-prerequisites
+status: file-creation-complete; awaiting Ken halt-points (0.3.5 CI approval, 0.4 branch protection, 0.5 staging credentials)
+last-subtask-completed: 0.7 (stryker config + MUTATION-BASELINE.md)
+next-subtask: 0.8 closeout, then PR open
+phase-14-bootstrap-pr: https://github.com/onServiceTeam/onservice-onsite-app/pull/1
+operating-mode: autonomous between dispatches + full audit chain
+session-started: 2026-04-29

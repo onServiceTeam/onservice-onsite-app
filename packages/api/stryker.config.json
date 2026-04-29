@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "reporters": ["html", "clear-text", "progress", "json"],
+  "testRunner": "jest",
+  "coverageAnalysis": "perTest",
+  "thresholds": { "high": 99, "low": 95, "break": 99 },
+  "mutate": ["src/**/*.ts", "!src/**/*.test.ts"],
+  "checkers": ["typescript"],
+  "concurrency": 4,
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true
+}
