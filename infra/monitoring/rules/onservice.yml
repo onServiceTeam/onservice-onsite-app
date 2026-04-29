@@ -1,0 +1,92 @@
+# Bug 1309 fix verified.
+# Phase 14 Dispatch 01.
+#
+# Alert rules for the onService API. All metrics named here are emitted by
+# packages/api/src/services/metrics.service.ts → toPrometheusFormat().
+# When a metric name changes there, this file MUST change in lockstep,
+# otherwise the alert silently goes "no data" — exactly the failure mode
+# Bug 1309 was filed against.
+
+groups:
+  - name: api-availability
+    interval: 30s
+    rules:
+      - alert: ApiDown
+        expr: up{job="api"} == 0
+        for: 2m
+        labels:
+          severity: page
+          team: platform
+        annotations:
+          summary: "onService API is unreachable"
+          description: "The api job has been down for >2 minutes. Customer requests are failing. Check the api container logs and the load balancer."
+
+      - alert: ApiHighMemoryRSS
+        # Page when the API process exceeds 1.5 GiB RSS for >10 min.
+        expr: onservice_memory_rss_bytes > 1.5 * 1024 * 1024 * 1024
+        for: 10m
+        labels:
+          severity: warn
+          team: platform
+        annotations:
+          summary: "onService API RSS over 1.5 GiB"
+          description: "The api process has used >1.5 GiB RSS for 10+ minutes. Possible leak or runaway query. Memory: {{ $value | humanize1024 }}"
+
+  - name: api-business-health
+    interval: 30s
+    rules:
+      - alert: DisputesQueueBackingUp
+        # >10 simultaneously open disputes for >30 min suggests an admin/Ops gap.
+        expr: onservice_disputes_open > 10
+        for: 30m
+        labels:
+          severity: warn
+          team: ops
+        annotations:
+          summary: "More than 10 open disputes for 30+ minutes"
+          description: "Open dispute count: {{ $value }}. Page Ops to triage. Bug 1309-related: ensure metrics are scraping."
+
+      - alert: NoCompletedBookingsToday
+        # Catches the silent failure where the entire booking flow breaks
+        # but no specific endpoint is throwing.
+        expr: onservice_completed_today == 0 and hour() > 12 and hour() < 22
+        for: 1h
+        labels:
+          severity: page
+          team: platform
+        annotations:
+          summary: "Zero bookings completed today during business hours"
+          description: "No bookings have moved to a completed state today and it is past noon Manila time. Likely a regression somewhere in the booking lifecycle."
+
+      - alert: NoActiveProviders
+        expr: onservice_providers_active == 0
+        for: 5m
+        labels:
+          severity: page
+          team: ops
+        annotations:
+          summary: "Zero approved providers in catalog"
+          description: "No providers in approved state. Customers cannot match. Check the providers table and provider-onboarding pipeline."
+
+  - name: data-tier
+    interval: 30s
+    rules:
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: page
+          team: platform
+        annotations:
+          summary: "Postgres exporter unreachable"
+          description: "postgres-exporter has been down for >1 minute. The DB itself may also be down — check immediately."
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: page
+          team: platform
+        annotations:
+          summary: "Redis exporter unreachable"
+          description: "redis-exporter has been down for >1 minute. Sessions, rate limiting and BullMQ all depend on Redis."
