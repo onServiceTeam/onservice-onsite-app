@@ -1,0 +1,31 @@
+# Prometheus scrape config for the local Docker stack.
+#
+# Per Phase 14 Dispatch 0.5. Provides the foundation for Bug 1309 fix
+# (Dispatch 01 — empty scrape config in production prometheus.yml).
+# This dev config validates the /metrics endpoint contract before
+# Bug 1309's production prometheus.yml is generated.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: onservice-dev
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: api
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["api:7381"]
+        labels:
+          service: api
+          tier: backend
+          env: dev
+
+# Alerts are configured in Bug 1309 (Dispatch 01). This dev config
+# does not yet wire alertmanager because there is no on-call rotation
+# in dev.

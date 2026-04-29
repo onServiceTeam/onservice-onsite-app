@@ -60,7 +60,30 @@ jobs:
       - name: Install Playwright browsers
         run: cd apps/admin && pnpm exec playwright install chromium
         continue-on-error: true
+      - name: Bring up local Docker stack (D0.5)
+        # Gate D needs a real backend for end-to-end visual tests of the
+        # admin pages. The local stack matches production behavior for
+        # everything except DNS/TLS (D14 production-parity work).
+        run: |
+          docker compose -f infra/docker/docker-compose.dev.yml \
+            --env-file infra/docker/.env.docker up -d \
+            postgres redis minio minio-init mailhog
+          # Wait briefly for healthchecks to pass before tests run.
+          for i in $(seq 1 30); do
+            healthy=0
+            for svc in onservice-postgres onservice-redis onservice-minio; do
+              s=$(docker inspect --format '{{.State.Health.Status}}' "$svc" 2>/dev/null || echo missing)
+              [ "$s" = "healthy" ] && healthy=$((healthy + 1))
+            done
+            [ "$healthy" -eq 3 ] && break
+            sleep 2
+          done
+        continue-on-error: true
       - run: bash scripts/gates/d-visual-screenshots.sh
+      - name: Tear down Docker stack
+        if: always()
+        run: docker compose -f infra/docker/docker-compose.dev.yml --env-file infra/docker/.env.docker down -v --remove-orphans
+        continue-on-error: true
       - name: Upload visual diffs (on failure)
         if: failure()
         uses: actions/upload-artifact@v4
@@ -82,7 +105,33 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         continue-on-error: true
+      - name: Bring up local Docker stack (D0.5)
+        # Gate E mutation testing on integration-tested code paths needs
+        # a real DB. Stryker runs jest which connects to postgres for
+        # integration tests of the money-conservation suite.
+        run: |
+          docker compose -f infra/docker/docker-compose.dev.yml \
+            --env-file infra/docker/.env.docker up -d \
+            postgres redis
+          for i in $(seq 1 30); do
+            s=$(docker inspect --format '{{.State.Health.Status}}' onservice-postgres 2>/dev/null || echo missing)
+            [ "$s" = "healthy" ] && break
+            sleep 2
+          done
+        continue-on-error: true
+      - name: Run database migrations
+        run: |
+          DATABASE_URL="postgresql://onservice:onservice_dev@localhost:7383/onservice_dev" \
+            bash scripts/run-migrations.sh
+        continue-on-error: true
       - run: bash scripts/gates/e-mutation-testing.sh
+        env:
+          DATABASE_URL: postgresql://onservice:onservice_dev@localhost:7383/onservice_dev
+          REDIS_URL: redis://localhost:7385
+      - name: Tear down Docker stack
+        if: always()
+        run: docker compose -f infra/docker/docker-compose.dev.yml --env-file infra/docker/.env.docker down -v --remove-orphans
+        continue-on-error: true
       - name: Upload mutation report
         if: always()
         uses: actions/upload-artifact@v4

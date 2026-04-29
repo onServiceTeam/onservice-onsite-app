@@ -205,6 +205,8 @@ The verification step is critical. Without it, you will not know if branch prote
 
 ## Step 0.5 — Set up staging environment
 
+> **REVISED in Dispatch 0.5 (PR #4 — chore/local-docker-stack):** the original Step 0.5 below treated cloud staging as a Dispatch 0 blocker. After Dispatch 0.5 lands, the local Docker Compose stack at `infra/docker/docker-compose.dev.yml` provides production-equivalent Postgres + PostGIS + Redis + S3 (MinIO) + SMTP (MailHog) + Prometheus + Grafana + the API container, and handles ~80% of end-to-end testing scenarios for Dispatches 01–13. **Cloud staging is now a Dispatch 14 production-parity prerequisite** for DNS / TLS / managed-Postgres PITR / real PayMongo webhook / SES-style email-domain testing. Halt point 3 (AWS credentials) is no longer a Dispatch 0 blocker — it is a Dispatch 14 blocker only. Steps 0.5.1 below remain authoritative for that production-parity cloud staging when D14 reaches it.
+
 The dispatches need a staging environment to validate end-to-end. Production parity matters.
 
 **0.5.1.** Provision staging:
@@ -213,7 +215,7 @@ The dispatches need a staging environment to validate end-to-end. Production par
 - Redis instance for staging
 - Domain `staging.api.onservice.ph` with TLS
 
-This is operational infrastructure work. If the AI coder has IAM credentials to provision, it can do this via Terraform. If not, Ken does it manually or contracts an infra engineer. **Halt point 3** if the AI coder lacks credentials.
+This is operational infrastructure work. If the AI coder has IAM credentials to provision, it can do this via Terraform. If not, Ken does it manually or contracts an infra engineer. **Halt point 3** is RESOLVED for D01-D13 (local Docker stack from Dispatch 0.5 covers it) and remains pending for D14 only.
 
 **0.5.2.** Run all 59 existing migrations against the staging DB:
 ```bash

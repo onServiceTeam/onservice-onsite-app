@@ -1,0 +1,215 @@
+name: onservice-dev
+
+# Local Docker Compose stack for onService PH development and CI.
+#
+# Per Phase 14 Dispatch 0.5 (PR #4). Replaces the cloud-staging dependency
+# for ~80% of testing scenarios:
+#
+#   - PostgreSQL 18 + PostGIS  (matches CI fixture postgis/postgis:18-3.5)
+#   - Redis 8 alpine
+#   - MinIO (S3-compatible) + auto-created buckets
+#   - MailHog (SMTP testing for email flows)
+#   - Prometheus + Grafana (Bug 1309 fix work + future observability)
+#   - API container (built from packages/api/Dockerfile)
+#
+# Cloud staging (Halt 3 from Dispatch 0) is reframed as a Dispatch 14
+# production-parity prerequisite for DNS / TLS / managed-Postgres PITR
+# testing, not a Dispatch 0 blocker.
+#
+# Usage:
+#   ./scripts/dev/up.sh        # spin up + run migrations + seed
+#   ./scripts/dev/down.sh      # tear down + remove volumes
+#
+# Or directly:
+#   docker compose -f infra/docker/docker-compose.dev.yml --env-file infra/docker/.env.docker up -d
+
+services:
+  postgres:
+    image: postgis/postgis:18-3.5
+    container_name: onservice-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-onservice}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-onservice_dev}
+      POSTGRES_DB: ${DB_NAME:-onservice_dev}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "${DB_PORT:-7383}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-onservice} -d ${DB_NAME:-onservice_dev}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    container_name: onservice-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-7385}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: onservice-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    ports:
+      - "${S3_PORT:-9000}:9000"
+      - "${S3_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  # One-shot init: create the buckets the API expects to exist.
+  minio-init:
+    image: minio/mc:latest
+    container_name: onservice-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 ${S3_ACCESS_KEY:-minioadmin} ${S3_SECRET_KEY:-minioadmin}
+        for bucket in onservice-customer-uploads-dev onservice-bir-receipts-dev onservice-booking-photos-dev onservice-provider-documents-dev; do
+          mc mb --ignore-existing local/$$bucket
+          mc anonymous set none local/$$bucket
+          mc encrypt set sse-s3 local/$$bucket || true
+          mc version enable local/$$bucket || true
+        done
+        echo "minio-init: buckets created and configured"
+    restart: "no"
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: onservice-mailhog
+    ports:
+      - "${SMTP_PORT:-1025}:1025"   # SMTP
+      - "${SMTP_UI_PORT:-8025}:8025" # Web UI
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8025"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: onservice-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: onservice-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ../..
+      dockerfile: packages/api/Dockerfile
+    container_name: onservice-api
+    environment:
+      NODE_ENV: development
+      PORT: 7381
+      DATABASE_URL: "postgresql://${DB_USER:-onservice}:${DB_PASSWORD:-onservice_dev}@postgres:5432/${DB_NAME:-onservice_dev}"
+      REDIS_URL: "redis://redis:6379"
+      S3_ENDPOINT: "http://minio:9000"
+      S3_REGION: "us-east-1"
+      S3_FORCE_PATH_STYLE: "true"
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-minioadmin}
+      S3_BUCKET_CUSTOMER_UPLOADS: "onservice-customer-uploads-dev"
+      S3_BUCKET_BIR_RECEIPTS: "onservice-bir-receipts-dev"
+      S3_BUCKET_BOOKING_PHOTOS: "onservice-booking-photos-dev"
+      S3_BUCKET_PROVIDER_DOCUMENTS: "onservice-provider-documents-dev"
+      SMTP_HOST: "mailhog"
+      SMTP_PORT: "1025"
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-not-for-production-use}
+      JWT_ACCESS_EXPIRES_IN: "15m"
+      JWT_REFRESH_EXPIRES_IN: "30d"
+    ports:
+      - "${API_PORT:-7381}:7381"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7381/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  default:
+    name: onservice-dev
+    driver: bridge
