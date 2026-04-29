@@ -307,3 +307,51 @@ prevents any future seed from setting `password_hash` on `users` or
 Phase 13 owner notes: this file is the canonical place to record
 "intentional v1 limitations". Add new entries as they are discovered;
 do NOT silently fix without recording the original limitation here.
+
+---
+
+## §brand-color-mobile-runtime — Mobile dynamic theme not wired
+
+**What works after Phase 14 D02 Part 2:**
+
+- Brand colors are server-canonical: `docs/design-system/tokens.json`
+  declares the canonical hex values; migration 072 seeds them as
+  `platform_settings` rows under category `branding`; admin can edit
+  them via the existing `/admin/settings` page; `getClientConfig`
+  returns the live values.
+- Static defaults in `apps/mobile/src/config/theme.ts` and
+  `apps/admin/src/index.css` match the canonical hex values, so a
+  fresh build with the API unreachable still looks correct.
+- Gate A `a-cross-source-brand-color.sh` blocks the legacy `#0066FF`
+  and `#0F62FE` from reappearing.
+
+**What does NOT work yet:**
+
+- The mobile app reads `theme.ts` synchronously at import time. If an
+  admin edits the brand color in `platform_settings`, mobile installs
+  in the wild won't pick up the new value until the next app version
+  ships through EAS Update / store review.
+- The admin web reads `--color-primary` as a static CSS variable in
+  `index.css`. Same story — runtime override would require either
+  inline `<style>` injection from `getClientConfig` at app boot or a
+  CSS-vars `<ThemeProvider>` on the React tree.
+
+**Why deferred:**
+
+- The structural fix (one source of truth, no drift) is complete.
+- Dynamic theme is cosmetic-runtime polish, not a launch blocker.
+- A proper fix touches enough surface (mobile ThemeProvider, admin
+  CSS-var injection, hot-reload semantics) to belong with the
+  Dispatch 12 mobile-customer polish or its own follow-up dispatch.
+
+**Operator obligation:** treat brand color tuning as a
+release-coupled operation for v1.0 — change `platform_settings`
+AND ship a new mobile build / admin redeploy. Track desired changes
+in the same admin /settings page so the batch is explicit at release
+time.
+
+**Source decision:** Phase 14 Dispatch 02 Part 2 Bug 1324 — autonomous
+execution per "server canonical, admin editable" standing instruction
+chose option (a) "build the editor under the same dispatch" for the
+admin UI / DB layer, and option (b) "defer with LAUNCH-LIMITATIONS
+entry" for the mobile + admin runtime override.

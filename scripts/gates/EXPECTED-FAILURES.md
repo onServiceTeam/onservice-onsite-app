@@ -18,10 +18,13 @@ The Phase 14 design accepts these failures during Dispatches 01-13 because each 
 - **Status:** BLOCKING immediately on the D02 branch and going forward.
 
 ### `a-cross-source-brand-color.sh`
-- **Expected to fail on master:** YES
-- **Reason:** Bug 1324 — `#0066FF` and `#0F62FE` referenced in mobile `theme.ts` and admin `Chart.tsx`. Canonical `#1B3A4B` from `tokens.json` not yet enforced.
-- **Owning dispatch:** Dispatch 02.
-- **Becomes BLOCKING:** after D02 PR merges.
+- **Expected to fail on master:** NO (resolved by D02 Part 2).
+- **Reason:** Bug 1324 fixed — `apps/mobile/src/config/theme.ts` updated to
+  the canonical `#1B3A4B` (and supporting hex values from `tokens.json`).
+  Migration 072 seeds the same values as `platform_settings` rows; admin
+  edits them via the existing `/admin/settings` page. Mobile dynamic
+  theme override is tracked in LAUNCH-LIMITATIONS.md §brand-color-mobile-runtime.
+- **Status:** BLOCKING immediately on D02 Part 2 branch and going forward.
 
 ### `a-cross-source-routes.sh`
 - **Expected to fail on master:** YES

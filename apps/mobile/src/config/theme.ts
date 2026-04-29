@@ -1,26 +1,28 @@
 /**
  * Design system tokens — onService brand.
- * All colors, spacing, typography, and border radius values.
- * Import this everywhere instead of hardcoding values.
+ * Bug 1324 fix verified — primary brand color is #1B3A4B (deep teal),
+ * sourced from docs/design-system/tokens.json. Static defaults below match
+ * the canonical token values; runtime override via platform_settings is
+ * deferred (LAUNCH-LIMITATIONS §brand-color-mobile-runtime).
  */
 export const colors = {
-  primary: '#0066FF',
-  primaryDark: '#0052CC',
-  primaryLight: '#E6F0FF',
+  primary: '#1B3A4B',
+  primaryDark: '#142D3B',
+  primaryLight: '#E6EEF1',
 
-  secondary: '#00C48C',
-  secondaryDark: '#00A376',
+  secondary: '#00B4D8',
+  secondaryDark: '#0096B0',
 
-  success: '#00C48C',
-  successLight: '#ECFDF5',
+  success: '#10B981',
+  successLight: '#DEFBE6',
   successDark: '#047857',
-  warning: '#FFB800',
-  warningLight: '#FFFBEB',
+  warning: '#F59E0B',
+  warningLight: '#FCF4D6',
   warningDark: '#B45309',
-  error: '#FF3B3B',
-  errorLight: '#FEF2F2',
-  info: '#0066FF',
-  infoLight: '#EFF6FF',
+  error: '#EF4444',
+  errorLight: '#FFF1F1',
+  info: '#0043CE',
+  infoLight: '#EDF5FF',
   infoDark: '#1E40AF',
   white: '#FFFFFF',
   shadow: '#000000',
@@ -39,11 +41,11 @@ export const colors = {
   tierPro: '#8B5CF6',
   tierElite: '#F59E0B',
 
-  statusPending: '#FFB800',
-  statusConfirmed: '#0066FF',
-  statusInProgress: '#00C48C',
-  statusCompleted: '#00C48C',
-  statusDisputed: '#FF3B3B',
+  statusPending: '#F59E0B',
+  statusConfirmed: '#1B3A4B',
+  statusInProgress: '#10B981',
+  statusCompleted: '#10B981',
+  statusDisputed: '#EF4444',
   statusCancelled: '#9CA3AF',
 } as const;
 
