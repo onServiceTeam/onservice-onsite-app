@@ -1,0 +1,38 @@
+# Seeds
+
+This directory contains test-data fixtures for development. **No production seed creates admin credentials.**
+
+Per Phase 14 Dispatch 01 Bug 1235 fix, the previously-shipped `004_admin_passwords.sql` was removed because it carried a placeholder hash that invited a "well-meaning fix" — someone running `scrypt('admin123')` and pasting the real hash would create a working credential everyone knows.
+
+## To bootstrap a production admin user
+
+Use the CLI script:
+
+```bash
+ADMIN_BOOTSTRAP_PASSWORD='<strong-password>' \
+ADMIN_BOOTSTRAP_ROLE='super_admin' \
+npx tsx packages/api/scripts/bootstrap-admin.ts admin@onservice.ph
+```
+
+The script enforces:
+
+- Password >= 16 chars
+- Mixed case (upper + lower)
+- At least one digit
+- At least one special character
+- Not matching banned dictionary patterns (`password`, `admin`, `onservice`, `qwerty`, `12345`)
+- No 5+ repeated characters in a row
+
+Roles supported: `super_admin`, `admin`, `dpo`, `finance`, `support`, `dispatcher`. Default is `super_admin`.
+
+After first login, the admin must enroll TOTP 2FA.
+
+## Existing seed files
+
+Each remaining seed file is dev-only test data, never run in production:
+
+- `001_categories.sql` — service categories
+- `002_test_users.sql` — test customer accounts (no admin role)
+- `003_test_bookings.sql` — test booking fixtures
+
+The CI gate `scripts/gates/c-constitution-no-admin-password-seeds.sh` (added in Dispatch 01) blocks any future seed that updates the `password_hash` column on the `users` table or any `*admin*` table.

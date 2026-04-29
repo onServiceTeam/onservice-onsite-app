@@ -267,6 +267,43 @@ server and run `@axe-core/playwright` on the canonical pages.
 
 ---
 
+## 21. Admin password bootstrap (Bug 1235 fix — Phase 14 Dispatch 01)
+
+**Where:** [packages/api/seeds/](packages/api/seeds/) and
+[packages/api/scripts/bootstrap-admin.ts](packages/api/scripts/bootstrap-admin.ts).
+
+The repository ships **no admin credentials**. Phase 14 Dispatch 01
+deleted `seeds/004_admin_passwords.sql`, which carried a placeholder
+hash that invited a "well-meaning fix" (someone running
+`scrypt('admin123')` and pasting the real hash) — that would create a
+working credential everyone knows.
+
+**Production admin users** are bootstrapped via
+`packages/api/scripts/bootstrap-admin.ts` which requires
+`ADMIN_BOOTSTRAP_PASSWORD` env var meeting strength requirements:
+
+- length >= 16
+- mixed case + digit + special character
+- not matching banned dictionary patterns (`password`, `admin`,
+  `onservice`, `qwerty`, `12345`)
+- no 5+ repeated characters in a row
+
+After the script runs, the new admin signs in via `/login` with that
+password and **must enroll TOTP 2FA on first login** per the existing
+admin auth flow.
+
+**Operator obligation:** keep `ADMIN_BOOTSTRAP_PASSWORD` out of shell
+history (use `read -s` or a password manager). Do not commit example
+strong passwords to docs.
+
+**Gate:** [scripts/gates/c-constitution-no-admin-password-seeds.sh](scripts/gates/c-constitution-no-admin-password-seeds.sh)
+prevents any future seed from setting `password_hash` on `users` or
+`admin_users` tables.
+
+**Source decision:** Phase 14 Dispatch 01 Bug 1235 fix.
+
+---
+
 Phase 13 owner notes: this file is the canonical place to record
 "intentional v1 limitations". Add new entries as they are discovered;
 do NOT silently fix without recording the original limitation here.
