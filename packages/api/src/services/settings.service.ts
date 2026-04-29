@@ -398,6 +398,16 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     quoteExpiryHours: await getSettingInteger('quote_expiry_hours'),
     maxQuotesPerBooking: await getSettingInteger('max_quotes_per_booking'),
     maxServiceRadiusKm: await getSettingInteger('max_service_radius_km'),
+    // Bug 1324 fix: brand colors live in platform_settings (admin-editable)
+    // and are consumed by getClientConfig so any caller (mobile, admin web)
+    // resolves the same value. The static fallbacks in theme.ts / index.css
+    // match these so a fresh build looks identical when the API is
+    // unreachable.
+    branding: {
+      primary: await getSetting('brand_color_primary').catch(() => '#1B3A4B'),
+      secondary: await getSetting('brand_color_secondary').catch(() => '#00B4D8'),
+      accent: await getSetting('brand_color_accent').catch(() => '#FF6B35'),
+    },
   };
 }
 
