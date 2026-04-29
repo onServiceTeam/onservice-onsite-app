@@ -26,13 +26,11 @@ export const platformConfig = {
   minimumServiceFee: 2500,
   maximumServiceFee: 50000,
 
-  cancellationFees: {
-    beforeMatch: 0,
-    afterMatch: 0.05,
-    afterPayment: 0.10,
-    afterEnRoute: 0.25,
-    noShow: 1.0,
-  } as const,
+  // Cancellation policy (Bug 1170/1198 fix, Phase 14 Dispatch 02): the tier
+  // values now live on the server in cancellation_policies (admin-editable)
+  // and are fetched via GET /api/v1/settings/cancellation-policy. Mobile
+  // surfaces (terms.tsx, help.tsx) render the policy directly from that
+  // endpoint — never reintroduce literal tier values here.
 
   escrowAutoConfirmHours: 24,
   escrowDisputeWindowHours: 48,
