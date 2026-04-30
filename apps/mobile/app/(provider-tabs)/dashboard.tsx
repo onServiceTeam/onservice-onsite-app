@@ -125,7 +125,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
       }
     >
       {/* Phase 14 Remediation #5 — Bug 1234 NBI lifecycle banner */}
-      <NbiStatusBanner onTap={() => router.push('/provider/account-management')} />
+      <NbiStatusBanner onTap={() => router.push(Routes.PROVIDER.ACCOUNT_MANAGEMENT)} />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.greeting}>
