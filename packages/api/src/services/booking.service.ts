@@ -7,6 +7,7 @@ import * as pricingService from './pricing.service';
 import * as slotWaitlistService from './slot-waitlist.service';
 import * as sukiService from './suki.service';
 import * as socketService from './socket.service';
+import { resolvePromo } from './booking/promo.service';
 
 interface BookingRow {
   id: string;
@@ -47,10 +48,12 @@ interface CountRow {
   count: string;
 }
 
-// Phase 14 Dispatch 05 — Bug 175 + Bug 176.
+// Phase 14 Dispatch 05 — Bug 175 + Bug 176 + Bug 261.
 // `servicePrice` removed; server resolves from service_subcategories.
 // `addons` shape is `{addonId, quantity}`; server resolves price from
 // service_addons by id.
+// `promoCode` is the customer-supplied code only; server resolves the
+// canonical discount via services/booking/promo.service.ts.
 interface CreateBookingParams {
   customerId: string;
   categoryId: string;
@@ -66,6 +69,7 @@ interface CreateBookingParams {
   scheduledAt: string;
   rebookedFromId?: string;
   waitlistId?: string;
+  promoCode?: string;
   addons?: Array<{ addonId: string; quantity: number }>;
 }
 
@@ -182,7 +186,21 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
     }
   }
 
-  const servicePrice = baseServicePrice + surgeAmount + addonsTotal;
+  // Phase 14 Dispatch 05 — Bug 261.
+  // Promo: customer sends only the code; server resolves the canonical
+  // discount from `promo_codes` via services/booking/promo.service.ts.
+  // Subtotal for promo eligibility is base + addons + surge.
+  let promoDiscountCents = 0;
+  if (params.promoCode && params.bookingType === 'fixed_price') {
+    const subtotalForPromo = baseServicePrice + surgeAmount + addonsTotal;
+    promoDiscountCents = await resolvePromo({
+      code: params.promoCode,
+      subtotalCents: subtotalForPromo,
+      userId: params.customerId,
+    });
+  }
+
+  const servicePrice = Math.max(0, baseServicePrice + surgeAmount + addonsTotal - promoDiscountCents);
   const serviceFee = params.bookingType === 'fixed_price' ? calculateServiceFee(servicePrice) : 0;
   const totalAmount = servicePrice + serviceFee;
 

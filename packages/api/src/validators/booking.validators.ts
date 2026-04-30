@@ -30,6 +30,9 @@ export const createBookingSchema = z.object({
   scheduledAt: z.string().datetime('Invalid date format'),
   rebookedFromId: z.string().uuid('Invalid rebooking reference').optional(),
   waitlistId: z.string().uuid('Invalid waitlist ID').optional(),
+  // Phase 14 Dispatch 05 — Bug 261. Customer sends only the code; server
+  // resolves the discount via services/booking/promo.service.ts.
+  promoCode: z.string().min(1).max(40).optional(),
   addons: z.array(z.object({
     addonId: z.string().uuid('Invalid addon ID'),
     quantity: z.number().int().min(1).max(100),

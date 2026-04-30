@@ -57,6 +57,9 @@ export interface CreateBookingPayload {
   scheduledAt: string;
   rebookedFromId?: string;
   waitlistId?: string;
+  // Phase 14 Dispatch 05 — Bug 261. Customer sends only the code; server
+  // resolves the canonical discount via promo.service.
+  promoCode?: string;
   addons?: Array<{ addonId: string; quantity: number }>;
 }
 

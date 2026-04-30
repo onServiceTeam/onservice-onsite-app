@@ -8,7 +8,9 @@
 
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { validationMiddleware } from '../middleware/validation.middleware';
 import { createAppError } from '../middleware/error.middleware';
+import { createPromoCodeSchema } from '../validators/promo.validators';
 import * as marketingAdminService from '../services/marketing-admin.service';
 
 const router = Router();
@@ -73,40 +75,44 @@ router.get(
   },
 );
 
+// Phase 14 Dispatch 05 — Bug 261.
+// Replaced the manual coercion with `validationMiddleware(createPromoCodeSchema)`.
+// `.strict()` on the schema rejects unknown keys — no client-supplied
+// fields silently slip through. Discount value/type still type-narrowed
+// by Zod and re-validated by the service-layer business-rule helpers
+// (validateCode, validateDiscount, validateValidityRange in
+// marketing-admin.service.ts).
 router.post(
   '/promos',
   authMiddleware,
+  validationMiddleware(createPromoCodeSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
-      const body = (req.body ?? {}) as Record<string, unknown>;
+      const body = req.body as {
+        code: string;
+        description?: string;
+        discountType: 'percentage' | 'fixed_centavos';
+        discountValue: number;
+        maxDiscountCentavos?: number | null;
+        minimumOrderCentavos?: number;
+        usageLimitTotal?: number | null;
+        usageLimitPerCustomer?: number;
+        validFrom?: string;
+        validUntil?: string | null;
+      };
       const data = await marketingAdminService.createPromoCode(
         {
-          code: String(body.code ?? ''),
-          description: typeof body.description === 'string' ? body.description : undefined,
-          discountType: body.discountType as 'percentage' | 'fixed_centavos',
-          discountValue: Number(body.discountValue),
-          maxDiscountCentavos:
-            body.maxDiscountCentavos === null || body.maxDiscountCentavos === undefined
-              ? null
-              : Number(body.maxDiscountCentavos),
-          minimumOrderCentavos:
-            body.minimumOrderCentavos === undefined
-              ? undefined
-              : Number(body.minimumOrderCentavos),
-          usageLimitTotal:
-            body.usageLimitTotal === null || body.usageLimitTotal === undefined
-              ? null
-              : Number(body.usageLimitTotal),
-          usageLimitPerCustomer:
-            body.usageLimitPerCustomer === undefined
-              ? undefined
-              : Number(body.usageLimitPerCustomer),
-          validFrom: typeof body.validFrom === 'string' ? body.validFrom : undefined,
-          validUntil:
-            body.validUntil === null || body.validUntil === undefined
-              ? null
-              : String(body.validUntil),
+          code: body.code,
+          description: body.description,
+          discountType: body.discountType,
+          discountValue: body.discountValue,
+          maxDiscountCentavos: body.maxDiscountCentavos ?? null,
+          minimumOrderCentavos: body.minimumOrderCentavos,
+          usageLimitTotal: body.usageLimitTotal ?? null,
+          usageLimitPerCustomer: body.usageLimitPerCustomer,
+          validFrom: body.validFrom,
+          validUntil: body.validUntil ?? null,
         },
         req.user!.userId,
       );
