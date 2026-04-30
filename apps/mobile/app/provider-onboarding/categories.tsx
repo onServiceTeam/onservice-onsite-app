@@ -10,6 +10,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import { Sparkles, Wrench, Zap, Paintbrush2, Snowflake, Bug, Package, Hammer, Plug, AlertTriangle } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
@@ -53,7 +54,7 @@ export default function CategoriesScreen(): React.ReactElement {
     }
     setBusinessName(name.trim());
     setCategories([...selected]);
-    router.push('/provider-onboarding/service-area');
+    router.push(Routes.PROVIDER_ONBOARDING.SERVICE_AREA);
   };
 
   const renderCategory = ({ item }: { item: Category }): React.ReactElement => {

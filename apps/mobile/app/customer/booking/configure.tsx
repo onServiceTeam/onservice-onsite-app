@@ -12,6 +12,7 @@ import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 
+import { Routes } from '@/config/navigation';
 interface Addon {
   id: string;
   subcategoryId: string;
@@ -64,12 +65,12 @@ export default function ConfigureScreen(): React.ReactElement {
 
   const handleContinue = useCallback(() => {
     setAddons(selectedAddons);
-    router.push('/customer/booking/form');
+    router.push(Routes.CUSTOMER.BOOKING_FORM);
   }, [selectedAddons, setAddons, router]);
 
   const handleSkip = useCallback(() => {
     setAddons([]);
-    router.push('/customer/booking/form');
+    router.push(Routes.CUSTOMER.BOOKING_FORM);
   }, [setAddons, router]);
 
   return (

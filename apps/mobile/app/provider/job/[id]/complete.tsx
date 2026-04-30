@@ -20,6 +20,7 @@ import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Camera, CheckCircle2, Edit } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 const PHOTO_SLOTS = 4;
 const MIN_PHOTOS = 2;
 
@@ -122,7 +123,7 @@ export default function JobCompleteScreen(): React.ReactElement {
         notes: notes.trim(),
       });
       Alert.alert('Submitted', 'Job marked as complete.');
-      router.replace('/(provider-tabs)' as never);
+      router.replace(Routes.PROVIDER_TABS.DASHBOARD);
     } catch (err) {
       const axErr = err as { response?: { data?: { error?: { message?: string } } } };
       Alert.alert(

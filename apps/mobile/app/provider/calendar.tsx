@@ -16,6 +16,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Settings } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 
+import { Routes } from '@/config/navigation';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -111,7 +112,7 @@ export default function ProviderCalendarScreen(): React.ReactElement {
         </TouchableOpacity>
         <Text style={styles.title}>My Schedule</Text>
         <TouchableOpacity
-          onPress={(): void => { router.push('/provider/availability'); }}
+          onPress={(): void => { router.push(Routes.PROVIDER.AVAILABILITY); }}
           style={styles.settingsBtn}
         >
           <Settings size={22} color={colors.text} />

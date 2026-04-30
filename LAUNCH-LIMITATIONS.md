@@ -355,3 +355,49 @@ execution per "server canonical, admin editable" standing instruction
 chose option (a) "build the editor under the same dispatch" for the
 admin UI / DB layer, and option (b) "defer with LAUNCH-LIMITATIONS
 entry" for the mobile + admin runtime override.
+
+---
+
+## §routes-registry-template-strings — Dynamic-route migration in flight
+
+**What works after D02 Part 4:**
+
+- `apps/mobile/src/config/navigation.ts` is the canonical Routes registry,
+  expanded to cover all tab routes, customer screens, provider screens,
+  provider-onboarding screens.
+- `buildRoute(template, params)` substitutes `[id]` / `[slug]` /
+  `[bookingId]` segments with type-safety and URL encoding; throws on
+  missing params.
+- All 49 distinct **static quoted** raw-string `router.push('/...')` /
+  `router.replace('/...')` callsites across 33 files have been converted
+  to `Routes.X.Y` constants. Gate `a-cross-source-routes.sh` passes.
+
+**What remains:**
+
+- ~35 callsites use **backtick template strings** with embedded `${id}`
+  / query params (e.g. ``router.push(`/customer/booking/${booking.id}`)``,
+  ``router.push(`/customer/booking/change-order?bookingId=${id}`)``).
+- These are not blocked by the current gate (which scans single + double
+  quotes only). Migrating them requires either:
+  1. `buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: booking.id })` for
+     simple param routes; OR
+  2. A query-param-aware variant for `?bookingId=` style URLs (a few
+     screens use this for pre-step state hand-off; cleanest fix is to
+     register the destination as its own route + drop the query param).
+
+**Why deferred:**
+
+- The structural fix (single source of truth, no more drift across
+  ~70% of screens) is complete for static routes.
+- The remaining backtick conversions are case-by-case judgment (each
+  callsite has its own minor refactor when the destination accepts
+  query params), and they cluster on the highest-traffic surfaces
+  that get reworked in Dispatch 12 (mobile customer polish) anyway.
+- Splitting the work by quote-style is reviewable; lumping it all
+  in one PR pushed past the 35-file ceiling.
+
+**Operator obligation:** none — runtime behavior unchanged.
+
+**Source decision:** Phase 14 Dispatch 02 Part 4 Bug 1185 — autonomous
+execution, scope-check (Step 11) split. Static-path migration completed;
+template-string migration tracked here for D12.

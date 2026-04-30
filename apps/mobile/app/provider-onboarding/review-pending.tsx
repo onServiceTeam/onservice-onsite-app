@@ -6,6 +6,7 @@ import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ClipboardList } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 export default function ReviewPendingScreen(): React.ReactElement {
   const router = useRouter();
 
@@ -63,7 +64,7 @@ export default function ReviewPendingScreen(): React.ReactElement {
 
         <Button
           title="Go to Home"
-          onPress={() => router.replace('/(tabs)/home')}
+          onPress={() => router.replace(Routes.TABS.HOME)}
         />
       </View>
     </SafeAreaView>

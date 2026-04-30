@@ -1,8 +1,35 @@
 /**
- * Route names and parameter types for type-safe navigation.
- * All screen routes defined here — never use raw strings in navigation calls.
+ * apps/mobile/src/config/navigation.ts
+ *
+ * Bug 1185 fix verified — single source of truth for mobile route paths.
+ * Phase 14 Dispatch 02 Part 4.
+ *
+ * All screen routes defined here. Navigation calls everywhere else use
+ * `Routes.X.Y` (or `buildRoute(Routes.X.Y, { id })` for dynamic segments)
+ * — never raw strings. Gate `a-cross-source-routes.sh` enforces this.
+ *
+ * Why this matters: when a screen renames or moves, you change the path
+ * once here, not 30 places. When a typo lands in a string, TypeScript
+ * catches it instead of a runtime 404 in production.
  */
+
 export const Routes = {
+  ROOT: '/',
+
+  TABS: {
+    HOME: '/(tabs)/home',
+    BOOKINGS: '/(tabs)/bookings',
+    PROFILE: '/(tabs)/profile',
+    WALLET: '/(tabs)/wallet',
+  },
+
+  PROVIDER_TABS: {
+    DASHBOARD: '/(provider-tabs)/dashboard',
+    JOBS: '/(provider-tabs)/jobs',
+    EARNINGS: '/(provider-tabs)/earnings',
+    PROVIDER_PROFILE: '/(provider-tabs)/provider-profile',
+  },
+
   AUTH: {
     SPLASH: '/',
     ONBOARDING: '/onboarding',
@@ -10,6 +37,7 @@ export const Routes = {
     REGISTER: '/auth/register',
     OTP_VERIFY: '/auth/otp-verify',
   },
+
   CUSTOMER: {
     HOME: '/customer/home',
     SEARCH: '/customer/search',
@@ -21,6 +49,10 @@ export const Routes = {
     BOOKING_TRACKER: '/customer/booking/[id]/tracker',
     BOOKING_HISTORY: '/customer/bookings',
     BOOKING_DETAIL: '/customer/booking/[id]',
+    BOOKING_CONFIGURE: '/customer/booking/configure',
+    BOOKING_JOB_REQUEST: '/customer/booking/job-request',
+    BOOKING_QUOTES: '/customer/booking/quotes',
+    BOOKING_MAKE_RECURRING: '/customer/booking/make-recurring',
     CHAT: '/customer/chat/[bookingId]',
     RATE_REVIEW: '/customer/booking/[id]/review',
     WALLET: '/customer/wallet',
@@ -28,6 +60,7 @@ export const Routes = {
     SETTINGS: '/customer/settings',
     NOTIFICATIONS: '/customer/notifications',
     PROVIDER_PROFILE: '/customer/provider/[id]',
+    PROVIDER_LIST: '/customer/providers',
     RECURRING_BOOKINGS: '/customer/recurring',
     RECURRING_SETUP: '/customer/recurring/setup',
     RECURRING_DETAIL: '/customer/recurring/[id]',
@@ -49,10 +82,26 @@ export const Routes = {
     SECURITY_SETTINGS: '/customer/security',
     DEVICE_MANAGEMENT: '/customer/security/devices',
     ACCESSIBILITY_SETTINGS: '/customer/settings/accessibility',
+    SAFETY: '/customer/safety',
+    SUKI_PROS: '/customer/suki-pros',
+    ADDRESS_PICKER: '/customer/address-picker',
+    ADDRESSES: '/customer/addresses',
+    ADD_ADDRESS: '/customer/add-address',
+    ADD_PAYMENT: '/customer/add-payment',
+    PAYMENT_METHODS: '/customer/payment-methods',
+    REFERRAL: '/customer/referral',
+    PROMOTIONS: '/customer/promotions',
+    HELP: '/customer/help',
+    TERMS: '/customer/terms',
+    SUPPORT: '/customer/support',
+    ACCOUNT_MANAGEMENT: '/customer/account-management',
+    EMAIL_VERIFICATION: '/customer/email-verification',
   },
+
   PROVIDER: {
     HOME: '/provider/home',
     JOB_DETAIL: '/provider/job/[id]',
+    JOB_COMPLETE: '/provider/job/[id]/complete',
     QUOTE_BUILDER: '/provider/job/[id]/quote',
     ACTIVE_JOB: '/provider/job/[id]/active',
     WALLET: '/provider/wallet',
@@ -67,5 +116,59 @@ export const Routes = {
     SETTINGS: '/provider/settings',
     REVIEWS: '/provider/reviews',
     SERVICE_AREAS: '/provider/service-areas',
+    NOTIFICATIONS: '/provider/notifications',
+    SERVICES: '/provider/services',
+    CALENDAR: '/provider/calendar',
+    AVAILABILITY: '/provider/availability',
+    PORTFOLIO: '/provider/portfolio',
+    CERTIFICATIONS: '/provider/certifications',
+    PAYOUTS: '/provider/payouts',
+    PAYOUT_SETTINGS: '/provider/payout-settings',
+    SUKI_CUSTOMERS: '/provider/suki-customers',
+    HELP: '/provider/help',
+    TIER_PROGRESSION: '/provider/tier-progression',
+    WITHDRAW: '/provider/withdraw',
+    ACCOUNT_MANAGEMENT: '/provider/account-management',
+  },
+
+  PROVIDER_ONBOARDING: {
+    ROLE_SELECT: '/provider-onboarding/role-select',
+    CATEGORIES: '/provider-onboarding/categories',
+    SERVICE_AREA: '/provider-onboarding/service-area',
+    DOCUMENTS: '/provider-onboarding/documents',
+    SELFIE: '/provider-onboarding/selfie',
+    TERMS: '/provider-onboarding/terms',
+    REVIEW_PENDING: '/provider-onboarding/review-pending',
+    IDENTITY_VERIFICATION: '/provider-onboarding/identity-verification',
+    BACKGROUND_CHECK_STATUS: '/provider-onboarding/background-check-status',
   },
 } as const;
+
+/**
+ * Substitute dynamic params (e.g. [id], [slug], [bookingId]) into a route
+ * template. Use this anywhere a route has a [param] segment:
+ *
+ *   buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: bookingId })
+ *   // → '/customer/booking/abc-123'
+ *
+ *   buildRoute(Routes.CUSTOMER.BUSINESS_INVOICE_DETAIL,
+ *              { id: 'biz-1', invoiceId: 'inv-9' })
+ *   // → '/customer/business/biz-1/invoices/inv-9'
+ *
+ * Throws if the template still has unfilled [params] after substitution —
+ * a missing param is a programmer error, not a runtime URL.
+ */
+export function buildRoute(
+  template: string,
+  params: Record<string, string | number>,
+): string {
+  let out = template;
+  for (const [key, value] of Object.entries(params)) {
+    out = out.replace(`[${key}]`, encodeURIComponent(String(value)));
+  }
+  if (/\[[a-zA-Z]+\]/.test(out)) {
+    const missing = out.match(/\[([a-zA-Z]+)\]/g);
+    throw new Error(`buildRoute: template "${template}" missing params ${missing?.join(', ')}`);
+  }
+  return out;
+}

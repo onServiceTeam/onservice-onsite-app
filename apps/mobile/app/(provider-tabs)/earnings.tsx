@@ -34,6 +34,7 @@ import {
 } from '@/components/icons';
 import type { ComponentType } from 'react';
 
+import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
@@ -116,13 +117,13 @@ export default function EarningsScreen(): React.ReactElement {
             <View style={styles.earningsActions}>
               <TouchableOpacity
                 style={styles.withdrawButton}
-                onPress={() => router.push('/provider/withdraw')}
+                onPress={() => router.push(Routes.PROVIDER.WITHDRAW)}
               >
                 <Text style={styles.withdrawText}>Withdraw Funds</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.withdrawButton, { marginTop: spacing.sm }]}
-                onPress={() => router.push('/provider/payouts')}
+                onPress={() => router.push(Routes.PROVIDER.PAYOUTS)}
               >
                 <Text style={styles.withdrawText}>Payout History</Text>
               </TouchableOpacity>

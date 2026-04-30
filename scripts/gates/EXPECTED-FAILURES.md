@@ -27,10 +27,15 @@ The Phase 14 design accepts these failures during Dispatches 01-13 because each 
 - **Status:** BLOCKING immediately on D02 Part 2 branch and going forward.
 
 ### `a-cross-source-routes.sh`
-- **Expected to fail on master:** YES
-- **Reason:** Bug 1185 — ~70% of mobile screens use raw path strings instead of `Routes` registry constants.
-- **Owning dispatch:** Dispatch 02.
-- **Becomes BLOCKING:** after D02 PR merges.
+- **Expected to fail on master:** NO (resolved by D02 Part 4 for static
+  quoted paths). The gate as currently written catches `router.push('...')`
+  / `router.push("...")` only — backtick template strings (~35 dynamic
+  routes that carry `${id}` etc.) are still in flight and tracked under
+  LAUNCH-LIMITATIONS §routes-registry-template-strings. Migrating those
+  requires `buildRoute()` adoption case-by-case (often coupled with query-
+  param refactors) and is reasonably scheduled with D12 mobile-customer
+  polish.
+- **Status:** BLOCKING for static-path violations on D02 Part 4 onward.
 
 ### `a-cross-source-tier-criteria.sh`
 - **Expected to fail on master:** UNKNOWN

@@ -16,6 +16,7 @@ import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Routes } from '@/config/navigation';
 import {
   CreditCard,
   Lock,
@@ -108,7 +109,7 @@ export default function WalletScreen(): React.ReactElement {
             )}
             <TouchableOpacity
               style={styles.topUpBtn}
-              onPress={() => router.push('/customer/wallet-topup')}
+              onPress={() => router.push(Routes.CUSTOMER.WALLET)}
             >
               <Text style={styles.topUpBtnText}>+ Top Up</Text>
             </TouchableOpacity>

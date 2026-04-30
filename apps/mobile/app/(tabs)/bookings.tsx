@@ -19,6 +19,7 @@ import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle, ClipboardList } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 type StatusFilter = 'all' | 'active' | 'completed' | 'cancelled';
 
 const FILTERS: { label: string; value: StatusFilter }[] = [
@@ -122,7 +123,7 @@ export default function BookingsScreen(): React.ReactElement {
         <Text style={styles.title}>Bookings</Text>
         <TouchableOpacity
           style={styles.recurringLink}
-          onPress={() => router.push('/customer/recurring')}
+          onPress={() => router.push(Routes.CUSTOMER.RECURRING_BOOKINGS)}
         >
           <Text style={styles.recurringLinkText}>🔄 Recurring</Text>
         </TouchableOpacity>

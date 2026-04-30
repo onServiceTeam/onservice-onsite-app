@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertCircle } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 const HOLD_SECONDS = 15 * 60;
 
 function formatCountdown(totalSeconds: number): string {
@@ -65,7 +66,7 @@ export default function PaymentFailedScreen(): React.ReactElement {
 
           <TouchableOpacity
             style={styles.secondaryBtn}
-            onPress={() => router.push('/customer/payment-methods')}
+            onPress={() => router.push(Routes.CUSTOMER.PAYMENT_METHODS)}
             activeOpacity={0.7}
           >
             <Text style={styles.secondaryBtnText}>Use Different Payment Method</Text>
@@ -73,7 +74,7 @@ export default function PaymentFailedScreen(): React.ReactElement {
 
           <TouchableOpacity
             style={styles.linkBtn}
-            onPress={() => router.push('/customer/help')}
+            onPress={() => router.push(Routes.CUSTOMER.HELP)}
             activeOpacity={0.7}
           >
             <Text style={styles.linkBtnText}>Contact Support</Text>

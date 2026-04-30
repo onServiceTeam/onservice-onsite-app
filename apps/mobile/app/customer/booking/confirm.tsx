@@ -10,6 +10,7 @@ import { formatDate, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Shield } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 export default function BookingConfirmScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -88,7 +89,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.infoCard}
-          onPress={() => router.push('/customer/safety')}
+          onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
           activeOpacity={0.7}
         >
           <View style={styles.infoIconWrap}><Shield size={22} color={colors.primary} /></View>
@@ -128,14 +129,14 @@ export default function BookingConfirmScreen(): React.ReactElement {
             if (bookingId) {
               router.replace(`/customer/booking/${bookingId}`);
             } else {
-              router.replace('/(tabs)/bookings');
+              router.replace(Routes.TABS.BOOKINGS);
             }
           }}
           style={styles.primaryAction}
         />
         <Button
           title="Back to Home"
-          onPress={() => router.replace('/(tabs)/home')}
+          onPress={() => router.replace(Routes.TABS.HOME)}
           variant="outline"
         />
       </View>

@@ -8,6 +8,7 @@ import { uploadImages } from '@/services/upload.service';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
+import { Routes } from '@/config/navigation';
 export default function SelfieScreen(): React.ReactElement {
   const router = useRouter();
   const { selfieUri, setDocument } = useOnboardingStore();
@@ -45,7 +46,7 @@ export default function SelfieScreen(): React.ReactElement {
       Alert.alert('Required', 'Please take a selfie to continue.');
       return;
     }
-    router.push('/provider-onboarding/terms');
+    router.push(Routes.PROVIDER_ONBOARDING.TERMS);
   };
 
   return (

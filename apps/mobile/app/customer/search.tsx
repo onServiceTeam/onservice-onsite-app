@@ -18,6 +18,7 @@ import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Star, AlertTriangle } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 interface ProviderResult {
   id: string;
   userId: string;
@@ -89,9 +90,9 @@ export default function SearchScreen(): React.ReactElement {
     const isQuoteBased = item.pricingType === 'quote_based' || item.basePrice == null;
     setSubcategory(item.id, item.name, item.basePrice ?? 0);
     if (isQuoteBased) {
-      router.push('/customer/booking/job-request');
+      router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);
     } else {
-      router.push('/customer/booking/configure');
+      router.push(Routes.CUSTOMER.BOOKING_CONFIGURE);
     }
   };
 

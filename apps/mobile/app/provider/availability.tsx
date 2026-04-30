@@ -26,6 +26,7 @@ import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle, Calendar, ClipboardList } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 export default function AvailabilitySettingsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -291,7 +292,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.scheduleLink}
-          onPress={(): void => { router.push('/provider/schedule'); }}
+          onPress={(): void => { router.push(Routes.PROVIDER.SCHEDULE); }}
         >
           <ClipboardList size={16} color={colors.primary} />
           <Text style={styles.scheduleLinkText}> Edit Weekly Schedule →</Text>

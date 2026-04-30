@@ -12,6 +12,7 @@ import api, { storage } from '@/services/api';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
+import { Routes } from '@/config/navigation';
 export default function TermsScreen(): React.ReactElement {
   const router = useRouter();
   const store = useOnboardingStore();
@@ -43,7 +44,7 @@ export default function TermsScreen(): React.ReactElement {
       }
       storage.delete('isNewUser');
       store.reset();
-      router.replace('/provider-onboarding/review-pending');
+      router.replace(Routes.PROVIDER_ONBOARDING.REVIEW_PENDING);
     },
     onError: (err: unknown) => {
       const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };

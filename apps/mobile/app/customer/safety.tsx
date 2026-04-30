@@ -17,6 +17,7 @@ import { formatPHP } from '@/utils/currency';
 import type { ComponentType } from 'react';
 import { CheckCircle2, Lock, Shield, Star } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
@@ -216,7 +217,7 @@ export default function SafetyScreen(): React.ReactElement {
         {/* CTA */}
         <TouchableOpacity
           style={styles.ctaBtn}
-          onPress={() => router.push('/(tabs)/bookings')}
+          onPress={() => router.push(Routes.TABS.BOOKINGS)}
           activeOpacity={0.8}
         >
           <Text style={styles.ctaBtnText}>Report an Issue</Text>

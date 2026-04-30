@@ -6,6 +6,7 @@ import { useOnboardingStore } from '@/stores/onboarding.store';
 import { Button, Input } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
+import { Routes } from '@/config/navigation';
 const RADIUS_OPTIONS = [5, 10, 15, 20, 30, 50];
 
 const PH_REGIONS: { city: string; province: string; lat: number; lng: number }[] = [
@@ -63,7 +64,7 @@ export default function ServiceAreaScreen(): React.ReactElement {
       city: city.trim(),
       province: province.trim(),
     });
-    router.push('/provider-onboarding/documents');
+    router.push(Routes.PROVIDER_ONBOARDING.DOCUMENTS);
   };
 
   return (

@@ -12,6 +12,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import { Smartphone, CreditCard, Wallet, ScanLine, Shield } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
@@ -171,7 +172,7 @@ export default function CheckoutScreen(): React.ReactElement {
         {/* Escrow info */}
         <TouchableOpacity
           style={styles.escrowBanner}
-          onPress={() => router.push('/customer/safety')}
+          onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
           activeOpacity={0.7}
         >
           <View style={styles.escrowIconWrap}><Shield size={22} color={colors.primary} /></View>

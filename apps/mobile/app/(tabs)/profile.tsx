@@ -11,6 +11,7 @@ import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
 import { Shield, MapPin, CreditCard, Bell, HelpCircle, FileText, KeyRound } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
@@ -49,7 +50,7 @@ export default function ProfileScreen(): React.ReactElement {
         style: 'destructive',
         onPress: () => {
           logout();
-          router.replace('/auth/login');
+          router.replace(Routes.AUTH.LOGIN);
         },
       },
     ]);
@@ -79,13 +80,13 @@ export default function ProfileScreen(): React.ReactElement {
   };
 
   const menuItems: Array<{ label: string; icon: IconComponent; onPress: () => void }> = [
-    { label: 'SiguradoShield™ Protection', icon: Shield, onPress: () => router.push('/customer/safety') },
-    { label: 'My Addresses', icon: MapPin, onPress: () => router.push('/customer/addresses') },
-    { label: 'Payment Methods', icon: CreditCard, onPress: () => router.push('/customer/payment-methods') },
-    { label: 'Notification Settings', icon: Bell, onPress: () => router.push('/customer/notification-settings') },
-    { label: 'Help & Support', icon: HelpCircle, onPress: () => router.push('/customer/help') },
-    { label: 'Terms & Privacy', icon: FileText, onPress: () => router.push('/customer/terms') },
-    { label: 'Account & Data', icon: KeyRound, onPress: () => router.push('/customer/account-management') },
+    { label: 'SiguradoShield™ Protection', icon: Shield, onPress: () => router.push(Routes.CUSTOMER.SAFETY) },
+    { label: 'My Addresses', icon: MapPin, onPress: () => router.push(Routes.CUSTOMER.ADDRESSES) },
+    { label: 'Payment Methods', icon: CreditCard, onPress: () => router.push(Routes.CUSTOMER.PAYMENT_METHODS) },
+    { label: 'Notification Settings', icon: Bell, onPress: () => router.push(Routes.CUSTOMER.SETTINGS) },
+    { label: 'Help & Support', icon: HelpCircle, onPress: () => router.push(Routes.CUSTOMER.HELP) },
+    { label: 'Terms & Privacy', icon: FileText, onPress: () => router.push(Routes.CUSTOMER.TERMS) },
+    { label: 'Account & Data', icon: KeyRound, onPress: () => router.push(Routes.CUSTOMER.ACCOUNT_MANAGEMENT) },
   ];
 
   return (
