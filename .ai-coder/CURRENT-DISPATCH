@@ -1,8 +1,10 @@
 dispatch: D05
 branch: phase/14-d05-money-trust-closure
-status: planning-only (handoff to fresh session)
+status: BLOCKED on decision D05-spec-vs-schema (Stop 5 — spec contradicts codebase schema on 5 points)
 operating-mode: autonomous between dispatches + full audit chain
 session-started: 2026-04-30 (handoff written; D05 implementation deferred to fresh session)
+session-resumed: 2026-04-30 (fresh session ran subtask 1 verify, discovered Stop 5)
+blocked-on: .ai-coder/decisions/D05-spec-vs-schema.md (awaiting Ken's choice between Option A / B / C)
 prior-dispatches: D03 + D04 merged to master; tags v0.14.0-d03-complete (6a27ade) + v0.14.0-d04-complete (808208f). Branch protection restored (enforce_admins=true, 1 review, conversation_resolution=true).
 
 # D05 — Money Trust Closure

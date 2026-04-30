@@ -297,9 +297,9 @@ ALTER TABLE service_areas
 
 D05 touches admin pages: `apps/admin/src/pages/CatalogPage.tsx` (Bug 266), `apps/admin/src/pages/PricingRulesPage.tsx` (Bug 269), `apps/admin/src/pages/PromosPage.tsx` (Bug 261). Check each against D02's diff (`git log --oneline 0e6258d..6959349 -- apps/admin/src/pages/`) to see if D02 touched them. Likely overlap on `CatalogPage.tsx` (D02 Part 1 cancellation policy admin-editor) — confirm the addon modal area is untouched. If conflict, resolve by integrating both: the cancellation-policy editor is a separate section from the addon modal, so they should coexist.
 
-`apps/mobile/app/customer/booking/checkout.tsx` was touched by D04 (SiguradoShield trademark strip) AND will be touched again in D05 (promo input rewiring + escrow line preserved from D04). Read the current state from master before editing.
+`apps/mobile/app/customer/booking/checkout.tsx` was touched by D04 (the deferred-feature pull recorded in the D04 decision doc) AND will be touched again in D05 (promo input rewiring + escrow line preserved from D04). Read the current state from master before editing.
 
-`apps/mobile/app/customer/help.tsx` and `terms.tsx` were touched by D02 (cancellation policy live-fetch) AND D04 (SiguradoShield FAQ removal + section 6 retitle). D05 may NOT need to touch them — Bug 261 promo input is in `checkout.tsx`, not help/terms. Verify.
+`apps/mobile/app/customer/help.tsx` and `terms.tsx` were touched by D02 (cancellation policy live-fetch) AND D04 (FAQ removal + section 6 retitle from the D04 decision). D05 may NOT need to touch them — Bug 261 promo input is in `checkout.tsx`, not help/terms. Verify.
 
 `packages/api/src/routes/admin/promos.ts` — D05 rewrites the create endpoint to use the new validator. If D02 touched this file (it didn't per memory but verify), reconcile.
 

@@ -83,3 +83,39 @@ The session log was not updated during D01 or D02 sessions. For continuity:
 - D02 closed at master `6959349` across PRs #8–#13, tag `v0.14.0-d02-complete`. 7 bug entries (1170, 1198, 1170-admin-ui, 1324, 1323, 1185 static, 1271 mobile half) + 5 Gate A fragments promoted REPORT → BLOCKING in EXPECTED-FAILURES.md.
 - Branch protection on master currently enforces 6 status checks (gate-a/b/c/d/e + gates-summary), enforce_admins=true, 1 review, conversation_resolution=true.
 
+
+---
+
+## 2026-04-30 — Dispatch 05 fresh-session start, halted on Stop 5
+
+**Read at commit:** `ef70429` (branch `phase/14-d05-money-trust-closure` HEAD; D04 squash-merge `808208f` is the underlying base)
+**Branch at start:** `phase/14-d05-money-trust-closure`
+**Operating mode:** Autonomous between dispatches + full audit chain.
+
+### What this session did
+
+1. Loaded the D05 fresh-session prompt from `.ai-coder/dispatches/D05-FRESH-SESSION-PROMPT.md` (the prior session committed both the prompt and the plan at `8e39b7c`). Read all required orientation docs: CLAUDE.md, EXECUTION-DISCIPLINE, AUTONOMOUS-EXECUTION-PROTOCOL, CURRENT-DISPATCH, D05-plan.md, GATE-AMENDMENTS, closeout template, MODES.json, EXPECTED-FAILURES.
+2. Ran `bash scripts/gates/run-gate-a.sh` and `bash scripts/gates/c-constitution.sh`. Found two unexpected BLOCKING fragments at session start:
+   - `c-constitution-no-shield-references` (and its alias `a-cross-source-no-siguradoshield`) caught literal trademark references in `D05-plan.md:300` and `:302`. The gate's allowlist covers `D04-*` dispatch docs but not D05's. Fixed by rewording the two flagged lines to point to the D04 decision file by name instead of using the literal trademark string. No semantic loss; gate now passes.
+   - `article-16-closeout-exists` BLOCKING fails because the D05 closeout doesn't exist yet. This is structurally normal mid-dispatch (closeout is written in subtask 17). Treated as expected.
+3. Resolved the three open verification questions from the fresh-session prompt §"Open questions surfaced by writing this handoff":
+   - **Q1: `tip_max_amount_cents` in defaults?** No. Greps of `packages/api/migrations/` find zero references. The plan doc's claim "already in defaults at ₱5,000" is wrong.
+   - **Q2: `subcategories.pricing_type` column?** Yes — but the table is named `service_subcategories` (not `subcategories`), and `pricing_type IN ('fixed','quote','hourly')` includes a third value the plan didn't mention.
+   - **Q3: `provider_quotes` table?** No. The actual quote table is `booking_quotes`, defined in migration 018, with a different shape (status enum includes `'submitted','accepted','declined','expired','withdrawn'`, columns `labor_amount`/`materials_amount`/`notes`/`portfolio_photos`, no `expires_at`, customer/subcategory resolved via the `bookings` FK).
+4. Read PART-3 §Dispatch 05 (lines 10–1228) via Explore agent to determine whether the spec or only the plan paraphrase has these gaps. The spec itself contains the same identifiers as the plan (`subcategories`, `_cents`-suffixed columns, `provider_quotes`, missing `tip_max_amount_cents` seed, missing `'hourly'` branch). The plan paraphrased correctly; the spec is the actual source of the divergence.
+5. Confirmed via codebase grep that the divergence is real: `services/booking.service.ts:82` reads `service_subcategories` with `base_price` (no suffix), `services/catalog.service.ts`/`provider.service.ts`/`rebooking.service.ts`/`provider-admin.service.ts` all use the same column names. No service in the codebase uses Kysely `selectFrom`; everything uses raw `db.query` (pg style).
+6. Discovered an additional schema/spec note (sixth contradiction): spec uses Kysely query syntax; codebase uses raw pg. CLAUDE.md describes the stack as "Kysely + Postgres" but the actual code does not use Kysely query builders.
+7. Wrote `.ai-coder/decisions/D05-spec-vs-schema.md` with the question, five concrete contradictions (plus the Kysely note), three options (follow schema and document divergence / migrate schema to spec / edit PART-3 to match codebase), and recommendation (Option A + defer `'hourly'` to v1.1). The file doubles as the doc-error escalation that CLAUDE.md "Do not edit `.ai-coder/phase-14/*`" requires.
+8. Updated `.ai-coder/CURRENT-DISPATCH` with `status: BLOCKED on decision D05-spec-vs-schema`.
+
+### Stop class
+
+This is **Hard stop #5 (Spec contradiction)** per `AUTONOMOUS-EXECUTION-PROTOCOL.md` §"Stop 5". The phase doc says X (e.g., `subcategories.base_price_cents`); the existing schema says Y (`service_subcategories.base_price`); and X and Y are materially different — they are wrong identifiers, not clarifications. Following the spec verbatim produces code that does not compile against the actual database.
+
+It is also a doc-error escalation per CLAUDE.md ("If you find an error in [phase-14 docs], write `.ai-coder/escalations/E<NN>-doc-error-<date>.md` describing the error and pause"). The decision file covers both purposes to avoid duplicating the analysis.
+
+### Next session pickup point
+
+Ken reads `.ai-coder/decisions/D05-spec-vs-schema.md`, picks Option A / B / C / Other, writes his choice at the bottom of the file, and replies. The next AI session reads CURRENT-DISPATCH, sees the block lifted, reads Ken's choice, and resumes per the chosen path. Subtasks 2–18 in `CURRENT-DISPATCH` remain valid; only the implementation details change based on the choice.
+
+The plan-doc gate-hygiene fix and the decision file land in one commit on `phase/14-d05-money-trust-closure`. Not pushed because there is nothing to push for review yet — D05 work is paused at subtask 1.
