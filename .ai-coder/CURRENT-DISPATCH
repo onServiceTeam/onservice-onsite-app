@@ -1,8 +1,8 @@
-dispatch: D12
-branch: phase/14-d12-mobile-provider-polish
-status: closeout-written; ready for push + PR + autoproceed to D13
+dispatch: D13
+branch: phase/14-d13-feature-decisions
+status: closeout-written; ready for push + PR + autoproceed to D14
 operating-mode: autonomous between dispatches + full audit chain
 session-started: 2026-04-30 (continuing same session through D07-D14 per Ken's instruction)
-prior-dispatches: D03+D04+D05+D06+D07+D08+D09+D10+D11 merged. Tags v0.14.0-d{03-11}-complete on master.
+prior-dispatches: D03+D04+D05+D06+D07+D08+D09+D10+D11+D12 merged. Tags v0.14.0-d{03-12}-complete on master.
 
-next-subtask: 18 (push + PR + self-merge + tag + autoproceed to D13)
+next-subtask: 18 (push + PR + self-merge + tag + autoproceed to D14)
