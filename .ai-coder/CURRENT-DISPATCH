@@ -1,12 +1,8 @@
-dispatch: D07
-branch: phase/14-d07-provider-job-trust
-status: closeout-written; ready for push + PR + autoproceed to D08
-operating-mode: autonomous between dispatches + full audit chain (no fresh session per Ken's instruction)
-session-started: 2026-04-30 (D06 merged at c9632a9 + D07 implementation completed in same session)
-prior-dispatches: D03+D04+D05+D06 merged. Tags v0.14.0-d{03,04,05,06}-complete on master.
+dispatch: D08
+branch: phase/14-d08-npc-compliance
+status: closeout-written; ready for push + PR + autoproceed to D09
+operating-mode: autonomous between dispatches + full audit chain
+session-started: 2026-04-30 (continuing same session through D07-D14 per Ken's instruction)
+prior-dispatches: D03+D04+D05+D06+D07 merged. Tags v0.14.0-d{03-07}-complete on master.
 
-# D07 — Provider Job Execution Trust (CLOSEOUT WRITTEN)
-
-12 bugs closed at the data-integrity layer (server-side). Mobile screen UI rewrites deferred to D11/D12 polish per dispatch boundaries. Migrations 078 (10 checklist templates) + 079 (booking_photos + booking_signatures). New booking-photo + checklist services + completion enforcement (Bug 463 + 1220). Bug 38 deferred to v1.1+ per spec.
-
-next-subtask: 18 (push + PR + self-merge + tag + autoproceed to D08)
+next-subtask: 18 (push + PR + self-merge + tag + autoproceed to D09)
