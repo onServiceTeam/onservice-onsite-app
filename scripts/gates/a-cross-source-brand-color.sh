@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 # Bug 1324 fix. Brand primary #1B3A4B everywhere; old hex values forbidden.
+#
+# Exclusions:
+#   - design-tokens/ build output (regenerated from source).
+#   - Test files (*.test.ts*, __tests__/) — gates that verify absence of a
+#     pattern legitimately reference that pattern in their assertions
+#     (e.g., expect(file).not.toMatch(/#0066FF/i)).
 
 set -euo pipefail
 
@@ -8,6 +14,9 @@ fail=0
 for color in "${old_colors[@]}"; do
   hits=$(grep -rE "$color" apps/ packages/ \
     --include="*.ts" --include="*.tsx" --include="*.css" \
+    --exclude-dir="__tests__" \
+    --exclude="*.test.ts" \
+    --exclude="*.test.tsx" \
     2>/dev/null | grep -v "design-tokens/" || true)
   if [ -n "$hits" ]; then
     echo "GATE A VIOLATION (Bug 1324): old brand color $color found"

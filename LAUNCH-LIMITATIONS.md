@@ -401,3 +401,42 @@ entry" for the mobile + admin runtime override.
 **Source decision:** Phase 14 Dispatch 02 Part 4 Bug 1185 — autonomous
 execution, scope-check (Step 11) split. Static-path migration completed;
 template-string migration tracked here for D12.
+
+## 22. Gate enforcement — REPORT vs BLOCKING tier (Phase 14 Dispatch 03)
+
+**Where:** [scripts/gates/MODES.json](scripts/gates/MODES.json),
+[scripts/gates/run-gate-a.sh](scripts/gates/run-gate-a.sh),
+[scripts/gates/c-constitution.sh](scripts/gates/c-constitution.sh).
+
+The five gates (A through E) are now binding required-status-checks on the
+`master` branch. PRs cannot merge with any BLOCKING gate failing. Per-fragment
+and per-article modes live in `MODES.json`:
+
+- **BLOCKING:** failure fails the gate. No PR can merge.
+- **REPORT:** failure is logged but does not fail the gate. Used for
+  fragments/articles whose cleanup is owned by a not-yet-landed dispatch.
+
+Currently in REPORT (will promote to BLOCKING when their owning dispatch
+lands):
+
+| Fragment / article | Owning dispatch |
+|---|---|
+| `a-cross-source-no-siguradoshield` | D04 |
+| `a-cross-source-no-client-money` | D05 |
+| `a-cross-source-no-emoji-icons` | D12 |
+| `article-4.2-no-console` (Gate C) | D12 |
+| `article-4.6-no-emoji` (Gate C) | D12 |
+| `money-in-transaction` (Gate C) | D06 |
+| Gate D (visual baselines) — full suite | D12 |
+| Gate E (mutation testing) — full suite | D12 |
+
+**Operator obligation:** none — this is engineering-process metadata.
+
+**For future maintainers:** a gate amendment requires Ken's signoff via PR
+per [.ai-coder/governance/GATE-AMENDMENTS.md](.ai-coder/governance/GATE-AMENDMENTS.md).
+The AI coder cannot weaken a gate, lower a threshold, or mark a fragment
+REPORT without Ken's review. The exception file at
+`.ai-coder/exceptions/<date>-<topic>.md` is the only legitimate path.
+
+**Source decision:** Phase 14 Dispatch 03 — gate hardening + tiered
+enforcement.
