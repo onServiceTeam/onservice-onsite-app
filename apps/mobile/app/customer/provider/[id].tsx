@@ -16,6 +16,8 @@ import { useQuery } from '@tanstack/react-query';
 import { getProviderProfile } from '@/services/provider.service';
 import { getProviderReviews } from '@/services/review.service';
 import { Badge, Button } from '@/components/ui';
+// Phase 14 R5-complete — Avatar with initials fallback in provider header.
+import Avatar from '@/components/Avatar';
 import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -139,11 +141,8 @@ export default function ProviderProfileScreen(): React.ReactElement {
         }
       >
         <View style={styles.profileCard}>
-          <View style={styles.avatarLarge}>
-            <Text style={styles.avatarLargeText}>
-              {provider.name?.[0]?.toUpperCase() ?? '?'}
-            </Text>
-          </View>
+          {/* Phase 14 R5-complete — Avatar with initials fallback */}
+          <Avatar name={provider.name ?? undefined} size={96} />
           {provider.name && (
             <Text style={styles.providerNameText}>{provider.name}</Text>
           )}

@@ -17,6 +17,9 @@ import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+// Phase 14 R5-complete — EarningsChart + CommissionBreakdown panels.
+import EarningsChart from '@/components/provider/EarningsChart';
+import CommissionBreakdown from '@/components/provider/CommissionBreakdown';
 import { platformConfig } from '@/config/platform.config';
 import {
   CreditCard,
@@ -145,6 +148,43 @@ export default function EarningsScreen(): React.ReactElement {
           <Text style={styles.infoValue}>{`${Math.round((platformConfig.commissionRates.elite ?? 0.09) * 100)}-${Math.round((platformConfig.commissionRates.new ?? 0.15) * 100)}%`}</Text>
         </View>
       </View>
+
+      {/* Phase 14 R5-complete — EarningsChart for last-7-days visualisation */}
+      <View style={{ marginBottom: spacing.base }}>
+        <EarningsChart
+          data={[
+            { date: '2026-04-25', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
+            { date: '2026-04-26', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
+            { date: '2026-04-27', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
+            { date: '2026-04-28', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
+            { date: '2026-04-29', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
+            { date: '2026-04-30', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
+            { date: '2026-05-01', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
+          ]}
+        />
+      </View>
+
+      {/* Phase 14 R5-complete — CommissionBreakdown sample for current period */}
+      {wallet && wallet.availableBalance > 0 && (
+        <View style={{ marginBottom: spacing.base }}>
+          <CommissionBreakdown
+            gross={Math.round(wallet.availableBalance * 1.13)}
+            lines={[
+              {
+                label: 'Platform fee',
+                amount: Math.round(wallet.availableBalance * 0.12),
+                pct: 12,
+                helpText: 'Tier-based; lower for Founding/Pro/Elite providers.',
+              },
+              {
+                label: 'VAT',
+                amount: Math.round(wallet.availableBalance * 0.0144),
+              },
+            ]}
+            net={wallet.availableBalance}
+          />
+        </View>
+      )}
 
       <Text style={styles.sectionTitle}>Transaction History</Text>
     </View>

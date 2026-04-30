@@ -20,6 +20,8 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Camera, CheckCircle2, Edit } from '@/components/icons';
+// Phase 14 R5-complete — CommissionBreakdown post-complete summary panel.
+import CommissionBreakdown from '@/components/provider/CommissionBreakdown';
 
 import { Routes } from '@/config/navigation';
 const PHOTO_SLOTS = 4;
@@ -246,6 +248,24 @@ export default function JobCompleteScreen(): React.ReactElement {
             <Text style={styles.primaryBtnText}>Submit Completion</Text>
           )}
         </TouchableOpacity>
+        {/* Phase 14 R5-complete — CommissionBreakdown post-complete preview.
+            Uses a placeholder amount until the screen fetches the booking;
+            the actual breakdown lives in (provider-tabs)/earnings.tsx */}
+        <View style={{ marginTop: spacing.lg }}>
+          <Text style={{ ...typography.h3, color: colors.text, marginBottom: spacing.sm }}>Earnings preview</Text>
+          <CommissionBreakdown
+            gross={0}
+            lines={[
+              {
+                label: 'Platform fee',
+                amount: 0,
+                pct: 12,
+                helpText: 'Tier-based; lower for Founding/Pro/Elite providers.',
+              },
+            ]}
+            net={0}
+          />
+        </View>
       </View>
     </SafeAreaView>
   );

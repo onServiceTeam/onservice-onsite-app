@@ -17,6 +17,14 @@ import type { Booking } from '@/services/booking.service';
 import { Badge } from '@/components/ui';
 import { AlertTriangle, Inbox, CheckCircle2, Ban } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
+// Phase 14 R5-complete — wire StatusBadge + FilterChips + PaginationLoader
+// + PulsingDot + NbiStatusBanner (auto-hides when NBI is valid).
+import StatusBadge from '@/components/StatusBadge';
+import FilterChips from '@/components/FilterChips';
+import FilterModal from '@/components/FilterModal';
+import PaginationLoader from '@/components/PaginationLoader';
+import PulsingDot from '@/components/PulsingDot';
+import NbiStatusBanner from '@/components/provider/NbiStatusBanner';
 import { formatRelative, formatDateTime, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
@@ -47,6 +55,9 @@ export default function ProviderJobsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<string>('active');
+  // Phase 14 R5-complete — FilterModal for advanced job filters.
+  const [advancedFiltersVisible, setAdvancedFiltersVisible] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, string[]>>({});
 
   const {
     data,
@@ -79,11 +90,11 @@ export default function ProviderJobsScreen(): React.ReactElement {
       activeOpacity={0.7}
     >
       <View style={styles.jobTop}>
-        <Badge
-          label={item.status.replace(/_/g, ' ').toUpperCase()}
-          backgroundColor={getStatusColor(item.status)}
-          size="sm"
-        />
+        {/* Phase 14 R5-complete — StatusBadge + PulsingDot for live statuses */}
+        <StatusBadge status={item.status} size="sm" />
+        {(item.status === 'provider_en_route' || item.status === 'provider_arrived') && (
+          <PulsingDot />
+        )}
         <Text style={styles.jobId}>#{formatBookingRef(item.id, item.createdAt)}</Text>
       </View>
       <Text style={styles.jobService}>{item.serviceName ?? item.categoryName ?? 'Service'}</Text>
@@ -101,21 +112,16 @@ export default function ProviderJobsScreen(): React.ReactElement {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
+      {/* Phase 14 R5-complete — NbiStatusBanner above the jobs list */}
+      <NbiStatusBanner />
       <Text style={styles.title}>My Jobs</Text>
 
-      <View style={styles.filterRow}>
-        {STATUS_FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f.key}
-            style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
-            onPress={() => setFilter(f.key)}
-          >
-            <Text style={[styles.filterText, filter === f.key && styles.filterTextActive]}>
-              {f.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Phase 14 R5-complete — FilterChips replaces inline filter row */}
+      <FilterChips
+        options={STATUS_FILTERS.map((f) => ({ value: f.key, label: f.label }))}
+        selected={filter}
+        onSelect={(v) => setFilter(v as typeof filter)}
+      />
 
       {isError ? (
         <View style={styles.empty}>
@@ -143,8 +149,13 @@ export default function ProviderJobsScreen(): React.ReactElement {
             if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
           }}
           onEndReachedThreshold={0.3}
+          // Phase 14 R5-complete — PaginationLoader (loading + end-of-list label)
           ListFooterComponent={
-            isFetchingNextPage ? <ActivityIndicator style={styles.loader} color={colors.secondary} /> : null
+            <PaginationLoader
+              loading={isFetchingNextPage}
+              hasMore={!!hasNextPage}
+              endLabel="No more jobs"
+            />
           }
           ListEmptyComponent={
             isLoading ? (
@@ -170,6 +181,37 @@ export default function ProviderJobsScreen(): React.ReactElement {
           }
         />
       )}
+      {/* Phase 14 R5-complete — FilterModal for date-range / sort filters */}
+      <FilterModal
+        visible={advancedFiltersVisible}
+        title="Sort & Date"
+        groups={[
+          {
+            key: 'sort',
+            label: 'Sort by',
+            options: [
+              { value: 'newest', label: 'Newest first' },
+              { value: 'oldest', label: 'Oldest first' },
+              { value: 'highest_pay', label: 'Highest pay' },
+            ],
+          },
+          {
+            key: 'period',
+            label: 'Period',
+            options: [
+              { value: '7d', label: 'Last 7 days' },
+              { value: '30d', label: 'Last 30 days' },
+              { value: '90d', label: 'Last 90 days' },
+            ],
+          },
+        ]}
+        initialValue={advancedFilters}
+        onApply={(selected) => {
+          setAdvancedFilters(selected);
+          setAdvancedFiltersVisible(false);
+        }}
+        onClose={() => setAdvancedFiltersVisible(false)}
+      />
     </View>
   );
 }

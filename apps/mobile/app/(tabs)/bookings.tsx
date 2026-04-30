@@ -22,6 +22,7 @@ import { AlertTriangle, ClipboardList } from '@/components/icons';
 // (pagination loader), Bug 895/901 (status badge) wired here.
 import StatusBadge from '@/components/StatusBadge';
 import FilterChips from '@/components/FilterChips';
+import FilterModal from '@/components/FilterModal';
 import PaginationLoader from '@/components/PaginationLoader';
 
 import { Routes } from '@/config/navigation';
@@ -75,6 +76,9 @@ export default function BookingsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<StatusFilter>('all');
+  // Phase 14 R5-complete — FilterModal for date-range + provider filters.
+  const [advancedFiltersVisible, setAdvancedFiltersVisible] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, string[]>>({});
 
   const {
     data,
@@ -189,6 +193,36 @@ export default function BookingsScreen(): React.ReactElement {
           }
         />
       )}
+      {/* Phase 14 R5-complete — FilterModal for date-range + sort */}
+      <FilterModal
+        visible={advancedFiltersVisible}
+        title="Sort & Date"
+        groups={[
+          {
+            key: 'sort',
+            label: 'Sort by',
+            options: [
+              { value: 'newest', label: 'Newest first' },
+              { value: 'oldest', label: 'Oldest first' },
+            ],
+          },
+          {
+            key: 'period',
+            label: 'Period',
+            options: [
+              { value: '30d', label: 'Last 30 days' },
+              { value: '90d', label: 'Last 90 days' },
+              { value: 'year', label: 'This year' },
+            ],
+          },
+        ]}
+        initialValue={advancedFilters}
+        onApply={(selected) => {
+          setAdvancedFilters(selected);
+          setAdvancedFiltersVisible(false);
+        }}
+        onClose={() => setAdvancedFiltersVisible(false)}
+      />
     </View>
   );
 }

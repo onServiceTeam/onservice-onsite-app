@@ -8,6 +8,8 @@ import MapView, { Marker, type Region } from 'react-native-maps';
 import { getBookingById } from '@/services/booking.service';
 import { getSocket, connectSocket } from '@/services/socket.service';
 import { Badge, Button } from '@/components/ui';
+// Phase 14 R5-complete — PulsingDot live indicator for en-route status.
+import PulsingDot from '@/components/PulsingDot';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
@@ -140,6 +142,10 @@ export default function BookingTrackerScreen(): React.ReactElement {
                 backgroundColor={STATUS_COLORS[booking.status] ?? colors.statusPending}
                 size="md"
               />
+              {/* Phase 14 R5-complete — PulsingDot for live en-route/arrived */}
+              {(booking.status === 'provider_en_route' || booking.status === 'provider_arrived') && (
+                <PulsingDot />
+              )}
               <Text style={styles.scheduledText}>{formatRelative(booking.scheduledAt)}</Text>
             </View>
 

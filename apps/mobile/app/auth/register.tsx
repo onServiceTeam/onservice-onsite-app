@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth.store';
 import { Button, Input } from '@/components/ui';
 import { validatePHPhone, normalizePHPhone } from '@/utils/phone';
 import { colors, spacing, typography } from '@/config/theme';
+// Phase 14 R5-complete — PhoneInput component for register form.
+import PhoneInput from '@/components/PhoneInput';
 
 export default function RegisterScreen(): React.ReactElement {
   const router = useRouter();
@@ -86,14 +88,20 @@ export default function RegisterScreen(): React.ReactElement {
             autoCapitalize="words"
             error={errors.lastName}
           />
-          <Input
-            label="Mobile Number"
-            placeholder="+63 9XX XXX XXXX"
+          {/* Phase 14 R5-complete — PhoneInput component */}
+          <PhoneInput
             value={phone}
-            onChangeText={(t) => { setPhone(t); setErrors((e) => ({ ...e, phone: undefined })); }}
-            keyboardType="phone-pad"
-            error={errors.phone}
+            onChange={(t) => {
+              setPhone(t);
+              setErrors((e) => ({ ...e, phone: undefined }));
+            }}
+            label="Mobile Number"
+            errorVisible={!!errors.phone}
+            testID="register-phone-input"
           />
+          {errors.phone && (
+            <Text style={{ color: colors.error, ...typography.bodySmall }}>{errors.phone}</Text>
+          )}
 
           <Button
             title="Continue"

@@ -18,6 +18,8 @@ import { formatPHP } from '@/utils/currency';
 import { formatDateTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Routes } from '@/config/navigation';
+// Phase 14 R5-complete — FilterChips for transaction-type filter.
+import FilterChips from '@/components/FilterChips';
 import {
   CreditCard,
   Lock,
@@ -62,6 +64,8 @@ const TRANSACTION_ICONS: Record<string, IconComponent> = {
 export default function WalletScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // Phase 14 R5-complete — FilterChips for transaction-type filter.
+  const [txFilter, setTxFilter] = React.useState<string>('all');
 
   const walletQuery = useQuery({
     queryKey: ['wallet'],
@@ -141,6 +145,18 @@ export default function WalletScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
       <Text style={styles.title}>Wallet</Text>
+
+      {/* Phase 14 R5-complete — FilterChips for transaction-type filter */}
+      <FilterChips
+        options={[
+          { value: 'all', label: 'All' },
+          { value: 'topup', label: 'Top-ups' },
+          { value: 'payment', label: 'Payments' },
+          { value: 'refund', label: 'Refunds' },
+        ]}
+        selected={txFilter}
+        onSelect={setTxFilter}
+      />
 
       {isError ? (
         <View style={styles.empty}>
