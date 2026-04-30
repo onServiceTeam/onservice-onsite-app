@@ -41,7 +41,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
-import { CheckCircle2, Lock, MapPin, Phone, MessageCircle, AlertTriangle } from '@/components/icons';
+import { CheckCircle2, Lock, MapPin, Phone, MessageSquare, AlertTriangle } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -71,7 +71,7 @@ const SAFETY_ITEMS: Array<{ icon: IconComponent; iconColor: string; title: strin
     desc: "See your provider's location on the map while they're on the way to you.",
   },
   {
-    icon: MessageCircle,
+    icon: MessageSquare,
     iconColor: colors.primary,
     title: 'Masked phone numbers',
     desc: 'Tap the call button on any active booking to reach the provider through a masked number — your real number stays private.',

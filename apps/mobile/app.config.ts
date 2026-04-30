@@ -43,7 +43,9 @@ const config: ExpoConfig = {
   orientation: 'portrait',
   scheme: 'onservice',
   userInterfaceStyle: 'light',
-  newArchEnabled: true,
+  // newArchEnabled removed in Phase 14 Remediation #2. The field is no
+  // longer recognised by Expo SDK 55's ExpoConfig type; new arch is the
+  // default for SDK 55+ on iOS/Android so the explicit flag is redundant.
   platforms: ['ios', 'android'],
   icon: './assets/icon.png',
   splash: {
@@ -51,11 +53,10 @@ const config: ExpoConfig = {
     resizeMode: 'contain',
     backgroundColor: '#1B3A4B',
   },
-  notification: {
-    icon: './assets/notification-icon.png',
-    color: '#1B3A4B',
-    androidMode: 'default',
-  },
+  // Phase 14 Remediation #2 — `notification` removed from top-level
+  // ExpoConfig in SDK 55. Equivalent settings now live under
+  // `android.notification` and the expo-notifications config plugin.
+  // The plugin entry below (in `plugins`) supplies the icon + color.
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'ph.onservice.app',
@@ -143,7 +144,15 @@ const config: ExpoConfig = {
     eas: { projectId: easProjectId },
   },
   owner: 'onservice',
-  experiments: { typedRoutes: true },
+  // typedRoutes experiment disabled in Phase 14 Remediation #2.
+  // The `Routes` constant in src/config/navigation.ts (Bug 1185) is the
+  // canonical source of route paths; gate `a-cross-source-routes.sh`
+  // already enforces no raw-string router calls. Typed-routes added a
+  // second source of truth (the .expo/types generated path-string union)
+  // that didn't match the registry, producing 123 TS errors on otherwise
+  // working navigation. Re-enable when Routes is migrated to `as const`
+  // and call sites pass typed-route strings directly.
+  experiments: { typedRoutes: false },
   updates: { url: `https://u.expo.dev/${easProjectId}` },
 };
 

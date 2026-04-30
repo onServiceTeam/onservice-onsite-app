@@ -8,7 +8,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/services/api';
+import api from '@/services/api';
 
 export interface FeatureFlags {
   promoRedemptionEnabled: boolean;
@@ -28,12 +28,15 @@ const DEFAULT_FLAGS: FeatureFlags = {
 };
 
 export function useFeatureFlags(): FeatureFlags {
-  const { data } = useQuery<ClientConfigResponse>({
+  const { data } = useQuery<ClientConfigResponse['data']>({
     queryKey: ['client-config'],
-    queryFn: () => api.get<ClientConfigResponse>('/api/v1/config'),
+    queryFn: async () => {
+      const res = await api.get<ClientConfigResponse['data']>('/api/v1/config');
+      return res.data;
+    },
     staleTime: 5 * 60_000,
   });
-  return data?.data.featureFlags ?? DEFAULT_FLAGS;
+  return data?.featureFlags ?? DEFAULT_FLAGS;
 }
 
 export default useFeatureFlags;
