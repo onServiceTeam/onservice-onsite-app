@@ -46,10 +46,21 @@ def main() -> int:
         print("BLOCKING")
         return 0
 
-    entry = modes.get(category, {}).get(key)
-    if not isinstance(entry, dict):
+    raw = modes.get(category)
+    if not isinstance(raw, dict):
         print("BLOCKING")
         return 0
+
+    # Two valid shapes:
+    #   1. category is a dict-of-dicts (gate_a_fragments, gate_c_articles):
+    #      look up `raw[key]["mode"]`.
+    #   2. category is a direct state dict (gate_d_state, gate_e_state):
+    #      look up `raw["mode"]`. The `key` argument is ignored (caller
+    #      can pass any string).
+    entry = raw.get(key) if key in raw else raw
+    if not isinstance(entry, dict):
+        # Maybe the lookup is shape (2) — fall back to raw itself.
+        entry = raw
 
     mode = entry.get("mode", "BLOCKING")
     if mode not in ("BLOCKING", "REPORT"):
