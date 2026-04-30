@@ -1,9 +1,38 @@
-dispatch: D04
-branch: phase/14-d04-siguradoshield-pull
-status: in-flight (Ken decided Option A; pull execution underway)
-last-subtask-completed: decision recorded (2026-04-30, Option A — pull)
-next-subtask: Bug 1168 (delete SiguradoShield constants from apps/mobile/src/config/platform.config.ts)
+dispatch: D05
+branch: phase/14-d05-money-trust-closure
+status: planning-only (handoff to fresh session)
 operating-mode: autonomous between dispatches + full audit chain
-session-started: 2026-04-30
-prior-dispatch: D03 closeout PR #14 opened, all 5 gates green; awaiting Ken merge (autonomous mode does not block on it)
-decision: .ai-coder/decisions/D04-siguradoshield.md — Option A (pull) per Ken's instruction set in chat
+session-started: 2026-04-30 (handoff written; D05 implementation deferred to fresh session)
+prior-dispatches: D03 + D04 merged to master; tags v0.14.0-d03-complete (6a27ade) + v0.14.0-d04-complete (808208f). Branch protection restored (enforce_admins=true, 1 review, conversation_resolution=true).
+
+# D05 — Money Trust Closure
+
+Source spec: `.ai-coder/phase-14/PART-3-BUG-REMEDIATION-DISPATCHES-05-06.md` §"Dispatch 05" (lines 10–1228).
+Planning doc: `.ai-coder/dispatches/D05-plan.md` (this dispatch's bug list, service-file specs, migration 073 SQL, cross-cutting concerns, standing instructions).
+Fresh session prompt: `.ai-coder/dispatches/D05-FRESH-SESSION-PROMPT.md` (one-shot paste block).
+
+## Subtask list (run sequentially; each subtask is a coherent commit)
+
+Subtask 1 — start here in the fresh session:
+
+1. **Read all of `.ai-coder/dispatches/D05-plan.md`** end to end. Then re-read `.ai-coder/EXECUTION-DISCIPLINE.md` and `.ai-coder/AUTONOMOUS-EXECUTION-PROTOCOL.md`. Verify branch is `phase/14-d05-money-trust-closure` and HEAD is `master` (currently `808208f`). Run `bash scripts/gates/run-gate-a.sh` and `bash scripts/gates/c-constitution.sh` locally — both should pass with the expected REPORT failures (`a-cross-source-no-client-money` REPORT, `money-in-transaction` REPORT).
+2. **Add `packages/api/src/services/booking/pricing.service.ts`** per the plan doc's "pricing.service.ts" spec. This is the architectural pattern every other bug consumes; build it first. Write its test file `packages/api/__tests__/services/booking/pricing.service.test.ts` per the plan doc's test cases. Commit: `feat(d05): pricing.service — server-canonical resolvePricing`.
+3. **Add `packages/api/src/services/booking/promo.service.ts`** per the plan. Test file: `packages/api/__tests__/services/booking/promo.service.test.ts`. Commit: `feat(d05): promo.service — server-validated discount resolution — Bug 261`.
+4. **Add `packages/api/src/services/booking/surge.service.ts`** per the plan. Test file: `packages/api/__tests__/services/booking/surge.service.test.ts`. Commit: `feat(d05): surge.service — server-rule-driven surge resolution`.
+5. **Add `packages/api/src/services/booking/from-quote.service.ts`** per the plan. Test file: `packages/api/__tests__/services/booking/from-quote.service.test.ts`. Commit: `feat(d05): from-quote.service — quote-based booking pricing — Bug 175`.
+6. **Migration 073 — service-area CHECK constraints** per the plan doc's exact SQL. Path: `packages/api/migrations/073_service_area_bounds_check.sql`. Test in `packages/api/__tests__/migrations/073-service-area-bounds.test.ts`. Commit: `feat(d05): migration 073 — service area lat/lng CHECK constraints — Bug 320 + 322`.
+7. **Bug 175 + Bug 176** — `packages/api/src/validators/booking.validator.ts` (delete `servicePrice`, change addon shape to `{addonId, quantity}`, add `.strict()`). Update mobile `apps/mobile/app/customer/booking/{configure,form,checkout}.tsx`. Test in `packages/api/__tests__/validators/booking.validator.test.ts` + integration test that posts a tampered `price` field and asserts persisted row matches DB-resolved price. Commit: `fix(d05): booking validator strict + addon shape — Bug 175 + Bug 176`.
+8. **Bug 208 + Bug 1132** — `packages/api/src/validators/recurring.validator.ts` (new), `packages/api/src/services/recurring.service.ts` (use `resolvePricing`), mobile `apps/mobile/app/customer/booking/make-recurring.tsx`, type file `shared/types/recurring.ts` (drop `servicePrice` from `CreateRecurringParams`). Test `packages/api/__tests__/services/recurring.test.ts`. Commit: `fix(d05): recurring booking strict — Bug 208 + Bug 1132 (encompassed)`.
+9. **Bug 261 — admin promo create** — `packages/api/src/validators/promo.validator.ts` (new), `packages/api/src/routes/admin/promos.ts` (use new schema), admin `apps/admin/src/pages/PromosPage.tsx`, mobile `apps/mobile/app/customer/booking/checkout.tsx` promo input (sends only `promoCode` string; preview endpoint `/booking/preview` returns server-computed pricing). Test `packages/api/__tests__/validators/promo.validator.test.ts`. Commit: `fix(d05): promo create + redeem server-canonical — Bug 261`.
+10. **Bug 266 — admin addon upper bound** — `packages/api/src/validators/admin/catalog.validator.ts` (add `priceCents.max(50_000_00)`), admin `apps/admin/src/pages/CatalogPage.tsx` addon modal (NumberInput with min/max). Test in `packages/api/__tests__/validators/admin/catalog.validator.test.ts`. Commit: `fix(d05): admin addon price bounds — Bug 266`.
+11. **Bug 269 — platformSurgeShare 0..1** — `packages/api/src/validators/admin/pricing-rules.validator.ts` (new or extend), admin `apps/admin/src/pages/PricingRulesPage.tsx` RangeInput. Test. Commit: `fix(d05): pricing rules schema 0..1 platform share — Bug 269`.
+12. **Bug 320 + Bug 322 — service area bounds** — `packages/api/src/validators/admin/service-area.validator.ts` (PH lat/lng + radius/min-providers bounds). Migration 073 already from subtask 6. Test. Commit: `fix(d05): service area PH bounds — Bug 320 + 322`.
+13. **Bug 417 — tip cap** — `packages/api/src/validators/tip.validator.ts` (max ₱5,000), `packages/api/src/routes/public/settings.ts` (`/tip-limits` endpoint, new), mobile `apps/mobile/app/customer/booking/tip.tsx` (consume tip-limits). Test. Commit: `fix(d05): tip max cap server-driven — Bug 417`.
+14. **Bug 1219 — change-order amount** — `packages/api/src/validators/change-order.validator.ts`, `packages/api/src/services/change-orders.service.ts` (use `resolveAdditionalCost` pattern), mobile `apps/mobile/app/provider/job/[id]/change-order.tsx`. Preview endpoint `/change-orders/preview`. Test. Commit: `fix(d05): change-order server-canonical — Bug 1219`.
+15. **Bug 1230 — provider service price min/max** — `packages/api/src/validators/provider/services.validator.ts`, `packages/api/src/services/provider-services.service.ts` (lookup subcat min/max), endpoint `/catalog/subcategories/:id/bounds`, mobile `apps/mobile/app/provider/services.tsx`. Test. Commit: `fix(d05): provider service price within subcat bounds — Bug 1230`.
+16. **Promote `a-cross-source-no-client-money` from REPORT to BLOCKING** in `scripts/gates/MODES.json`. Update `scripts/gates/EXPECTED-FAILURES.md`. **CRITICAL ORDERING:** This subtask MUST be last. Promoting the gate to BLOCKING before all the bug fixes land would cause D05's own PR to fail Gate A (the violations the gate catches still exist in earlier commits' diffs but if it's BLOCKING during the dispatch, the PR can't merge). Commit: `chore(d05): promote a-cross-source-no-client-money to BLOCKING`.
+17. **Write D05 closeout** at `.ai-coder/dispatches/D05-closeout.md` per the template + standing-instruction §honesty-check (3 attack scenarios manually traced). Commit: `docs(d05): closeout`.
+18. **Run full local audit chain** (gates A–E + smoke tests). Push. Open PR. Watch CI. Once green, autoproceed to D06 per autonomous protocol.
+
+next-subtask: 1
+last-subtask-completed: 0 (planning-only state; D05 branch reset to master at 808208f, awaiting fresh session)
