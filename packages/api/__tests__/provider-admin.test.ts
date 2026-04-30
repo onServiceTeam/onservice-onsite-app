@@ -435,6 +435,7 @@ describe('adjustProviderWallet', () => {
     selectRows: { id: string; available_balance: string }[],
     insertId: string | null,
     updateRowCount = 1,
+    auditId: string | null = 'audit-1',
   ): { calls: { sql: string; params: unknown[] }[] } {
     const calls: { sql: string; params: unknown[] }[] = [];
     dbTransactionMock.mockImplementation(
@@ -446,6 +447,10 @@ describe('adjustProviderWallet', () => {
             return { rows: [], rowCount: updateRowCount };
           if (sql.startsWith('INSERT INTO wallet_transactions'))
             return rows(insertId ? [{ id: insertId }] : []);
+          // Phase 14 Dispatch 06 — Bug 78: admin_actions audit row inside
+          // the same transaction as the wallet write.
+          if (sql.startsWith('INSERT INTO admin_actions'))
+            return rows(auditId ? [{ id: auditId }] : []);
           return rows([]);
         });
         return cb({ query: clientQuery as unknown as jest.Mock });

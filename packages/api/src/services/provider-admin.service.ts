@@ -818,12 +818,43 @@ export async function adjustProviderWallet(
     const txId = txResult.rows[0]?.id;
     if (!txId) throw createAppError('Failed to record adjustment transaction.', 500);
 
+    // Phase 14 Dispatch 06 — Bug 78. Pre-D06 there was NO admin_actions
+    // audit row for super-admin wallet adjustments. The wallet_transactions
+    // ledger row recorded the money movement but provided no link back to
+    // the actor's identity beyond the embedded reference_id string.
+    // Now: insert admin_actions inside the SAME transaction so audit and
+    // money are atomic. New verb `provider_wallet_adjusted` introduced by
+    // migration 075.
+    const actionResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'provider_wallet_adjusted', 'provider', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        adminUserId,
+        providerId,
+        JSON.stringify({
+          walletId: wallet.id,
+          deltaAmount,
+          previousBalance: currentBalance,
+          newBalance,
+          walletTransactionId: txId,
+        }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
+      ],
+    );
+    const adminActionId = actionResult.rows[0]?.id;
+    if (!adminActionId) {
+      throw createAppError('Failed to record provider wallet adjustment audit.', 500);
+    }
+
     logger.info('Provider wallet adjustment', {
       providerId,
       walletId: wallet.id,
       deltaAmount,
       newBalance,
       adminUserId,
+      adminActionId,
       reason: trimmedReason,
     });
 
