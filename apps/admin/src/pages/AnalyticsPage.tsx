@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { Label, Input, Textarea } from '@/components/ui';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 
 type TabId = 'ab-tests' | 'cohorts' | 'churn' | 'quality' | 'commission';
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'ab-tests', label: 'A/B Tests' },
+// Phase 14 Dispatch 13 — Bug 45 (A/B testing pulled for v1.0).
+// The A/B Tests tab is hidden when feature_flag.ab_testing_enabled = false
+// (the v1.0 default). Admin tab is filtered via useMemo against the flag.
+const ALL_TABS: { id: TabId; label: string; flag?: keyof ReturnType<typeof useFeatureFlags> }[] = [
+  { id: 'ab-tests', label: 'A/B Tests', flag: 'abTestingEnabled' },
   { id: 'cohorts', label: 'Cohort Analysis' },
   { id: 'churn', label: 'Churn Prediction' },
   { id: 'quality', label: 'Quality Scores' },
@@ -490,7 +494,16 @@ function CommissionTab(): React.ReactElement {
 // ─── Main Analytics Page ────────────────────────────────────────────
 
 export default function AnalyticsPage(): React.ReactElement {
-  const [activeTab, setActiveTab] = useState<TabId>('ab-tests');
+  const flags = useFeatureFlags();
+  // Filter out feature-flagged tabs that are off; default opens to the
+  // first visible tab so a deep-link to ab-tests gracefully falls through.
+  const TABS = useMemo(
+    () => ALL_TABS.filter((t) => !t.flag || flags[t.flag]),
+    [flags],
+  );
+  const [activeTab, setActiveTab] = useState<TabId>(
+    () => (TABS[0]?.id ?? 'cohorts') as TabId,
+  );
 
   return (
     <div>

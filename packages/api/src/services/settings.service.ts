@@ -377,8 +377,47 @@ export async function bustAllCache(): Promise<void> {
 
 // ── Mobile / public client config bundle ──
 
-export async function getClientConfig(): Promise<Record<string, unknown>> {
+/**
+ * Phase 14 Dispatch 13 — Bug 44, 45 feature flags.
+ * Reads `feature_flag.*` keys from platform_settings and returns them as
+ * camelCased booleans. Both default `false` per D13 decision (pull, not wire).
+ * v1.1+ admin can toggle to `true` once redemption + variant assignment
+ * services are wired.
+ */
+export async function getFeatureFlags(): Promise<{
+  promoRedemptionEnabled: boolean;
+  abTestingEnabled: boolean;
+}> {
+  const result = await db.query<{ key: string; value: string }>(
+    `SELECT key, value FROM platform_settings
+      WHERE key LIKE 'feature_flag.%' AND is_active = TRUE`,
+  );
+  const map = new Map(result.rows.map((r) => [r.key, r.value]));
+  const isOn = (key: string): boolean => {
+    const v = map.get(key);
+    return v === 'true' || v === '1';
+  };
   return {
+    promoRedemptionEnabled: isOn('feature_flag.promo_redemption_enabled'),
+    abTestingEnabled: isOn('feature_flag.ab_testing_enabled'),
+  };
+}
+
+export async function getClientConfig(): Promise<Record<string, unknown>> {
+  // D13: feature flags surface to mobile clients via the existing
+  // /api/v1/config endpoint so no new public route is needed.
+  let featureFlags: { promoRedemptionEnabled: boolean; abTestingEnabled: boolean };
+  try {
+    featureFlags = await getFeatureFlags();
+  } catch (err) {
+    logger.warn('feature_flag_read_failed_defaulting_off', {
+      error: (err as Error).message,
+    });
+    featureFlags = { promoRedemptionEnabled: false, abTestingEnabled: false };
+  }
+
+  return {
+    featureFlags,
     appVersion: '0.1.0',
     currency: 'PHP',
     currencySymbol: '\u20B1',

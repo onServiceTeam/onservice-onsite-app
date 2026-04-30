@@ -790,3 +790,69 @@ suki custom discount, reviews reply, victory-native chart upgrade,
 store privacy disclosure submission.
 
 **Source:** Phase 14 Dispatch 12 + spec PART-3 §"Dispatch 12" lines 1043, 1361-1363.
+
+
+---
+
+## 30. Promo code redemption pulled for v1.0 (Phase 14 Dispatch 13)
+
+The audit (Bug 44) found that promo codes can be created via the admin
+Marketing page and stored in the `promo_codes` table, but the customer
+mobile app has no redemption input field and the server has no
+redemption pipeline. Per `.ai-coder/decisions/D13-feature-decisions.md`,
+v1.0 ships with redemption **pulled** (not wired half-way):
+
+- Migration 088 seeds `feature_flag.promo_redemption_enabled = false`.
+- Mobile `useFeatureFlags` defaults to `false`. Customer never sees a
+  promo input in checkout.
+- Admin `MarketingPage.tsx` Promo Codes tab shows a banner explaining
+  the unwired state so admins do not waste time creating codes that
+  cannot redeem.
+
+**v1.1+ scope:**
+1. Build redemption pipeline in `pricing.service.ts` `resolvePromo()`.
+2. Add `PromoCodeSection` to `customer/booking/checkout.tsx`, gated
+   on `flags.promoRedemptionEnabled`.
+3. Toggle `feature_flag.promo_redemption_enabled = true` via admin
+   settings.
+4. **Codes created in v1.0 work retroactively** — the row stays in the
+   table and becomes redeemable when the flag flips.
+
+**Operator obligation:**
+- Do not run marketing campaigns that promise promo codes during v1.0;
+  they will not redeem until v1.1+ wires the pipeline.
+- The admin banner makes the unwired state obvious to ops staff.
+
+**Source:** Phase 14 Dispatch 13 + spec PART-3 §"Dispatch 13" line 14, 199-214.
+
+---
+
+## 31. A/B testing framework pulled for v1.0 (Phase 14 Dispatch 13)
+
+The audit (Bug 45) found that the A/B test admin UI works, the
+`ab_tests` + `ab_test_assignments` tables exist, but no service code
+assigns variants. Every customer ends up in control. Per the same D13
+decision document, A/B testing is **pulled for v1.0**:
+
+- Migration 088 seeds `feature_flag.ab_testing_enabled = false`.
+- Admin `AnalyticsPage.tsx` filters out the A/B Tests tab when the flag
+  is OFF (the v1.0 default). Direct-link `/analytics?tab=ab-tests`
+  falls through to the first visible tab.
+- The `ab_tests` + `ab_test_assignments` tables are NOT dropped — v1.1
+  reads them as-is when the assignment service is wired.
+
+**v1.1+ scope:**
+1. Build `ab-test.service.ts` `assignVariant(userId, testKey)` with
+   sticky-bucket persistence (writes to `ab_test_assignments`).
+2. Wire `track_exposure` calls in critical surfaces (checkout, search,
+   onboarding) to record which variant a user saw.
+3. Toggle `feature_flag.ab_testing_enabled = true` via admin settings.
+4. Gate first experiment on a documented hypothesis — statistical
+   significance requires sample sizes you will not have for several
+   months post-launch.
+
+**Operator obligation:**
+- Treat any "A/B testing" feature requests during v1.0 as a v1.1
+  ticket. The infrastructure is there, the wiring is not.
+
+**Source:** Phase 14 Dispatch 13 + spec PART-3 §"Dispatch 13" line 15, 216-226.

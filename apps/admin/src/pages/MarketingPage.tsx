@@ -55,6 +55,7 @@ import {
   XCircle,
 } from '@/components/icons';
 import { useAuthStore } from '@/stores/auth.store';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 
 // ─── Types (mirror packages/api/src/services/marketing-admin.service.ts) ──
 
@@ -345,6 +346,7 @@ interface PromoListResponse {
 
 function PromoCodesTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactElement {
   const queryClient = useQueryClient();
+  const flags = useFeatureFlags();
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [showCreate, setShowCreate] = useState(false);
   const [editPromo, setEditPromo] = useState<PromoCode | null>(null);
@@ -462,6 +464,23 @@ function PromoCodesTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.React
 
   return (
     <div className="space-y-4 mt-4">
+      {/* Phase 14 Dispatch 13 — Bug 44 + Bug 152: promo redemption pulled
+          for v1.0. Codes are still creatable + visible to admins so v1.1
+          can activate them retroactively. */}
+      {!flags.promoRedemptionEnabled && (
+        <div
+          data-testid="promo-not-wired-banner"
+          className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900"
+          role="alert"
+        >
+          <p className="font-semibold text-sm">Promo redemption is not wired in v1.0.</p>
+          <p className="text-xs mt-1">
+            Codes you create here will be honored once Phase 14 v1.1 wires the
+            redemption pipeline (target: post-launch). Customers do not see a
+            promo input in checkout yet.
+          </p>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Label htmlFor="promo-filter" className="text-xs">
