@@ -1,9 +1,14 @@
-dispatch: D14
-branch: phase/14-d14-cutover
-status: closeout-written; ready for push + PR + autoproceed to v0.14.0-d14-complete tag
-operating-mode: autonomous between dispatches + full audit chain
+dispatch: PHASE-14-AI-COMPLETE
+branch: master
+status: All 14 dispatches merged + tagged. v0.14.0-d{01..14}-complete on master.
+operating-mode: AI autonomous mode paused. Awaiting Ken's operational sign-offs.
 session-started: 2026-04-30 (Phase 14 final dispatch)
-prior-dispatches: D03+D04+D05+D06+D07+D08+D09+D10+D11+D12+D13 merged. Tags v0.14.0-d{03-13}-complete on master.
+prior-dispatches: D01+D02+D03+D04+D05+D06+D07+D08+D09+D10+D11+D12+D13+D14 ALL merged.
 
-next-subtask: 18 (push + PR + self-merge + tag v0.14.0-d14-complete)
-post-d14: HALT for Ken's operational sign-offs (Items 1-12). Ken applies v1.0.0-launch-ready when all sign-offs land.
+next-action-by-Ken:
+  1. Read docs/runbooks/launch-cutover.md
+  2. Execute the 12 operational items (NPC DPO, BIR ATP, PayMongo live, S3 Object Lock, Postgres PITR, DNS+TLS, etc.)
+  3. Run `bash scripts/verify-launch-readiness.sh` after each item lands
+  4. When umbrella verifier returns 0 AND all manual sign-offs are checked: apply tag v1.0.0-launch-ready per the runbook
+
+next-action-by-AI: HALT until Ken needs help (operational item, escalation, or v1.1+ planning).
