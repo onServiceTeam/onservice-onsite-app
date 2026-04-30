@@ -42,6 +42,7 @@ jest.mock('../src/services/escrow.service', () => ({
 
 jest.mock('../src/services/dispute.service', () => ({
   resolveDispute: jest.fn(),
+  resolveDisputeInTransaction: jest.fn(),
   assignDispute: jest.fn(),
   escalateDispute: jest.fn(),
 }));
@@ -107,6 +108,7 @@ beforeEach(() => {
   escrowMocks.refundFromEscrowInTransaction.mockReset();
   escrowMocks.handleCancellationInTransaction.mockReset();
   disputeMocks.resolveDispute.mockReset();
+  disputeMocks.resolveDisputeInTransaction.mockReset();
   disputeMocks.assignDispute.mockReset();
   disputeMocks.escalateDispute.mockReset();
 });
@@ -854,11 +856,19 @@ describe('adminResolveDispute', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('happy path: delegates + INSERTs dispute_resolved + returns refundAmount', async () => {
-    disputeMocks.resolveDispute.mockResolvedValueOnce({
-      refund_amount: 8888,
-    } as unknown as Awaited<ReturnType<typeof disputeMocks.resolveDispute>>);
-    dbQueryMock.mockResolvedValueOnce(rows([{ id: 'aa-res' }]));
+  it('happy path: delegates to resolveDisputeInTransaction + INSERTs dispute_resolved in same transaction (Bug 83)', async () => {
+    disputeMocks.resolveDisputeInTransaction.mockResolvedValueOnce({
+      dispute: {} as unknown as Awaited<ReturnType<typeof disputeMocks.resolveDispute>>,
+      refundAmount: 8888,
+      refundPercent: 100,
+      bookingId: BOOKING_ID,
+      bookingTotalAmount: 8888,
+      providerId: PROVIDER_ID,
+    });
+    const calls = setupTxRecorder(async (sql) => {
+      if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-res' }]);
+      return rows([]);
+    });
     const out = await disputeAdminSvc.adminResolveDispute(
       DISPUTE_ID,
       {
@@ -867,9 +877,12 @@ describe('adminResolveDispute', () => {
       },
       ADMIN_ID,
     );
-    expect(disputeMocks.resolveDispute).toHaveBeenCalledTimes(1);
-    const sql = dbQueryMock.mock.calls[0][0] as string;
-    expect(sql).toContain("'dispute_resolved'");
+    expect(disputeMocks.resolveDisputeInTransaction).toHaveBeenCalledTimes(1);
+    expect(disputeMocks.resolveDispute).not.toHaveBeenCalled();
+    const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
+    expect(insert).toBeDefined();
+    expect(insert!.sql).toContain("'dispute_resolved'");
+    expect(insert!.sql).toContain('full_notes');
     expect(out.refundAmount).toBe(8888);
     expect(out.adminActionId).toBe('aa-res');
   });
