@@ -203,10 +203,37 @@ router.delete(
       const businessId = getParamId(req);
       const targetUserId = getParamId(req, 'userId');
       const requesterId = req.user!.userId;
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
 
-      await businessService.removeMember(businessId, requesterId, targetUserId);
+      await businessService.removeMember(businessId, requesterId, targetUserId, reason);
 
       res.json({ success: true, message: 'Member removed.' });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// Phase 14 Dispatch 06 — Bug 106: ownership transfer endpoint.
+// Body: { newOwnerUserId: string, reason?: string }. Only the current owner
+// (verified inside the service) can call this.
+router.post(
+  '/:id/transfer-ownership',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const businessId = getParamId(req);
+      const requesterId = req.user!.userId;
+      const newOwnerUserId = typeof req.body?.newOwnerUserId === 'string' ? req.body.newOwnerUserId : '';
+      if (!newOwnerUserId) {
+        res.status(400).json({ success: false, message: 'newOwnerUserId is required.' });
+        return;
+      }
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+
+      await businessService.transferOwnership(businessId, requesterId, newOwnerUserId, reason);
+
+      res.json({ success: true, message: 'Ownership transferred.' });
     } catch (err) {
       next(err);
     }
