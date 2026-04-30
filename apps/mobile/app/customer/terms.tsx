@@ -5,8 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ScrollText, Lock } from '@/components/icons';
-import { platformConfig } from '@/config/platform.config';
-import { formatPHP } from '@/utils/currency';
+// platformConfig + formatPHP imports removed in Phase 14 D04 — section 6
+// no longer references SiguradoShield peso-amount coverage figures.
+// Bug 834.
 import { fetchCancellationPolicy, policyToTermsText } from '@/utils/cancellation-policy';
 
 interface Section {
@@ -44,9 +45,15 @@ const TOS_SECTIONS: Section[] = [
       'Customers have 48 hours after job completion to file a dispute. Disputes are resolved through our tiered system: automated resolution, mediation, and admin arbitration. The platform defaults to protecting the customer when evidence is ambiguous.',
   },
   {
-    title: '6. SiguradoShield Protection',
+    // Bug 834 — Phase 14 D04 SiguradoShield pull. Section 6 previously
+    // promised buyer protection with peso-amount coverage. The platform
+    // does NOT provide insurance for v1.0 — see LAUNCH-LIMITATIONS.md §23
+    // and .ai-coder/decisions/D04-siguradoshield.md §legal-language.
+    // Ken supplies the exact disclaimer wording in a follow-up commit.
+    title: '6. Platform protections (no insurance)',
+    // <!-- TODO: Ken to provide explicit no-insurance disclaimer wording, see .ai-coder/decisions/D04-siguradoshield.md §legal-language -->
     content:
-      `Every booking includes buyer protection up to ${formatPHP(platformConfig.siguradoShieldPropertyDamage)} for property damage, coverage for no-shows and incomplete work, and a quality guarantee.`,
+      'TODO_KEN_LEGAL_DISCLAIMER — Ken supplies the exact wording per the §legal-language section of the D04 decision file. Until then this section reads as a placeholder. The verifiable platform protections (NBI clearance for providers, escrow payment, real-time tracking, masked phone numbers, 48-hour dispute window) are described in the Safety & support screen.',
   },
   {
     title: '7. User Conduct',

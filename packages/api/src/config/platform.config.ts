@@ -157,15 +157,22 @@ export const platformConfig = {
   providerArrivalRadiusMeters: 200, // Provider must be within 200m to mark arrival
   customerNoShowMinutes: 30,     // Minutes customer must wait before declaring provider no-show
 
-  // --- SiguradoShield™ Insurance Coverage (INS-002) ---
-  insurance: {
-    maxPropertyDamageCoverage: 2500000,   // ₱25,000
-    maxTheftCoverage: 1000000,            // ₱10,000
-    maxInjuryCoverage: 5000000,           // ₱50,000
-    propertyDamageDeductible: 50000,      // ₱500 deductible for claims above ₱5,000
-    claimWindowHours: 48,                 // Hours after service to file a claim
-    guaranteeFundAlertThreshold: 500000,  // Alert admins when fund falls below ₱5,000
-  },
+  // --- INS-002 (SiguradoShield) NOT WIRED for v1.0 ---
+  // The in-house insurance product is deferred to v1.1+ pending Insurance
+  // Commission license OR licensed-insurer partnership. The peso-amount
+  // coverage / deductible / claim-window constants previously here have been
+  // removed. No service multiplied a booking total by an insurance premium
+  // and no payout subtracted a deductible — the "wiring" was UI copy only,
+  // and the UI surfaces have been pulled in customer mobile (Bugs 1168, 860,
+  // 889, 920, 538, 983, 686, 834).
+  //
+  // Do NOT reintroduce an `insurance` block here without:
+  //   1. Lifting LAUNCH-LIMITATIONS §23.
+  //   2. Securing PH Insurance Commission license + underwriter capital, OR
+  //      a partnership with a licensed insurer with explicit rep-agent terms.
+  //   3. Building the claims pipeline (POST /claims, settlement, KYC).
+  //
+  // Bug 1168 + Phase 14 Dispatch 04. See .ai-coder/decisions/D04-siguradoshield.md.
 } as const;
 
 export type PlatformConfig = typeof platformConfig;

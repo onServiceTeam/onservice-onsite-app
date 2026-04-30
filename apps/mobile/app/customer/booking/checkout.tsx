@@ -10,7 +10,7 @@ import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
-import { Smartphone, CreditCard, Wallet, ScanLine, Shield } from '@/components/icons';
+import { Smartphone, CreditCard, Wallet, ScanLine, Lock } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -169,15 +169,19 @@ export default function CheckoutScreen(): React.ReactElement {
           );
         })}
 
-        {/* Escrow info */}
+        {/* Escrow info — Bug 834 (Phase 14 D04 SiguradoShield pull). */}
+        {/* Strips the SiguradoShield™ trademark; the escrow claim is */}
+        {/* verifiable on its own. Tap-to-safety affordance preserved as a */}
+        {/* link to /customer/safety-and-support for users curious about */}
+        {/* what "escrow" means in practice. */}
         <TouchableOpacity
           style={styles.escrowBanner}
           onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
           activeOpacity={0.7}
         >
-          <View style={styles.escrowIconWrap}><Shield size={22} color={colors.primary} /></View>
+          <View style={styles.escrowIconWrap}><Lock size={22} color={colors.primary} /></View>
           <Text style={styles.escrowText}>
-            Protected by SiguradoShield™. Your payment is held in escrow until you confirm the job is complete.
+            Your payment is held in escrow until you confirm the job is complete. Tap to learn more about our safety affordances.
           </Text>
         </TouchableOpacity>
 

@@ -13,7 +13,7 @@ import { storage } from '@/services/api';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
-import { Home, Shield, Star } from '@/components/icons';
+import { Home, Lock, Star } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -39,11 +39,15 @@ const slides: Slide[] = [
     bgColor: colors.primary,
   },
   {
+    // Bug 860 — Phase 14 D04 SiguradoShield pull. Slide 2 previously
+    // advertised SiguradoShield™ insurance with implied peso-amount coverage.
+    // Replaced with verifiable trust claim (escrow only). Do NOT reintroduce
+    // SiguradoShield language without lifting LAUNCH-LIMITATIONS §23.
     id: '2',
-    icon: Shield,
-    title: 'SiguradoShield™\nProtection',
+    icon: Lock,
+    title: 'Booked Safely\nWith Escrow',
     description:
-      'Every booking is covered. Your payment is held in escrow until you confirm the job is done right. If anything goes wrong, we make it right.',
+      'Your payment is held in escrow until you confirm the job is complete. If a dispute is opened in time, funds stay held while support reviews evidence from both sides.',
     bgColor: colors.secondaryDark,
   },
   {

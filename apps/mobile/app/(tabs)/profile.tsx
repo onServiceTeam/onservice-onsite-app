@@ -9,7 +9,7 @@ import type { ApiResponse } from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
-import { Shield, MapPin, CreditCard, Bell, HelpCircle, FileText, KeyRound } from '@/components/icons';
+import { MapPin, CreditCard, Bell, HelpCircle, FileText, KeyRound } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -79,8 +79,12 @@ export default function ProfileScreen(): React.ReactElement {
     }
   };
 
+  // Bug 920 — Phase 14 D04 SiguradoShield pull. The first menu row used to be
+  // "SiguradoShield™ Protection" linking to /customer/safety. Removed entirely.
+  // Safety affordances now live at /customer/safety-and-support and are
+  // surfaced via Help & Support → Report a safety concern. Do NOT reintroduce
+  // a SiguradoShield menu row without lifting LAUNCH-LIMITATIONS §23.
   const menuItems: Array<{ label: string; icon: IconComponent; onPress: () => void }> = [
-    { label: 'SiguradoShield™ Protection', icon: Shield, onPress: () => router.push(Routes.CUSTOMER.SAFETY) },
     { label: 'My Addresses', icon: MapPin, onPress: () => router.push(Routes.CUSTOMER.ADDRESSES) },
     { label: 'Payment Methods', icon: CreditCard, onPress: () => router.push(Routes.CUSTOMER.PAYMENT_METHODS) },
     { label: 'Notification Settings', icon: Bell, onPress: () => router.push(Routes.CUSTOMER.SETTINGS) },

@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
-# Bug 538 + chain. After Dispatch 04 Option A (pull), SiguradoShield references
-# must not appear in code.
+# Phase 14 Dispatch 04 — superseded by c-constitution-no-shield-references.sh.
+#
+# This file is now a thin alias that delegates to the stricter Gate C
+# constitution check. It exists so historical workflow references and
+# lazy muscle-memory `bash scripts/gates/a-cross-source-no-siguradoshield.sh`
+# invocations still work, but the actual logic and allowlist live in the
+# new gate.
+#
+# Background: the old REPORT-only fragment scanned for SiguradoShield
+# references in apps/ + packages/ but tolerated them as REPORT until D04
+# landed. Per Ken's Option A pull (.ai-coder/decisions/D04-siguradoshield.md),
+# D04 promoted the gate to BLOCKING with a stricter scope (UI surfaces +
+# charge/payout code; ALL code paths in apps/ and packages/) and a
+# documented allowlist for legitimate references in spec docs, the decision
+# file, deprecated migrations, and LAUNCH-LIMITATIONS.
+#
+# MODES.json marks this fragment as BLOCKING and references the new gate
+# for actual enforcement.
 
 set -euo pipefail
-
-violations=$(grep -rEi "siguradoshield|premiumProtection|propertyDamage|siguradoShieldDeductible" \
-  apps/ packages/ \
-  --include="*.ts" --include="*.tsx" --include="*.json" --include="*.md" 2>/dev/null \
-  | grep -v "LAUNCH-LIMITATIONS.md" \
-  | grep -v "/decisions/D04-siguradoshield.md" \
-  | grep -v "PART-3-BUG-REMEDIATION" \
-  | grep -v "STRATEGIC-DECISIONS-LOG" \
-  || true)
-
-if [ -n "$violations" ]; then
-  echo "GATE A VIOLATION (Bug 538/Option A): SiguradoShield references found in code"
-  echo "$violations"
-  exit 1
-fi
-echo "Gate A — no SiguradoShield: OK"
+GATES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec bash "$GATES_DIR/c-constitution-no-shield-references.sh" "$@"

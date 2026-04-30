@@ -1,5 +1,23 @@
 # INSURANCE & TRUST — SiguradoShield™
 
+> **PHASE 14 D04 STATUS — 2026-04-30 (Ken decision, Option A pull):**
+> SiguradoShield as a customer-facing insurance product has been **pulled
+> from v1.0 scope**. The 3-layer architecture described below is the
+> v1.1+ roadmap, not v1.0 reality. v1.0 ships with verifiable trust
+> claims only (NBI clearance, escrow payment, real-time tracking, masked
+> phone numbers, 48-hour dispute window). No platform-provided insurance.
+>
+> See `LAUNCH-LIMITATIONS.md §23` and
+> `.ai-coder/decisions/D04-siguradoshield.md` for the rationale and
+> v1.1+ paths (Insurance Commission license + underwriter capital, OR
+> licensed-insurer partnership with rep-agent terms).
+>
+> The strategic narrative below remains as the v1.1+ design reference.
+> Read it as "what we will build when the regulatory and underwriting
+> prerequisites are in place," not "what onService PH offers today."
+
+---
+
 The 3-layer protection system. Layer 1 launches with the platform; Layers 2 and 3 are partner-dependent and may follow.
 
 ---
