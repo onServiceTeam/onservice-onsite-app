@@ -89,6 +89,7 @@ filtered=$(echo "$hits" | grep -vE \
   -e "^\.?/?\.ai-coder/decisions/D04-siguradoshield\.md:" \
   -e "^\.?/?\.ai-coder/phase-14/" \
   -e "^\.?/?\.ai-coder/dispatches/D04-" \
+  -e "^\.?/?\.ai-coder/dispatches/D14r-" \
   -e "^\.?/?\.ai-coder/dispatches/D03-closeout\.md:" \
   -e "^\.?/?\.ai-coder/dispatches/D02-final-closeout\.md:" \
   -e "^\.?/?\.ai-coder/dispatches/D01-final-closeout\.md:" \

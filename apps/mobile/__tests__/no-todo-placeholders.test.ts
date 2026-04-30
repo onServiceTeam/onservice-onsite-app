@@ -16,7 +16,7 @@
 // (No legacy Bug NNNN — the placeholder was discovered in the
 // remediation audit, not the original Phase 13 bug catalog.)
 
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
 
@@ -45,6 +45,9 @@ describe('No TODO_KEN_LEGAL_DISCLAIMER placeholder anywhere in apps/', () => {
   it('placeholder is removed from every tracked source file', () => {
     const offenders: string[] = [];
     for (const file of files) {
+      // Files removed from disk but still in git ls-files output (e.g.
+      // mid-PR deletions before commit lands) — skip silently.
+      if (!existsSync(file)) continue;
       const content = readFileSync(file, 'utf-8');
       // Match the literal placeholder string. Self-references (this test
       // file itself, or doc files that document the rule) are excluded by

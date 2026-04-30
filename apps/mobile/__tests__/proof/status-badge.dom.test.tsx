@@ -33,8 +33,9 @@ describe('StatusBadge — real DOM render (R5b proof)', () => {
 
   it('exposes accessibilityLabel containing the rendered status', () => {
     const { container } = render(<StatusBadge status="paid" />);
-    const labeled = container.querySelector('[accessibilitylabel]');
+    // RN mock maps accessibilityLabel → aria-label.
+    const labeled = container.querySelector('[aria-label]');
     expect(labeled).not.toBeNull();
-    expect(labeled?.getAttribute('accessibilitylabel')).toContain('Confirmed');
+    expect(labeled?.getAttribute('aria-label')).toContain('Confirmed');
   });
 });

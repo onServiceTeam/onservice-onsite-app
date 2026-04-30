@@ -7,16 +7,41 @@ const React = require('react');
 // and doesn't drop the children. react-test-renderer tolerates
 // arbitrary string host types but React 19 has stricter rules for
 // uppercase-string-host elements; keep names lowercase.
+//
+// Map RN accessibility props to standard ARIA attributes so RTL queries
+// (getByLabel, querySelector('[aria-label]'), etc.) work natively.
+function mapA11yProps({ accessibilityLabel, accessibilityRole, accessibilityHint, accessibilityState, accessibilityLiveRegion, accessibilityViewIsModal, testID, ...rest }) {
+  const ariaProps = {};
+  if (accessibilityLabel !== undefined) ariaProps['aria-label'] = accessibilityLabel;
+  if (accessibilityRole !== undefined) ariaProps.role = accessibilityRole;
+  if (accessibilityHint !== undefined) ariaProps['aria-describedby'] = accessibilityHint;
+  if (accessibilityState && accessibilityState.disabled) ariaProps['aria-disabled'] = true;
+  if (accessibilityState && accessibilityState.checked !== undefined) ariaProps['aria-checked'] = accessibilityState.checked;
+  if (accessibilityState && accessibilityState.selected !== undefined) ariaProps['aria-selected'] = accessibilityState.selected;
+  if (accessibilityState && accessibilityState.busy) ariaProps['aria-busy'] = true;
+  if (accessibilityLiveRegion !== undefined) ariaProps['aria-live'] = accessibilityLiveRegion;
+  if (testID !== undefined) ariaProps['data-testid'] = testID;
+  return { ...rest, ...ariaProps };
+}
+
 const passthrough = (name) =>
-  function HostComponent({ children, ...rest }) {
-    return React.createElement(name, rest, children);
+  function HostComponent(props) {
+    const { children, ...rest } = props;
+    return React.createElement(name, mapA11yProps(rest), children);
   };
 
 const View = passthrough('rn-view');
 const Text = passthrough('rn-text');
 const ScrollView = passthrough('rn-scroll-view');
 const KeyboardAvoidingView = passthrough('rn-kav');
-const Modal = passthrough('rn-modal');
+// Modal respects the `visible` prop — the real RN Modal hides
+// children when visible=false. Without this our mock would render
+// modal contents in the initial DOM, breaking tests that assert on
+// modal-closed-by-default state.
+const Modal = ({ visible = true, children, ...rest }) => {
+  if (!visible) return null;
+  return React.createElement('rn-modal', mapA11yProps(rest), children);
+};
 const RefreshControl = passthrough('rn-refresh-control');
 const Image = passthrough('rn-image');
 const FlatList = ({ data, renderItem, ListEmptyComponent, ListFooterComponent, ...rest }) => {
@@ -42,24 +67,23 @@ const FlatList = ({ data, renderItem, ListEmptyComponent, ListFooterComponent, .
 
 // Render Pressable as a real <button> so click events fire normally.
 // disabled prop maps directly; onPress maps to onClick.
-const Pressable = ({ children, onPress, disabled, accessibilityState, accessibilityRole, accessibilityLabel, accessibilityHint, testID, style, ...rest }) =>
-  React.createElement(
+const Pressable = ({ children, onPress, disabled, ...rest }) => {
+  const a11y = mapA11yProps(rest);
+  const isDisabled = !!(disabled || a11y['aria-disabled']);
+  return React.createElement(
     'button',
     {
+      ...a11y,
       onClick: () => {
-        if (disabled || (accessibilityState && accessibilityState.disabled)) return;
+        if (isDisabled) return;
         if (onPress) onPress();
       },
-      disabled: !!(disabled || (accessibilityState && accessibilityState.disabled)),
-      'aria-label': accessibilityLabel,
-      'aria-describedby': accessibilityHint,
-      role: accessibilityRole || 'button',
-      'data-testid': testID,
-      style,
-      ...rest,
+      disabled: isDisabled,
+      role: a11y.role || 'button',
     },
     children,
   );
+};
 
 const TouchableOpacity = Pressable;
 const TouchableHighlight = Pressable;

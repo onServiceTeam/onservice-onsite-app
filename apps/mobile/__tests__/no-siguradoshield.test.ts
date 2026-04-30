@@ -103,10 +103,16 @@ describe('Bug 538 — apps/mobile/app/customer/safety-and-support.tsx', () => {
     expect(src).not.toMatch(PESO_100K);
   });
 
-  it('does not include insurance/claim/deductible language', () => {
-    expect(src).not.toMatch(/\binsurance\b/i);
+  it('does not POSITIVELY claim insurance coverage', () => {
+    // Phase 14 R10 added an explicit no-insurance disclaimer
+    // ("We do not provide insurance coverage..."). The disclaimer is
+    // exactly the audit-required language, so the regex below permits
+    // disclaimer phrasing while still blocking marketing-as-insurance.
     expect(src).not.toMatch(/\bdeductible\b/i);
     expect(src).not.toMatch(/\bcovered up to\b/i);
+    // Block phrases that ASSERT we provide insurance.
+    expect(src).not.toMatch(/\bwe (?:provide|offer|carry|hold) insurance/i);
+    expect(src).not.toMatch(/\binsurance\s+(?:coverage|protection|policy|cap|limit)\b/i);
   });
 
   it('still displays verifiable trust claims', () => {
