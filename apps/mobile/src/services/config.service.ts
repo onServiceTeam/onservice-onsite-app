@@ -10,7 +10,8 @@
  * remain functional.
  */
 
-import axios from 'axios';
+// Bug 1271 fix verified — Constitution Article 7.1: native fetch only.
+// Phase 14 Dispatch 02 Part 5.
 import { platformConfig } from '@/config/platform.config';
 
 export type Config = Record<string, unknown> & typeof platformConfig;
@@ -47,10 +48,16 @@ interface RemoteConfigResponse {
 export async function fetchPlatformConfig(): Promise<Config> {
   const baseUrl = platformConfig.apiUrl;
   try {
-    const res = await axios.get<RemoteConfigResponse>(`${baseUrl}/api/v1/config`, {
-      timeout: 5000,
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const httpRes = await fetch(`${baseUrl}/api/v1/config`, {
+      method: 'GET',
+      signal: controller.signal,
     });
-    const remote = res.data?.data ?? {};
+    clearTimeout(timeoutId);
+    if (!httpRes.ok) throw new Error(`HTTP ${httpRes.status}`);
+    const body = (await httpRes.json()) as RemoteConfigResponse;
+    const remote = body?.data ?? {};
     cachedConfig = {
       ...platformConfig,
       appVersion: remote.appVersion ?? platformConfig.appVersion,

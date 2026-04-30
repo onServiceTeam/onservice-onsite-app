@@ -44,10 +44,14 @@ The Phase 14 design accepts these failures during Dispatches 01-13 because each 
 - **Becomes BLOCKING:** after D02 PR merges.
 
 ### `a-cross-source-no-axios.sh`
-- **Expected to fail on master:** YES
-- **Reason:** Bug 1271 — `axios` imports in `apps/mobile/src/services/api.ts` and `apps/admin/src/lib/api.ts`. Constitution Article 7.1 forbids axios.
-- **Owning dispatch:** Dispatch 01 fixes the admin (httpOnly cookies + fetch wrapper); Dispatch 02 finishes mobile.
-- **Becomes BLOCKING:** after D02 PR merges.
+- **Expected to fail on master:** NO (resolved by D01 admin half + D02 Part 5 mobile half).
+- **Reason:** Bug 1271 fixed for clients — admin uses native fetch wrapper
+  (D01 PR #7) and mobile uses native fetch wrapper (D02 Part 5).
+  Server-to-server outbound HTTP (payment.service.ts, sms.service.ts hitting
+  third-party APIs) was excluded from gate scope — server outbound is not
+  the constitutional concern (which was about client bundle bloat + cookie
+  semantics).
+- **Status:** BLOCKING immediately on D02 Part 5 onward.
 
 ### `a-cross-source-no-emoji-icons.sh`
 - **Expected to fail on master:** YES
