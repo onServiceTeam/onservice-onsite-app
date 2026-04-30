@@ -644,3 +644,44 @@ The platform meets the operational compliance bar for v1.0 launch:
   `notification-settings.tsx` screen.
 
 **Source:** Phase 14 Dispatch 08.
+
+---
+
+## 27. Provider onboarding manual review (Phase 14 Dispatch 09)
+
+v1.0 launch ships with **manual admin review** of every provider
+application. No automated liveness vendor (Onfido / Persona / similar)
+is contracted at launch.
+
+**v1.0 flow (Bug 1194 + 1195 deferral path):**
+1. Provider completes the 10-screen onboarding flow.
+2. Documents (NBI clearance, government ID front/back, proof of address,
+   selfie, optional certifications) upload via multipart to S3 + KMS.
+3. Provider submits application.
+4. Application appears in admin Provider Review queue.
+5. Admin reviews documents + selfie visually (compares selfie against
+   government ID photo).
+6. Admin approves / rejects / sends-back with required ≥30-char reason.
+7. Audit row written to admin_actions for every decision.
+8. Sent-back applications unlock for provider to amend + resubmit.
+
+**Operator obligation:**
+- Boracay launch volume: ~5 new provider applications/day expected.
+  Estimated review time per application: 5-10 minutes including
+  document review + selfie comparison + audit row write.
+- Admin Provider Review queue surface (D10 admin dispatch console
+  wire-up) presents the queue with applications sorted oldest-first.
+- 72h SLA: every application has `estimated_review_hours = 72` baked
+  in; provider sees `estimatedDecisionAt` in their app.
+
+**v1.1+ scope:**
+- Onfido / Persona integration for automated liveness check (selfie
+  vs ID photo + liveness gesture).
+- Auto-approve flow for cleared applications (NBI passes, ID matches,
+  liveness passes) — admin only reviews exceptions.
+- Document-expiry watcher cron (NBI is 1-year valid; auto-flag
+  expiring docs for re-upload).
+- Subcategory-level service permissions (provider applies for "Aircon
+  Repair" specifically, not just "Aircon Services" category).
+
+**Source:** Phase 14 Dispatch 09 + spec PART-3 §"Dispatch 09" line 23.
