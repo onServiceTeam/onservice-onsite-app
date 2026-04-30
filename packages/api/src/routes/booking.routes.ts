@@ -861,11 +861,53 @@ router.post(
         throw createAppError('Maximum 20 photos per phase.', 400);
       }
 
+      // Phase 14 Dispatch 07 — Bug 36 + 461 + 1224 root-cause guard.
+      // Pre-D07 the server stored whatever the client sent. Mobile passed
+      // ImagePicker `file://` URIs straight through; admin/customer
+      // viewers then fetched broken images. Now: every URL must be
+      // HTTP/HTTPS (i.e., a real S3 / local-uploads URL returned by the
+      // earlier /api/v1/uploads multipart step). file:// URIs are
+      // rejected with 400.
+      for (const url of urls) {
+        if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+          throw createAppError(
+            'Invalid photo URL. Photos must be uploaded via /api/v1/uploads first; raw file:// URIs are not accepted.',
+            400,
+          );
+        }
+      }
+
+      // Phase 14 Dispatch 07 — Bug 36/461/1224 + 1220.
+      // ALSO insert each photo into booking_photos so the new GET
+      // /uploads/booking-photo/:bookingId endpoint + countAfterPhotos
+      // (used by Bug 1220 completion gating) can reach them. The legacy
+      // text[] columns are preserved for back-compat with existing UI
+      // until D11/D12 mobile polish migrates the readers.
       const column = phase === 'before' ? 'provider_before_photos' : 'provider_after_photos';
-      await db.query(
-        `UPDATE bookings SET ${column} = array_cat(${column}, $1::text[]), updated_at = NOW() WHERE id = $2`,
-        [urls, id],
-      );
+      const photoType = phase; // 'before' | 'after' — both valid in booking_photos.photo_type CHECK
+      await db.transaction(async (client) => {
+        await client.query(
+          `UPDATE bookings SET ${column} = array_cat(${column}, $1::text[]), updated_at = NOW() WHERE id = $2`,
+          [urls, id],
+        );
+        for (const url of urls) {
+          await client.query(
+            `INSERT INTO booking_photos
+               (booking_id, uploaded_by, uploaded_by_role, photo_type,
+                storage_key, storage_url, mime_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+              id,
+              req.user!.userId,
+              req.user!.role === 'provider' ? 'provider' : (req.user!.role === 'admin' || req.user!.role === 'super_admin' ? 'admin' : 'customer'),
+              photoType,
+              url, // legacy callers don't have a separate storage_key; URL doubles as both
+              url,
+              'image/jpeg',
+            ],
+          );
+        }
+      });
 
       const updated = await bookingService.getBookingByIdAdmin(id);
       res.json({ success: true, data: formatBookingResponse(updated as BookingRow) });
