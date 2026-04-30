@@ -5,7 +5,19 @@
 #   1. The cited file:line is in the dispatch's diff.
 #   2. A test in the dispatch's diff references the bug number explicitly.
 #
-# Per Phase 14 Part 4 §"Gate B — Bug-deferral / completeness".
+# No-bugs dispatches (introduced in Dispatch 03):
+# Some dispatches are meta-only (gate hardening, infra) and fix zero source-code
+# bugs. To pass Gate B, such a closeout MUST contain the literal HTML-comment
+# marker on its own line:
+#
+#   <!-- gate-b: no-bugs-this-dispatch -->
+#
+# Without that marker, an empty bug list fails Gate B (preventing fake-green
+# where someone "forgot" to claim bugs). The marker is intentional and
+# machine-checkable; it cannot be added accidentally.
+#
+# Per Phase 14 Part 4 §"Gate B — Bug-deferral / completeness" and Dispatch 03
+# meta-only-dispatch design.
 
 set -euo pipefail
 
@@ -19,15 +31,30 @@ if [ ! -f "$CLOSEOUT" ]; then
 fi
 
 # Parse: lines matching "Bug NNNN" in closeout
-BUGS=$(grep -oE "Bug [0-9]+" "$CLOSEOUT" | sort -u)
+BUGS=$(grep -oE "Bug [0-9]+" "$CLOSEOUT" | sort -u || true)
 
+# No-bugs dispatch detection: explicit marker required
+NO_BUGS_MARKER='<!-- gate-b: no-bugs-this-dispatch -->'
 if [ -z "$BUGS" ]; then
-  echo "Gate B: no bugs claimed fixed in closeout"
+  if grep -qF "$NO_BUGS_MARKER" "$CLOSEOUT"; then
+    echo "Gate B: closeout declares no-bugs dispatch (marker present); accepting."
+    echo "Gate B PASSED — meta-only dispatch."
+    exit 0
+  fi
+  echo "Gate B: no bugs claimed fixed in closeout AND no '$NO_BUGS_MARKER' marker."
+  echo "If this is a meta-only dispatch, add the marker as an HTML comment in the closeout."
+  exit 1
+fi
+
+# Reject the marker if bugs are also claimed (logical inconsistency)
+if grep -qF "$NO_BUGS_MARKER" "$CLOSEOUT"; then
+  echo "Gate B: closeout has BOTH the no-bugs marker AND Bug NNNN references; ambiguous."
+  echo "Either remove the marker or remove the bug claims."
   exit 1
 fi
 
 CHANGED_FILES=$(git diff --name-only "$BASE_REF"..HEAD)
-CHANGED_TEST_DIFF=$(git diff "$BASE_REF"..HEAD -- '**/*.test.ts' '**/*.test.tsx')
+CHANGED_TEST_DIFF=$(git diff "$BASE_REF"..HEAD -- '**/*.test.ts' '**/*.test.tsx' || true)
 
 fail=0
 while IFS= read -r bug; do
@@ -36,7 +63,7 @@ while IFS= read -r bug; do
   # Check 1: cited files in diff
   cited_files=$(grep -A 5 "$bug —\|$bug -" "$CLOSEOUT" \
     | grep -oE "[a-zA-Z_/]+\.(ts|tsx|sql|sh|yml|json)" \
-    | sort -u)
+    | sort -u || true)
 
   files_missing=0
   for f in $cited_files; do

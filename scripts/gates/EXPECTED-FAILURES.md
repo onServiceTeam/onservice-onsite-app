@@ -1,8 +1,10 @@
 # EXPECTED-FAILURES — Gate fragments currently failing on master
 
-Per Dispatch 0 step 0.2.4. This file documents which gate fragments are expected to fail on the current `master` HEAD AND which dispatch addresses each. As dispatches land, fragments move from this file to "now passing." When this file is empty, the gate suite is fully green.
+Per Dispatch 0 step 0.2.4 (initial creation) and Dispatch 03 (tiered-enforcement reconciliation). This file documents which gate fragments are expected to fail on the current `master` HEAD AND which dispatch addresses each. As dispatches land, fragments move from this file to "now passing." When this file is empty, the gate suite is fully green.
 
-The Phase 14 design accepts these failures during Dispatches 01-13 because each is owned by a specific later dispatch. **The CI workflow runs the gates in REPORT mode initially (logs failures without blocking)**; after the dispatch that owns each fragment lands, that fragment moves to BLOCKING mode for all subsequent PRs.
+**Source of truth:** the machine-readable mode declaration is [`scripts/gates/MODES.json`](MODES.json). The aggregator (`run-gate-a.sh`) and the constitution gate (`c-constitution.sh`) read MODES.json to decide whether a failing fragment fails the gate. This file is the human-readable companion. **When you change a fragment's mode, update both files in the same PR.**
+
+The Phase 14 design accepts these failures during Dispatches 01–13 because each is owned by a specific later dispatch. **REPORT-tier fragments log failures without blocking the gate**; after the dispatch that owns each fragment lands, that fragment is promoted to BLOCKING for all subsequent PRs (update `MODES.json` in that dispatch's closeout PR).
 
 ---
 

@@ -1,0 +1,122 @@
+{
+  "_about": "Per-fragment / per-article mode declaration. The gate aggregators (run-gate-a.sh, c-constitution.sh) read this file to decide whether a failing fragment fails the gate (BLOCKING) or only logs (REPORT). Modes change as their owning dispatch lands. See scripts/gates/EXPECTED-FAILURES.md for the human-readable timeline and .ai-coder/governance/GATE-AMENDMENTS.md for the amendment process. This file is the machine-readable source of truth.",
+  "_schema_version": 1,
+  "_updated_by_dispatch": "D03",
+  "_updated_at_commit": "phase/14-d03-gate-hardening",
+
+  "gate_a_fragments": {
+    "a-cross-source-cancellation-policy": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D02",
+      "promoted_in": "D02",
+      "rationale": "Bug 1170/1198 fixed; cancellation_policies table is the single source of truth."
+    },
+    "a-cross-source-brand-color": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D02",
+      "promoted_in": "D02",
+      "rationale": "Bug 1324 fixed; mobile theme.ts uses canonical #1B3A4B."
+    },
+    "a-cross-source-routes": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D02",
+      "promoted_in": "D02",
+      "rationale": "Bug 1185 (static paths) fixed in D02 Part 4. Backtick template-string router calls deferred to D12 per LAUNCH-LIMITATIONS §routes-registry-template-strings."
+    },
+    "a-cross-source-tier-criteria": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D02",
+      "promoted_in": "D02",
+      "rationale": "Bug 1323 fixed; founding tier criteria server-canonical."
+    },
+    "a-cross-source-no-axios": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D01+D02",
+      "promoted_in": "D02",
+      "rationale": "Bug 1271 fixed for clients (admin in D01, mobile in D02 Part 5). Scope: apps/ only — server outbound axios excluded by design."
+    },
+    "a-cross-source-no-emoji-icons": {
+      "mode": "REPORT",
+      "owning_dispatch": "D12",
+      "promoted_in": null,
+      "rationale": "Phase 13 baseline shows 1089 absolute / 412 introduced; per-screen polish in D11/D12 replaces all emoji with lucide. Promotes to BLOCKING after D12."
+    },
+    "a-cross-source-no-google-maps-placeholder": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D01",
+      "promoted_in": "D01",
+      "rationale": "Bug 1286 fixed in D01."
+    },
+    "a-cross-source-hashes-immutable": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D03",
+      "promoted_in": "D03",
+      "rationale": "Preventive: HASHES-CORRECTED.sha256 files (when added) must not be modified. Currently no such files exist; gate is vacuously passing but locks the rule in."
+    },
+    "a-cross-source-no-client-money": {
+      "mode": "REPORT",
+      "owning_dispatch": "D05",
+      "promoted_in": null,
+      "rationale": "Bug 175/176/208/261 — server validators accept money fields. Owned by D05 (Money trust closure). Promotes to BLOCKING after D05."
+    },
+    "a-cross-source-no-siguradoshield": {
+      "mode": "REPORT",
+      "owning_dispatch": "D04",
+      "promoted_in": null,
+      "rationale": "Bug 538 — SiguradoShield references in 6 mobile customer surfaces + platform.config.ts:54-57 constants. Owned by D04 (Option A pull). Promotes to BLOCKING after D04."
+    }
+  },
+
+  "gate_c_articles": {
+    "article-4.2-no-console": {
+      "mode": "REPORT",
+      "owning_dispatch": "D12",
+      "promoted_in": null,
+      "rationale": "Console.* in production code is cleaned progressively across D01-D12 mobile/admin polish. Promotes to BLOCKING after D12."
+    },
+    "article-4.6-no-emoji": {
+      "mode": "REPORT",
+      "owning_dispatch": "D12",
+      "promoted_in": null,
+      "rationale": "Overlaps with Gate A no-emoji-icons (redundant by design). Same timeline."
+    },
+    "article-7.1-no-axios": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D01+D02",
+      "promoted_in": "D03",
+      "rationale": "Scope corrected in D03 to apps/ only (matches Gate A's a-cross-source-no-axios). Server-to-server outbound axios in packages/api/src/services/{payment,sms}.service.ts is out of scope for this gate."
+    },
+    "article-12-bigint-money-tests": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "Phase-13",
+      "promoted_in": "D03",
+      "rationale": "bigint-money-precision.test.ts already exists with 5+ tests (Phase 13 Dispatch E)."
+    },
+    "article-16-closeout-exists": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D03",
+      "promoted_in": "D03",
+      "rationale": "Activates per dispatch branch. Always BLOCKING when running on a phase/14-dNN-* branch."
+    },
+    "money-in-transaction": {
+      "mode": "REPORT",
+      "owning_dispatch": "D06",
+      "promoted_in": null,
+      "rationale": "Bugs 69, 70, 71, 78, 79, 80, 82, 83, 84, 85, 105, 106, 127, 237 — 14 services with money mutations outside db.transaction(). Owned by D06 (Transactional audit completeness). Promotes to BLOCKING after D06."
+    }
+  },
+
+  "gate_d_state": {
+    "mode": "REPORT",
+    "owning_dispatch": "D07+D08+D11+D12",
+    "promoted_in": null,
+    "rationale": "Visual baselines populated progressively: D07 admin + designer-grade restyle, D08 mobile, D11/D12 per-screen baselines. d-visual-screenshots.sh already skips cleanly when baseline directories are empty."
+  },
+
+  "gate_e_state": {
+    "mode": "REPORT",
+    "owning_dispatch": "D12",
+    "promoted_in": null,
+    "rationale": "Mutation score baseline at 99.3% from Phase 13 partial run. D12 promotes to BLOCKING. e-mutation-testing.sh already skips when no production files changed (this dispatch's pattern for meta-only dispatches)."
+  }
+}

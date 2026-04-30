@@ -42,7 +42,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: bash scripts/gates/c-constitution.sh
+      - uses: actions/setup-python@v5
+        # mode-lookup.sh wraps a tiny python3 helper to read MODES.json.
+        # Ubuntu runners have python3 by default but pinning the version
+        # makes the tier-lookup deterministic across runners.
+        with:
+          python-version: "3.11"
+      - name: Gate smoke tests (verify gates themselves still reject violations)
+        # Per Dispatch 03: each gate has a corresponding smoke test that
+        # synthesizes a known-bad pattern and asserts the gate rejects it.
+        # If a regex regression weakens a gate, the smoke test catches it
+        # before the gate runs over the real tree.
+        run: bash scripts/gates/__tests__/run-all.sh
+      - name: Gate C — constitution
+        run: bash scripts/gates/c-constitution.sh
 
   gate-d:
     name: Gate D — visual screenshots
