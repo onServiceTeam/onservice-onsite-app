@@ -37,6 +37,9 @@
 #   - .ai-coder/dispatches/D02-final-closeout.md (historical mention)
 #   - .ai-coder/checkpoints/** (Phase 13 mutation logs)
 #   - .ai-coder/PHASE-14-ACKNOWLEDGMENT.md
+#   - .ai-coder/PHASE-14-REMEDIATION-MASTER-INSTRUCTION.md (post-D14
+#     audit doc; "What's verified solid" section names D04 by full
+#     trademark when listing dispatches that pass code-level review)
 #   - .ai-coder/EXECUTION-DISCIPLINE.md
 #   - .ai-coder/phases/** (older phase docs)
 #   - .ai-coder/templates/** (templates may reference)
@@ -107,6 +110,7 @@ filtered=$(echo "$hits" | grep -vE \
   -e "^\.?/?\.ai-coder/CURRENT-DISPATCH:" \
   -e "^\.?/?\.ai-coder/checkpoints/" \
   -e "^\.?/?\.ai-coder/PHASE-14-ACKNOWLEDGMENT\.md:" \
+  -e "^\.?/?\.ai-coder/PHASE-14-REMEDIATION-MASTER-INSTRUCTION\.md:" \
   -e "^\.?/?\.ai-coder/EXECUTION-DISCIPLINE\.md:" \
   -e "^\.?/?\.ai-coder/phases/" \
   -e "^\.?/?\.ai-coder/templates/" \
