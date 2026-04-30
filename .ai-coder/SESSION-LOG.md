@@ -173,3 +173,13 @@ PRs queue for Ken:
 - #14 D03 (gate hardening) — merged (master `6a27ade`)
 - #15 D04 (SiguradoShield pull) — merged (master `808208f`)
 - #16 D05 (Money trust closure) — open, awaiting Ken's merge
+
+---
+
+## 2026-04-30 — Dispatch 06 fresh-session start
+
+**Read at commit:** `a07421c` (branch `phase/14-d06-money-in-transaction` HEAD; master at `143ce37` tag `v0.14.0-d05-complete`).
+**Branch at start:** `phase/14-d06-money-in-transaction`.
+**Operating mode:** Autonomous between dispatches + full audit chain.
+
+**Intent:** Beginning D06 implementation per handoff doc. 14 bugs around money-in-transaction integrity (transactional audit completeness). Resolving 5 open verification questions during subtask 1. Per Ken's instruction: defer optional Migration 077 (promo_redemptions) to D07 to avoid scope creep.
