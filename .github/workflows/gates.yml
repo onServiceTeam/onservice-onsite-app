@@ -66,7 +66,13 @@ jobs:
         with:
           version: 9
       - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: "pnpm" }
+        with: { node-version: "20" }
+        # cache: "pnpm" removed in D03 — this repo uses npm workspaces with
+        # package-lock.json, not pnpm-lock.yaml. setup-node was failing the
+        # job when it couldn't find a pnpm-lock.yaml to cache against.
+        # Gate D and Gate E are REPORT-mode (per MODES.json gate_d_state /
+        # gate_e_state) until D07/D11/D12 populate baselines anyway, so a
+        # cold install is acceptable here.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         continue-on-error: true
@@ -114,7 +120,13 @@ jobs:
         with:
           version: 9
       - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: "pnpm" }
+        with: { node-version: "20" }
+        # cache: "pnpm" removed in D03 — this repo uses npm workspaces with
+        # package-lock.json, not pnpm-lock.yaml. setup-node was failing the
+        # job when it couldn't find a pnpm-lock.yaml to cache against.
+        # Gate D and Gate E are REPORT-mode (per MODES.json gate_d_state /
+        # gate_e_state) until D07/D11/D12 populate baselines anyway, so a
+        # cold install is acceptable here.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         continue-on-error: true
