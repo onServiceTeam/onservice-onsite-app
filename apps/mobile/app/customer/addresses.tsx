@@ -11,6 +11,8 @@ import * as addressService from '@/services/address.service';
 import type { SavedAddress } from '@/services/address.service';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+// Phase 14 R5-complete — ConfirmModal for delete-address destructive flow.
+import ConfirmModal from '@/components/ConfirmModal';
 import type { ComponentType } from 'react';
 import { Home as HomeIcon, Briefcase, Pin, AlertTriangle } from '@/components/icons';
 
@@ -125,16 +127,9 @@ export default function AddressesScreen(): React.ReactElement {
     setShowForm(true);
   };
 
-  const handleDelete = (addr: SavedAddress): void => {
-    Alert.alert(
-      'Delete Address',
-      `Are you sure you want to delete "${addr.label} — ${addr.fullAddress}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteMut.mutate(addr.id) },
-      ],
-    );
-  };
+  // Phase 14 R5-complete — ConfirmModal replaces Alert.alert for delete-address.
+  const [pendingDelete, setPendingDelete] = useState<SavedAddress | null>(null);
+  const handleDelete = (addr: SavedAddress): void => setPendingDelete(addr);
 
   const handleSetDefault = (addr: SavedAddress): void => {
     if (addr.isDefault) return;
@@ -342,6 +337,25 @@ export default function AddressesScreen(): React.ReactElement {
           </View>
         </>
       )}
+      {/* Phase 14 R5-complete — ConfirmModal for delete-address */}
+      <ConfirmModal
+        visible={pendingDelete !== null}
+        title="Delete Address"
+        message={
+          pendingDelete
+            ? `Are you sure you want to delete "${pendingDelete.label} — ${pendingDelete.fullAddress}"?`
+            : ''
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        destructive
+        loading={deleteMut.isPending}
+        onConfirm={() => {
+          if (pendingDelete) deleteMut.mutate(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </SafeAreaView>
   );
 }

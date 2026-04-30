@@ -24,6 +24,10 @@ import {
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle } from '@/components/icons';
+// Phase 14 R5-complete — NbiStatusBanner mounts at the top of the
+// certifications page so the provider sees expiry warnings on the
+// same screen where they manage cert documents.
+import NbiStatusBanner from '@/components/provider/NbiStatusBanner';
 
 type ModalMode = 'add' | 'edit' | null;
 
@@ -167,6 +171,8 @@ export default function CertificationsScreen(): React.ReactElement {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Phase 14 R5-complete — NbiStatusBanner (auto-hides when valid) */}
+      <NbiStatusBanner />
       <View style={styles.header}>
         <TouchableOpacity onPress={(): void => { router.back(); }} style={styles.backButton}>
           <Text style={styles.backIcon}>←</Text>

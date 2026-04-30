@@ -7,6 +7,11 @@ import { useAuthStore } from '@/stores/auth.store';
 import { Button, Input } from '@/components/ui';
 import { validatePHPhone, normalizePHPhone } from '@/utils/phone';
 import { colors, spacing, typography } from '@/config/theme';
+// Phase 14 R5-complete — PhoneInput cross-cutting component wired
+// into the login flow. Replaces the inline <Input> phone field with
+// the PhoneInput component (which renders the +63 country code chip
+// + the formatted input + the validation error inline).
+import PhoneInput from '@/components/PhoneInput';
 
 export default function LoginScreen(): React.ReactElement {
   const router = useRouter();
@@ -50,18 +55,22 @@ export default function LoginScreen(): React.ReactElement {
       </View>
 
       <View style={styles.form}>
-        <Input
-          label="Mobile Number"
-          placeholder="+63 9XX XXX XXXX"
+        {/* Phase 14 R5-complete — PhoneInput component */}
+        <PhoneInput
           value={phone}
-          onChangeText={(text) => {
+          onChange={(text) => {
             setPhone(text);
             setError('');
           }}
-          keyboardType="phone-pad"
-          autoFocus
-          error={error}
+          label="Mobile Number"
+          errorVisible={error.length > 0}
+          testID="login-phone-input"
         />
+        {error.length > 0 && (
+          <Text style={{ color: colors.error, ...typography.bodySmall, marginTop: spacing.xs }}>
+            {error}
+          </Text>
+        )}
 
         <Button
           title="Send Verification Code"

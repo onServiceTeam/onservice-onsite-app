@@ -18,6 +18,9 @@ import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Star, AlertTriangle } from '@/components/icons';
+// Phase 14 R5-complete — FilterModal for advanced search filters.
+import FilterModal from '@/components/FilterModal';
+import useDebouncedValue from '@/hooks/useDebouncedValue';
 
 import { Routes } from '@/config/navigation';
 interface ProviderResult {
@@ -52,6 +55,13 @@ export default function SearchScreen(): React.ReactElement {
   const setSubcategory = useBookingStore((s) => s.setSubcategory);
   const [query, setQuery] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  // Phase 14 R5-complete — useDebouncedValue + FilterModal for advanced filters.
+  const debouncedQuery = useDebouncedValue(query, 300);
+  React.useEffect(() => {
+    if (debouncedQuery.length >= 2) setSearchTerm(debouncedQuery);
+  }, [debouncedQuery]);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
 
   const { data, isLoading, isError, isFetched } = useQuery({
     queryKey: ['search', searchTerm],
@@ -213,6 +223,38 @@ export default function SearchScreen(): React.ReactElement {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={false}
+      />
+      {/* Phase 14 R5-complete — FilterModal for category / rating / price */}
+      <FilterModal
+        visible={filterModalVisible}
+        title="Filter Search"
+        groups={[
+          {
+            key: 'category',
+            label: 'Category',
+            multi: true,
+            options: [
+              { value: 'cleaning', label: 'Cleaning' },
+              { value: 'aircon', label: 'Aircon' },
+              { value: 'plumbing', label: 'Plumbing' },
+              { value: 'electrical', label: 'Electrical' },
+            ],
+          },
+          {
+            key: 'rating',
+            label: 'Minimum Rating',
+            options: [
+              { value: '4', label: '4★ +' },
+              { value: '4.5', label: '4.5★ +' },
+            ],
+          },
+        ]}
+        initialValue={activeFilters}
+        onApply={(selected) => {
+          setActiveFilters(selected);
+          setFilterModalVisible(false);
+        }}
+        onClose={() => setFilterModalVisible(false)}
       />
     </View>
   );

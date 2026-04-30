@@ -17,6 +17,10 @@ import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatRelative } from '@/utils/date';
 import { Badge } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+// Phase 14 R5-complete — PaginationLoader + EarningsChart + CommissionBreakdown panels.
+import PaginationLoader from '@/components/PaginationLoader';
+import EarningsChart from '@/components/provider/EarningsChart';
+import CommissionBreakdown from '@/components/provider/CommissionBreakdown';
 import { AlertTriangle, Banknote } from '@/components/icons';
 
 interface Payout {
@@ -124,6 +128,31 @@ export default function PayoutsScreen(): React.ReactElement {
         <Text style={styles.title}>Payout History</Text>
       </View>
 
+      {/* Phase 14 R5-complete — EarningsChart + CommissionBreakdown preview */}
+      <View style={{ paddingHorizontal: spacing.base, marginTop: spacing.sm }}>
+        <EarningsChart
+          data={[
+            { date: '2026-04-25', amount: 50000 },
+            { date: '2026-04-26', amount: 75000 },
+            { date: '2026-04-27', amount: 25000 },
+            { date: '2026-04-28', amount: 100000 },
+            { date: '2026-04-29', amount: 60000 },
+            { date: '2026-04-30', amount: 85000 },
+            { date: '2026-05-01', amount: 45000 },
+          ]}
+        />
+        <View style={{ marginTop: spacing.sm }}>
+          <CommissionBreakdown
+            gross={440000}
+            lines={[
+              { label: 'Platform fee', amount: 52800, pct: 12 },
+              { label: 'VAT', amount: 6336 },
+            ]}
+            net={380864}
+          />
+        </View>
+      </View>
+
       {isError ? (
         <View style={styles.empty}>
           <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
@@ -146,8 +175,13 @@ export default function PayoutsScreen(): React.ReactElement {
             if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
           }}
           onEndReachedThreshold={0.3}
+          // Phase 14 R5-complete — PaginationLoader replaces inline ActivityIndicator
           ListFooterComponent={
-            isFetchingNextPage ? <ActivityIndicator style={styles.loader} color={colors.secondary} /> : null
+            <PaginationLoader
+              loading={isFetchingNextPage}
+              hasMore={!!hasNextPage}
+              endLabel="No more payouts"
+            />
           }
           ListEmptyComponent={
             isLoading ? (

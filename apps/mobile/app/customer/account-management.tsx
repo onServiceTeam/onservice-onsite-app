@@ -17,6 +17,8 @@ import {
 } from '@/services/data-management.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Package, AlertTriangle, CheckCircle2, XCircle, Hourglass } from '@/components/icons';
+// Phase 14 R5-complete — wire ConfirmModal into delete-account destructive flow.
+import ConfirmModal from '@/components/ConfirmModal';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-PH', {
@@ -94,20 +96,10 @@ export default function AccountManagementScreen(): React.ReactElement {
   const activeDeletion: AccountDeletionEntry | null = deletionQuery.data ?? null;
   const hasPendingDeletion = activeDeletion && ['cooling_off', 'processing'].includes(activeDeletion.status);
 
-  const handleConfirmDelete = (): void => {
-    Alert.alert(
-      'Delete Account',
-      'This will schedule your account for permanent deletion after a 30-day cooling-off period. You must have no active bookings and zero wallet balance. Are you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete My Account',
-          style: 'destructive',
-          onPress: () => deleteMutation.mutate(),
-        },
-      ],
-    );
-  };
+  // Phase 14 R5-complete — ConfirmModal replaces Alert.alert for the
+  // destructive delete-account flow.
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const handleConfirmDelete = (): void => setShowDeleteConfirm(true);
 
   const handleCancelDeletion = (): void => {
     Alert.alert('Keep Account', 'Cancel the deletion request and keep your account?', [
@@ -277,6 +269,21 @@ export default function AccountManagementScreen(): React.ReactElement {
           )}
         </View>
       </ScrollView>
+      {/* Phase 14 R5-complete — ConfirmModal for delete-account */}
+      <ConfirmModal
+        visible={showDeleteConfirm}
+        title="Delete Account"
+        message="This will schedule your account for permanent deletion after a 30-day cooling-off period. You must have no active bookings and zero wallet balance."
+        confirmLabel="Delete My Account"
+        cancelLabel="Cancel"
+        destructive
+        loading={deleteMutation.isPending}
+        onConfirm={() => {
+          deleteMutation.mutate();
+          setShowDeleteConfirm(false);
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </SafeAreaView>
   );
 }

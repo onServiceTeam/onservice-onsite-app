@@ -7,6 +7,9 @@ import { Button, Input } from '@/components/ui';
 import api from '@/services/api';
 import type { ApiResponse } from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+// Phase 14 R5-complete — Avatar + PhoneInput cross-cutting components.
+import Avatar from '@/components/Avatar';
+import PhoneInput from '@/components/PhoneInput';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
 import { MapPin, CreditCard, Bell, HelpCircle, FileText, KeyRound } from '@/components/icons';
@@ -111,11 +114,11 @@ export default function ProfileScreen(): React.ReactElement {
       <Text style={styles.title}>Profile</Text>
 
       <View style={styles.userCard}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {user?.firstName?.[0]?.toUpperCase() ?? '?'}
-          </Text>
-        </View>
+        {/* Phase 14 R5-complete — Avatar with initials fallback */}
+        <Avatar
+          name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || undefined}
+          size={64}
+        />
         {editing ? (
           <View style={styles.editForm}>
             <Input
@@ -129,6 +132,19 @@ export default function ProfileScreen(): React.ReactElement {
               value={lastName}
               onChangeText={setLastName}
               autoCapitalize="words"
+            />
+            {/* Phase 14 R5-complete — PhoneInput (read-only display via value prop;
+                actual phone change requires OTP re-verification — separate flow). */}
+            <PhoneInput
+              value={user?.phone ?? ''}
+              onChange={() => {
+                Alert.alert(
+                  'Change Phone',
+                  'Phone number changes require OTP re-verification. This feature is in development.',
+                );
+              }}
+              label="Mobile Number"
+              testID="profile-phone-input"
             />
             <View style={styles.editActions}>
               <Button title="Save" onPress={handleSaveProfile} loading={saving} size="sm" />
