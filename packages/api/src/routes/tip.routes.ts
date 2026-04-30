@@ -1,11 +1,35 @@
-import { Router, Response, NextFunction } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { sendTipSchema } from '../validators/tip.validators';
 import * as tipService from '../services/tip.service';
+import { getSettingNumber } from '../services/settings.service';
 import { createAppError } from '../middleware/error.middleware';
 
 const router = Router();
+
+// Phase 14 Dispatch 05 — Bug 417.
+// Public endpoint exposing the current tip min/max from platform_settings.
+// Mobile checkout/tip screens fetch this instead of computing the cap
+// from the booking's servicePrice (the original Bug 417: "tip cap is
+// service price (100%)").
+router.get(
+  '/limits',
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const maxCents = await getSettingNumber('tip_max_amount_cents');
+      res.json({
+        success: true,
+        data: {
+          minCents: 100, // ₱1.00 — implicit floor (positive, integer)
+          maxCents: Number.isFinite(maxCents) && maxCents > 0 ? maxCents : 500_000,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 router.post(
   '/',
