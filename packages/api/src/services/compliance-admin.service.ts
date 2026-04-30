@@ -223,8 +223,10 @@ export async function rejectDsr(input: {
 }): Promise<DsrActionResult> {
   if (!input.dsrId) throw createAppError('dsrId is required.', 400);
   if (!input.adminUserId) throw createAppError('adminUserId is required.', 400);
-  if (!input.reason || input.reason.trim().length < 20) {
-    throw createAppError('Rejection reason must be at least 20 characters.', 400);
+  // Phase 14 Dispatch 08 — Bug 397. Tightened from 20 → 30 chars per
+  // NPC RA 10173 audit-trail requirements.
+  if (!input.reason || input.reason.trim().length < 30) {
+    throw createAppError('Rejection reason must be at least 30 characters.', 400);
   }
 
   const current = await loadDsr(input.dsrId);
@@ -270,8 +272,16 @@ export async function escalateDsrToNpc(input: {
 }): Promise<DsrActionResult> {
   if (!input.dsrId) throw createAppError('dsrId is required.', 400);
   if (!input.adminUserId) throw createAppError('adminUserId is required.', 400);
-  if (!input.npcReference || input.npcReference.trim().length < 3) {
-    throw createAppError('npcReference is required.', 400);
+  // Phase 14 Dispatch 08 — Bug 398. NPC complaint references in PH
+  // follow `NPC-YYYY-XXXXXX` format (NPC-2026-A1B2C3 etc.). Without a
+  // valid format, escalation is just a status flip with no follow-
+  // through capability.
+  const npcRefTrimmed = (input.npcReference ?? '').trim();
+  if (!/^NPC-\d{4}-[A-Z0-9]{6,}$/.test(npcRefTrimmed)) {
+    throw createAppError(
+      'npcReference must match NPC-YYYY-XXXXXX format (e.g., NPC-2026-A1B2C3).',
+      400,
+    );
   }
 
   const current = await loadDsr(input.dsrId);
@@ -279,7 +289,7 @@ export async function escalateDsrToNpc(input: {
     throw createAppError(`Cannot escalate a ${current.status} request.`, 409);
   }
 
-  const ref = input.npcReference.trim();
+  const ref = npcRefTrimmed;
   const newNotes = appendNote(current.admin_notes, `Escalated to NPC: ${ref}`);
   const nextStatus = current.status === 'received' ? 'in_progress' : current.status;
 

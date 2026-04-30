@@ -403,6 +403,7 @@ export async function getRevenueReport(
 
 export async function getAdminActions(
   filters: { adminId?: string; actionType?: string; page: number; pageSize: number },
+  viewerRole?: string,
 ): Promise<{ actions: AdminActionRow[]; total: number }> {
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -431,7 +432,14 @@ export async function getAdminActions(
     [...params, filters.pageSize, offset],
   );
 
-  return { actions: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
+  // Phase 14 Dispatch 08 — Bug 66 + 75 + 76 + 81 + 311 + 331.
+  // Apply role-aware PII masking before returning. super_admin sees raw;
+  // dpo sees masked UA + raw IP; everyone else sees fully masked.
+  const { maskPiiForRole } = await import('../utils/pii-mask');
+  const role = viewerRole ?? 'admin';
+  const masked = dataResult.rows.map((row) => maskPiiForRole(row as unknown as { details?: Record<string, unknown> }, role)) as unknown as AdminActionRow[];
+
+  return { actions: masked, total: Number(countResult.rows[0]?.count ?? 0) };
 }
 
 export function formatProvider(p: ProviderAdminRow): Record<string, unknown> {

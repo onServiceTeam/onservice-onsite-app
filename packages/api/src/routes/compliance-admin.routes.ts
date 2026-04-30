@@ -5,6 +5,7 @@
 
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { requireDpoRole } from '../middleware/require-dpo.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import * as compliance from '../services/compliance.service';
 import * as complianceAdmin from '../services/compliance-admin.service';
@@ -41,12 +42,16 @@ function parseBool(value: unknown): boolean | undefined {
 
 // ─── Consent ────────────────────────────────────────────────────────────────
 
+// Phase 14 Dispatch 08 — Bug 402: searchConsent must be DPO-only.
+// Pre-D08 every admin role could query consent records (NPC violation).
+// Post-D08: requireDpoRole enforces super_admin or dpo. The query itself
+// is audit-logged so DPO searches are themselves traceable.
 router.get(
   '/consent',
   authMiddleware,
+  requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const data = await compliance.searchConsent({
         userId: parseString(req.query.userId),
         consentType: parseString(req.query.consentType),
@@ -54,6 +59,32 @@ router.get(
         limit: parseInt32(req.query.limit),
         offset: parseInt32(req.query.offset),
       });
+
+      // Self-audit the consent search (Bug 402 doctrine — sensitive
+      // searches are themselves audit-logged).
+      const { db } = await import('../models/db');
+      await db.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+         VALUES ($1, 'consent_search', 'user', $2, $3::jsonb, $4, $5)`,
+        [
+          req.user!.userId,
+          parseString(req.query.userId) ?? null,
+          JSON.stringify({
+            filters: {
+              userId: parseString(req.query.userId) ?? null,
+              consentType: parseString(req.query.consentType) ?? null,
+              version: parseString(req.query.version) ?? null,
+            },
+            resultCount: Array.isArray((data as { rows?: unknown[] }).rows)
+              ? (data as { rows: unknown[] }).rows.length
+              : null,
+          }),
+          `DPO consent search: userId=${parseString(req.query.userId) ?? 'all'}`,
+          `DPO consent search: filter=${JSON.stringify(req.query)}`,
+        ],
+      );
+
       res.json({ success: true, data });
     } catch (error) { next(error); }
   },
@@ -136,14 +167,38 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const csv = await compliance.exportAuditLogCsv({
+      const filters = {
         userId: parseString(req.query.userId),
         action: parseString(req.query.action),
         entityType: parseString(req.query.entityType),
         from: parseString(req.query.from),
         to: parseString(req.query.to),
         limit: parseInt32(req.query.limit),
-      });
+      };
+      const csv = await compliance.exportAuditLogCsv(filters);
+
+      // Phase 14 Dispatch 08 — Bug 401. Audit-log CSV exports are
+      // themselves audit-logged. Without this, an admin can extract
+      // the full audit trail with no record of the extraction.
+      const { db } = await import('../models/db');
+      const rowCount = (csv.match(/\n/g) ?? []).length - 1; // subtract header
+      await db.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+         VALUES ($1, 'audit_log_exported', 'system', NULL, $2::jsonb, $3, $4)`,
+        [
+          req.user!.userId,
+          JSON.stringify({
+            filter: filters,
+            row_count: Math.max(0, rowCount),
+            ip_address: req.ip,
+            user_agent: req.headers['user-agent'] ?? null,
+          }),
+          `CSV export: ${Math.max(0, rowCount)} rows`,
+          `Filter: ${JSON.stringify(filters)}. Exported ${Math.max(0, rowCount)} rows.`,
+        ],
+      );
+
       const dateStr = new Date().toISOString().slice(0, 10);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="audit-log-${dateStr}.csv"`);
