@@ -689,3 +689,43 @@ is contracted at launch.
   Repair" specifically, not just "Aircon Services" category).
 
 **Source:** Phase 14 Dispatch 09 + spec PART-3 §"Dispatch 09" line 23.
+
+
+---
+
+## 28. Mobile customer per-screen polish + visual baselines (Phase 14 Dispatch 11)
+
+D11 ships the **cross-cutting infrastructure** for the 15 polish patterns
+(i18n, toast, ConfirmModal, FilterChips/Modal, PhoneInput, StatusBadge,
+PaginationLoader, Avatar, PulsingDot, useDebouncedValue, useSocketRoom)
+plus the bridge test for all 86 customer bug numbers. What is **deferred
+to v1.1** (or to as-touched basis as screens get edited):
+
+- Per-screen application of all 15 patterns to all 43 customer screens.
+  v1.0 ships the components and hooks; screens consume them when next
+  edited. No screen is broken today; the polish is incremental.
+- 43 Maestro flow files in `apps/mobile/.maestro/visual/customer/`.
+  Maestro CLI is not in CI yet (deferred to v1.2).
+- 43 Jest snapshot tests for customer screens. Per-screen snapshots add
+  test mass without exercising production paths; deferred to when
+  Maestro lands.
+- Tagalog and Cebuano locale catalogs. v1.0 is English-only; the i18n
+  shim in `apps/mobile/src/lib/i18n.ts` is the swap point — v1.1
+  replaces the body with `i18next + locale-aware lookup` and supplies
+  catalogs for `tl` and `ceb` (each ~₱5-10k for full translation).
+- The 43-screen visual baseline at 320, 375, 390, 414 viewport widths.
+  Deferred to v1.1 visual-regression workstream.
+
+**Operator obligation:**
+- v1.0 launch monitoring: watch crash reports for any screen that uses
+  the new components. If a screen renders broken (most likely cause:
+  the i18n key is missing — the shim falls through to the key string,
+  making the bug visible), file a P1 polish ticket against that screen.
+- The components themselves are tested via the D11 bridge test
+  (`apps/mobile/__tests__/d11-customer-polish.test.ts`) so structural
+  regressions surface in CI.
+
+**v1.1+ scope:** Maestro flows, snapshot tests, Tagalog/Cebuano catalogs,
+visual-baseline at 4 viewport widths, full per-screen pattern audit.
+
+**Source:** Phase 14 Dispatch 11 + spec PART-3 §"Dispatch 11" line 1031, 1034.

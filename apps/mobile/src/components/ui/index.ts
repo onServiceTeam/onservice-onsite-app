@@ -14,3 +14,14 @@ export { ErrorState } from './ErrorState';
 export { LazyImage } from './LazyImage';
 export { OfflineBanner } from './OfflineBanner';
 export { OptimizedList } from './OptimizedList';
+
+// Phase 14 Dispatch 11 — re-exports of cross-cutting components added at
+// `src/components/` so screen authors can keep a single import path.
+export { ConfirmModal } from '../ConfirmModal';
+export { PhoneInput, PH_MOBILE_REGEX, normalizePhilippineMobile } from '../PhoneInput';
+export { StatusBadge } from '../StatusBadge';
+export { PaginationLoader } from '../PaginationLoader';
+export { Avatar } from '../Avatar';
+export { PulsingDot } from '../PulsingDot';
+export { FilterChips } from '../FilterChips';
+export { FilterModal } from '../FilterModal';

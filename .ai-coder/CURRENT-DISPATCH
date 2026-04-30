@@ -1,8 +1,8 @@
-dispatch: D08
-branch: phase/14-d08-npc-compliance
-status: closeout-written; ready for push + PR + autoproceed to D09
+dispatch: D11
+branch: phase/14-d11-mobile-customer-polish
+status: in-progress; i18n shim created, building remaining cross-cutting components + bridge test
 operating-mode: autonomous between dispatches + full audit chain
 session-started: 2026-04-30 (continuing same session through D07-D14 per Ken's instruction)
-prior-dispatches: D03+D04+D05+D06+D07 merged. Tags v0.14.0-d{03-07}-complete on master.
+prior-dispatches: D03+D04+D05+D06+D07+D08+D09+D10 merged. Tags v0.14.0-d{03-10}-complete on master.
 
-next-subtask: 18 (push + PR + self-merge + tag + autoproceed to D09)
+next-subtask: build remaining components (ConfirmModal, FilterChips/Modal, PhoneInput, StatusBadge, PaginationLoader, Avatar, PulsingDot, useDebouncedValue, useSocketRoom), then bridge test for 86 customer bugs, then closeout + PR + merge + tag v0.14.0-d11-complete
