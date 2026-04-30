@@ -36,9 +36,10 @@ if (!TaskManager.isTaskDefined(TASK_NAME)) {
     try {
       // Defer to runtime imports so the task body works when re-loaded
       // post-background relaunch even if module graphs differ.
-      const { default: secureStorage } = await import('@/services/secure-storage');
-      const { api } = await import('@/services/api');
-      const bookingId = await secureStorage.getString('active-job-id');
+      const secureStorage = await import('@/services/secure-storage');
+      const apiModule = await import('@/services/api');
+      const api = apiModule.default;
+      const bookingId = secureStorage.getSecureItem('active-job-id');
       const locations = (data as { locations?: Location.LocationObject[] } | undefined)?.locations;
       const last = locations?.[locations.length - 1];
       if (!bookingId || !last) return;
@@ -73,8 +74,8 @@ export function useJobGpsBroadcast(
       try {
         const { status: perm } = await Location.requestBackgroundPermissionsAsync();
         if (perm !== 'granted' || !alive) return;
-        const { default: secureStorage } = await import('@/services/secure-storage');
-        await secureStorage.setString('active-job-id', bookingId);
+        const secureStorage = await import('@/services/secure-storage');
+        secureStorage.setSecureItem('active-job-id', bookingId);
         await Location.startLocationUpdatesAsync(TASK_NAME, {
           accuracy: Location.Accuracy.High,
           timeInterval: 10_000,
@@ -96,8 +97,8 @@ export function useJobGpsBroadcast(
       try {
         const isActive = await Location.hasStartedLocationUpdatesAsync(TASK_NAME);
         if (isActive) await Location.stopLocationUpdatesAsync(TASK_NAME);
-        const { default: secureStorage } = await import('@/services/secure-storage');
-        await secureStorage.delete('active-job-id');
+        const secureStorage = await import('@/services/secure-storage');
+        secureStorage.removeSecureItem('active-job-id');
       } catch (err) {
         logger.warn('gps_stop_failed', {
           error: err instanceof Error ? err.message : String(err),

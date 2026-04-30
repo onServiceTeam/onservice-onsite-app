@@ -45,8 +45,9 @@ export function NbiStatusBanner({
   const query = useQuery<NbiStatusResponse>({
     queryKey: ['provider-nbi-status'],
     queryFn: fetcher ?? (async () => {
-      const { api } = await import('@/services/api');
-      return api.get<NbiStatusResponse>('/api/v1/provider/nbi-status');
+      const apiModule = await import('@/services/api');
+      const res = await apiModule.default.get<NbiStatusResponse['data']>('/api/v1/provider/nbi-status');
+      return { data: res.data };
     }),
     staleTime: 15 * 60_000,
   });

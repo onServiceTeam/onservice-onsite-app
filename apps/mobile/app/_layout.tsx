@@ -4,7 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
-import * as Sentry from '@sentry/react-native';
+import { init as sentryInit, wrap as sentryWrap } from '@sentry/react-native';
+import { captureException as sentryCaptureException } from '@sentry/core';
 import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePushNotifications } from '@/services/push.service';
@@ -15,7 +16,7 @@ import { OfflineBanner } from '@/components/ui';
 
 const sentryDsn = Constants.expoConfig?.extra?.sentryDsn as string | undefined;
 if (sentryDsn) {
-  Sentry.init({
+  sentryInit({
     dsn: sentryDsn,
     environment: __DEV__ ? 'development' : 'production',
     tracesSampleRate: __DEV__ ? 1.0 : 0.2,
@@ -67,7 +68,7 @@ function RootLayout(): React.ReactElement {
         // the app falls through to a logged-out state and the user can sign
         // in fresh. Without this guard, a corrupted keychain would brick the
         // app on launch.
-        Sentry.captureException(err);
+        sentryCaptureException(err);
       }
       if (!alive) return;
       hydrate();
@@ -114,4 +115,4 @@ const styles = StyleSheet.create({
   bootLoader: { alignItems: 'center', justifyContent: 'center' },
 });
 
-export default sentryDsn ? Sentry.wrap(RootLayout) : RootLayout;
+export default sentryDsn ? sentryWrap(RootLayout) : RootLayout;

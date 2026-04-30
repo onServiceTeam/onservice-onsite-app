@@ -38,17 +38,17 @@ export function useStatusMutation<TData = unknown, TVar = void>(
       await Haptics.impactAsync(style).catch(() => undefined);
       return rest.onMutate?.(...args);
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
         () => undefined,
       );
-      return rest.onSuccess?.(data, variables, context);
+      return rest.onSuccess?.(data, variables, onMutateResult, context);
     },
-    onError: async (error, variables, context) => {
+    onError: async (error, variables, onMutateResult, context) => {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(
         () => undefined,
       );
-      return rest.onError?.(error, variables, context);
+      return rest.onError?.(error, variables, onMutateResult, context);
     },
   });
 }

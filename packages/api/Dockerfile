@@ -10,7 +10,7 @@ COPY package.json package-lock.json ./
 COPY packages/api/package.json packages/api/
 COPY tsconfig.json ./
 
-RUN npm ci --workspace=packages/api --include-workspace-root --ignore-scripts
+RUN npm ci --workspace=packages/api --include-workspace-root --ignore-scripts --legacy-peer-deps
 
 FROM deps AS build
 
