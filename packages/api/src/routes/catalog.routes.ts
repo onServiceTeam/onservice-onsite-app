@@ -230,16 +230,15 @@ router.post(
       const { name, description, iconUrl, displayOrder } = req.body;
       if (typeof name !== 'string' || !name.trim()) throw createAppError('Name is required.', 400);
 
-      const slug = slugify(name);
-      const result = await db.query<CategoryRow>(
-        `INSERT INTO service_categories (name, slug, description, icon_url, display_order)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *`,
-        [name.trim(), slug, description ?? '', iconUrl ?? null, displayOrder ?? 0],
+      // Phase 14 Dispatch 06 — Bug 237: delegate to transactional service.
+      const row = await catalogService.createCategory(
+        { name, description, iconUrl, displayOrder },
+        req.user!.userId,
       );
 
+      // gate-c-allowed: post-commit-cache-invalidation
       await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
-      res.status(201).json({ success: true, data: formatCategory(result.rows[0]!) });
+      res.status(201).json({ success: true, data: formatCategory(row) });
     } catch (error) {
       next(error);
     }
@@ -256,31 +255,15 @@ router.put(
       if (typeof id !== 'string') throw createAppError('Category ID is required.', 400);
 
       const { name, description, iconUrl, displayOrder, isActive } = req.body;
-      const sets: string[] = [];
-      const params: unknown[] = [];
-      let idx = 1;
-
-      if (name !== undefined) {
-        sets.push(`name = $${idx++}`, `slug = $${idx++}`);
-        params.push(name, slugify(name));
-      }
-      if (description !== undefined) { sets.push(`description = $${idx++}`); params.push(description); }
-      if (iconUrl !== undefined) { sets.push(`icon_url = $${idx++}`); params.push(iconUrl); }
-      if (displayOrder !== undefined) { sets.push(`display_order = $${idx++}`); params.push(displayOrder); }
-      if (isActive !== undefined) { sets.push(`is_active = $${idx++}`); params.push(isActive); }
-
-      if (sets.length === 0) throw createAppError('No fields to update.', 400);
-      sets.push(`updated_at = NOW()`);
-      params.push(id);
-
-      const result = await db.query<CategoryRow>(
-        `UPDATE service_categories SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
-        params,
+      const row = await catalogService.updateCategory(
+        id,
+        { name, description, iconUrl, displayOrder, isActive },
+        req.user!.userId,
       );
-      if (result.rows.length === 0) throw createAppError('Category not found.', 404);
 
+      // gate-c-allowed: post-commit-cache-invalidation
       await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
-      res.json({ success: true, data: formatCategory(result.rows[0]!) });
+      res.json({ success: true, data: formatCategory(row) });
     } catch (error) {
       next(error);
     }
@@ -297,17 +280,14 @@ router.post(
       if (typeof name !== 'string' || !name.trim()) throw createAppError('Name is required.', 400);
       if (typeof categoryId !== 'string') throw createAppError('Category ID is required.', 400);
 
-      const slug = slugify(name);
-      const result = await db.query<SubcategoryRow>(
-        `INSERT INTO service_subcategories
-           (category_id, name, slug, description, pricing_type, base_price, min_price, max_price, estimated_duration_minutes, display_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         RETURNING *`,
-        [categoryId, name.trim(), slug, description ?? '', pricingType ?? 'fixed', basePrice ?? null, minPrice ?? null, maxPrice ?? null, estimatedDurationMinutes ?? null, displayOrder ?? 0],
+      const row = await catalogService.createSubcategory(
+        { categoryId, name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, displayOrder },
+        req.user!.userId,
       );
 
+      // gate-c-allowed: post-commit-cache-invalidation
       await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
-      res.status(201).json({ success: true, data: formatSubcategory(result.rows[0]!) });
+      res.status(201).json({ success: true, data: formatSubcategory(row) });
     } catch (error) {
       next(error);
     }
@@ -324,35 +304,15 @@ router.put(
       if (typeof id !== 'string') throw createAppError('Subcategory ID is required.', 400);
 
       const { name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, displayOrder, isActive } = req.body;
-      const sets: string[] = [];
-      const params: unknown[] = [];
-      let idx = 1;
-
-      if (name !== undefined) {
-        sets.push(`name = $${idx++}`, `slug = $${idx++}`);
-        params.push(name, slugify(name));
-      }
-      if (description !== undefined) { sets.push(`description = $${idx++}`); params.push(description); }
-      if (pricingType !== undefined) { sets.push(`pricing_type = $${idx++}`); params.push(pricingType); }
-      if (basePrice !== undefined) { sets.push(`base_price = $${idx++}`); params.push(basePrice); }
-      if (minPrice !== undefined) { sets.push(`min_price = $${idx++}`); params.push(minPrice); }
-      if (maxPrice !== undefined) { sets.push(`max_price = $${idx++}`); params.push(maxPrice); }
-      if (estimatedDurationMinutes !== undefined) { sets.push(`estimated_duration_minutes = $${idx++}`); params.push(estimatedDurationMinutes); }
-      if (displayOrder !== undefined) { sets.push(`display_order = $${idx++}`); params.push(displayOrder); }
-      if (isActive !== undefined) { sets.push(`is_active = $${idx++}`); params.push(isActive); }
-
-      if (sets.length === 0) throw createAppError('No fields to update.', 400);
-      sets.push(`updated_at = NOW()`);
-      params.push(id);
-
-      const result = await db.query<SubcategoryRow>(
-        `UPDATE service_subcategories SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
-        params,
+      const row = await catalogService.updateSubcategory(
+        id,
+        { name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, displayOrder, isActive },
+        req.user!.userId,
       );
-      if (result.rows.length === 0) throw createAppError('Subcategory not found.', 404);
 
+      // gate-c-allowed: post-commit-cache-invalidation
       await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
-      res.json({ success: true, data: formatSubcategory(result.rows[0]!) });
+      res.json({ success: true, data: formatSubcategory(row) });
     } catch (error) {
       next(error);
     }
@@ -406,12 +366,12 @@ router.post(
         displayOrder?: number;
       };
 
-      const result = await db.query(
-        `INSERT INTO service_addons (subcategory_id, name, description, price, display_order)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [subcategoryId, name.trim(), description ?? '', price, displayOrder ?? 0],
+      const a = await catalogService.createAddon(
+        { subcategoryId, name, description, price, displayOrder },
+        req.user!.userId,
       );
-      const a = result.rows[0] as { id: string; subcategory_id: string; name: string; description: string; price: number; is_active: boolean; display_order: number };
+
+      // gate-c-allowed: post-commit-cache-invalidation
       await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
       res.status(201).json({
         success: true,
@@ -440,26 +400,14 @@ router.put(
         displayOrder?: number;
         isActive?: boolean;
       };
-      const sets: string[] = [];
-      const params: unknown[] = [];
-      let idx = 1;
 
-      if (name !== undefined) { sets.push(`name = $${idx++}`); params.push(name); }
-      if (description !== undefined) { sets.push(`description = $${idx++}`); params.push(description); }
-      if (price !== undefined) { sets.push(`price = $${idx++}`); params.push(price); }
-      if (displayOrder !== undefined) { sets.push(`display_order = $${idx++}`); params.push(displayOrder); }
-      if (isActive !== undefined) { sets.push(`is_active = $${idx++}`); params.push(isActive); }
-
-      if (sets.length === 0) throw createAppError('No fields to update.', 400);
-      sets.push('updated_at = NOW()');
-      params.push(id);
-
-      const result = await db.query(
-        `UPDATE service_addons SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
-        params,
+      const a = await catalogService.updateAddon(
+        id,
+        { name, description, price, displayOrder, isActive },
+        req.user!.userId,
       );
-      if (result.rows.length === 0) throw createAppError('Add-on not found.', 404);
-      const a = result.rows[0] as { id: string; subcategory_id: string; name: string; description: string; price: number; is_active: boolean; display_order: number };
+
+      // gate-c-allowed: post-commit-cache-invalidation
       await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
       res.json({
         success: true,
@@ -480,11 +428,10 @@ router.delete(
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Add-on ID is required.', 400);
 
-      const result = await db.query(
-        `UPDATE service_addons SET is_active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id`,
-        [id],
-      );
-      if (result.rowCount === 0) throw createAppError('Add-on not found.', 404);
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+      await catalogService.deleteAddon(id, req.user!.userId, reason);
+
+      // gate-c-allowed: post-commit-cache-invalidation
       await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
       res.json({ success: true, data: { message: 'Add-on deactivated.' } });
     } catch (error) {
