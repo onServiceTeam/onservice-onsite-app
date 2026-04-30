@@ -1,39 +1,13 @@
 dispatch: D06
 branch: phase/14-d06-money-in-transaction
-status: planning-only (handoff to fresh session)
+status: closeout-written; ready for push + PR + autoproceed to D07
 operating-mode: autonomous between dispatches + full audit chain
-session-started: 2026-04-30 (D05 merged, D06 handoff written; D06 implementation deferred to fresh session)
+session-started: 2026-04-30 (D05 merged at 143ce37; D06 implementation completed in fresh session)
 prior-dispatches: D03 + D04 + D05 merged to master; tags v0.14.0-d03-complete (6a27ade) + v0.14.0-d04-complete (808208f) + v0.14.0-d05-complete (143ce37). Branch protection restored after each merge (enforce_admins=true, 1 review, conversation_resolution=true).
 
-# D06 — Transactional Audit Completeness
+# D06 — Transactional Audit Completeness (CLOSEOUT WRITTEN)
 
-Source spec: `.ai-coder/phase-14/PART-3-BUG-REMEDIATION-DISPATCHES-05-06.md` §"Dispatch 06" (lines 1231 to end).
-Planning doc: `.ai-coder/dispatches/D06-plan.md` (the 14 bugs, file:line citations, transaction-wrapping pattern, migration list, cross-cutting concerns with D05, definition of done, fresh-session notes).
-Fresh session prompt: `.ai-coder/dispatches/D06-FRESH-SESSION-PROMPT.md` (one-shot paste block per the same rules as D05's prompt).
-Spec corrections inherited from D05: see `.ai-coder/dispatches/D05-closeout.md` §"Spec corrections applied" — 10 rows, all apply to D06. Most critical: spec uses Kysely transaction syntax; reality uses the existing pg-style `db.transaction(async (client) => ...)` helper at `packages/api/src/models/db.ts:17-37`. Translate every `db.transaction().execute((trx) => ...)` in PART-3 §06 to that helper.
+All 14 bugs closed + Migration 075 + Migration 076 + 2 adjacent real bugs fixed inline + gate logic rewritten + money-in-transaction promoted REPORT → BLOCKING.
 
-## Subtask list (run sequentially; each subtask is a coherent commit)
-
-Subtask 1 — start here in the fresh session:
-
-1. **Read + verify state.** Read `D05-closeout.md` §"Spec corrections applied" first. Read `EXECUTION-DISCIPLINE.md`, `AUTONOMOUS-EXECUTION-PROTOCOL.md`, `D06-plan.md`. Verify branch is `phase/14-d06-money-in-transaction` and HEAD equals master (`143ce37` at handoff time; rebase if master moved). Run `bash scripts/gates/run-gate-a.sh` and `bash scripts/gates/c-constitution.sh` — expect both green except `gate_c_articles.money-in-transaction` REPORT (the one D06 owns) and `article-16-closeout-exists` BLOCKING (mid-dispatch normal). Verify each function on the 14-bug list (in `D06-plan.md` §"Bug list") actually exists at the cited file:line; document any spec/reality function-name mismatches in a §"Spec corrections inherited + extended" addendum to `D06-plan.md`. Resolve the optional Migration 077 decision (`promo_redemptions` table — close D05's deferred per-customer promo limit, or defer to D07).
-2. **Migration 075 — admin_actions.full_notes column** (Bug 85 needs the full dispute-message body in audit, not truncated). Test: `packages/api/__tests__/migrations/075-admin-actions-full-notes.test.ts`. Commit: `feat(d06): migration 075 — admin_actions.full_notes for Bug 85`.
-3. **Migration 076 — soft-delete columns** on `provider_notes` / `business_members` / `admin_roles` (Bugs 80, 105, 127 use soft-delete instead of DELETE so the audit + the deletion stay in the same transaction without orphaning the FK). Test: `packages/api/__tests__/migrations/076-soft-delete-columns.test.ts`. Commit: `feat(d06): migration 076 — soft-delete columns for Bugs 80, 105, 127`.
-4. **(Optional, decide in subtask 1) Migration 077 — promo_redemptions table.** Closes D05's deferred per-customer promo limit. Schema in `D06-plan.md` §"Migration list". Commit: `feat(d06): migration 077 — promo_redemptions for D05 deferred per-customer enforcement`. Skip subtask if the decision was defer.
-5. **Bug 69** — wrap `cancelBookingAsAdmin` in `db.transaction`. File: `packages/api/src/services/booking.service.ts`. Test: `packages/api/__tests__/services/booking-cancel-admin-tx.test.ts:bug-69-rolls-back-on-audit-failure`. Commit: `fix(d06): wrap cancelBookingAsAdmin in db.transaction — Bug 69`.
-6. **Bug 70** — wrap `manualReleaseEscrow` in `db.transaction`. File: `packages/api/src/services/escrow.service.ts`. Commit: `fix(d06): wrap manualReleaseEscrow in db.transaction — Bug 70`.
-7. **Bug 71** — wrap `refundBookingEscrow` in `db.transaction`. File: `packages/api/src/services/escrow.service.ts`. Commit: `fix(d06): wrap refundBookingEscrow in db.transaction — Bug 71`.
-8. **Bug 78** — wrap `adjustProviderWallet` in `db.transaction`. File: `packages/api/src/services/provider.service.ts`. Commit: `fix(d06): wrap adjustProviderWallet in db.transaction — Bug 78`.
-9. **Bugs 79 + 80 + 82** — provider notes lifecycle in `db.transaction`. File: `packages/api/src/services/provider.service.ts` (3 functions). Bug 80 depends on migration 076 soft-delete. Commit: `fix(d06): wrap provider notes CRUD in db.transaction — Bug 79 + 80 + 82`.
-10. **Bug 83** — wrap `adminResolveDispute` in `db.transaction`. File: `packages/api/src/services/dispute.service.ts`. Commit: `fix(d06): wrap adminResolveDispute in db.transaction — Bug 83`.
-11. **Bugs 84 + 85** — escalateDispute + sendDisputeMessage in `db.transaction`. File: `packages/api/src/services/dispute.service.ts` (2 functions). Bug 85 depends on migration 075 (`admin_actions.full_notes`). Commit: `fix(d06): wrap dispute escalate + message in db.transaction — Bug 84 + 85`.
-12. **Bug 105** — wrap `business.removeMember` in `db.transaction` (soft delete). File: `packages/api/src/services/business.service.ts`. Depends on migration 076. Commit: `fix(d06): wrap business.removeMember in db.transaction (soft delete) — Bug 105`.
-13. **Bug 106** — wrap `business.transferOwnership` in `db.transaction`. File: `packages/api/src/services/business.service.ts`. Commit: `fix(d06): wrap business.transferOwnership in db.transaction — Bug 106`.
-14. **Bug 127** — wrap `roles.deleteRole` in `db.transaction` (soft delete). File: `packages/api/src/services/roles.service.ts`. Depends on migration 076. Commit: `fix(d06): wrap roles.deleteRole in db.transaction (soft delete) — Bug 127`.
-15. **Bug 237** — wrap `catalog.service` mutations in `db.transaction`. File: `packages/api/src/services/catalog.service.ts` (multiple mutating functions; verify exact set in subtask 1). Commit: `fix(d06): wrap catalog.service mutations in db.transaction — Bug 237`.
-16. **Promote `gate_c_articles.money-in-transaction` to BLOCKING** in `scripts/gates/MODES.json`. Update `scripts/gates/EXPECTED-FAILURES.md`. **CRITICAL ORDERING:** This subtask MUST be last before closeout. Promoting before all bug fixes land would cause D06's own PR to fail Gate C. Verify locally that `bash scripts/gates/c-constitution.sh` reports `money-in-transaction` passing before flipping the mode. Commit: `chore(d06): promote money-in-transaction to BLOCKING`.
-17. **Write D06 closeout** at `.ai-coder/dispatches/D06-closeout.md` per the template + standing-instruction §honesty-check (3 partial-failure scenarios manually traced, each ending with one of the two acceptable DB-state statements). Include §"Spec corrections inherited" linking to D05's mapping + any extensions found in subtask 1. Commit: `docs(d06): closeout`.
-18. **Run full local audit chain** (gates A–E + full api jest suite). Push. Open PR titled `Dispatch 06 — Transactional audit completeness (14 money-in-transaction bugs + new BLOCKING gate)`. Watch CI. Once green, autoproceed to D07 (Provider job execution trust) per autonomous protocol. D07 spec: `.ai-coder/phase-14/PART-3-BUG-REMEDIATION-DISPATCHES-07-08.md`.
-
-next-subtask: 1
-last-subtask-completed: 0 (planning-only state; D06 branch reset to master at 143ce37, awaiting fresh session)
+next-subtask: 18 (push + PR + autoproceed)
+last-subtask-completed: 17 (closeout written; gates A + C green at this commit; 1308 tests pass)

@@ -183,3 +183,39 @@ PRs queue for Ken:
 **Operating mode:** Autonomous between dispatches + full audit chain.
 
 **Intent:** Beginning D06 implementation per handoff doc. 14 bugs around money-in-transaction integrity (transactional audit completeness). Resolving 5 open verification questions during subtask 1. Per Ken's instruction: defer optional Migration 077 (promo_redemptions) to D07 to avoid scope creep.
+
+### What this session did
+
+1. **Subtask 1 — Spec corrections inherited + extended.** Verified all 14 functions against master HEAD `143ce37`. Found 15 spec/reality divergences (most notably: file moves to `*-admin.service.ts` post-Phase-13, `transferOwnership` doesn't exist as a planned-but-not-implemented feature, `roles.service.deleteRole` actually lives in `staff.service.ts`, gate's Kysely-pattern regex is vacuously passing because codebase uses raw pg). Wrote `D06-plan.md` §"Spec corrections inherited + extended" addendum with the full mapping. Resolved 5 open questions: defer Migration 077 to D07 per Ken; defer `processRecurringBookings` and `createBooking` transactionality to D07 (not on the 14-list); identified Bug 237 mutations live in route handlers not the service.
+2. **Subtasks 2-3 — Migrations 075 + 076.** 075 adds `admin_actions.full_notes TEXT` + extends action_type/target_type CHECK constraints with all 14 D06 verbs + 6 target types + composite admin/created_at index. 076 adds soft-delete columns (deleted_at/deleted_by/deleted_reason) to provider_admin_notes/business_members/admin_roles. 38 static-analysis tests pass.
+3. **Subtasks 5-7 — Booking-admin escrow path (Bugs 69, 70, 71).** Added trx-aware helpers `releaseEscrowInTransaction`, `refundFromEscrowInTransaction`, `handleCancellationInTransaction` to `escrow.service.ts` (additive — public APIs unchanged for back-compat). `cancelBookingAsAdmin`, `manualReleaseEscrow`, `refundBookingEscrow` each wrap helper + admin_actions in ONE transaction; OR issuance + gateway refund stay post-commit per Phase 08 documented pattern. Reusable `d06-tx-mock.ts` test helper with `makeRouter` pattern.
+4. **Subtasks 8-9 — Provider-admin path (Bugs 78, 79, 80, 82).** `adjustProviderWallet` already had db.transaction; added admin_actions audit inside it (Bug 78). `updateProviderProfile` (Bug 79), `createProviderNote` (Bug 82), `deleteProviderNote` (Bug 80) each wrap mutation + audit in one transaction. Bug 80 converts hard DELETE to soft-delete via migration 076 columns. Function signatures gain adminUserId; routes pass req.user.userId.
+5. **Subtasks 10-11 — Dispute path (Bugs 83, 84, 85).** Extracted `resolveDisputeInTransaction` from `dispute.service.resolveDispute` body. `adminResolveDispute` (Bug 83) opens own transaction, calls helper, inserts admin-level audit, runs post-commit escrow refund/release. `escalateDispute` (Bug 84) wrapped in db.transaction. `sendDisputeMessage` (Bug 85) extended to store full message body in `admin_actions.full_notes`.
+6. **Subtasks 12-13 — Business path (Bugs 105, 106).** `removeMember` (Bug 105) converted to soft-delete + audit in transaction; all read paths in business.service.ts gain `WHERE deleted_at IS NULL` filter. `transferOwnership` (Bug 106) implemented from scratch as transactional D06-pattern function — UPDATE business_accounts.owner_user_id + UPDATE both members' roles + admin_actions audit, all atomic.
+7. **Subtask 14 — staff.deleteRole (Bug 127).** Soft-delete + audit in transaction. listRoles + getRoleById filter `WHERE deleted_at IS NULL`.
+8. **Subtask 15 — Catalog mutations (Bug 237).** Extracted seven mutating functions from inline route handlers into `catalog.service.ts` (createCategory/updateCategory/createSubcategory/updateSubcategory/createAddon/updateAddon/deleteAddon). Each wraps row write + admin_actions audit in db.transaction. Cache invalidation stays post-commit. deleteAddon preserves soft-deactivate (is_active=FALSE) so booking_addons FK references remain valid.
+9. **Subtask 16 — Gate logic fix + promotion to BLOCKING.** Discovered the existing money-in-transaction gate searched for Kysely patterns (`updateTable('wallets'`, `insertInto('admin_actions'`) that don't exist anywhere in this codebase — the stack is raw pg. The gate was vacuously passing. Rewrote the awk pattern to detect `db.query` calls with `INSERT INTO admin_actions/wallet_transactions` or `UPDATE wallets`. Search radius for `// gate-c-allowed:` markers extended to ±5 lines. Annotated 9 try/catch'd best-effort audit-only inserts (BIR 2307, OR issuance, VAT reports, marketing/compliance/reconciliation generic helpers, admin-message audit) with `// gate-c-allowed: best-effort-audit-only` markers. Fixed 2 real bugs surfaced by the new logic but adjacent to the 14-list: `dispute.service.assignDispute` and `payout.service.approvePayout`. Promoted `gate_c_articles.money-in-transaction` from REPORT to BLOCKING in `MODES.json`. Updated `EXPECTED-FAILURES.md` timeline.
+10. **Subtask 17 — D06 closeout written** with bug list (14 entries with file:line + test) + spec-corrections inherited section + 3 partial-failure scenarios manually traced step-by-step.
+11. **Subtask 18 — pending push + PR + self-merge + tag + autoproceed to D07.**
+
+### Bug closure summary
+
+14 bugs from the audit closed: 69, 70, 71, 78, 79, 80, 82, 83, 84, 85, 105, 106, 127, 237. Plus 2 adjacent inline fixes: dispute.assignDispute and payout.approvePayout (caught by the new gate logic; same shape as the 14 bugs).
+
+### Spec corrections applied
+
+15 rows of spec/reality divergence documented in `D06-plan.md` §"Spec corrections inherited + extended". Headlines: file moves to `*-admin.service.ts`, `transferOwnership` implemented from scratch (was missing), `roles.service` is `staff.service`, catalog mutations extracted from routes to service, gate logic rewritten for raw-pg patterns.
+
+### Gate hardening side-effect
+
+D06 also discovered + fixed the money-in-transaction gate's vacuous-pass bug. The fix is in the same PR. The gate now correctly identifies the rule (every D06-class money/audit mutation must be atomic) AND the rule passes on this branch — every mutation either composes via a trx-aware helper, sits inside a db.transaction, or is annotated with the documented best-effort marker.
+
+### Next session pickup point
+
+Per autonomous protocol: after PR opens with all gates green, immediately begin Dispatch 07 — Provider job execution trust — on a new branch `phase/14-d07-provider-job-trust` from this dispatch's HEAD. D07 spec at `.ai-coder/phase-14/PART-3-BUG-REMEDIATION-DISPATCHES-07-08.md`.
+
+PRs queue for Ken:
+- #14 D03 (gate hardening) — merged
+- #15 D04 (SiguradoShield pull) — merged
+- #16 D05 (Money trust closure) — merged (143ce37)
+- #?? D06 (Transactional audit completeness) — to be opened in subtask 18
