@@ -729,3 +729,64 @@ to v1.1** (or to as-touched basis as screens get edited):
 visual-baseline at 4 viewport widths, full per-screen pattern audit.
 
 **Source:** Phase 14 Dispatch 11 + spec PART-3 §"Dispatch 11" line 1031, 1034.
+
+
+---
+
+## 29. Mobile provider per-screen polish + GPS-related v1.1 features (Phase 14 Dispatch 12)
+
+D12 ships the **provider-specific cross-cutting infrastructure**:
+- NbiStatusBanner (global NBI lifecycle banner)
+- useStatusMutation (haptic-feedback wrapper for status transitions)
+- useJobGpsBroadcast (GPS lifecycle hook scoped to en_route/arrived statuses)
+- useAppState (foreground/background tracker for 15-min auto-off)
+- EarningsChart (pure-RN bar visualisation)
+- CommissionBreakdown (gross→fee→commission→net disclosure with help modal)
+
+Plus the bridge test for all 64 provider bug numbers and the
+provider.* i18n namespace. What is **deferred to v1.1**:
+
+- Per-screen application of the 18 patterns to all 39 provider screens
+  (mirror of §28 deferral). Screens consume the new components when
+  next edited; no screen is broken today.
+- 39 Maestro flow files in `apps/mobile/.maestro/visual/provider/`.
+  Maestro CLI is not in CI yet (deferred to v1.2).
+- Per-screen Jest snapshot tests.
+- **Per-area pricing** (Bug 1231) — providers cannot set different
+  rates for different service areas in v1.0. Single base rate per
+  service. v1.1 adds area-modifier table.
+- **Suki custom discount** (Bug 1245) — providers cannot set custom
+  discount codes for repeat customers in v1.0. v1.1 ships the
+  redemption pipeline as part of the promo-code v1.1 work.
+- **Reviews reply** (Bug 1249) — providers cannot publicly reply to
+  customer reviews in v1.0. Bug 1250 (flag inappropriate review) IS
+  shipped as the v1.0 mitigation; admin can intervene.
+- **Background-location store privacy disclosures** — Apple Privacy
+  Manifest entry + Google Play "Background location" justification
+  submission must accompany the first store release that uses
+  `useJobGpsBroadcast`. Both stores require the verbatim language:
+  "We track location only during active jobs, only with your explicit
+  toggle, and only to show your customer your ETA."
+- **Foreground-service notification on Android** — when GPS broadcasts,
+  Android shows a persistent "onService — Active job" notification. OS
+  requirement; cannot be hidden. Some providers will find this
+  annoying; the in-app permission rationale modal pre-explains why.
+- **EarningsChart — victory-native upgrade** — current pure-RN bar
+  chart is functionally adequate but visually basic. v1.1 may swap to
+  victory-native + svg when peer ranges align (currently react-native-svg
+  pinned at 15.8.0 which conflicts with victory-native 36+).
+
+**Operator obligation:**
+- v1.0 launch monitoring: watch crash reports for any provider screen
+  that uses `useJobGpsBroadcast` — TaskManager + background-location
+  is the most failure-prone area on Android due to OEM battery
+  optimisations. Sentry breadcrumbs include `gps_task_error` /
+  `gps_broadcast_failed` / `gps_start_failed` / `gps_stop_failed`.
+- Monitor `gps-update` endpoint volume in Grafana — sudden spike or
+  drop signals a hook lifecycle bug.
+
+**v1.1+ scope:** Maestro flows, snapshot tests, per-area pricing,
+suki custom discount, reviews reply, victory-native chart upgrade,
+store privacy disclosure submission.
+
+**Source:** Phase 14 Dispatch 12 + spec PART-3 §"Dispatch 12" lines 1043, 1361-1363.
