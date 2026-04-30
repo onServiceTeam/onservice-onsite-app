@@ -946,7 +946,7 @@ describe('sendDisputeMessage', () => {
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it('happy path: only INSERTs dispute_message_sent and truncates reason to 500', async () => {
+  it('happy path: INSERTs dispute_message_sent, truncates reason to 500, stores full body in full_notes (Bug 85)', async () => {
     const calls = setupTxRecorder(async (sql) => {
       if (/FROM disputes/.test(sql)) {
         return rows([
@@ -972,8 +972,13 @@ describe('sendDisputeMessage', () => {
     const writes = calls.filter((c) => /INSERT|UPDATE/.test(c.sql));
     expect(writes).toHaveLength(1);
     expect(writes[0].sql).toContain("'dispute_message_sent'");
+    expect(writes[0].sql).toContain('full_notes');
+    // params: [adminUserId, disputeId, JSON, reason(slice 500), full_notes]
     const reasonParam = writes[0].params[3] as string;
     expect(reasonParam).toHaveLength(500);
+    const fullNotes = writes[0].params[4] as string;
+    expect(fullNotes).toBe(longMsg);
+    expect(fullNotes).toHaveLength(800);
   });
 });
 

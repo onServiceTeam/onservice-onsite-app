@@ -679,15 +679,21 @@ export async function sendDisputeMessage(
       ? trimmedMessage.slice(0, 500)
       : trimmedMessage;
 
+    // Phase 14 Dispatch 06 — Bug 85. Store the full message body in the
+    // new admin_actions.full_notes column (migration 075) so disputes can
+    // be reconstructed verbatim for compliance audit. The legacy `reason`
+    // column stays as a 500-char-truncated summary for back-compat with
+    // existing UI listings.
     const actionResult = await client.query<{ id: string }>(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-       VALUES ($1, 'dispute_message_sent', 'dispute', $2, $3::jsonb, $4)
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'dispute_message_sent', 'dispute', $2, $3::jsonb, $4, $5)
        RETURNING id`,
       [
         adminUserId,
         disputeId,
         JSON.stringify({ recipient, messageLength: trimmedMessage.length }),
         reason,
+        trimmedMessage,
       ],
     );
     const adminActionId = actionResult.rows[0]?.id;

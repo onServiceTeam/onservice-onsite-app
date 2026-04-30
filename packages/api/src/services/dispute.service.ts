@@ -601,33 +601,41 @@ export async function resolveDispute(
 }
 
 export async function escalateDispute(disputeId: string, adminId: string, reason: string): Promise<DisputeRow> {
-  const dispute = await db.query<DisputeRow>(
-    `SELECT * FROM disputes WHERE id = $1`,
-    [disputeId],
-  );
-  if (dispute.rows.length === 0) throw createAppError('Dispute not found.', 404);
-  const d = dispute.rows[0]!;
+  // Phase 14 Dispatch 06 — Bug 84. Pre-D06 the disputes UPDATE and the
+  // admin_actions INSERT ran as two separate top-level db.query calls
+  // (no transaction). If the audit insert failed, the dispute status had
+  // already escalated without an audit trail. Now: ONE transaction wraps
+  // both writes with FOR UPDATE locking on the read.
+  return db.transaction(async (client) => {
+    const dispute = await client.query<DisputeRow>(
+      `SELECT * FROM disputes WHERE id = $1 FOR UPDATE`,
+      [disputeId],
+    );
+    if (dispute.rows.length === 0) throw createAppError('Dispute not found.', 404);
+    const d = dispute.rows[0]!;
 
-  if (d.status === 'resolved') throw createAppError('Cannot escalate a resolved dispute.', 409);
-  if (d.tier >= 3) throw createAppError('Dispute is already at the highest tier.', 409);
+    if (d.status === 'resolved') throw createAppError('Cannot escalate a resolved dispute.', 409);
+    if (d.tier >= 3) throw createAppError('Dispute is already at the highest tier.', 409);
 
-  const newTier = d.tier + 1;
-  const result = await db.query<DisputeRow>(
-    `UPDATE disputes SET tier = $1, status = 'escalated', updated_at = NOW() WHERE id = $2 RETURNING *`,
-    [newTier, disputeId],
-  );
+    const newTier = d.tier + 1;
+    const result = await client.query<DisputeRow>(
+      `UPDATE disputes SET tier = $1, status = 'escalated', updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [newTier, disputeId],
+    );
 
-  await db.query(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-     VALUES ($1, 'dispute_escalated', 'dispute', $2, $3, $4)`,
-    [adminId, disputeId,
-     JSON.stringify({ previousTier: d.tier, newTier }),
-     reason],
-  );
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'dispute_escalated', 'dispute', $2, $3, $4, $5)`,
+      [adminId, disputeId,
+       JSON.stringify({ previousTier: d.tier, newTier }),
+       reason.slice(0, 500),
+       reason],
+    );
 
-  if (result.rows.length === 0) throw createAppError('Failed to escalate dispute — concurrent modification.', 409);
-  logger.info('Dispute escalated', { disputeId, fromTier: d.tier, toTier: newTier });
-  return result.rows[0]!;
+    if (result.rows.length === 0) throw createAppError('Failed to escalate dispute — concurrent modification.', 409);
+    logger.info('Dispute escalated', { disputeId, fromTier: d.tier, toTier: newTier });
+    return result.rows[0]!;
+  });
 }
 
 export async function assignDispute(disputeId: string, adminId: string, assigneeId: string): Promise<DisputeRow> {
