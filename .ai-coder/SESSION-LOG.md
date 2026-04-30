@@ -68,6 +68,14 @@ Concrete deliverables:
 
 Without tiered modes, every dispatch from D04 onward will fail CI on day one (D04 enters fixing SiguradoShield while a-cross-source-no-siguradoshield is still BLOCKING; same shape for D05/no-client-money, D06/money-in-transaction, D11–D12/console+emoji). The tiered model is the difference between "PR opens green and Ken just reviews" vs "PR opens red and Ken admin-overrides." D03 is the dispatch that makes the autonomous gate enforcement actually autonomous.
 
+### D03 closeout
+
+PR #14 opened, all 5 gates green on the latest commit (`cad43ba`). No admin override needed — the tiering works. Branch `phase/14-d03-gate-hardening` queued for Ken's merge. AI proceeds to D04 per autonomous protocol.
+
+### D04 halt point
+
+D04 (SiguradoShield Option A pull) hit the spec's mandatory decision gate immediately on branch creation: `.ai-coder/decisions/D04-siguradoshield.md` did not exist, and per `PART-3-BUG-REMEDIATION-DISPATCHES-03-04.md` "If this file is missing, the AI coder MUST stop and escalate to Ken before proceeding." This is hard stop #2 (architectural decision required) per `AUTONOMOUS-EXECUTION-PROTOCOL.md`. Branch `phase/14-d04-siguradoshield-pull` created from D03 HEAD; decision file written with Option A vs Option B options and AI recommendation (Option A). Awaiting Ken's choice in the file's "Decision" section. Will resume D04 implementation once Ken fills it in.
+
 ### D01 + D02 gap-fill in this entry
 
 The session log was not updated during D01 or D02 sessions. For continuity:
