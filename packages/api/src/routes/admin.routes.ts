@@ -3,6 +3,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { suspendProviderSchema, changeProviderTierSchema } from '../validators/admin.validators';
 import { createPricingRuleSchema, updatePricingRuleSchema } from '../validators/admin-pricing-rules.validators';
+import { createServiceAreaSchema, updateServiceAreaSchema } from '../validators/admin-service-area.validators';
 import * as adminService from '../services/admin.service';
 import * as escrowService from '../services/escrow.service';
 import { createAppError } from '../middleware/error.middleware';
@@ -793,17 +794,20 @@ router.get(
   },
 );
 
+// Phase 14 Dispatch 05 — Bug 320 + Bug 322.
+// Replaced the global lat/lng bounds (-90..90, -180..180) with PH
+// bounds (4.5..21.5, 116..127.5). Added radiusKm 1..100 and
+// minProvidersToLaunch 1..50 enforcement. `.strict()` rejects unknown
+// keys. Migration 074 enforces the same bounds at the DB level
+// (defense in depth).
 router.post(
   '/service-areas',
   authMiddleware,
+  validationMiddleware(createServiceAreaSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const {
-        name, city, province, region,
-        zipCodes, centerLat, centerLng, radiusKm,
-        minProvidersToLaunch, launchDate, settings,
-      } = req.body as {
+      const body = req.body as {
         name: string;
         city: string;
         province: string;
@@ -817,26 +821,7 @@ router.post(
         settings?: Record<string, unknown>;
       };
 
-      if (!name || !city || !province || !region || centerLat === undefined || centerLng === undefined) {
-        res.status(400).json({ success: false, message: 'name, city, province, region, centerLat, and centerLng are required.' });
-        return;
-      }
-
-      if (Number.isNaN(Number(centerLat)) || Number.isNaN(Number(centerLng))) {
-        res.status(400).json({ success: false, message: 'centerLat and centerLng must be valid numbers.' });
-        return;
-      }
-
-      if (Number(centerLat) < -90 || Number(centerLat) > 90 || Number(centerLng) < -180 || Number(centerLng) > 180) {
-        res.status(400).json({ success: false, message: 'Invalid coordinates. Latitude must be -90 to 90, longitude -180 to 180.' });
-        return;
-      }
-
-      const area = await serviceAreaService.createServiceArea({
-        name, city, province, region,
-        zipCodes, centerLat, centerLng, radiusKm,
-        minProvidersToLaunch, launchDate, settings,
-      });
+      const area = await serviceAreaService.createServiceArea(body);
 
       res.status(201).json({
         success: true,
@@ -866,6 +851,7 @@ router.get(
 router.patch(
   '/service-areas/:id',
   authMiddleware,
+  validationMiddleware(updateServiceAreaSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
