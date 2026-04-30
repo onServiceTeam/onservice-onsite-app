@@ -374,7 +374,10 @@ router.get(
       const adminId = typeof req.query.adminId === 'string' ? req.query.adminId : undefined;
       const actionType = typeof req.query.actionType === 'string' ? req.query.actionType : undefined;
 
-      const { actions, total } = await adminService.getAdminActions({ adminId, actionType, page, pageSize });
+      const { actions, total } = await adminService.getAdminActions(
+        { adminId, actionType, page, pageSize },
+        req.user!.role,  // Phase 14 D08 — Bug 66 PII masking by role
+      );
 
       res.json({
         success: true,

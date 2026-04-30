@@ -590,3 +590,57 @@ chat scoped out of D07's provider-job-execution-trust focus per spec
 (line 873: `Bug 38 — chat deferred to v1.1`).
 
 **Source:** Phase 14 Dispatch 07.
+
+---
+
+## 26. NPC RA 10173 compliance posture (Phase 14 Dispatch 08)
+
+The platform meets the operational compliance bar for v1.0 launch:
+
+- **Consent records:** all consent actions write rows to `consent_records`
+  with version + IP + UA. CHECK constraint on `consent_type` (migration
+  080) prevents typos.
+- **DSR queue:** rejection/escalation reasons enforced at ≥30 chars.
+  NPC complaint references must match `NPC-YYYY-XXXXXX` format.
+- **Marketing communications:** honor per-channel opt-in flags
+  (push/SMS/email separately) AND require
+  `marketing_consent_acknowledged_at IS NOT NULL`. Helpers
+  `isMarketingChannelEligible` + `listMarketingEligibleUsers` in
+  `services/notification.service.ts` MUST be used by any future
+  marketing-blast worker.
+- **Breach log:** `breach_log` table (migration 082) tracks every
+  reported breach. The 72h NPC notification SLA (RA 10173 §38) is
+  computed at read time (`sla72hExpired`, `sla72hRemainingHours`)
+  and displayed in the admin Compliance page Breach Log tab.
+- **Audit log PII:** masked for non-super-admin roles via
+  `maskPiiForRole` (`utils/pii-mask.ts`). DPO sees raw IP + masked
+  UA/phone/email; all other admin roles get full masking. Reveal
+  endpoint pattern documented for super_admin one-row PII access
+  with self-audit.
+- **Audit log CSV exports:** themselves audit-logged with
+  `action_type='audit_log_exported'`.
+- **DPO-only endpoints:** `searchConsent` + `breach-log` routes gate
+  on `requireDpoRole` (super_admin OR dpo).
+
+**Outstanding (post-launch v1.1+):**
+
+- **NPC DPO registration:** pending administrative submission. v1.0
+  ships with internal DPO designation; formal NPC registration in
+  progress at the time of launch.
+- **PagerDuty integration for breach SLA alerts:** the breach SLA
+  monitoring cron job is implemented in service code; PagerDuty
+  trigger wiring + Sentry custom counter happens in D14 production
+  cutover when AWS + Sentry credentials are configured.
+- **Marketing blast worker rebuild:** D08 ships the eligibility helpers
+  but no campaign-send worker uses them yet (no marketing campaigns
+  shipped at launch). v1.1 marketing program adds the worker that
+  consumes `listMarketingEligibleUsers`.
+- **Annual privacy impact assessment (PIA):** scheduled for Q2.
+- **Quarterly consent audit job:** v1.1.
+- **Customer-side notification settings UI for granular marketing
+  flags:** D11 mobile customer polish wires the new
+  `marketingPushEnabled` / `marketingSmsEnabled` / `marketingEmailEnabled`
+  toggles + `acknowledgeMarketingConsent` flow into the existing
+  `notification-settings.tsx` screen.
+
+**Source:** Phase 14 Dispatch 08.

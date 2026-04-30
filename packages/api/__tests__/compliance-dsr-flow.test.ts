@@ -379,7 +379,7 @@ describe('escalateDsrToNpc', () => {
       .mockResolvedValueOnce(rows([]));
 
     const out = await adminSvc.escalateDsrToNpc({
-      dsrId: DSR_ID, adminUserId: ADMIN_ID, npcReference: 'NPC-2026-04-1234',
+      dsrId: DSR_ID, adminUserId: ADMIN_ID, npcReference: 'NPC-2026-A1B2C3',
     });
 
     expect(out.status).toBe('in_progress');
@@ -388,7 +388,7 @@ describe('escalateDsrToNpc', () => {
     expect(auditParams[1]).toBe('dsr_escalated_to_npc');
     expect(auditParams[2]).toBe('dsr_request');
     const detailsJson = JSON.parse(auditParams[4] as string) as Record<string, unknown>;
-    expect(detailsJson.npcReference).toBe('NPC-2026-04-1234');
+    expect(detailsJson.npcReference).toBe('NPC-2026-A1B2C3');
   });
 
   it('rejects empty NPC reference', async () => {

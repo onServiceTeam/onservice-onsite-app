@@ -339,11 +339,18 @@ interface NotificationPrefRow {
   suki_rewards: boolean;
   reminders: boolean;
   system: boolean;
+  // Phase 14 Dispatch 08 — Bug 969 granular marketing consent.
+  marketing_push_enabled: boolean;
+  marketing_sms_enabled: boolean;
+  marketing_email_enabled: boolean;
+  marketing_consent_acknowledged_at: Date | null;
+  marketing_consent_version: number | null;
 }
 
-const PREF_COLUMNS: (keyof Omit<NotificationPrefRow, 'user_id'>)[] = [
+const PREF_COLUMNS: (keyof Omit<NotificationPrefRow, 'user_id' | 'marketing_consent_acknowledged_at' | 'marketing_consent_version'>)[] = [
   'booking_updates', 'provider_activity', 'payment_alerts', 'messages',
   'promotions', 'suki_rewards', 'reminders', 'system',
+  'marketing_push_enabled', 'marketing_sms_enabled', 'marketing_email_enabled',
 ];
 
 export interface NotificationPrefs {
@@ -355,6 +362,12 @@ export interface NotificationPrefs {
   sukiRewards: boolean;
   reminders: boolean;
   system: boolean;
+  // D08 Bug 969 additions
+  marketingPushEnabled: boolean;
+  marketingSmsEnabled: boolean;
+  marketingEmailEnabled: boolean;
+  marketingConsentAcknowledgedAt: string | null;
+  marketingConsentVersion: number | null;
 }
 
 const DEFAULT_PREFS: NotificationPrefs = {
@@ -366,6 +379,11 @@ const DEFAULT_PREFS: NotificationPrefs = {
   sukiRewards: true,
   reminders: true,
   system: true,
+  marketingPushEnabled: false,
+  marketingSmsEnabled: false,
+  marketingEmailEnabled: false,
+  marketingConsentAcknowledgedAt: null,
+  marketingConsentVersion: null,
 };
 
 function formatPrefs(row: NotificationPrefRow): NotificationPrefs {
@@ -378,6 +396,11 @@ function formatPrefs(row: NotificationPrefRow): NotificationPrefs {
     sukiRewards: row.suki_rewards,
     reminders: row.reminders,
     system: row.system,
+    marketingPushEnabled: row.marketing_push_enabled,
+    marketingSmsEnabled: row.marketing_sms_enabled,
+    marketingEmailEnabled: row.marketing_email_enabled,
+    marketingConsentAcknowledgedAt: row.marketing_consent_acknowledged_at?.toISOString() ?? null,
+    marketingConsentVersion: row.marketing_consent_version,
   };
 }
 
@@ -403,6 +426,10 @@ export async function updateNotificationPreferences(
     sukiRewards: 'suki_rewards',
     reminders: 'reminders',
     system: 'system',
+    // D08 Bug 969 additions
+    marketingPushEnabled: 'marketing_push_enabled',
+    marketingSmsEnabled: 'marketing_sms_enabled',
+    marketingEmailEnabled: 'marketing_email_enabled',
   };
 
   const sets: string[] = [];
@@ -439,4 +466,86 @@ export async function updateNotificationPreferences(
 
   logger.info('Notification preferences updated', { userId });
   return formatPrefs(result.rows[0]!);
+}
+
+// Phase 14 Dispatch 08 — Bug 969 marketing consent enforcement helpers.
+// Any future marketing-blast worker MUST go through one of these helpers
+// to determine the eligible audience. Sending marketing communications
+// to users without `marketing_consent_acknowledged_at IS NOT NULL` is
+// an NPC violation.
+
+export type MarketingChannel = 'push' | 'sms' | 'email';
+
+/**
+ * Acknowledge marketing consent for a user. Stamps the
+ * marketing_consent_acknowledged_at + marketing_consent_version columns.
+ * Subsequent sendMarketing* helpers will include this user in audiences
+ * (subject to per-channel toggles).
+ */
+export async function acknowledgeMarketingConsent(
+  userId: string,
+  consentVersion: number,
+): Promise<void> {
+  await db.query(
+    `INSERT INTO notification_preferences
+       (user_id, marketing_consent_acknowledged_at, marketing_consent_version)
+     VALUES ($1, NOW(), $2)
+     ON CONFLICT (user_id) DO UPDATE
+       SET marketing_consent_acknowledged_at = NOW(),
+           marketing_consent_version = $2,
+           updated_at = NOW()`,
+    [userId, consentVersion],
+  );
+  logger.info('Marketing consent acknowledged', { userId, consentVersion });
+}
+
+/**
+ * Returns true if the user is eligible to receive marketing on the given
+ * channel: per-channel toggle is TRUE AND
+ * marketing_consent_acknowledged_at IS NOT NULL. Used by future marketing
+ * blast workers to filter the audience.
+ */
+export async function isMarketingChannelEligible(
+  userId: string,
+  channel: MarketingChannel,
+): Promise<boolean> {
+  const column = channel === 'push'
+    ? 'marketing_push_enabled'
+    : channel === 'sms'
+      ? 'marketing_sms_enabled'
+      : 'marketing_email_enabled';
+  const result = await db.query<{ eligible: boolean }>(
+    `SELECT (${column} = TRUE
+              AND marketing_consent_acknowledged_at IS NOT NULL) AS eligible
+       FROM notification_preferences
+      WHERE user_id = $1`,
+    [userId],
+  );
+  return result.rows[0]?.eligible ?? false;
+}
+
+/**
+ * Returns user IDs that are eligible for marketing on the given channel.
+ * Used by marketing blast workers to filter the campaign audience without
+ * N+1 lookups.
+ */
+export async function listMarketingEligibleUsers(
+  channel: MarketingChannel,
+  limit = 1000,
+  offset = 0,
+): Promise<string[]> {
+  const column = channel === 'push'
+    ? 'marketing_push_enabled'
+    : channel === 'sms'
+      ? 'marketing_sms_enabled'
+      : 'marketing_email_enabled';
+  const result = await db.query<{ user_id: string }>(
+    `SELECT user_id FROM notification_preferences
+      WHERE ${column} = TRUE
+        AND marketing_consent_acknowledged_at IS NOT NULL
+      ORDER BY user_id
+      LIMIT $1 OFFSET $2`,
+    [limit, offset],
+  );
+  return result.rows.map((r) => r.user_id);
 }

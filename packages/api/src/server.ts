@@ -57,6 +57,7 @@ import recurringRoutes from './routes/recurring.routes';
 import sukiRoutes from './routes/suki.routes';
 import uploadRoutes from './routes/upload.routes';
 import checklistRoutes from './routes/checklist.routes';
+import breachLogRoutes from './routes/breach-log.routes';
 import serviceAreaRoutes from './routes/service-area.routes';
 import businessRoutes from './routes/business.routes';
 import payoutRoutes from './routes/payout.routes';
@@ -203,6 +204,8 @@ app.use('/api/v1/admin/marketing', marketingAdminRoutes);
 // Phase 11: compliance admin sub-routes mounted BEFORE generic admin routes
 // so `/admin/compliance/...` matches before any `/admin/*` fallthrough.
 app.use('/api/v1/admin/compliance', complianceAdminRoutes);
+// Phase 14 Dispatch 08 — Bug 1366 breach log (DPO-only).
+app.use('/api/v1/admin/breach-log', breachLogRoutes);
 app.use('/api/v1/admin', adminRoutes);
 // Phase 11: end-user compliance endpoints (DSR + consent recording).
 app.use('/api/v1/compliance', complianceRoutes);
