@@ -246,4 +246,14 @@ PRs queue for Ken:
 - #15 D04 (SiguradoShield pull) — merged
 - #16 D05 (Money trust closure) — merged
 - #17 D06 (Transactional audit completeness) — merged
-- #?? D07 (Provider job execution trust) — to be opened by fresh session
+- #?? D07 (Provider job execution trust) — to be opened in same session per Ken's "no fresh sessions" instruction
+
+---
+
+## 2026-04-30 — D07 begins in same session (Ken disabled fresh-session handoffs)
+
+**Read at commit:** `423f326` (branch `phase/14-d07-provider-job-trust` HEAD; master at `c9632a9` tag `v0.14.0-d06-complete`).
+**Branch at start:** `phase/14-d07-provider-job-trust`.
+**Operating mode:** Autonomous between dispatches + full audit chain. Ken explicitly disabled fresh-session handoffs at dispatch boundaries — same session continues through D07–D14.
+
+**Intent:** Beginning D07 implementation. 12 bugs around provider job execution trust (photos to S3, server-driven checklists, signature capture, server-validated completion). Inheriting 25 spec corrections from D05 + D06 closeouts.

@@ -160,3 +160,48 @@ Mirrors D05/D06's 18-subtask structure.
 - Don't skim the spec corrections inherited section — D05 + D06 spent time deriving the 25 corrections combined. D07 inherits them all.
 - The 5 hard stops still apply. The most likely halt point is subtask 1's verification step: if many of the 12 file paths have shifted or several functions don't exist, that's a Stop 5 — escalate vs proceed-with-corrections decision.
 - Open the D07 PR titled `Dispatch 07 — Provider job execution trust (12 bugs + S3 + KMS evidence storage)`.
+
+---
+
+## Spec corrections inherited + extended (D07 subtask-1 verification)
+
+Subtask-1 verification at master HEAD `c9632a9` resolves the 5 open questions and finds additional spec/reality divergences. Headlines:
+
+| # | Spec said | Reality | D07 implication |
+|---|---|---|---|
+| 1 | Migration `076_checklist_templates` + `077_booking_photos_signatures` | 075 + 076 already taken by D06; 077 reserved for D05's deferred `promo_redemptions` | Use **078** (checklist_templates) and **079** (booking_photos_signatures). 077 stays reserved. |
+| 2 | Table `subcategories` | Table `service_subcategories` (migration 003; same finding as D05/D06) | Migration 078 references `service_subcategories(id)`. |
+| 3 | FK `created_by REFERENCES admin_users(id)` | Table `admin_users` does not exist | Use `users(id)` for `created_by` (matches the actor convention used in `admin_actions.admin_id`). |
+| 4 | Kysely `db.transaction().execute((trx) => ...)` | Raw pg `db.transaction(async (client) => ...)` | All D07 server code uses raw pg via the existing helper. |
+| 5 | New `multer`, `sharp`, `@aws-sdk/client-s3` deps | Already installed: `@aws-sdk/client-s3@^3.1038.0`, `multer` (via existing `routes/upload.routes.ts`); `sharp` NOT installed | D07 uses a **server-side passthrough** model: mobile compresses + resizes via `expo-image-manipulator` (no server-side `sharp` dep). Server validates MIME/size and uploads the compressed blob as-is. Closes Bug 1216 client-side; defers thumbnail-generation to a v1.1 polish. |
+| 6 | New `routes/uploads.ts` | Existing `routes/upload.routes.ts` already accepts multipart uploads | Add a NEW endpoint `POST /api/v1/uploads/booking-photo` that wraps the existing `upload.service.saveUploadedFile` AND inserts into `booking_photos`. Existing generic `POST /upload` is preserved for general use cases (job-request, change-order, dispute, chat, etc.). |
+| 7 | `apps/mobile/app/provider/onboarding/identity-verification.tsx` | Actually `apps/mobile/app/provider-onboarding/identity-verification.tsx` (one path segment, not nested) | Use the actual path. |
+| 8 | `apps/mobile/app/customer/job/[id]/photos.tsx` | Actually `apps/mobile/app/customer/booking/photos.tsx` (different segment) | Use actual path. Verify when fixing Bug 943/944. |
+| 9 | `apps/admin/src/pages/booking-detail.tsx` | Actually `apps/admin/src/pages/BookingDetailPage.tsx` (PascalCase) | Use actual path for Bug 73. |
+| 10 | `react-native-signature-canvas` native dep | Not installed in mobile | Add to `apps/mobile/package.json`. EAS rebuild required on next mobile deploy — flagged in closeout. |
+| 11 | S3 bucket configured via Terraform | `infra/` Terraform state not verified; existing `upload.service.ts` works in dual mode (local FS dev, S3 prod via env) | D07 reuses the existing dual-mode service. Production S3 bucket configuration is a D14 cutover concern. |
+
+## Open verification questions resolved (subtask 1 outcome)
+
+1. **`admin_users` FK target.** Resolved row #3 above: use `users(id)`.
+2. **Migration 077 (`promo_redemptions`).** **DEFERRED to D14 cleanup sweep.** D07 has plenty of scope (12 bugs + 2 migrations + new server route + 8 checklist templates + signature canvas dep). Adding a 13th unrelated bug would inflate scope further. Documented in §"Scope decisions" of D07 closeout.
+3. **S3 + KMS Terraform state.** Resolved row #11: existing `upload.service.ts` already handles dual mode. Production env config is D14 work. D07 ships the code; deployment ops happens in D14.
+4. **`react-native-signature-canvas` dep.** Resolved row #10: add to mobile package.json + flag EAS rebuild in closeout.
+5. **Bug 38 (chat photos broken).** Confirmed deferral to v1.1 per spec line 873. Add to LAUNCH-LIMITATIONS as §25.
+
+## Migration renumbering: 078, 079 (077 reserved)
+
+- D05: 074 (service area bounds)
+- D06: 075 (admin_actions.full_notes), 076 (soft-delete columns)
+- D07-reserved-for-future: 077 (promo_redemptions, DEFERRED)
+- D07: 078 (checklist_templates), 079 (booking_photos + signatures)
+
+## Subtask sequence adjustment
+
+Mostly unchanged from the original plan. Specific path corrections:
+- Subtask 9: `apps/mobile/app/provider/job/[id]/complete.tsx` ✓ exists.
+- Subtask 11: `apps/mobile/app/provider/job/[id]/checklist.tsx` ✓ exists.
+- Subtask 12: `apps/mobile/app/provider-onboarding/identity-verification.tsx` (NOT `provider/onboarding/`).
+- Subtask 13: `apps/mobile/app/customer/booking/photos.tsx` (NOT `customer/job/[id]/photos.tsx`).
+- Subtask 14: `apps/admin/src/pages/BookingDetailPage.tsx` (PascalCase).
+- Skip subtask 4 (Migration 077): deferred per resolution above.
