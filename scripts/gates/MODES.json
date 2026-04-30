@@ -1,8 +1,8 @@
 {
   "_about": "Per-fragment / per-article mode declaration. The gate aggregators (run-gate-a.sh, c-constitution.sh) read this file to decide whether a failing fragment fails the gate (BLOCKING) or only logs (REPORT). Modes change as their owning dispatch lands. See scripts/gates/EXPECTED-FAILURES.md for the human-readable timeline and .ai-coder/governance/GATE-AMENDMENTS.md for the amendment process. This file is the machine-readable source of truth.",
   "_schema_version": 1,
-  "_updated_by_dispatch": "D03",
-  "_updated_at_commit": "phase/14-d03-gate-hardening",
+  "_updated_by_dispatch": "D14r-8",
+  "_updated_at_commit": "phase/14r-8-gate-promotion",
 
   "gate_a_fragments": {
     "a-cross-source-cancellation-policy": {
@@ -69,10 +69,10 @@
 
   "gate_c_articles": {
     "article-4.2-no-console": {
-      "mode": "REPORT",
+      "mode": "BLOCKING",
       "owning_dispatch": "D12",
-      "promoted_in": null,
-      "rationale": "Console.* in production code is cleaned progressively across D01-D12 mobile/admin polish. Promotes to BLOCKING after D12."
+      "promoted_in": "D14r-8",
+      "rationale": "Promoted to BLOCKING in D14r-8. Production code uses logger.* throughout (apps/admin/src + apps/mobile/src + apps/mobile/app + packages/api/src); a fresh grep finds 0 console.* violations. The gate now blocks any future regression. Allowed exceptions remain inline `// gate-c-allowed:` markers."
     },
     "article-4.6-no-emoji": {
       "mode": "REPORT",
@@ -114,15 +114,15 @@
 
   "gate_d_state": {
     "mode": "REPORT",
-    "owning_dispatch": "D07+D08+D11+D12",
+    "owning_dispatch": "D14r-3",
     "promoted_in": null,
-    "rationale": "Visual baselines populated progressively: D07 admin + designer-grade restyle, D08 mobile, D11/D12 per-screen baselines. d-visual-screenshots.sh already skips cleanly when baseline directories are empty."
+    "rationale": "Will promote to BLOCKING when the F#3 handoff captures the 82 Maestro flows + 28 Playwright specs against a real device farm. The flows + specs are scaffolded in D14r-3 and D14r-4 (PR + handoff doc) but baselines require an iOS simulator + Android emulator, which is operator/contractor work. See .ai-coder/handoff/F3-maestro-baseline-capture.md and .ai-coder/handoff/F4-playwright-baseline-capture.md for the exact commands."
   },
 
   "gate_e_state": {
     "mode": "REPORT",
-    "owning_dispatch": "D12",
+    "owning_dispatch": "D14r-8b",
     "promoted_in": null,
-    "rationale": "Mutation score baseline at 99.3% from Phase 13 partial run. D12 promotes to BLOCKING. e-mutation-testing.sh already skips when no production files changed (this dispatch's pattern for meta-only dispatches)."
+    "rationale": "Stryker is not currently installed in packages/api/node_modules. Promoting Gate E to BLOCKING requires (1) adding @stryker-mutator/core + @stryker-mutator/jest-runner as devDeps, (2) configuring stryker.conf.cjs with the existing 99% threshold, (3) running a baseline against the full API suite to confirm score, (4) fixing any tests below the threshold. Tracked as a focused R-8b follow-up. Mutation score baseline at 99.3% from Phase 13 partial run."
   }
 }

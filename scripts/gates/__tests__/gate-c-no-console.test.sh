@@ -49,13 +49,22 @@ if ! echo "$output" | grep -qE "synthetic violation|console\.log"; then
   exit 1
 fi
 
-# Article 4.2 must be in REPORT mode per current MODES.json — the gate should
-# log it but not blocking-fail on console.* alone.
-if ! echo "$output" | grep -qE "article-4\.2-no-console.*REPORT"; then
-  echo "FAIL: gate-c didn't tag article-4.2 as REPORT"
+# Article 4.2 was promoted to BLOCKING in D14r-8 (per MODES.json
+# `_updated_by_dispatch`). The gate now blocking-fails on console.*
+# violations. Smoke test was updated alongside the promotion.
+if ! echo "$output" | grep -qE "article-4\.2-no-console.*BLOCKING"; then
+  echo "FAIL: gate-c didn't tag article-4.2 as BLOCKING"
   echo "Output was:"
   echo "$output"
   exit 1
 fi
 
-echo "OK: gate-c detects console.log and tags article-4.2 as REPORT"
+# When a BLOCKING violation is present, the aggregator must fail the gate.
+if ! echo "$output" | grep -qE "Gate C FAILED"; then
+  echo "FAIL: gate-c didn't fail the gate on synthetic BLOCKING violation"
+  echo "Output was:"
+  echo "$output"
+  exit 1
+fi
+
+echo "OK: gate-c detects console.log, tags article-4.2 as BLOCKING, fails the gate"
