@@ -65,11 +65,14 @@ export default function CheckoutScreen(): React.ReactElement {
         ? draft.description.trim()
         : `${draft.subcategoryName ?? 'Service'} – ${draft.scheduledDate ?? ''}`.trim();
 
+      // Phase 14 Dispatch 05 — Bug 175 + Bug 176.
+      // No `servicePrice`; server resolves canonical price from the
+      // subcategory's base_price. Addons sent as `{addonId, quantity}`;
+      // server resolves canonical price from service_addons by id.
       const booking = await createBooking({
         categoryId: draft.categoryId,
         subcategoryId: draft.subcategoryId,
         bookingType: 'fixed_price',
-        servicePrice: draft.basePrice + addonsTotal,
         description,
         address: draft.address,
         barangay: draft.barangay || '',
@@ -78,7 +81,9 @@ export default function CheckoutScreen(): React.ReactElement {
         latitude: draft.latitude ?? undefined,
         longitude: draft.longitude ?? undefined,
         scheduledAt,
-        addons: draft.addons.length > 0 ? draft.addons.map(a => ({ id: a.id, name: a.name, price: a.price })) : undefined,
+        addons: draft.addons.length > 0
+          ? draft.addons.map((a) => ({ addonId: a.id, quantity: 1 }))
+          : undefined,
       });
 
       const intent = await createPaymentIntent(booking.id, selectedMethod);

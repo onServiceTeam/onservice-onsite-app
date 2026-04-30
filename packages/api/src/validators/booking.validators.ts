@@ -2,6 +2,20 @@ import { z } from 'zod';
 import { platformConfig } from '../config/platform.config';
 import { formatPHP } from '../utils/currency';
 
+// Phase 14 Dispatch 05 — Bug 175 + Bug 176.
+//
+// `servicePrice` removed from createBookingSchema entirely. The server
+// resolves the canonical price from `service_subcategories.base_price`
+// at booking-creation time (booking.service.ts) — clients may not
+// supply a service price.
+//
+// Addons changed from `{id, name, price}` to `{addonId, quantity}`. The
+// server resolves the canonical price from `service_addons.price` by
+// looking up each `addonId`. Clients may not supply the price.
+//
+// `.strict()` makes the schema reject unknown keys (e.g., a client
+// retrying with `servicePrice` would now fail validation outright,
+// rather than silently dropping the field).
 export const createBookingSchema = z.object({
   categoryId: z.string().uuid('Invalid category ID'),
   subcategoryId: z.string().uuid('Invalid subcategory ID').optional(),
@@ -14,15 +28,13 @@ export const createBookingSchema = z.object({
   latitude: z.number().min(4.5, 'Must be within Philippines').max(21.5, 'Must be within Philippines').optional(),
   longitude: z.number().min(116, 'Must be within Philippines').max(127.5, 'Must be within Philippines').optional(),
   scheduledAt: z.string().datetime('Invalid date format'),
-  servicePrice: z.number().int().min(0).optional(),
   rebookedFromId: z.string().uuid('Invalid rebooking reference').optional(),
   waitlistId: z.string().uuid('Invalid waitlist ID').optional(),
   addons: z.array(z.object({
-    id: z.string().uuid('Invalid addon ID'),
-    name: z.string().max(150),
-    price: z.number().int().min(0),
-  })).max(20).optional(),
-});
+    addonId: z.string().uuid('Invalid addon ID'),
+    quantity: z.number().int().min(1).max(100),
+  }).strict()).max(20).optional(),
+}).strict();
 
 export const updateBookingStatusSchema = z.object({
   status: z.enum([

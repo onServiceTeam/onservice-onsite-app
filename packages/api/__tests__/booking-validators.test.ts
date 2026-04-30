@@ -6,6 +6,11 @@ import {
 
 describe('Booking Validators', () => {
   describe('createBookingSchema', () => {
+    // Phase 14 Dispatch 05 — Bug 175 + Bug 176.
+    // `servicePrice` is no longer accepted; server resolves canonical price.
+    // Addons must be `{addonId, quantity}` (no name, no price).
+    // `.strict()` rejects unknown keys (e.g., a client retrying with
+    // `servicePrice` would now fail validation outright).
     const validBooking = {
       categoryId: '550e8400-e29b-41d4-a716-446655440000',
       bookingType: 'fixed_price' as const,
@@ -15,19 +20,85 @@ describe('Booking Validators', () => {
       city: 'Makati',
       province: 'Metro Manila',
       scheduledAt: '2026-04-20T09:00:00.000Z',
-      servicePrice: 130000,
     };
 
-    it('should accept a valid fixed_price booking', () => {
+    it('should accept a valid fixed_price booking (no servicePrice)', () => {
       const result = createBookingSchema.safeParse(validBooking);
       expect(result.success).toBe(true);
+    });
+
+    it('bug-175-no-servicePrice: rejects payload that includes servicePrice', () => {
+      const result = createBookingSchema.safeParse({
+        ...validBooking,
+        servicePrice: 130000,
+      } as unknown);
+      expect(result.success).toBe(false);
+    });
+
+    it('bug-176-addon-shape: accepts new `{addonId, quantity}` shape', () => {
+      const result = createBookingSchema.safeParse({
+        ...validBooking,
+        addons: [{ addonId: '660e8400-e29b-41d4-a716-446655440000', quantity: 2 }],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('bug-176-addon-shape: rejects old `{id, name, price}` shape', () => {
+      const result = createBookingSchema.safeParse({
+        ...validBooking,
+        addons: [
+          {
+            id: '660e8400-e29b-41d4-a716-446655440000',
+            name: 'Extra Bathroom',
+            price: 15000,
+          } as unknown,
+        ],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('bug-176-addon-shape: rejects addon with extra keys via .strict()', () => {
+      const result = createBookingSchema.safeParse({
+        ...validBooking,
+        addons: [
+          {
+            addonId: '660e8400-e29b-41d4-a716-446655440000',
+            quantity: 1,
+            price: 99999, // attempt to inject a price
+          } as unknown,
+        ],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('bug-176-addon-shape: rejects quantity below 1', () => {
+      const result = createBookingSchema.safeParse({
+        ...validBooking,
+        addons: [{ addonId: '660e8400-e29b-41d4-a716-446655440000', quantity: 0 }],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('bug-176-addon-shape: rejects quantity above 100', () => {
+      const result = createBookingSchema.safeParse({
+        ...validBooking,
+        addons: [{ addonId: '660e8400-e29b-41d4-a716-446655440000', quantity: 101 }],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('bug-175-strict: rejects unknown top-level keys', () => {
+      const result = createBookingSchema.safeParse({
+        ...validBooking,
+        evilField: 'this should be rejected',
+      } as unknown);
+      expect(result.success).toBe(false);
     });
 
     it('should accept a valid quote_based booking without price', () => {
       const result = createBookingSchema.safeParse({
         ...validBooking,
         bookingType: 'quote_based',
-        servicePrice: undefined,
       });
       expect(result.success).toBe(true);
     });
