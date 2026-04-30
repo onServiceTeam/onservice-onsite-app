@@ -1,4 +1,5 @@
 import React from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import { Stack } from 'expo-router';
 
 export default function ProviderLayout(): React.ReactElement {

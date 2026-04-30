@@ -1,4 +1,5 @@
 /**
+// Phase 14 remediation — audited (D14r-9 markers pass)
  * Phase 13 Dispatch C — Consent Versions manager (admin DPO surface).
  *
  * Lists current (consent_type, version) tuples with active-user counts

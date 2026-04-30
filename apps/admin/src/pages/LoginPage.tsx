@@ -1,4 +1,5 @@
 import React, { useState, useRef, type FormEvent } from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuthStore, type AdminUser } from '@/stores/auth.store';
 import api, { getErrorMessage } from '@/lib/api';

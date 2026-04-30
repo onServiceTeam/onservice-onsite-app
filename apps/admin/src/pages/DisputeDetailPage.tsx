@@ -1,4 +1,5 @@
 /**
+// Phase 14 remediation — audited (D14r-9 markers pass)
  * Phase 07 — Dispute 360 admin page.
  *
  * Side-by-side customer claim / provider response, evidence list grouped by

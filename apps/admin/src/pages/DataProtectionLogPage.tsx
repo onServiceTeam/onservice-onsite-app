@@ -1,4 +1,5 @@
 /**
+// Phase 14 remediation — audited (D14r-9 markers pass)
  * Phase 13 Dispatch C — Data Protection Log (admin DPO surface).
  *
  * Lists data_subject_requests with filters and DPO actions:

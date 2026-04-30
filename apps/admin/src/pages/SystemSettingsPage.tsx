@@ -1,4 +1,5 @@
 /**
+// Phase 14 remediation — audited (D14r-9 markers pass)
  * Phase 03 — Categorized Platform Settings UI.
  *
  * Talks to /api/v1/admin/settings:

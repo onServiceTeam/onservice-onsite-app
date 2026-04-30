@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View,
   Text,

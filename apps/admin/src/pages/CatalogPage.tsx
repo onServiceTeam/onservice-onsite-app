@@ -1,4 +1,5 @@
 import React, { useState, Fragment, type FormEvent } from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';

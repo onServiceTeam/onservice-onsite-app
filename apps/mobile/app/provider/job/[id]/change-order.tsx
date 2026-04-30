@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';

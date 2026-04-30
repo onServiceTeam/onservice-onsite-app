@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

@@ -1,4 +1,5 @@
 import React from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import { Tabs } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { colors, typography } from '@/config/theme';

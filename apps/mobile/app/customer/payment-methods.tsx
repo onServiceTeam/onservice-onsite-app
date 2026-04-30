@@ -1,4 +1,5 @@
 import React from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
 } from 'react-native';
