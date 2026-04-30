@@ -119,6 +119,48 @@ router.get(
   },
 );
 
+// Phase 14 Dispatch 05 — Bug 1230.
+// Public endpoint returning the price bounds for a subcategory. The
+// provider mobile UI fetches this when the provider edits their per-
+// service price, so the form can show "min ₱X, max ₱Y" guidance and
+// reject obviously-out-of-range values client-side. The API also
+// enforces these bounds server-side in
+// `provider.service.ts:addProviderService` (defense in depth).
+router.get(
+  '/subcategories/:id/bounds',
+  cacheMiddleware(CacheTTL.SUBCATEGORIES),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const subcategoryId = req.params.id as string;
+      const result = await db.query<{
+        min_price: number | null;
+        max_price: number | null;
+        base_price: number | null;
+        pricing_type: string;
+      }>(
+        `SELECT min_price, max_price, base_price, pricing_type
+           FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
+        [subcategoryId],
+      );
+      if (result.rows.length === 0) {
+        throw createAppError('Subcategory not found or inactive.', 404);
+      }
+      const row = result.rows[0]!;
+      res.json({
+        success: true,
+        data: {
+          minCents: row.min_price !== null ? Number(row.min_price) : null,
+          maxCents: row.max_price !== null ? Number(row.max_price) : null,
+          baseCents: row.base_price !== null ? Number(row.base_price) : null,
+          pricingType: row.pricing_type,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.get(
   '/subcategory/:subcategoryId/addons',
   cacheMiddleware(CacheTTL.SUBCATEGORIES),
