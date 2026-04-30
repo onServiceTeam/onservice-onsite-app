@@ -1,6 +1,9 @@
 dispatch: D05
 branch: phase/14-d05-money-trust-closure
-status: in-flight (subtask 2 — pricing.service.ts)
+status: COMPLETE — PR #16 open with all 5 gates green; awaiting Ken's merge. Per autonomous protocol, next AI session begins D06 (Transactional audit completeness) on a new branch from `0f192f1` without waiting for the merge.
+pr: https://github.com/onServiceTeam/onservice-onsite-app/pull/16
+final-commit: 0f192f1
+gate-status: A green, B green (pipefail/SIGPIPE bug found + fixed), C green, D green (REPORT mode), E green (REPORT mode)
 operating-mode: autonomous between dispatches + full audit chain
 session-started: 2026-04-30 (handoff written; D05 implementation deferred to fresh session)
 session-resumed: 2026-04-30 (fresh session ran subtask 1 verify, discovered Stop 5)
