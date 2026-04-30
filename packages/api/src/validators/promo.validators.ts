@@ -16,7 +16,7 @@ export const createPromoCodeSchema = z
     code: z.string().min(1).max(40),
     description: z.string().max(500).optional(),
     discountType: z.enum(['percentage', 'fixed_centavos']),
-    discountValue: z.number().int().positive(),
+    discountValue: z.number().int().positive(), // gate-a-allowed: admin-defines-promo-value
     maxDiscountCentavos: z.number().int().positive().nullable().optional(),
     minimumOrderCentavos: z.number().int().min(0).optional(),
     usageLimitTotal: z.number().int().positive().nullable().optional(),

@@ -54,10 +54,10 @@
       "rationale": "Preventive: HASHES-CORRECTED.sha256 files (when added) must not be modified. Currently no such files exist; gate is vacuously passing but locks the rule in."
     },
     "a-cross-source-no-client-money": {
-      "mode": "REPORT",
+      "mode": "BLOCKING",
       "owning_dispatch": "D05",
-      "promoted_in": null,
-      "rationale": "Bug 175/176/208/261 — server validators accept money fields. Owned by D05 (Money trust closure). Promotes to BLOCKING after D05."
+      "promoted_in": "D05",
+      "rationale": "Promoted to BLOCKING in D05 (2026-04-30). Bug 175/176/208/1132/261/266/269/320/322/417/1219/1230 closed: every customer-facing validator now uses the server-canonical pattern (clients send IDs and quantities; server resolves prices from DB). Allowed exceptions are documented inline with `// gate-a-allowed:` markers (e.g., admin-defines-promo-value in createPromoCodeSchema) and at the schema-name level (adminWalletAdjustmentSchema, createAddonSchema/updateAddonSchema). Any future PR that introduces `servicePrice: z.number()` (or similar money-from-client) in a Zod validator fails this gate."
     },
     "a-cross-source-no-siguradoshield": {
       "mode": "BLOCKING",

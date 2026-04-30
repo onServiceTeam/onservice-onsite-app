@@ -74,10 +74,9 @@ The Phase 14 design accepts these failures during Dispatches 01–13 because eac
 - **Status:** BLOCKING immediately.
 
 ### `a-cross-source-no-client-money.sh`
-- **Expected to fail on master:** YES
-- **Reason:** Bug 175/176/208/261 — server validators accept money fields (`servicePrice`, addon `price`, etc.) from clients.
-- **Owning dispatch:** Dispatch 05 (Money trust closure).
-- **Becomes BLOCKING:** after D05 PR merges.
+- **Expected to fail on master:** NO (resolved by D05).
+- **Reason:** Phase 14 D05 (2026-04-30) closed Bug 175/176/208/1132/261/266/269/320/322/417/1219/1230. Every customer-facing validator now uses the server-canonical pattern (clients send IDs and quantities; server resolves prices from DB via `services/booking/pricing.service.ts`, `promo.service.ts`, `from-quote.service.ts`, etc.). Documented exceptions: `adminWalletAdjustmentSchema`, `createAddonSchema`/`updateAddonSchema`, and `// gate-a-allowed:` inline markers for legitimate admin-defined money fields (e.g., `discountValue` in `createPromoCodeSchema`).
+- **Status:** BLOCKING immediately on the D05 branch and going forward.
 
 ### `a-cross-source-no-siguradoshield.sh`
 - **Expected to fail on master:** NO (resolved by D04).
@@ -149,7 +148,7 @@ The Phase 14 design accepts these failures during Dispatches 01–13 because eac
 | D01 | a-cross-source-no-google-maps-placeholder, a-cross-source-no-axios (admin only) |
 | D02 | a-cross-source-cancellation-policy, a-cross-source-brand-color, a-cross-source-routes, a-cross-source-tier-criteria, a-cross-source-no-axios (mobile complete) |
 | D04 | a-cross-source-no-siguradoshield (now alias) + new BLOCKING gate_c_articles.no-shield-references |
-| D05 | a-cross-source-no-client-money |
+| D05 | a-cross-source-no-client-money — promoted 2026-04-30 |
 | D06 | Money-in-transaction in c-constitution.sh |
 | D07/D08 | Visual baselines for admin + mobile populated |
 | D11/D12 | a-cross-source-no-emoji-icons, console.* in c-constitution.sh, full Gate D + Gate E BLOCKING |
