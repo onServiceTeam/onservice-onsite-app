@@ -987,10 +987,18 @@ export async function createChangeOrder(
     throw createAppError('Change orders can only be submitted during active jobs.', 409);
   }
 
-  if (data.additionalAmount > booking.service_price * 0.5) {
-    logger.warn('Change order exceeds 50% of original — may require admin approval', {
-      bookingId, additionalAmount: data.additionalAmount, originalPrice: booking.service_price,
-    });
+  // Phase 14 Dispatch 05 — Bug 1219.
+  // Enforce 50% relative cap (was previously a warn-only log, allowing
+  // a malicious or compromised provider to submit, e.g., ₱5,000 above
+  // a ₱500 booking). Combined with the schema's hard ₱10K sanity cap,
+  // this bounds the change-order amount to a realistic fraction of
+  // the original service price.
+  const FIFTY_PERCENT_OF_SERVICE = booking.service_price * 0.5;
+  if (data.additionalAmount > FIFTY_PERCENT_OF_SERVICE) {
+    throw createAppError(
+      `Change order cannot exceed 50% of the original service price (max ${Math.floor(FIFTY_PERCENT_OF_SERVICE)} centavos).`,
+      400,
+    );
   }
 
   const result = await db.query<ChangeOrderRow>(

@@ -2,6 +2,7 @@ import {
   createBookingSchema,
   updateBookingStatusSchema,
   submitQuoteSchema,
+  createChangeOrderSchema,
 } from '../src/validators/booking.validators';
 
 describe('Booking Validators', () => {
@@ -238,6 +239,73 @@ describe('Booking Validators', () => {
         quotedPrice: 150000,
         description: 'Quick job, no problem.',
         estimatedDurationMinutes: 5,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('Bug 1219 — createChangeOrderSchema', () => {
+    const validChangeOrder = {
+      description: 'Found additional damage requiring extra parts.',
+      additionalAmount: 50000, // ₱500
+    };
+
+    it('accepts a valid change order', () => {
+      expect(createChangeOrderSchema.safeParse(validChangeOrder).success).toBe(true);
+    });
+
+    it('bug-1219-server-resolves: rejects amount above ₱10,000 sanity cap', () => {
+      const result = createChangeOrderSchema.safeParse({
+        ...validChangeOrder,
+        additionalAmount: 1_000_001,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts amount exactly at the ₱10,000 cap', () => {
+      const result = createChangeOrderSchema.safeParse({
+        ...validChangeOrder,
+        additionalAmount: 1_000_000,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects amount below the platform minimum (₱1.00 = 100 centavos)', () => {
+      const result = createChangeOrderSchema.safeParse({
+        ...validChangeOrder,
+        additionalAmount: 50, // below the 100-centavo platform min
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects non-integer amount', () => {
+      const result = createChangeOrderSchema.safeParse({
+        ...validChangeOrder,
+        additionalAmount: 50_000.5,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects too-short description', () => {
+      const result = createChangeOrderSchema.safeParse({
+        ...validChangeOrder,
+        description: 'short',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects unknown keys via .strict()', () => {
+      const result = createChangeOrderSchema.safeParse({
+        ...validChangeOrder,
+        evilField: 'x',
+      } as unknown);
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects more than 10 photos', () => {
+      const result = createChangeOrderSchema.safeParse({
+        ...validChangeOrder,
+        photos: Array.from({ length: 11 }, (_, i) => `https://example.com/p${i}.jpg`),
       });
       expect(result.success).toBe(false);
     });

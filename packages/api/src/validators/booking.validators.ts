@@ -93,8 +93,27 @@ export const createJobRequestSchema = z.object({
   { message: 'Maximum budget must be greater than or equal to minimum budget', path: ['budgetMax'] },
 );
 
-export const createChangeOrderSchema = z.object({
-  description: z.string().min(10, 'Description must be at least 10 characters').max(2000),
-  additionalAmount: z.number().int().min(platformConfig.minimumChangeOrderAmount, `Minimum additional amount is ${formatPHP(platformConfig.minimumChangeOrderAmount)}`),
-  photos: z.array(z.string().url()).max(10).optional(),
-});
+// Phase 14 Dispatch 05 — Bug 1219.
+// Added `.max(1_000_000)` (₱10,000 hard sanity cap) and `.strict()`
+// to prevent unbounded change-order amounts. The relative-to-service
+// price 50% cap is enforced server-side in
+// booking.service.ts:createChangeOrder (defense in depth).
+const CHANGE_ORDER_HARD_CAP_CENTAVOS = 1_000_000;
+
+export const createChangeOrderSchema = z
+  .object({
+    description: z
+      .string()
+      .min(10, 'Description must be at least 10 characters')
+      .max(2000),
+    additionalAmount: z
+      .number()
+      .int()
+      .min(
+        platformConfig.minimumChangeOrderAmount,
+        `Minimum additional amount is ${formatPHP(platformConfig.minimumChangeOrderAmount)}`,
+      )
+      .max(CHANGE_ORDER_HARD_CAP_CENTAVOS, 'Change-order amount exceeds platform sanity cap'),
+    photos: z.array(z.string().url()).max(10).optional(),
+  })
+  .strict();
