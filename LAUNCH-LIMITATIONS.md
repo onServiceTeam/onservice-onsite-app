@@ -8,38 +8,42 @@ ticket where applicable.
 
 ---
 
-## 1. Dispatch console — Reassign Dialog provider eligibility
+## 1. Dispatch console — Reassign Dialog provider eligibility — RESOLVED in Phase 14 Dispatch 10
 
 **Where:** [apps/admin/src/pages/DispatchConsolePage.tsx](apps/admin/src/pages/DispatchConsolePage.tsx)
 (Reassign dialog)
 
-The Reassign dialog lists **all currently online providers** in a flat
-dropdown without filtering by:
+**Status:** RESOLVED — Phase 14 Dispatch 10 (2026-04-30).
 
-- service-area coverage of the booking address,
-- working-hours / schedule availability for the booking's scheduled time,
-- service-category eligibility (e.g., the original booking was Aircon Cleaning).
+The Reassign dialog now filters providers by service-area coverage,
+service-category eligibility, and online status. The booking-admin
+service's `reassignBookingProvider` validates the new provider is
+active + has the required service category before applying the swap;
+audit row written inside the same db.transaction (D06 trx pattern).
 
-**Operator obligation:** verify the chosen provider is suitable manually
-before clicking Reassign (check city, service categories, schedule).
+The legacy "all online providers in a flat dropdown" surface is gone.
+Working-hours/schedule filtering remains a v1.1 polish item — current
+v1.0 ships with category + active-status filtering which closes the
+critical mismatch concern.
 
-**Source decision:** Phase 13 Dispatch B caveat #3.
-**Follow-up:** ticket TBD — "Filter Reassign Dialog providers by booking
-service area / category / schedule".
+**Source decision:** Phase 14 Dispatch 10 — Bug 272.A. Documented in
+[D10-closeout.md](.ai-coder/dispatches/D10-closeout.md).
 
-## 2. Dispatch console — Cancel Dialog refund preview
+## 2. Dispatch console — Cancel Dialog refund preview — RESOLVED in Phase 14 Dispatch 10
 
 **Where:** Cancel dialog within the Dispatch console.
 
-The cancel flow does not show a real-time **refund-amount preview** to
-the operator before confirmation; the actual refund is computed
-server-side in the cancel endpoint. Operators may want to know the
-expected customer credit before clicking Cancel.
+**Status:** RESOLVED — Phase 14 Dispatch 10 (2026-04-30).
 
-**Operator workaround:** open the booking detail page in a second tab
-and read the totals there before cancelling.
+The cancel flow now shows a real-time refund-amount preview computed
+via a server-side dry-run (`POST /admin/bookings/:id/cancel-preview`)
+that returns the customer refund amount + provider compensation amount
+based on `escrow.handleCancellationInTransaction`'s same logic but
+without committing. Operator sees the expected customer credit before
+clicking Confirm Cancel.
 
-**Source decision:** Phase 13 Dispatch B implementation review.
+**Source decision:** Phase 14 Dispatch 10 — Bug 272.B. Documented in
+[D10-closeout.md](.ai-coder/dispatches/D10-closeout.md).
 
 ## 3. Customer DSR — no track-requests view in mobile
 

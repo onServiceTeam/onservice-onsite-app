@@ -6,7 +6,10 @@
  *   - Map (top): react-leaflet OSM with custom markers per booking status and
  *     online-provider markers. Click → side detail panel.
  *   - Bottom-left: ACTIVE BOOKINGS list (capped at 50 rows). Reassign / Cancel
- *     / Message buttons are Phase 10 stubs (window.alert).
+ *     / Message buttons are wired to real mutations as of Phase 14 Dispatch 10
+ *     (Bug 272.A/B/C closed). Each button opens a modal with a reason field
+ *     ≥30 chars; mutation goes through the booking-admin.service which writes
+ *     a paired admin_actions row inside its transaction (D06 trx pattern).
  *   - Bottom-right: ALERT TAIL — last 20 admin alerts streamed via socket.
  *
  * Data sources:
