@@ -783,6 +783,7 @@ export async function cancelBookingAsAdmin(
 ): Promise<CancelResult> {
   const trimmedReason = requireReason(reason, 10);
 
+  // Pre-flight read (read-only, fast-fail outside any transaction).
   const bookingResult = await db.query<{
     id: string;
     status: string;
@@ -804,18 +805,26 @@ export async function cancelBookingAsAdmin(
   const arrivedValue = providerArrived ?? false;
   const noShowValue = customerNoShow ?? false;
 
-  let refundAmount = 0;
-  if (booking.escrow_status === 'held') {
-    const refund = await escrowService.handleCancellation(
-      bookingId,
-      hoursValue,
-      arrivedValue,
-      noShowValue,
-    );
-    refundAmount = Number(refund.customerRefundAmount ?? 0);
-  }
-
+  // Phase 14 Dispatch 06 — Bug 69. Pre-D06 the escrow refund ran in a
+  // separate transaction from the booking status update + admin_actions
+  // audit. If the audit insert failed after escrow money had moved, the
+  // money/audit pair was inconsistent. Now: ONE transaction wraps the
+  // escrow handling (via trx-aware helper), booking status update, and
+  // admin_actions insert. If the audit insert throws, the escrow money
+  // movement and the booking status flip both roll back.
   return db.transaction(async (client) => {
+    let refundAmount = 0;
+    if (booking.escrow_status === 'held') {
+      const refund = await escrowService.handleCancellationInTransaction(
+        client,
+        bookingId,
+        hoursValue,
+        arrivedValue,
+        noShowValue,
+      );
+      refundAmount = Number(refund.customerRefundAmount ?? 0);
+    }
+
     await client.query(
       `UPDATE bookings
           SET status = 'cancelled_by_admin',
@@ -827,8 +836,8 @@ export async function cancelBookingAsAdmin(
     );
 
     const actionResult = await client.query<{ id: string }>(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-       VALUES ($1, 'booking_cancelled', 'booking', $2, $3::jsonb, $4)
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'booking_cancelled', 'booking', $2, $3::jsonb, $4, $5)
        RETURNING id`,
       [
         adminUserId,
@@ -839,6 +848,7 @@ export async function cancelBookingAsAdmin(
           customerNoShow: noShowValue,
           refundAmount,
         }),
+        trimmedReason.slice(0, 500),
         trimmedReason,
       ],
     );

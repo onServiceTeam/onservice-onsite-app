@@ -34,6 +34,10 @@ jest.mock('../src/services/escrow.service', () => ({
   releaseEscrow: jest.fn(),
   refundFromEscrow: jest.fn(),
   handleCancellation: jest.fn(),
+  // Phase 14 Dispatch 06 — trx-aware helpers used by D06-wrapped callers.
+  releaseEscrowInTransaction: jest.fn(),
+  refundFromEscrowInTransaction: jest.fn(),
+  handleCancellationInTransaction: jest.fn(),
 }));
 
 jest.mock('../src/services/dispute.service', () => ({
@@ -91,6 +95,9 @@ beforeEach(() => {
   escrowMocks.releaseEscrow.mockReset();
   escrowMocks.refundFromEscrow.mockReset();
   escrowMocks.handleCancellation.mockReset();
+  escrowMocks.releaseEscrowInTransaction.mockReset();
+  escrowMocks.refundFromEscrowInTransaction.mockReset();
+  escrowMocks.handleCancellationInTransaction.mockReset();
   disputeMocks.resolveDispute.mockReset();
   disputeMocks.assignDispute.mockReset();
   disputeMocks.escalateDispute.mockReset();
@@ -524,13 +531,13 @@ describe('cancelBookingAsAdmin', () => {
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
-  it('escrow held → calls handleCancellation with passed args + records refundAmount', async () => {
+  it('escrow held → calls handleCancellationInTransaction with passed args + records refundAmount (Bug 69)', async () => {
     dbQueryMock.mockResolvedValueOnce(
       rows([{ id: BOOKING_ID, status: 'confirmed_by_provider', escrow_status: 'held' }]),
     );
-    escrowMocks.handleCancellation.mockResolvedValueOnce({
+    escrowMocks.handleCancellationInTransaction.mockResolvedValueOnce({
       customerRefundAmount: 4242,
-    } as unknown as Awaited<ReturnType<typeof escrowMocks.handleCancellation>>);
+    } as unknown as Awaited<ReturnType<typeof escrowMocks.handleCancellationInTransaction>>);
     const calls = setupTxRecorder(async (sql) => {
       if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-can' }]);
       return rows([]);
@@ -543,7 +550,21 @@ describe('cancelBookingAsAdmin', () => {
       false,
       true,
     );
-    expect(escrowMocks.handleCancellation).toHaveBeenCalledWith(BOOKING_ID, 6, false, true);
+    // Phase 14 Dispatch 06 — Bug 69. Escrow handling now flows through
+    // the trx-aware helper so it composes atomically with the audit insert.
+    expect(escrowMocks.handleCancellationInTransaction).toHaveBeenCalledTimes(1);
+    const txArg = escrowMocks.handleCancellationInTransaction.mock.calls[0]![0];
+    expect(typeof (txArg as { query?: unknown })?.query).toBe('function');
+    expect(escrowMocks.handleCancellationInTransaction.mock.calls[0]!.slice(1)).toEqual([
+      BOOKING_ID,
+      6,
+      false,
+      true,
+    ]);
+    // Legacy public function must NOT be called (proves D06 wiring is in
+    // place — without the helper switch, money + audit would land in
+    // separate transactions).
+    expect(escrowMocks.handleCancellation).not.toHaveBeenCalled();
     expect(out.refundAmount).toBe(4242);
     const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
     expect(insert?.sql).toContain("'booking_cancelled'");
@@ -563,6 +584,7 @@ describe('cancelBookingAsAdmin', () => {
       ADMIN_ID,
     );
     expect(escrowMocks.handleCancellation).not.toHaveBeenCalled();
+    expect(escrowMocks.handleCancellationInTransaction).not.toHaveBeenCalled();
     expect(out.refundAmount).toBe(0);
     expect(calls.find((c) => /UPDATE bookings/.test(c.sql))).toBeDefined();
   });
