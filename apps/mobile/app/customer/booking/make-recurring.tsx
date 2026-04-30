@@ -45,6 +45,10 @@ export default function MakeRecurringScreen(): React.ReactElement {
       const schedTime = booking.scheduledAt
         ? new Date(booking.scheduledAt).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Manila' })
         : '09:00';
+      // Phase 14 Dispatch 05 — Bug 208.
+      // No `servicePrice` field; the server resolves the canonical
+      // price from service_subcategories.base_price for the
+      // referenced subcategoryId.
       await api.post('/api/v1/recurring', {
         categoryId: booking.categoryId,
         subcategoryId: booking.subcategoryId,
@@ -59,7 +63,6 @@ export default function MakeRecurringScreen(): React.ReactElement {
         province: booking.province ?? '',
         latitude: booking.latitude,
         longitude: booking.longitude,
-        servicePrice: booking.servicePrice || booking.totalAmount,
       });
     },
     onSuccess: () => {
