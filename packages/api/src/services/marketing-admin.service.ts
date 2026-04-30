@@ -203,6 +203,7 @@ async function writeAudit(
   details: Record<string, unknown>,
   reason: string,
 ): Promise<void> {
+  // gate-c-allowed: best-effort-audit-only — generic marketing audit helper; try/catch with logger.warn so audit failures don't block promo creation
   try {
     await db.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, reason, details)

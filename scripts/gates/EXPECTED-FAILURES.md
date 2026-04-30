@@ -116,10 +116,9 @@ The Phase 14 design accepts these failures during Dispatches 01–13 because eac
 - **Status:** BLOCKING per dispatch branch.
 
 ### Money-in-transaction
-- **Expected to fail on master:** YES
-- **Reason:** Bugs 69, 70, 71, 78, 79, 80, 82, 83, 84, 85, 105, 106, 127, 237 — 14 services have money mutations outside `db.transaction()`.
-- **Owning dispatch:** Dispatch 06 (Transactional audit completeness).
-- **Becomes BLOCKING:** after D06 PR merges.
+- **Expected to fail on master:** NO (resolved by D06).
+- **Reason:** Phase 14 D06 (2026-04-30) closed Bugs 69, 70, 71, 78, 79, 80, 82, 83, 84, 85, 105, 106, 127, 237. Every money/audit mutation either composes via a trx-aware `*InTransaction` helper (releaseEscrowInTransaction, refundFromEscrowInTransaction, handleCancellationInTransaction, resolveDisputeInTransaction) or is annotated `// gate-c-allowed: best-effort-audit-only` for the documented non-blocking audit pattern (try/catch + logger.warn so audit failures don't roll back durable underlying state). Two real adjacent bugs were also fixed inline: `dispute.service.assignDispute` and `payout.service.approvePayout`. The gate logic itself was rewritten in D06 — the prior Kysely-pattern regex was vacuously passing because the codebase uses raw pg; the new awk pattern detects `db.query` calls with INSERT INTO admin_actions/wallet_transactions or UPDATE wallets at the top level (not inside `db.transaction`).
+- **Status:** BLOCKING immediately on D06 branch and going forward.
 
 ---
 
@@ -149,7 +148,7 @@ The Phase 14 design accepts these failures during Dispatches 01–13 because eac
 | D02 | a-cross-source-cancellation-policy, a-cross-source-brand-color, a-cross-source-routes, a-cross-source-tier-criteria, a-cross-source-no-axios (mobile complete) |
 | D04 | a-cross-source-no-siguradoshield (now alias) + new BLOCKING gate_c_articles.no-shield-references |
 | D05 | a-cross-source-no-client-money — promoted 2026-04-30 |
-| D06 | Money-in-transaction in c-constitution.sh |
+| D06 | money-in-transaction in c-constitution.sh — promoted 2026-04-30 |
 | D07/D08 | Visual baselines for admin + mobile populated |
 | D11/D12 | a-cross-source-no-emoji-icons, console.* in c-constitution.sh, full Gate D + Gate E BLOCKING |
 | D13/D14 | All gates BLOCKING in CI; v1.0.0-launch-ready tag |

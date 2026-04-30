@@ -95,37 +95,45 @@ export async function requestPayout(
 }
 
 export async function approvePayout(payoutId: string, adminId: string): Promise<PayoutRow> {
-  const result = await db.query<PayoutRow>(
-    `UPDATE payouts SET status = 'approved', reviewed_by = $1, reviewed_at = NOW()
-     WHERE id = $2 AND status = 'pending' RETURNING *`,
-    [adminId, payoutId],
-  );
-  if (result.rows.length === 0) throw createAppError('Payout not found or not in pending status.', 404);
-
-  await db.query(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-     VALUES ($1, 'payout_approved', 'payout', $2, $3)`,
-    [adminId, payoutId, JSON.stringify({ amount: Number(result.rows[0]!.amount) })],
-  );
-
-  const prov = await db.query<{ user_id: string }>(
-    `SELECT user_id FROM providers WHERE id = $1`,
-    [result.rows[0]!.provider_id],
-  );
-  if (prov.rows[0]) {
-    await db.query(
-      `INSERT INTO notifications (user_id, type, title, body, data)
-       VALUES ($1, 'payout', 'Payout Approved', $2, $3)`,
-      [
-        prov.rows[0].user_id,
-        `Your payout of ${formatPHP(Number(result.rows[0]!.amount))} has been approved and is being processed.`,
-        JSON.stringify({ payoutId, amount: Number(result.rows[0]!.amount) }),
-      ],
+  // Phase 14 Dispatch 06 — gate-promotion fix. Pre-D06 the payout
+  // UPDATE + admin_actions INSERT + notifications INSERT ran as four
+  // separate top-level db.query calls. If audit or notification failed
+  // after status flipped to 'approved', payout state was committed
+  // without audit. Now: ONE transaction wraps the status update,
+  // admin_actions audit, and provider notification.
+  return db.transaction(async (client) => {
+    const result = await client.query<PayoutRow>(
+      `UPDATE payouts SET status = 'approved', reviewed_by = $1, reviewed_at = NOW()
+       WHERE id = $2 AND status = 'pending' RETURNING *`,
+      [adminId, payoutId],
     );
-  }
+    if (result.rows.length === 0) throw createAppError('Payout not found or not in pending status.', 404);
 
-  logger.info('Payout approved', { payoutId, adminId });
-  return result.rows[0]!;
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'payout_approved', 'payout', $2, $3)`,
+      [adminId, payoutId, JSON.stringify({ amount: Number(result.rows[0]!.amount) })],
+    );
+
+    const prov = await client.query<{ user_id: string }>(
+      `SELECT user_id FROM providers WHERE id = $1`,
+      [result.rows[0]!.provider_id],
+    );
+    if (prov.rows[0]) {
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, body, data)
+         VALUES ($1, 'payout', 'Payout Approved', $2, $3)`,
+        [
+          prov.rows[0].user_id,
+          `Your payout of ${formatPHP(Number(result.rows[0]!.amount))} has been approved and is being processed.`,
+          JSON.stringify({ payoutId, amount: Number(result.rows[0]!.amount) }),
+        ],
+      );
+    }
+
+    logger.info('Payout approved', { payoutId, adminId });
+    return result.rows[0]!;
+  });
 }
 
 export async function rejectPayout(payoutId: string, adminId: string, reason: string): Promise<PayoutRow> {

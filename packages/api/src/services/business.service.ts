@@ -136,7 +136,7 @@ export async function getBusinessAccount(
   userId: string,
 ): Promise<BusinessAccountRow> {
   const member = await db.query(
-    `SELECT 1 FROM business_members WHERE business_account_id = $1 AND user_id = $2`,
+    `SELECT 1 FROM business_members WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [businessId, userId],
   );
 
@@ -167,13 +167,13 @@ export async function getUserBusinessAccounts(
     db.query<BusinessAccountRow>(
       `SELECT ba.* FROM business_accounts ba
        INNER JOIN business_members bm ON ba.id = bm.business_account_id
-       WHERE bm.user_id = $1
+       WHERE bm.user_id = $1 AND bm.deleted_at IS NULL
        ORDER BY ba.created_at DESC
        LIMIT $2 OFFSET $3`,
       [userId, pageSize, offset],
     ),
     db.query<CountRow>(
-      `SELECT COUNT(*)::text as count FROM business_members WHERE user_id = $1`,
+      `SELECT COUNT(*)::text as count FROM business_members WHERE user_id = $1 AND deleted_at IS NULL`,
       [userId],
     ),
   ]);
@@ -190,7 +190,7 @@ export async function updateBusinessAccount(
   updates: Partial<CreateBusinessParams>,
 ): Promise<BusinessAccountRow> {
   const member = await db.query<BusinessMemberRow>(
-    `SELECT role FROM business_members WHERE business_account_id = $1 AND user_id = $2`,
+    `SELECT role FROM business_members WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [businessId, userId],
   );
 
@@ -254,7 +254,7 @@ export async function addMember(
   permissions: { canBook?: boolean; canApprove?: boolean; canViewInvoices?: boolean },
 ): Promise<BusinessMemberRow> {
   const inviter = await db.query<BusinessMemberRow>(
-    `SELECT role FROM business_members WHERE business_account_id = $1 AND user_id = $2`,
+    `SELECT role FROM business_members WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [businessId, inviterId],
   );
 
@@ -306,35 +306,179 @@ export async function removeMember(
   businessId: string,
   requesterId: string,
   targetUserId: string,
+  reason?: string,
 ): Promise<void> {
-  const requester = await db.query<BusinessMemberRow>(
-    `SELECT role FROM business_members WHERE business_account_id = $1 AND user_id = $2`,
-    [businessId, requesterId],
-  );
+  // Phase 14 Dispatch 06 — Bug 105. Pre-D06 this was a hard DELETE with
+  // NO admin_actions audit. Now: soft delete (deleted_at/deleted_by/
+  // deleted_reason from migration 076) + admin_actions audit in ONE
+  // transaction. The audit row's target_id FK to business_members
+  // remains valid because the row still exists, just with deleted_at set.
+  await db.transaction(async (client) => {
+    const requester = await client.query<BusinessMemberRow & { deleted_at: Date | null }>(
+      `SELECT id, role, deleted_at FROM business_members
+        WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [businessId, requesterId],
+    );
 
-  if (requester.rows.length === 0 || !['owner', 'manager'].includes(requester.rows[0]!.role)) {
-    throw createAppError('Only owners and managers can remove members.', 403);
-  }
+    if (requester.rows.length === 0 || !['owner', 'manager'].includes(requester.rows[0]!.role)) {
+      throw createAppError('Only owners and managers can remove members.', 403);
+    }
 
-  const target = await db.query<BusinessMemberRow>(
-    `SELECT role FROM business_members WHERE business_account_id = $1 AND user_id = $2`,
-    [businessId, targetUserId],
-  );
+    const target = await client.query<BusinessMemberRow & { deleted_at: Date | null }>(
+      `SELECT id, role, deleted_at FROM business_members
+        WHERE business_account_id = $1 AND user_id = $2`,
+      [businessId, targetUserId],
+    );
 
-  if (target.rows.length === 0) {
-    throw createAppError('Member not found.', 404);
-  }
+    if (target.rows.length === 0) {
+      throw createAppError('Member not found.', 404);
+    }
 
-  if (target.rows[0]!.role === 'owner') {
-    throw createAppError('Cannot remove the owner. Transfer ownership first.', 403);
-  }
+    if (target.rows[0]!.deleted_at) {
+      throw createAppError('Member has already been removed.', 409);
+    }
 
-  await db.query(
-    `DELETE FROM business_members WHERE business_account_id = $1 AND user_id = $2`,
-    [businessId, targetUserId],
-  );
+    if (target.rows[0]!.role === 'owner') {
+      throw createAppError('Cannot remove the owner. Transfer ownership first.', 403);
+    }
+
+    const trimmedReason = (reason ?? '').trim();
+    await client.query(
+      `UPDATE business_members
+          SET deleted_at = NOW(),
+              deleted_by = $3,
+              deleted_reason = $4
+        WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [businessId, targetUserId, requesterId, trimmedReason || null],
+    );
+
+    const memberRowId = target.rows[0]!.id;
+    const auditResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'business_member_removed', 'business', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        requesterId,
+        businessId,
+        JSON.stringify({
+          memberRowId,
+          removedUserId: targetUserId,
+          removedRole: target.rows[0]!.role,
+          requesterRole: requester.rows[0]!.role,
+        }),
+        trimmedReason ? trimmedReason.slice(0, 500) : `Member removed by ${requester.rows[0]!.role}`,
+        trimmedReason || null,
+      ],
+    );
+    if (!auditResult.rows[0]?.id) {
+      throw createAppError('Failed to record business_member_removed audit.', 500);
+    }
+  });
 
   logger.info('Business member removed', { businessId, targetUserId, requesterId });
+}
+
+/**
+ * Phase 14 Dispatch 06 — Bug 106. Transfer business ownership from one
+ * member to another. The audit found this as a planned-but-not-implemented
+ * feature: `removeMember` blocks owner removal with the message
+ * "Transfer ownership first" but the transfer function itself was missing.
+ *
+ * Implements the D06 transactional pattern: UPDATE business_accounts.owner_user_id
+ * + UPDATE current owner's role to 'manager' + UPDATE new owner's row to
+ * role 'owner' + INSERT admin_actions audit, all in ONE transaction.
+ *
+ * Authorization: only the current owner can transfer ownership.
+ */
+export async function transferOwnership(
+  businessId: string,
+  requesterId: string,
+  newOwnerUserId: string,
+  reason?: string,
+): Promise<void> {
+  if (newOwnerUserId === requesterId) {
+    throw createAppError('Cannot transfer ownership to yourself.', 400);
+  }
+
+  await db.transaction(async (client) => {
+    const account = await client.query<{ id: string; owner_user_id: string }>(
+      `SELECT id, owner_user_id FROM business_accounts WHERE id = $1 FOR UPDATE`,
+      [businessId],
+    );
+    if (account.rows.length === 0) throw createAppError('Business account not found.', 404);
+    const currentOwnerUserId = account.rows[0]!.owner_user_id;
+
+    if (currentOwnerUserId !== requesterId) {
+      throw createAppError('Only the current owner can transfer ownership.', 403);
+    }
+
+    const newOwnerMember = await client.query<{ id: string; role: string; deleted_at: Date | null }>(
+      `SELECT id, role, deleted_at FROM business_members
+        WHERE business_account_id = $1 AND user_id = $2`,
+      [businessId, newOwnerUserId],
+    );
+    if (newOwnerMember.rows.length === 0 || newOwnerMember.rows[0]!.deleted_at) {
+      throw createAppError('New owner is not an active member of this business.', 404);
+    }
+
+    const oldOwnerMember = await client.query<{ id: string }>(
+      `SELECT id FROM business_members
+        WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [businessId, currentOwnerUserId],
+    );
+    if (oldOwnerMember.rows.length === 0) {
+      // Defensive: business_accounts.owner_user_id should always have a
+      // matching active business_members row, but if somehow it doesn't
+      // we can't transfer cleanly.
+      throw createAppError('Current owner is not a member of this business — data integrity issue.', 500);
+    }
+
+    // Demote old owner to manager.
+    await client.query(
+      `UPDATE business_members
+          SET role = 'manager', can_approve = TRUE
+        WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [businessId, currentOwnerUserId],
+    );
+
+    // Promote new owner.
+    await client.query(
+      `UPDATE business_members
+          SET role = 'owner', can_book = TRUE, can_approve = TRUE, can_view_invoices = TRUE
+        WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [businessId, newOwnerUserId],
+    );
+
+    // Update business_accounts.owner_user_id pointer.
+    await client.query(
+      `UPDATE business_accounts SET owner_user_id = $2, updated_at = NOW() WHERE id = $1`,
+      [businessId, newOwnerUserId],
+    );
+
+    const trimmedReason = (reason ?? '').trim();
+    const auditResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'business_ownership_transferred', 'business', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        requesterId,
+        businessId,
+        JSON.stringify({
+          oldOwnerUserId: currentOwnerUserId,
+          newOwnerUserId,
+          oldOwnerMemberRowId: oldOwnerMember.rows[0]!.id,
+          newOwnerMemberRowId: newOwnerMember.rows[0]!.id,
+        }),
+        trimmedReason ? trimmedReason.slice(0, 500) : 'Ownership transferred by current owner',
+        trimmedReason || null,
+      ],
+    );
+    if (!auditResult.rows[0]?.id) {
+      throw createAppError('Failed to record business_ownership_transferred audit.', 500);
+    }
+  });
+
+  logger.info('Business ownership transferred', { businessId, oldOwner: requesterId, newOwner: newOwnerUserId });
 }
 
 export async function getMembers(
@@ -342,7 +486,7 @@ export async function getMembers(
   userId: string,
 ): Promise<Array<BusinessMemberRow & { first_name: string; last_name: string; email: string }>> {
   const member = await db.query(
-    `SELECT 1 FROM business_members WHERE business_account_id = $1 AND user_id = $2`,
+    `SELECT 1 FROM business_members WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [businessId, userId],
   );
 
@@ -354,7 +498,7 @@ export async function getMembers(
     `SELECT bm.*, u.first_name, u.last_name, u.email
      FROM business_members bm
      INNER JOIN users u ON bm.user_id = u.id
-     WHERE bm.business_account_id = $1
+     WHERE bm.business_account_id = $1 AND bm.deleted_at IS NULL
      ORDER BY CASE bm.role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END, bm.created_at ASC`,
     [businessId],
   );
@@ -368,7 +512,7 @@ export async function createContract(
 ): Promise<BusinessContractRow> {
   const member = await db.query<BusinessMemberRow>(
     `SELECT role, can_approve FROM business_members
-     WHERE business_account_id = $1 AND user_id = $2`,
+     WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [params.businessAccountId, userId],
   );
 
@@ -409,7 +553,7 @@ export async function getContracts(
   pageSize = 20,
 ): Promise<{ items: BusinessContractRow[]; total: number }> {
   const member = await db.query(
-    `SELECT 1 FROM business_members WHERE business_account_id = $1 AND user_id = $2`,
+    `SELECT 1 FROM business_members WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [businessId, userId],
   );
 
@@ -455,7 +599,7 @@ export async function updateContractStatus(
 
   const member = await db.query<BusinessMemberRow>(
     `SELECT role, can_approve FROM business_members
-     WHERE business_account_id = $1 AND user_id = $2`,
+     WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [contract.rows[0]!.business_account_id, userId],
   );
 

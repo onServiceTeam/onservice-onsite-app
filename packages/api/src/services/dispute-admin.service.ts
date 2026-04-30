@@ -20,6 +20,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as disputeService from './dispute.service';
+import * as escrowService from './escrow.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -478,52 +479,117 @@ export async function adminResolveDispute(
     }
   }
 
-  const resolved = await disputeService.resolveDispute(
-    disputeId,
-    adminUserId,
-    {
-      resolutionType: input.resolutionType,
-      refundPercent: input.refundPercent,
-      decisionNotes,
-      internalNotes: input.internalNotes,
-    },
-  );
-
-  const refundAmount = Number(resolved.refund_amount ?? 0);
-
-  const actionResult = await db.query<{ id: string }>(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-     VALUES ($1, 'dispute_resolved', 'dispute', $2, $3::jsonb, $4)
-     RETURNING id`,
-    [
-      adminUserId,
+  // Phase 14 Dispatch 06 — Bug 83. Pre-D06 this called
+  // disputeService.resolveDispute (transactional internally) THEN inserted
+  // admin_actions in a SEPARATE top-level db.query. If the audit insert
+  // failed after dispute state was already committed, the dispute changed
+  // status without the admin-level audit trail. Now: ONE outer transaction
+  // wraps disputeService.resolveDisputeInTransaction (the trx-aware helper)
+  // + the admin_actions INSERT. Post-commit escrow refund/release calls
+  // mirror the legacy resolveDispute pattern (gateway-tolerant).
+  const resolution = await db.transaction(async (client) => {
+    const helper = await disputeService.resolveDisputeInTransaction(
+      client,
       disputeId,
-      JSON.stringify({
+      adminUserId,
+      {
         resolutionType: input.resolutionType,
-        refundPercent: input.refundPercent ?? null,
-        refundAmount,
-      }),
-      decisionNotes,
-    ],
-  );
-  const adminActionId = actionResult.rows[0]?.id;
-  if (!adminActionId) {
-    throw createAppError('Failed to record dispute resolve admin action.', 500);
-  }
+        refundPercent: input.refundPercent,
+        decisionNotes,
+        internalNotes: input.internalNotes,
+      },
+    );
+
+    const actionResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'dispute_resolved', 'dispute', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        adminUserId,
+        disputeId,
+        JSON.stringify({
+          resolutionType: input.resolutionType,
+          refundPercent: input.refundPercent ?? null,
+          refundAmount: helper.refundAmount,
+          bookingId: helper.bookingId,
+        }),
+        decisionNotes.slice(0, 500),
+        decisionNotes,
+      ],
+    );
+    const adminActionId = actionResult.rows[0]?.id;
+    if (!adminActionId) {
+      throw createAppError('Failed to record dispute resolve admin action.', 500);
+    }
+
+    return {
+      adminActionId,
+      refundAmount: helper.refundAmount,
+      bookingId: helper.bookingId,
+      providerId: helper.providerId,
+      bookingTotalAmount: helper.bookingTotalAmount,
+    };
+  });
 
   logger.info('Dispute resolved by admin', {
     disputeId,
     adminUserId,
-    adminActionId,
+    adminActionId: resolution.adminActionId,
     resolutionType: input.resolutionType,
-    refundAmount,
+    refundAmount: resolution.refundAmount,
   });
+
+  // Post-commit: gateway escrow refund/release. Errors are logged but do
+  // not roll back the durable dispute resolution + audit row.
+  // gate-c-allowed: post-commit-gateway-refund
+  if (resolution.refundAmount > 0) {
+    let refundSucceeded = false;
+    try {
+      await escrowService.refundFromEscrow(
+        resolution.bookingId,
+        resolution.refundAmount,
+        `Admin dispute resolution: ${input.resolutionType}`,
+      );
+      refundSucceeded = true;
+    } catch (err) {
+      logger.error('Failed to process admin dispute refund (post-commit)', {
+        disputeId, refundAmount: resolution.refundAmount,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    const remainingAmount = resolution.bookingTotalAmount - resolution.refundAmount;
+    if (refundSucceeded && remainingAmount > 0 && resolution.providerId) {
+      try {
+        await escrowService.releasePartialEscrow(resolution.bookingId, remainingAmount);
+      } catch (err) {
+        logger.error('Failed to release remaining escrow after partial refund (post-commit)', {
+          disputeId, remainingAmount,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+  }
+
+  const shouldReleaseToProvider =
+    input.resolutionType === 'no_refund' ||
+    (resolution.refundAmount === 0 && input.resolutionType !== 'free_redo');
+  if (shouldReleaseToProvider && resolution.providerId) {
+    try {
+      await escrowService.releaseEscrow(resolution.bookingId);
+    } catch (err) {
+      logger.error('Failed to release escrow after dispute resolution (post-commit)', {
+        disputeId, resolutionType: input.resolutionType,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
   return {
     disputeId,
     resolutionType: input.resolutionType,
-    refundAmount,
-    adminActionId,
+    refundAmount: resolution.refundAmount,
+    adminActionId: resolution.adminActionId,
   };
 }
 
@@ -613,15 +679,21 @@ export async function sendDisputeMessage(
       ? trimmedMessage.slice(0, 500)
       : trimmedMessage;
 
+    // Phase 14 Dispatch 06 — Bug 85. Store the full message body in the
+    // new admin_actions.full_notes column (migration 075) so disputes can
+    // be reconstructed verbatim for compliance audit. The legacy `reason`
+    // column stays as a 500-char-truncated summary for back-compat with
+    // existing UI listings.
     const actionResult = await client.query<{ id: string }>(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-       VALUES ($1, 'dispute_message_sent', 'dispute', $2, $3::jsonb, $4)
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'dispute_message_sent', 'dispute', $2, $3::jsonb, $4, $5)
        RETURNING id`,
       [
         adminUserId,
         disputeId,
         JSON.stringify({ recipient, messageLength: trimmedMessage.length }),
         reason,
+        trimmedMessage,
       ],
     );
     const adminActionId = actionResult.rows[0]?.id;

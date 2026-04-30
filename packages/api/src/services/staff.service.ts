@@ -28,18 +28,21 @@ export interface AdminStaff {
 }
 
 export async function listRoles(): Promise<AdminRole[]> {
+  // Phase 14 Dispatch 06 — Bug 127: filter soft-deleted roles.
   const result = await db.query<AdminRole>(
     `SELECT ar.*,
             (SELECT COUNT(*) FROM admin_staff ast WHERE ast.role_id = ar.id AND ast.is_active = TRUE) AS staff_count
      FROM admin_roles ar
+     WHERE ar.deleted_at IS NULL
      ORDER BY ar.name`,
   );
   return result.rows;
 }
 
 export async function getRoleById(roleId: string): Promise<AdminRole | null> {
+  // Phase 14 Dispatch 06 — Bug 127: filter soft-deleted roles.
   const result = await db.query<AdminRole>(
-    `SELECT * FROM admin_roles WHERE id = $1`,
+    `SELECT * FROM admin_roles WHERE id = $1 AND deleted_at IS NULL`,
     [roleId],
   );
   return result.rows[0] ?? null;
@@ -111,21 +114,64 @@ export async function updateRole(
   return role;
 }
 
-export async function deleteRole(roleId: string): Promise<void> {
-  const existing = await getRoleById(roleId);
-  if (!existing) throw createAppError('Role not found.', 404);
-  if (existing.name === 'super_admin') {
-    throw createAppError('The super_admin role cannot be deleted.', 403);
-  }
-  const staffCount = await db.query<{ count: string }>(
-    `SELECT COUNT(*) AS count FROM admin_staff WHERE role_id = $1`,
-    [roleId],
-  );
-  if (parseInt(staffCount.rows[0]?.count ?? '0', 10) > 0) {
-    throw createAppError('Cannot delete a role that has staff members assigned.', 409);
-  }
-  await db.query(`DELETE FROM admin_roles WHERE id = $1`, [roleId]);
-  logger.info('Admin role deleted', { roleId });
+export async function deleteRole(
+  roleId: string,
+  adminUserId: string,
+  reason?: string,
+): Promise<void> {
+  // Phase 14 Dispatch 06 — Bug 127. Pre-D06 this was a hard DELETE with
+  // NO admin_actions audit. Now: soft delete (deleted_at column from
+  // migration 076) + audit row in ONE transaction. The audit row's
+  // target_id FK to admin_roles remains valid because the row still
+  // exists, just with deleted_at set. New verb 'admin_role_archived'
+  // (migration 075).
+  await db.transaction(async (client) => {
+    const existing = await client.query<{ id: string; name: string; deleted_at: Date | null }>(
+      `SELECT id, name, deleted_at FROM admin_roles WHERE id = $1 FOR UPDATE`,
+      [roleId],
+    );
+    const row = existing.rows[0];
+    if (!row || row.deleted_at) throw createAppError('Role not found.', 404);
+    if (row.name === 'super_admin') {
+      throw createAppError('The super_admin role cannot be deleted.', 403);
+    }
+    const staffCount = await client.query<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM admin_staff WHERE role_id = $1 AND is_active = TRUE`,
+      [roleId],
+    );
+    if (parseInt(staffCount.rows[0]?.count ?? '0', 10) > 0) {
+      throw createAppError('Cannot archive a role that has active staff members assigned.', 409);
+    }
+
+    const trimmedReason = (reason ?? '').trim();
+    await client.query(
+      `UPDATE admin_roles
+          SET deleted_at = NOW(),
+              deleted_by = $2,
+              deleted_reason = $3,
+              updated_at = NOW()
+        WHERE id = $1 AND deleted_at IS NULL`,
+      [roleId, adminUserId, trimmedReason || null],
+    );
+
+    const auditResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'admin_role_archived', 'admin_role', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        adminUserId,
+        roleId,
+        JSON.stringify({ roleName: row.name }),
+        trimmedReason ? trimmedReason.slice(0, 500) : `Role ${row.name} archived`,
+        trimmedReason || null,
+      ],
+    );
+    if (!auditResult.rows[0]?.id) {
+      throw createAppError('Failed to record admin_role_archived audit.', 500);
+    }
+  });
+
+  logger.info('Admin role archived', { roleId, adminUserId });
 }
 
 export async function listStaff(params: {

@@ -50,11 +50,11 @@ router.patch(
     try {
       requireSuperAdmin(req);
       const { businessName, description, serviceRadiusKm } = req.body ?? {};
-      await providerAdminService.updateProviderProfile((req.params.id as string), {
-        businessName,
-        description,
-        serviceRadiusKm,
-      });
+      await providerAdminService.updateProviderProfile(
+        (req.params.id as string),
+        { businessName, description, serviceRadiusKm },
+        req.user!.userId,
+      );
       res.json({ success: true });
     } catch (error) {
       next(error);
@@ -266,7 +266,13 @@ router.delete(
     try {
       requireAdmin(req);
       const isSuperAdmin = req.user!.role === 'super_admin';
-      await providerAdminService.deleteProviderNote((req.params.noteId as string), req.user!.userId, isSuperAdmin);
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+      await providerAdminService.deleteProviderNote(
+        (req.params.noteId as string),
+        req.user!.userId,
+        isSuperAdmin,
+        reason,
+      );
       res.json({ success: true });
     } catch (error) {
       next(error);

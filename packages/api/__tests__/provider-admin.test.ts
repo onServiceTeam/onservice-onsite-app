@@ -338,27 +338,39 @@ describe('Notes CRUD', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('createProviderNote inserts and returns the new row', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ id: NOTE_ID }])) // INSERT
-      .mockResolvedValueOnce(
-        rows([
-          {
-            id: NOTE_ID,
-            provider_id: PROVIDER_ID,
-            author_id: ADMIN_ID,
-            author_name: 'Admin Joe',
-            category: 'quality',
-            body: 'noted',
-            pinned: false,
-            created_at: new Date('2024-02-02T00:00:00Z'),
-            updated_at: new Date('2024-02-02T00:00:00Z'),
-          },
-        ]),
-      );
+  it('createProviderNote inserts note + admin_actions audit in one transaction (Bug 82)', async () => {
+    dbTransactionMock.mockImplementationOnce(
+      async (cb: (client: { query: jest.Mock }) => unknown) => {
+        const clientQuery = jest.fn(async (sql: string) => {
+          if (sql.startsWith('INSERT INTO provider_admin_notes')) {
+            return rows([
+              {
+                id: NOTE_ID,
+                provider_id: PROVIDER_ID,
+                author_id: ADMIN_ID,
+                category: 'quality',
+                body: 'noted',
+                pinned: false,
+                created_at: new Date('2024-02-02T00:00:00Z'),
+                updated_at: new Date('2024-02-02T00:00:00Z'),
+              },
+            ]);
+          }
+          if (sql.includes('SELECT (first_name')) {
+            return rows([{ author_name: 'Admin Joe' }]);
+          }
+          if (sql.startsWith('INSERT INTO admin_actions')) {
+            return rows([{ id: 'audit-note-create' }]);
+          }
+          return rows([]);
+        });
+        return cb({ query: clientQuery as unknown as jest.Mock });
+      },
+    );
     const out = await svc.createProviderNote(PROVIDER_ID, ADMIN_ID, 'quality', 'noted', false);
     expect(out.id).toBe(NOTE_ID);
     expect(out.category).toBe('quality');
+    expect(out.authorName).toBe('Admin Joe');
   });
 
   it('updateProviderNote rejects non-author non-super-admin (403)', async () => {
@@ -384,47 +396,111 @@ describe('Notes CRUD', () => {
   });
 
   it('deleteProviderNote rejects non-author non-super-admin (403)', async () => {
-    dbQueryMock.mockResolvedValueOnce(rows([{ author_id: 'someone-else' }]));
+    dbTransactionMock.mockImplementationOnce(
+      async (cb: (client: { query: jest.Mock }) => unknown) => {
+        const clientQuery = jest.fn(async (sql: string) => {
+          if (sql.includes('FROM provider_admin_notes WHERE id')) {
+            return rows([{ author_id: 'someone-else', provider_id: PROVIDER_ID, deleted_at: null }]);
+          }
+          return rows([]);
+        });
+        return cb({ query: clientQuery as unknown as jest.Mock });
+      },
+    );
     await expect(svc.deleteProviderNote(NOTE_ID, ADMIN_ID, false)).rejects.toMatchObject({
       statusCode: 403,
     });
   });
 
-  it('deleteProviderNote ok when author', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ author_id: ADMIN_ID }]))
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    await svc.deleteProviderNote(NOTE_ID, ADMIN_ID, false);
-    expect(dbQueryMock).toHaveBeenCalledTimes(2);
+  it('deleteProviderNote soft-deletes when author + writes audit (Bug 80)', async () => {
+    const calls: { sql: string; params: unknown[] }[] = [];
+    dbTransactionMock.mockImplementationOnce(
+      async (cb: (client: { query: jest.Mock }) => unknown) => {
+        const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
+          calls.push({ sql, params });
+          if (sql.includes('FROM provider_admin_notes WHERE id')) {
+            return rows([{ author_id: ADMIN_ID, provider_id: PROVIDER_ID, deleted_at: null }]);
+          }
+          if (sql.startsWith('UPDATE provider_admin_notes')) {
+            return { rows: [], rowCount: 1 };
+          }
+          if (sql.startsWith('INSERT INTO admin_actions')) {
+            return rows([{ id: 'audit-note-del' }]);
+          }
+          return rows([]);
+        });
+        return cb({ query: clientQuery as unknown as jest.Mock });
+      },
+    );
+    await svc.deleteProviderNote(NOTE_ID, ADMIN_ID, false, 'note no longer relevant');
+    // Soft delete (UPDATE), not hard DELETE.
+    expect(calls.find((c) => /UPDATE provider_admin_notes/.test(c.sql))).toBeDefined();
+    expect(calls.find((c) => /^DELETE FROM/.test(c.sql))).toBeUndefined();
+    // Audit row inserted with provider_note_deleted verb.
+    const audit = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
+    expect(audit).toBeDefined();
+    expect(audit!.sql).toContain("'provider_note_deleted'");
+    expect(audit!.sql).toContain("'provider_note'");
   });
 });
 
 // ─── updateProviderProfile ──────────────────────────────────────────────────
 
 describe('updateProviderProfile', () => {
+  function setupProfileTx(opts: {
+    selectRows: { business_name: string | null; description: string | null; service_radius_km: number | null }[];
+    updateRowCount: number;
+    auditId: string | null;
+  }): { calls: { sql: string; params: unknown[] }[] } {
+    const calls: { sql: string; params: unknown[] }[] = [];
+    dbTransactionMock.mockImplementationOnce(
+      async (cb: (client: { query: jest.Mock }) => unknown) => {
+        const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
+          calls.push({ sql, params });
+          if (sql.includes('SELECT business_name')) return rows(opts.selectRows);
+          if (sql.startsWith('UPDATE providers')) return { rows: [], rowCount: opts.updateRowCount };
+          if (sql.startsWith('INSERT INTO admin_actions')) {
+            return rows(opts.auditId ? [{ id: opts.auditId }] : []);
+          }
+          return rows([]);
+        });
+        return cb({ query: clientQuery as unknown as jest.Mock });
+      },
+    );
+    return { calls };
+  }
+
   it('rejects empty businessName', async () => {
     await expect(
-      svc.updateProviderProfile(PROVIDER_ID, { businessName: '   ' }),
+      svc.updateProviderProfile(PROVIDER_ID, { businessName: '   ' }, ADMIN_ID),
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('clamps service radius to [1,200]', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    await svc.updateProviderProfile(PROVIDER_ID, { serviceRadiusKm: 9999 });
-    const params = dbQueryMock.mock.calls[0][1];
-    expect(params[0]).toBe(200);
+  it('clamps service radius to [1,200] + writes audit (Bug 79)', async () => {
+    const { calls } = setupProfileTx({
+      selectRows: [{ business_name: 'Old Co', description: null, service_radius_km: 50 }],
+      updateRowCount: 1,
+      auditId: 'audit-prof',
+    });
+    await svc.updateProviderProfile(PROVIDER_ID, { serviceRadiusKm: 9999 }, ADMIN_ID);
+    const updateCall = calls.find((c) => c.sql.startsWith('UPDATE providers'))!;
+    expect(updateCall.params[0]).toBe(200);
+    const auditCall = calls.find((c) => c.sql.startsWith('INSERT INTO admin_actions'))!;
+    expect(auditCall).toBeDefined();
+    expect(auditCall.sql).toContain("'provider_profile_updated'");
   });
 
   it('404 when no provider matches', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    setupProfileTx({ selectRows: [], updateRowCount: 0, auditId: null });
     await expect(
-      svc.updateProviderProfile(PROVIDER_ID, { businessName: 'X' }),
+      svc.updateProviderProfile(PROVIDER_ID, { businessName: 'X' }, ADMIN_ID),
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
   it('no-op when no fields provided', async () => {
-    await svc.updateProviderProfile(PROVIDER_ID, {});
+    await svc.updateProviderProfile(PROVIDER_ID, {}, ADMIN_ID);
     expect(dbQueryMock).not.toHaveBeenCalled();
+    expect(dbTransactionMock).not.toHaveBeenCalled();
   });
 });
 
@@ -435,6 +511,7 @@ describe('adjustProviderWallet', () => {
     selectRows: { id: string; available_balance: string }[],
     insertId: string | null,
     updateRowCount = 1,
+    auditId: string | null = 'audit-1',
   ): { calls: { sql: string; params: unknown[] }[] } {
     const calls: { sql: string; params: unknown[] }[] = [];
     dbTransactionMock.mockImplementation(
@@ -446,6 +523,10 @@ describe('adjustProviderWallet', () => {
             return { rows: [], rowCount: updateRowCount };
           if (sql.startsWith('INSERT INTO wallet_transactions'))
             return rows(insertId ? [{ id: insertId }] : []);
+          // Phase 14 Dispatch 06 — Bug 78: admin_actions audit row inside
+          // the same transaction as the wallet write.
+          if (sql.startsWith('INSERT INTO admin_actions'))
+            return rows(auditId ? [{ id: auditId }] : []);
           return rows([]);
         });
         return cb({ query: clientQuery as unknown as jest.Mock });

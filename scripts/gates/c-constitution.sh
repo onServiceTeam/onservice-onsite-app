@@ -140,6 +140,26 @@ fi
 # must be inside db.transaction() blocks. Bug list 69, 70, 71, 78, 79, 80,
 # 82, 83, 84, 85, 105, 106, 127, 237.
 # ---------------------------------------------------------------------------
+# Phase 14 Dispatch 06 fix: the prior gate logic searched for Kysely
+# patterns (updateTable('wallets', insertInto('wallet_transactions',
+# insertInto('admin_actions') that don't exist in this codebase — the
+# stack is raw pg. The gate was vacuously passing. Now: detect raw-pg
+# patterns matching db.query("UPDATE wallets ...") /
+# db.query("INSERT INTO wallet_transactions ...") /
+# db.query("INSERT INTO admin_actions ...") at the top level (not inside
+# a db.transaction callback or accepting a `client.query` parameter).
+#
+# A line is in violation if:
+#   1. It contains a money-mutation SQL fragment.
+#   2. The closest preceding `function ... { ... }` boundary did NOT
+#      open a `db.transaction(` block in its body, AND
+#   3. The line uses `db.query` (not `client.query`).
+#   4. There is no `// gate-c-allowed:` marker within ±3 lines.
+#
+# This is heuristic — it catches the common case (top-level db.query
+# mutating money tables outside any transaction). False positives can be
+# tagged with `// gate-c-allowed: <reason>` per the documented
+# convention.
 money_violations=""
 if [ -d "packages/api/src/services" ]; then
   while IFS= read -r svc; do
@@ -147,22 +167,36 @@ if [ -d "packages/api/src/services" ]; then
     if ! grep -qE "wallets|admin_actions|wallet_transactions" "$svc" 2>/dev/null; then
       continue
     fi
-    mutating_lines=$( { grep -nE "updateTable\('wallets|insertInto\('wallet_transactions|insertInto\('admin_actions" "$svc" 2>/dev/null || true; } \
-      | cut -d: -f1)
+    # Find every line that calls db.query (not client.query) with a
+    # money-mutation SQL fragment. We match the SQL keyword on a
+    # following line via multiline detection, but for simplicity we
+    # require the SQL to appear on the same line as db.query OR on the
+    # line right after.
+    mutating_lines=$(awk '
+      /db\.query[[:space:]]*\(/ {
+        # Remember the line of the db.query call (the violation site).
+        anchor = NR;
+        # Capture the next ~3 lines into a buffer so multi-line template
+        # literals are scanned for the SQL keyword.
+        buf = $0;
+        for (i = 1; i <= 3 && (getline next_line) > 0; i++) {
+          buf = buf "\n" next_line;
+        }
+        if (buf ~ /UPDATE[[:space:]]+wallets/ ||
+            buf ~ /INSERT[[:space:]]+INTO[[:space:]]+wallet_transactions/ ||
+            buf ~ /INSERT[[:space:]]+INTO[[:space:]]+admin_actions/) {
+          print anchor;
+        }
+      }
+    ' "$svc" 2>/dev/null || true)
     for line in $mutating_lines; do
-      start=$(( line > 50 ? line - 50 : 1 ))
-      context=$(sed -n "${start},${line}p" "$svc")
-      # Detect transaction context: db.transaction() or trx-like callback args.
-      # Use fixed-string greps to avoid metachar issues with parentheses.
-      if echo "$context" | grep -qE "db\.transaction\(" ; then continue; fi
-      if echo "$context" | grep -qF "(trx)" ; then continue; fi
-      if echo "$context" | grep -qF "(trx," ; then continue; fi
-      if echo "$context" | grep -qE "trx\." ; then continue; fi
-      surr_start=$(( line > 3 ? line - 3 : 1 ))
-      surr_end=$(( line + 3 ))
+      # Search ±5 lines for the gate-c-allowed marker (covers a typical
+      # try { ... } envelope or the line right before the call).
+      surr_start=$(( line > 5 ? line - 5 : 1 ))
+      surr_end=$(( line + 5 ))
       surrounding=$(sed -n "${surr_start},${surr_end}p" "$svc")
-      if echo "$surrounding" | grep -qF "// gate-c-allowed: post-commit"; then continue; fi
-      money_violations+="$svc:$line — money mutation outside transaction"$'\n'
+      if echo "$surrounding" | grep -qE "// gate-c-allowed:"; then continue; fi
+      money_violations+="$svc:$line — money/audit mutation via db.query at top level (not inside db.transaction)"$'\n'
     done
   done < <(find packages/api/src/services -name "*.service.ts" 2>/dev/null)
 fi

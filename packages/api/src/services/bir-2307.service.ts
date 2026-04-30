@@ -435,6 +435,7 @@ async function writeBatchAuditRow(
 ): Promise<void> {
   try {
     if (actionType === 'bir_2307_batch_generated') {
+      // gate-c-allowed: best-effort-audit-only — try/catch'd, logger.warn on failure; BIR batch row already durable
       await db.query(
         `INSERT INTO admin_actions
            (admin_id, action_type, target_type, target_id, reason, details)
@@ -454,6 +455,7 @@ async function writeBatchAuditRow(
         ],
       );
     } else {
+      // gate-c-allowed: best-effort-audit-only — same try/catch envelope as above
       await db.query(
         `INSERT INTO admin_actions
            (admin_id, action_type, target_type, target_id, reason, details)

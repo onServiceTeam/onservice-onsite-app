@@ -599,6 +599,7 @@ export async function getProviderActivity(
 // ─────────────────────────────────────────────────────────────────
 
 export async function listProviderNotes(providerId: string): Promise<ProviderNote[]> {
+  // Phase 14 Dispatch 06 — Bug 80: filter soft-deleted notes from reads.
   const result = await db.query<{
     id: string;
     provider_id: string;
@@ -615,7 +616,7 @@ export async function listProviderNotes(providerId: string): Promise<ProviderNot
             n.category, n.body, n.pinned, n.created_at, n.updated_at
        FROM provider_admin_notes n
        JOIN users u ON u.id = n.author_id
-      WHERE n.provider_id = $1
+      WHERE n.provider_id = $1 AND n.deleted_at IS NULL
       ORDER BY n.pinned DESC, n.created_at DESC`,
     [providerId],
   );
@@ -643,20 +644,66 @@ export async function createProviderNote(
   if (!body.trim()) throw createAppError('Note body required.', 400);
   if (!isNoteCategory(category)) throw createAppError('Invalid category.', 400);
 
-  const result = await db.query<{ id: string }>(
-    `INSERT INTO provider_admin_notes (provider_id, author_id, category, body, pinned)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id`,
-    [providerId, authorId, category, body.trim(), pinned],
-  );
+  // Phase 14 Dispatch 06 — Bug 82. Note INSERT + admin_actions audit
+  // happen in ONE transaction. Pre-D06 the INSERT happened in a top-level
+  // db.query and there was NO audit row at all, so admin-side note
+  // creation left no traceable trail.
+  return db.transaction(async (client) => {
+    const trimmedBody = body.trim();
+    const result = await client.query<{
+      id: string;
+      provider_id: string;
+      author_id: string;
+      category: NoteCategory;
+      body: string;
+      pinned: boolean;
+      created_at: Date;
+      updated_at: Date;
+    }>(
+      `INSERT INTO provider_admin_notes (provider_id, author_id, category, body, pinned)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, provider_id, author_id, category, body, pinned, created_at, updated_at`,
+      [providerId, authorId, category, trimmedBody, pinned],
+    );
 
-  const created = result.rows[0];
-  if (!created) throw createAppError('Failed to create note.', 500);
+    const created = result.rows[0];
+    if (!created) throw createAppError('Failed to create note.', 500);
 
-  const list = await listProviderNotes(providerId);
-  const found = list.find((n) => n.id === created.id);
-  if (!found) throw createAppError('Failed to load created note.', 500);
-  return found;
+    // Resolve author name in the same transaction so we can return the
+    // formatted ProviderNote without a follow-up listProviderNotes call.
+    const authorRow = await client.query<{ author_name: string }>(
+      `SELECT (first_name || ' ' || last_name) AS author_name FROM users WHERE id = $1`,
+      [authorId],
+    );
+
+    const auditResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'provider_note_added', 'provider_note', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        authorId,
+        created.id,
+        JSON.stringify({ providerId, category, pinned, bodyLength: trimmedBody.length }),
+        trimmedBody.slice(0, 500),
+        trimmedBody,
+      ],
+    );
+    if (!auditResult.rows[0]?.id) {
+      throw createAppError('Failed to record provider_note_added audit.', 500);
+    }
+
+    return {
+      id: created.id,
+      providerId: created.provider_id,
+      authorId: created.author_id,
+      authorName: authorRow.rows[0]?.author_name ?? '',
+      category: created.category,
+      body: created.body,
+      pinned: created.pinned,
+      createdAt: created.created_at.toISOString(),
+      updatedAt: created.updated_at.toISOString(),
+    };
+  });
 }
 
 export async function updateProviderNote(
@@ -706,17 +753,55 @@ export async function deleteProviderNote(
   noteId: string,
   authorId: string,
   isSuperAdmin: boolean,
+  reason?: string,
 ): Promise<void> {
-  const existing = await db.query<{ author_id: string }>(
-    `SELECT author_id FROM provider_admin_notes WHERE id = $1`,
-    [noteId],
-  );
-  const row = existing.rows[0];
-  if (!row) throw createAppError('Note not found.', 404);
-  if (row.author_id !== authorId && !isSuperAdmin) {
-    throw createAppError('You can only delete your own notes.', 403);
-  }
-  await db.query(`DELETE FROM provider_admin_notes WHERE id = $1`, [noteId]);
+  // Phase 14 Dispatch 06 — Bug 80. Pre-D06 this was a hard DELETE with
+  // NO audit. Now: soft delete (UPDATE deleted_at/deleted_by/deleted_reason
+  // from migration 076) + admin_actions audit in ONE transaction. The
+  // FK from admin_actions.target_id back to the note row remains valid
+  // since the row still exists, just with deleted_at set.
+  await db.transaction(async (client) => {
+    const existing = await client.query<{
+      author_id: string;
+      provider_id: string;
+      deleted_at: Date | null;
+    }>(
+      `SELECT author_id, provider_id, deleted_at FROM provider_admin_notes WHERE id = $1`,
+      [noteId],
+    );
+    const row = existing.rows[0];
+    if (!row) throw createAppError('Note not found.', 404);
+    if (row.deleted_at) throw createAppError('Note already deleted.', 409);
+    if (row.author_id !== authorId && !isSuperAdmin) {
+      throw createAppError('You can only delete your own notes.', 403);
+    }
+
+    const trimmedReason = (reason ?? '').trim();
+    await client.query(
+      `UPDATE provider_admin_notes
+          SET deleted_at = NOW(),
+              deleted_by = $2,
+              deleted_reason = $3
+        WHERE id = $1 AND deleted_at IS NULL`,
+      [noteId, authorId, trimmedReason || null],
+    );
+
+    const auditResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'provider_note_deleted', 'provider_note', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        authorId,
+        noteId,
+        JSON.stringify({ providerId: row.provider_id, originalAuthorId: row.author_id }),
+        trimmedReason ? trimmedReason.slice(0, 500) : 'soft delete by note author',
+        trimmedReason || null,
+      ],
+    );
+    if (!auditResult.rows[0]?.id) {
+      throw createAppError('Failed to record provider_note_deleted audit.', 500);
+    }
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -726,31 +811,78 @@ export async function deleteProviderNote(
 export async function updateProviderProfile(
   providerId: string,
   patch: { businessName?: string; description?: string; serviceRadiusKm?: number },
+  adminUserId: string,
 ): Promise<void> {
   const sets: string[] = [];
   const values: unknown[] = [];
+  const auditPatch: Record<string, unknown> = {};
+
   if (patch.businessName !== undefined) {
     if (!patch.businessName.trim()) throw createAppError('businessName cannot be empty.', 400);
-    values.push(patch.businessName.trim());
+    const v = patch.businessName.trim();
+    values.push(v);
     sets.push(`business_name = $${values.length}`);
+    auditPatch.businessName = v;
   }
   if (patch.description !== undefined) {
     values.push(patch.description);
     sets.push(`description = $${values.length}`);
+    auditPatch.description = patch.description;
   }
   if (patch.serviceRadiusKm !== undefined) {
     const n = Math.max(1, Math.min(200, Math.floor(patch.serviceRadiusKm)));
     values.push(n);
     sets.push(`service_radius_km = $${values.length}`);
+    auditPatch.serviceRadiusKm = n;
   }
   if (sets.length === 0) return;
 
   values.push(providerId);
-  const result = await db.query(
-    `UPDATE providers SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${values.length}`,
-    values,
-  );
-  if (result.rowCount === 0) throw createAppError('Provider not found.', 404);
+
+  // Phase 14 Dispatch 06 — Bug 79. Pre-D06 this was a top-level db.query
+  // with NO audit. Now: profile UPDATE + admin_actions audit in ONE
+  // transaction. The audit details capture the patch fields applied so
+  // diff history is reconstructible.
+  await db.transaction(async (client) => {
+    // Snapshot the previous values so the audit row records before/after.
+    const before = await client.query<{
+      business_name: string | null;
+      description: string | null;
+      service_radius_km: number | null;
+    }>(
+      `SELECT business_name, description, service_radius_km FROM providers WHERE id = $1 FOR UPDATE`,
+      [providerId],
+    );
+    if (before.rows.length === 0) throw createAppError('Provider not found.', 404);
+
+    const result = await client.query(
+      `UPDATE providers SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${values.length}`,
+      values,
+    );
+    if (result.rowCount === 0) throw createAppError('Provider not found.', 404);
+
+    const auditResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
+       VALUES ($1, 'provider_profile_updated', 'provider', $2, $3::jsonb, $4)
+       RETURNING id`,
+      [
+        adminUserId,
+        providerId,
+        JSON.stringify({
+          patch: auditPatch,
+          previous: {
+            businessName: before.rows[0]?.business_name,
+            description: before.rows[0]?.description,
+            serviceRadiusKm: before.rows[0]?.service_radius_km,
+          },
+        }),
+        `Profile fields updated: ${Object.keys(auditPatch).join(', ')}`,
+      ],
+    );
+    if (!auditResult.rows[0]?.id) {
+      throw createAppError('Failed to record provider_profile_updated audit.', 500);
+    }
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -818,12 +950,43 @@ export async function adjustProviderWallet(
     const txId = txResult.rows[0]?.id;
     if (!txId) throw createAppError('Failed to record adjustment transaction.', 500);
 
+    // Phase 14 Dispatch 06 — Bug 78. Pre-D06 there was NO admin_actions
+    // audit row for super-admin wallet adjustments. The wallet_transactions
+    // ledger row recorded the money movement but provided no link back to
+    // the actor's identity beyond the embedded reference_id string.
+    // Now: insert admin_actions inside the SAME transaction so audit and
+    // money are atomic. New verb `provider_wallet_adjusted` introduced by
+    // migration 075.
+    const actionResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'provider_wallet_adjusted', 'provider', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        adminUserId,
+        providerId,
+        JSON.stringify({
+          walletId: wallet.id,
+          deltaAmount,
+          previousBalance: currentBalance,
+          newBalance,
+          walletTransactionId: txId,
+        }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
+      ],
+    );
+    const adminActionId = actionResult.rows[0]?.id;
+    if (!adminActionId) {
+      throw createAppError('Failed to record provider wallet adjustment audit.', 500);
+    }
+
     logger.info('Provider wallet adjustment', {
       providerId,
       walletId: wallet.id,
       deltaAmount,
       newBalance,
       adminUserId,
+      adminActionId,
       reason: trimmedReason,
     });
 

@@ -99,10 +99,10 @@
       "rationale": "Activates per dispatch branch. Always BLOCKING when running on a phase/14-dNN-* branch."
     },
     "money-in-transaction": {
-      "mode": "REPORT",
+      "mode": "BLOCKING",
       "owning_dispatch": "D06",
-      "promoted_in": null,
-      "rationale": "Bugs 69, 70, 71, 78, 79, 80, 82, 83, 84, 85, 105, 106, 127, 237 — 14 services with money mutations outside db.transaction(). Owned by D06 (Transactional audit completeness). Promotes to BLOCKING after D06."
+      "promoted_in": "D06",
+      "rationale": "Promoted to BLOCKING in D06 (2026-04-30). Bugs 69, 70, 71, 78, 79, 80, 82, 83, 84, 85, 105, 106, 127, 237 — 14 services closed: every money/audit mutation either composes via a trx-aware *InTransaction helper or is annotated with `// gate-c-allowed: best-effort-audit-only` for the documented non-blocking audit pattern (try/catch + logger.warn so audit failures don't roll back the durable underlying state). Two real bugs adjacent to the 14-list also fixed in this dispatch: dispute.service.assignDispute and payout.service.approvePayout. Gate logic was rewritten in D06 — the prior Kysely-pattern regex was vacuously passing because the codebase uses raw pg; the new awk pattern detects db.query calls with INSERT INTO admin_actions/wallet_transactions or UPDATE wallets at the top level (not inside db.transaction). Allowed exceptions are documented inline with `// gate-c-allowed:` markers."
     },
     "no-shield-references": {
       "mode": "BLOCKING",

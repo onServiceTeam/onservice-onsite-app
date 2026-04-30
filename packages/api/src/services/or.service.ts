@@ -474,6 +474,7 @@ export async function issueOR(input: IssueOrInput): Promise<OfficialReceipt> {
   // The admin_actions table currently requires admin_id NOT NULL; if the
   // schema rejects the insert we log + continue (the OR itself is the
   // authoritative artifact and must not be rolled back here).
+  // gate-c-allowed: best-effort-audit-only — try/catch'd, OR row durable from prior insert, audit failure doesn't invalidate money path
   try {
     await db.query(
       `INSERT INTO admin_actions
@@ -602,6 +603,7 @@ export async function cancelOR(
   const cancellation = mapOrRow(result.cancellation);
 
   // Audit (paired). Failure does not unwind the cancellation.
+  // gate-c-allowed: best-effort-audit-only — try/catch'd, OR cancellation already durable in transaction above
   try {
     await db.query(
       `INSERT INTO admin_actions

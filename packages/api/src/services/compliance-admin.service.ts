@@ -89,6 +89,7 @@ async function writeAdminAction(
   details: Record<string, unknown>,
   reason?: string,
 ): Promise<void> {
+  // gate-c-allowed: best-effort-audit-only — generic compliance audit helper; try/catch with logger.warn so failures don't block DSR/consent flows
   try {
     await db.query(
       `INSERT INTO admin_actions

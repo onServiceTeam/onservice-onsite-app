@@ -34,12 +34,25 @@ jest.mock('../src/services/escrow.service', () => ({
   releaseEscrow: jest.fn(),
   refundFromEscrow: jest.fn(),
   handleCancellation: jest.fn(),
+  // Phase 14 Dispatch 06 — trx-aware helpers used by D06-wrapped callers.
+  releaseEscrowInTransaction: jest.fn(),
+  refundFromEscrowInTransaction: jest.fn(),
+  handleCancellationInTransaction: jest.fn(),
 }));
 
 jest.mock('../src/services/dispute.service', () => ({
   resolveDispute: jest.fn(),
+  resolveDisputeInTransaction: jest.fn(),
   assignDispute: jest.fn(),
   escalateDispute: jest.fn(),
+}));
+
+jest.mock('../src/services/or.service', () => ({
+  issueOR: jest.fn(),
+}));
+
+jest.mock('../src/services/payment.service', () => ({
+  processRefund: jest.fn(),
 }));
 
 import * as bookingSvc from '../src/services/booking-admin.service';
@@ -91,7 +104,11 @@ beforeEach(() => {
   escrowMocks.releaseEscrow.mockReset();
   escrowMocks.refundFromEscrow.mockReset();
   escrowMocks.handleCancellation.mockReset();
+  escrowMocks.releaseEscrowInTransaction.mockReset();
+  escrowMocks.refundFromEscrowInTransaction.mockReset();
+  escrowMocks.handleCancellationInTransaction.mockReset();
   disputeMocks.resolveDispute.mockReset();
+  disputeMocks.resolveDisputeInTransaction.mockReset();
   disputeMocks.assignDispute.mockReset();
   disputeMocks.escalateDispute.mockReset();
 });
@@ -376,30 +393,42 @@ describe('manualReleaseEscrow', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('happy path: calls releaseEscrow then INSERTs manual_escrow_release', async () => {
-    escrowMocks.releaseEscrow.mockResolvedValueOnce({
+  it('happy path: calls releaseEscrowInTransaction then INSERTs manual_escrow_release inside one transaction (Bug 70)', async () => {
+    escrowMocks.releaseEscrowInTransaction.mockResolvedValueOnce({
       providerReceives: 80000,
       platformRetains: 20000,
-    } as unknown as Awaited<ReturnType<typeof escrowMocks.releaseEscrow>>);
-    dbQueryMock.mockResolvedValueOnce(rows([{ id: 'aa-rel' }]));
+      commissionAmount: 15000,
+      serviceFeeAmount: 5000,
+    } as unknown as Awaited<ReturnType<typeof escrowMocks.releaseEscrowInTransaction>>);
+    const calls = setupTxRecorder(async (sql) => {
+      if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-rel' }]);
+      return rows([]);
+    });
     const out = await bookingSvc.manualReleaseEscrow(
       BOOKING_ID,
       'Customer abandoned booking',
       ADMIN_ID,
     );
-    expect(escrowMocks.releaseEscrow).toHaveBeenCalledWith(BOOKING_ID);
-    const sql = dbQueryMock.mock.calls[0][0] as string;
-    expect(sql).toMatch(/INSERT INTO admin_actions/);
-    expect(sql).toContain("'manual_escrow_release'");
+    // Phase 14 Dispatch 06 — Bug 70. Money work + audit are now in ONE
+    // transaction via the trx-aware helper.
+    expect(escrowMocks.releaseEscrowInTransaction).toHaveBeenCalledTimes(1);
+    expect(escrowMocks.releaseEscrow).not.toHaveBeenCalled();
+    const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
+    expect(insert).toBeDefined();
+    expect(insert!.sql).toContain("'manual_escrow_release'");
+    expect(insert!.sql).toContain('full_notes');
     expect(out.adminActionId).toBe('aa-rel');
     expect(out.releasedAmount).toBe(100000);
   });
 
-  it('propagates errors from escrowService', async () => {
-    escrowMocks.releaseEscrow.mockRejectedValueOnce(new Error('escrow boom'));
+  it('propagates errors from releaseEscrowInTransaction (no audit row written)', async () => {
+    escrowMocks.releaseEscrowInTransaction.mockRejectedValueOnce(new Error('escrow boom'));
+    const calls = setupTxRecorder(async () => rows([]));
     await expect(
       bookingSvc.manualReleaseEscrow(BOOKING_ID, 'Customer abandoned booking', ADMIN_ID),
     ).rejects.toThrow('escrow boom');
+    // No audit row was inserted — confirms abort happened before INSERT.
+    expect(calls.find((c) => /INSERT INTO admin_actions/.test(c.sql))).toBeUndefined();
   });
 });
 
@@ -424,23 +453,33 @@ describe('refundBookingEscrow', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('happy path: delegates to refundFromEscrow with EXACT amount + INSERTs refund_issued', async () => {
-    escrowMocks.refundFromEscrow.mockResolvedValueOnce(undefined as never);
-    dbQueryMock.mockResolvedValueOnce(rows([{ id: 'aa-ref' }]));
+  it('happy path: delegates to refundFromEscrowInTransaction with EXACT amount + INSERTs refund_issued (Bug 71)', async () => {
+    escrowMocks.refundFromEscrowInTransaction.mockResolvedValueOnce(undefined as never);
+    const calls = setupTxRecorder(async (sql) => {
+      if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-ref' }]);
+      return rows([]);
+    });
     const out = await bookingSvc.refundBookingEscrow(
       BOOKING_ID,
       7777,
       'Customer requested partial refund',
       ADMIN_ID,
     );
-    expect(escrowMocks.refundFromEscrow).toHaveBeenCalledWith(
+    // Phase 14 Dispatch 06 — Bug 71. The trx-aware helper composes
+    // atomically with the admin_actions audit row.
+    expect(escrowMocks.refundFromEscrowInTransaction).toHaveBeenCalledTimes(1);
+    expect(escrowMocks.refundFromEscrow).not.toHaveBeenCalled();
+    const refundCall = escrowMocks.refundFromEscrowInTransaction.mock.calls[0]!;
+    expect(typeof (refundCall[0] as { query?: unknown })?.query).toBe('function');
+    expect(refundCall.slice(1)).toEqual([
       BOOKING_ID,
       7777,
       'Customer requested partial refund',
-    );
-    const sql = dbQueryMock.mock.calls[0][0] as string;
-    expect(sql).toMatch(/INSERT INTO admin_actions/);
-    expect(sql).toContain("'refund_issued'");
+    ]);
+    const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
+    expect(insert).toBeDefined();
+    expect(insert!.sql).toContain("'refund_issued'");
+    expect(insert!.sql).toContain('full_notes');
     expect(out.refundedAmount).toBe(7777);
     expect(out.bookingId).toBe(BOOKING_ID);
     expect(out.adminActionId).toBe('aa-ref');
@@ -524,13 +563,13 @@ describe('cancelBookingAsAdmin', () => {
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
-  it('escrow held → calls handleCancellation with passed args + records refundAmount', async () => {
+  it('escrow held → calls handleCancellationInTransaction with passed args + records refundAmount (Bug 69)', async () => {
     dbQueryMock.mockResolvedValueOnce(
       rows([{ id: BOOKING_ID, status: 'confirmed_by_provider', escrow_status: 'held' }]),
     );
-    escrowMocks.handleCancellation.mockResolvedValueOnce({
+    escrowMocks.handleCancellationInTransaction.mockResolvedValueOnce({
       customerRefundAmount: 4242,
-    } as unknown as Awaited<ReturnType<typeof escrowMocks.handleCancellation>>);
+    } as unknown as Awaited<ReturnType<typeof escrowMocks.handleCancellationInTransaction>>);
     const calls = setupTxRecorder(async (sql) => {
       if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-can' }]);
       return rows([]);
@@ -543,7 +582,21 @@ describe('cancelBookingAsAdmin', () => {
       false,
       true,
     );
-    expect(escrowMocks.handleCancellation).toHaveBeenCalledWith(BOOKING_ID, 6, false, true);
+    // Phase 14 Dispatch 06 — Bug 69. Escrow handling now flows through
+    // the trx-aware helper so it composes atomically with the audit insert.
+    expect(escrowMocks.handleCancellationInTransaction).toHaveBeenCalledTimes(1);
+    const txArg = escrowMocks.handleCancellationInTransaction.mock.calls[0]![0];
+    expect(typeof (txArg as { query?: unknown })?.query).toBe('function');
+    expect(escrowMocks.handleCancellationInTransaction.mock.calls[0]!.slice(1)).toEqual([
+      BOOKING_ID,
+      6,
+      false,
+      true,
+    ]);
+    // Legacy public function must NOT be called (proves D06 wiring is in
+    // place — without the helper switch, money + audit would land in
+    // separate transactions).
+    expect(escrowMocks.handleCancellation).not.toHaveBeenCalled();
     expect(out.refundAmount).toBe(4242);
     const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
     expect(insert?.sql).toContain("'booking_cancelled'");
@@ -563,6 +616,7 @@ describe('cancelBookingAsAdmin', () => {
       ADMIN_ID,
     );
     expect(escrowMocks.handleCancellation).not.toHaveBeenCalled();
+    expect(escrowMocks.handleCancellationInTransaction).not.toHaveBeenCalled();
     expect(out.refundAmount).toBe(0);
     expect(calls.find((c) => /UPDATE bookings/.test(c.sql))).toBeDefined();
   });
@@ -802,11 +856,19 @@ describe('adminResolveDispute', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('happy path: delegates + INSERTs dispute_resolved + returns refundAmount', async () => {
-    disputeMocks.resolveDispute.mockResolvedValueOnce({
-      refund_amount: 8888,
-    } as unknown as Awaited<ReturnType<typeof disputeMocks.resolveDispute>>);
-    dbQueryMock.mockResolvedValueOnce(rows([{ id: 'aa-res' }]));
+  it('happy path: delegates to resolveDisputeInTransaction + INSERTs dispute_resolved in same transaction (Bug 83)', async () => {
+    disputeMocks.resolveDisputeInTransaction.mockResolvedValueOnce({
+      dispute: {} as unknown as Awaited<ReturnType<typeof disputeMocks.resolveDispute>>,
+      refundAmount: 8888,
+      refundPercent: 100,
+      bookingId: BOOKING_ID,
+      bookingTotalAmount: 8888,
+      providerId: PROVIDER_ID,
+    });
+    const calls = setupTxRecorder(async (sql) => {
+      if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-res' }]);
+      return rows([]);
+    });
     const out = await disputeAdminSvc.adminResolveDispute(
       DISPUTE_ID,
       {
@@ -815,9 +877,12 @@ describe('adminResolveDispute', () => {
       },
       ADMIN_ID,
     );
-    expect(disputeMocks.resolveDispute).toHaveBeenCalledTimes(1);
-    const sql = dbQueryMock.mock.calls[0][0] as string;
-    expect(sql).toContain("'dispute_resolved'");
+    expect(disputeMocks.resolveDisputeInTransaction).toHaveBeenCalledTimes(1);
+    expect(disputeMocks.resolveDispute).not.toHaveBeenCalled();
+    const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
+    expect(insert).toBeDefined();
+    expect(insert!.sql).toContain("'dispute_resolved'");
+    expect(insert!.sql).toContain('full_notes');
     expect(out.refundAmount).toBe(8888);
     expect(out.adminActionId).toBe('aa-res');
   });
@@ -881,7 +946,7 @@ describe('sendDisputeMessage', () => {
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it('happy path: only INSERTs dispute_message_sent and truncates reason to 500', async () => {
+  it('happy path: INSERTs dispute_message_sent, truncates reason to 500, stores full body in full_notes (Bug 85)', async () => {
     const calls = setupTxRecorder(async (sql) => {
       if (/FROM disputes/.test(sql)) {
         return rows([
@@ -907,8 +972,13 @@ describe('sendDisputeMessage', () => {
     const writes = calls.filter((c) => /INSERT|UPDATE/.test(c.sql));
     expect(writes).toHaveLength(1);
     expect(writes[0].sql).toContain("'dispute_message_sent'");
+    expect(writes[0].sql).toContain('full_notes');
+    // params: [adminUserId, disputeId, JSON, reason(slice 500), full_notes]
     const reasonParam = writes[0].params[3] as string;
     expect(reasonParam).toHaveLength(500);
+    const fullNotes = writes[0].params[4] as string;
+    expect(fullNotes).toBe(longMsg);
+    expect(fullNotes).toHaveLength(800);
   });
 });
 

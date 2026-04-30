@@ -406,7 +406,20 @@ export async function acceptPartialOffer(disputeId: string, customerId: string):
   return result.rows[0]!;
 }
 
-export async function resolveDispute(
+/**
+ * Phase 14 Dispatch 06 — Bug 83.
+ * Trx-aware helper for dispute resolution writes (UPDATE disputes + UPDATE
+ * bookings + UPDATE providers if suspension + INSERT notifications).
+ * Caller owns the outer transaction AND the admin_actions audit row.
+ *
+ * Returns the resolved dispute + refund amount so the caller can run the
+ * post-commit escrow refund/release calls (which target an external
+ * gateway and tolerate eventual consistency per the documented pattern).
+ */
+type PgClient = { query: typeof db.query };
+
+export async function resolveDisputeInTransaction(
+  client: PgClient,
   disputeId: string,
   adminId: string,
   data: {
@@ -415,9 +428,9 @@ export async function resolveDispute(
     decisionNotes: string;
     internalNotes?: string;
   },
-): Promise<DisputeRow> {
-  const dispute = await db.query<DisputeRow>(
-    `SELECT * FROM disputes WHERE id = $1`,
+): Promise<{ dispute: DisputeRow; refundAmount: number; refundPercent: number; bookingId: string; bookingTotalAmount: number; providerId: string | null }> {
+  const dispute = await client.query<DisputeRow>(
+    `SELECT * FROM disputes WHERE id = $1 FOR UPDATE`,
     [disputeId],
   );
   if (dispute.rows.length === 0) throw createAppError('Dispute not found.', 404);
@@ -427,7 +440,7 @@ export async function resolveDispute(
     throw createAppError('This dispute is already resolved.', 409);
   }
 
-  const booking = await db.query<BookingContextRow>(
+  const booking = await client.query<BookingContextRow>(
     `SELECT id, customer_id, provider_id, status, escrow_status, total_amount, scheduled_at, completed_at, confirmed_at
      FROM bookings WHERE id = $1`,
     [d.booking_id],
@@ -450,105 +463,123 @@ export async function resolveDispute(
     refundAmount = Math.round(totalAmount * (refundPercent / 100));
   }
 
-  const resolved = await db.transaction(async (client) => {
+  await client.query(
+    `UPDATE disputes SET
+       status = 'resolved', resolution_type = $1,
+       refund_amount = $2, refund_percent = $3,
+       decision_notes = $4, internal_notes = $5,
+       resolved_at = NOW(), resolved_by = $6, updated_at = NOW()
+     WHERE id = $7`,
+    [data.resolutionType, refundAmount, refundPercent, data.decisionNotes, data.internalNotes ?? null, adminId, disputeId],
+  );
+
+  if (refundAmount > 0) {
+    const escrowStatus = refundAmount >= totalAmount ? 'refunded' : 'partially_refunded';
     await client.query(
-      `UPDATE disputes SET
-         status = 'resolved', resolution_type = $1,
-         refund_amount = $2, refund_percent = $3,
-         decision_notes = $4, internal_notes = $5,
-         resolved_at = NOW(), resolved_by = $6, updated_at = NOW()
-       WHERE id = $7`,
-      [data.resolutionType, refundAmount, refundPercent, data.decisionNotes, data.internalNotes ?? null, adminId, disputeId],
+      `UPDATE bookings SET status = 'resolved', escrow_status = $1, updated_at = NOW() WHERE id = $2`,
+      [escrowStatus, d.booking_id],
     );
+  } else {
+    await client.query(
+      `UPDATE bookings SET status = 'resolved', updated_at = NOW() WHERE id = $1`,
+      [d.booking_id],
+    );
+  }
 
-    if (refundAmount > 0) {
-      const escrowStatus = refundAmount >= totalAmount ? 'refunded' : 'partially_refunded';
+  if (data.resolutionType === 'refund_with_suspension' && bk.provider_id) {
+    await client.query(
+      `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1`,
+      [bk.provider_id],
+    );
+  }
+
+  await client.query(
+    `INSERT INTO notifications (user_id, type, title, body, data)
+     VALUES ($1, 'dispute_update', 'Dispute Resolved', $2, $3)`,
+    [
+      bk.customer_id,
+      `Your dispute has been resolved: ${formatResolutionType(data.resolutionType)}.`,
+      JSON.stringify({ disputeId, bookingId: d.booking_id, resolution: data.resolutionType }),
+    ],
+  );
+
+  if (bk.provider_id) {
+    const provider = await client.query<ProviderLookupRow>(
+      `SELECT user_id FROM providers WHERE id = $1`,
+      [bk.provider_id],
+    );
+    if (provider.rows[0]) {
       await client.query(
-        `UPDATE bookings SET status = 'resolved', escrow_status = $1, updated_at = NOW() WHERE id = $2`,
-        [escrowStatus, d.booking_id],
-      );
-    } else if (data.resolutionType === 'no_refund') {
-      await client.query(
-        `UPDATE bookings SET status = 'resolved', updated_at = NOW() WHERE id = $1`,
-        [d.booking_id],
-      );
-    } else if (data.resolutionType === 'free_redo') {
-      await client.query(
-        `UPDATE bookings SET status = 'resolved', updated_at = NOW() WHERE id = $1`,
-        [d.booking_id],
-      );
-    } else {
-      await client.query(
-        `UPDATE bookings SET status = 'resolved', updated_at = NOW() WHERE id = $1`,
-        [d.booking_id],
+        `INSERT INTO notifications (user_id, type, title, body, data)
+         VALUES ($1, 'dispute_update', 'Dispute Resolved', $2, $3)`,
+        [
+          provider.rows[0].user_id,
+          `A dispute for your booking has been resolved: ${formatResolutionType(data.resolutionType)}.`,
+          JSON.stringify({ disputeId, bookingId: d.booking_id, resolution: data.resolutionType }),
+        ],
       );
     }
+  }
 
-    if (data.resolutionType === 'refund_with_suspension' && bk.provider_id) {
-      await client.query(
-        `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1`,
-        [bk.provider_id],
-      );
-    }
+  const updated = await client.query<DisputeRow>(
+    `SELECT * FROM disputes WHERE id = $1`,
+    [disputeId],
+  );
 
+  return {
+    dispute: updated.rows[0]!,
+    refundAmount,
+    refundPercent,
+    bookingId: d.booking_id,
+    bookingTotalAmount: totalAmount,
+    providerId: bk.provider_id,
+  };
+}
+
+export async function resolveDispute(
+  disputeId: string,
+  adminId: string,
+  data: {
+    resolutionType: ResolutionType;
+    refundPercent?: number;
+    decisionNotes: string;
+    internalNotes?: string;
+  },
+): Promise<DisputeRow> {
+  const result = await db.transaction(async (client) => {
+    const helper = await resolveDisputeInTransaction(client, disputeId, adminId, data);
+    // Legacy callers expect this audit row; trx-aware admin path inserts
+    // its own audit row and does NOT call this wrapper.
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
        VALUES ($1, 'dispute_resolved', 'dispute', $2, $3, $4)`,
       [adminId, disputeId,
-       JSON.stringify({ resolutionType: data.resolutionType, refundAmount, refundPercent, bookingId: d.booking_id }),
+       JSON.stringify({ resolutionType: data.resolutionType, refundAmount: helper.refundAmount, refundPercent: helper.refundPercent, bookingId: helper.bookingId }),
        data.decisionNotes],
     );
-
-    await client.query(
-      `INSERT INTO notifications (user_id, type, title, body, data)
-       VALUES ($1, 'dispute_update', 'Dispute Resolved', $2, $3)`,
-      [
-        bk.customer_id,
-        `Your dispute has been resolved: ${formatResolutionType(data.resolutionType)}.`,
-        JSON.stringify({ disputeId, bookingId: d.booking_id, resolution: data.resolutionType }),
-      ],
-    );
-
-    if (bk.provider_id) {
-      const provider = await client.query<ProviderLookupRow>(
-        `SELECT user_id FROM providers WHERE id = $1`,
-        [bk.provider_id],
-      );
-      if (provider.rows[0]) {
-        await client.query(
-          `INSERT INTO notifications (user_id, type, title, body, data)
-           VALUES ($1, 'dispute_update', 'Dispute Resolved', $2, $3)`,
-          [
-            provider.rows[0].user_id,
-            `A dispute for your booking has been resolved: ${formatResolutionType(data.resolutionType)}.`,
-            JSON.stringify({ disputeId, bookingId: d.booking_id, resolution: data.resolutionType }),
-          ],
-        );
-      }
-    }
-
-    const updated = await client.query<DisputeRow>(
-      `SELECT * FROM disputes WHERE id = $1`,
-      [disputeId],
-    );
-
-    logger.info('Dispute resolved by admin', { disputeId, adminId, resolutionType: data.resolutionType });
-    return updated.rows[0]!;
+    return helper;
   });
+
+  const refundAmount = result.refundAmount;
+  const totalAmount = result.bookingTotalAmount;
+  const bookingId = result.bookingId;
+
+  logger.info('Dispute resolved by admin', { disputeId, adminId, resolutionType: data.resolutionType });
+  const resolved = result.dispute;
 
   if (refundAmount > 0) {
     let refundSucceeded = false;
     try {
-      await escrowService.refundFromEscrow(d.booking_id, refundAmount, `Admin dispute resolution: ${data.resolutionType}`);
+      await escrowService.refundFromEscrow(bookingId, refundAmount, `Admin dispute resolution: ${data.resolutionType}`);
       refundSucceeded = true;
     } catch (err) {
       logger.error('Failed to process admin dispute refund', { disputeId, refundAmount, error: err instanceof Error ? err.message : 'Unknown' });
     }
 
     const remainingAmount = totalAmount - refundAmount;
-    if (refundSucceeded && remainingAmount > 0 && bk.provider_id) {
+    if (refundSucceeded && remainingAmount > 0 && result.providerId) {
       try {
-        await escrowService.releasePartialEscrow(d.booking_id, remainingAmount);
+        await escrowService.releasePartialEscrow(bookingId, remainingAmount);
       } catch (err) {
         logger.error('Failed to release remaining escrow after partial refund', { disputeId, remainingAmount, error: err instanceof Error ? err.message : 'Unknown' });
       }
@@ -557,10 +588,10 @@ export async function resolveDispute(
 
   const shouldReleaseToProvider = data.resolutionType === 'no_refund'
     || (refundAmount === 0 && data.resolutionType !== 'free_redo');
-  if (shouldReleaseToProvider && bk.provider_id) {
+  if (shouldReleaseToProvider && result.providerId) {
     try {
       const { releaseEscrow } = await import('./escrow.service');
-      await releaseEscrow(d.booking_id);
+      await releaseEscrow(bookingId);
     } catch (err) {
       logger.error('Failed to release escrow after dispute resolution', { disputeId, resolutionType: data.resolutionType, error: err instanceof Error ? err.message : 'Unknown' });
     }
@@ -570,51 +601,66 @@ export async function resolveDispute(
 }
 
 export async function escalateDispute(disputeId: string, adminId: string, reason: string): Promise<DisputeRow> {
-  const dispute = await db.query<DisputeRow>(
-    `SELECT * FROM disputes WHERE id = $1`,
-    [disputeId],
-  );
-  if (dispute.rows.length === 0) throw createAppError('Dispute not found.', 404);
-  const d = dispute.rows[0]!;
+  // Phase 14 Dispatch 06 — Bug 84. Pre-D06 the disputes UPDATE and the
+  // admin_actions INSERT ran as two separate top-level db.query calls
+  // (no transaction). If the audit insert failed, the dispute status had
+  // already escalated without an audit trail. Now: ONE transaction wraps
+  // both writes with FOR UPDATE locking on the read.
+  return db.transaction(async (client) => {
+    const dispute = await client.query<DisputeRow>(
+      `SELECT * FROM disputes WHERE id = $1 FOR UPDATE`,
+      [disputeId],
+    );
+    if (dispute.rows.length === 0) throw createAppError('Dispute not found.', 404);
+    const d = dispute.rows[0]!;
 
-  if (d.status === 'resolved') throw createAppError('Cannot escalate a resolved dispute.', 409);
-  if (d.tier >= 3) throw createAppError('Dispute is already at the highest tier.', 409);
+    if (d.status === 'resolved') throw createAppError('Cannot escalate a resolved dispute.', 409);
+    if (d.tier >= 3) throw createAppError('Dispute is already at the highest tier.', 409);
 
-  const newTier = d.tier + 1;
-  const result = await db.query<DisputeRow>(
-    `UPDATE disputes SET tier = $1, status = 'escalated', updated_at = NOW() WHERE id = $2 RETURNING *`,
-    [newTier, disputeId],
-  );
+    const newTier = d.tier + 1;
+    const result = await client.query<DisputeRow>(
+      `UPDATE disputes SET tier = $1, status = 'escalated', updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [newTier, disputeId],
+    );
 
-  await db.query(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-     VALUES ($1, 'dispute_escalated', 'dispute', $2, $3, $4)`,
-    [adminId, disputeId,
-     JSON.stringify({ previousTier: d.tier, newTier }),
-     reason],
-  );
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'dispute_escalated', 'dispute', $2, $3, $4, $5)`,
+      [adminId, disputeId,
+       JSON.stringify({ previousTier: d.tier, newTier }),
+       reason.slice(0, 500),
+       reason],
+    );
 
-  if (result.rows.length === 0) throw createAppError('Failed to escalate dispute — concurrent modification.', 409);
-  logger.info('Dispute escalated', { disputeId, fromTier: d.tier, toTier: newTier });
-  return result.rows[0]!;
+    if (result.rows.length === 0) throw createAppError('Failed to escalate dispute — concurrent modification.', 409);
+    logger.info('Dispute escalated', { disputeId, fromTier: d.tier, toTier: newTier });
+    return result.rows[0]!;
+  });
 }
 
 export async function assignDispute(disputeId: string, adminId: string, assigneeId: string): Promise<DisputeRow> {
-  const result = await db.query<DisputeRow>(
-    `UPDATE disputes SET assigned_to = $1, status = 'under_review', updated_at = NOW()
-     WHERE id = $2 AND status != 'resolved' RETURNING *`,
-    [assigneeId, disputeId],
-  );
-  if (result.rows.length === 0) throw createAppError('Dispute not found or already resolved.', 404);
+  // Phase 14 Dispatch 06 — gate-promotion fix. Pre-D06 the dispute UPDATE
+  // and admin_actions INSERT ran as two separate top-level db.query
+  // calls. Now: ONE transaction wraps both writes so audit failure
+  // rolls back the assignment (consistent with Bug 84's escalateDispute
+  // fix).
+  return db.transaction(async (client) => {
+    const result = await client.query<DisputeRow>(
+      `UPDATE disputes SET assigned_to = $1, status = 'under_review', updated_at = NOW()
+       WHERE id = $2 AND status != 'resolved' RETURNING *`,
+      [assigneeId, disputeId],
+    );
+    if (result.rows.length === 0) throw createAppError('Dispute not found or already resolved.', 404);
 
-  await db.query(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-     VALUES ($1, 'dispute_assigned', 'dispute', $2, $3)`,
-    [adminId, disputeId, JSON.stringify({ assignedTo: assigneeId })],
-  );
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'dispute_assigned', 'dispute', $2, $3)`,
+      [adminId, disputeId, JSON.stringify({ assignedTo: assigneeId })],
+    );
 
-  logger.info('Dispute assigned', { disputeId, assigneeId });
-  return result.rows[0]!;
+    logger.info('Dispute assigned', { disputeId, assigneeId });
+    return result.rows[0]!;
+  });
 }
 
 export async function getDisputeById(disputeId: string): Promise<DisputeRow> {
