@@ -68,8 +68,9 @@ router.delete(
   rbacMiddleware('super_admin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      await staffService.deleteRole(getParamId(req));
-      res.json({ success: true, message: 'Role deleted.' });
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+      await staffService.deleteRole(getParamId(req), req.user!.userId, reason);
+      res.json({ success: true, message: 'Role archived.' });
     } catch (error) {
       next(error);
     }
