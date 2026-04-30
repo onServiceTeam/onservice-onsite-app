@@ -1111,6 +1111,7 @@ export async function sendAdminMessageToBookingCustomer(
     bodyLength: trimmed.length,
   });
 
+  // gate-c-allowed: best-effort-audit-only — wrapped in try/catch with logger.warn on failure; message already durably inserted above
   try {
     await db.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)

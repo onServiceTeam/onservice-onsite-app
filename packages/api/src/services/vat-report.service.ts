@@ -393,6 +393,7 @@ export async function generateMonthlyVatReport(
   }
 
   // Audit — system (cron) issuance has admin_id NULL, manual carries adminUserId.
+  // gate-c-allowed: best-effort-audit-only — try/catch'd, VAT report row durable from prior write
   try {
     await db.query(
       `INSERT INTO admin_actions
@@ -491,6 +492,7 @@ export async function finalizeVatReport(
   }
   const report = mapReportRow(updatedRow);
 
+  // gate-c-allowed: best-effort-audit-only — try/catch'd, VAT report row durable from prior UPDATE
   try {
     await db.query(
       `INSERT INTO admin_actions

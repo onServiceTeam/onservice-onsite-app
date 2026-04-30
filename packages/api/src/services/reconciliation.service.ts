@@ -148,6 +148,7 @@ async function insertAuditRow(params: {
   // in try/catch so a constraint or transient DB failure does not roll
   // back the snapshot — the snapshot row itself is the authoritative
   // artifact.
+  // gate-c-allowed: best-effort-audit-only — snapshot row already durable, audit is paired-but-non-blocking
   try {
     await db.query(
       `INSERT INTO admin_actions

@@ -639,21 +639,28 @@ export async function escalateDispute(disputeId: string, adminId: string, reason
 }
 
 export async function assignDispute(disputeId: string, adminId: string, assigneeId: string): Promise<DisputeRow> {
-  const result = await db.query<DisputeRow>(
-    `UPDATE disputes SET assigned_to = $1, status = 'under_review', updated_at = NOW()
-     WHERE id = $2 AND status != 'resolved' RETURNING *`,
-    [assigneeId, disputeId],
-  );
-  if (result.rows.length === 0) throw createAppError('Dispute not found or already resolved.', 404);
+  // Phase 14 Dispatch 06 — gate-promotion fix. Pre-D06 the dispute UPDATE
+  // and admin_actions INSERT ran as two separate top-level db.query
+  // calls. Now: ONE transaction wraps both writes so audit failure
+  // rolls back the assignment (consistent with Bug 84's escalateDispute
+  // fix).
+  return db.transaction(async (client) => {
+    const result = await client.query<DisputeRow>(
+      `UPDATE disputes SET assigned_to = $1, status = 'under_review', updated_at = NOW()
+       WHERE id = $2 AND status != 'resolved' RETURNING *`,
+      [assigneeId, disputeId],
+    );
+    if (result.rows.length === 0) throw createAppError('Dispute not found or already resolved.', 404);
 
-  await db.query(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-     VALUES ($1, 'dispute_assigned', 'dispute', $2, $3)`,
-    [adminId, disputeId, JSON.stringify({ assignedTo: assigneeId })],
-  );
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'dispute_assigned', 'dispute', $2, $3)`,
+      [adminId, disputeId, JSON.stringify({ assignedTo: assigneeId })],
+    );
 
-  logger.info('Dispute assigned', { disputeId, assigneeId });
-  return result.rows[0]!;
+    logger.info('Dispute assigned', { disputeId, assigneeId });
+    return result.rows[0]!;
+  });
 }
 
 export async function getDisputeById(disputeId: string): Promise<DisputeRow> {
