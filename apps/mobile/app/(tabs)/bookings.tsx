@@ -18,6 +18,11 @@ import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle, ClipboardList } from '@/components/icons';
+// Phase 14 Remediation #5 — Bug 889/911/918 (filter chips), Bug 891/916/923
+// (pagination loader), Bug 895/901 (status badge) wired here.
+import StatusBadge from '@/components/StatusBadge';
+import FilterChips from '@/components/FilterChips';
+import PaginationLoader from '@/components/PaginationLoader';
 
 import { Routes } from '@/config/navigation';
 type StatusFilter = 'all' | 'active' | 'completed' | 'cancelled';
@@ -102,10 +107,8 @@ export default function BookingsScreen(): React.ReactElement {
       activeOpacity={0.7}
     >
       <View style={styles.cardTop}>
-        <Badge
-          label={item.status.replace(/_/g, ' ').toUpperCase()}
-          backgroundColor={getStatusColor(item.status)}
-        />
+        {/* Phase 14 Remediation #5 — Bug 895/901 status pill via StatusBadge */}
+        <StatusBadge status={item.status} size="sm" />
         <Text style={styles.cardDate}>{formatDate(item.scheduledAt)}</Text>
       </View>
       <Text style={styles.cardService}>{item.serviceName ?? item.categoryName ?? 'Service'}</Text>
@@ -129,19 +132,12 @@ export default function BookingsScreen(): React.ReactElement {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.filterRow}>
-        {FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f.value}
-            style={[styles.filterChip, filter === f.value && styles.filterChipActive]}
-            onPress={() => setFilter(f.value)}
-          >
-            <Text style={[styles.filterLabel, filter === f.value && styles.filterLabelActive]}>
-              {f.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Phase 14 Remediation #5 — Bug 911/912/913 filter chips via FilterChips */}
+      <FilterChips
+        options={FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+        selected={filter}
+        onSelect={(v) => setFilter(v as StatusFilter)}
+      />
 
       {isLoading ? (
         <View style={styles.loading}>
@@ -172,9 +168,14 @@ export default function BookingsScreen(): React.ReactElement {
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} />
           }
-          ListFooterComponent={isFetchingNextPage ? (
-            <ActivityIndicator size="small" color={colors.primary} style={styles.footer} />
-          ) : null}
+          // Phase 14 Remediation #5 — Bug 891/916/923 pagination loader
+          ListFooterComponent={
+            <PaginationLoader
+              loading={isFetchingNextPage}
+              hasMore={!!hasNextPage}
+              endLabel="You're all caught up"
+            />
+          }
           ListEmptyComponent={
             <View style={styles.empty}>
               <View style={styles.emptyIconWrap}><ClipboardList size={48} color={colors.textTertiary} /></View>

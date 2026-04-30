@@ -23,6 +23,8 @@ import type { Booking } from '@/services/booking.service';
 import { Badge } from '@/components/ui';
 import { AlertTriangle, Bell, Calendar, Wrench, CreditCard, Inbox } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
+// Phase 14 Remediation #5 — Bug 1234 NBI lifecycle banner.
+import NbiStatusBanner from '@/components/provider/NbiStatusBanner';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
@@ -122,6 +124,8 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
       }
     >
+      {/* Phase 14 Remediation #5 — Bug 1234 NBI lifecycle banner */}
+      <NbiStatusBanner onTap={() => router.push('/provider/account-management')} />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.greeting}>

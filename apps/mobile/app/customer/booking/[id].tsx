@@ -21,6 +21,12 @@ import { Badge, Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+// Phase 14 Remediation #5 — Bug 909, 910 (cancel confirm), Bug 895 (status badge),
+// Bug 906/907 (live indicator), Bug 902 (provider avatar) wired here.
+import ConfirmModal from '@/components/ConfirmModal';
+import StatusBadge from '@/components/StatusBadge';
+import PulsingDot from '@/components/PulsingDot';
+import Avatar from '@/components/Avatar';
 
 const ACTIVE_STATUSES = new Set([
   'matched', 'paid', 'provider_en_route', 'provider_arrived', 'in_progress',
@@ -77,16 +83,10 @@ export default function BookingDetailScreen(): React.ReactElement {
     },
   });
 
-  const handleCancelConfirm = (): void => {
-    Alert.alert(
-      'Cancel Booking',
-      'Are you sure you want to cancel this booking? Cancellation fees may apply if the provider is already en route.',
-      [
-        { text: 'Keep Booking', style: 'cancel' },
-        { text: 'Yes, Cancel', style: 'destructive', onPress: () => cancelMutation.mutate() },
-      ],
-    );
-  };
+  // Phase 14 Remediation #5 — Bug 998: ConfirmModal replaces Alert.alert
+  // for the cancel-booking destructive action.
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const handleCancelConfirm = (): void => setShowCancelConfirm(true);
 
   if (isLoading) {
     return (
@@ -135,11 +135,12 @@ export default function BookingDetailScreen(): React.ReactElement {
         }
       >
         <View style={styles.statusCard}>
-          <Badge
-            label={booking.status.replace(/_/g, ' ').toUpperCase()}
-            backgroundColor={getStatusColor(booking.status)}
-            size="md"
-          />
+          {/* Phase 14 Remediation #5 — Bug 895 status pill via StatusBadge */}
+          <StatusBadge status={booking.status} />
+          {/* Phase 14 Remediation #5 — Bug 906/907 live indicator on en-route */}
+          {(booking.status === 'provider_en_route' || booking.status === 'provider_arrived') && (
+            <PulsingDot />
+          )}
           <Text style={styles.bookingId}>#{formatBookingRef(booking.id, booking.createdAt)}</Text>
         </View>
 
@@ -168,11 +169,8 @@ export default function BookingDetailScreen(): React.ReactElement {
               style={styles.providerRow}
               onPress={() => booking.providerId && router.push(`/customer/provider/${booking.providerId}`)}
             >
-              <View style={styles.providerAvatar}>
-                <Text style={styles.providerInitial}>
-                  {booking.providerName[0]?.toUpperCase() ?? '?'}
-                </Text>
-              </View>
+              {/* Phase 14 Remediation #5 — Bug 902 Avatar component with initials fallback */}
+              <Avatar name={booking.providerName} size={48} />
               <Text style={styles.providerName}>{booking.providerName}</Text>
               <Text style={styles.providerArrow}>›</Text>
             </TouchableOpacity>
@@ -315,6 +313,21 @@ export default function BookingDetailScreen(): React.ReactElement {
           </View>
         )}
       </View>
+      {/* Phase 14 Remediation #5 — Bug 998 cancel confirmation */}
+      <ConfirmModal
+        visible={showCancelConfirm}
+        title="Cancel this booking?"
+        message="Cancellation fees may apply if the provider is already en route. This action cannot be undone."
+        confirmLabel="Yes, cancel"
+        cancelLabel="Keep booking"
+        destructive
+        loading={cancelMutation.isPending}
+        onConfirm={() => {
+          cancelMutation.mutate();
+          setShowCancelConfirm(false);
+        }}
+        onCancel={() => setShowCancelConfirm(false)}
+      />
     </View>
   );
 }
