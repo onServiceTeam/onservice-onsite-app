@@ -1,0 +1,33 @@
+appId: com.onservice.app
+---
+# Phase 14 Remediation #3 - visual baseline flow for provider-tabs-provider-profile
+# Screen: apps/mobile/app/(provider-tabs)/provider-profile.tsx
+#
+# Captures 4 states (loading, empty, error, success) at the device's
+# native viewport. Operator runs `maestro test --update-snapshots` to
+# capture baselines into apps/mobile/.maestro/visual/baselines/provider/.
+
+- launchApp:
+    clearState: true
+    stopApp: true
+
+# Default render
+- takeScreenshot: provider/provider-tabs-provider-profile/default
+
+# Loading state - API stalls so skeleton renders.
+# Uncomment when the operator wires a delay-fixture in scripts/maestro/.
+# - runScript: scripts/maestro/force-loading.sh
+# - takeScreenshot: provider/provider-tabs-provider-profile/loading
+
+# Empty state - navigate with empty fixture (route-specific).
+# Uncomment when the operator wires an empty-fixture seeder.
+# - runScript: scripts/maestro/seed-empty.sh
+# - takeScreenshot: provider/provider-tabs-provider-profile/empty
+
+# Error state - force network error.
+# - runScript: scripts/maestro/force-error.sh
+# - takeScreenshot: provider/provider-tabs-provider-profile/error
+
+# Success state
+# - runScript: scripts/maestro/seed-success.sh
+# - takeScreenshot: provider/provider-tabs-provider-profile/success
