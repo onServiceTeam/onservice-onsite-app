@@ -56,6 +56,7 @@ import referralRoutes from './routes/referral.routes';
 import recurringRoutes from './routes/recurring.routes';
 import sukiRoutes from './routes/suki.routes';
 import uploadRoutes from './routes/upload.routes';
+import checklistRoutes from './routes/checklist.routes';
 import serviceAreaRoutes from './routes/service-area.routes';
 import businessRoutes from './routes/business.routes';
 import payoutRoutes from './routes/payout.routes';
@@ -234,6 +235,8 @@ app.use('/api/v1/referrals', referralRoutes);
 app.use('/api/v1/recurring', recurringRoutes);
 app.use('/api/v1/suki', sukiRoutes);
 app.use('/api/v1/uploads', uploadRoutes);
+// Phase 14 Dispatch 07 — Bug 460 + 463 server-driven checklists.
+app.use('/api/v1', checklistRoutes);
 app.use('/api/v1/service-areas', serviceAreaRoutes);
 app.use('/api/v1/business', businessRoutes);
 app.use('/api/v1/payouts', payoutRoutes);

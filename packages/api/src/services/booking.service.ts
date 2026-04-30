@@ -438,6 +438,37 @@ export async function transitionBookingStatus(
 
     await validateRoleForTransition(role, currentStatus, newStatus, booking, userId);
 
+    // Phase 14 Dispatch 07 — Bug 463 + 1220.
+    // Provider-driven completion requires (a) the checklist was opened
+    // AND fully completed for required items, AND (b) at least 2 'after'
+    // photos uploaded. Server-side enforcement; mobile can mirror the
+    // gating but the server is authoritative.
+    if (newStatus === 'completed_by_provider') {
+      const { getChecklistCompletionStatus } = await import('./checklist.service');
+      const { countAfterPhotos } = await import('./booking-photo.service');
+      const checklistStatus = await getChecklistCompletionStatus(bookingId);
+      if (!checklistStatus.checklistShown) {
+        throw createAppError(
+          'Open the checklist before marking the job complete. The customer needs the work documented.',
+          400,
+        );
+      }
+      if (!checklistStatus.isFullyComplete) {
+        throw createAppError(
+          `Complete all ${checklistStatus.totalRequired} required checklist items first ` +
+          `(${checklistStatus.completedRequired}/${checklistStatus.totalRequired} done).`,
+          400,
+        );
+      }
+      const afterPhotoCount = await countAfterPhotos(bookingId);
+      if (afterPhotoCount < 2) {
+        throw createAppError(
+          `Upload at least 2 "after" photos before marking complete (you have ${afterPhotoCount}).`,
+          400,
+        );
+      }
+    }
+
     const updates: string[] = [`status = $2`, `updated_at = NOW()`];
     const params: unknown[] = [bookingId, newStatus];
     let paramIdx = 3;
