@@ -108,11 +108,49 @@ If Ken approves Option A, Dispatch 04 implementation begins immediately on `phas
 
 ## Decision
 
-**Decided by:** _(Ken — fill in)_
-**Decision date:** _(YYYY-MM-DD)_
-**Choice:** _(Option A | Option B)_
-**Reason:** _(one sentence)_
+**Decided by:** Ken
+**Decision date:** 2026-04-30
+**Choice:** Option A — pull SiguradoShield from v1.0 scope.
+**Reason:** Catalog already assumes pulled state; real underwriter wiring is months of regulatory + integration work that effectively replaces most of Phase 14; shipping a feature labeled "shield" or "protection" without an actual insurance product behind it carries real legal exposure (PH Insurance Commission rules on representations, plus consumer protection liability). Pulling for v1.0 neutralizes both. Door stays open for v1.1+ when real underwriter contracts and the IC license question can be addressed properly.
 
-After Ken records his decision in this section, the AI coder reads it, marks the escalation resolved, clears `CURRENT-DISPATCH` "blocked" flag, and proceeds with D04 implementation.
+---
 
-If Option B is chosen, the AI coder halts D04, surfaces a re-scoped Phase 14 plan to Ken (Layer 2 work absorbs most of the remaining dispatches), and waits for further direction.
+## Pull execution rules (Ken-specified, v1.0)
+
+The pull follows the D02 admin-editable / launch-limitations pattern with these refinements:
+
+1. **Delete UI surfaces — do not feature-flag.** Customer mobile, provider mobile, and admin: remove every SiguradoShield component, badge, copy line, claims form, "covered by" phrasing. Feature-flagged-off code is rot waiting to ship by accident.
+2. **Keep DB schema; mark deprecated.** Any `shield_polic*` / `shield_claim*` tables (none currently exist in the migration history — see D04 closeout) and the SiguradoShield-related rows in `platform_settings` stay. Migration files that introduced them get a deprecation comment header pointing to this decision file. Do NOT drop tables in v1.0.
+3. **Strip server code paths.** Pricing engine, booking creation, payout flow — anywhere SiguradoShield premium was added to the customer charge or deducted from provider payout. Rip cleanly. (Audit shows: no such charge/payout integration ever shipped — the constants in `packages/api/src/config/platform.config.ts` were referenced by `settings.service.ts` only as defaults; no actual premium add-on or claim deduction exists. Cleanup is config + settings only.)
+4. **Replace REPORT-only siguradoshield gate with stricter BLOCKING gate.** New `scripts/gates/c-constitution-no-shield-references.sh` fails any commit reintroducing SiguradoShield to UI surfaces or to charge/payout code paths. Allow references only in: deprecated migration files, `LAUNCH-LIMITATIONS.md`, this decision file, the deprecated tables themselves (none present today), and Phase-14 spec docs (read-only references). The old `a-cross-source-no-siguradoshield.sh` is superseded; remove from MODES.json or keep as a thin alias.
+5. **`LAUNCH-LIMITATIONS.md §23`** — Ken-framed wording (verbatim, see §legal-language below).
+6. **Customer ToS, provider agreement, help screens** — remove every SiguradoShield reference and replace with a brief explicit "platform does not provide insurance" line whose **exact wording is Ken-only legal sensitivity**. The AI coder does NOT draft the wording. Each affected surface gets the placeholder `<!-- TODO: Ken to provide explicit no-insurance disclaimer wording, see .ai-coder/decisions/D04-siguradoshield.md §legal-language -->` until Ken (or his lawyer) supplies the line.
+7. **8 D04 bugs** (1168, 860, 889, 920, 538, 983, 686, 834) — execute per spec but invert: where the original plan said "wire to X," the actual fix is "remove from X." Closeout notes the inversion per bug.
+8. **Tests are negative.** `expect(...).toBeNull()` / `not.toMatch(/SiguradoShield/i)` style. Verify the absence in shipped UI, the absence of premium in pricing breakdowns, the absence of claim affordances in booking detail.
+9. **No admin editors for pulled features.** Standing D02 instruction explicitly does not apply when the feature is being removed.
+10. **After D04 closes, autoproceed to D05** (no-client-money gate hardening) per the autonomous protocol.
+
+---
+
+## §legal-language
+
+The following surfaces will display a brief "platform does not provide insurance" disclaimer line. Ken (or his lawyer) supplies the **exact wording** for each context. AI coder leaves the placeholder comment `<!-- TODO: Ken to provide explicit no-insurance disclaimer wording, see .ai-coder/decisions/D04-siguradoshield.md §legal-language -->` at each location during D04 implementation. The disclaimer line is added by Ken in a follow-up commit once wording is finalized.
+
+Surfaces requiring the disclaimer:
+
+| # | File | Section / context |
+|---|---|---|
+| 1 | `apps/mobile/app/customer/terms.tsx` | Section 6 — currently "SiguradoShield Protection." Renumber surrounding sections accordingly. The disclaimer goes here in plain language. |
+| 2 | `apps/mobile/app/customer/help.tsx` | FAQ section that previously included "What is SiguradoShield?" — replaced with an FAQ entry titled along the lines of "Does the platform provide insurance?" with Ken's disclaimer answer. |
+| 3 | `apps/mobile/app/customer/booking/confirm.tsx` | Booking confirmation summary — currently includes "Protected by SiguradoShield…" Strip the trademark; if a disclaimer is appropriate at this surface (Ken decides), include it; otherwise leave the cleaned-up escrow-only language. |
+| 4 | `apps/mobile/app/customer/booking/checkout.tsx` | Pre-pay checkout — same treatment as confirm. |
+| 5 | Provider agreement screen / file (TBD by Ken — onService PH provider onboarding flow under D10's scope; D04 leaves a placeholder for D10 to honor.) | Wherever the provider agreement displays liability allocation, add the disclaimer that the platform does not provide insurance and the provider is responsible per the agreement. |
+
+**Decision rule for AI coder:** at each location above, after stripping SiguradoShield, leave the placeholder comment in source. Do NOT invent disclaimer text. When Ken supplies wording, he edits these surfaces directly (or asks the AI coder to insert his exact wording, no rewording).
+
+---
+
+## After Ken's decision
+
+✅ Recorded in chat 2026-04-30 — Option A.
+AI coder marks escalation resolved, clears `CURRENT-DISPATCH` blocked flag, proceeds with D04 implementation per pull execution rules above. Opens D04 PR autonomously when all gates green. Then autoproceeds to D05.
