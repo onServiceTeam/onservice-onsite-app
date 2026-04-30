@@ -46,6 +46,14 @@ jest.mock('../src/services/dispute.service', () => ({
   escalateDispute: jest.fn(),
 }));
 
+jest.mock('../src/services/or.service', () => ({
+  issueOR: jest.fn(),
+}));
+
+jest.mock('../src/services/payment.service', () => ({
+  processRefund: jest.fn(),
+}));
+
 import * as bookingSvc from '../src/services/booking-admin.service';
 import * as disputeAdminSvc from '../src/services/dispute-admin.service';
 import * as escrowService from '../src/services/escrow.service';
@@ -383,30 +391,42 @@ describe('manualReleaseEscrow', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('happy path: calls releaseEscrow then INSERTs manual_escrow_release', async () => {
-    escrowMocks.releaseEscrow.mockResolvedValueOnce({
+  it('happy path: calls releaseEscrowInTransaction then INSERTs manual_escrow_release inside one transaction (Bug 70)', async () => {
+    escrowMocks.releaseEscrowInTransaction.mockResolvedValueOnce({
       providerReceives: 80000,
       platformRetains: 20000,
-    } as unknown as Awaited<ReturnType<typeof escrowMocks.releaseEscrow>>);
-    dbQueryMock.mockResolvedValueOnce(rows([{ id: 'aa-rel' }]));
+      commissionAmount: 15000,
+      serviceFeeAmount: 5000,
+    } as unknown as Awaited<ReturnType<typeof escrowMocks.releaseEscrowInTransaction>>);
+    const calls = setupTxRecorder(async (sql) => {
+      if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-rel' }]);
+      return rows([]);
+    });
     const out = await bookingSvc.manualReleaseEscrow(
       BOOKING_ID,
       'Customer abandoned booking',
       ADMIN_ID,
     );
-    expect(escrowMocks.releaseEscrow).toHaveBeenCalledWith(BOOKING_ID);
-    const sql = dbQueryMock.mock.calls[0][0] as string;
-    expect(sql).toMatch(/INSERT INTO admin_actions/);
-    expect(sql).toContain("'manual_escrow_release'");
+    // Phase 14 Dispatch 06 — Bug 70. Money work + audit are now in ONE
+    // transaction via the trx-aware helper.
+    expect(escrowMocks.releaseEscrowInTransaction).toHaveBeenCalledTimes(1);
+    expect(escrowMocks.releaseEscrow).not.toHaveBeenCalled();
+    const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
+    expect(insert).toBeDefined();
+    expect(insert!.sql).toContain("'manual_escrow_release'");
+    expect(insert!.sql).toContain('full_notes');
     expect(out.adminActionId).toBe('aa-rel');
     expect(out.releasedAmount).toBe(100000);
   });
 
-  it('propagates errors from escrowService', async () => {
-    escrowMocks.releaseEscrow.mockRejectedValueOnce(new Error('escrow boom'));
+  it('propagates errors from releaseEscrowInTransaction (no audit row written)', async () => {
+    escrowMocks.releaseEscrowInTransaction.mockRejectedValueOnce(new Error('escrow boom'));
+    const calls = setupTxRecorder(async () => rows([]));
     await expect(
       bookingSvc.manualReleaseEscrow(BOOKING_ID, 'Customer abandoned booking', ADMIN_ID),
     ).rejects.toThrow('escrow boom');
+    // No audit row was inserted — confirms abort happened before INSERT.
+    expect(calls.find((c) => /INSERT INTO admin_actions/.test(c.sql))).toBeUndefined();
   });
 });
 

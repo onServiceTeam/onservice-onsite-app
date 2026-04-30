@@ -17,6 +17,8 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as escrowService from './escrow.service';
 import * as notificationService from './notification.service';
+import * as orService from './or.service';
+import * as paymentService from './payment.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -614,34 +616,71 @@ export async function manualReleaseEscrow(
 ): Promise<ManualReleaseResult> {
   const trimmedReason = requireReason(reason, 10);
 
-  const breakdown = await escrowService.releaseEscrow(bookingId);
-  const releasedAmount =
-    Number(breakdown.providerReceives ?? 0) + Number(breakdown.platformRetains ?? 0);
+  // Phase 14 Dispatch 06 — Bug 70. Pre-D06 the escrow money work ran in
+  // escrowService.releaseEscrow's internal transaction; the admin_actions
+  // audit then ran in a SEPARATE top-level db.query. If the audit insert
+  // failed (CHECK constraint violation, FK error), the money had already
+  // moved without an audit trail. Now: ONE outer transaction wraps the
+  // trx-aware escrow helper + the admin_actions INSERT. OR issuance is
+  // post-commit per the Phase 08 documented pattern.
+  const result = await db.transaction(async (client) => {
+    const breakdown = await escrowService.releaseEscrowInTransaction(client, bookingId);
+    const releasedAmount =
+      Number(breakdown.providerReceives ?? 0) + Number(breakdown.platformRetains ?? 0);
 
-  const actionResult = await db.query<{ id: string }>(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-     VALUES ($1, 'manual_escrow_release', 'booking', $2, $3::jsonb, $4)
-     RETURNING id`,
-    [
-      adminUserId,
-      bookingId,
-      JSON.stringify({ bookingId, reason: trimmedReason }),
-      trimmedReason,
-    ],
-  );
-  const adminActionId = actionResult.rows[0]?.id;
-  if (!adminActionId) {
-    throw createAppError('Failed to record manual escrow release admin action.', 500);
-  }
+    const actionResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'manual_escrow_release', 'booking', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        adminUserId,
+        bookingId,
+        JSON.stringify({ bookingId, reason: trimmedReason, releasedAmount }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
+      ],
+    );
+    const adminActionId = actionResult.rows[0]?.id;
+    if (!adminActionId) {
+      throw createAppError('Failed to record manual escrow release admin action.', 500);
+    }
+
+    return { bookingId, releasedAmount, reason: trimmedReason, adminActionId, breakdown };
+  });
 
   logger.info('Manual escrow release executed', {
     bookingId,
     adminUserId,
-    adminActionId,
-    releasedAmount,
+    adminActionId: result.adminActionId,
+    releasedAmount: result.releasedAmount,
   });
 
-  return { bookingId, releasedAmount, reason: trimmedReason, adminActionId };
+  // gate-c-allowed: post-commit-or-issuance
+  // Phase 08 documented pattern: BIR OR issuance can fail without
+  // invalidating the money movement. Errors are logged for follow-up; a
+  // separate BullMQ job retries OR issuance based on recently-released
+  // escrow rows.
+  try {
+    await orService.issueOR({
+      bookingId,
+      commissionAmount: result.breakdown.commissionAmount,
+      serviceFeeAmount: result.breakdown.serviceFeeAmount,
+      providerReceived: result.breakdown.providerReceives,
+      platformRetained: result.breakdown.platformRetains,
+    });
+  } catch (orErr) {
+    logger.error('OR issuance failed after manual escrow release (audit-only side effect)', {
+      bookingId,
+      error: orErr instanceof Error ? orErr.message : String(orErr),
+    });
+  }
+
+  return {
+    bookingId: result.bookingId,
+    releasedAmount: result.releasedAmount,
+    reason: result.reason,
+    adminActionId: result.adminActionId,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────
