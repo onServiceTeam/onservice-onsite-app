@@ -23,6 +23,7 @@ import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
+import { Routes } from '@/config/navigation';
 import {
   Sparkles,
   Wrench,
@@ -172,7 +173,7 @@ export default function HomeScreen(): React.ReactElement {
       <View style={[styles.headerBar, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity
           style={styles.avatarContainer}
-          onPress={() => router.push('/(tabs)/profile')}
+          onPress={() => router.push(Routes.TABS.PROFILE)}
         >
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
@@ -183,7 +184,7 @@ export default function HomeScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.locationSelector}
-          onPress={() => router.push('/customer/address-picker')}
+          onPress={() => router.push(Routes.CUSTOMER.ADDRESS_PICKER)}
         >
           <Text style={styles.locationLabel}>Current Location</Text>
           <Text style={styles.locationValue} numberOfLines={1}>
@@ -193,7 +194,7 @@ export default function HomeScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.notifButton}
-          onPress={() => router.push('/customer/notifications')}
+          onPress={() => router.push(Routes.CUSTOMER.NOTIFICATIONS)}
         >
           <Bell size={22} color={colors.text} />
           {unreadCount > 0 && (
@@ -248,7 +249,7 @@ export default function HomeScreen(): React.ReactElement {
       {/* Search Bar */}
       <Pressable
         style={styles.searchBar}
-        onPress={() => router.push('/customer/search')}
+        onPress={() => router.push(Routes.CUSTOMER.SEARCH)}
       >
         <View style={styles.searchIconWrap}><Search size={16} color={colors.textTertiary} /></View>
         <Text style={styles.searchPlaceholder}>Search services or providers...</Text>
@@ -329,7 +330,7 @@ export default function HomeScreen(): React.ReactElement {
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Your Suki Pros</Text>
-            <TouchableOpacity onPress={() => router.push('/customer/suki-pros')}>
+            <TouchableOpacity onPress={() => router.push(Routes.CUSTOMER.SUKI_PROS)}>
               <Text style={styles.seeAllLink}>See all &gt;</Text>
             </TouchableOpacity>
           </View>
@@ -387,7 +388,7 @@ export default function HomeScreen(): React.ReactElement {
                 style={styles.rebookCard}
                 onPress={() => {
                   if (item.subcategoryId) {
-                    router.push('/customer/booking/form');
+                    router.push(Routes.CUSTOMER.BOOKING_FORM);
                   }
                 }}
                 activeOpacity={0.7}
@@ -409,7 +410,7 @@ export default function HomeScreen(): React.ReactElement {
       {/* SiguradoShield Banner */}
       <TouchableOpacity
         style={styles.shieldBanner}
-        onPress={() => router.push('/customer/safety')}
+        onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
         activeOpacity={0.7}
       >
         <View style={styles.shieldBannerIconWrap}><Shield size={28} color={colors.primary} /></View>

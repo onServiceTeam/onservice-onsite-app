@@ -7,18 +7,19 @@ import { useOnboardingStore } from '@/stores/onboarding.store';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Home as HomeIcon, Wrench } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 export default function RoleSelectScreen(): React.ReactElement {
   const router = useRouter();
   const setRole = useOnboardingStore((s) => s.setRole);
 
   const handleCustomer = (): void => {
     storage.delete('isNewUser');
-    router.replace('/(tabs)/home');
+    router.replace(Routes.TABS.HOME);
   };
 
   const handleProvider = (): void => {
     setRole('provider');
-    router.push('/provider-onboarding/categories');
+    router.push(Routes.PROVIDER_ONBOARDING.CATEGORIES);
   };
 
   return (

@@ -16,6 +16,7 @@ import { usePushNotifications } from '@/services/push.service';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
+import { Routes } from '@/config/navigation';
 export default function ProviderSettingsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -56,14 +57,14 @@ export default function ProviderSettingsScreen(): React.ReactElement {
         style: 'destructive',
         onPress: (): void => {
           logout();
-          router.replace('/auth/login');
+          router.replace(Routes.AUTH.LOGIN);
         },
       },
     ]);
   };
 
   const handleDeleteAccount = (): void => {
-    router.push('/provider/account-management');
+    router.push(Routes.PROVIDER.ACCOUNT_MANAGEMENT);
   };
 
   return (
@@ -120,77 +121,77 @@ export default function ProviderSettingsScreen(): React.ReactElement {
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.row}
-            onPress={(): void => { router.push('/provider/schedule'); }}
+            onPress={(): void => { router.push(Routes.PROVIDER.SCHEDULE); }}
           >
             <Text style={styles.rowLabel}>Weekly Schedule</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
-            onPress={(): void => { router.push('/provider/availability'); }}
+            onPress={(): void => { router.push(Routes.PROVIDER.AVAILABILITY); }}
           >
             <Text style={styles.rowLabel}>Availability Settings</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
-            onPress={(): void => { router.push('/provider/calendar'); }}
+            onPress={(): void => { router.push(Routes.PROVIDER.CALENDAR); }}
           >
             <Text style={styles.rowLabel}>Calendar View</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
-            onPress={(): void => { router.push('/provider/tier-progression'); }}
+            onPress={(): void => { router.push(Routes.PROVIDER.TIER_PROGRESSION); }}
           >
             <Text style={styles.rowLabel}>Tier Progression</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
-            onPress={(): void => { router.push('/provider/services'); }}
+            onPress={(): void => { router.push(Routes.PROVIDER.SERVICES); }}
           >
             <Text style={styles.rowLabel}>Manage Services</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
-            onPress={(): void => { router.push('/provider/portfolio'); }}
+            onPress={(): void => { router.push(Routes.PROVIDER.PORTFOLIO); }}
           >
             <Text style={styles.rowLabel}>Portfolio Photos</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
-            onPress={(): void => { router.push('/provider/certifications'); }}
+            onPress={(): void => { router.push(Routes.PROVIDER.CERTIFICATIONS); }}
           >
             <Text style={styles.rowLabel}>Certifications</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
-            onPress={(): void => { router.push('/provider/reviews'); }}
+            onPress={(): void => { router.push(Routes.PROVIDER.REVIEWS); }}
           >
             <Text style={styles.rowLabel}>My Reviews</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
-            onPress={() => router.push('/provider/payouts')}
+            onPress={() => router.push(Routes.PROVIDER.PAYOUTS)}
           >
             <Text style={styles.rowLabel}>Payout History</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
-            onPress={() => router.push('/provider/payout-settings')}
+            onPress={() => router.push(Routes.PROVIDER.PAYOUT_SETTINGS)}
           >
             <Text style={styles.rowLabel}>Payout Settings</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.row, { borderBottomWidth: 0 }]}
-            onPress={() => router.push('/provider/suki-customers')}
+            onPress={() => router.push(Routes.PROVIDER.SUKI_CUSTOMERS)}
           >
             <Text style={styles.rowLabel}>Suki Customers</Text>
             <Text style={styles.rowArrow}>›</Text>
@@ -205,7 +206,7 @@ export default function ProviderSettingsScreen(): React.ReactElement {
           </View>
           <TouchableOpacity
             style={[styles.row, { borderBottomWidth: 0 }]}
-            onPress={() => router.push('/provider/help')}
+            onPress={() => router.push(Routes.PROVIDER.HELP)}
           >
             <Text style={styles.rowLabel}>Help & Support</Text>
             <Text style={styles.rowArrow}>›</Text>

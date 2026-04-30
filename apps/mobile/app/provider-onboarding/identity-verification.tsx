@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Routes } from '@/config/navigation';
 import {
   ArrowLeft,
   ArrowRight,
@@ -170,7 +171,7 @@ export default function IdentityVerificationScreen(): React.ReactElement {
           throw apiErr;
         }
       }
-      router.push('/provider-onboarding/background-check-status');
+      router.push(Routes.PROVIDER_ONBOARDING.BACKGROUND_CHECK_STATUS);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Submission failed. Please try again.';
       setSubmitError(msg);

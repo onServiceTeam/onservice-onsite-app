@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { formatDateTime } from '@/utils/date';
+import { Routes } from '@/config/navigation';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -103,7 +104,7 @@ export default function BackgroundCheckStatusScreen(): React.ReactElement {
     : 'Within 48 hours';
 
   const goToDashboard = (): void => {
-    router.push('/(provider-tabs)' as never);
+    router.push(Routes.PROVIDER_TABS.DASHBOARD);
   };
 
   return (

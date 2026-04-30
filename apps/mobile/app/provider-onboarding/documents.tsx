@@ -8,6 +8,7 @@ import { uploadImages } from '@/services/upload.service';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
+import { Routes } from '@/config/navigation';
 type DocField = 'governmentIdFrontUri' | 'governmentIdBackUri' | 'nbiClearanceUri';
 
 interface DocSlot {
@@ -62,7 +63,7 @@ export default function DocumentsScreen(): React.ReactElement {
       Alert.alert('Required', 'Please upload all three documents to continue.');
       return;
     }
-    router.push('/provider-onboarding/selfie');
+    router.push(Routes.PROVIDER_ONBOARDING.SELFIE);
   };
 
   return (

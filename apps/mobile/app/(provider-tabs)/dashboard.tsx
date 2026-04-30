@@ -26,6 +26,7 @@ import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
+import { Routes } from '@/config/navigation';
 const TIER_LABELS: Record<string, string> = {
   new: 'New Provider',
   verified: 'Verified',
@@ -136,7 +137,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         </View>
         <TouchableOpacity
           style={styles.notifButton}
-          onPress={() => router.push('/provider/notifications')}
+          onPress={() => router.push(Routes.PROVIDER.NOTIFICATIONS)}
         >
           <Bell size={22} color={colors.text} />
         </TouchableOpacity>
@@ -190,7 +191,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Active Jobs</Text>
-          <TouchableOpacity onPress={() => router.push('/(provider-tabs)/jobs')}>
+          <TouchableOpacity onPress={() => router.push(Routes.PROVIDER_TABS.JOBS)}>
             <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
         </View>
@@ -236,7 +237,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>My Services</Text>
-            <TouchableOpacity onPress={() => router.push('/provider/services')}>
+            <TouchableOpacity onPress={() => router.push(Routes.PROVIDER.SERVICES)}>
               <Text style={styles.seeAllText}>Manage</Text>
             </TouchableOpacity>
           </View>
@@ -258,21 +259,21 @@ export default function ProviderDashboardScreen(): React.ReactElement {
       <View style={styles.quickActions}>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push('/provider/calendar')}
+          onPress={() => router.push(Routes.PROVIDER.CALENDAR)}
         >
           <Calendar size={24} color={colors.primary} style={styles.actionIconImg} />
           <Text style={styles.actionLabel}>Calendar</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push('/provider/services')}
+          onPress={() => router.push(Routes.PROVIDER.SERVICES)}
         >
           <Wrench size={24} color={colors.primary} style={styles.actionIconImg} />
           <Text style={styles.actionLabel}>Services</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push('/(provider-tabs)/earnings')}
+          onPress={() => router.push(Routes.PROVIDER_TABS.EARNINGS)}
         >
           <CreditCard size={24} color={colors.primary} style={styles.actionIconImg} />
           <Text style={styles.actionLabel}>Earnings</Text>

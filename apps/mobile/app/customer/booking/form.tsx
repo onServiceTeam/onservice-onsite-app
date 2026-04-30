@@ -14,6 +14,7 @@ import { Button, Input } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
+import { Routes } from '@/config/navigation';
 const TIME_SLOTS = [
   '08:00', '09:00', '10:00', '11:00',
   '13:00', '14:00', '15:00', '16:00', '17:00',
@@ -67,7 +68,7 @@ export default function BookingFormScreen(): React.ReactElement {
     }
     setSchedule(selectedDate, selectedTime);
     setDescription(notes);
-    router.push('/customer/booking/checkout');
+    router.push(Routes.CUSTOMER.CHECKOUT);
   };
 
   return (
@@ -97,7 +98,7 @@ export default function BookingFormScreen(): React.ReactElement {
           <Text style={styles.sectionTitle}>Service Address</Text>
           <TouchableOpacity
             style={styles.addressButton}
-            onPress={() => router.push('/customer/address-picker')}
+            onPress={() => router.push(Routes.CUSTOMER.ADDRESS_PICKER)}
           >
             <Text style={styles.addressIcon}>📍</Text>
             <Text style={[styles.addressText, !draft.address && styles.addressPlaceholder]}>

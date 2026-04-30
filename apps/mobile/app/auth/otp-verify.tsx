@@ -8,6 +8,7 @@ import { formatPHPhone } from '@/utils/phone';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography } from '@/config/theme';
 
+import { Routes } from '@/config/navigation';
 export default function OTPVerifyScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -41,14 +42,14 @@ export default function OTPVerifyScreen(): React.ReactElement {
       if (params.mode === 'register' && params.firstName && params.lastName) {
         await verifyOtp(params.phone, otp);
         await register(params.phone, params.firstName, params.lastName);
-        router.replace('/provider-onboarding/role-select');
+        router.replace(Routes.PROVIDER_ONBOARDING.ROLE_SELECT);
       } else {
         await verifyOtp(params.phone, otp);
         const { user } = useAuthStore.getState();
         if (user?.role === 'provider') {
-          router.replace('/(provider-tabs)/dashboard');
+          router.replace(Routes.PROVIDER_TABS.DASHBOARD);
         } else {
-          router.replace('/(tabs)/home');
+          router.replace(Routes.TABS.HOME);
         }
       }
     } catch (err: unknown) {

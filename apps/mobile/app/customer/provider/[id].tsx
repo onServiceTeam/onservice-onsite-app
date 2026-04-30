@@ -21,6 +21,7 @@ import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Star, AlertTriangle, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText, Shield } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 const TIER_COLORS: Record<string, string> = {
   new: colors.tierNew,
   verified: colors.tierVerified,
@@ -338,7 +339,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.shieldBadge}
-          onPress={() => router.push('/customer/safety')}
+          onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
           activeOpacity={0.7}
         >
           <View style={styles.shieldBadgeIconWrap}><Shield size={22} color={colors.primary} /></View>

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { colors, typography, spacing } from '@/config/theme';
 import { storage } from '@/services/api';
 
+import { Routes } from '@/config/navigation';
 export default function SplashScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -17,16 +18,16 @@ export default function SplashScreen(): React.ReactElement {
     const timer = setTimeout(() => {
       if (isAuthenticated) {
         if (user?.role === 'provider') {
-          router.replace('/(provider-tabs)/dashboard');
+          router.replace(Routes.PROVIDER_TABS.DASHBOARD);
         } else {
-          router.replace('/(tabs)/home');
+          router.replace(Routes.TABS.HOME);
         }
       } else {
         const hasOnboarded = storage.getBoolean('hasOnboarded');
         if (hasOnboarded) {
-          router.replace('/auth/login');
+          router.replace(Routes.AUTH.LOGIN);
         } else {
-          router.replace('/onboarding');
+          router.replace(Routes.AUTH.ONBOARDING);
         }
       }
     }, 1500);

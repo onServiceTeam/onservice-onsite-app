@@ -28,6 +28,7 @@ import {
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
+import { Routes } from '@/config/navigation';
 const TIER_COLORS: Record<string, string> = {
   new: colors.tierNew,
   verified: colors.tierVerified,
@@ -91,7 +92,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
         style: 'destructive',
         onPress: (): void => {
           logout();
-          router.replace('/auth/login');
+          router.replace(Routes.AUTH.LOGIN);
         },
       },
     ]);
@@ -136,7 +137,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
         </Text>
         <Text style={styles.userPhone}>{user?.phone}</Text>
         {profile && (
-          <TouchableOpacity onPress={(): void => { router.push('/provider/tier-progression'); }}>
+          <TouchableOpacity onPress={(): void => { router.push(Routes.PROVIDER.TIER_PROGRESSION); }}>
             <Badge
               label={profile.tier.toUpperCase()}
               backgroundColor={TIER_COLORS[profile.tier] ?? colors.textTertiary}
@@ -227,7 +228,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Schedule</Text>
-            <TouchableOpacity onPress={() => router.push('/provider/schedule')}>
+            <TouchableOpacity onPress={() => router.push(Routes.PROVIDER.SCHEDULE)}>
               <Text style={styles.editText}>Edit</Text>
             </TouchableOpacity>
           </View>
@@ -251,7 +252,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Services ({profile.services.length})</Text>
-            <TouchableOpacity onPress={() => router.push('/provider/services')}>
+            <TouchableOpacity onPress={() => router.push(Routes.PROVIDER.SERVICES)}>
               <Text style={styles.editText}>Manage</Text>
             </TouchableOpacity>
           </View>
@@ -271,42 +272,42 @@ export default function ProviderProfileScreen(): React.ReactElement {
       )}
 
       <View style={styles.section}>
-        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/schedule')}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.SCHEDULE)}>
           <Calendar size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Manage Schedule</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/services')}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.SERVICES)}>
           <Wrench size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Manage Services</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={(): void => { router.push('/provider/portfolio'); }}>
+        <TouchableOpacity style={styles.menuItem} onPress={(): void => { router.push(Routes.PROVIDER.PORTFOLIO); }}>
           <Camera size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Portfolio Photos</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={(): void => { router.push('/provider/certifications'); }}>
+        <TouchableOpacity style={styles.menuItem} onPress={(): void => { router.push(Routes.PROVIDER.CERTIFICATIONS); }}>
           <Award size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Certifications</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/reviews')}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.REVIEWS)}>
           <Star size={22} color={colors.warning} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>My Reviews</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/payouts')}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.PAYOUTS)}>
           <Banknote size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Payout History</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/notifications')}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.NOTIFICATIONS)}>
           <Bell size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Notifications</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/provider/settings')}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.SETTINGS)}>
           <Settings size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Settings</Text>
           <Text style={styles.menuArrow}>›</Text>

@@ -16,6 +16,7 @@ import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
+import { Routes } from '@/config/navigation';
 export default function SubcategoryListScreen(): React.ReactElement {
   const { id: slug } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -36,10 +37,10 @@ export default function SubcategoryListScreen(): React.ReactElement {
   const handleSelect = (sub: Subcategory): void => {
     if (isQuoteBased(sub)) {
       setSubcategory(sub.id, sub.name, 0);
-      router.push('/customer/booking/job-request');
+      router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);
     } else {
       setSubcategory(sub.id, sub.name, sub.basePrice ?? 0);
-      router.push('/customer/booking/configure');
+      router.push(Routes.CUSTOMER.BOOKING_CONFIGURE);
     }
   };
 

@@ -12,6 +12,7 @@ import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 type Frequency = 'weekly' | 'bi_weekly' | 'monthly';
 
 const FREQUENCY_OPTIONS: { value: Frequency; label: string; desc: string }[] = [
@@ -66,7 +67,7 @@ export default function MakeRecurringScreen(): React.ReactElement {
       Alert.alert(
         'Recurring Booking Created!',
         'We\'ll automatically schedule this service for you. You can manage it from your Bookings tab.',
-        [{ text: 'Great!', onPress: (): void => { router.replace('/(tabs)/bookings'); } }],
+        [{ text: 'Great!', onPress: (): void => { router.replace(Routes.TABS.BOOKINGS); } }],
       );
     },
     onError: (err: Error) => {
@@ -79,7 +80,7 @@ export default function MakeRecurringScreen(): React.ReactElement {
   }, [createRecurring]);
 
   const handleSkip = useCallback((): void => {
-    router.replace('/(tabs)/bookings');
+    router.replace(Routes.TABS.BOOKINGS);
   }, [router]);
 
   if (isLoading) {
@@ -104,7 +105,7 @@ export default function MakeRecurringScreen(): React.ReactElement {
   }
 
   if (!bookingId || !booking) {
-    router.replace('/(tabs)/bookings');
+    router.replace(Routes.TABS.BOOKINGS);
     return <View />;
   }
 

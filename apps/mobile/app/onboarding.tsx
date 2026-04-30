@@ -15,6 +15,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import { Home, Shield, Star } from '@/components/icons';
 
+import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
@@ -79,7 +80,7 @@ export default function OnboardingScreen(): React.ReactElement {
 
   const completeOnboarding = (): void => {
     storage.set('hasOnboarded', true);
-    router.replace('/auth/login');
+    router.replace(Routes.AUTH.LOGIN);
   };
 
   const renderSlide = ({ item }: { item: Slide }): React.ReactElement => {
