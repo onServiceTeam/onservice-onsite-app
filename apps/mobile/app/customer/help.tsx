@@ -64,10 +64,11 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
         q: 'Are providers background-checked?',
         a: 'Yes. All providers must submit a valid government ID and NBI clearance. We verify their identity through selfie matching and ongoing background checks.',
       },
-      // <!-- TODO: Ken to provide explicit no-insurance disclaimer wording, see .ai-coder/decisions/D04-siguradoshield.md \u00a7legal-language -->
+      // Phase 14 Remediation #10 (partial). Interim wording \u2014 pending
+      // attorney review.
       {
         q: 'Does the platform provide insurance?',
-        a: 'TODO_KEN_LEGAL_DISCLAIMER \u2014 Ken supplies the exact wording per the \u00a7legal-language section of the D04 decision file.',
+        a: 'No. onService PH is a marketplace, not an insurance provider. Our platform protections (NBI verification, escrow payment, 48-hour dispute window, masked phone numbers, provider rating accountability) are listed in the Safety & support screen. For loss or damage beyond these protections, please maintain your own homeowner\'s or renter\'s insurance. Providers are independent contractors and are responsible for any property damage they cause.',
       },
     ],
   },

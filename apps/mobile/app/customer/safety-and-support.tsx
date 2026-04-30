@@ -95,10 +95,11 @@ const TIPS: Array<{ q: string; a: string }> = [
     q: 'Can I leave a review if I felt unsafe?',
     a: 'Yes. Reviews are public. We also encourage you to flag the provider through "Report a safety concern" so we can investigate beyond the public review.',
   },
-  // <!-- TODO: Ken to provide explicit no-insurance disclaimer wording, see .ai-coder/decisions/D04-siguradoshield.md §legal-language -->
+  // Phase 14 Remediation #10 (partial). Interim wording — pending
+  // attorney review.
   {
     q: 'Does the platform provide insurance?',
-    a: 'TODO_KEN_LEGAL_DISCLAIMER — Ken supplies the exact wording per the §legal-language section of the D04 decision file.',
+    a: 'No. onService PH is a marketplace, not an insurance provider. Our platform protections include NBI clearance verification for every provider, escrow payment held until service completion, masked phone numbers, a 48-hour dispute window, and provider rating accountability. For loss or damage that exceeds these protections, please maintain your own homeowner\'s or renter\'s insurance. Providers are independent contractors and are responsible for any property damage they cause; you may pursue claims directly against them through our dispute process.',
   },
 ];
 

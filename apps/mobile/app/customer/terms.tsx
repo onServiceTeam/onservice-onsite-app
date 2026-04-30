@@ -51,9 +51,12 @@ const TOS_SECTIONS: Section[] = [
     // and .ai-coder/decisions/D04-siguradoshield.md §legal-language.
     // Ken supplies the exact disclaimer wording in a follow-up commit.
     title: '6. Platform protections (no insurance)',
-    // <!-- TODO: Ken to provide explicit no-insurance disclaimer wording, see .ai-coder/decisions/D04-siguradoshield.md §legal-language -->
+    // Phase 14 Remediation #10 (partial). Interim wording — pending
+    // attorney review. Ken's lawyer must sign off on this exact text
+    // before v1.0.0-launch-ready. See .ai-coder/decisions/D04-siguradoshield.md
+    // §legal-language for the original requirement.
     content:
-      'TODO_KEN_LEGAL_DISCLAIMER — Ken supplies the exact wording per the §legal-language section of the D04 decision file. Until then this section reads as a placeholder. The verifiable platform protections (NBI clearance for providers, escrow payment, real-time tracking, masked phone numbers, 48-hour dispute window) are described in the Safety & support screen.',
+      'onService PH is a marketplace connecting customers with independent service providers. We do not provide insurance coverage for property damage, personal injury, or service disputes.\n\nOur platform protections include:\n• NBI clearance verification for every provider before activation\n• Escrow payment held until service completion\n• Masked phone numbers between customer and provider\n• 48-hour dispute window with platform-mediated resolution\n• Provider rating accountability — providers below 4.0 stars after 20 jobs face suspension review\n\nFor loss or damage that exceeds these protections, customers should maintain their own homeowner\'s or renter\'s insurance. The provider, as an independent contractor, is responsible for any property damage they cause; customers may pursue claims directly against the provider through our dispute process.',
   },
   {
     title: '7. User Conduct',
