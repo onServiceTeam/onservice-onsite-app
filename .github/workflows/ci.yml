@@ -86,6 +86,10 @@ jobs:
       - name: Build Admin
         run: npm run build --workspace=apps/admin
 
+      - name: Admin vitest — per-page tests
+        # Phase 14 R7-real: real DOM-render tests for 29 admin pages.
+        run: npm run test --workspace=apps/admin
+
   mobile-check:
     name: Mobile — TypeScript
     runs-on: ubuntu-latest
@@ -105,12 +109,10 @@ jobs:
       - name: TypeScript check — Mobile
         run: npx tsc --noEmit --project apps/mobile/tsconfig.json
 
-      - name: Mobile jest — proof tests
-        # Per Phase 14 R5b: real render harness for D11/D12 components +
-        # screens. Runs the proof suite to verify the harness keeps working.
-        # Failing this step means the harness regressed.
+      - name: Mobile jest — proof + screen tests
+        # Phase 14 R5b harness + R7-real per-screen tests.
         working-directory: apps/mobile
-        run: npx jest --config jest.config.js __tests__/proof/
+        run: npx jest --config jest.config.js __tests__/proof/ __tests__/screens/
 
   docker-build:
     name: Docker — API Image Build
