@@ -1,39 +1,12 @@
 dispatch: D07
 branch: phase/14-d07-provider-job-trust
-status: planning-only (handoff to fresh session)
-operating-mode: autonomous between dispatches + full audit chain
-session-started: 2026-04-30 (D06 merged at c9632a9 tag v0.14.0-d06-complete; D07 handoff written; D07 implementation deferred to fresh session)
-prior-dispatches: D03 + D04 + D05 + D06 merged to master; tags v0.14.0-d03-complete (6a27ade) + v0.14.0-d04-complete (808208f) + v0.14.0-d05-complete (143ce37) + v0.14.0-d06-complete (c9632a9). Branch protection restored after each merge (enforce_admins=true, 1 review, conversation_resolution=true).
+status: closeout-written; ready for push + PR + autoproceed to D08
+operating-mode: autonomous between dispatches + full audit chain (no fresh session per Ken's instruction)
+session-started: 2026-04-30 (D06 merged at c9632a9 + D07 implementation completed in same session)
+prior-dispatches: D03+D04+D05+D06 merged. Tags v0.14.0-d{03,04,05,06}-complete on master.
 
-# D07 — Provider Job Execution Trust
+# D07 — Provider Job Execution Trust (CLOSEOUT WRITTEN)
 
-Source spec: `.ai-coder/phase-14/PART-3-BUG-REMEDIATION-DISPATCHES-07-08.md` lines 10–926.
-Planning doc: `.ai-coder/dispatches/D07-plan.md` (12 bugs, file:line citations, S3 + KMS architecture, migration list 078 + 079, cross-cutting concerns with D06, definition of done, fresh-session notes).
-Fresh session prompt: `.ai-coder/dispatches/D07-FRESH-SESSION-PROMPT.md` (one-shot paste block per the same rules as D05/D06 prompts).
-Spec corrections inherited from D05 + D06: see `.ai-coder/dispatches/D05-closeout.md` §"Spec corrections applied" (10 rows) AND `.ai-coder/dispatches/D06-closeout.md` §"Spec corrections inherited from D05 + extended in D06" (15 rows). All 25 corrections apply. Most critical: spec uses Kysely (translate to existing pg-style helper); migrations renumbered (D06 took 075 + 076; D07 uses 078 + 079); table `subcategories` is `service_subcategories`; admin_users FK target doesn't exist (use users(id) or omit).
+12 bugs closed at the data-integrity layer (server-side). Mobile screen UI rewrites deferred to D11/D12 polish per dispatch boundaries. Migrations 078 (10 checklist templates) + 079 (booking_photos + booking_signatures). New booking-photo + checklist services + completion enforcement (Bug 463 + 1220). Bug 38 deferred to v1.1+ per spec.
 
-## Subtask list (run sequentially; each subtask is a coherent commit)
-
-Per `D07-plan.md` §"Subtask list":
-
-1. Read + verify state (subtask 1 also resolves: optional Migration 077 decision, admin_users FK reconciliation, S3 bucket Terraform existence check, react-native-signature-canvas dependency add, Bug 38 chat deferral confirmation).
-2. Migration 078 — checklist_templates + 8 starter templates.
-3. Migration 079 — booking_photos + booking_signatures.
-4. (Optional) Migration 077 — promo_redemptions (D05+D06 deferred per-customer enforcement).
-5. Server uploads route + S3 service.
-6. Server checklist.service.ts.
-7. Server booking-completion enforcement (Bug 463 + 1220).
-8. Mobile photo-upload service + compression (Bug 1216).
-9. Mobile provider complete screen (Bug 36).
-10. Mobile provider photos screen (Bug 1224).
-11. Mobile provider checklist screen (Bug 460 + 461).
-12. Mobile provider IC signature capture (Bug 37).
-13. Mobile customer photo viewer (Bug 943 + 944).
-14. Admin booking photos display (Bug 73).
-15. LAUNCH-LIMITATIONS Bug 38 chat deferral.
-16. (No new gate this dispatch.)
-17. D07 closeout with honesty check.
-18. Push + PR + self-merge + tag + autoproceed to D08.
-
-next-subtask: 1
-last-subtask-completed: 0 (planning-only state; D07 branch reset to master at c9632a9, awaiting fresh session)
+next-subtask: 18 (push + PR + self-merge + tag + autoproceed to D08)

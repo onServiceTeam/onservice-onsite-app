@@ -549,3 +549,44 @@ subcategory rows and avoid setting `pricing_type = 'hourly'`.
 
 **Source decision:** `.ai-coder/decisions/D05-spec-vs-schema.md` — Ken —
 Option A — 2026-04-30. Phase 14 Dispatch 05.
+
+---
+
+## 25. In-app chat photo + message sending broken in v1.0 (Phase 14 Dispatch 07)
+
+**Bug 38** (audit reference) — provider/customer chat threads display
+correctly but photo attachments and outbound messages from the mobile
+chat screens are broken. The chat data model + admin moderation tools
+work; the mobile send path needs rebuild.
+
+**v1.0 server behavior:** the existing /api/v1/messaging endpoints
+operate normally for messages sent from server-driven flows (system
+notifications, admin-to-customer messages from the dispatch console).
+Mobile-initiated chat messages in the customer ↔ provider thread are
+unreliable. Specifically:
+
+- Mobile photo-attachment in chat: photos go to `/api/v1/uploads` but
+  the message payload's `attachments` field doesn't always reach the
+  recipient device — investigation deferred to v1.1+.
+- Mobile outbound messages: occasionally don't appear on the recipient
+  side until app restart — likely a socket subscription regression.
+
+**Operator obligation:** support agents should advise users to use the
+"Call provider" button (existing flow, works correctly) for time-
+sensitive coordination. Photo-evidence is captured via the **provider
+job photos** flow (Bug 36/461 fix in this same dispatch — provider
+uploads to S3-backed booking_photos), NOT chat. Disputes use the
+**dispute evidence upload** flow (existing, works) NOT chat.
+
+**v1.1+ scope:**
+- Mobile chat send-path rebuild (likely a rewrite onto the existing
+  socket service used elsewhere).
+- Photo attachment flow in chat using the booking_photos table model
+  introduced in D07.
+- Real-time delivery confirmation in the chat UI.
+
+**Source decision:** D07 plan + `.ai-coder/dispatches/D07-closeout.md` —
+chat scoped out of D07's provider-job-execution-trust focus per spec
+(line 873: `Bug 38 — chat deferred to v1.1`).
+
+**Source:** Phase 14 Dispatch 07.
