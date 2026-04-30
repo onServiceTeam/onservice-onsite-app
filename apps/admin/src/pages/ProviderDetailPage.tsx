@@ -194,7 +194,9 @@ const STATUS_BADGE: Record<string, 'success' | 'warning' | 'danger' | 'info' | '
   deactivated: 'danger',
 };
 
+// Bug 1323 fix (Phase 14 D02 Part 3): founding-batch tier added.
 const TIER_BADGE: Record<string, 'info' | 'success' | 'warning' | 'default'> = {
+  founding: 'warning',
   new: 'default',
   verified: 'info',
   pro: 'success',
