@@ -15,6 +15,20 @@
 
 set -euo pipefail
 
+GATES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Honor the gate's tier from MODES.json (gate_d_state). REPORT mode means
+# the CI job passes regardless of maestro/playwright availability — baseline
+# capture is operator/contractor work per the F3 + F4 handoff docs.
+mode=$(bash "$GATES_DIR/mode-lookup.sh" gate_d_state state 2>/dev/null || echo "BLOCKING")
+if [ "$mode" = "REPORT" ]; then
+  echo "Gate D: REPORT mode (per scripts/gates/MODES.json gate_d_state)."
+  echo "        Visual baseline capture is owned by R3/R4 handoff docs;"
+  echo "        the gate is observational until baselines land + the gate"
+  echo "        is promoted to BLOCKING."
+  exit 0
+fi
+
 fail=0
 
 # Detect actual test files (not just placeholder READMEs).
