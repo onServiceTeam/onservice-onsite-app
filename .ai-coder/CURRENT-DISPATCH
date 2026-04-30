@@ -1,8 +1,9 @@
-dispatch: D13
-branch: phase/14-d13-feature-decisions
-status: closeout-written; ready for push + PR + autoproceed to D14
+dispatch: D14
+branch: phase/14-d14-cutover
+status: closeout-written; ready for push + PR + autoproceed to v0.14.0-d14-complete tag
 operating-mode: autonomous between dispatches + full audit chain
-session-started: 2026-04-30 (continuing same session through D07-D14 per Ken's instruction)
-prior-dispatches: D03+D04+D05+D06+D07+D08+D09+D10+D11+D12 merged. Tags v0.14.0-d{03-12}-complete on master.
+session-started: 2026-04-30 (Phase 14 final dispatch)
+prior-dispatches: D03+D04+D05+D06+D07+D08+D09+D10+D11+D12+D13 merged. Tags v0.14.0-d{03-13}-complete on master.
 
-next-subtask: 18 (push + PR + self-merge + tag + autoproceed to D14)
+next-subtask: 18 (push + PR + self-merge + tag v0.14.0-d14-complete)
+post-d14: HALT for Ken's operational sign-offs (Items 1-12). Ken applies v1.0.0-launch-ready when all sign-offs land.
