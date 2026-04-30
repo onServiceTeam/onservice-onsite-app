@@ -1,4 +1,20 @@
-import axios from 'axios';
+// apps/mobile/src/services/api.ts
+//
+// Bug 1271 fix verified — Constitution Article 7.1: native fetch wrapper,
+// no axios. Phase 14 Dispatch 02 Part 5.
+//
+// Mirrors apps/admin/src/lib/api.ts (the same envelope) so mobile callsites
+// keep using `res.data.data` without churn. Differences from admin:
+//   - Mobile auth is Bearer-token (Bug 1061: tokens live in OS-keychain-
+//     encrypted secure-storage). NOT cookie-based — mobile is not a browser.
+//   - On 401, refresh against /auth/refresh-token (the mobile route), then
+//     replay the original request once.
+//   - On refresh failure, clear secure storage + legacy cache.
+//
+// Same `params` shim and `responseType: 'blob'` shim as the admin wrapper
+// for axios-compat callsites. Default generic <T = any> matches axios's
+// permissive default (mobile callsites cast at the use-site).
+
 import { platformConfig } from '@/config/platform.config';
 import {
   getAccessToken,
@@ -8,16 +24,10 @@ import {
   removeSecureItem,
 } from './secure-storage';
 
-// Non-sensitive cache. Tokens + user PII live in `./secure-storage` which
-// is encrypted with an OS-keychain-derived key per Bug 1061 fix (Phase 14
-// Dispatch 01). This cache holds device-local prefs that are not PII:
-// pushToken, hasOnboarded flag, etc.
-//
-// The MMKV `id` was renamed from `'onservice-auth'` to `'onservice-cache'`
-// to make the role explicit. The legacy `'onservice-auth'` MMKV file may
-// still exist on devices that upgraded from a pre-fix build; the migration
-// at `./auth-migration.ts` reads it once at boot to extract any legacy
-// tokens before they become inaccessible.
+// MMKV cache for non-PII data (push token, hasOnboarded flag etc.).
+// Tokens + user PII are in `./secure-storage` (OS-keychain-encrypted) per
+// Bug 1061 fix. The legacy MMKV id `'onservice-auth'` is preserved here
+// only so `auth-migration.ts` can read pre-fix tokens once at boot.
 let mmkvInstance: { getString: (k: string) => string | undefined; set: (k: string, v: string | boolean) => void; delete: (k: string) => void; getBoolean: (k: string) => boolean | undefined } | null = null;
 
 function initStorage(): void {
@@ -25,15 +35,9 @@ function initStorage(): void {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { MMKV } = require('react-native-mmkv');
-    // Bug 1061 fix: this MMKV holds non-PII cache only, NOT auth tokens.
-    // Auth tokens are in `./secure-storage` with OS-keychain encryption.
-    // Reading from the LEGACY id `'onservice-auth'` is preserved here only
-    // so `auth-migration.ts` can read the legacy token store on first boot
-    // after upgrade. After migration completes, this MMKV is effectively
-    // a non-sensitive cache.
     mmkvInstance = new MMKV({ id: 'onservice-auth' });
   } catch {
-    // Fallback for environments where MMKV is unavailable (tests, SSR)
+    /* MMKV not available in tests / SSR */
   }
 }
 
@@ -62,59 +66,170 @@ export const storage = {
   },
 };
 
-const api = axios.create({
-  baseURL: platformConfig.apiUrl,
-  timeout: 15000,
-  headers: { 'Content-Type': 'application/json' },
-});
+// ── Fetch wrapper ───────────────────────────────────────────────────────
 
-api.interceptors.request.use((config) => {
-  // Bug 1061 fix: tokens live in OS-keychain-encrypted secure-storage.
-  // initSecureStorage() is awaited at app boot in apps/mobile/app/_layout.tsx
-  // before any request is fired, so this sync read is safe.
-  const token = getAccessToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+interface ApiSuccess<T> { success: true; data: T }
+interface ApiFailure { success: false; error: { message: string; statusCode?: number; code?: string } }
+export type ApiResponseEnvelope<T> = ApiSuccess<T> | ApiFailure;
+
+export class ApiError extends Error {
+  status: number;
+  body: ApiFailure | null;
+  constructor(status: number, body: ApiFailure | null, fallback: string) {
+    super(body?.error?.message ?? fallback);
+    this.status = status;
+    this.body = body;
   }
-  return config;
-});
+}
 
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+interface ApiRequestInit extends Omit<RequestInit, 'body' | 'method'> {
+  method?: string;
+  body?: unknown;
+  params?: Record<string, unknown>;
+  responseType?: 'json' | 'blob' | 'text' | 'arraybuffer';
+  /** Per-request override for the Bearer token. Used during the refresh flow. */
+  _bearerOverride?: string;
+}
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      const refreshToken = getRefreshToken();
+interface ApiAxiosLikeResponse<T> {
+  data: T;
+  status: number;
+  ok: boolean;
+}
 
-      if (refreshToken) {
-        try {
-          const res = await axios.post(`${platformConfig.apiUrl}/api/v1/auth/refresh-token`, {
-            refreshToken,
-          });
-          const { accessToken, refreshToken: newRefresh } = res.data.data;
-          // Bug 1061 fix: store tokens in encrypted secure-storage, not
-          // the unencrypted cache MMKV. If the server rotated the refresh
-          // token, persist the new one too; otherwise reuse the existing.
-          storeTokens(accessToken, newRefresh ?? refreshToken);
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-          return api(originalRequest);
-        } catch {
-          // Refresh failed → tokens are invalid. Clear from secure store
-          // AND from the legacy cache key (in case migration hadn't
-          // completed yet on this boot).
-          clearTokens();
-          removeSecureItem('user');
-          storage.delete('accessToken');
-          storage.delete('refreshToken');
-          storage.delete('user');
-        }
-      }
+function appendParams(url: string, params?: ApiRequestInit['params']): string {
+  if (!params) return url;
+  const search = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) search.append(k, String(v));
+  }
+  const qs = search.toString();
+  if (!qs) return url;
+  return url + (url.includes('?') ? '&' : '?') + qs;
+}
+
+function buildAbsoluteUrl(url: string): string {
+  if (/^https?:\/\//.test(url)) return url;
+  return platformConfig.apiUrl + url;
+}
+
+async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosLikeResponse<T>> {
+  const method = (init.method ?? 'GET').toUpperCase();
+  const finalUrl = appendParams(buildAbsoluteUrl(url), init.params);
+  const headers = new Headers(init.headers);
+
+  if (!headers.has('Content-Type') && init.body !== undefined && !(init.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const bearer = init._bearerOverride ?? getAccessToken();
+  if (bearer && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${bearer}`);
+  }
+
+  let serializedBody: BodyInit | undefined;
+  if (init.body !== undefined) {
+    serializedBody = init.body instanceof FormData ? init.body : JSON.stringify(init.body);
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  let res: Response;
+  try {
+    res = await fetch(finalUrl, {
+      ...init,
+      method,
+      headers,
+      body: serializedBody,
+      signal: init.signal ?? controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (init.responseType === 'blob') {
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      let errBody: ApiFailure | null = null;
+      try { errBody = errText ? (JSON.parse(errText) as ApiFailure) : null; } catch { /* ignore */ }
+      throw new ApiError(res.status, errBody, `HTTP ${res.status}`);
     }
-    return Promise.reject(error);
-  },
-);
+    const blob = await res.blob();
+    return { data: blob as unknown as T, status: res.status, ok: true };
+  }
+
+  let parsed: unknown = null;
+  const text = await res.text();
+  if (text) {
+    try { parsed = JSON.parse(text); } catch { /* not JSON */ }
+  }
+
+  if (!res.ok) {
+    throw new ApiError(res.status, parsed as ApiFailure | null, `HTTP ${res.status}`);
+  }
+  return { data: parsed as T, status: res.status, ok: true };
+}
+
+async function refreshOnce(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+  try {
+    const res = await rawFetch<{ success: boolean; data: { accessToken: string; refreshToken?: string } }>(
+      '/api/v1/auth/refresh-token',
+      { method: 'POST', body: { refreshToken }, _bearerOverride: '' },
+    );
+    const data = res.data?.data;
+    if (!data?.accessToken) return null;
+    storeTokens(data.accessToken, data.refreshToken ?? refreshToken);
+    return data.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+async function request<T>(url: string, init: ApiRequestInit, isRetry = false): Promise<ApiAxiosLikeResponse<T>> {
+  try {
+    return await rawFetch<T>(url, init);
+  } catch (err) {
+    if (
+      err instanceof ApiError &&
+      err.status === 401 &&
+      !isRetry &&
+      !url.endsWith('/api/v1/auth/refresh-token')
+    ) {
+      const newToken = await refreshOnce();
+      if (newToken) {
+        return await request<T>(url, { ...init, _bearerOverride: newToken }, true);
+      }
+      // Refresh failed → tokens are dead. Clear secure store + legacy cache.
+      clearTokens();
+      removeSecureItem('user');
+      storage.delete('accessToken');
+      storage.delete('refreshToken');
+      storage.delete('user');
+    }
+    throw err;
+  }
+}
+
+const api = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  get: <T = any>(url: string, init: ApiRequestInit = {}): Promise<ApiAxiosLikeResponse<T>> =>
+    request<T>(url, { ...init, method: 'GET' }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  post: <T = any>(url: string, body?: unknown, init: ApiRequestInit = {}): Promise<ApiAxiosLikeResponse<T>> =>
+    request<T>(url, { ...init, method: 'POST', body }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  put: <T = any>(url: string, body?: unknown, init: ApiRequestInit = {}): Promise<ApiAxiosLikeResponse<T>> =>
+    request<T>(url, { ...init, method: 'PUT', body }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  patch: <T = any>(url: string, body?: unknown, init: ApiRequestInit = {}): Promise<ApiAxiosLikeResponse<T>> =>
+    request<T>(url, { ...init, method: 'PATCH', body }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  delete: <T = any>(url: string, init: ApiRequestInit = {}): Promise<ApiAxiosLikeResponse<T>> =>
+    request<T>(url, { ...init, method: 'DELETE' }),
+};
 
 export default api;
 
