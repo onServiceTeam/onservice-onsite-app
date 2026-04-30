@@ -451,23 +451,33 @@ describe('refundBookingEscrow', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('happy path: delegates to refundFromEscrow with EXACT amount + INSERTs refund_issued', async () => {
-    escrowMocks.refundFromEscrow.mockResolvedValueOnce(undefined as never);
-    dbQueryMock.mockResolvedValueOnce(rows([{ id: 'aa-ref' }]));
+  it('happy path: delegates to refundFromEscrowInTransaction with EXACT amount + INSERTs refund_issued (Bug 71)', async () => {
+    escrowMocks.refundFromEscrowInTransaction.mockResolvedValueOnce(undefined as never);
+    const calls = setupTxRecorder(async (sql) => {
+      if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-ref' }]);
+      return rows([]);
+    });
     const out = await bookingSvc.refundBookingEscrow(
       BOOKING_ID,
       7777,
       'Customer requested partial refund',
       ADMIN_ID,
     );
-    expect(escrowMocks.refundFromEscrow).toHaveBeenCalledWith(
+    // Phase 14 Dispatch 06 — Bug 71. The trx-aware helper composes
+    // atomically with the admin_actions audit row.
+    expect(escrowMocks.refundFromEscrowInTransaction).toHaveBeenCalledTimes(1);
+    expect(escrowMocks.refundFromEscrow).not.toHaveBeenCalled();
+    const refundCall = escrowMocks.refundFromEscrowInTransaction.mock.calls[0]!;
+    expect(typeof (refundCall[0] as { query?: unknown })?.query).toBe('function');
+    expect(refundCall.slice(1)).toEqual([
       BOOKING_ID,
       7777,
       'Customer requested partial refund',
-    );
-    const sql = dbQueryMock.mock.calls[0][0] as string;
-    expect(sql).toMatch(/INSERT INTO admin_actions/);
-    expect(sql).toContain("'refund_issued'");
+    ]);
+    const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
+    expect(insert).toBeDefined();
+    expect(insert!.sql).toContain("'refund_issued'");
+    expect(insert!.sql).toContain('full_notes');
     expect(out.refundedAmount).toBe(7777);
     expect(out.bookingId).toBe(BOOKING_ID);
     expect(out.adminActionId).toBe('aa-ref');

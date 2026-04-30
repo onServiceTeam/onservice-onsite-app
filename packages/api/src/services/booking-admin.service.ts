@@ -702,32 +702,71 @@ export async function refundBookingEscrow(
   }
   const trimmedReason = requireReason(reason, 10);
 
-  await escrowService.refundFromEscrow(bookingId, refundAmount, trimmedReason);
-
-  const actionResult = await db.query<{ id: string }>(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-     VALUES ($1, 'refund_issued', 'booking', $2, $3::jsonb, $4)
-     RETURNING id`,
-    [
-      adminUserId,
+  // Phase 14 Dispatch 06 — Bug 71. Pre-D06 the escrow refund ran in
+  // escrowService.refundFromEscrow's internal transaction, then the
+  // admin_actions audit ran in a SEPARATE top-level db.query. If the
+  // audit insert failed, the customer wallet had been credited (via
+  // escrow pending_balance debit) without an audit trail. Now: ONE
+  // outer transaction wraps the trx-aware refund helper + the
+  // admin_actions INSERT. Gateway refund (paymentService.processRefund)
+  // stays post-commit per the documented pattern (gateway calls are
+  // idempotent and tolerate retry).
+  const result = await db.transaction(async (client) => {
+    await escrowService.refundFromEscrowInTransaction(
+      client,
       bookingId,
-      JSON.stringify({ bookingId, refundAmount }),
+      refundAmount,
       trimmedReason,
-    ],
-  );
-  const adminActionId = actionResult.rows[0]?.id;
-  if (!adminActionId) {
-    throw createAppError('Failed to record refund admin action.', 500);
-  }
+    );
+
+    const actionResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'refund_issued', 'booking', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        adminUserId,
+        bookingId,
+        JSON.stringify({ bookingId, refundAmount }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
+      ],
+    );
+    const adminActionId = actionResult.rows[0]?.id;
+    if (!adminActionId) {
+      throw createAppError('Failed to record refund admin action.', 500);
+    }
+
+    return { adminActionId };
+  });
 
   logger.info('Booking escrow refund executed', {
     bookingId,
     adminUserId,
-    adminActionId,
+    adminActionId: result.adminActionId,
     refundAmount,
   });
 
-  return { bookingId, refundedAmount: refundAmount, reason: trimmedReason, adminActionId };
+  // gate-c-allowed: post-commit-gateway-refund
+  // The gateway processRefund call mirrors the pre-D06 escrowService.refundFromEscrow
+  // ordering. Failure here is logged but does not roll back the money/audit
+  // pair, which are already durable — the gateway dispute resolution lives
+  // outside our transaction boundary.
+  try {
+    await paymentService.processRefund(bookingId, refundAmount, trimmedReason);
+  } catch (err) {
+    logger.error('Gateway refund call failed after escrow + audit committed (logged, not rolled back)', {
+      bookingId,
+      refundAmount,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  return {
+    bookingId,
+    refundedAmount: refundAmount,
+    reason: trimmedReason,
+    adminActionId: result.adminActionId,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────
