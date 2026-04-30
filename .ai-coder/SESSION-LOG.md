@@ -218,4 +218,32 @@ PRs queue for Ken:
 - #14 D03 (gate hardening) — merged
 - #15 D04 (SiguradoShield pull) — merged
 - #16 D05 (Money trust closure) — merged (143ce37)
-- #?? D06 (Transactional audit completeness) — to be opened in subtask 18
+- #17 D06 (Transactional audit completeness) — merged (c9632a9), tag v0.14.0-d06-complete
+
+---
+
+## 2026-04-30 — D06 closeout + D07 handoff (same session)
+
+**Merged at:** master `c9632a9`, tag `v0.14.0-d06-complete`.
+**Branch protection:** restored (enforce_admins=true, 1 review, conversation_resolution=true).
+**All 5 gates green on PR #17.**
+
+### What this session also did (after D06 merge)
+
+12. **Subtask 18 closeout.** Pushed D06 branch, opened PR #17 with full bug list + honesty check + scope decisions, watched all 5 CI gates pass, applied atomic relax-merge-restore pattern for self-merge, tagged `v0.14.0-d06-complete` on master at `c9632a9`.
+13. **D07 handoff written.** Branched `phase/14-d07-provider-job-trust` from master `c9632a9`. Wrote `.ai-coder/dispatches/D07-FRESH-SESSION-PROMPT.md` (one-shot paste prompt with full file list + spec correction inheritance from D05 + D06 + the 5 hard stops). Wrote `.ai-coder/dispatches/D07-plan.md` (~280 lines: 12-bug list with file:line, S3 + KMS architecture, migration list 078 + 079 with renumbering note, cross-cutting concerns with D06, 18-subtask sequence). Updated `.ai-coder/CURRENT-DISPATCH` to D07 planning-only state.
+
+### Why D07 implementation deferred to fresh session
+
+D07 is substantial (12 bugs across mobile + API + S3 + KMS + signature canvas native dep + 8 checklist templates) and the same handoff pattern that D05→D06 used: this session committed and merged a complete dispatch (D06), and the next dispatch starts fresh. The handoff docs are now in place; the fresh session has the same starting position D06 had after D05.
+
+### Next session pickup point
+
+Per autonomous protocol: paste the prompt block from `.ai-coder/dispatches/D07-FRESH-SESSION-PROMPT.md` into a fresh Claude Code session. The fresh session will read the named files (CLAUDE.md, EXECUTION-DISCIPLINE.md, AUTONOMOUS-EXECUTION-PROTOCOL.md, BOTH closeouts, the plan doc, the source spec) and run autonomously through all 18 D07 subtasks. Open question reconciliation (admin_users FK, optional Migration 077, S3 Terraform state, react-native-signature-canvas) happens in subtask 1 of that fresh session.
+
+PRs queue for Ken:
+- #14 D03 (gate hardening) — merged
+- #15 D04 (SiguradoShield pull) — merged
+- #16 D05 (Money trust closure) — merged
+- #17 D06 (Transactional audit completeness) — merged
+- #?? D07 (Provider job execution trust) — to be opened by fresh session
