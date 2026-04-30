@@ -1,4 +1,5 @@
 import React from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';

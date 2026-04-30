@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

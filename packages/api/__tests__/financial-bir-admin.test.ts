@@ -112,8 +112,12 @@ describe('or.service.generateOrNumber', () => {
   const mayDate = new Date('2026-05-10T05:00:00Z');
 
   it('formats first-of-month sequence as zero-padded NNNNNN=000001', async () => {
+    // R9 fix: pin issuedAt to aprilDate so this test stays deterministic
+    // across calendar rollovers. Previously called generateOrNumber without
+    // a date which meant the assertion broke on 2026-05-01 when wall-clock
+    // moved to OR-2026-05-000001.
     const clientQuery = jest.fn().mockResolvedValueOnce(rows([{ last_sequence: 1 }]));
-    const out = await orService.generateOrNumber({ query: clientQuery });
+    const out = await orService.generateOrNumber({ query: clientQuery }, aprilDate);
     expect(out).toBe('OR-2026-04-000001');
   });
 

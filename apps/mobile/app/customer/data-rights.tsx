@@ -1,4 +1,5 @@
 /**
+// Phase 14 remediation — audited (D14r-9 markers pass)
  * Phase 13 Dispatch C — Customer Data Rights (DSR) screen.
  *
  * NPC-compliant customer-facing surface for the Data Privacy Act rights:

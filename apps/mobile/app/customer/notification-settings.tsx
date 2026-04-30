@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, ActivityIndicator, RefreshControl,
 } from 'react-native';

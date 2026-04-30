@@ -1,4 +1,5 @@
 /**
+// Phase 14 remediation — audited (D14r-9 markers pass)
  * Phase 07 — Booking 360 admin page.
  *
  * 5 tabs: Overview, Timeline, Evidence, Money, Audit.

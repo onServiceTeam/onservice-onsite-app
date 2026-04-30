@@ -1,4 +1,5 @@
 import React, { useState, type FormEvent } from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';

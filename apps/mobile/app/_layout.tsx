@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

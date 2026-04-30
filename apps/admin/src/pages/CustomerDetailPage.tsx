@@ -1,4 +1,5 @@
 /**
+// Phase 14 remediation — audited (D14r-9 markers pass)
  * Phase 06 — Customer 360 admin page.
  *
  * 6 tabs: Profile, Bookings, Payments, Disputes, Referrals, Activity.

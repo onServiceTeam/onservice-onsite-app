@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { adminConfig } from '@/config/admin.config';

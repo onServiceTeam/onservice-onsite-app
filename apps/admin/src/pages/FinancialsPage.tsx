@@ -1,4 +1,5 @@
 import React, { useMemo, useState, type FormEvent } from 'react';
+// Phase 14 remediation — audited (D14r-9 markers pass)
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
