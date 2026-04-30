@@ -510,3 +510,42 @@ disclaimer wording is the legal-clarity follow-up.
 
 **Source decision:** `.ai-coder/decisions/D04-siguradoshield.md` —
 Ken — Option A — 2026-04-30. Phase 14 Dispatch 04.
+
+---
+
+## 24. Hourly-pricing subcategories not supported in v1.0 (Phase 14 Dispatch 05)
+
+**Risk class:** Functional limitation; not a money-trust risk.
+**Owning dispatch:** D05 (this dispatch).
+**Owning area:** booking flow; admin catalog UI.
+
+The schema defines three values for `service_subcategories.pricing_type`:
+`'fixed'`, `'quote'`, and `'hourly'` (per `packages/api/migrations/003_create_services.sql:25-26`).
+
+D05's new `pricing.service.ts` (server-canonical pricing resolver) handles
+the first two. Hourly pricing requires a start-stop timer flow,
+duration-tracked billing, and mid-job rate verification that v1.0 does not
+implement and was not in the audit's bug list.
+
+**Server behavior in v1.0:** if a customer attempts to book a subcategory
+with `pricing_type = 'hourly'`, the booking endpoint returns HTTP 400
+with error code `subcategory_pricing_type_unsupported`. Test:
+`packages/api/__tests__/services/booking/pricing.service.test.ts:bug-d05-hourly-deferred`.
+
+**Operator obligation:** the catalog admin UI should warn (or refuse) when
+an admin creates a subcategory with `pricing_type = 'hourly'`. D05 does
+not modify the admin catalog UI for this — it is captured as v1.1 scope.
+Until the admin UI is hardened, operations should manually QA new
+subcategory rows and avoid setting `pricing_type = 'hourly'`.
+
+**v1.1+ scope:**
+- Hourly billing flow on the customer side (pre-book hourly rate display,
+  start-stop timer at job start, duration tracking, total computed at
+  completion).
+- Provider-side timer controls.
+- Admin catalog UI hardening for the `'hourly'` selector (warn + refuse,
+  or full hourly support).
+- Settings keys for hourly minimum charge / billing increment.
+
+**Source decision:** `.ai-coder/decisions/D05-spec-vs-schema.md` — Ken —
+Option A — 2026-04-30. Phase 14 Dispatch 05.

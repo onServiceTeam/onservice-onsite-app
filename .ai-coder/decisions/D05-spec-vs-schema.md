@@ -1,7 +1,7 @@
 # D05 — Spec vs schema decision (PART-3 §Dispatch 05 vs actual database)
 
-**Status:** awaiting Ken's decision.
-**Blocking:** all of Dispatch 05 implementation (subtasks 2–16).
+**Status:** RESOLVED — Option A (Ken, 2026-04-30).
+**Blocking:** cleared.
 **Source spec:** `.ai-coder/phase-14/PART-3-BUG-REMEDIATION-DISPATCHES-05-06.md` §"Dispatch 05" (lines 10–1228).
 **Plan doc:** `.ai-coder/dispatches/D05-plan.md` (paraphrases the spec; same gaps).
 **Discovered at:** subtask 1 (read + verify), branch `phase/14-d05-money-trust-closure` @ HEAD `ef70429` (after small gate-hygiene edit to drop literal trademark refs from plan doc).
@@ -119,4 +119,17 @@ Once you write your choice at the bottom of this file, I clear the block in `.ai
 
 ## Ken's decision
 
-<!-- Awaiting. -->
+**Option A.** Follow the actual schema. Document divergence in the closeout. Defer `'hourly'` pricing to a tracked v1.1 limitation per `LAUNCH-LIMITATIONS.md` §24. Migration numbering corrected: 074 instead of 073. `tip_max_amount_cents` seeded via new migration 074 since the column-or-row doesn't exist anywhere. Push the decision file. Proceed with subtask 2.
+
+Concrete corrections to apply (canonical mapping — see `D05-plan.md` §"Schema correction (Ken's Option A — 2026-04-30)"):
+
+- Spec `subcategories` → use `service_subcategories`.
+- Spec `base_price_cents`/`min_price_cents`/`max_price_cents` → use `base_price`/`min_price`/`max_price` (columns store centavos despite no suffix; documented in migration 003 comments).
+- Spec `provider_quotes(customer_id, subcategory_id, amount_cents, expires_at, status)` → reality is `booking_quotes(booking_id, provider_id, quoted_price, expires_at, is_accepted)` bound to an existing booking. `from-quote.service.ts` takes a `bookingId`, verifies the quote belongs to the booking, hasn't expired, and `is_accepted=true`. Bug 175 intent (server validates the quote at booking time) stands; implementation differs because quotes here aren't pre-booking pricing requests.
+- Spec Kysely `selectFrom` → use raw `db.query` style consistent with the rest of `packages/api/src/services/`. Type-safe via TypeScript `interface` on row results. Don't introduce Kysely.
+- Spec migration 073 → use 074 (073 is taken by `073_founding_tier.sql` from D03).
+- Spec assumes `tip_max_amount_cents` seeded → not seeded anywhere. Add to migration 074 as a new `platform_settings` row (`category='fees'`, `key='tip_max_amount_cents'`, `value='500000'`, `value_type='currency'`, `unit='centavos'`, `min_value=10000`, `max_value=10000000`).
+
+`pricing_type='hourly'`: deferred to v1.1+ per LAUNCH-LIMITATIONS §24. New `pricing.service.ts` throws `subcategory_pricing_type_unsupported` (HTTP 400) when called with an hourly subcategory. Admin UI to be hardened in a later dispatch (out of D05 scope).
+
+Each commit for subtasks 2–15 will include a `Schema-divergence:` footer naming which correction applies (or "none" when the change is schema-agnostic). The D05 closeout (subtask 17) will have a §"Spec corrections applied" section mapping each divergence to its resolution; this becomes the reference for D06+ if those dispatches inherit the same spec assumptions.

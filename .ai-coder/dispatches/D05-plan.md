@@ -7,6 +7,34 @@ Related: `.ai-coder/CURRENT-DISPATCH` has the numbered subtask list. THIS doc ha
 
 ---
 
+## Schema correction (Ken's Option A — 2026-04-30)
+
+The PART-3 source spec was authored against table/column identifiers that don't exist in the actual database. Ken's decision (`.ai-coder/decisions/D05-spec-vs-schema.md`, Option A): follow the actual schema, document divergence in the closeout. **All subtasks 2–18 below should be read with these substitutions applied:**
+
+| Spec says | Codebase reality | Source |
+|---|---|---|
+| Table `subcategories` | Table `service_subcategories` | `migrations/003_create_services.sql:19` |
+| `base_price_cents` / `min_price_cents` / `max_price_cents` | `base_price` / `min_price` / `max_price` (INTEGER, centavos by convention, no `_cents` suffix) | `migrations/003_create_services.sql:27-29` |
+| `pricing_type IN ('fixed','quote')` | `pricing_type IN ('fixed','quote','hourly')` — `'hourly'` deferred to v1.1 per `LAUNCH-LIMITATIONS.md` §24 | `migrations/003_create_services.sql:25-26` |
+| Table `provider_quotes(customer_id, subcategory_id, amount_cents, expires_at, status)` | Table `booking_quotes(booking_id, provider_id, quoted_price, expires_at, is_accepted, status, ...)` — bound to an existing booking, customer/subcategory resolved via the `bookings` FK | `migrations/018_quotes_change_orders.sql` (extends existing `booking_quotes` table) |
+| Kysely `db.selectFrom(...)` | Raw `db.query<{...}>('SELECT ... FROM ... WHERE id = $1', [id])` (pg style; type-safe via TS interfaces on row results) | `services/booking.service.ts:81-87` for the canonical pattern |
+| Migration `073_service_area_bounds_check.sql` | Migration `074_*` (073 is taken by `073_founding_tier.sql` from D03) | `ls packages/api/migrations/` |
+| `tip_max_amount_cents` "already in defaults" | NOT seeded anywhere. Add `platform_settings` row (category=`fees`, value_type=`currency`, value=`500000`) in migration 074 | `migrations/050_platform_settings_rich_schema.sql` for pattern |
+
+**Quote-flow shape change (Bug 175):** the spec's `from-quote.service.ts` takes a `quoteId` and creates a NEW booking. Reality: `booking_quotes` rows belong to an existing booking (the customer creates a booking with `bookingType='quote_based'`, providers submit `booking_quotes` rows against it, customer accepts one). So `from-quote.service.ts` instead takes a `bookingId` and verifies the booking has an accepted, unexpired quote whose `quoted_price` becomes the canonical `service_price`. Bug 175 intent (server validates the quote at booking-confirm time, no client `servicePrice`) is preserved; the surface is just different.
+
+**Pricing.service.ts file location.** Spec says `packages/api/src/services/booking/pricing.service.ts` (new sub-namespace). Reality: `packages/api/src/services/pricing.service.ts` already exists (a partial surge-rule helper called by `booking.service.ts:102`). D05 creates the new full canonical resolver in the spec-named subpath `services/booking/pricing.service.ts` and migrates `booking.service.ts` to call it (in subtask 7). The old `services/pricing.service.ts` becomes unused after subtask 7; left in place for D05 (avoid scope creep) and earmarked for D06+ cleanup.
+
+**Commit footer convention.** Each subtask 2–15 commit message ends with a `Schema-divergence:` line naming which row(s) above apply. Example:
+```
+Schema-divergence: rows 1, 2 (service_subcategories + base_price/min_price/max_price)
+```
+Or `Schema-divergence: none` when the change is schema-agnostic.
+
+The closeout (subtask 17) gets a §"Spec corrections applied" section listing all six divergences and how each was resolved. This becomes the reference for D06+ if those dispatches inherit the same spec assumptions.
+
+---
+
 ## Standing instructions (read before any code)
 
 **This is money-handling code.** Every fix in D05 is a confirmed money-loss vulnerability where a determined client (customer, provider, or admin) can pay the wrong amount. The architectural remedy is uniform: **client sends IDs and quantities only; server computes price authoritatively from DB.** No exceptions. No "just this once" escape hatches.
