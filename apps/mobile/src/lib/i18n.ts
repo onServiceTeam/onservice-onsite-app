@@ -38,6 +38,21 @@ const EN: Record<string, string> = {
   // Account (Bugs 975 + chain)
   'account.signed_out': 'You have been signed out.',
   'account.session_expired': 'Session expired. Please sign in again.',
+  // Provider — Phase 14 Dispatch 12 (Bugs 1186-1268)
+  'provider.nbi.expired_title': 'NBI clearance expired',
+  'provider.nbi.expired_body': 'You will not be matched to new jobs until renewed.',
+  'provider.nbi.expiring_soon': 'NBI clearance expires in {days} days',
+  'provider.nbi.update_now': 'Update now',
+  'provider.gps.broadcasting': 'Sharing your location with the customer while you travel.',
+  'provider.job.start_travel': "I'm on the way",
+  'provider.job.arrived': "I've arrived",
+  'provider.job.start_job': 'Start job',
+  'provider.job.mark_complete': 'Mark complete',
+  'provider.dashboard.online': 'Online',
+  'provider.dashboard.offline': 'Offline',
+  'provider.dashboard.auto_off_warning': 'You went offline after 15 minutes in the background.',
+  'provider.payouts.failed_resolve': 'A payout failed. Tap for help.',
+  'provider.tier.founding': 'Founding',
 };
 
 type Locale = 'en' | 'tl' | 'ceb';
