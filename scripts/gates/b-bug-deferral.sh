@@ -75,7 +75,11 @@ while IFS= read -r bug; do
 
   files_missing=0
   for f in $cited_files; do
-    if ! echo "$CHANGED_FILES" | grep -q "^$f$"; then
+    # Use here-string instead of `echo "$CHANGED_FILES" | grep ...` to avoid
+    # SIGPIPE false positives under `set -euo pipefail` when CHANGED_FILES is
+    # large and grep -q exits early (Phase 14 D05 gate amendment, see
+    # .ai-coder/exceptions/2026-04-30-gate-b-pipefail-sigpipe.md).
+    if ! grep -q "^$f$" <<< "$CHANGED_FILES"; then
       files_missing=1
     fi
   done
@@ -85,7 +89,11 @@ while IFS= read -r bug; do
   fi
 
   # Check 2: test in diff references bug number
-  if ! echo "$CHANGED_TEST_DIFF" | grep -qE "Bug $bug_num"; then
+  # Here-string instead of pipe — same SIGPIPE rationale as above. CI logs
+  # showed `echo: write error: Broken pipe` immediately before each
+  # false-positive FAIL line on D05 (CHANGED_TEST_DIFF was 67KB, larger than
+  # the kernel pipe buffer).
+  if ! grep -qE "Bug $bug_num" <<< "$CHANGED_TEST_DIFF"; then
     echo "Gate B FAIL: $bug has no test referencing 'Bug $bug_num' in changed test files"
     fail=1
   fi

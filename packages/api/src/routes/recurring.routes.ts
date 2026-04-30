@@ -1,6 +1,8 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { validationMiddleware } from '../middleware/validation.middleware';
 import { createAppError } from '../middleware/error.middleware';
+import { createRecurringSchema } from '../validators/recurring.validators';
 import * as recurringService from '../services/recurring.service';
 
 function getParamId(req: AuthenticatedRequest): string {
@@ -13,21 +15,22 @@ function getParamId(req: AuthenticatedRequest): string {
 
 const router = Router();
 
+// Phase 14 Dispatch 05 — Bug 208 + Bug 1132.
+// Switched to validationMiddleware(createRecurringSchema) so the
+// request body is parsed by Zod with `.strict()`. Unknown keys
+// (including `servicePrice`) are rejected; the server resolves the
+// canonical price from service_subcategories.base_price.
 router.post(
   '/',
   authMiddleware,
+  validationMiddleware(createRecurringSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.userId;
-      const {
-        providerId, categoryId, subcategoryId, originalBookingId,
-        frequency, preferredDay, preferredTime,
-        address, barangay, city, province, latitude, longitude,
-        servicePrice,
-      } = req.body as {
+      const body = req.body as {
         providerId?: string;
         categoryId: string;
-        subcategoryId?: string;
+        subcategoryId: string;
         originalBookingId?: string;
         frequency: 'weekly' | 'bi_weekly' | 'monthly';
         preferredDay: number;
@@ -38,37 +41,23 @@ router.post(
         province: string;
         latitude?: number;
         longitude?: number;
-        servicePrice: number;
       };
-
-      if (!categoryId || !frequency || preferredDay === undefined || !preferredTime || !address || !barangay || !city || !province || !servicePrice) {
-        throw createAppError('Missing required fields.', 400);
-      }
-
-      if (!['weekly', 'bi_weekly', 'monthly'].includes(frequency)) {
-        throw createAppError('Invalid frequency. Must be weekly, bi_weekly, or monthly.', 400);
-      }
-
-      if (typeof preferredDay !== 'number' || preferredDay < 0 || preferredDay > 6) {
-        throw createAppError('Invalid preferred day. Must be 0 (Sunday) through 6 (Saturday).', 400);
-      }
 
       const rb = await recurringService.createRecurringBooking({
         customerId: userId,
-        providerId,
-        categoryId,
-        subcategoryId,
-        originalBookingId,
-        frequency,
-        preferredDay,
-        preferredTime,
-        address,
-        barangay,
-        city,
-        province,
-        latitude,
-        longitude,
-        servicePrice,
+        providerId: body.providerId,
+        categoryId: body.categoryId,
+        subcategoryId: body.subcategoryId,
+        originalBookingId: body.originalBookingId,
+        frequency: body.frequency,
+        preferredDay: body.preferredDay,
+        preferredTime: body.preferredTime,
+        address: body.address,
+        barangay: body.barangay,
+        city: body.city,
+        province: body.province,
+        latitude: body.latitude,
+        longitude: body.longitude,
       });
 
       res.status(201).json({

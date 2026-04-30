@@ -83,3 +83,93 @@ The session log was not updated during D01 or D02 sessions. For continuity:
 - D02 closed at master `6959349` across PRs #8–#13, tag `v0.14.0-d02-complete`. 7 bug entries (1170, 1198, 1170-admin-ui, 1324, 1323, 1185 static, 1271 mobile half) + 5 Gate A fragments promoted REPORT → BLOCKING in EXPECTED-FAILURES.md.
 - Branch protection on master currently enforces 6 status checks (gate-a/b/c/d/e + gates-summary), enforce_admins=true, 1 review, conversation_resolution=true.
 
+
+---
+
+## 2026-04-30 — Dispatch 05 fresh-session start, halted on Stop 5
+
+**Read at commit:** `ef70429` (branch `phase/14-d05-money-trust-closure` HEAD; D04 squash-merge `808208f` is the underlying base)
+**Branch at start:** `phase/14-d05-money-trust-closure`
+**Operating mode:** Autonomous between dispatches + full audit chain.
+
+### What this session did
+
+1. Loaded the D05 fresh-session prompt from `.ai-coder/dispatches/D05-FRESH-SESSION-PROMPT.md` (the prior session committed both the prompt and the plan at `8e39b7c`). Read all required orientation docs: CLAUDE.md, EXECUTION-DISCIPLINE, AUTONOMOUS-EXECUTION-PROTOCOL, CURRENT-DISPATCH, D05-plan.md, GATE-AMENDMENTS, closeout template, MODES.json, EXPECTED-FAILURES.
+2. Ran `bash scripts/gates/run-gate-a.sh` and `bash scripts/gates/c-constitution.sh`. Found two unexpected BLOCKING fragments at session start:
+   - `c-constitution-no-shield-references` (and its alias `a-cross-source-no-siguradoshield`) caught literal trademark references in `D05-plan.md:300` and `:302`. The gate's allowlist covers `D04-*` dispatch docs but not D05's. Fixed by rewording the two flagged lines to point to the D04 decision file by name instead of using the literal trademark string. No semantic loss; gate now passes.
+   - `article-16-closeout-exists` BLOCKING fails because the D05 closeout doesn't exist yet. This is structurally normal mid-dispatch (closeout is written in subtask 17). Treated as expected.
+3. Resolved the three open verification questions from the fresh-session prompt §"Open questions surfaced by writing this handoff":
+   - **Q1: `tip_max_amount_cents` in defaults?** No. Greps of `packages/api/migrations/` find zero references. The plan doc's claim "already in defaults at ₱5,000" is wrong.
+   - **Q2: `subcategories.pricing_type` column?** Yes — but the table is named `service_subcategories` (not `subcategories`), and `pricing_type IN ('fixed','quote','hourly')` includes a third value the plan didn't mention.
+   - **Q3: `provider_quotes` table?** No. The actual quote table is `booking_quotes`, defined in migration 018, with a different shape (status enum includes `'submitted','accepted','declined','expired','withdrawn'`, columns `labor_amount`/`materials_amount`/`notes`/`portfolio_photos`, no `expires_at`, customer/subcategory resolved via the `bookings` FK).
+4. Read PART-3 §Dispatch 05 (lines 10–1228) via Explore agent to determine whether the spec or only the plan paraphrase has these gaps. The spec itself contains the same identifiers as the plan (`subcategories`, `_cents`-suffixed columns, `provider_quotes`, missing `tip_max_amount_cents` seed, missing `'hourly'` branch). The plan paraphrased correctly; the spec is the actual source of the divergence.
+5. Confirmed via codebase grep that the divergence is real: `services/booking.service.ts:82` reads `service_subcategories` with `base_price` (no suffix), `services/catalog.service.ts`/`provider.service.ts`/`rebooking.service.ts`/`provider-admin.service.ts` all use the same column names. No service in the codebase uses Kysely `selectFrom`; everything uses raw `db.query` (pg style).
+6. Discovered an additional schema/spec note (sixth contradiction): spec uses Kysely query syntax; codebase uses raw pg. CLAUDE.md describes the stack as "Kysely + Postgres" but the actual code does not use Kysely query builders.
+7. Wrote `.ai-coder/decisions/D05-spec-vs-schema.md` with the question, five concrete contradictions (plus the Kysely note), three options (follow schema and document divergence / migrate schema to spec / edit PART-3 to match codebase), and recommendation (Option A + defer `'hourly'` to v1.1). The file doubles as the doc-error escalation that CLAUDE.md "Do not edit `.ai-coder/phase-14/*`" requires.
+8. Updated `.ai-coder/CURRENT-DISPATCH` with `status: BLOCKED on decision D05-spec-vs-schema`.
+
+### Stop class
+
+This is **Hard stop #5 (Spec contradiction)** per `AUTONOMOUS-EXECUTION-PROTOCOL.md` §"Stop 5". The phase doc says X (e.g., `subcategories.base_price_cents`); the existing schema says Y (`service_subcategories.base_price`); and X and Y are materially different — they are wrong identifiers, not clarifications. Following the spec verbatim produces code that does not compile against the actual database.
+
+It is also a doc-error escalation per CLAUDE.md ("If you find an error in [phase-14 docs], write `.ai-coder/escalations/E<NN>-doc-error-<date>.md` describing the error and pause"). The decision file covers both purposes to avoid duplicating the analysis.
+
+### Next session pickup point
+
+Ken reads `.ai-coder/decisions/D05-spec-vs-schema.md`, picks Option A / B / C / Other, writes his choice at the bottom of the file, and replies. The next AI session reads CURRENT-DISPATCH, sees the block lifted, reads Ken's choice, and resumes per the chosen path. Subtasks 2–18 in `CURRENT-DISPATCH` remain valid; only the implementation details change based on the choice.
+
+The plan-doc gate-hygiene fix and the decision file land in one commit on `phase/14-d05-money-trust-closure`. Not pushed because there is nothing to push for review yet — D05 work is paused at subtask 1.
+
+---
+
+## 2026-04-30 — Dispatch 05 COMPLETE — PR #16 all gates green
+
+**Read at commit:** `0f192f1` (branch `phase/14-d05-money-trust-closure` HEAD).
+**Branch at end:** `phase/14-d05-money-trust-closure`.
+**Operating mode:** Autonomous between dispatches + full audit chain.
+
+### What this session did
+
+After Ken applied Option A in `.ai-coder/decisions/D05-spec-vs-schema.md`:
+
+1. Resolved decision file, added LAUNCH-LIMITATIONS §24 (hourly deferral), inserted canonical schema-mapping section in D05-plan.md, committed `2c69a33`, pushed.
+2. **Subtask 2** — `services/booking/pricing.service.ts` + 21 tests (`70d9c1c`).
+3. **Subtask 3** — `services/booking/promo.service.ts` + 17 tests, Bug 261 architecture (`c9b07fa`).
+4. **Subtask 4** — `services/booking/surge.service.ts` + 5 tests (`a44b9da`).
+5. **Subtask 5** — `services/booking/from-quote.service.ts` + 11 tests, Bug 175 quote path (`d1a672a`).
+6. **Subtask 6** — `migrations/074_d05_service_area_bounds_and_settings.sql` (CHECK constraints + tip/addon/surge settings seed) + 13 tests (`8fe73af`).
+7. **Subtask 7** — booking validator strict + addon shape + booking.service canonical addons + mobile, Bug 175 + Bug 176 closed (`163145c`).
+8. **Subtask 8** — recurring validator + service + route + mobile, Bug 208 + Bug 1132 (encompassed) closed (`77672f9`).
+9. **Subtask 9** — promo create + redeem server-canonical, Bug 261 fully closed (`c86f62f`).
+10. **Subtask 10** — admin addon price upper bound, Bug 266 closed (`638be2f`).
+11. **Subtask 11** — pricing rules `platformSurgeShare 0..1`, Bug 269 closed (`491574a`).
+12. **Subtask 12** — service area PH bounds validator, Bug 320 + Bug 322 closed (`eb8070d`).
+13. **Subtask 13** — tip max cap server-driven, Bug 417 closed + new `/tips/limits` endpoint (`5510ffd`).
+14. **Subtask 14** — change-order server-canonical, Bug 1219 closed (50% relative cap converted from warn to throw + ₱10K hard cap + `.strict()`) (`091b5bc`).
+15. **Subtask 15** — provider service price within subcat bounds, Bug 1230 closed + new `/catalog/subcategories/:id/bounds` endpoint (`1b1cc81`).
+16. **Subtask 16** — promoted `a-cross-source-no-client-money` Gate A fragment from REPORT to BLOCKING in MODES.json + EXPECTED-FAILURES.md (`cff01b8`).
+17. **Subtask 17** — wrote `D05-closeout.md` with bug list + Spec-corrections section (10 rows) + 3-attack honesty trace (Bug 176 / 208 / 261) (`892b5b8`).
+18. **Subtask 18** — full local audit chain (gates A+C green, all 1181 api tests pass after spot-fixing a D04-leftover stale path in routes-registry-bug-1185.test.ts at `3d3112d`), pushed, opened PR #16. CI run revealed Gate B SIGPIPE bug — false positives on all 12 bugs even though test references existed. Filed exception per GATE-AMENDMENTS.md, fixed the gate (replaced `echo "$VAR" | grep -q` with `grep -q <<< "$VAR"` to avoid SIGPIPE under `pipefail`), committed (`0f192f1`). Re-run: all 5 gates green.
+
+### Bug closure summary
+
+12 bugs from the audit closed: 175, 176, 208, 1132 (encompassed), 261, 266, 269, 320, 322, 417, 1219, 1230. Plus 1 new closeout: bug-d05-hourly-deferred (LAUNCH-LIMITATIONS §24).
+
+### Spec corrections applied
+
+10 rows of spec-vs-schema divergence documented in `D05-closeout.md` §"Spec corrections applied". Future dispatches that read PART-3 §06+ should consult this section first before assuming the spec's identifiers match reality.
+
+### Gate hardening side-effect
+
+D05 also discovered + fixed a Gate B bug (SIGPIPE under pipefail on large CHANGED_TEST_DIFF). The fix is in the same PR. Filed exception at `.ai-coder/exceptions/2026-04-30-gate-b-pipefail-sigpipe.md`. This unblocks every future dispatch that has > 64KB of test changes.
+
+### Next session pickup point
+
+Per autonomous protocol (Constitution Article 16 + Master Brief §3 step 9 + EXECUTION-DISCIPLINE Section 2 Phase 6f): immediately begin Dispatch 06 — Transactional audit completeness — on a new branch `phase/14-d06-transactional-audit` from `phase/14-d05-money-trust-closure` HEAD (`0f192f1`). D06 spec at `.ai-coder/phase-14/PART-3-BUG-REMEDIATION-DISPATCHES-05-06.md` lines 1231 onward (14 bugs around `money-in-transaction`).
+
+D06 may inherit the same spec-vs-schema gaps. Read D05's closeout §"Spec corrections applied" first to avoid re-deriving the corrections.
+
+PRs queue for Ken:
+- #14 D03 (gate hardening) — merged (master `6a27ade`)
+- #15 D04 (SiguradoShield pull) — merged (master `808208f`)
+- #16 D05 (Money trust closure) — open, awaiting Ken's merge

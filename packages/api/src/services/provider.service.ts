@@ -155,18 +155,50 @@ export async function addProviderService(
   subcategoryId: string,
   basePrice?: number,
 ): Promise<ProviderServiceRow> {
-  const subcat = await db.query<SubcategoryNameRow>(
-    `SELECT id, name, category_id FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
+  // Phase 14 Dispatch 05 — Bug 1230.
+  // Lookup subcategory bounds (min_price, max_price); reject any
+  // provider-supplied basePrice that falls outside.
+  interface SubcatWithBounds {
+    id: string;
+    name: string;
+    category_id: string;
+    min_price: number | null;
+    max_price: number | null;
+  }
+  const subcat = await db.query<SubcatWithBounds>(
+    `SELECT id, name, category_id, min_price, max_price
+       FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
     [subcategoryId],
   );
   if (subcat.rows.length === 0) throw createAppError('Service subcategory not found or inactive.', 404);
+  const subcatRow = subcat.rows[0]!;
+
+  if (basePrice !== undefined && basePrice !== null) {
+    if (!Number.isInteger(basePrice) || !Number.isFinite(basePrice) || basePrice <= 0) {
+      throw createAppError('basePrice must be a positive integer (centavos).', 400);
+    }
+    const min = subcatRow.min_price !== null ? Number(subcatRow.min_price) : null;
+    const max = subcatRow.max_price !== null ? Number(subcatRow.max_price) : null;
+    if (min !== null && basePrice < min) {
+      throw createAppError(
+        `basePrice ${basePrice} below subcategory minimum (${min}).`,
+        400,
+      );
+    }
+    if (max !== null && basePrice > max) {
+      throw createAppError(
+        `basePrice ${basePrice} above subcategory maximum (${max}).`,
+        400,
+      );
+    }
+  }
 
   const result = await db.query<ProviderServiceRow>(
     `INSERT INTO provider_services (provider_id, subcategory_id, category_id, base_price)
      VALUES ($1, $2, $3, $4)
      ON CONFLICT (provider_id, subcategory_id) DO UPDATE SET is_active = TRUE, base_price = COALESCE($4, provider_services.base_price)
      RETURNING *`,
-    [providerId, subcategoryId, subcat.rows[0]!.category_id, basePrice ?? null],
+    [providerId, subcategoryId, subcatRow.category_id, basePrice ?? null],
   );
 
   logger.info('Provider service added', { providerId, subcategoryId });

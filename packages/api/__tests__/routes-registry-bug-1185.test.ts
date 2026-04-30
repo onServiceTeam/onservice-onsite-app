@@ -70,9 +70,12 @@ describe('Bug 1185 fix verified — no raw static paths in router calls', () => 
     expect(gate).toMatch(/router\\\.\(push\|replace\)/);
   });
 
-  it('migrated files import Routes (sample: customer/safety.tsx)', () => {
+  // Phase 14 D04 renamed `customer/safety.tsx` → `customer/safety-and-support.tsx`
+  // (per `LAUNCH-LIMITATIONS.md` §23 SiguradoShield pull). Updated in D05
+  // subtask 18 audit chain because the rename was missed by D04.
+  it('migrated files import Routes (sample: customer/safety-and-support.tsx)', () => {
     const file = fs.readFileSync(
-      path.join(REPO_ROOT, 'apps/mobile/app/customer/safety.tsx'),
+      path.join(REPO_ROOT, 'apps/mobile/app/customer/safety-and-support.tsx'),
       'utf8',
     );
     expect(file).toMatch(/from ['"]@\/config\/navigation['"]/);

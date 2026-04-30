@@ -51,11 +51,16 @@ interface RecurringInstanceRow {
 
 interface CountRow { count: string }
 
+// Phase 14 Dispatch 05 — Bug 208 + Bug 1132.
+// `servicePrice` removed; server resolves canonical price from
+// service_subcategories.base_price at creation time.
+// `subcategoryId` is now REQUIRED (no fallback path that could trust
+// a client-supplied price).
 interface CreateRecurringParams {
   customerId: string;
   providerId?: string;
   categoryId: string;
-  subcategoryId?: string;
+  subcategoryId: string;
   originalBookingId?: string;
   frequency: 'weekly' | 'bi_weekly' | 'monthly';
   preferredDay: number;
@@ -66,7 +71,6 @@ interface CreateRecurringParams {
   province: string;
   latitude?: number;
   longitude?: number;
-  servicePrice: number;
 }
 
 function calculateNextDate(frequency: string, preferredDay: number, fromDate?: Date): Date {
@@ -92,8 +96,35 @@ function calculateNextDate(frequency: string, preferredDay: number, fromDate?: D
 export async function createRecurringBooking(
   params: CreateRecurringParams,
 ): Promise<RecurringBookingRow> {
-  const serviceFee = calculateServiceFee(params.servicePrice);
-  const totalAmount = params.servicePrice + serviceFee;
+  // Phase 14 Dispatch 05 — Bug 208.
+  // Resolve the canonical service price server-side from
+  // service_subcategories.base_price. Reject hourly subcats per
+  // LAUNCH-LIMITATIONS §24, and quote-based subcats (the recurring
+  // path is fixed-price-only in v1.0).
+  const subcatResult = await db.query<{ base_price: string | null; pricing_type: string }>(
+    `SELECT base_price, pricing_type FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
+    [params.subcategoryId],
+  );
+  if (subcatResult.rows.length === 0) {
+    throw createAppError('Subcategory not found or inactive.', 404);
+  }
+  const subcat = subcatResult.rows[0]!;
+  if (subcat.pricing_type === 'hourly') {
+    throw createAppError('subcategory_pricing_type_unsupported', 400);
+  }
+  if (subcat.pricing_type === 'quote') {
+    throw createAppError('Quote-based subcategory cannot be set as a recurring booking.', 400);
+  }
+  if (subcat.base_price == null) {
+    throw createAppError('Service price could not be determined for this subcategory.', 400);
+  }
+  const servicePrice = Number(subcat.base_price);
+  if (!Number.isFinite(servicePrice) || servicePrice <= 0) {
+    throw createAppError('Service price could not be determined for this subcategory.', 400);
+  }
+
+  const serviceFee = calculateServiceFee(servicePrice);
+  const totalAmount = servicePrice + serviceFee;
   const nextDate = calculateNextDate(params.frequency, params.preferredDay);
 
   const result = await db.query<RecurringBookingRow>(
@@ -107,11 +138,11 @@ export async function createRecurringBooking(
     RETURNING *`,
     [
       params.customerId, params.providerId ?? null, params.categoryId,
-      params.subcategoryId ?? null, params.originalBookingId ?? null,
+      params.subcategoryId, params.originalBookingId ?? null,
       params.frequency, params.preferredDay, params.preferredTime,
       params.address, params.barangay, params.city, params.province,
       params.latitude ?? null, params.longitude ?? null,
-      params.servicePrice, serviceFee, totalAmount,
+      servicePrice, serviceFee, totalAmount,
       nextDate.toISOString().split('T')[0],
     ],
   );

@@ -2,6 +2,8 @@ import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { suspendProviderSchema, changeProviderTierSchema } from '../validators/admin.validators';
+import { createPricingRuleSchema, updatePricingRuleSchema } from '../validators/admin-pricing-rules.validators';
+import { createServiceAreaSchema, updateServiceAreaSchema } from '../validators/admin-service-area.validators';
 import * as adminService from '../services/admin.service';
 import * as escrowService from '../services/escrow.service';
 import { createAppError } from '../middleware/error.middleware';
@@ -792,17 +794,20 @@ router.get(
   },
 );
 
+// Phase 14 Dispatch 05 — Bug 320 + Bug 322.
+// Replaced the global lat/lng bounds (-90..90, -180..180) with PH
+// bounds (4.5..21.5, 116..127.5). Added radiusKm 1..100 and
+// minProvidersToLaunch 1..50 enforcement. `.strict()` rejects unknown
+// keys. Migration 074 enforces the same bounds at the DB level
+// (defense in depth).
 router.post(
   '/service-areas',
   authMiddleware,
+  validationMiddleware(createServiceAreaSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const {
-        name, city, province, region,
-        zipCodes, centerLat, centerLng, radiusKm,
-        minProvidersToLaunch, launchDate, settings,
-      } = req.body as {
+      const body = req.body as {
         name: string;
         city: string;
         province: string;
@@ -816,26 +821,7 @@ router.post(
         settings?: Record<string, unknown>;
       };
 
-      if (!name || !city || !province || !region || centerLat === undefined || centerLng === undefined) {
-        res.status(400).json({ success: false, message: 'name, city, province, region, centerLat, and centerLng are required.' });
-        return;
-      }
-
-      if (Number.isNaN(Number(centerLat)) || Number.isNaN(Number(centerLng))) {
-        res.status(400).json({ success: false, message: 'centerLat and centerLng must be valid numbers.' });
-        return;
-      }
-
-      if (Number(centerLat) < -90 || Number(centerLat) > 90 || Number(centerLng) < -180 || Number(centerLng) > 180) {
-        res.status(400).json({ success: false, message: 'Invalid coordinates. Latitude must be -90 to 90, longitude -180 to 180.' });
-        return;
-      }
-
-      const area = await serviceAreaService.createServiceArea({
-        name, city, province, region,
-        zipCodes, centerLat, centerLng, radiusKm,
-        minProvidersToLaunch, launchDate, settings,
-      });
+      const area = await serviceAreaService.createServiceArea(body);
 
       res.status(201).json({
         success: true,
@@ -865,6 +851,7 @@ router.get(
 router.patch(
   '/service-areas/:id',
   authMiddleware,
+  validationMiddleware(updateServiceAreaSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -1057,39 +1044,36 @@ router.get(
   },
 );
 
+// Phase 14 Dispatch 05 — Bug 269.
+// Replaced manual validation with `validationMiddleware(createPricingRuleSchema)`.
+// The new Zod schema enforces `multiplier 1.0..5.0` AND
+// `platformSurgeShare 0..1` (the latter was previously unbounded — a
+// typo could make the platform retain 50× the surge or take a negative
+// split). `.strict()` rejects unknown keys.
 router.post(
   '/pricing-rules',
   authMiddleware,
+  validationMiddleware(createPricingRuleSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const { name, type, multiplier, rushHoursThreshold, holidayDate,
-              peakStartTime, peakEndTime, peakDaysOfWeek,
-              categoryId, serviceAreaId, priority, platformSurgeShare, description } = req.body as Record<string, unknown>;
+      const body = req.body as {
+        name: string;
+        type: 'rush' | 'holiday' | 'peak_hours';
+        multiplier: number;
+        rushHoursThreshold?: number;
+        holidayDate?: string;
+        peakStartTime?: string;
+        peakEndTime?: string;
+        peakDaysOfWeek?: number[];
+        categoryId?: string;
+        serviceAreaId?: string;
+        priority?: number;
+        platformSurgeShare?: number;
+        description?: string;
+      };
 
-      if (!name || typeof name !== 'string') throw createAppError('name is required.', 400);
-      if (!type || !['rush', 'holiday', 'peak_hours'].includes(type as string)) {
-        throw createAppError('type must be rush, holiday, or peak_hours.', 400);
-      }
-      if (!multiplier || typeof multiplier !== 'number' || multiplier < 1.0 || multiplier > 5.0) {
-        throw createAppError('multiplier must be a number between 1.0 and 5.0.', 400);
-      }
-
-      const rule = await pricingService.createPricingRule({
-        name: name as string,
-        type: type as 'rush' | 'holiday' | 'peak_hours',
-        multiplier: multiplier as number,
-        rushHoursThreshold: rushHoursThreshold as number | undefined,
-        holidayDate: holidayDate as string | undefined,
-        peakStartTime: peakStartTime as string | undefined,
-        peakEndTime: peakEndTime as string | undefined,
-        peakDaysOfWeek: peakDaysOfWeek as number[] | undefined,
-        categoryId: categoryId as string | undefined,
-        serviceAreaId: serviceAreaId as string | undefined,
-        priority: priority as number | undefined,
-        platformSurgeShare: platformSurgeShare as number | undefined,
-        description: description as string | undefined,
-      });
+      const rule = await pricingService.createPricingRule(body);
 
       res.status(201).json({ success: true, data: pricingService.formatPricingRule(rule) });
     } catch (error) {
@@ -1101,6 +1085,7 @@ router.post(
 router.patch(
   '/pricing-rules/:id',
   authMiddleware,
+  validationMiddleware(updatePricingRuleSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);

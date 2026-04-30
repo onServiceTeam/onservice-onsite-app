@@ -2,6 +2,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as walletService from './wallet.service';
+import { getSettingNumber } from './settings.service';
 import { formatPHP } from '../utils/currency';
 
 interface TipRow {
@@ -28,6 +29,15 @@ export async function sendTip(
   },
 ): Promise<TipRow> {
   if (data.amount <= 0) throw createAppError('Tip amount must be positive.', 400);
+
+  // Phase 14 Dispatch 05 — Bug 417.
+  // Server-canonical tip cap from platform_settings (seeded by
+  // migration 074, default ₱5,000). The schema enforces a hard ₱100K
+  // sanity backstop; this enforces the dynamic operator-tunable max.
+  const tipMaxCents = await getSettingNumber('tip_max_amount_cents');
+  if (Number.isFinite(tipMaxCents) && tipMaxCents > 0 && data.amount > tipMaxCents) {
+    throw createAppError(`Tip exceeds maximum of ${formatPHP(tipMaxCents)}.`, 400);
+  }
 
   interface BookingRow {
     id: string;

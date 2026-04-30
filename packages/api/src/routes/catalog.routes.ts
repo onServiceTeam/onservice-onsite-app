@@ -1,10 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { validationMiddleware } from '../middleware/validation.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import { db } from '../models/db';
 import * as catalogService from '../services/catalog.service';
 import { cacheMiddleware } from '../middleware/cache.middleware';
 import { cacheDeletePattern, CacheTTL } from '../services/cache.service';
+import { createAddonSchema, updateAddonSchema } from '../validators/admin-catalog.validators';
 
 const router = Router();
 
@@ -109,6 +111,48 @@ router.get(
         data: {
           services: serviceResults.map(formatSubcategory),
           providers: providerResults,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// Phase 14 Dispatch 05 — Bug 1230.
+// Public endpoint returning the price bounds for a subcategory. The
+// provider mobile UI fetches this when the provider edits their per-
+// service price, so the form can show "min ₱X, max ₱Y" guidance and
+// reject obviously-out-of-range values client-side. The API also
+// enforces these bounds server-side in
+// `provider.service.ts:addProviderService` (defense in depth).
+router.get(
+  '/subcategories/:id/bounds',
+  cacheMiddleware(CacheTTL.SUBCATEGORIES),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const subcategoryId = req.params.id as string;
+      const result = await db.query<{
+        min_price: number | null;
+        max_price: number | null;
+        base_price: number | null;
+        pricing_type: string;
+      }>(
+        `SELECT min_price, max_price, base_price, pricing_type
+           FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
+        [subcategoryId],
+      );
+      if (result.rows.length === 0) {
+        throw createAppError('Subcategory not found or inactive.', 404);
+      }
+      const row = result.rows[0]!;
+      res.json({
+        success: true,
+        data: {
+          minCents: row.min_price !== null ? Number(row.min_price) : null,
+          maxCents: row.max_price !== null ? Number(row.max_price) : null,
+          baseCents: row.base_price !== null ? Number(row.base_price) : null,
+          pricingType: row.pricing_type,
         },
       });
     } catch (error) {
@@ -342,16 +386,25 @@ router.get(
   },
 );
 
+// Phase 14 Dispatch 05 — Bug 266.
+// Replaced manual `typeof price !== 'number' || price < 0` validation
+// with `validationMiddleware(createAddonSchema)`. The new Zod schema
+// caps price at 5_000_000 centavos (₱50,000) per migration 074's
+// `addon_price_max_cents` setting.
 router.post(
   '/admin/addons',
   authMiddleware,
+  validationMiddleware(createAddonSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const { subcategoryId, name, description, price, displayOrder } = req.body;
-      if (typeof name !== 'string' || !name.trim()) throw createAppError('Name is required.', 400);
-      if (typeof subcategoryId !== 'string') throw createAppError('Subcategory ID is required.', 400);
-      if (typeof price !== 'number' || price < 0) throw createAppError('Valid price is required.', 400);
+      const { subcategoryId, name, description, price, displayOrder } = req.body as {
+        subcategoryId: string;
+        name: string;
+        description?: string;
+        price: number;
+        displayOrder?: number;
+      };
 
       const result = await db.query(
         `INSERT INTO service_addons (subcategory_id, name, description, price, display_order)
@@ -373,13 +426,20 @@ router.post(
 router.put(
   '/admin/addons/:id',
   authMiddleware,
+  validationMiddleware(updateAddonSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Add-on ID is required.', 400);
 
-      const { name, description, price, displayOrder, isActive } = req.body;
+      const { name, description, price, displayOrder, isActive } = req.body as {
+        name?: string;
+        description?: string;
+        price?: number;
+        displayOrder?: number;
+        isActive?: boolean;
+      };
       const sets: string[] = [];
       const params: unknown[] = [];
       let idx = 1;

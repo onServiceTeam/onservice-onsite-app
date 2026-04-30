@@ -39,11 +39,14 @@ export interface Booking {
   categoryName?: string;
 }
 
+// Phase 14 Dispatch 05 — Bug 175 + Bug 176.
+// `servicePrice` removed; server resolves canonical price from
+// service_subcategories.base_price. Addons changed to `{addonId, quantity}`;
+// server resolves price from service_addons by id.
 export interface CreateBookingPayload {
   categoryId: string;
   subcategoryId: string;
   bookingType: 'fixed_price';
-  servicePrice?: number;
   description: string;
   address: string;
   barangay: string;
@@ -54,7 +57,10 @@ export interface CreateBookingPayload {
   scheduledAt: string;
   rebookedFromId?: string;
   waitlistId?: string;
-  addons?: Array<{ id: string; name: string; price: number }>;
+  // Phase 14 Dispatch 05 — Bug 261. Customer sends only the code; server
+  // resolves the canonical discount via promo.service.
+  promoCode?: string;
+  addons?: Array<{ addonId: string; quantity: number }>;
 }
 
 export async function createBooking(data: CreateBookingPayload): Promise<Booking> {

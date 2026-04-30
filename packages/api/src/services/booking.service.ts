@@ -7,6 +7,7 @@ import * as pricingService from './pricing.service';
 import * as slotWaitlistService from './slot-waitlist.service';
 import * as sukiService from './suki.service';
 import * as socketService from './socket.service';
+import { resolvePromo } from './booking/promo.service';
 
 interface BookingRow {
   id: string;
@@ -47,6 +48,12 @@ interface CountRow {
   count: string;
 }
 
+// Phase 14 Dispatch 05 — Bug 175 + Bug 176 + Bug 261.
+// `servicePrice` removed; server resolves from service_subcategories.
+// `addons` shape is `{addonId, quantity}`; server resolves price from
+// service_addons by id.
+// `promoCode` is the customer-supplied code only; server resolves the
+// canonical discount via services/booking/promo.service.ts.
 interface CreateBookingParams {
   customerId: string;
   categoryId: string;
@@ -60,10 +67,10 @@ interface CreateBookingParams {
   latitude?: number;
   longitude?: number;
   scheduledAt: string;
-  servicePrice?: number;
   rebookedFromId?: string;
   waitlistId?: string;
-  addons?: Array<{ id: string; name: string; price: number }>;
+  promoCode?: string;
+  addons?: Array<{ addonId: string; quantity: number }>;
 }
 
 export function calculateServiceFee(servicePrice: number): number {
@@ -75,16 +82,35 @@ export function calculateServiceFee(servicePrice: number): number {
 }
 
 export async function createBooking(params: CreateBookingParams): Promise<BookingRow> {
-  let baseServicePrice = params.servicePrice ?? 0;
+  // Phase 14 Dispatch 05 — Bug 175.
+  // Fixed-price bookings now REQUIRE subcategoryId AND a non-null
+  // base_price in service_subcategories. There is no fallback to a
+  // client-supplied servicePrice (the validator no longer accepts it).
+  let baseServicePrice = 0;
 
-  if (params.subcategoryId && params.bookingType === 'fixed_price') {
-    const subcatResult = await db.query<{ base_price: string | null }>(
-      `SELECT base_price FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
+  if (params.bookingType === 'fixed_price') {
+    if (!params.subcategoryId) {
+      throw createAppError('Fixed-price bookings require subcategoryId.', 400);
+    }
+    const subcatResult = await db.query<{ base_price: string | null; pricing_type: string }>(
+      `SELECT base_price, pricing_type FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
       [params.subcategoryId],
     );
-    if (subcatResult.rows.length > 0 && subcatResult.rows[0]!.base_price != null) {
-      baseServicePrice = Number(subcatResult.rows[0]!.base_price);
+    if (subcatResult.rows.length === 0) {
+      throw createAppError('Subcategory not found or inactive.', 404);
     }
+    const subcat = subcatResult.rows[0]!;
+    if (subcat.pricing_type === 'hourly') {
+      // LAUNCH-LIMITATIONS §24 — hourly deferred to v1.1+.
+      throw createAppError('subcategory_pricing_type_unsupported', 400);
+    }
+    if (subcat.pricing_type === 'quote') {
+      throw createAppError('Quote-based subcategory cannot be booked as fixed_price.', 400);
+    }
+    if (subcat.base_price == null) {
+      throw createAppError('Service price could not be determined for this subcategory.', 400);
+    }
+    baseServicePrice = Number(subcat.base_price);
   }
 
   if (params.bookingType === 'fixed_price' && baseServicePrice <= 0) {
@@ -110,8 +136,71 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
     pricingRuleId = pricing.appliedRule?.id ?? null;
   }
 
-  const addonsTotal = (params.addons ?? []).reduce((sum, a) => sum + a.price, 0);
-  const servicePrice = baseServicePrice + surgeAmount + addonsTotal;
+  // Phase 14 Dispatch 05 — Bug 176.
+  // Resolve addon prices server-side from service_addons.price by
+  // looking up each addonId. Validate addon belongs to the requested
+  // subcategory and is active. Quantity validated by the Zod schema
+  // (1..100); we re-validate defensively here.
+  const resolvedAddons: Array<{ addonId: string; quantity: number; name: string; price: number }> = [];
+  let addonsTotal = 0;
+  if (params.addons && params.addons.length > 0) {
+    for (const a of params.addons) {
+      if (!Number.isInteger(a.quantity) || a.quantity < 1 || a.quantity > 100) {
+        throw createAppError('Invalid addon quantity.', 400);
+      }
+    }
+    const addonIds = params.addons.map((a) => a.addonId);
+    interface AddonRow {
+      id: string;
+      subcategory_id: string;
+      price: number | string;
+      is_active: boolean;
+      name: string;
+    }
+    const addonResult = await db.query<AddonRow>(
+      `SELECT id, subcategory_id, price, is_active, name
+         FROM service_addons WHERE id = ANY($1::uuid[])`,
+      [addonIds],
+    );
+    const byId = new Map(addonResult.rows.map((r) => [r.id, r]));
+    for (const requested of params.addons) {
+      const found = byId.get(requested.addonId);
+      if (!found) {
+        throw createAppError(`Addon not found: ${requested.addonId}`, 404);
+      }
+      if (!found.is_active) {
+        throw createAppError(`Addon is no longer available: ${found.name}`, 400);
+      }
+      if (params.subcategoryId && found.subcategory_id !== params.subcategoryId) {
+        throw createAppError(`Addon does not belong to the requested subcategory.`, 400);
+      }
+      const canonicalPrice = Number(found.price);
+      const lineTotal = canonicalPrice * requested.quantity;
+      addonsTotal += lineTotal;
+      resolvedAddons.push({
+        addonId: requested.addonId,
+        quantity: requested.quantity,
+        name: found.name,
+        price: canonicalPrice,
+      });
+    }
+  }
+
+  // Phase 14 Dispatch 05 — Bug 261.
+  // Promo: customer sends only the code; server resolves the canonical
+  // discount from `promo_codes` via services/booking/promo.service.ts.
+  // Subtotal for promo eligibility is base + addons + surge.
+  let promoDiscountCents = 0;
+  if (params.promoCode && params.bookingType === 'fixed_price') {
+    const subtotalForPromo = baseServicePrice + surgeAmount + addonsTotal;
+    promoDiscountCents = await resolvePromo({
+      code: params.promoCode,
+      subtotalCents: subtotalForPromo,
+      userId: params.customerId,
+    });
+  }
+
+  const servicePrice = Math.max(0, baseServicePrice + surgeAmount + addonsTotal - promoDiscountCents);
   const serviceFee = params.bookingType === 'fixed_price' ? calculateServiceFee(servicePrice) : 0;
   const totalAmount = servicePrice + serviceFee;
 
@@ -153,12 +242,12 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
 
   const newBooking = result.rows[0]!;
 
-  if (params.addons && params.addons.length > 0) {
-    for (const addon of params.addons) {
+  if (resolvedAddons.length > 0) {
+    for (const addon of resolvedAddons) {
       await db.query(
         `INSERT INTO booking_addons (booking_id, addon_id, name, price)
          VALUES ($1, $2, $3, $4)`,
-        [newBooking.id, addon.id, addon.name, addon.price],
+        [newBooking.id, addon.addonId, addon.name, addon.price],
       );
     }
   }
@@ -169,7 +258,7 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
     status: initialStatus,
     surgeMultiplier,
     surgeAmount,
-    addonsCount: params.addons?.length ?? 0,
+    addonsCount: resolvedAddons.length,
   });
 
   try {
@@ -898,10 +987,18 @@ export async function createChangeOrder(
     throw createAppError('Change orders can only be submitted during active jobs.', 409);
   }
 
-  if (data.additionalAmount > booking.service_price * 0.5) {
-    logger.warn('Change order exceeds 50% of original — may require admin approval', {
-      bookingId, additionalAmount: data.additionalAmount, originalPrice: booking.service_price,
-    });
+  // Phase 14 Dispatch 05 — Bug 1219.
+  // Enforce 50% relative cap (was previously a warn-only log, allowing
+  // a malicious or compromised provider to submit, e.g., ₱5,000 above
+  // a ₱500 booking). Combined with the schema's hard ₱10K sanity cap,
+  // this bounds the change-order amount to a realistic fraction of
+  // the original service price.
+  const FIFTY_PERCENT_OF_SERVICE = booking.service_price * 0.5;
+  if (data.additionalAmount > FIFTY_PERCENT_OF_SERVICE) {
+    throw createAppError(
+      `Change order cannot exceed 50% of the original service price (max ${Math.floor(FIFTY_PERCENT_OF_SERVICE)} centavos).`,
+      400,
+    );
   }
 
   const result = await db.query<ChangeOrderRow>(
