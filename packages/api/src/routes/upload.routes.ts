@@ -2,6 +2,7 @@ import { Router, type Response, type NextFunction } from 'express';
 import multer from 'multer';
 import { authMiddleware, type AuthenticatedRequest } from '../middleware/auth.middleware';
 import * as uploadService from '../services/upload.service';
+import * as bookingPhotoService from '../services/booking-photo.service';
 import { platformConfig } from '../config/platform.config';
 import { createAppError } from '../middleware/error.middleware';
 
@@ -15,6 +16,15 @@ interface MulterFile {
 }
 
 const router = Router();
+
+// Phase 14 Dispatch 07 helper — resolve booking role for the authenticated
+// user based on their session role + relationship to the booking.
+function resolveActorRole(req: AuthenticatedRequest): bookingPhotoService.ActorRole {
+  const role = req.user!.role;
+  if (role === 'admin' || role === 'super_admin') return 'admin';
+  if (role === 'provider') return 'provider';
+  return 'customer';
+}
 
 const ALLOWED_MIME_SET = new Set<string>(platformConfig.allowedImageTypes);
 
@@ -68,6 +78,137 @@ router.post(
         success: true,
         data: results,
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 14 Dispatch 07 — booking photo + signature uploads (Bug 36, 37,
+// 461, 1224). Mobile compresses + resizes via expo-image-manipulator
+// before posting; server validates MIME/size, uploads via the existing
+// upload.service.ts (S3 + KMS or local-FS dual mode), and inserts a
+// booking_photos / booking_signatures row that links the booking to the
+// stored URL. Storage URL is NEVER a `file://` URI (which was the root
+// cause of Bugs 36, 461, 73, 943, 944, 1224).
+// ─────────────────────────────────────────────────────────────────
+
+router.post(
+  '/booking-photo',
+  authMiddleware,
+  upload.single('photo'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const file = (req as AuthenticatedRequest & { file?: MulterFile }).file;
+      if (!file) throw createAppError('No photo provided.', 400);
+
+      const bookingId = typeof req.body?.bookingId === 'string' ? req.body.bookingId : '';
+      const photoType = req.body?.photoType;
+      if (!bookingId) throw createAppError('bookingId is required.', 400);
+      if (!bookingPhotoService.isPhotoType(photoType)) {
+        throw createAppError(
+          'Invalid photoType. Must be one of: before, during, after, issue, checklist, identity, portfolio.',
+          400,
+        );
+      }
+
+      const result = await bookingPhotoService.uploadBookingPhoto({
+        bookingId,
+        uploadedByUserId: req.user!.userId,
+        uploadedByRole: resolveActorRole(req),
+        photoType,
+        buffer: file.buffer,
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+      });
+
+      res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/booking-photo/:bookingId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const bookingId = req.params.bookingId as string | undefined;
+      if (typeof bookingId !== 'string' || !bookingId) {
+        throw createAppError('bookingId is required.', 400);
+      }
+
+      const role = resolveActorRole(req);
+      // Non-admins must be a party to the booking — the service does the check.
+      // (Admins skip the booking-role check.)
+      if (role !== 'admin') {
+        // Lazy auth check via service — if user is not a party, the service
+        // throws on the first photoType filter; mirror that by performing a
+        // no-op upload-check via resolveBookingRole equivalent. Simpler:
+        // call uploadBookingPhoto's auth path via a tiny SELECT here.
+        const { db } = await import('../models/db');
+        const access = await db.query(
+          `SELECT 1 FROM bookings b
+           LEFT JOIN providers p ON p.id = b.provider_id
+           WHERE b.id = $1 AND (b.customer_id = $2 OR p.user_id = $2)`,
+          [bookingId, req.user!.userId],
+        );
+        if (access.rows.length === 0) {
+          throw createAppError('You do not have access to this booking.', 403);
+        }
+      }
+
+      const photoTypeRaw = typeof req.query.photoType === 'string' ? req.query.photoType : undefined;
+      const photoType = bookingPhotoService.isPhotoType(photoTypeRaw)
+        ? photoTypeRaw
+        : undefined;
+
+      const photos = await bookingPhotoService.listBookingPhotos(bookingId, photoType ? { photoType } : undefined);
+      res.json({ success: true, data: photos });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/booking-signature',
+  authMiddleware,
+  upload.single('signature'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const file = (req as AuthenticatedRequest & { file?: MulterFile }).file;
+      if (!file) throw createAppError('No signature provided.', 400);
+
+      const signatureType = req.body?.signatureType;
+      if (!bookingPhotoService.isSignatureType(signatureType)) {
+        throw createAppError(
+          'Invalid signatureType. Must be one of: ic_agreement, customer_acceptance, work_authorization, change_order_accept.',
+          400,
+        );
+      }
+
+      const bookingIdRaw = typeof req.body?.bookingId === 'string' && req.body.bookingId.length > 0
+        ? req.body.bookingId
+        : null;
+      const fullNameTyped = typeof req.body?.fullNameTyped === 'string' ? req.body.fullNameTyped : undefined;
+
+      const result = await bookingPhotoService.uploadSignature({
+        bookingId: bookingIdRaw,
+        signedByUserId: req.user!.userId,
+        signedRole: resolveActorRole(req),
+        signatureType,
+        buffer: file.buffer,
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        fullNameTyped,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      res.status(201).json({ success: true, data: result });
     } catch (error) {
       next(error);
     }

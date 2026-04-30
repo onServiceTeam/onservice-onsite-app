@@ -1,13 +1,12 @@
-dispatch: D06
-branch: phase/14-d06-money-in-transaction
-status: closeout-written; ready for push + PR + autoproceed to D07
-operating-mode: autonomous between dispatches + full audit chain
-session-started: 2026-04-30 (D05 merged at 143ce37; D06 implementation completed in fresh session)
-prior-dispatches: D03 + D04 + D05 merged to master; tags v0.14.0-d03-complete (6a27ade) + v0.14.0-d04-complete (808208f) + v0.14.0-d05-complete (143ce37). Branch protection restored after each merge (enforce_admins=true, 1 review, conversation_resolution=true).
+dispatch: D07
+branch: phase/14-d07-provider-job-trust
+status: closeout-written; ready for push + PR + autoproceed to D08
+operating-mode: autonomous between dispatches + full audit chain (no fresh session per Ken's instruction)
+session-started: 2026-04-30 (D06 merged at c9632a9 + D07 implementation completed in same session)
+prior-dispatches: D03+D04+D05+D06 merged. Tags v0.14.0-d{03,04,05,06}-complete on master.
 
-# D06 — Transactional Audit Completeness (CLOSEOUT WRITTEN)
+# D07 — Provider Job Execution Trust (CLOSEOUT WRITTEN)
 
-All 14 bugs closed + Migration 075 + Migration 076 + 2 adjacent real bugs fixed inline + gate logic rewritten + money-in-transaction promoted REPORT → BLOCKING.
+12 bugs closed at the data-integrity layer (server-side). Mobile screen UI rewrites deferred to D11/D12 polish per dispatch boundaries. Migrations 078 (10 checklist templates) + 079 (booking_photos + booking_signatures). New booking-photo + checklist services + completion enforcement (Bug 463 + 1220). Bug 38 deferred to v1.1+ per spec.
 
-next-subtask: 18 (push + PR + autoproceed)
-last-subtask-completed: 17 (closeout written; gates A + C green at this commit; 1308 tests pass)
+next-subtask: 18 (push + PR + self-merge + tag + autoproceed to D08)
