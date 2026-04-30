@@ -82,7 +82,7 @@ export const Routes = {
     SECURITY_SETTINGS: '/customer/security',
     DEVICE_MANAGEMENT: '/customer/security/devices',
     ACCESSIBILITY_SETTINGS: '/customer/settings/accessibility',
-    SAFETY: '/customer/safety',
+    SAFETY: '/customer/safety-and-support',
     SUKI_PROS: '/customer/suki-pros',
     ADDRESS_PICKER: '/customer/address-picker',
     ADDRESSES: '/customer/addresses',

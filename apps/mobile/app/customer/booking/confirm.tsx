@@ -8,7 +8,7 @@ import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDate, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Shield } from '@/components/icons';
+import { Lock } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 export default function BookingConfirmScreen(): React.ReactElement {
@@ -87,15 +87,18 @@ export default function BookingConfirmScreen(): React.ReactElement {
           </View>
         )}
 
+        {/* Bug 834 — Phase 14 D04 SiguradoShield pull. Strips trademark; */}
+        {/* the escrow guarantee is verifiable on its own. Tap target leads */}
+        {/* to /customer/safety-and-support for users curious about safety. */}
         <TouchableOpacity
           style={styles.infoCard}
           onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
           activeOpacity={0.7}
         >
-          <View style={styles.infoIconWrap}><Shield size={22} color={colors.primary} /></View>
+          <View style={styles.infoIconWrap}><Lock size={22} color={colors.primary} /></View>
           <Text style={styles.infoText}>
-            Protected by SiguradoShield™. Your payment is secured in escrow and will only
-            be released when you confirm the job is done to your satisfaction.
+            Your payment is secured in escrow and will only be released when you confirm
+            the job is done to your satisfaction.
           </Text>
         </TouchableOpacity>
 

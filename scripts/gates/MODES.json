@@ -60,10 +60,10 @@
       "rationale": "Bug 175/176/208/261 — server validators accept money fields. Owned by D05 (Money trust closure). Promotes to BLOCKING after D05."
     },
     "a-cross-source-no-siguradoshield": {
-      "mode": "REPORT",
+      "mode": "BLOCKING",
       "owning_dispatch": "D04",
-      "promoted_in": null,
-      "rationale": "Bug 538 — SiguradoShield references in 6 mobile customer surfaces + platform.config.ts:54-57 constants. Owned by D04 (Option A pull). Promotes to BLOCKING after D04."
+      "promoted_in": "D04",
+      "rationale": "Promoted to BLOCKING in D04 (Ken's Option A pull, 2026-04-30). Now a thin alias that delegates to gate_c_articles.no-shield-references for actual enforcement. The original REPORT-only fragment scanned apps/ + packages/ tolerantly; the D04 successor enforces strictly with a documented allowlist."
     }
   },
 
@@ -103,6 +103,12 @@
       "owning_dispatch": "D06",
       "promoted_in": null,
       "rationale": "Bugs 69, 70, 71, 78, 79, 80, 82, 83, 84, 85, 105, 106, 127, 237 — 14 services with money mutations outside db.transaction(). Owned by D06 (Transactional audit completeness). Promotes to BLOCKING after D06."
+    },
+    "no-shield-references": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D04",
+      "promoted_in": "D04",
+      "rationale": "Stricter SiguradoShield gate per Ken's Option A pull (.ai-coder/decisions/D04-siguradoshield.md, 2026-04-30). Replaces the REPORT-only Gate A no-siguradoshield fragment. Blocks any code-line reintroduction of SiguradoShield to UI surfaces or charge/payout code; comments documenting the removal are skipped. Allowlist covers spec docs, deprecated migrations, LAUNCH-LIMITATIONS §23, the decision file, and gate scripts. Implementation: scripts/gates/c-constitution-no-shield-references.sh (run as part of c-constitution.sh aggregator)."
     }
   },
 

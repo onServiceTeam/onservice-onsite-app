@@ -36,7 +36,8 @@ import {
   Plug,
   Bell,
   Search,
-  Shield,
+  Users,
+  Lock,
   Home as HomeIcon,
   AlertTriangle,
 } from '@/components/icons';
@@ -407,20 +408,29 @@ export default function HomeScreen(): React.ReactElement {
         </View>
       )}
 
-      {/* SiguradoShield Banner */}
-      <TouchableOpacity
-        style={styles.shieldBanner}
-        onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.shieldBannerIconWrap}><Shield size={28} color={colors.primary} /></View>
-        <View style={styles.shieldBannerContent}>
-          <Text style={styles.shieldBannerTitle}>SiguradoShield™ Protection</Text>
-          <Text style={styles.shieldBannerText}>
-            Every booking is covered up to {formatPHP(platformConfig.siguradoShieldMaxCoverage)}. Learn more →
-          </Text>
+      {/* How onService works — Bug 889 (Phase 14 D04 SiguradoShield pull). */}
+      {/* Replaces the old SiguradoShield insurance banner with informational */}
+      {/* trust claims only. No tap target, no peso amounts, no insurance copy. */}
+      <View style={styles.howItWorksSection} testID="how-it-works-section">
+        <Text style={styles.howItWorksTitle}>How onService works</Text>
+        <View style={styles.howItWorksGrid}>
+          <View style={styles.howItWorksTile}>
+            <View style={styles.howItWorksIconWrap}><Search size={28} color={colors.primary} /></View>
+            <Text style={styles.howItWorksTileTitle}>Pick a service</Text>
+            <Text style={styles.howItWorksTileBody}>Browse trusted pros nearby.</Text>
+          </View>
+          <View style={styles.howItWorksTile}>
+            <View style={styles.howItWorksIconWrap}><Users size={28} color={colors.primary} /></View>
+            <Text style={styles.howItWorksTileTitle}>Get matched</Text>
+            <Text style={styles.howItWorksTileBody}>Choose from quotes or book directly.</Text>
+          </View>
+          <View style={styles.howItWorksTile}>
+            <View style={styles.howItWorksIconWrap}><Lock size={28} color={colors.primary} /></View>
+            <Text style={styles.howItWorksTileTitle}>Pay safely</Text>
+            <Text style={styles.howItWorksTileBody}>Payment held in escrow until you confirm.</Text>
+          </View>
         </View>
-      </TouchableOpacity>
+      </View>
 
       {/* Empty state for new users */}
       {activeBookings.length === 0 && recentBookings.length === 0 && (
@@ -777,22 +787,35 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  shieldBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.infoLight,
+  // SiguradoShield banner styles removed — Bug 889 (Phase 14 D04 pull).
+  // Replaced by howItWorks* below. Do NOT reintroduce shieldBanner* without
+  // lifting LAUNCH-LIMITATIONS §23.
+
+  howItWorksSection: {
     marginHorizontal: spacing.base,
     marginTop: spacing.lg,
-    padding: spacing.base,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.info,
   },
-  shieldBannerIcon: { fontSize: 28, marginRight: spacing.md },
-  shieldBannerIconWrap: { marginRight: spacing.md, width: 32, alignItems: 'center' as const },
-  shieldBannerContent: { flex: 1 },
-  shieldBannerTitle: { ...typography.body, fontWeight: '700', color: colors.infoDark, marginBottom: 2 },
-  shieldBannerText: { ...typography.bodySmall, color: colors.info },
+  howItWorksTitle: {
+    ...typography.h2,
+    color: colors.text,
+    fontSize: 19,
+    marginBottom: spacing.md,
+  },
+  howItWorksGrid: {
+    gap: spacing.sm,
+  },
+  howItWorksTile: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  howItWorksIconWrap: { marginRight: spacing.md, width: 32, alignItems: 'center' as const },
+  howItWorksTileTitle: { ...typography.body, fontWeight: '600', color: colors.text, marginBottom: 2 },
+  howItWorksTileBody: { ...typography.bodySmall, color: colors.textSecondary },
 
   bottomSpacer: { height: 80 },
   centeredState: { alignItems: 'center' as const, justifyContent: 'center' as const },

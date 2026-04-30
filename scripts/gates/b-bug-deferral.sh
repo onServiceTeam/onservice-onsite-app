@@ -61,8 +61,16 @@ while IFS= read -r bug; do
   bug_num=$(echo "$bug" | grep -oE "[0-9]+")
 
   # Check 1: cited files in diff
+  # Filename char class includes letters, digits, underscores, slashes, dots,
+  # parens, brackets, and hyphens. Brackets and parens are common in expo-
+  # router paths (apps/mobile/app/(tabs)/profile.tsx, provider/[id].tsx).
+  # Hyphens are common in real filenames (payment-methods.tsx,
+  # safety-and-support.tsx). Without these the regex truncates filenames
+  # at the first hyphen/bracket, causing Gate B to compare partial paths
+  # to the diff and false-fail. D04 amendment per
+  # .ai-coder/governance/GATE-AMENDMENTS.md (false positive class).
   cited_files=$(grep -A 5 "$bug —\|$bug -" "$CLOSEOUT" \
-    | grep -oE "[a-zA-Z_/]+\.(ts|tsx|sql|sh|yml|json)" \
+    | grep -oE '[a-zA-Z0-9_./()\[\]-]+\.(ts|tsx|sql|sh|yml|json)' \
     | sort -u || true)
 
   files_missing=0

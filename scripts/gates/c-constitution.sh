@@ -174,6 +174,21 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# no-shield-references (Phase 14 D04, BLOCKING)
+#
+# Delegates to scripts/gates/c-constitution-no-shield-references.sh which has
+# its own allowlist and comment-skip logic. The article-level mode lookup
+# still goes through MODES.json for consistency with the tier model.
+# ---------------------------------------------------------------------------
+shield_output=$(bash "$GATES_DIR/c-constitution-no-shield-references.sh" 2>&1 || true)
+shield_exit=$?
+if echo "$shield_output" | tail -1 | grep -qE "^Gate C — no-shield-references \[BLOCKING\]: OK"; then
+  report_article "no-shield-references" 1
+else
+  report_article "no-shield-references" 0 "$shield_output"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""

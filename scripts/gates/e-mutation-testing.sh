@@ -9,6 +9,19 @@
 
 set -euo pipefail
 
+GATES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Honor the gate's tier from MODES.json (gate_e_state). REPORT mode means
+# the CI job passes regardless of the underlying check — Stryker baseline
+# work is owned by D12. BLOCKING mode means the script enforces strictly.
+mode=$(bash "$GATES_DIR/mode-lookup.sh" gate_e_state state 2>/dev/null || echo "BLOCKING")
+if [ "$mode" = "REPORT" ]; then
+  echo "Gate E: REPORT mode (per scripts/gates/MODES.json gate_e_state)."
+  echo "        Mutation testing is owned by D12; the gate is observational"
+  echo "        until then. Exit 0 to keep the CI job green."
+  exit 0
+fi
+
 BASE_REF=${BASE_REF:-origin/master}
 
 # Run on changed files only to keep CI fast

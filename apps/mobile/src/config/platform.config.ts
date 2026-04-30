@@ -49,10 +49,13 @@ export const platformConfig = {
 
   referralBonusDefault: 5000, // ₱50.00 in centavos
 
-  siguradoShieldMaxCoverage: 5000000, // ₱50,000.00 in centavos
-  siguradoShieldPropertyDamage: 2500000, // ₱25,000.00 in centavos
-  siguradoShieldPremiumProtection: 10000000, // ₱100,000.00 in centavos
-  siguradoShieldDeductible: 50000, // ₱500.00 in centavos
+  // SiguradoShield (in-house insurance) NOT WIRED for v1.0.
+  // Deferred to v1.1+ pending Insurance Commission license OR licensed-insurer
+  // partnership. See LAUNCH-LIMITATIONS.md §23 and
+  // .ai-coder/decisions/D04-siguradoshield.md (Ken — Option A — 2026-04-30).
+  // Do NOT reintroduce siguradoShield* / propertyDamage* / premiumProtection /
+  // shieldDeductible constants here without lifting LAUNCH-LIMITATIONS §23 first.
+  // Bug 1168 — Phase 14 Dispatch 04.
 
   minimumPayoutThreshold: 10000, // ₱100.00 in centavos
   minimumQuoteAmount: 10000, // ₱100.00 in centavos

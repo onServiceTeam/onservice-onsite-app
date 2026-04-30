@@ -1,6 +1,16 @@
 -- Migration: Create disputes, dispute_evidence, admin_actions tables (Sprint 4)
--- Implements FR-053 dispute transitions + SiguradoShield™ (Chapter 7)
--- Replaces the simpler dispute schema from migration 008
+-- Implements FR-053 dispute transitions.
+-- Replaces the simpler dispute schema from migration 008.
+--
+-- DEPRECATION NOTE (Phase 14 D04 — Ken decision 2026-04-30, Option A pull):
+-- The original Sprint-4 plan also implemented SiguradoShield™ (Chapter 7
+-- in-house insurance product). SiguradoShield is deferred to v1.1+ pending
+-- Insurance Commission license OR licensed-insurer partnership. The dispute
+-- tables in this migration remain in production and are used for the
+-- regular escrow dispute flow (no insurance claims). When/if Layer 2 is
+-- wired in v1.1+, a NEW migration adds claim-specific tables; this migration
+-- file is immutable historical record. See LAUNCH-LIMITATIONS §23 and
+-- .ai-coder/decisions/D04-siguradoshield.md.
 
 DROP TABLE IF EXISTS dispute_messages CASCADE;
 DROP TABLE IF EXISTS dispute_evidence CASCADE;

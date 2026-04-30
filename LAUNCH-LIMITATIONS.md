@@ -440,3 +440,73 @@ REPORT without Ken's review. The exception file at
 
 **Source decision:** Phase 14 Dispatch 03 — gate hardening + tiered
 enforcement.
+
+## 23. SiguradoShield (in-house insurance product) deferred to v1.1+
+
+SiguradoShield (in-house insurance product) deferred to v1.1+. v1.0
+ships without platform-provided coverage. Customers and providers are
+responsible for any damage or loss per the standard ToS. When real
+coverage is added, it requires either (a) PH Insurance Commission
+license + underwriter capital, or (b) partnership with a licensed
+insurer who provides the policy and we collect premiums on their
+behalf as authorized representative. Either path is a v1.1+ project,
+not a v1.0 patch.
+
+**What was pulled in D04:**
+- Customer mobile UI surfaces (onboarding slide 2, home banner,
+  profile menu row, safety screen rebuild, payment-methods cleanup,
+  help FAQ, terms section 6, provider detail card, booking
+  checkout/confirm escrow language) — every "SiguradoShield™",
+  every peso-amount coverage figure, every "covered up to" claim.
+- Server config (`packages/api/src/config/platform.config.ts` INS-002
+  block deleted; `packages/api/src/services/settings.service.ts`
+  no longer reads max_property_damage_coverage / max_theft_coverage
+  / max_injury_coverage / claim_window_hours).
+- Settings test fixtures (`packages/api/__tests__/settings-service.test.ts`)
+  no longer seed insurance-shaped defaults.
+
+**What was kept (per Ken's instruction — schema is immutable history):**
+- Migration `014_create_disputes.sql` (creates the dispute tables; the
+  comment header notes that the original Sprint-4 plan also implemented
+  SiguradoShield Chapter 7, now deferred). Disputes themselves still
+  ship — they're the regular escrow dispute flow, no insurance claims.
+- Migration `050_platform_settings_rich_schema.sql` seed rows for the
+  protection/* setting keys. Server code paths no longer read them; they
+  sit dormant until v1.1+ either consumes them via a real claims
+  pipeline or a future migration archives them.
+- No actual `shield_polic*` / `shield_claim*` / `insurance_*` tables
+  exist in the migration history; SiguradoShield was always UI-copy
+  with a settings-keyed config layer, never a wired charge/payout
+  integration. Audit findings recorded in `.ai-coder/dispatches/D04-closeout.md`.
+
+**What is enforced:**
+- New Gate C article `no-shield-references` (BLOCKING) at
+  `scripts/gates/c-constitution-no-shield-references.sh`. Fails any
+  commit reintroducing SiguradoShield to UI surfaces or charge/payout
+  code, with a documented allowlist for spec docs, deprecated
+  migrations, this file, and the decision file.
+- Old `a-cross-source-no-siguradoshield.sh` is now a thin alias that
+  delegates to the new gate.
+
+**What awaits Ken's exact wording (legal sensitivity):**
+- A "platform does not provide insurance" disclaimer line in:
+  - `apps/mobile/app/customer/terms.tsx` section 6
+  - `apps/mobile/app/customer/help.tsx` FAQ "Does the platform provide insurance?"
+  - `apps/mobile/app/customer/safety-and-support.tsx` FAQ
+  - Possibly `apps/mobile/app/customer/booking/{checkout,confirm}.tsx`
+  - Provider agreement (D10 onboarding scope honors this)
+- Each surface currently displays a `TODO_KEN_LEGAL_DISCLAIMER` placeholder
+  alongside an HTML-comment marker pointing at
+  `.ai-coder/decisions/D04-siguradoshield.md §legal-language`.
+- Ken (or his lawyer) supplies the wording in a follow-up commit; the
+  AI coder does NOT draft this language.
+
+**Operator obligation:** until Ken's disclaimer wording lands, support
+staff should be aware that customers reading terms section 6 / help
+"Does the platform provide insurance?" / safety screen FAQ will see a
+placeholder string. This is intentional, not a bug. The pull itself
+(removal of the false advertising) is the v1.0 protection; the
+disclaimer wording is the legal-clarity follow-up.
+
+**Source decision:** `.ai-coder/decisions/D04-siguradoshield.md` —
+Ken — Option A — 2026-04-30. Phase 14 Dispatch 04.

@@ -19,7 +19,7 @@ import { Badge, Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Star, AlertTriangle, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText, Shield } from '@/components/icons';
+import { Star, AlertTriangle, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 const TIER_COLORS: Record<string, string> = {
@@ -337,16 +337,12 @@ export default function ProviderProfileScreen(): React.ReactElement {
           </View>
         ))}
 
-        <TouchableOpacity
-          style={styles.shieldBadge}
-          onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.shieldBadgeIconWrap}><Shield size={22} color={colors.primary} /></View>
-          <Text style={styles.shieldBadgeText}>
-            Bookings through onService include SiguradoShield™ protection
-          </Text>
-        </TouchableOpacity>
+        {/* Bug 834 — Phase 14 D04 SiguradoShield pull. The shield-badge that */}
+        {/* tappable-linked to the safety screen with "SiguradoShield™ */}
+        {/* protection" copy is removed. Trust claims (NBI clearance, escrow, */}
+        {/* tracking) are conveyed elsewhere; this provider detail no longer */}
+        {/* makes platform-protection promises. Do NOT reintroduce without */}
+        {/* lifting LAUNCH-LIMITATIONS §23. */}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -560,18 +556,8 @@ const styles = StyleSheet.create({
   responseLabel: { ...typography.caption, color: colors.primary, fontWeight: '600', marginBottom: 2 },
   responseText: { ...typography.bodySmall, color: colors.text },
 
-  shieldBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.infoLight,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.base,
-    gap: spacing.sm,
-  },
-  shieldBadgeIcon: { fontSize: 22 },
-  shieldBadgeIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },
-  shieldBadgeText: { ...typography.bodySmall, color: colors.infoDark, flex: 1 },
+  // shieldBadge styles removed in Phase 14 D04 SiguradoShield pull (Bug 834).
+  // Do NOT reintroduce shieldBadge* without lifting LAUNCH-LIMITATIONS §23.
 
   bottomSpacer: { height: 100 },
 

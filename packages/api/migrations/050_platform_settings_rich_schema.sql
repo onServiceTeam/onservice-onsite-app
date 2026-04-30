@@ -67,7 +67,22 @@ VALUES
 ('cancellation', 'cancel_refund_provider_arrived', 'Refund After Arrival',       'Customer refund % when provider already arrived','percent','50','50',0,100,'%',6),
 ('cancellation', 'cancel_refund_customer_noshow',  'Refund on Customer No-Show', 'Customer refund % on customer no-show','percent','0','0',0,100,'%',7),
 
--- SiguradoShield protection
+-- SiguradoShield protection seed rows — DEPRECATED (Phase 14 D04 pull, 2026-04-30).
+-- These rows seed insurance-shaped settings (max coverage caps, deductibles,
+-- claim window, recovery rate) that the v1.0 platform does NOT honor. The
+-- in-house insurance product is deferred to v1.1+ pending Insurance
+-- Commission license OR licensed-insurer partnership. See LAUNCH-LIMITATIONS
+-- §23 and .ai-coder/decisions/D04-siguradoshield.md.
+--
+-- The rows remain in this migration file because historical migrations are
+-- immutable (Phase 14 hash-chain integrity rule). No new migration deletes
+-- them in v1.0 either — server code paths no longer read these settings
+-- (settings.service.ts no longer exposes maxPropertyDamageCoverage etc.),
+-- so the rows sit dormant until v1.1+ either consumes them via a real
+-- claims pipeline or a migration archives them.
+--
+-- Do NOT add new SiguradoShield-shaped rows in subsequent migrations
+-- without lifting LAUNCH-LIMITATIONS §23.
 ('protection', 'max_property_damage_coverage','Max Property Damage', 'Maximum property damage coverage per incident (centavos)','currency','2500000','2500000',100000,10000000,'centavos',1),
 ('protection', 'max_theft_coverage',          'Max Theft Coverage',  'Maximum theft coverage per incident (centavos)','currency','1000000','1000000',100000,5000000,'centavos',2),
 ('protection', 'max_injury_coverage',         'Max Injury Coverage', 'Maximum injury reimbursement (centavos)','currency','5000000','5000000',100000,10000000,'centavos',3),

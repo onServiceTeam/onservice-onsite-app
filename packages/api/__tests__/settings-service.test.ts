@@ -100,14 +100,12 @@ describe('SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants)',
     cancel_refund_under_30min: '70',
     cancel_refund_provider_arrived: '50',
     cancel_refund_customer_noshow: '0',
-    max_property_damage_coverage: '2500000',
-    max_theft_coverage: '1000000',
-    max_injury_coverage: '5000000',
-    damage_deductible_threshold: '500000',
-    damage_deductible_amount: '50000',
-    claim_window_hours: '48',
-    auto_suspend_claim_count: '3',
-    provider_recovery_rate: '100',
+    // SiguradoShield protection-coverage defaults removed in Phase 14 D04
+    // (Bug 1168 + Bug 538 + decision file D04-siguradoshield.md). Do NOT
+    // reintroduce max_property_damage_coverage / max_theft_coverage /
+    // max_injury_coverage / damage_deductible_* / claim_window_hours /
+    // auto_suspend_claim_count / provider_recovery_rate without lifting
+    // LAUNCH-LIMITATIONS §23.
     otp_length: '6',
     otp_expiry_minutes: '5',
     otp_max_attempts: '3',

@@ -1,8 +1,9 @@
-dispatch: D03
-branch: phase/14-d03-gate-hardening
-status: in-flight
-last-subtask-completed: 0 (branch created from master @ 6959349)
-next-subtask: 1 (gate tiering — MODES.json + run-gate-a.sh aggregator update)
+dispatch: D04
+branch: phase/14-d04-siguradoshield-pull
+status: in-flight (Ken decided Option A; pull execution underway)
+last-subtask-completed: decision recorded (2026-04-30, Option A — pull)
+next-subtask: Bug 1168 (delete SiguradoShield constants from apps/mobile/src/config/platform.config.ts)
 operating-mode: autonomous between dispatches + full audit chain
 session-started: 2026-04-30
-prior-dispatch-merge: D02 final closeout merged via PR #13 at master 6959349
+prior-dispatch: D03 closeout PR #14 opened, all 5 gates green; awaiting Ken merge (autonomous mode does not block on it)
+decision: .ai-coder/decisions/D04-siguradoshield.md — Option A (pull) per Ken's instruction set in chat

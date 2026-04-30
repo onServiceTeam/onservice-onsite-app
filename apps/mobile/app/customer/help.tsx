@@ -53,15 +53,21 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
     ],
   },
   {
-    title: 'SiguradoShield\u2122 Protection',
+    // Bug 686 \u2014 Phase 14 D04 SiguradoShield pull. The "SiguradoShield\u2122
+    // Protection" FAQ section has been removed. The vetting question moves
+    // into the new "Safety & support" section. The "Does the platform provide
+    // insurance?" question awaits Ken's exact disclaimer wording per
+    // .ai-coder/decisions/D04-siguradoshield.md \u00a7legal-language.
+    title: 'Safety & support',
     items: [
-      {
-        q: 'What is SiguradoShield\u2122?',
-        a: 'SiguradoShield\u2122 is our comprehensive protection program. It includes escrow payment protection, NBI-verified providers, a service quality guarantee, and a 48-hour dispute window.',
-      },
       {
         q: 'Are providers background-checked?',
         a: 'Yes. All providers must submit a valid government ID and NBI clearance. We verify their identity through selfie matching and ongoing background checks.',
+      },
+      // <!-- TODO: Ken to provide explicit no-insurance disclaimer wording, see .ai-coder/decisions/D04-siguradoshield.md \u00a7legal-language -->
+      {
+        q: 'Does the platform provide insurance?',
+        a: 'TODO_KEN_LEGAL_DISCLAIMER \u2014 Ken supplies the exact wording per the \u00a7legal-language section of the D04 decision file.',
       },
     ],
   },

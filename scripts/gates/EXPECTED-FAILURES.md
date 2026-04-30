@@ -80,10 +80,9 @@ The Phase 14 design accepts these failures during Dispatches 01–13 because eac
 - **Becomes BLOCKING:** after D05 PR merges.
 
 ### `a-cross-source-no-siguradoshield.sh`
-- **Expected to fail on master:** YES
-- **Reason:** Bug 538 — SiguradoShield references in 6 mobile customer surfaces plus `platform.config.ts:54-57` constants.
-- **Owning dispatch:** Dispatch 04 (SiguradoShield Option A pull).
-- **Becomes BLOCKING:** after D04 PR merges.
+- **Expected to fail on master:** NO (resolved by D04).
+- **Reason:** Phase 14 D04 (Ken's Option A pull, 2026-04-30) removed SiguradoShield from all customer mobile surfaces, server config, and settings defaults. Old REPORT-only fragment is now a thin alias delegating to the stricter `c-constitution-no-shield-references.sh` (Gate C BLOCKING article).
+- **Status:** BLOCKING immediately on D04 branch and going forward.
 
 ---
 
@@ -149,7 +148,7 @@ The Phase 14 design accepts these failures during Dispatches 01–13 because eac
 |---|---|
 | D01 | a-cross-source-no-google-maps-placeholder, a-cross-source-no-axios (admin only) |
 | D02 | a-cross-source-cancellation-policy, a-cross-source-brand-color, a-cross-source-routes, a-cross-source-tier-criteria, a-cross-source-no-axios (mobile complete) |
-| D04 | a-cross-source-no-siguradoshield |
+| D04 | a-cross-source-no-siguradoshield (now alias) + new BLOCKING gate_c_articles.no-shield-references |
 | D05 | a-cross-source-no-client-money |
 | D06 | Money-in-transaction in c-constitution.sh |
 | D07/D08 | Visual baselines for admin + mobile populated |
