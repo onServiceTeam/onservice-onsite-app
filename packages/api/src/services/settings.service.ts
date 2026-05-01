@@ -271,6 +271,12 @@ export async function updateSetting(
   ipAddress?: string,
   userAgent?: string,
 ): Promise<SettingRow> {
+  // CRIT-N13 fix: UPDATE platform_settings + INSERT platform_settings_audit
+  // are now wrapped in a single transaction. Pre-fix: two separate
+  // db.query calls — if the audit INSERT failed after the value UPDATE
+  // committed, the platform setting changed without an audit row.
+  // platform_settings is the source of truth for every money knob, so
+  // an unaudited mutation is a compliance gap.
   const current = await db.query<SettingRow>(
     `SELECT * FROM platform_settings WHERE key = $1`,
     [key],
@@ -284,21 +290,31 @@ export async function updateSetting(
 
   const oldValue = setting.value;
 
-  const updated = await db.query<SettingRow>(
-    `UPDATE platform_settings
-       SET value = $1, updated_by = $2, updated_at = NOW()
-     WHERE key = $3
-     RETURNING *`,
-    [newValue, changedBy, key],
-  );
+  const updated = await db.transaction(async (client) => {
+    const updResult = await client.query<SettingRow>(
+      `UPDATE platform_settings
+         SET value = $1, updated_by = $2, updated_at = NOW()
+       WHERE key = $3
+       RETURNING *`,
+      [newValue, changedBy, key],
+    );
+    if (updResult.rows.length === 0) {
+      // Concurrent delete race — should not happen given the SELECT above,
+      // but defensive throw rolls back any partial state.
+      throw createAppError(`Setting "${key}" not found.`, 404);
+    }
 
-  await db.query(
-    `INSERT INTO platform_settings_audit
-       (setting_id, setting_key, old_value, new_value, changed_by, change_reason, ip_address, user_agent)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [setting.id, key, oldValue, newValue, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
-  );
+    await client.query(
+      `INSERT INTO platform_settings_audit
+         (setting_id, setting_key, old_value, new_value, changed_by, change_reason, ip_address, user_agent)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [setting.id, key, oldValue, newValue, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
+    );
 
+    return updResult.rows[0]!;
+  });
+
+  // Cache bust + log are post-commit (idempotent + non-blocking).
   await bustCache(key);
 
   logger.info('Platform setting updated', {
@@ -309,7 +325,7 @@ export async function updateSetting(
     reason,
   });
 
-  return updated.rows[0]!;
+  return updated;
 }
 
 export async function bulkUpdateSettings(

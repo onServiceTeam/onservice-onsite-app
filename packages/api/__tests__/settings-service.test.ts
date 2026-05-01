@@ -440,10 +440,38 @@ describe('updateSetting', () => {
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it('writes audit row with correct columns', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '10' })] }); // SELECT
-    dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '12' })] }); // UPDATE
-    dbQueryMock.mockResolvedValueOnce({ rows: [] }); // INSERT audit
+  // CRIT-N13 fix: updateSetting now wraps UPDATE + audit INSERT in a single
+  // db.transaction. Test helpers reflect that: trx-aware mocks record the
+  // calls made on the trx client.
+  function setupUpdateTrx(
+    selectRow: SettingRow,
+    updatedRow: SettingRow,
+  ): { txCalls: Array<{ sql: string; params: unknown[] }>; clientQuery: jest.Mock } {
+    const txCalls: Array<{ sql: string; params: unknown[] }> = [];
+    const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
+      txCalls.push({ sql, params });
+      if (/UPDATE platform_settings/.test(sql)) {
+        return { rows: [updatedRow], rowCount: 1 };
+      }
+      if (/INSERT INTO platform_settings_audit/.test(sql)) {
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (cb as any)({ query: clientQuery });
+    });
+    // Outside-the-trx SELECT for current row.
+    dbQueryMock.mockResolvedValueOnce({ rows: [selectRow], rowCount: 1 });
+    return { txCalls, clientQuery };
+  }
+
+  it('writes audit row with correct columns (CRIT-N13: inside transaction)', async () => {
+    const { txCalls } = setupUpdateTrx(
+      fakeRow({ value: '10' }),
+      fakeRow({ value: '12' }),
+    );
 
     await settingsService.updateSetting(
       'service_fee_rate',
@@ -454,10 +482,9 @@ describe('updateSetting', () => {
       'jest/1.0',
     );
 
-    const auditCall = dbQueryMock.mock.calls[2]!;
-    expect(auditCall[0]).toContain('platform_settings_audit');
-    // [setting_id, key, oldValue, newValue, changedBy, reason, ip, ua]
-    expect(auditCall[1]).toEqual([
+    const auditCall = txCalls.find((c) => c.sql.includes('platform_settings_audit'));
+    expect(auditCall).toBeDefined();
+    expect(auditCall!.params).toEqual([
       'row-id',
       'service_fee_rate',
       '10',
@@ -469,15 +496,17 @@ describe('updateSetting', () => {
     ]);
   });
 
-  it('passes null for absent reason / ip / ua', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '10' })] });
-    dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '12' })] });
-    dbQueryMock.mockResolvedValueOnce({ rows: [] });
+  it('passes null for absent reason / ip / ua (CRIT-N13: inside transaction)', async () => {
+    const { txCalls } = setupUpdateTrx(
+      fakeRow({ value: '10' }),
+      fakeRow({ value: '12' }),
+    );
 
     await settingsService.updateSetting('service_fee_rate', '12', 'admin');
 
-    const auditCall = dbQueryMock.mock.calls[2]!;
-    expect(auditCall[1]).toEqual([
+    const auditCall = txCalls.find((c) => c.sql.includes('platform_settings_audit'));
+    expect(auditCall).toBeDefined();
+    expect(auditCall!.params).toEqual([
       'row-id',
       'service_fee_rate',
       '10',
@@ -490,9 +519,7 @@ describe('updateSetting', () => {
   });
 
   it('busts the per-key cache on success', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '10' })] });
-    dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '12' })] });
-    dbQueryMock.mockResolvedValueOnce({ rows: [] });
+    setupUpdateTrx(fakeRow({ value: '10' }), fakeRow({ value: '12' }));
 
     await settingsService.updateSetting('service_fee_rate', '12', 'admin');
 
@@ -508,12 +535,14 @@ describe('updateSetting', () => {
       settingsService.updateSetting('service_fee_rate', '999', 'admin'),
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(dbQueryMock).toHaveBeenCalledTimes(1); // only the SELECT
+    expect(dbTransactionMock).not.toHaveBeenCalled(); // never opened a trx
   });
 
-  it('returns the UPDATE-RETURNING row', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '10' })] });
-    dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '12', updated_by: 'admin' })] });
-    dbQueryMock.mockResolvedValueOnce({ rows: [] });
+  it('returns the UPDATE-RETURNING row (CRIT-N13: inside transaction)', async () => {
+    setupUpdateTrx(
+      fakeRow({ value: '10' }),
+      fakeRow({ value: '12', updated_by: 'admin' }),
+    );
 
     const updated = await settingsService.updateSetting('service_fee_rate', '12', 'admin');
     expect(updated.value).toBe('12');
@@ -528,12 +557,22 @@ describe('bulkUpdateSettings', () => {
     expect(dbQueryMock).not.toHaveBeenCalled();
   });
 
-  it('processes each update sequentially and returns all rows', async () => {
-    // Two updates; each requires SELECT + UPDATE + INSERT (= 6 queries)
+  it('processes each update sequentially and returns all rows (CRIT-N13: each update is its own transaction)', async () => {
+    // CRIT-N13 fix: each updateSetting call opens its own transaction.
+    // For two updates, we expect: 2 SELECTs (outside trx) + 2 trx invocations
+    // (each containing UPDATE + audit INSERT).
     for (let i = 0; i < 2; i++) {
       dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '10' })] });
-      dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: String(20 + i) })] });
-      dbQueryMock.mockResolvedValueOnce({ rows: [] });
+      dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+        const clientQuery = jest.fn(async (sql: string) => {
+          if (/UPDATE platform_settings/.test(sql)) {
+            return { rows: [fakeRow({ value: String(20 + i) })], rowCount: 1 };
+          }
+          return { rows: [], rowCount: 1 };
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (cb as any)({ query: clientQuery });
+      });
     }
     const out = await settingsService.bulkUpdateSettings(
       [
@@ -546,7 +585,8 @@ describe('bulkUpdateSettings', () => {
     expect(out.length).toBe(2);
     expect(out[0]!.value).toBe('20');
     expect(out[1]!.value).toBe('21');
-    expect(dbQueryMock).toHaveBeenCalledTimes(6);
+    expect(dbQueryMock).toHaveBeenCalledTimes(2); // 2 SELECTs (outside trx)
+    expect(dbTransactionMock).toHaveBeenCalledTimes(2); // 2 trx invocations
   });
 
   it('propagates the first failure and stops', async () => {
@@ -569,22 +609,34 @@ describe('resetToDefault', () => {
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it('writes default_value back through updateSetting', async () => {
+  it('writes default_value back through updateSetting (CRIT-N13: trx-aware)', async () => {
+    // resetToDefault calls updateSetting internally, which now uses a trx.
     // SELECT inside resetToDefault
     dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '99', default_value: '10' })] });
     // SELECT inside updateSetting
     dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '99', default_value: '10' })] });
-    // UPDATE
-    dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '10' })] });
-    // INSERT audit
-    dbQueryMock.mockResolvedValueOnce({ rows: [] });
+    // updateSetting opens a transaction.
+    const txCalls: Array<{ sql: string; params: unknown[] }> = [];
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
+        txCalls.push({ sql, params });
+        if (/UPDATE platform_settings/.test(sql)) {
+          return { rows: [fakeRow({ value: '10' })], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 1 };
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (cb as any)({ query: clientQuery });
+    });
 
     const out = await settingsService.resetToDefault('service_fee_rate', 'admin');
     expect(out.value).toBe('10');
-    const updateCall = dbQueryMock.mock.calls[2]!;
-    expect(updateCall[1]).toContain('10');
-    const auditCall = dbQueryMock.mock.calls[3]!;
-    expect(auditCall[1]).toContain('Reset to default');
+    const updateCall = txCalls.find((c) => /UPDATE platform_settings/.test(c.sql));
+    expect(updateCall).toBeDefined();
+    expect(updateCall!.params).toContain('10');
+    const auditCall = txCalls.find((c) => c.sql.includes('platform_settings_audit'));
+    expect(auditCall).toBeDefined();
+    expect(auditCall!.params).toContain('Reset to default');
   });
 });
 
