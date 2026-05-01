@@ -175,6 +175,7 @@ async function buildOrPdf(
   customer: PdfCustomer,
   provider: PdfProvider | null,
   booking: PdfBooking,
+  filer: import('./bir-filer-identity.service').BirFilerIdentity,
 ): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
     try {
@@ -196,11 +197,14 @@ async function buildOrPdf(
       }
       doc.moveDown(1);
 
-      // Sender block
-      doc.fontSize(11).text('OnService Platform Inc.', { continued: false });
-      doc.fontSize(9).text('TIN: 000-000-000-000');
-      doc.text('Address: [Placeholder] Makati City, Metro Manila, Philippines');
-      doc.text('VAT-Registered Taxpayer');
+      // CRIT-N03 fix: Sender block sourced from platform_settings.
+      // Pre-fix: hardcoded "OnService Platform Inc.", placeholder TIN
+      // and address. The bir-filer-identity service guarantees these
+      // values are non-placeholder before this code runs.
+      doc.fontSize(11).text(filer.companyName, { continued: false });
+      doc.fontSize(9).text(`TIN: ${filer.tin}`);
+      doc.text(`Address: ${filer.address}`);
+      doc.text(filer.vatStatus === 'Non-VAT' ? 'Non-VAT Taxpayer' : 'VAT-Registered Taxpayer');
       doc.moveDown(0.7);
 
       // Customer block
@@ -238,8 +242,9 @@ async function buildOrPdf(
       doc.fontSize(9).text('_______________________________');
       doc.text('Authorized Signatory');
       doc.moveDown(0.5);
+      // CRIT-N03 fix: PTU number from platform_settings.
       doc.fontSize(7).text(
-        'This is a system-generated Official Receipt. BIR Permit to Use (PTU) No.: [Placeholder].',
+        `This is a system-generated Official Receipt. BIR Permit to Use (PTU) No.: ${filer.ptuNumber}.`,
       );
 
       doc.end();
@@ -433,6 +438,12 @@ export async function issueOR(input: IssueOrInput): Promise<OfficialReceipt> {
 
   const or = mapOrRow(created);
 
+  // CRIT-N03 fix: load BIR filer identity from platform_settings. Throws
+  // 500 with a specific message if any required field is still the unset
+  // sentinel — fails closed so we never ship a placeholder PDF.
+  const { getBirFilerIdentity } = await import('./bir-filer-identity.service');
+  const filer = await getBirFilerIdentity();
+
   // PDF generation + (optional) upload — best-effort, outside the transaction.
   try {
     const pdf = await buildOrPdf(
@@ -450,6 +461,7 @@ export async function issueOR(input: IssueOrInput): Promise<OfficialReceipt> {
         servicePrice,
         serviceFee,
       },
+      filer,
     );
     const pdfUrl = await uploadPdf(or.orNumber, pdf);
     if (pdfUrl) {

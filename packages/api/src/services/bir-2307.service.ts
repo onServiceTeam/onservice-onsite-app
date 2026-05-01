@@ -209,7 +209,11 @@ function formatRatePercent(rate: number): string {
  * Build a structured single-page BIR-2307-style PDF for a batch. This is a
  * draft artifact only — official filings must use BIR-authorized printers.
  */
-async function buildBir2307Pdf(batch: Bir2307Batch, provider: PdfProvider): Promise<Buffer> {
+async function buildBir2307Pdf(
+  batch: Bir2307Batch,
+  provider: PdfProvider,
+  filer: import('./bir-filer-identity.service').BirFilerIdentity,
+): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
     try {
       const doc = new PDFDocument({ size: 'A4', margin: 50 });
@@ -230,12 +234,13 @@ async function buildBir2307Pdf(batch: Bir2307Batch, provider: PdfProvider): Prom
       doc.fontSize(9).text(`Issued: ${batch.issuedAt}`, { align: 'center' });
       doc.moveDown(1);
 
-      // Withholding agent (payor) block
+      // CRIT-N03 fix: Withholding agent (payor) block sourced from
+      // platform_settings via getBirFilerIdentity().
       doc.fontSize(11).text('Part I — Payor (Withholding Agent)');
       doc.fontSize(9);
-      doc.text('Name: OnService Platform Inc.');
-      doc.text('TIN: 000-000-000-000');
-      doc.text('Address: [Placeholder] Makati City, Metro Manila, Philippines');
+      doc.text(`Name: ${filer.companyName}`);
+      doc.text(`TIN: ${filer.tin}`);
+      doc.text(`Address: ${filer.address}`);
       doc.moveDown(0.7);
 
       // Payee (provider) block
@@ -492,7 +497,10 @@ async function attachPdfToBatch(
   provider: PdfProvider,
 ): Promise<Bir2307Batch> {
   try {
-    const pdf = await buildBir2307Pdf(batch, provider);
+    // CRIT-N03 fix: load filer identity from platform_settings.
+    const { getBirFilerIdentity } = await import('./bir-filer-identity.service');
+    const filer = await getBirFilerIdentity();
+    const pdf = await buildBir2307Pdf(batch, provider, filer);
     const pdfUrl = await uploadPdf(batch.providerId, batch.taxYear, batch.taxQuarter, pdf);
     if (pdfUrl) {
       const upd = await db.query<Bir2307BatchRow>(

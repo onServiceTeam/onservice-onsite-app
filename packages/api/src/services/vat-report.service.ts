@@ -190,7 +190,10 @@ function periodLabel(year: number, month: number): string {
 // PDF generation
 // ─────────────────────────────────────────────────────────────────
 
-async function buildVatPdf(report: VatMonthlyReport): Promise<Buffer> {
+async function buildVatPdf(
+  report: VatMonthlyReport,
+  filer: import('./bir-filer-identity.service').BirFilerIdentity,
+): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
     try {
       const doc = new PDFDocument({ size: 'A4', margin: 50 });
@@ -222,12 +225,12 @@ async function buildVatPdf(report: VatMonthlyReport): Promise<Buffer> {
       }
       doc.moveDown(1);
 
-      // Filer block
+      // CRIT-N06 fix: Filer block sourced from platform_settings.
       doc.fontSize(11).text('Filer:');
-      doc.fontSize(9).text('OnService Platform Inc.');
-      doc.text('TIN: 000-000-000-000');
-      doc.text('Address: [Placeholder] Makati City, Metro Manila, Philippines');
-      doc.text('VAT-Registered Taxpayer');
+      doc.fontSize(9).text(filer.companyName);
+      doc.text(`TIN: ${filer.tin}`);
+      doc.text(`Address: ${filer.address}`);
+      doc.text(filer.vatStatus === 'Non-VAT' ? 'Non-VAT Taxpayer' : 'VAT-Registered Taxpayer');
       doc.moveDown(0.7);
 
       // Totals block
@@ -365,10 +368,17 @@ export async function generateMonthlyVatReport(
   }
   const report = mapReportRow(upsertedRow);
 
+  // CRIT-N06 fix: load filer identity from platform_settings before
+  // building the PDF. Throws if any required field is __UNSET__ —
+  // failing closed is the right behavior for a BIR-bound document
+  // (better to abort report generation than ship placeholders).
+  const { getBirFilerIdentity } = await import('./bir-filer-identity.service');
+  const filer = await getBirFilerIdentity();
+
   // Best-effort PDF build + upload — outside any transaction so a PDF
   // failure cannot lose the report row.
   try {
-    const pdf = await buildVatPdf(report);
+    const pdf = await buildVatPdf(report, filer);
     const pdfUrl = await uploadPdf(year, month, pdf);
     if (pdfUrl) {
       const upd = await db.query<VatMonthlyReportRow>(

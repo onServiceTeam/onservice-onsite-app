@@ -33,6 +33,30 @@ jest.mock('../src/utils/logger', () => ({
   },
 }));
 
+// CRIT-N03 + N06 (2026-05-02 fix): or.service / vat-report.service /
+// bir-2307.service all call getBirFilerIdentity() which reads from
+// platform_settings via settings.service.getSetting. In this hermetic
+// test we mock the loader directly so the BIR identity gate doesn't
+// hit the dbQueryMock plumbing (which is reserved for the OR/2307/VAT
+// query traffic these tests assert on).
+jest.mock('../src/services/bir-filer-identity.service', () => ({
+  getBirFilerIdentity: jest.fn().mockResolvedValue({
+    companyName: 'Test Co.',
+    tin: '123-456-789-000',
+    address: '1 Test Ave., Test City',
+    ptuNumber: 'BIR-PTU-TEST-0001',
+    vatStatus: 'VAT-Registered',
+  }),
+  getBirFilerIdentityRaw: jest.fn().mockResolvedValue({
+    companyName: 'Test Co.',
+    tin: '123-456-789-000',
+    address: '1 Test Ave., Test City',
+    ptuNumber: 'BIR-PTU-TEST-0001',
+    vatStatus: 'VAT-Registered',
+  }),
+  BIR_FILER_UNSET_SENTINEL: '__UNSET__',
+}));
+
 import { logger } from '../src/utils/logger';
 
 import * as orService from '../src/services/or.service';
