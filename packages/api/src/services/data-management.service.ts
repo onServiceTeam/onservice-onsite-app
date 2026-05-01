@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
@@ -373,71 +374,98 @@ export async function processExpiredCoolingOff(): Promise<number> {
 }
 
 async function anonymizeUser(userId: string): Promise<void> {
-  const anonymizedPhone = `+63000${Date.now().toString().slice(-7)}`;
-  const anonymizedEmail = `deleted_${Date.now()}@anonymized.onservice.ph`;
+  // CRIT-N08 fix: NPC RA 10173 anonymization is now atomic.
+  //
+  // Pre-fix: 7 separate top-level db.query calls. If any one failed (DB
+  // blip, statement timeout, FK constraint), the user was left in a
+  // half-anonymized state — addresses gone, push tokens deleted, but
+  // reviews/messages might still hold their name; OR — worse — the
+  // refresh_tokens delete might not have run, meaning the "deleted"
+  // user's old session remained valid for up to the JWT refresh window.
+  //
+  // Post-fix: single db.transaction. ORDER MATTERS — delete refresh
+  // tokens FIRST so any in-flight session is invalidated before we
+  // touch user data. If anything later in the cascade fails, the
+  // transaction rolls back and the cron picks up the same row again
+  // next run. The phone/email anonymization uses crypto.randomUUID()
+  // for collision-resistance instead of Date.now() (was unsafe under
+  // concurrent retries).
+  await db.transaction(async (client) => {
+    // Delete refresh tokens FIRST. If anything later in the cascade
+    // fails and the trx rolls back, the user's session is still
+    // present — the cron retries naturally next run.
+    await client.query(
+      `DELETE FROM refresh_tokens WHERE user_id = $1`,
+      [userId],
+    );
 
-  await db.query(
-    `UPDATE users SET
-       first_name = 'Deleted',
-       last_name = 'User',
-       phone = $2,
-       email = $3,
-       avatar_url = NULL,
-       is_active = FALSE,
-       updated_at = NOW()
-     WHERE id = $1`,
-    [userId, anonymizedPhone, anonymizedEmail],
-  );
+    // Use crypto.randomUUID() for the anonymized phone/email so two
+    // simultaneous deletions don't collide on UNIQUE constraints.
+    // Phone format keeps the +63 prefix and uses 10 digits derived
+    // from the UUID hex (PH numbering plan: +63 + 10).
+    const uuid = crypto.randomUUID().replace(/-/g, '');
+    const anonymizedPhone = '+63' + uuid.slice(0, 10).replace(/[a-f]/g, (c) =>
+      String.fromCharCode(c.charCodeAt(0) - 49)); // a→0, b→1, ..., f→5; ascii 'a'(97) - 49 = '0'(48)
+    const anonymizedEmail = `deleted_${uuid}@anonymized.onservice.ph`;
 
-  await db.query(
-    `DELETE FROM user_addresses WHERE user_id = $1`,
-    [userId],
-  );
-
-  await db.query(
-    `DELETE FROM push_tokens WHERE user_id = $1`,
-    [userId],
-  );
-
-  await db.query(
-    `DELETE FROM refresh_tokens WHERE user_id = $1`,
-    [userId],
-  );
-
-  await db.query(
-    `UPDATE reviews SET comment = '' WHERE reviewer_id = $1`,
-    [userId],
-  );
-
-  await db.query(
-    `UPDATE messages SET content = '[deleted]' WHERE sender_id = $1`,
-    [userId],
-  );
-
-  const providerResult = await db.query<{ id: string }>(
-    `SELECT id FROM providers WHERE user_id = $1`,
-    [userId],
-  );
-
-  if (providerResult.rows.length > 0) {
-    const providerId = providerResult.rows[0]!.id;
-
-    await db.query(
-      `UPDATE providers SET
-         business_name = 'Deleted Provider',
-         description = '',
-         nbi_clearance_url = NULL,
-         status = 'deactivated',
+    await client.query(
+      `UPDATE users SET
+         first_name = 'Deleted',
+         last_name = 'User',
+         phone = $2,
+         email = $3,
+         avatar_url = NULL,
+         is_active = FALSE,
          updated_at = NOW()
        WHERE id = $1`,
-      [providerId],
+      [userId, anonymizedPhone, anonymizedEmail],
     );
 
-    await db.query(
-      `UPDATE provider_services SET is_active = FALSE WHERE provider_id = $1`,
-      [providerId],
+    await client.query(
+      `DELETE FROM user_addresses WHERE user_id = $1`,
+      [userId],
     );
-  }
+
+    await client.query(
+      `DELETE FROM push_tokens WHERE user_id = $1`,
+      [userId],
+    );
+
+    await client.query(
+      `UPDATE reviews SET comment = '' WHERE reviewer_id = $1`,
+      [userId],
+    );
+
+    await client.query(
+      `UPDATE messages SET content = '[deleted]' WHERE sender_id = $1`,
+      [userId],
+    );
+
+    const providerResult = await client.query<{ id: string }>(
+      `SELECT id FROM providers WHERE user_id = $1`,
+      [userId],
+    );
+
+    if (providerResult.rows.length > 0) {
+      const providerId = providerResult.rows[0]!.id;
+
+      await client.query(
+        `UPDATE providers SET
+           business_name = 'Deleted Provider',
+           description = '',
+           nbi_clearance_url = NULL,
+           status = 'deactivated',
+           updated_at = NOW()
+         WHERE id = $1`,
+        [providerId],
+      );
+
+      await client.query(
+        `UPDATE provider_services SET is_active = FALSE WHERE provider_id = $1`,
+        [providerId],
+      );
+    }
+  });
 }
 
 // --- Admin Queries ---
