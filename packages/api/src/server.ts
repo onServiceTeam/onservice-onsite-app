@@ -74,8 +74,49 @@ import * as settingsService from './services/settings.service';
 import { db } from './models/db';
 import { redis } from './config/redis.config';
 
+// CRIT-M04, M05, MED-N66, N95, N169 fix — startup-time validation of
+// production-required secrets. Pre-fix: each env var was checked at
+// first-request time (TOTP encryption fell back to plaintext, JWT
+// signing threw at sign time, CAPTCHA failed open, PayMongo webhook
+// rejected silently, all without admins noticing). Post-fix: refuse
+// to boot in production with any of these unset so misconfiguration
+// is impossible to ship.
+function validateProductionSecrets(): void {
+  if (process.env.NODE_ENV !== 'production') return;
+  const required: Record<string, string | undefined> = {
+    JWT_SECRET: process.env.JWT_SECRET,
+    TOTP_ENCRYPTION_KEY: process.env.TOTP_ENCRYPTION_KEY,
+    CAPTCHA_SECRET_KEY: process.env.CAPTCHA_SECRET_KEY,
+    PAYMONGO_WEBHOOK_SECRET: process.env.PAYMONGO_WEBHOOK_SECRET,
+  };
+  const missing = Object.entries(required)
+    .filter(([, v]) => !v || v.length === 0)
+    .map(([k]) => k);
+  if (missing.length > 0) {
+    // Synchronous throw to prevent the server from binding the port.
+    throw new Error(
+      `FATAL: production startup blocked — required env vars unset: ${missing.join(', ')}. ` +
+        'Each value must be configured before the API will boot in production. ' +
+        'See packages/api/src/server.ts validateProductionSecrets for the full list.',
+    );
+  }
+}
+validateProductionSecrets();
+
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// CRIT-M05 fix — trust the load balancer / reverse proxy headers so
+// req.ip returns the real client IP. Pre-fix: req.ip returned the LB's
+// IP. That broke OTP lockout (one LB IP locked out all users), audit
+// logs (every audit row showed the same handful of IPs), and rate
+// limiting (per-IP limits were per-LB limits). The hop count is
+// configurable via TRUST_PROXY_HOPS env var so different deployments
+// (single LB vs LB-in-front-of-CDN) can tune appropriately.
+const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
+if (Number.isFinite(trustProxyHops) && trustProxyHops > 0) {
+  app.set('trust proxy', trustProxyHops);
+}
 
 // --- Security Middleware ---
 app.use(helmet());
