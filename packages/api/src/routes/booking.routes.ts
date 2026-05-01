@@ -14,6 +14,7 @@ import * as bookingService from '../services/booking.service';
 import * as matchingService from '../services/matching.service';
 import * as notificationService from '../services/notification.service';
 import * as escrowService from '../services/escrow.service';
+import * as orService from '../services/or.service';
 import * as walletService from '../services/wallet.service';
 import * as referralService from '../services/referral.service';
 import * as sukiService from '../services/suki.service';
@@ -502,30 +503,62 @@ router.patch(
       );
 
       if (newStatus === 'confirmed' && oldEscrowStatus === 'held') {
-        let escrowReleased = false;
+        // CRIT-N10 fix: escrow release + status flip to 'payout_ready'
+        // are now atomic via releaseEscrowInTransaction. Pre-fix flow had
+        // three failure modes:
+        //   (a) escrow committed money + status update failed → money
+        //       moved but booking stuck at 'confirmed' (provider sees
+        //       'paid' in dashboard, customer sees 'confirmed').
+        //   (b) escrow failed BEFORE money moved + the manual rollback
+        //       UPDATE itself failed → booking stuck at 'confirmed'
+        //       with no escrow movement.
+        //   (c) under (a), customer could re-trigger confirmation → the
+        //       releaseEscrow's WHERE escrow_status = 'held' guard
+        //       blocks the second attempt, but state is still wrong.
+        // Post-fix: one transaction wraps releaseEscrowInTransaction +
+        // status update. Either both happen or neither does.
+        let breakdown: Awaited<ReturnType<typeof escrowService.releaseEscrowInTransaction>> | null = null;
         try {
-          await escrowService.releaseEscrow(id);
-          escrowReleased = true;
-          await db.query(
-            `UPDATE bookings SET status = 'payout_ready', updated_at = NOW() WHERE id = $1`,
-            [id],
-          );
-        } catch (escrowErr) {
-          if (!escrowReleased) {
-            logger.error('Escrow release failed during confirmation — rolling back to completed_by_provider', {
-              bookingId: id,
-              error: escrowErr instanceof Error ? escrowErr.message : 'Unknown',
-            });
-            await db.query(
-              `UPDATE bookings SET status = 'completed_by_provider', confirmed_at = NULL, updated_at = NOW() WHERE id = $1`,
+          breakdown = await db.transaction(async (client) => {
+            const b = await escrowService.releaseEscrowInTransaction(client, id);
+            await client.query(
+              `UPDATE bookings SET status = 'payout_ready', updated_at = NOW() WHERE id = $1`,
               [id],
             );
-            throw escrowErr;
-          }
-          logger.error('Post-escrow status update failed — escrow released but booking stuck at confirmed', {
+            return b;
+          });
+        } catch (escrowErr) {
+          // Trx rolled back automatically. Booking status remains
+          // 'confirmed' (legitimate state — customer confirmed but
+          // payout not yet ready). Admin can retry via the manual
+          // release endpoint at /admin/bookings/:id/escrow/release.
+          logger.error('Escrow release transaction failed; booking stays at confirmed for admin retry', {
             bookingId: id,
             error: escrowErr instanceof Error ? escrowErr.message : 'Unknown',
           });
+          throw escrowErr;
+        }
+
+        // Best-effort post-commit OR issuance. Mirrors the legacy
+        // releaseEscrow internal pattern (escrow.service.ts:184-197).
+        // Failure here must NOT roll back the escrow release (already
+        // committed). The trx-aware variant explicitly delegates this
+        // to the caller per its file comment.
+        if (breakdown) {
+          try {
+            await orService.issueOR({
+              bookingId: id,
+              commissionAmount: breakdown.commissionAmount,
+              serviceFeeAmount: breakdown.serviceFeeAmount,
+              providerReceived: breakdown.providerReceives,
+              platformRetained: breakdown.platformRetains,
+            });
+          } catch (orErr) {
+            logger.error('OR issuance failed after escrow release (audit-only side effect)', {
+              bookingId: id,
+              error: orErr instanceof Error ? orErr.message : String(orErr),
+            });
+          }
         }
 
         try {
