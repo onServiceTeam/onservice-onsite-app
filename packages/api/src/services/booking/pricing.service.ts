@@ -17,6 +17,7 @@ import { db } from '../../models/db';
 import { createAppError } from '../../middleware/error.middleware';
 import { getSettingNumber } from '../settings.service';
 import { calculatePricing as resolveSurgeLegacy } from '../pricing.service';
+import { resolvePromo, PROMO_ERRORS } from './promo.service';
 
 export interface BookingPricingInput {
   userId: string;
@@ -146,9 +147,35 @@ export async function resolvePricing(input: BookingPricingInput): Promise<Resolv
   const surgeAmountCents = surge.surgeAmount;
   const surgeRuleId = surge.appliedRule?.id ?? null;
 
-  // Promo: stub returns 0 until subtask 3 wires services/booking/promo.service.ts.
-  // Bug 261 fix lands when this stub is replaced with `await resolvePromo({code, subtotalCents, userId})`.
-  const promoDiscountCents = 0;
+  // CRIT-N15 fix: actually resolve the promo discount via promo.service
+  // when the customer supplied a code. Pre-fix this returned 0 always, so
+  // pricing-preview disagreed with createBooking (which DID call
+  // resolvePromo). Customer saw the wrong price in the preview screen,
+  // and bookings could fail with promo_min_order_not_met after the user
+  // saw "you can book this".
+  //
+  // Subtotal that promo eligibility tests against is base + addons + surge
+  // (not including service fee — that's the same convention booking.service
+  // uses at line ~196 of the createBooking flow).
+  let promoDiscountCents = 0;
+  if (input.promoCode) {
+    try {
+      const subtotalForPromo = servicePriceCents + addonsCents + surgeAmountCents;
+      promoDiscountCents = await resolvePromo({
+        code: input.promoCode,
+        subtotalCents: subtotalForPromo,
+        userId: input.userId,
+      });
+    } catch (err) {
+      // Re-throw promo errors as-is so the route layer can surface
+      // promo-specific error codes (PROMO_ERRORS.promoMinOrderNotMet,
+      // promoExhausted, promoInvalid). Other errors propagate normally.
+      // We don't silently zero the discount because that would put us
+      // back in the pre-fix state of preview ≠ create.
+      void PROMO_ERRORS;
+      throw err;
+    }
+  }
 
   const subtotalForFee = servicePriceCents + addonsCents + surgeAmountCents - promoDiscountCents;
   const feeRatePercent = await getSettingNumber('service_fee_rate');
