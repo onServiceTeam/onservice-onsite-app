@@ -99,20 +99,45 @@ export async function processDataExport(exportId: string): Promise<void> {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + EXPORT_EXPIRY_DAYS);
 
-    // In production: upload to S3 and store the URL
-    // For now, mark complete with metadata
+    // CRIT-N07 fix: actually upload the export to S3 instead of marking
+    // the row "completed" with a NULL file_url (NPC RA 10173 right to
+    // data portability requires real delivery within 15 days; the
+    // pre-fix flow shipped nothing).
+    //
+    // Reuses the existing uploadBirDocument helper (S3 + AES256 SSE).
+    // Returns null in dev/test where AWS_S3_BUCKET / AWS_REGION are
+    // unset; in that case we still mark complete but with file_url=NULL
+    // so callers can detect the un-configured state.
+    const { uploadBirDocument } = await import('../utils/s3-bir');
+    const buffer = Buffer.from(serialized, 'utf-8');
+    const ext = req.format === 'json' ? 'json' : 'csv';
+    const contentType = req.format === 'json' ? 'application/json' : 'text/csv';
+    const s3Key = `data-exports/${req.user_id}/${exportId}.${ext}`;
+    const uploaded = await uploadBirDocument(buffer, s3Key, contentType);
+    const fileUrl = uploaded?.url ?? null;
+
+    if (fileUrl === null && process.env.NODE_ENV === 'production') {
+      // Failing closed in production: better to mark failed than to
+      // tell the customer their export is "complete" with no file.
+      throw new Error('S3 not configured — cannot deliver data export in production');
+    }
+
     await db.query(
       `UPDATE data_export_requests
-       SET status = 'completed', file_size_bytes = $2,
-           completed_at = NOW(), expires_at = $3
+       SET status = 'completed',
+           file_url = $2,
+           file_size_bytes = $3,
+           completed_at = NOW(),
+           expires_at = $4
        WHERE id = $1`,
-      [exportId, fileSizeBytes, expiresAt.toISOString()],
+      [exportId, fileUrl, fileSizeBytes, expiresAt.toISOString()],
     );
 
     logger.info('Data export completed', {
       exportId,
       userId: req.user_id,
       sizeBytes: fileSizeBytes,
+      hasFileUrl: fileUrl !== null,
     });
   } catch (err) {
     await db.query(
