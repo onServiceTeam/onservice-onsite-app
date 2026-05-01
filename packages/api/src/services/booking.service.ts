@@ -206,51 +206,68 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
 
   const initialStatus = 'requested';
 
-  const result = await db.query<BookingRow>(
-    `INSERT INTO bookings (
-      customer_id, category_id, subcategory_id, booking_type,
-      description, address, barangay, city, province,
-      latitude, longitude, scheduled_at,
-      service_price, service_fee, total_amount,
-      surge_multiplier, surge_amount, pricing_rule_id, rebooked_from_id,
-      status
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-    RETURNING *`,
-    [
-      params.customerId,
-      params.categoryId,
-      params.subcategoryId ?? null,
-      params.bookingType,
-      params.description,
-      params.address,
-      params.barangay,
-      params.city,
-      params.province,
-      params.latitude ?? null,
-      params.longitude ?? null,
-      params.scheduledAt,
-      servicePrice,
-      serviceFee,
-      totalAmount,
-      surgeMultiplier,
-      surgeAmount,
-      pricingRuleId,
-      params.rebookedFromId ?? null,
-      initialStatus,
-    ],
-  );
+  // CRIT-N09 fix: bookings INSERT + booking_addons inserts now run inside
+  // a single transaction. Pre-fix: bookings INSERT committed (with the
+  // total_amount that already included addons), then per-addon INSERTs ran
+  // separately. If any addon INSERT failed (DB blip, FK violation), the
+  // booking existed with the addon-inclusive total but no booking_addons
+  // rows — provider sees a different scope than the customer paid for.
+  // Also converts the per-addon INSERT loop to a single multi-row INSERT
+  // for performance (was 1 round-trip per addon).
+  const newBooking = await db.transaction(async (client) => {
+    const result = await client.query<BookingRow>(
+      `INSERT INTO bookings (
+        customer_id, category_id, subcategory_id, booking_type,
+        description, address, barangay, city, province,
+        latitude, longitude, scheduled_at,
+        service_price, service_fee, total_amount,
+        surge_multiplier, surge_amount, pricing_rule_id, rebooked_from_id,
+        status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      RETURNING *`,
+      [
+        params.customerId,
+        params.categoryId,
+        params.subcategoryId ?? null,
+        params.bookingType,
+        params.description,
+        params.address,
+        params.barangay,
+        params.city,
+        params.province,
+        params.latitude ?? null,
+        params.longitude ?? null,
+        params.scheduledAt,
+        servicePrice,
+        serviceFee,
+        totalAmount,
+        surgeMultiplier,
+        surgeAmount,
+        pricingRuleId,
+        params.rebookedFromId ?? null,
+        initialStatus,
+      ],
+    );
+    const booking = result.rows[0]!;
 
-  const newBooking = result.rows[0]!;
-
-  if (resolvedAddons.length > 0) {
-    for (const addon of resolvedAddons) {
-      await db.query(
+    if (resolvedAddons.length > 0) {
+      // Single multi-row INSERT instead of N round-trips.
+      const placeholders: string[] = [];
+      const values: unknown[] = [];
+      let idx = 1;
+      for (const addon of resolvedAddons) {
+        placeholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++})`);
+        values.push(booking.id, addon.addonId, addon.name, addon.price);
+      }
+      await client.query(
         `INSERT INTO booking_addons (booking_id, addon_id, name, price)
-         VALUES ($1, $2, $3, $4)`,
-        [newBooking.id, addon.addonId, addon.name, addon.price],
+         VALUES ${placeholders.join(', ')}`,
+        values,
       );
     }
-  }
+
+    return booking;
+  });
 
   logger.info('Booking created', {
     bookingId: newBooking.id,
