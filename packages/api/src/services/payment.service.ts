@@ -1,4 +1,7 @@
-import axios from 'axios';
+// Bug 1271 verified — native fetch only. CRIT-N14 fix: replaced axios with
+// globalThis.fetch so this service follows the same wrapper rule as the rest
+// of the codebase. Axios was the last remaining dependency on a third-party
+// HTTP client in the API package.
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
@@ -49,9 +52,10 @@ export async function createPaymentIntent(
 
   if (paymentMethod !== 'wallet') {
     try {
-      const response = await axios.post(
-        `${PAYMONGO_BASE}/payment_intents`,
-        {
+      const response = await globalThis.fetch(`${PAYMONGO_BASE}/payment_intents`, {
+        method: 'POST',
+        headers: { ...getPaymongoHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           data: {
             attributes: {
               amount,
@@ -61,12 +65,19 @@ export async function createPaymentIntent(
               metadata: { booking_id: bookingId },
             },
           },
-        },
-        { headers: { ...getPaymongoHeaders(), 'Content-Type': 'application/json' } },
-      );
+        }),
+      });
 
-      paymongoIntentId = response.data?.data?.id ?? null;
-      clientKey = response.data?.data?.attributes?.client_key ?? null;
+      if (!response.ok) {
+        throw new Error(`PayMongo returned status ${response.status}`);
+      }
+
+      const responseData = (await response.json()) as {
+        data?: { id?: string; attributes?: { client_key?: string } };
+      };
+
+      paymongoIntentId = responseData.data?.id ?? null;
+      clientKey = responseData.data?.attributes?.client_key ?? null;
     } catch (err) {
       logger.error('PayMongo payment intent creation failed', {
         bookingId,
@@ -140,9 +151,10 @@ export async function processRefund(
 
   if (intent.paymongo_intent_id && !intent.paymongo_intent_id.startsWith('pi_sandbox_')) {
     try {
-      await axios.post(
-        `${PAYMONGO_BASE}/refunds`,
-        {
+      const response = await globalThis.fetch(`${PAYMONGO_BASE}/refunds`, {
+        method: 'POST',
+        headers: { ...getPaymongoHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           data: {
             attributes: {
               amount: refundAmount,
@@ -151,9 +163,11 @@ export async function processRefund(
               notes: reason,
             },
           },
-        },
-        { headers: { ...getPaymongoHeaders(), 'Content-Type': 'application/json' } },
-      );
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`PayMongo refund returned status ${response.status}`);
+      }
     } catch (err) {
       logger.error('PayMongo refund failed', { bookingId, error: err instanceof Error ? err.message : 'Unknown' });
       if (process.env.NODE_ENV === 'production') {
