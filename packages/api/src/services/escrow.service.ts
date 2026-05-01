@@ -521,6 +521,25 @@ export async function releaseEscrowInTransaction(
   const providerReceives = servicePrice - commissionAmount;
   const platformRetains = commissionAmount + serviceFee - guaranteeFundContribution;
 
+  // CRIT-N04 fix: money-conservation guard. The legacy releaseEscrow has
+  // this check (lines 90-102); the trx-aware variant was missing it,
+  // meaning settings drift (e.g., commission rate change) could silently
+  // mint or burn money inside the transaction. Mirror the legacy check
+  // exactly: tolerate up to 2 centavos of rounding error, throw on more.
+  const totalOut = providerReceives + platformRetains + guaranteeFundContribution;
+  if (totalOut !== totalAmount) {
+    const diff = totalAmount - totalOut;
+    if (Math.abs(diff) <= 2) {
+      logger.debug('Rounding adjustment in escrow release (trx)', { bookingId, diff });
+    } else {
+      logger.error('MONEY CONSERVATION VIOLATION in releaseEscrowInTransaction', {
+        bookingId, servicePrice, serviceFee, totalAmount, totalOut, diff,
+        providerReceives, platformRetains, guaranteeFundContribution,
+      });
+      throw createAppError('Internal accounting error. Please contact support.', 500);
+    }
+  }
+
   const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
   const revenueWallet = await walletService.getPlatformWallet('platform_revenue');
   const guaranteeWallet = await walletService.getPlatformWallet('guarantee_fund');
