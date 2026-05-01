@@ -563,9 +563,9 @@ router.post(
       logger.info('Admin login', { userId: user.id, email: user.email });
 
       // Bug 1251 fix: issue HttpOnly session + refresh cookies + JS-readable
-      // CSRF cookie. The legacy access/refresh tokens are still returned in
-      // the JSON body for backward compat with the existing admin client; the
-      // client refactor on the same PR stops reading them.
+      // CSRF cookie. CRIT-N11 fix: tokens are NO LONGER returned in the JSON
+      // body — that defeated the HttpOnly defense (XSS could read them from
+      // the response). Admin client must rely on the cookies only.
       await setAdminSessionCookies(res, {
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
@@ -577,8 +577,6 @@ router.post(
       res.json({
         success: true,
         data: {
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
           user: formatUserResponse(user),
           sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
         },
@@ -665,8 +663,8 @@ router.post(
 
       logger.info('Admin 2FA login', { userId: user.id });
 
-      // Bug 1251 fix: issue HttpOnly session + refresh cookies + JS-readable
-      // CSRF cookie after 2FA verification.
+      // Bug 1251 fix + CRIT-N11 fix: HttpOnly cookies only. Tokens removed
+      // from response body (was an XSS exfil vector).
       await setAdminSessionCookies(res, {
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
@@ -678,8 +676,6 @@ router.post(
       res.json({
         success: true,
         data: {
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
           user: formatUserResponse(fullUser.rows[0]!),
           sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
         },
@@ -802,7 +798,7 @@ router.post(
         );
         const tokens = await authService.createTokenPair(userId, role);
 
-        // Bug 1251 fix: issue session cookies after forced-2FA enrolment.
+        // Bug 1251 + CRIT-N11 fix: HttpOnly cookies only.
         await setAdminSessionCookies(res, {
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
@@ -815,8 +811,6 @@ router.post(
           success: true,
           data: {
             message: 'Two-factor authentication is now enabled.',
-            accessToken: tokens.accessToken,
-            refreshToken: tokens.refreshToken,
             user: formatUserResponse(fullUser.rows[0]!),
             sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
           },
