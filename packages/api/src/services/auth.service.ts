@@ -9,7 +9,8 @@ import { createAppError } from '../middleware/error.middleware';
 interface OtpRow {
   id: string;
   phone: string;
-  code: string;
+  code: string | null;
+  code_hash: string | null;
   attempts: number;
   is_used: boolean;
   expires_at: Date;
@@ -52,6 +53,60 @@ function generateOtp(): string {
 
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// CRIT-N12 fix — OTP codes are stored as scrypt hashes, not plaintext.
+// Salt is derived per-row (random 16 bytes). Phone number is mixed into
+// the hash input as a secondary salt so even if two rows shared the same
+// random salt the hashes would differ.
+//
+// Format mirrors the scrypt password format:
+//   scrypt:N:r:p:salt:hash
+//
+// We use the same N/r/p as auth.service.ts password hashes so the cost
+// is consistent. Verify uses crypto.timingSafeEqual.
+function hashOtpCode(code: string, phone: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const input = `${code}:${phone}`; // phone-as-secondary-salt
+  const h = crypto
+    .scryptSync(input, salt, SCRYPT_KEYLEN, {
+      N: SCRYPT_N,
+      r: SCRYPT_R,
+      p: SCRYPT_P,
+      maxmem: SCRYPT_MAXMEM,
+    })
+    .toString('hex');
+  return `${HASH_VERSION}:${SCRYPT_N}:${SCRYPT_R}:${SCRYPT_P}:${salt}:${h}`;
+}
+
+function verifyOtpCodeHash(code: string, phone: string, stored: string): boolean {
+  const parts = stored.split(':');
+  if (parts.length !== 6 || parts[0] !== HASH_VERSION) return false;
+  const N = Number(parts[1]);
+  const r = Number(parts[2]);
+  const p = Number(parts[3]);
+  const salt = parts[4]!;
+  const expectedHex = parts[5]!;
+  const input = `${code}:${phone}`;
+  let computed: Buffer;
+  try {
+    computed = crypto.scryptSync(input, salt, SCRYPT_KEYLEN, {
+      N,
+      r,
+      p,
+      maxmem: SCRYPT_MAXMEM,
+    });
+  } catch {
+    return false;
+  }
+  let stash: Buffer;
+  try {
+    stash = Buffer.from(expectedHex, 'hex');
+  } catch {
+    return false;
+  }
+  if (stash.length !== computed.length) return false;
+  return crypto.timingSafeEqual(stash, computed);
 }
 
 export const SCRYPT_N = 131072;
@@ -185,18 +240,26 @@ export async function sendOtp(phone: string): Promise<{ message: string }> {
     throw createAppError('Too many OTP requests. Please try again in an hour.', 429);
   }
 
-  await db.query(
-    `UPDATE otp_codes SET is_used = TRUE WHERE phone = $1 AND is_used = FALSE`,
-    [phone],
-  );
-
+  // CRIT-N12 fix: invalidate prior OTPs and write the NEW row's hash in
+  // a single transaction. Pre-fix: two separate db.query calls — if the
+  // INSERT failed after the UPDATE, the user had no live OTP and no
+  // prior ones either (fragile but not security-critical). The bigger
+  // change: we no longer write the plaintext `code` column. Going
+  // forward only `code_hash` is populated.
   const otp = generateOtp();
+  const codeHash = hashOtpCode(otp, phone);
   const expiresAt = new Date(Date.now() + platformConfig.otpExpiryMinutes * 60 * 1000);
 
-  await db.query(
-    `INSERT INTO otp_codes (phone, code, expires_at) VALUES ($1, $2, $3)`,
-    [phone, otp, expiresAt],
-  );
+  await db.transaction(async (client) => {
+    await client.query(
+      `UPDATE otp_codes SET is_used = TRUE WHERE phone = $1 AND is_used = FALSE`,
+      [phone],
+    );
+    await client.query(
+      `INSERT INTO otp_codes (phone, code_hash, expires_at) VALUES ($1, $2, $3)`,
+      [phone, codeHash, expiresAt],
+    );
+  });
 
   const sent = await sendOtpSms(phone, otp);
   if (!sent && process.env.NODE_ENV === 'production') {
@@ -239,7 +302,22 @@ export async function verifyOtp(
     throw createAppError('Maximum attempts exceeded. Please request a new code.', 429);
   }
 
-  if (otpRecord.code !== code) {
+  // CRIT-N12 fix + MED-N94 fix: constant-time comparison. New rows
+  // (post-migration 089) carry only code_hash; legacy in-flight rows
+  // (mid-rollout) may still have a plaintext code populated. Try the
+  // hash path first, fall back to the timing-safe equal of legacy
+  // plaintext (drained within minutes of the rollout).
+  let codeMatches = false;
+  if (otpRecord.code_hash) {
+    codeMatches = verifyOtpCodeHash(code, phone, otpRecord.code_hash);
+  } else if (otpRecord.code) {
+    // Legacy row — only present briefly during the rollout window.
+    const a = Buffer.from(otpRecord.code);
+    const b = Buffer.from(code);
+    codeMatches = a.length === b.length && crypto.timingSafeEqual(a, b);
+  }
+
+  if (!codeMatches) {
     await db.query(
       `UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1`,
       [otpRecord.id],
