@@ -55,14 +55,15 @@ migrations 089 + 090 + new bir-filer-identity service):
 3. Verify AWS_S3_BUCKET + AWS_REGION env vars set in production for
    data-export delivery.
 
-## Next session — Wave 2 P1 (remaining dispatches from audit closeout)
+## Wave 2 P1 — IN PROGRESS
 
-The audit closeout (`.ai-coder/audit-2026-05-01/AUDIT-CLOSEOUT-FINAL.md`)
-lists D-J11 through D-J26 as P1 priority. Of those, D-J11 (CRIT-N16) is
-already DONE in this session. The remaining P1 dispatches are:
+| # | Dispatch | CRIT/MED | Status | Commit |
+|---|---|---|---|---|
+| 12 | D-J12 — wire pricing-preview to resolvePromo | CRIT-N15 | DONE | 5bdbd0b |
+| 13 | D-J13 — server.ts trust proxy + startup secret validation | CRIT-M04, M05 + MED-N66/N95/N169 | DONE | 58d37b0 |
 
-- **D-J12** Wire pricing-preview to resolvePromo (CRIT-N15)
-- **D-J13** server.ts trust proxy + startup secret validation (CRIT-M04, M05, MED-N66, N95, N169)
+### Remaining Wave 2 P1 + P2
+
 - **D-J14** Promote rate-limit middleware to live settings (CRIT-M01)
 - **D-J15** Decide 'dpo' role: implement or remove (CRIT-M03, MED-O02)
 - **D-J16** Cache middleware: key by user identity (CRIT-M02)
