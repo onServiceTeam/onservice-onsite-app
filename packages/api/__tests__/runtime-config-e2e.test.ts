@@ -6,11 +6,12 @@
  */
 
 const dbQueryMock = jest.fn();
+const dbTransactionMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({
   db: {
     query: (...args: unknown[]) => dbQueryMock(...args),
-    transaction: jest.fn(),
+    transaction: (cb: unknown) => dbTransactionMock(cb),
   },
 }));
 
@@ -120,47 +121,63 @@ describe('runtime-config-e2e', () => {
   });
 
   describe('updateSetting side effects', () => {
-    it('writes audit row and busts cache on success', async () => {
-      // SELECT current
+    it('writes audit row and busts cache on success (CRIT-N13: trx-aware)', async () => {
+      // CRIT-N13 fix: UPDATE + audit INSERT now run inside a single trx.
+      // SELECT current (outside trx).
       dbQueryMock.mockResolvedValueOnce({
         rows: [fakeRow({ value_type: 'number', min_value: '5', max_value: '20' })],
       });
-      // UPDATE
-      dbQueryMock.mockResolvedValueOnce({
-        rows: [fakeRow({ value_type: 'number', value: '12' })],
+      const txCalls: Array<{ sql: string; params: unknown[] }> = [];
+      dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+        const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
+          txCalls.push({ sql, params });
+          if (/UPDATE platform_settings/.test(sql)) {
+            return { rows: [fakeRow({ value_type: 'number', value: '12' })], rowCount: 1 };
+          }
+          return { rows: [], rowCount: 1 };
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (cb as any)({ query: clientQuery });
       });
-      // INSERT audit
-      dbQueryMock.mockResolvedValueOnce({ rows: [] });
 
       await settingsService.updateSetting('service_fee_rate', '12', 'admin-user-id', 'tuning');
 
-      // First call: SELECT, second: UPDATE, third: INSERT audit
-      expect(dbQueryMock).toHaveBeenCalledTimes(3);
-      const auditCall = dbQueryMock.mock.calls[2]![0] as string;
-      expect(auditCall).toContain('platform_settings_audit');
+      // The audit insert is inside the trx, not in dbQueryMock.
+      const auditCall = txCalls.find((c) => c.sql.includes('platform_settings_audit'));
+      expect(auditCall).toBeDefined();
       expect(redisDelMock).toHaveBeenCalled();
     });
   });
 
   describe('resetToDefault', () => {
-    it('writes the default_value back to the row', async () => {
+    it('writes the default_value back to the row (CRIT-N13: trx-aware)', async () => {
       // SELECT in resetToDefault
       dbQueryMock.mockResolvedValueOnce({
         rows: [fakeRow({ value: '99', default_value: '10' })],
       });
-      // SELECT inside updateSetting
+      // SELECT inside updateSetting (outside trx)
       dbQueryMock.mockResolvedValueOnce({
         rows: [fakeRow({ value: '99', default_value: '10' })],
       });
-      // UPDATE
-      dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '10' })] });
-      // INSERT audit
-      dbQueryMock.mockResolvedValueOnce({ rows: [] });
+      // updateSetting trx
+      const txCalls: Array<{ sql: string; params: unknown[] }> = [];
+      dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+        const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
+          txCalls.push({ sql, params });
+          if (/UPDATE platform_settings/.test(sql)) {
+            return { rows: [fakeRow({ value: '10' })], rowCount: 1 };
+          }
+          return { rows: [], rowCount: 1 };
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (cb as any)({ query: clientQuery });
+      });
 
       await settingsService.resetToDefault('service_fee_rate', 'admin-user-id');
-      // The UPDATE call (3rd) must have been called with default_value '10'
-      const updateCall = dbQueryMock.mock.calls[2]!;
-      expect(updateCall[1]).toContain('10');
+      // The UPDATE call inside the trx must have been called with default_value '10'.
+      const updateCall = txCalls.find((c) => /UPDATE platform_settings/.test(c.sql));
+      expect(updateCall).toBeDefined();
+      expect(updateCall!.params).toContain('10');
     });
   });
 });
