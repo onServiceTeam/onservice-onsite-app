@@ -1,6 +1,12 @@
 /**
  * Phase 03 — Admin runtime settings routes.
  * Mounted at /api/v1/admin/settings (see server.ts).
+ *
+ * CRIT-N16 fix (2026-05-02): mutations are now super_admin-only. Reads
+ * (GET /, GET /:category, GET /:key/history) remain at admin level so
+ * junior admins can observe current values. The platform_settings table
+ * holds every money knob (commission rates, fees, refund tiers, etc.) so
+ * mutations must be gated at the highest privilege.
  */
 
 import { Router, Response, NextFunction } from 'express';
@@ -11,16 +17,26 @@ import * as settingsService from '../services/settings.service';
 
 const router = Router();
 
+// All settings routes require authentication. Read access is at the
+// admin level (junior admins can view current platform values) but
+// every mutation requires super_admin (per CRIT-N16).
 router.use(authMiddleware);
 router.use(rbacMiddleware('admin', 'super_admin'));
 
-// POST /cache/flush — bust all settings cache (placed BEFORE :category to avoid shadowing)
-router.post('/cache/flush', async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  try {
-    await settingsService.bustAllCache();
-    res.json({ success: true, message: 'Settings cache flushed.' });
-  } catch (err) { next(err); }
-});
+// POST /cache/flush — bust all settings cache (super_admin only — flushing
+// the cache forces every reader to re-fetch from DB; benign in isolation
+// but a cheap surface for an attacker to amplify a settings change).
+// Placed BEFORE :category to avoid shadowing.
+router.post(
+  '/cache/flush',
+  rbacMiddleware('super_admin'),
+  async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      await settingsService.bustAllCache();
+      res.json({ success: true, message: 'Settings cache flushed.' });
+    } catch (err) { next(err); }
+  },
+);
 
 // GET / — all settings, grouped by category
 router.get('/', async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -38,8 +54,8 @@ router.get('/', async (_req: AuthenticatedRequest, res: Response, next: NextFunc
   } catch (err) { next(err); }
 });
 
-// PUT / — bulk update
-router.put('/', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+// PUT / — bulk update (super_admin only per CRIT-N16)
+router.put('/', rbacMiddleware('super_admin'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { updates, reason } = req.body as {
       updates?: Array<{ key: string; value: unknown }>;
@@ -80,16 +96,16 @@ router.get('/:key/history', async (req: AuthenticatedRequest, res: Response, nex
   } catch (err) { next(err); }
 });
 
-// POST /:key/reset — reset to default value
-router.post('/:key/reset', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+// POST /:key/reset — reset to default value (super_admin only per CRIT-N16)
+router.post('/:key/reset', rbacMiddleware('super_admin'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const updated = await settingsService.resetToDefault(String(req.params.key), req.user!.userId);
     res.json({ success: true, data: settingsService.formatSetting(updated) });
   } catch (err) { next(err); }
 });
 
-// PUT /:key — update single setting
-router.put('/:key', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+// PUT /:key — update single setting (super_admin only per CRIT-N16)
+router.put('/:key', rbacMiddleware('super_admin'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { value, reason } = req.body as { value?: unknown; reason?: string };
     if (value === undefined || value === null) {
