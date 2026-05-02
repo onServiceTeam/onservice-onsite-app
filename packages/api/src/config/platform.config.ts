@@ -8,7 +8,16 @@ export const platformConfig = {
   appName: 'onService',
 
   // --- Commission Rates by Provider Tier ---
+  // MED-N32 fix: 'founding' tier added (migration 073 introduced
+  // it; commission rate is admin-editable in platform_settings as
+  // commission_rate_founding=10). The values here are fallback
+  // defaults — getCommissionRate() in pricing.service routes through
+  // settingsService.getSettingNumber('commission_rate_<tier>').
+  // Keep all 5 keys here so callers like provider-tools.service.ts
+  // and admin-analytics.service.ts that index into this map don't
+  // silently fall back to 'new' for founding-tier providers.
   commissionRates: {
+    founding: 0.10,   // 10% — invite-only batch tier (DECISION-003)
     new: 0.15,        // 15% for new providers
     verified: 0.13,   // 13% for verified providers
     pro: 0.11,        // 11% for pro providers

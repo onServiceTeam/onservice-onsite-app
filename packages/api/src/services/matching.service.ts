@@ -35,7 +35,13 @@ export interface ScoredProvider {
   score: number;
 }
 
+// MED-N102 fix: 'founding' tier added (migration 073 + DECISION-003).
+// Founding providers are an invite-only batch with high engagement, so
+// they get the same matching boost as 'pro'-tier providers (between
+// verified and elite). This pairs with the platformConfig.commissionRates
+// addition so all 5 tiers are recognized end-to-end.
 const TIER_BONUS: Record<string, number> = {
+  founding: 0.5,
   new: 0.0,
   verified: 0.25,
   pro: 0.5,

@@ -715,7 +715,20 @@ interface TierRequirement {
   benefits: string[];
 }
 
+// MED-N22 fix: 'founding' tier added at the front of the ladder so
+// `getTierProgression` reports the correct currentTier for founding
+// providers. Founding is a parallel invite-only tier (NOT a step in
+// the standard new→verified→pro→elite progression), so the
+// `getTierProgression` function below special-cases it to return
+// nextTier=null and requirements=null. The ladder still includes it
+// so the UI can render all 5 tiers in `allTiers`.
 const TIER_LADDER: TierRequirement[] = [
+  {
+    tier: 'founding',
+    minJobs: 0, minRating: 0, requiresCertification: false, requiresZeroDisputes: false,
+    commission: 10,
+    benefits: ['Invite-only founding-batch tier', 'Lowest commission rate (10%)', 'Featured launch placement', 'Priority customer support'],
+  },
   {
     tier: 'new',
     minJobs: 0, minRating: 0, requiresCertification: false, requiresZeroDisputes: false,
@@ -771,7 +784,23 @@ export async function getTierProgression(providerId: string): Promise<TierProgre
   const row = provider.rows[0];
   const currentTierIdx = TIER_LADDER.findIndex((t) => t.tier === row.tier);
   const currentTier = TIER_LADDER[currentTierIdx] ?? TIER_LADDER[0]!;
-  const nextTier = currentTierIdx < TIER_LADDER.length - 1 ? TIER_LADDER[currentTierIdx + 1]! : null;
+
+  // MED-N22 fix: 'founding' is a parallel tier with no upward
+  // progression target (it would be a downgrade in commission to
+  // step from founding=10% to new=15%). Treat founding as terminal
+  // for progression — UI can still show `allTiers` to display the
+  // standard ladder for context.
+  // For non-founding tiers, the next standard step skips index 0
+  // (founding) so progression goes new→verified→pro→elite.
+  let nextTier: TierRequirement | null = null;
+  if (row.tier !== 'founding') {
+    // Standard ladder starts at the 'new' index.
+    const standardLadder = TIER_LADDER.filter((t) => t.tier !== 'founding');
+    const standardIdx = standardLadder.findIndex((t) => t.tier === row.tier);
+    nextTier = standardIdx >= 0 && standardIdx < standardLadder.length - 1
+      ? standardLadder[standardIdx + 1]!
+      : null;
+  }
 
   const certResult = await db.query<{ count: string }>(
     `SELECT COUNT(*)::text as count FROM provider_certifications WHERE provider_id = $1 AND is_verified = TRUE`,
