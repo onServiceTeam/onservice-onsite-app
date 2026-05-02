@@ -139,6 +139,13 @@ Landed:
 | 5b69028 | MED-N12+N34 | escrow-summary aging buckets accurate; provider pendingEscrow NET |
 | d68d270 | MED-N14+N17 | activity endpoints mask IP+UA for junior admin |
 | 2f147bd | MED-N05+N41 | real responseScore from booking_quotes; widen contract status enum |
+| 859865d | MED-N04+N21 | churn prediction does pagination in SQL; BIR batch is per-provider error-resilient |
+| 3e002d6 | MED-N11 | getRevenueByPaymentMethod surfaces degradation via {rows, degraded, message} |
+| f319d71 | MED-N02 | admin GET /actions validates adminId UUID + actionType slug |
+| 1282bb1 | MED-N62 | independent IP-level OTP lockout (closes phone-rotation bypass) |
+| c8486d7 | MED-N86+N96 | log customer self-assigns + require auth on GET /providers/:id |
+| d0febd5 | MED-N52+N54+N56 | account-deletion guards for pending escrow + cooling-off race + active dispute |
+| dc06517 | MED-N42+N79+N81 | consent atomicity + tighter NPC ref + email uniqueness pre-check |
 
 **Deferred:** MED-N27 (handleCancellation atomicity) — needs a 9-test
 rewrite that's larger than the fix itself; left as the next session's
@@ -147,24 +154,27 @@ trx-aware variant `handleCancellationInTransaction` (used by the
 booking-admin path) is already correct.
 
 **Audit findings remaining (rough counts, v1.1 backlog):**
-- MED-N: ~123 of 169 still open (~28 landed in session 2 across 14 commits)
+- MED-N: ~108 of 169 still open (~41 landed in session 2 across 22 commits)
 - MED-K, L, M, O batches: not yet touched in fixes phase
 
 ## Session 2 final state — 2026-05-02 (final)
 
-- **Test suite:** 1979/1979 passing.
-- **Commits this session:** 42+ total (Wave 2 P1 + P2 + 28 v1.1 MEDs + escalations + docs).
-- **Net new tests:** +358 (started at 1621 in session 1 close).
+- **Test suite:** 2055/2055 passing.
+- **Commits this session:** 50+ total (Wave 2 P1 + P2 + 41 v1.1 MEDs + escalations + docs).
+- **Net new tests:** +434 (started at 1621 in session 1 close).
 - **Net new migrations:** 9 (089–097) all compatible with prod schema.
 - **Net new services:** 5 (gateway-retry, i18n, slack-alert, bir-filer-identity, test-fixtures router).
 - **Next session priorities:**
   1. Check `.ai-coder/decisions/` for Ken responses on E01 / E02.
   2. If no decisions, tackle MED-N27 with the test rewrite (8-test
      transition to dbTransactionMock pattern), then continue v1.1
-     backlog from MED-N04 (memory-loaded churn pagination) onward.
+     backlog from MED-N03/N13/N57/N60-N72 onward.
   3. Routes calling getProviderActivity / getCustomerActivity should
      forward `req.user.role` for accurate masking (currently default-
      masked which is safe but slightly over-restrictive for super_admin).
+  4. Admin UI: update consumer of GET /financial/revenue/by-payment to
+     handle the new `{rows, degraded, message}` shape and render a
+     "schema not migrated" banner when degraded=true.
 
 ## RESUME instructions for the next session
 
