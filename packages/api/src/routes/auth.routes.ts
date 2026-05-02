@@ -451,8 +451,15 @@ router.post(
       // The DPO is a real role with NPC RA 10173 §21 segregation; they
       // log in via the admin tier and reach DPO-scope routes via
       // requireDpoRole.
-      const result = await db.query<UserProfileRow & { password_hash: string | null }>(
-        `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at, password_hash
+      // LAUNCH-LIMITATIONS #12 — also pull must_rotate_password so the
+      // success response can flag forced-rotation. Defaults to FALSE
+      // for legacy rows where mig 116 hasn't applied yet.
+      const result = await db.query<
+        UserProfileRow & { password_hash: string | null; must_rotate_password: boolean | null }
+      >(
+        `SELECT id, phone, email, first_name, last_name, role, avatar_url,
+                is_verified, is_active, created_at, password_hash,
+                COALESCE(must_rotate_password, FALSE) AS must_rotate_password
          FROM users WHERE email = $1 AND role IN ('admin', 'super_admin', 'dpo')`,
         [email.toLowerCase().trim()],
       );
@@ -623,6 +630,10 @@ router.post(
         data: {
           user: formatUserResponse(user),
           sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
+          // LAUNCH-LIMITATIONS #12 — when TRUE the admin web app
+          // routes straight to the change-password screen and gates
+          // every other route until the rotation lands.
+          mustRotatePassword: user.must_rotate_password === true,
         },
       });
     } catch (error) {
@@ -700,8 +711,16 @@ router.post(
         metadata: {},
       });
 
-      const fullUser = await db.query<UserProfileRow>(
-        `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at FROM users WHERE id = $1`,
+      // LAUNCH-LIMITATIONS #12 — pull must_rotate_password so the
+      // post-2FA response can flag forced rotation. Same shape as the
+      // password-only login branch above.
+      const fullUser = await db.query<
+        UserProfileRow & { must_rotate_password: boolean | null }
+      >(
+        `SELECT id, phone, email, first_name, last_name, role, avatar_url,
+                is_verified, is_active, created_at,
+                COALESCE(must_rotate_password, FALSE) AS must_rotate_password
+         FROM users WHERE id = $1`,
         [user.id],
       );
 
@@ -722,6 +741,7 @@ router.post(
         data: {
           user: formatUserResponse(fullUser.rows[0]!),
           sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
+          mustRotatePassword: fullUser.rows[0]?.must_rotate_password === true,
         },
       });
     } catch (error) {

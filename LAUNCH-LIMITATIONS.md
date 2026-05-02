@@ -146,17 +146,31 @@ the customer's NPC 15-day SLA right is preserved either way.
 flow cards. If the user submits two requests, both appear with their
 own status and due date — no more single-submission gap.
 
-## 10. BIR document bucket policy is not yet enforced
+## 10. BIR document bucket policy — code spec ready, awaits terraform apply
 
 **Where:** S3 bucket referenced by `AWS_S3_BUCKET_BIR_DOCS`.
 
-Bucket policies, Object Lock, versioning, and lifecycle described in
-[INFRA-CHECKLIST.md](INFRA-CHECKLIST.md) section 1 are **not yet
-applied** in production. Until they are, OR / 2307 PDFs are technically
-deletable from outside the application path.
+**Status:** Spec complete in `infra/terraform/`. Operator must run
+`terraform apply` against the production AWS account.
 
-**Mitigation:** IAM role for the API service must be locked down per
-INFRA-CHECKLIST item 2.3 (deny `s3:DeleteObject*`) before launch.
+The Terraform now covers:
+- `s3-bir-receipts.tf` — bucket + Object Lock COMPLIANCE 10y +
+  versioning + SSE-KMS + public-access block + TLS-only policy.
+- `s3-customer-uploads.tf` — bucket + KMS + lifecycle.
+- `s3-access-log-bucket.tf` — central access-log bucket attached to
+  both prod buckets.
+- `iam-api-service-role.tf` (new 2026-05-03, LL#10 fix) — implements
+  INFRA-CHECKLIST items 2.1–2.5: dedicated `onservice-api-prod` role
+  with PutObject + GetObject on BIR bucket only, **explicit DENY** on
+  DeleteObject*, PutBucket*, PutObjectRetention, PutObjectLegalHold,
+  BypassGovernanceRetention. Permission boundary blocks IAM/KMS
+  mutation. Separate `onservice-data-export-prod` role scoped to
+  `customer-uploads/exports/*` only with explicit DENY on the BIR
+  bucket so a compromised export job can't cross-pollinate.
+
+**Remaining:** the AWS apply itself + plumbing the role ARNs into the
+ECS task definitions / EKS pod spec is operator work tracked in the
+launch-cutover runbook.
 
 ---
 
@@ -190,17 +204,52 @@ POST a `captchaToken` (or `hcaptchaToken`) field that is validated by
 `verifyHCaptchaToken` before any DB write. The neutral failure copy
 "Verification failed. Please try again." is the recommended response.
 
-## 12. Admin password rehash is opportunistic (Phase 13 Dispatch D)
+## 12. Admin password rehash is opportunistic — RESOLVED 2026-05-03
 
-When an admin logs in with a hash stored under the legacy `salt:hash`
-format (or under weaker scrypt parameters), the API rehashes their
-password to the new `scrypt:N:r:p:salt:hash` format with N=131072 inside
-the same login request. If that UPDATE fails (e.g., DB momentarily
-unavailable) the login still succeeds and the legacy hash is preserved
-until the next successful login. There is no background job to force
-re-hash dormant accounts. Operators should verify the migration is
-complete via `SELECT count(*) FROM users WHERE password_hash NOT LIKE
-'scrypt:%';` before declaring the SEC hardening fully landed.
+**Status:** RESOLVED — proactive rotation campaign for legacy password
+hashes implemented end-to-end.
+
+The opportunistic rehash on login (auth.routes.ts) still upgrades a
+legacy / weaker scrypt hash to the current cost factor inside the
+same login. Dormant accounts that never log in were the gap; this is
+now closed:
+
+- **Migration 116** — `users.must_rotate_password BOOLEAN NOT NULL
+  DEFAULT FALSE` + partial index. `admin_actions.action_type` CHECK
+  widened with `legacy_password_rotation_flagged` +
+  `admin_password_rotated`. Idempotent + non-destructive (no auto-flip
+  at apply time).
+- **Service** — `admin-password-rotation.service.ts`:
+  - `getLegacyPasswordStats()` returns `{total, legacy, current,
+    mustRotate}` counts via single COUNT FILTER query.
+  - `flagLegacyHashesForRotation(adminId)` flips
+    `must_rotate_password=TRUE` on every admin-tier account whose
+    hash isn't `scrypt:131072:%`. Single audit row per campaign run
+    (not per user) to avoid log spam.
+  - `changeOwnAdminPassword({userId, oldPassword, newPassword})`
+    verifies old, validates new (12–128 chars, must differ), hashes
+    with current scrypt N, clears the flag, audits — all in one trx.
+- **Routes** (security.routes.ts):
+  - `GET /api/v1/security/admin/legacy-password-stats` (any admin tier)
+  - `POST /api/v1/security/admin/flag-legacy-password-hashes`
+    (super_admin only)
+  - `POST /api/v1/security/admin/me/change-password`
+- **Login flow** (auth.routes.ts) — admin login + admin 2FA verify
+  responses now include `mustRotatePassword: boolean` so the admin
+  web app can route straight to the change-password screen and gate
+  every other route until the rotation lands. Tokens are still
+  issued (so the user CAN reach the change-password screen).
+- **Tests** — 12 tests in `launch-limit-12-admin-password-rotation.test.ts`.
+
+**Operator workflow:**
+1. Apply migration 116.
+2. Hit `GET /security/admin/legacy-password-stats` to see the count.
+3. Optionally hit `POST /security/admin/flag-legacy-password-hashes`
+   to begin the campaign — affected admins will be forced to rotate
+   on next login.
+4. Verify completion later via the same telemetry endpoint or the
+   SQL query: `SELECT COUNT(*) FROM users WHERE role IN ('admin',
+   'super_admin', 'dpo') AND password_hash NOT LIKE 'scrypt:131072:%';`
 
 ## 13. Tech debt — Jest worker leak warning (pre-existing)
 

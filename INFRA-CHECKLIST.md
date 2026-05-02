@@ -30,13 +30,16 @@ retention**.
 
 ## 2. IAM — least privilege for the API service role
 
+Spec landed in [`infra/terraform/iam-api-service-role.tf`](infra/terraform/iam-api-service-role.tf) (LAUNCH-LIMITATIONS #10 fix, 2026-05-03).
+Operator still has to `terraform apply` against the production AWS account.
+
 | # | Task | Signed off |
 |---|------|------------|
-| 2.1 | Create a dedicated IAM role for the API runtime (e.g., `onservice-api-prod`). Do **not** reuse the deployer role. | |
-| 2.2 | Scope the role's S3 permissions to **`s3:PutObject`** and **`s3:GetObject`** on the BIR bucket only (resource ARN with prefix). | |
-| 2.3 | Explicitly **deny** `s3:DeleteObject`, `s3:DeleteObjectVersion`, and `s3:PutBucket*` on the BIR bucket. | |
-| 2.4 | Permission boundary preventing the role from creating new IAM principals or modifying KMS keys. | |
-| 2.5 | Separate IAM role for the data-export job that gets `s3:PutObject` on the **export** bucket (NOT the BIR bucket). | |
+| 2.1 | Create a dedicated IAM role for the API runtime (e.g., `onservice-api-prod`). Do **not** reuse the deployer role. | spec ready |
+| 2.2 | Scope the role's S3 permissions to **`s3:PutObject`** and **`s3:GetObject`** on the BIR bucket only (resource ARN with prefix). | spec ready |
+| 2.3 | Explicitly **deny** `s3:DeleteObject`, `s3:DeleteObjectVersion`, and `s3:PutBucket*` on the BIR bucket. | spec ready |
+| 2.4 | Permission boundary preventing the role from creating new IAM principals or modifying KMS keys. | spec ready |
+| 2.5 | Separate IAM role for the data-export job that gets `s3:PutObject` on the **export** bucket (NOT the BIR bucket). | spec ready |
 
 ## 3. Network / CORS
 
