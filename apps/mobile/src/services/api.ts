@@ -171,21 +171,49 @@ async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosL
   return { data: parsed as T, status: res.status, ok: true };
 }
 
+// Phase K MED-K03 fix — single-flight refresh.
+//
+// Pre-fix: when N concurrent requests all 401'd at once (common after
+// token expiry, e.g. app foregrounded with stale token), each one
+// called refreshOnce() in parallel. The first refresh succeeded and
+// rotated the token; the next N refreshes presented the now-deleted
+// old token, server returned 401, all retried requests then ALSO
+// failed. Net: stale-token storms triggered forced logouts that
+// shouldn't have happened.
+//
+// Post-fix: single-flight gate. The first 401 starts the refresh;
+// concurrent 401s await the SAME in-flight promise instead of
+// kicking off their own refresh. After the refresh resolves, the
+// gate is cleared and subsequent 401s start fresh.
+let inFlightRefresh: Promise<string | null> | null = null;
+
 async function refreshOnce(): Promise<string | null> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
-  try {
-    const res = await rawFetch<{ success: boolean; data: { accessToken: string; refreshToken?: string } }>(
-      '/api/v1/auth/refresh-token',
-      { method: 'POST', body: { refreshToken }, _bearerOverride: '' },
-    );
-    const data = res.data?.data;
-    if (!data?.accessToken) return null;
-    storeTokens(data.accessToken, data.refreshToken ?? refreshToken);
-    return data.accessToken;
-  } catch {
-    return null;
-  }
+  // Coalesce concurrent callers onto the same in-flight refresh.
+  if (inFlightRefresh) return inFlightRefresh;
+
+  inFlightRefresh = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
+    try {
+      const res = await rawFetch<{ success: boolean; data: { accessToken: string; refreshToken?: string } }>(
+        '/api/v1/auth/refresh-token',
+        { method: 'POST', body: { refreshToken }, _bearerOverride: '' },
+      );
+      const data = res.data?.data;
+      if (!data?.accessToken) return null;
+      storeTokens(data.accessToken, data.refreshToken ?? refreshToken);
+      return data.accessToken;
+    } catch {
+      return null;
+    } finally {
+      // Clear the gate AFTER the promise settles so the next 401
+      // (which arrives after the rotation) starts a fresh refresh.
+      // We microtask-defer the clear so other awaiters resolve
+      // against the SAME promise reference before it's nulled.
+      setTimeout(() => { inFlightRefresh = null; }, 0);
+    }
+  })();
+  return inFlightRefresh;
 }
 
 async function request<T>(url: string, init: ApiRequestInit, isRetry = false): Promise<ApiAxiosLikeResponse<T>> {

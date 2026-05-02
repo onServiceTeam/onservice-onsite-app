@@ -328,10 +328,15 @@ describe('Bookings + Payment — components', () => {
     // states alongside booking statuses.
     const { container: c1 } = render(<StatusBadge status="confirmed" />);
     expect(c1.textContent).toContain('Completed');
-    // Receipt-specific states aren't in StatusBadge.STATUS_MAP — they
-    // fall through to the raw string. Test that fallback works.
+    // Phase K MED-K17 fix — payout_ready and paid_out now have
+    // friendly labels in STATUS_MAP (was: fall through to raw enum).
     const { container: c2 } = render(<StatusBadge status="payout_ready" />);
-    expect(c2.textContent).toContain('payout_ready');
+    expect(c2.textContent).toContain('Payout ready');
+    const { container: c3 } = render(<StatusBadge status="paid_out" />);
+    expect(c3.textContent).toContain('Paid out');
+    // Truly-unknown statuses STILL fall through to raw string.
+    const { container: c4 } = render(<StatusBadge status="some_future_state" />);
+    expect(c4.textContent).toContain('some_future_state');
   });
 
   it.todo(

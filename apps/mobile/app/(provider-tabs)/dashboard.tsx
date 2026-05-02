@@ -229,7 +229,12 @@ export default function ProviderDashboardScreen(): React.ReactElement {
               <Text style={styles.jobService}>{job.serviceName ?? job.categoryName ?? 'Service'}</Text>
               <Text style={styles.jobAddress} numberOfLines={1}>{[job.address, job.barangay, job.city].filter(Boolean).join(', ')}</Text>
               <View style={styles.jobCardBottom}>
-                <Text style={styles.jobPrice}>{formatPHP(job.servicePrice)}</Text>
+                {/* Phase K MED-K11 fix — show totalAmount (what
+                     customer pays) not servicePrice. servicePrice is
+                     the pre-fee component; provider's earnings are
+                     net of commission, but the customer-facing price
+                     on the job card is the total. */}
+                <Text style={styles.jobPrice}>{formatPHP(job.totalAmount)}</Text>
                 <Text style={styles.jobArrow}>›</Text>
               </View>
             </TouchableOpacity>

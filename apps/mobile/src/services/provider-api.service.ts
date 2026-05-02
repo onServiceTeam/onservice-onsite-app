@@ -6,7 +6,10 @@ export interface ProviderSelf {
   id: string;
   userId: string;
   businessName: string;
-  tier: 'new' | 'verified' | 'pro' | 'elite';
+  // Phase K MED-K05 fix — 'founding' tier added to match migration
+  // 073 CHECK constraint and the 5-tier ladder in commission /
+  // platform_settings (Founding, New, Verified, Pro, Elite).
+  tier: 'founding' | 'new' | 'verified' | 'pro' | 'elite';
   status: 'pending' | 'approved' | 'suspended' | 'deactivated' | 'rejected';
   bio: string | null;
   rating: number | null;
