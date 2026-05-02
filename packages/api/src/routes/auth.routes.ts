@@ -86,13 +86,17 @@ function adminAuthOrSetupToken(
       const jwt = await import('jsonwebtoken');
       const payload = jwt.default.verify(token, secret) as {
         userId: string;
-        role: 'customer' | 'provider' | 'admin' | 'super_admin';
+        // E01 / D15 — `dpo` added for NPC RA 10173 §21 segregation.
+        role: 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo';
         type?: string;
         iat: number;
         exp: number;
       };
+      // E01 / D15 — admin tier roles include 'dpo'. They share the
+      // 2FA setup + admin login flow.
+      const ADMIN_TIER = new Set(['admin', 'super_admin', 'dpo']);
       if (payload.type === 'pre_auth_2fa_setup') {
-        if (payload.role !== 'admin' && payload.role !== 'super_admin') {
+        if (!ADMIN_TIER.has(payload.role)) {
           next(createAppError('Admin role required.', 403));
           return;
         }
@@ -110,7 +114,7 @@ function adminAuthOrSetupToken(
         next(createAppError('Invalid authentication token.', 401));
         return;
       }
-      if (payload.role !== 'admin' && payload.role !== 'super_admin') {
+      if (!ADMIN_TIER.has(payload.role)) {
         next(createAppError('Admin role required.', 403));
         return;
       }
@@ -443,9 +447,13 @@ router.post(
       const clientIp = getClientIp(req);
       const { email, password } = req.body;
 
+      // E01 / D15 — admin login flow accepts admin, super_admin, AND dpo.
+      // The DPO is a real role with NPC RA 10173 §21 segregation; they
+      // log in via the admin tier and reach DPO-scope routes via
+      // requireDpoRole.
       const result = await db.query<UserProfileRow & { password_hash: string | null }>(
         `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at, password_hash
-         FROM users WHERE email = $1 AND role IN ('admin', 'super_admin')`,
+         FROM users WHERE email = $1 AND role IN ('admin', 'super_admin', 'dpo')`,
         [email.toLowerCase().trim()],
       );
 
@@ -542,10 +550,11 @@ router.post(
         return;
       }
 
-      // Force 2FA enrollment for admin/super_admin accounts that have not yet
+      // Force 2FA enrollment for admin tier accounts that have not yet
       // configured TOTP. Issue a short-lived `pre_auth_2fa_setup` token that
       // grants access ONLY to /admin/2fa/setup and /admin/2fa/enable.
-      if (user.role === 'admin' || user.role === 'super_admin') {
+      // E01 / D15 — DPO is in the admin tier and must enroll TOTP too.
+      if (user.role === 'admin' || user.role === 'super_admin' || user.role === 'dpo') {
         const jwtSetup = await import('jsonwebtoken');
         const setupSecret = process.env.JWT_SECRET;
         if (!setupSecret) throw new Error('JWT_SECRET is not configured');
@@ -730,7 +739,8 @@ router.post(
       const userId = req.user!.userId;
       const role = req.user!.role;
 
-      if (role !== 'admin' && role !== 'super_admin') {
+      // E01 / D15 — admin tier (admin, super_admin, dpo) all require 2FA.
+      if (role !== 'admin' && role !== 'super_admin' && role !== 'dpo') {
         throw createAppError('2FA setup is only available for admin accounts.', 403);
       }
 
@@ -801,7 +811,8 @@ router.post(
       const role = req.user!.role;
       const { totpCode } = req.body;
 
-      if (role !== 'admin' && role !== 'super_admin') {
+      // E01 / D15 — admin tier (admin, super_admin, dpo) all enable 2FA.
+      if (role !== 'admin' && role !== 'super_admin' && role !== 'dpo') {
         throw createAppError('2FA is only available for admin accounts.', 403);
       }
 
@@ -981,7 +992,8 @@ router.post(
       const role = req.user!.role;
       const { totpCode } = req.body;
 
-      if (role !== 'admin' && role !== 'super_admin') {
+      // E01 / D15 — admin tier (admin, super_admin, dpo) all manage 2FA.
+      if (role !== 'admin' && role !== 'super_admin' && role !== 'dpo') {
         throw createAppError('2FA is only available for admin accounts.', 403);
       }
 

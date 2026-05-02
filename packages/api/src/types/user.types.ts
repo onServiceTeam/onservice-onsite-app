@@ -1,4 +1,16 @@
-export type UserRole = 'customer' | 'provider' | 'admin' | 'super_admin';
+export type UserRole = 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo';
+
+/**
+ * E01 / D15 (2026-05-02) — admin-tier roles.
+ * `dpo` (Data Protection Officer) is a real role under NPC RA 10173 §21.
+ * It must remain segregated from super_admin so the DPO can't override
+ * their own duties. `requireDpoRole` middleware grants either super_admin
+ * or dpo access (super_admin retains DPO power as a fallback if the DPO
+ * seat is vacant); endpoints that require dpo-only segregation should
+ * additionally check that role !== 'super_admin' inline.
+ */
+export const ADMIN_TIER_ROLES: ReadonlySet<UserRole> = new Set(['admin', 'super_admin', 'dpo']);
+export const DPO_AUTHORIZED_ROLES: ReadonlySet<UserRole> = new Set(['super_admin', 'dpo']);
 
 export type ProviderTier = 'new' | 'verified' | 'pro' | 'elite';
 

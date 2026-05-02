@@ -3,9 +3,11 @@ import jwt from 'jsonwebtoken';
 import { createAppError } from './error.middleware';
 import { logger } from '../utils/logger';
 
+// E01 / D15 (2026-05-02) — `dpo` is a real role for NPC RA 10173 §21
+// segregation of duties. JWTs may now be signed with role='dpo'.
 export interface AuthPayload {
   userId: string;
-  role: 'customer' | 'provider' | 'admin' | 'super_admin';
+  role: 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo';
   iat: number;
   exp: number;
 }

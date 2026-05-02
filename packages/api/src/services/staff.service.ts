@@ -399,6 +399,149 @@ function validatePermissions(permissions: string[]): void {
   }
 }
 
+/**
+ * E01 / D15 (2026-05-02) — DPO role assignment.
+ *
+ * Promotes an existing user (typically already an admin or staff member)
+ * to role='dpo'. Idempotent (no-op if already dpo). Refuses to promote
+ * a non-existent user. Refuses to demote-then-promote a super_admin
+ * (super_admins keep their role; DPO power is granted to super_admin
+ * implicitly by requireDpoRole middleware).
+ *
+ * Writes admin_actions row with action_type='staff_role_promoted_dpo'
+ * for the audit trail (NPC RA 10173 §28 evidentiary requirement).
+ */
+export async function promoteToDpo(
+  targetUserId: string,
+  promotedByAdminId: string,
+): Promise<{ userId: string; previousRole: string; newRole: 'dpo' }> {
+  if (!targetUserId) throw createAppError('Target user ID is required.', 400);
+
+  return db.transaction(async (client) => {
+    const target = await client.query<{ id: string; role: string; is_active: boolean }>(
+      `SELECT id, role, is_active FROM users WHERE id = $1 FOR UPDATE`,
+      [targetUserId],
+    );
+    if (target.rows.length === 0) {
+      throw createAppError('Target user not found.', 404);
+    }
+    const prev = target.rows[0]!;
+    if (!prev.is_active) {
+      throw createAppError('Cannot promote a deactivated user.', 409);
+    }
+    if (prev.role === 'super_admin') {
+      throw createAppError(
+        'Super admins already hold DPO authority via requireDpoRole. Demote to admin first if you want to formally assign the DPO role.',
+        409,
+      );
+    }
+    if (prev.role === 'dpo') {
+      // Idempotent — return current state without writing an audit row.
+      return { userId: prev.id, previousRole: 'dpo', newRole: 'dpo' as const };
+    }
+
+    await client.query(
+      `UPDATE users SET role = 'dpo', updated_at = NOW() WHERE id = $1`,
+      [prev.id],
+    );
+
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'staff_role_promoted_dpo', 'user', $2, $3::jsonb)`,
+      [
+        promotedByAdminId,
+        prev.id,
+        JSON.stringify({ previousRole: prev.role, newRole: 'dpo' }),
+      ],
+    );
+
+    logger.info('User promoted to DPO', { targetUserId: prev.id, promotedByAdminId, previousRole: prev.role });
+    return { userId: prev.id, previousRole: prev.role, newRole: 'dpo' as const };
+  });
+}
+
+/**
+ * Demotes a DPO back to plain admin. Refuses to demote a non-DPO.
+ * Default fallback role is 'admin'; pass `demoteTo` to override (must
+ * be one of: admin, customer, provider — never super_admin).
+ *
+ * Operationally there should be 0 or 1 DPO at any time per NPC §21;
+ * the demote path is for handover (demote outgoing, then promote new).
+ */
+export async function demoteFromDpo(
+  targetUserId: string,
+  demotedByAdminId: string,
+  demoteTo: 'admin' | 'customer' | 'provider' = 'admin',
+): Promise<{ userId: string; previousRole: 'dpo'; newRole: typeof demoteTo }> {
+  if (!targetUserId) throw createAppError('Target user ID is required.', 400);
+  if (!['admin', 'customer', 'provider'].includes(demoteTo)) {
+    throw createAppError('Invalid demoteTo role.', 400);
+  }
+
+  return db.transaction(async (client) => {
+    const target = await client.query<{ id: string; role: string }>(
+      `SELECT id, role FROM users WHERE id = $1 FOR UPDATE`,
+      [targetUserId],
+    );
+    if (target.rows.length === 0) {
+      throw createAppError('Target user not found.', 404);
+    }
+    const prev = target.rows[0]!;
+    if (prev.role !== 'dpo') {
+      throw createAppError('Target user is not currently a DPO.', 409);
+    }
+
+    await client.query(
+      `UPDATE users SET role = $2, updated_at = NOW() WHERE id = $1`,
+      [prev.id, demoteTo],
+    );
+
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'staff_role_demoted_from_dpo', 'user', $2, $3::jsonb)`,
+      [
+        demotedByAdminId,
+        prev.id,
+        JSON.stringify({ previousRole: 'dpo', newRole: demoteTo }),
+      ],
+    );
+
+    logger.info('User demoted from DPO', { targetUserId: prev.id, demotedByAdminId, newRole: demoteTo });
+    return { userId: prev.id, previousRole: 'dpo' as const, newRole: demoteTo };
+  });
+}
+
+/**
+ * Returns the current DPO user(s). Operationally there should be 0
+ * or 1; if 0 the runbook calls for super_admin to act as fallback DPO.
+ */
+export async function listDpos(): Promise<Array<{ id: string; email: string | null; firstName: string; lastName: string; promotedAt: string | null }>> {
+  const result = await db.query<{
+    id: string;
+    email: string | null;
+    first_name: string;
+    last_name: string;
+    promoted_at: string | null;
+  }>(
+    `SELECT u.id, u.email, u.first_name, u.last_name,
+            (SELECT MAX(aa.created_at) FROM admin_actions aa
+             WHERE aa.target_id = u.id
+               AND aa.action_type = 'staff_role_promoted_dpo') AS promoted_at
+     FROM users u
+     WHERE u.role = 'dpo' AND u.is_active = TRUE
+     ORDER BY u.created_at`,
+  );
+  return result.rows.map((r) => ({
+    id: r.id,
+    email: r.email,
+    firstName: r.first_name,
+    lastName: r.last_name,
+    promotedAt: r.promoted_at,
+  }));
+}
+
 /** All available permissions used across the platform */
 export const ALL_PERMISSIONS = [
   'dashboard.view',

@@ -165,4 +165,65 @@ router.get(
   },
 );
 
+// ─── DPO role management (E01 / D15) ───────────────────────────────
+//
+// NPC RA 10173 §21 requires a designated Data Protection Officer with
+// independent authority. These endpoints let super_admin assign and
+// revoke the DPO role, with full audit trail (admin_actions).
+
+router.get(
+  '/dpos',
+  authMiddleware,
+  rbacMiddleware('super_admin'),
+  async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const dpos = await staffService.listDpos();
+      res.json({ success: true, data: dpos });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/dpos/:userId/promote',
+  authMiddleware,
+  rbacMiddleware('super_admin'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.params.userId;
+      if (typeof userId !== 'string' || !userId) {
+        throw createAppError('User ID is required.', 400);
+      }
+      const result = await staffService.promoteToDpo(userId, req.user!.userId);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/dpos/:userId/demote',
+  authMiddleware,
+  rbacMiddleware('super_admin'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.params.userId;
+      if (typeof userId !== 'string' || !userId) {
+        throw createAppError('User ID is required.', 400);
+      }
+      const demoteTo: 'admin' | 'customer' | 'provider' =
+        typeof req.body?.demoteTo === 'string' &&
+        ['admin', 'customer', 'provider'].includes(req.body.demoteTo)
+          ? req.body.demoteTo
+          : 'admin';
+      const result = await staffService.demoteFromDpo(userId, req.user!.userId, demoteTo);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 export default router;
