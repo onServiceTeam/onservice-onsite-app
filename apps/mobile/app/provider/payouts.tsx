@@ -60,7 +60,7 @@ async function getPayouts(page: number, pageSize: number): Promise<{
     success: boolean;
     data: Payout[];
     pagination: { total: number; page: number; pageSize: number; totalPages: number };
-  }>('/api/v1/wallets/payouts', { params: { page, pageSize } });
+  }>('/api/v1/wallet/payouts', { params: { page, pageSize } });
   return { payouts: res.data.data, ...res.data.pagination };
 }
 

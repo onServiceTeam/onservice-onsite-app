@@ -10,7 +10,17 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Routes } from '@/config/navigation';
 const RADIUS_OPTIONS = [5, 10, 15, 20, 30, 50];
 
+// Phase E CRIT-116 fix — Boracay/Aklan added (the launch market).
+// Pre-fix the list was Metro Manila + Cebu/Davao/Iloilo only, so a
+// Boracay applicant either typed a city not in the list (and got
+// the K06-fix Manila default re-route) OR fell through to the
+// rejected geocode. Boracay primary entries (Malay = the
+// municipality that owns Boracay; Boracay = the island name users
+// actually type).
 const PH_REGIONS: { city: string; province: string; lat: number; lng: number }[] = [
+  { city: 'Boracay', province: 'Aklan', lat: 11.9685, lng: 121.9162 },
+  { city: 'Malay', province: 'Aklan', lat: 11.9088, lng: 121.9105 },
+  { city: 'Kalibo', province: 'Aklan', lat: 11.7080, lng: 122.3683 },
   { city: 'Quezon City', province: 'Metro Manila', lat: 14.6760, lng: 121.0437 },
   { city: 'Manila', province: 'Metro Manila', lat: 14.5995, lng: 120.9842 },
   { city: 'Makati', province: 'Metro Manila', lat: 14.5547, lng: 121.0244 },

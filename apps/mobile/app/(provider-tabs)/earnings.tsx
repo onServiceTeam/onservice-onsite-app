@@ -123,7 +123,7 @@ export default function EarningsScreen(): React.ReactElement {
         success: boolean;
         data: Transaction[];
         pagination: { total: number };
-      }>('/api/v1/wallets/transactions', { params: { page: 1, pageSize: 30 } });
+      }>('/api/v1/wallet/transactions', { params: { page: 1, pageSize: 30 } });
       return res.data.data;
     },
     staleTime: 60 * 1000,

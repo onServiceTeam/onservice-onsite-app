@@ -80,7 +80,7 @@ export default function WalletScreen(): React.ReactElement {
         success: boolean;
         data: Transaction[];
         pagination: { total: number };
-      }>('/api/v1/wallets/transactions', { params: { page: 1, pageSize: 20 } });
+      }>('/api/v1/wallet/transactions', { params: { page: 1, pageSize: 20 } });
       return res.data.data;
     },
     staleTime: 60 * 1000,

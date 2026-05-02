@@ -49,7 +49,7 @@ export default function WithdrawScreen(): React.ReactElement {
   const withdrawMutation = useMutation({
     mutationFn: async () => {
       const amountCentavos = Math.round(parseFloat(amount) * 100);
-      const res = await api.post('/api/v1/wallets/withdraw', {
+      const res = await api.post('/api/v1/wallet/withdraw', {
         amount: amountCentavos,
         method,
         destinationAccount: account.trim(),
