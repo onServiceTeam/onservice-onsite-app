@@ -977,6 +977,68 @@ jest moduleNameMapper updated to also catch `expo-file-system/legacy`.
   unhandled-error count 0).
 - **Total commits this wave (5g–5p):** 33 across the three packages.
 
+## Session 5q — LAUNCH-LIMITATIONS #5 forced re-consent + audit dir tracked
+
+| # | Commit | Summary |
+|---|---|---|
+| 1 | b9747f3 | LAUNCH-LIMITATIONS #5 — opt-in `material` flag on consent publish + customer pending-consents endpoint + admin checkbox + mobile re-consent banner (9 tests) |
+| 2 | 303e558 | docs: track .ai-coder/audit-2026-05-01 reference materials (110 files) |
+
+### What landed in 5q
+
+**LL#5** — opt-in `material: boolean` (defaults false). When the DPO
+ticks "material change" in the publish dialog, every user who
+previously granted an OLDER version of that consent type becomes
+pending-re-consent. The new `GET /api/v1/compliance/my-pending-consents`
+endpoint returns the outstanding rows; mobile data-rights surfaces a
+banner with inline "I agree" buttons that hit `POST /api/v1/compliance/consent`
+with the latest version.
+
+Design choices:
+1. The flag is captured at PUBLISH time (operator decides per event)
+   rather than retroactively — historical publishes remain inert.
+2. Explicit revokes are not in the pending list — opt-out is respected
+   and the surface that needs the consent must run its own opt-in
+   flow when next invoked.
+3. Storage is in the existing admin_actions.details JSONB, no new
+   migration. SQL uses `(details->>'material')::boolean IS TRUE` and
+   DISTINCT ON (consentType) to pick the latest material publish per
+   type.
+
+**Audit dir tracked** — the 100%-coverage audit corpus (`.ai-coder/audit-2026-05-01/`,
+110 files with phase summaries, batch findings, inventory, verifications)
+is now committed so the file:line citations behind every CRIT-N* / MED-N*
+/ B/C/D/E/F-CRIT* fix have a permanent home.
+
+### Numbers (session 5q final)
+
+- **Backend tests:** 2486 passing (was 2477 at end of 5n; +9 from
+  launch-limit-5-material-reconsent.test.ts).
+- **Mobile tests:** 406 passing + 89 todo (unchanged).
+- **Admin tests:** 88 passing + 3 todo + 0 unhandled errors.
+- **LAUNCH-LIMITATIONS resolved:** #5 (now 7 of 31 catalogued items
+  RESOLVED via this wave: #3, #4, #5, #6, #7, #8, #9).
+
+### Operator workflow before launch — additions
+
+- DPO uses the new "Material change (force re-consent)" checkbox in
+  the Settings → Consent Versions publish dialog when a policy change
+  needs explicit fresh acknowledgement.
+- No new migration required; the flag persists in the existing
+  admin_actions.details JSONB.
+
+### LL#13 (Jest worker leak) attempt — REVERTED
+
+Investigated. Wrote a `globalTeardown` that closes the pg Pool in the
+Jest orchestrator and a per-worker `afterAll` hook. The orchestrator
+teardown works; the per-worker hook required a `setupFilesAfterEach`
+config option that doesn't exist in Jest. The "worker failed to exit
+gracefully" warning is forceExit doing its job for workers that hold
+idle pool connections + Sentry initial-loop timers, which can't be
+addressed without injecting an `afterAll` into all 184 test files
+individually. Left as documented limitation; the warning is
+informational and tests still pass.
+
 ## RESUME instructions for the next session
 
 1. Backend audit findings (Phase B + C + N + M + O) substantially
