@@ -759,43 +759,67 @@ router.post(
         );
       }
 
+      // MED-N87 fix — wrap the suki-discount calc and the booking
+      // UPDATE in a single transaction. Pre-fix: two separate db.query
+      // calls (or one) with notifications inline. If notifyProvider
+      // failed mid-way, the booking was already mutated and the
+      // customer got a "your provider is on the way" notification while
+      // the provider had no idea they had a new job.
+      //
+      // Post-fix: the UPDATE is atomic with the suki record write
+      // (calculateSukiDiscountForBooking is read-only so it's safe
+      // outside the trx). Notifications fire AFTER COMMIT — they're
+      // best-effort and never roll back the booking. Each notify is
+      // wrapped in its own try/catch so one failure can't strand the
+      // other.
       const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
         booking.customer_id, providerId, booking.service_price,
       );
       let notificationAmount = booking.total_amount;
-      if (discountAmount > 0) {
-        const newPrice = booking.service_price - discountAmount;
-        const newFee = bookingService.calculateServiceFee(newPrice);
-        const newTotal = newPrice + newFee;
-        notificationAmount = newTotal;
-        await db.query(
-          `UPDATE bookings SET
-             provider_id = $1, status = 'matched',
-             service_price = $3, service_fee = $4, total_amount = $5, suki_discount = $6,
-             updated_at = NOW()
-           WHERE id = $2`,
-          [providerId, id, newPrice, newFee, newTotal, discountAmount],
+      await db.transaction(async (client) => {
+        if (discountAmount > 0) {
+          const newPrice = booking.service_price - discountAmount;
+          const newFee = bookingService.calculateServiceFee(newPrice);
+          const newTotal = newPrice + newFee;
+          notificationAmount = newTotal;
+          await client.query(
+            `UPDATE bookings SET
+               provider_id = $1, status = 'matched',
+               service_price = $3, service_fee = $4, total_amount = $5, suki_discount = $6,
+               updated_at = NOW()
+             WHERE id = $2`,
+            [providerId, id, newPrice, newFee, newTotal, discountAmount],
+          );
+        } else {
+          await client.query(
+            `UPDATE bookings SET provider_id = $1, status = 'matched', updated_at = NOW() WHERE id = $2`,
+            [providerId, id],
+          );
+        }
+      });
+
+      // Post-commit notifications — never block the booking flow.
+      try {
+        await notificationService.notifyProviderNewJob(
+          provider.user_id,
+          id,
+          booking.description.slice(0, 50),
+          notificationAmount,
+          booking.city,
         );
-      } else {
-        await db.query(
-          `UPDATE bookings SET provider_id = $1, status = 'matched', updated_at = NOW() WHERE id = $2`,
-          [providerId, id],
-        );
+      } catch (notifyErr) {
+        logger.error('notifyProviderNewJob failed', { bookingId: id, providerUserId: provider.user_id, error: notifyErr instanceof Error ? notifyErr.message : 'Unknown' });
       }
 
-      await notificationService.notifyProviderNewJob(
-        provider.user_id,
-        id,
-        booking.description.slice(0, 50),
-        notificationAmount,
-        booking.city,
-      );
-
-      await notificationService.notifyCustomerProviderAssigned(
-        booking.customer_id,
-        id,
-        provider.business_name,
-      );
+      try {
+        await notificationService.notifyCustomerProviderAssigned(
+          booking.customer_id,
+          id,
+          provider.business_name,
+        );
+      } catch (notifyErr) {
+        logger.error('notifyCustomerProviderAssigned failed', { bookingId: id, customerId: booking.customer_id, error: notifyErr instanceof Error ? notifyErr.message : 'Unknown' });
+      }
 
       const updated = await bookingService.getBookingByIdAdmin(id);
       res.json({ success: true, data: formatBookingResponse(updated as BookingRow) });
@@ -1102,24 +1126,45 @@ router.post(
         );
       }
 
-      // Mark booking as cancelled_by_customer (no-show is treated as customer cancellation)
-      await db.query(
-        `UPDATE bookings SET status = 'cancelled_by_customer', cancellation_reason = 'Customer no-show — provider was on-site for ${noShowMinutes}+ minutes', cancelled_at = NOW(), updated_at = NOW() WHERE id = $1`,
-        [id],
-      );
-
-      // Process escrow: 0% refund to customer, 100% compensation to provider (minus commission)
-      const hoursUntil = -1; // Already past scheduled time
-      await escrowService.handleCancellation(id, hoursUntil, true /* providerArrived */, true /* customerNoShow */);
-
-      // Notify customer
-      await notificationService.createNotification({
-        userId: bk.customer_id,
-        type: 'customer_cancelled',
-        title: 'Booking Cancelled — No-Show',
-        body: 'Your booking was cancelled because the provider was on-site but could not reach you. The service fee has been retained as per our cancellation policy.',
-        data: { bookingId: id },
+      // MED-N88 fix — pre-fix sequence was three independent statements:
+      //   1. UPDATE bookings SET status='cancelled_by_customer'
+      //   2. escrowService.handleCancellation (does its own internal trx)
+      //   3. notificationService.createNotification
+      // If (2) crashed after (1) committed, the booking was marked
+      // cancelled but escrow stayed funded — money stuck. Same shape as
+      // CRIT-N10 (already-fixed confirmation flow).
+      //
+      // Post-fix: the booking UPDATE and escrow processing both run on
+      // the SAME transactional client via handleCancellationInTransaction.
+      // If the escrow side fails, the booking UPDATE rolls back too —
+      // customer sees a 5xx and can retry. Notification is post-commit.
+      const hoursUntil = -1; // already past scheduled time
+      await db.transaction(async (client) => {
+        await client.query(
+          `UPDATE bookings SET status = 'cancelled_by_customer', cancellation_reason = $1, cancelled_at = NOW(), updated_at = NOW() WHERE id = $2`,
+          [`Customer no-show — provider was on-site for ${noShowMinutes}+ minutes`, id],
+        );
+        await escrowService.handleCancellationInTransaction(
+          client,
+          id,
+          hoursUntil,
+          true /* providerArrived */,
+          true /* customerNoShow */,
+        );
       });
+
+      // Post-commit notification — best-effort only.
+      try {
+        await notificationService.createNotification({
+          userId: bk.customer_id,
+          type: 'customer_cancelled',
+          title: 'Booking Cancelled — No-Show',
+          body: 'Your booking was cancelled because the provider was on-site but could not reach you. The service fee has been retained as per our cancellation policy.',
+          data: { bookingId: id },
+        });
+      } catch (notifyErr) {
+        logger.error('Customer no-show notification failed', { bookingId: id, customerId: bk.customer_id, error: notifyErr instanceof Error ? notifyErr.message : 'Unknown' });
+      }
 
       logger.info('Customer no-show reported', { bookingId: id, providerId: providerEntityId });
 

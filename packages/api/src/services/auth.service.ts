@@ -394,43 +394,71 @@ export async function refreshAccessToken(
     throw createAppError('Invalid token type.', 401);
   }
 
+  // MED-N92 fix — pre-fix sequence:
+  //   1. SELECT refresh_tokens WHERE token_hash = old
+  //   2. DELETE refresh_tokens WHERE token_hash = old
+  //   3. SELECT users WHERE id = ... AND is_active
+  //   4. signAccessToken / signRefreshToken
+  //   5. INSERT refresh_tokens new row
+  // Two failure modes:
+  //   (a) If (5) fails after (2) succeeded, the user has neither old
+  //       nor new refresh token — forcibly logged out.
+  //   (b) Two concurrent refresh calls on the same token both pass (1),
+  //       both run (2), each then runs (5) — but one of them is using
+  //       a token whose row got DELETEd-then-recreated by the other.
+  //       Result depends on race ordering; in the worst case the user
+  //       loses both new tokens.
+  //
+  // Post-fix: SELECT-FOR-UPDATE the old row + DELETE + INSERT all
+  // happen on the SAME transactional client. SELECT FOR UPDATE
+  // serialises concurrent refreshers on the same token: the second
+  // one sees zero rows after the first one deletes, throws a 401, and
+  // the user retries with the new token they got from the first call.
+  // If the INSERT fails for any reason, the DELETE rolls back so the
+  // old token is preserved.
   const tokenHash = hashToken(refreshToken);
-  const tokenResult = await db.query<RefreshTokenRow>(
-    `SELECT * FROM refresh_tokens
-     WHERE token_hash = $1 AND expires_at > NOW()`,
-    [tokenHash],
-  );
 
-  if (tokenResult.rows.length === 0) {
-    throw createAppError('Refresh token not found or expired.', 401);
-  }
-
-  await db.query(`DELETE FROM refresh_tokens WHERE token_hash = $1`, [tokenHash]);
-
-  const userResult = await db.query<UserRow>(
-    `SELECT * FROM users WHERE id = $1 AND is_active = TRUE`,
-    [payload.userId],
-  );
-
-  if (userResult.rows.length === 0) {
-    throw createAppError('User account not found or deactivated.', 401);
-  }
-
-  const user = userResult.rows[0]!;
-  const newAccessToken = signAccessToken(user.id, user.role);
-  const newRefreshToken = signRefreshToken(user.id, user.role);
-
-  const newTokenHash = hashToken(newRefreshToken);
   const refreshDuration = process.env.JWT_REFRESH_EXPIRES_IN || platformConfig.jwtRefreshExpiresIn;
   const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
 
-  await db.query(
-    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3)`,
-    [user.id, newTokenHash, refreshExpiresAt],
-  );
+  return await db.transaction(async (client) => {
+    const tokenResult = await client.query<RefreshTokenRow>(
+      `SELECT * FROM refresh_tokens
+       WHERE token_hash = $1 AND expires_at > NOW()
+       FOR UPDATE`,
+      [tokenHash],
+    );
 
-  return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+    if (tokenResult.rows.length === 0) {
+      throw createAppError('Refresh token not found or expired.', 401);
+    }
+
+    const userResult = await client.query<UserRow>(
+      `SELECT * FROM users WHERE id = $1 AND is_active = TRUE`,
+      [payload.userId],
+    );
+
+    if (userResult.rows.length === 0) {
+      throw createAppError('User account not found or deactivated.', 401);
+    }
+
+    const user = userResult.rows[0]!;
+    const newAccessToken = signAccessToken(user.id, user.role);
+    const newRefreshToken = signRefreshToken(user.id, user.role);
+    const newTokenHash = hashToken(newRefreshToken);
+
+    // Delete OLD row only after we know we have a valid user. The new
+    // row goes in within the same trx so a failure here rolls the whole
+    // thing back.
+    await client.query(`DELETE FROM refresh_tokens WHERE token_hash = $1`, [tokenHash]);
+    await client.query(
+      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, $3)`,
+      [user.id, newTokenHash, refreshExpiresAt],
+    );
+
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+  });
 }
 
 export async function createTokenPair(

@@ -271,15 +271,48 @@ export async function getUserDevices(
   return result.rows;
 }
 
+// MED-N63 fix — device revocation is a security-sensitive action
+// (an attacker who hijacks a session could revoke the legitimate user's
+// device to lock them out). The pre-fix code DELETEd the row with no
+// audit trail at all. Now we capture the row's metadata before the
+// DELETE and emit a `security_event` of type 'device_revoked' atomically
+// inside the same transaction. If the audit insert fails, the DELETE
+// rolls back — so we never lose the trail. We also still return whether
+// a row was actually removed so the route handler can surface 404 vs 200.
 export async function revokeDevice(
   userId: string,
   deviceId: string,
 ): Promise<boolean> {
-  const result = await db.query(
-    `DELETE FROM device_fingerprints WHERE id = $1 AND user_id = $2`,
-    [deviceId, userId],
-  );
-  return (result.rowCount ?? 0) > 0;
+  return db.transaction(async (client) => {
+    const before = await client.query<DeviceFingerprintRow>(
+      `SELECT * FROM device_fingerprints WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+      [deviceId, userId],
+    );
+    if (before.rows.length === 0) return false;
+    const dev = before.rows[0]!;
+    const result = await client.query(
+      `DELETE FROM device_fingerprints WHERE id = $1 AND user_id = $2`,
+      [deviceId, userId],
+    );
+    if ((result.rowCount ?? 0) === 0) return false;
+    await client.query(
+      `INSERT INTO security_events (user_id, event_type, ip_address, device_fingerprint, metadata)
+       VALUES ($1, $2, $3::inet, $4, $5)`,
+      [
+        userId,
+        'device_revoked',
+        dev.last_ip ?? null,
+        dev.fingerprint ?? null,
+        JSON.stringify({
+          deviceId,
+          deviceName: dev.device_name ?? null,
+          platform: dev.platform ?? null,
+          isTrusted: dev.is_trusted ?? null,
+        }),
+      ],
+    );
+    return true;
+  });
 }
 
 export async function trustDevice(
@@ -306,6 +339,28 @@ export async function isIpBlocked(ipAddress: string): Promise<boolean> {
   return result.rows.length > 0;
 }
 
+// MED-N64 fix — partial UNIQUE index on (ip_address) WHERE is_active =
+// TRUE means the previous ON CONFLICT path only fires for currently-
+// active rows. If an IP was blocked, then unblocked (is_active=FALSE),
+// then blocked again, the upsert misses and a NEW row is INSERTed —
+// over time accumulating one row per (block, unblock) cycle.
+//
+// Two clean fixes are possible: (a) drop the partial WHERE clause from
+// the unique index (requires a migration + handling pre-existing
+// duplicate inactive rows), or (b) replace the upsert with a SELECT-
+// then-UPDATE-or-INSERT inside a transaction. We picked (b) because it
+// avoids the migration risk and gives us atomic behaviour for free.
+//
+// Behaviour after the fix:
+//   1. No row exists for the IP → INSERT a new active row.
+//   2. An ACTIVE row exists      → UPDATE it (refresh reason / expiry /
+//      blocked_by — same outcome as the pre-fix upsert).
+//   3. An INACTIVE row exists    → reactivate it: set is_active=TRUE,
+//      overwrite reason / expiry / blocked_by — instead of leaving the
+//      stale row and INSERTing a duplicate.
+//
+// SELECT FOR UPDATE serialises concurrent block calls on the same IP
+// so two callers can't both race to INSERT.
 export async function blockIp(params: {
   ipAddress: string;
   reason: string;
@@ -316,14 +371,46 @@ export async function blockIp(params: {
     ? new Date(Date.now() + params.expiresInHours * 3600000)
     : null;
 
-  const result = await db.query<BlockedIpRow>(
-    `INSERT INTO blocked_ips (ip_address, reason, blocked_by, expires_at)
-     VALUES ($1::inet, $2, $3, $4)
-     ON CONFLICT (ip_address) WHERE is_active = TRUE
-     DO UPDATE SET reason = EXCLUDED.reason, expires_at = EXCLUDED.expires_at, blocked_by = EXCLUDED.blocked_by
-     RETURNING *`,
-    [params.ipAddress, params.reason, params.blockedBy ?? null, expiresAt?.toISOString() ?? null],
-  );
+  const row = await db.transaction<BlockedIpRow>(async (client) => {
+    const existing = await client.query<{ id: string }>(
+      `SELECT id FROM blocked_ips
+       WHERE ip_address = $1::inet
+       ORDER BY created_at DESC
+       LIMIT 1
+       FOR UPDATE`,
+      [params.ipAddress],
+    );
+    if (existing.rows.length > 0) {
+      const upd = await client.query<BlockedIpRow>(
+        `UPDATE blocked_ips
+         SET is_active = TRUE,
+             reason = $1,
+             blocked_by = $2,
+             expires_at = $3
+         WHERE id = $4
+         RETURNING *`,
+        [
+          params.reason,
+          params.blockedBy ?? null,
+          expiresAt?.toISOString() ?? null,
+          existing.rows[0]!.id,
+        ],
+      );
+      return upd.rows[0]!;
+    }
+    const ins = await client.query<BlockedIpRow>(
+      `INSERT INTO blocked_ips (ip_address, reason, blocked_by, expires_at)
+       VALUES ($1::inet, $2, $3, $4)
+       RETURNING *`,
+      [
+        params.ipAddress,
+        params.reason,
+        params.blockedBy ?? null,
+        expiresAt?.toISOString() ?? null,
+      ],
+    );
+    return ins.rows[0]!;
+  });
 
   await logSecurityEvent({
     userId: params.blockedBy ?? undefined,
@@ -338,7 +425,7 @@ export async function blockIp(params: {
     expiresAt: expiresAt?.toISOString(),
   });
 
-  return result.rows[0]!;
+  return row;
 }
 
 export async function unblockIp(
