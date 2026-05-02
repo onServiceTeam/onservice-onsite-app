@@ -260,15 +260,17 @@ router.post(
       }
 
       const userId = req.user!.userId;
-      const result = await bookingService.finalizeChangeOrderPayment(changeOrderId, userId);
-
-      const customerWallet = await walletService.getUserWallet(userId, 'customer');
-      await walletService.debitWallet(
-        customerWallet.id,
-        result.additionalTotal,
-        'payment',
-        `Additional payment for change order`,
-        result.bookingId,
+      // Phase B CRIT-15 fix — service now requires a paymentProof. The
+      // wallet path debits the wallet INSIDE the same trx as the
+      // change_order/booking updates, so a wallet-debit failure rolls
+      // back the booking total update too. Pre-fix the route called
+      // walletService.debitWallet AFTER finalizeChangeOrderPayment had
+      // already committed the booking total — a debit failure left
+      // the customer with a more-expensive booking and no payment.
+      const result = await bookingService.finalizeChangeOrderPayment(
+        changeOrderId,
+        userId,
+        { kind: 'wallet' },
       );
       await escrowService.holdInEscrow(result.bookingId, result.additionalTotal);
 

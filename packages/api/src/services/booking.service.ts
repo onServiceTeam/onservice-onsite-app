@@ -1311,9 +1311,42 @@ export async function expireApprovedChangeOrders(): Promise<number> {
   return expired.rowCount ?? 0;
 }
 
+/**
+ * Phase B CRIT-15 fix — finalize change order payment now requires
+ * verified payment proof. Two payment paths supported:
+ *
+ *   { kind: 'paymongo', intentId: string }
+ *     - The intent must exist, status === 'succeeded', amount ===
+ *       additionalTotal, AND belong to this booking (either
+ *       intent.booking_id matches OR intent.metadata.change_order_id
+ *       matches).
+ *
+ *   { kind: 'wallet' }
+ *     - Customer wallet is debited inside the same trx as the
+ *       change_order/booking updates. Wallet must hold >=
+ *       additionalTotal in available_balance. The wallet movement
+ *       is irreversible-on-success and the booking update is in
+ *       lockstep.
+ *
+ * Pre-fix: the function took (changeOrderId, customerId) only — no
+ * payment intent ID, no payment proof, no integration with
+ * payment.service. The customer (or anyone with their session) could
+ * call this endpoint without paying, the booking total would
+ * increase, and at escrow release the platform would silently pay
+ * the extra out of platform_escrow → silent platform loss.
+ *
+ * Plus: the booking must be in a finalizable status. A change-order
+ * finalization on a cancelled / disputed / completed booking is
+ * rejected (CRIT-17 family follow-up).
+ */
+export type ChangeOrderPaymentProof =
+  | { kind: 'paymongo'; intentId: string }
+  | { kind: 'wallet' };
+
 export async function finalizeChangeOrderPayment(
   changeOrderId: string,
   customerId: string,
+  paymentProof: ChangeOrderPaymentProof,
 ): Promise<{
   bookingId: string;
   newServicePrice: number;
@@ -1321,6 +1354,13 @@ export async function finalizeChangeOrderPayment(
   newTotalAmount: number;
   additionalTotal: number;
 }> {
+  if (!paymentProof || (paymentProof.kind !== 'paymongo' && paymentProof.kind !== 'wallet')) {
+    throw createAppError('paymentProof of kind "paymongo" or "wallet" is required.', 400);
+  }
+  if (paymentProof.kind === 'paymongo' && (!paymentProof.intentId || typeof paymentProof.intentId !== 'string')) {
+    throw createAppError('paymentProof.intentId is required for PayMongo finalize.', 400);
+  }
+
   return db.transaction(async (client) => {
     const coResult = await client.query<ChangeOrderRow>(
       `SELECT co.* FROM change_orders co
@@ -1334,22 +1374,105 @@ export async function finalizeChangeOrderPayment(
     }
     const co = coResult.rows[0]!;
 
-    await client.query(
-      `UPDATE change_orders SET status = 'paid', updated_at = NOW() WHERE id = $1`,
-      [changeOrderId],
-    );
-
-    const bookingResult = await client.query<{ service_price: number; service_fee: number; total_amount: number }>(
-      `SELECT service_price, service_fee, total_amount FROM bookings WHERE id = $1 FOR UPDATE`,
+    const bookingResult = await client.query<{ service_price: number; service_fee: number; total_amount: number; status: string }>(
+      `SELECT service_price, service_fee, total_amount, status FROM bookings WHERE id = $1 FOR UPDATE`,
       [co.booking_id],
     );
     const current = bookingResult.rows[0];
     if (!current) throw createAppError('Booking not found.', 404);
 
+    // CRIT-15 follow-up — booking must still be in a state that
+    // accepts a change-order finalization.
+    const FINALIZABLE = new Set(['in_progress', 'paid', 'matched', 'provider_en_route', 'provider_arrived']);
+    if (!FINALIZABLE.has(current.status)) {
+      throw createAppError(
+        `Cannot finalize change order on booking in status '${current.status}'.`,
+        409,
+      );
+    }
+
     const newServicePrice = current.service_price + co.additional_amount;
     const newServiceFee = await calculateServiceFee(newServicePrice);
     const newTotalAmount = newServicePrice + newServiceFee;
     const additionalTotal = newTotalAmount - current.total_amount;
+
+    // CRIT-15 — verify the payment proof.
+    if (paymentProof.kind === 'paymongo') {
+      interface PaymentIntentVerifyRow {
+        id: string;
+        booking_id: string;
+        amount: string | number;
+        status: string;
+        metadata: Record<string, unknown> | null;
+      }
+      const intentResult = await client.query<PaymentIntentVerifyRow>(
+        `SELECT id, booking_id, amount, status, metadata
+           FROM payment_intents WHERE id = $1 FOR UPDATE`,
+        [paymentProof.intentId],
+      );
+      const intent = intentResult.rows[0];
+      if (!intent) {
+        throw createAppError('Payment intent not found for change order.', 404);
+      }
+      if (intent.status !== 'succeeded') {
+        throw createAppError(
+          `Cannot finalize change order — payment intent status is '${intent.status}', expected 'succeeded'.`,
+          409,
+        );
+      }
+      const metadataChangeOrderId = (intent.metadata as { change_order_id?: string } | null)?.change_order_id;
+      const matchesBooking = intent.booking_id === co.booking_id;
+      const matchesChangeOrder = metadataChangeOrderId === changeOrderId;
+      if (!matchesBooking && !matchesChangeOrder) {
+        throw createAppError(
+          'Payment intent does not match this booking or change order.',
+          409,
+        );
+      }
+      if (Number(intent.amount) !== additionalTotal) {
+        throw createAppError(
+          `Payment intent amount ${Number(intent.amount)} does not match expected change-order total ${additionalTotal}.`,
+          409,
+        );
+      }
+    } else {
+      // Wallet path — debit the customer's wallet inside this trx.
+      // We hand-roll the SQL (rather than calling walletService.debit)
+      // so it joins the open trx instead of opening a nested one.
+      const walletResult = await client.query<{ id: string; available_balance: string }>(
+        `SELECT id, available_balance::text AS available_balance
+           FROM wallets
+          WHERE user_id = $1 AND type = 'customer'
+          FOR UPDATE`,
+        [customerId],
+      );
+      const wallet = walletResult.rows[0];
+      if (!wallet) {
+        throw createAppError('Customer wallet not found.', 404);
+      }
+      if (Number(wallet.available_balance) < additionalTotal) {
+        throw createAppError(
+          `Insufficient wallet balance for change order (need ${additionalTotal}, have ${wallet.available_balance}).`,
+          400,
+        );
+      }
+      await client.query(
+        `UPDATE wallets SET available_balance = available_balance - $1, updated_at = NOW() WHERE id = $2`,
+        [additionalTotal, wallet.id],
+      );
+      await client.query(
+        `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description, reference_id)
+         VALUES ($1, $2, 'payment', $3,
+                 (SELECT available_balance FROM wallets WHERE id = $1),
+                 'Change order additional payment', $4)`,
+        [wallet.id, co.booking_id, -additionalTotal, changeOrderId],
+      );
+    }
+
+    await client.query(
+      `UPDATE change_orders SET status = 'paid', updated_at = NOW() WHERE id = $1`,
+      [changeOrderId],
+    );
 
     await client.query(
       `UPDATE bookings SET
@@ -1364,6 +1487,8 @@ export async function finalizeChangeOrderPayment(
     logger.info('Change order payment finalized — booking amounts updated', {
       changeOrderId,
       bookingId: co.booking_id,
+      paymentKind: paymentProof.kind,
+      paymentIntentId: paymentProof.kind === 'paymongo' ? paymentProof.intentId : undefined,
       additionalAmount: co.additional_amount,
       newServicePrice,
       newServiceFee,
