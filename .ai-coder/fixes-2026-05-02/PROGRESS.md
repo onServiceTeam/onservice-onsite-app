@@ -284,13 +284,14 @@ Real PayMongo + wallet auto-charge with admin kill switch:
 
 ### Numbers (session 4 final)
 
-- **Tests at session 4 close:** 2286/2286 passing (was 2162 at
-  session 3 close; +124 net new across 8 fix commits).
-- **New migrations this session:** 4 (106 dpo_role_e01, 107
+- **Tests at session 4 close:** 2313/2313 passing (was 2162 at
+  session 3 close; +151 net new across 12 fix commits).
+- **New migrations this session:** 6 (106 dpo_role_e01, 107
   recurring_auto_charge_e02, 108 reconciliation_alert_threshold_n119,
-  109 suki_admin_tunable_n126_n127).
+  109 suki_admin_tunable_n126_n127, 110 upload_allowed_mime_n144,
+  111 promo_redemptions_n154).
 - **New services this session:** 1 (recurring-auto-charge).
-- **MED-Ns landed this session (24 new):**
+- **MED-Ns landed this session (33 new):**
   - E01 (DPO role) + E02 (recurring auto-charge) — both Path A
   - N100/101/103/104/105 — provider, checklist, matching cluster
   - N106/107/109/110/111 — settings + pricing audit cluster
@@ -298,7 +299,10 @@ Real PayMongo + wallet auto-charge with admin kill switch:
   - N126/127 — suki tier admin-tunable + redemption-rate semantics fix
   - N134/135/136/137 — slot-waitlist + support-ticket cluster
   - N138/139 — socket JWT-expiry + per-socket rate limit
-- **Cumulative v1.1 MEDs landed:** ~116 of ~169 (~69%).
+  - N144/157/159/168 — upload mime + webhook routing + auth gating
+  - N148/149 — referral race-safe code + redemption trx
+  - N152/153/154 — rebooking radius + tip wallet-only + promo per-customer
+- **Cumulative v1.1 MEDs landed:** ~125 of ~169 (~74%).
 - **Operator workflow before launch — ADD:**
   - Apply migrations 106 + 107 in production.
   - Assign a real DPO via super_admin Settings → Staff → DPO
