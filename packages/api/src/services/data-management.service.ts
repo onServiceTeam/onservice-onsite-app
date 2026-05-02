@@ -277,15 +277,43 @@ export async function requestAccountDeletion(
     throw createAppError('You already have a pending account deletion request.', 409);
   }
 
-  const activeBookings = await db.query<{ count: string }>(
-    `SELECT COUNT(*)::text AS count FROM bookings
+  // MED-N55 fix — pre-fix the active-bookings count gave the same
+  // generic "complete or cancel" error for every blocking status,
+  // including 'in_progress' (provider on-site, work happening). The
+  // user couldn't act on that bucket — only the auto-confirm timer
+  // would clear it. Surface a more specific error so the user knows
+  // the wait is automatic and not their fault.
+  //
+  // We split into two buckets:
+  //   - cancellable: customer/provider CAN cancel via the booking flow
+  //     (pending, matched, etc.) — friendly "complete or cancel" error.
+  //   - in-progress / completed-by-provider: only the auto-confirm
+  //     window will resolve. Tell the user to come back after.
+  const blockingBookings = await db.query<{ id: string; status: string; scheduled_at: Date | null }>(
+    `SELECT id, status, scheduled_at FROM bookings
      WHERE (customer_id = $1 OR provider_id = (SELECT id FROM providers WHERE user_id = $1))
        AND status NOT IN ('confirmed', 'payout_ready', 'paid_out',
-                          'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin')`,
+                          'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin')
+     ORDER BY scheduled_at ASC NULLS LAST
+     LIMIT 5`,
     [userId],
   );
 
-  if (Number(activeBookings.rows[0]?.count ?? 0) > 0) {
+  if (blockingBookings.rows.length > 0) {
+    const inProgress = blockingBookings.rows.filter(
+      (r) => r.status === 'in_progress' || r.status === 'completed_by_provider',
+    );
+    if (inProgress.length > 0 && inProgress.length === blockingBookings.rows.length) {
+      // ALL blockers are in-progress / awaiting confirmation. The user
+      // can't manually act; auto-confirm will resolve.
+      throw createAppError(
+        `Cannot delete account: ${inProgress.length} booking${inProgress.length === 1 ? '' : 's'} ` +
+        `${inProgress.length === 1 ? 'is' : 'are'} still in progress and will auto-complete soon. ` +
+        `Please request deletion again afterward.`,
+        409,
+      );
+    }
+    // At least one cancellable booking present — original message.
     throw createAppError(
       'Cannot delete account while you have active bookings. Please complete or cancel them first.',
       409,

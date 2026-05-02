@@ -404,8 +404,12 @@ export async function publishConsentVersion(input: {
     throw createAppError('effectiveAt must be a valid ISO timestamp.', 400);
   }
 
-  // Pre-check: refuse to "publish" a duplicate (consent_type, version) that already
-  // has been published (idempotency / prevent accidental republish noise).
+  // MED-N125 fix — pre-check is a fast path for the friendly 409
+  // message but cannot prevent the race (two simultaneous calls both
+  // pass the existence check and both INSERT). The real safety net is
+  // the partial UNIQUE INDEX added in migration 102; on race the
+  // second INSERT throws PG error 23505 (unique_violation) which we
+  // translate to the same 409.
   const existing = await db.query<{ id: string }>(
     `SELECT id FROM admin_actions
       WHERE action_type = 'consent_version_published'
@@ -422,22 +426,35 @@ export async function publishConsentVersion(input: {
     );
   }
 
-  const result = await db.query<{ id: string; created_at: Date }>(
-    `INSERT INTO admin_actions
-       (admin_id, action_type, target_type, target_id, details, reason)
-     VALUES ($1, 'consent_version_published', 'consent_version', uuid_generate_v4(), $2::jsonb, $3)
-     RETURNING id, created_at`,
-    [
-      input.adminUserId,
-      JSON.stringify({
-        consentType: input.consentType.trim(),
-        version: input.version.trim(),
-        effectiveAt: effective,
-        changeSummary: input.changeSummary.trim(),
-      }),
-      input.changeSummary.trim(),
-    ],
-  );
+  let result;
+  try {
+    result = await db.query<{ id: string; created_at: Date }>(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details, reason)
+       VALUES ($1, 'consent_version_published', 'consent_version', uuid_generate_v4(), $2::jsonb, $3)
+       RETURNING id, created_at`,
+      [
+        input.adminUserId,
+        JSON.stringify({
+          consentType: input.consentType.trim(),
+          version: input.version.trim(),
+          effectiveAt: effective,
+          changeSummary: input.changeSummary.trim(),
+        }),
+        input.changeSummary.trim(),
+      ],
+    );
+  } catch (err: unknown) {
+    // Postgres unique_violation = 23505. Race with a concurrent
+    // publisher — translate to the same friendly 409.
+    if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === '23505') {
+      throw createAppError(
+        `Version ${input.version} of ${input.consentType} has already been published.`,
+        409,
+      );
+    }
+    throw err;
+  }
   const row = result.rows[0];
   if (!row) throw createAppError('Failed to publish consent version.', 500);
 

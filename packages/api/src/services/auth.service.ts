@@ -38,6 +38,9 @@ interface RefreshTokenRow {
   token_hash: string;
   expires_at: Date;
   created_at: Date;
+  // MED-N85 fix — both NULL for tokens minted before mig 101.
+  device_fingerprint: string | null;
+  created_ip: string | null;
 }
 
 interface OtpCountRow {
@@ -274,6 +277,11 @@ export async function sendOtp(phone: string): Promise<{ message: string }> {
 export async function verifyOtp(
   phone: string,
   code: string,
+  // MED-N85 fix — capture the device fingerprint + source IP at
+  // issuance so the refresh path can compare. Both params are optional
+  // for back-compat with existing callers (admin tools, tests) that
+  // don't pass them.
+  context: { deviceFingerprint?: string; ipAddress?: string } = {},
 ): Promise<{
   accessToken: string;
   refreshToken: string;
@@ -367,9 +375,15 @@ export async function verifyOtp(
   const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
 
   await db.query(
-    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3)`,
-    [user.id, tokenHash, refreshExpiresAt],
+    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, device_fingerprint, created_ip)
+     VALUES ($1, $2, $3, $4, $5::inet)`,
+    [
+      user.id,
+      tokenHash,
+      refreshExpiresAt,
+      context.deviceFingerprint ?? null,
+      context.ipAddress ?? null,
+    ],
   );
 
   logger.info('User authenticated', { userId: user.id, isNewUser });
@@ -379,6 +393,12 @@ export async function verifyOtp(
 
 export async function refreshAccessToken(
   refreshToken: string,
+  // MED-N85 fix — caller passes the request's device fingerprint + IP
+  // for the binding check. Both optional for back-compat with legacy
+  // callers that don't pass them; in that case the binding check is
+  // skipped (logged as 'no_incoming_fingerprint' in the metadata when
+  // a stored fingerprint exists).
+  context: { deviceFingerprint?: string; ipAddress?: string } = {},
 ): Promise<{ accessToken: string; refreshToken: string }> {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET is not configured');
@@ -433,6 +453,56 @@ export async function refreshAccessToken(
       throw createAppError('Refresh token not found or expired.', 401);
     }
 
+    const storedRow = tokenResult.rows[0]!;
+
+    // MED-N85 fingerprint binding check. We only compare when BOTH a
+    // stored fingerprint exists AND an incoming one is provided. The
+    // mismatch is ALWAYS logged for forensics; rejection is gated by
+    // the platform setting `refresh_token_strict_fingerprint` so we
+    // can run in observe-only mode at first to gauge false-positive
+    // volume from legitimate fingerprint changes (app reinstall, OS
+    // update). Fail-closed on the lookup: if the setting load throws
+    // we don't reject (back-compat) but we still log.
+    if (storedRow.device_fingerprint && context.deviceFingerprint
+        && storedRow.device_fingerprint !== context.deviceFingerprint) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { logSecurityEvent } = require('./security.service');
+        await logSecurityEvent({
+          userId: payload.userId,
+          eventType: 'refresh_token_fingerprint_mismatch',
+          ipAddress: context.ipAddress ?? null,
+          deviceFingerprint: context.deviceFingerprint,
+          metadata: {
+            storedFingerprintPrefix: storedRow.device_fingerprint.slice(0, 16),
+            incomingFingerprintPrefix: context.deviceFingerprint.slice(0, 16),
+            issuedIp: storedRow.created_ip ?? null,
+          },
+        });
+      } catch (logErr) {
+        logger.error('Failed to log refresh_token_fingerprint_mismatch', {
+          userId: payload.userId,
+          error: logErr instanceof Error ? logErr.message : 'Unknown',
+        });
+      }
+      // Strict-mode check via platform setting. Default observe-only
+      // (FALSE) — admin can flip after watching the security_events
+      // mismatch volume.
+      let strict = false;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const settings = require('./settings.service');
+        if (typeof settings.getSettingBoolean === 'function') {
+          strict = await settings.getSettingBoolean('refresh_token_strict_fingerprint');
+        }
+      } catch {
+        // Setting not loadable (e.g., schema not migrated yet) — observe-only.
+      }
+      if (strict) {
+        throw createAppError('Refresh token does not match the device that issued it. Please sign in again.', 401);
+      }
+    }
+
     const userResult = await client.query<UserRow>(
       `SELECT * FROM users WHERE id = $1 AND is_active = TRUE`,
       [payload.userId],
@@ -449,12 +519,20 @@ export async function refreshAccessToken(
 
     // Delete OLD row only after we know we have a valid user. The new
     // row goes in within the same trx so a failure here rolls the whole
-    // thing back.
+    // thing back. Carry the incoming fingerprint forward (if provided)
+    // so subsequent refreshes can keep enforcing the binding; fall
+    // back to the stored value so an existing fingerprint isn't lost.
     await client.query(`DELETE FROM refresh_tokens WHERE token_hash = $1`, [tokenHash]);
     await client.query(
-      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3)`,
-      [user.id, newTokenHash, refreshExpiresAt],
+      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, device_fingerprint, created_ip)
+       VALUES ($1, $2, $3, $4, $5::inet)`,
+      [
+        user.id,
+        newTokenHash,
+        refreshExpiresAt,
+        context.deviceFingerprint ?? storedRow.device_fingerprint ?? null,
+        context.ipAddress ?? null,
+      ],
     );
 
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };

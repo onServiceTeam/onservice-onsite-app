@@ -20,6 +20,10 @@ export const verifyOtpSchema = z.object({
 
 export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
+  // MED-N85 — optional device fingerprint forwarded to the binding
+  // check. Mobile already sends this on /auth/verify; sending it here
+  // means /refresh-token can compare against the issuance record.
+  deviceFingerprint: z.string().min(8).max(256).optional(),
 });
 
 export const logoutSchema = z.object({

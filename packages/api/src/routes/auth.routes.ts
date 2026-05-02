@@ -239,6 +239,13 @@ router.post(
       const { accessToken, refreshToken, user, isNewUser } = await authService.verifyOtp(
         phone,
         req.body.code,
+        // MED-N85 fix — capture the device fingerprint + IP at the
+        // moment the refresh token is INSERTed so /refresh-token can
+        // do the binding check on subsequent calls.
+        {
+          deviceFingerprint: req.body.deviceFingerprint as string | undefined,
+          ipAddress: clientIp,
+        },
       );
 
       await securityService.recordLoginAttempt({
@@ -303,7 +310,14 @@ router.post(
   validationMiddleware(refreshTokenSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tokens = await authService.refreshAccessToken(req.body.refreshToken);
+      // MED-N85 fix — forward the incoming device fingerprint + IP so
+      // the service can compare against the binding captured at
+      // issuance. The body also accepts deviceFingerprint as part of
+      // the refreshTokenSchema (back-compat: if absent we observe-only).
+      const tokens = await authService.refreshAccessToken(req.body.refreshToken, {
+        deviceFingerprint: req.body.deviceFingerprint as string | undefined,
+        ipAddress: getClientIp(req),
+      });
       res.json({ success: true, data: tokens });
     } catch (error) {
       next(error);
