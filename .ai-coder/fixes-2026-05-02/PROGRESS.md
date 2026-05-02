@@ -475,6 +475,42 @@ mobile-side risks closed:
   (k8s/ECS preStop hook, SIGTERM grace period >= 30s).
 - Backend: DB_SSL_REJECT_UNAUTHORIZED=true in production (default).
 
+## Session 5f (2026-05-02 cont.) — Phase E provider screens
+
+| # | Commit | Items |
+|---|---|---|
+| 1 | 9fe5b99 | E-CRIT-114 (wallet URL drift in 4 provider screens) + E-CRIT-116 (Boracay added to PH_REGIONS) + E-CRIT-119 (deterministic device fingerprint) |
+| 2 | 18718d6 | E-CRIT-105 (provider job checklist hits real backend) |
+| 3 | 8c985be | E-CRIT-101 (provider job earnings shows NET post-commission) |
+| 4 | a5314be | E-CRIT-112 (provider payouts page real backend data) |
+
+### Numbers (session 5f final)
+
+- **Backend tests:** 2444/2444 passing.
+- **Mobile tests:** 339 passing + 89 todo.
+- **Phase E CRITs landed:** E-CRIT-99/100 (already addressed via K08/K09),
+  E-CRIT-101 (NET earnings display), E-CRIT-105 (real checklist),
+  E-CRIT-112 (real payouts data), E-CRIT-114 (wallet URL drift),
+  E-CRIT-116 (Boracay), E-CRIT-117 (already K07), E-CRIT-119
+  (deterministic fingerprint).
+
+### E CRITs remaining (partially deferred — heavier scope)
+
+- E-CRIT-102/103/104 — provider complete.tsx photos as file:// URIs +
+  signature not persisted + non-existent endpoint (needs significant
+  rework of the complete flow + a backend signature-storage endpoint)
+- E-CRIT-108/109/110 — portfolio/certs/skills paste-URL UX
+  (needs real upload integration on the screens)
+- E-CRIT-111 — service-area POST endpoint missing on backend
+- E-CRIT-113 — withdraw shows fake EarningsChart (CRIT-114 partial fix
+  via wallet URL; chart still needs the real /trends wiring like
+  payouts.tsx)
+- E-CRIT-115 — identity-verification silent 404 (orphan, already
+  marked deprecated via K06 fix)
+- E-CRIT-118 — NbiStatusBanner endpoint missing on backend (banner
+  already null-safes — needs the new /providers/me/nbi-status
+  endpoint shipped)
+
 ## Session 5e (2026-05-02 cont.) — Phase D wave + error helper
 
 ### Phase D CRITs landed (4 commits)
