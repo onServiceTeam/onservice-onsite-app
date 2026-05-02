@@ -18,6 +18,8 @@ import { getBookingById } from '@/services/booking.service';
 import { updateBookingStatus } from '@/services/provider-api.service';
 import { Badge, Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
+// Phase E CRIT-101 — commission table for tier-based net earnings.
+import { platformConfig } from '@/config/platform.config';
 import { formatDateTime, formatRelative, formatBookingRef } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -69,6 +71,23 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
     staleTime: 15 * 1000,
     refetchInterval: 30 * 1000,
   });
+
+  // Phase E CRIT-101 fix — fetch the provider's tier so the
+  // "Your Earnings" line shows the NET amount (after tier-specific
+  // commission), not the gross service price. Pre-fix the screen
+  // displayed `formatPHP(booking.servicePrice)` for both rows so
+  // the provider thought they'd receive the full price and got
+  // surprised at payout time.
+  const providerMeQuery = useQuery<{ tier: string }>({
+    queryKey: ['providerMe'],
+    queryFn: async () => {
+      const apiModule = await import('@/services/api');
+      const res = await apiModule.default.get<{ data: { tier: string } }>('/api/v1/providers/me');
+      return { tier: res.data.data.tier };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const providerTier = providerMeQuery.data?.tier ?? 'new';
 
   const statusMutation = useMutation({
     mutationFn: ({ newStatus, location }: { newStatus: string; location?: { latitude: number; longitude: number } }) =>
@@ -225,23 +244,44 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           )}
         </View>
 
-        <View style={styles.earningsSection}>
-          <Text style={styles.sectionTitle}>Earnings</Text>
-          <View style={styles.earningsRow}>
-            <Text style={styles.earningsLabel}>Service Price</Text>
-            <Text style={styles.earningsValue}>
-              {formatPHP(booking.servicePrice)}
-            </Text>
-          </View>
-          <View style={styles.earningsDivider} />
-          <View style={styles.earningsRow}>
-            <Text style={styles.earningsTotalLabel}>Your Earnings</Text>
-            <Text style={styles.earningsTotalValue}>
-              {formatPHP(booking.servicePrice)}
-            </Text>
-          </View>
-          <Text style={styles.earningsNote}>Commission will be deducted upon payout</Text>
-        </View>
+        {/* Phase E CRIT-101 fix — Earnings section now shows the
+             real breakdown: gross Service Price → tier-specific
+             commission → NET earnings. Pre-fix "Your Earnings"
+             showed the gross service price. */}
+        {(() => {
+          const tierRate =
+            platformConfig.commissionRates[providerTier] ?? platformConfig.commissionRates.new ?? 0.15;
+          const commissionAmount = Math.round(booking.servicePrice * tierRate);
+          const net = booking.servicePrice - commissionAmount;
+          const tierPct = Math.round(tierRate * 100);
+          return (
+            <View style={styles.earningsSection}>
+              <Text style={styles.sectionTitle}>Earnings</Text>
+              <View style={styles.earningsRow}>
+                <Text style={styles.earningsLabel}>Service Price</Text>
+                <Text style={styles.earningsValue}>
+                  {formatPHP(booking.servicePrice)}
+                </Text>
+              </View>
+              <View style={styles.earningsRow}>
+                <Text style={styles.earningsLabel}>{`Platform commission (${tierPct}%)`}</Text>
+                <Text style={styles.earningsValue}>
+                  {`-${formatPHP(commissionAmount)}`}
+                </Text>
+              </View>
+              <View style={styles.earningsDivider} />
+              <View style={styles.earningsRow}>
+                <Text style={styles.earningsTotalLabel}>Your Earnings</Text>
+                <Text style={styles.earningsTotalValue}>
+                  {formatPHP(net)}
+                </Text>
+              </View>
+              <Text style={styles.earningsNote}>
+                {`${tierPct}% commission deducted automatically when payment is released. Earn higher tier for lower commission.`}
+              </Text>
+            </View>
+          );
+        })()}
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
