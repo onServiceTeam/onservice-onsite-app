@@ -885,6 +885,62 @@ all past submissions in a list, not just the most recent.
 - **LAUNCH-LIMITATIONS resolved this wave:** #3, #4, #8, #9 (4 items
   marked RESOLVED).
 
+## Session 5n closeout — LAUNCH-LIMITATIONS #6 + #7 audit
+
+| # | Commit | Summary |
+|---|---|---|
+| 1 | fe3b9d2 | LAUNCH-LIMITATIONS #6 + #7 marked RESOLVED (no code change — already implemented in earlier work) |
+
+### What landed in 5n closeout
+
+**LL#6** — `sendAdminMessageToBookingCustomer` already inserts a real
+`messages` row of type 'system' into the booking conversation when one
+exists, fires push notification, and writes admin_actions audit. Not
+"verb-only" any more.
+
+**LL#7** — `escalateDsrToNpc` already enforces
+`NPC-YYYY-XXXXXX` regex with 6-12 char suffix bound (Phase 14 D08 +
+MED-N123 hardening).
+
+### Cumulative session totals (5g through 5n)
+
+- **Commits landed:** ~30 across 8 sessions.
+- **Phase E CRITs:** 18 of 18 closed (full closure).
+- **Phase K MEDs:** 21 of 24 closed (only K01/K13/K21 remain — all
+  "by design" or out of mobile-stack scope).
+- **Phase L MEDs:** 5 of 5 closed.
+- **LAUNCH-LIMITATIONS items resolved this wave:** #3, #4, #6, #7,
+  #8, #9 (6 of 31 catalogued items moved from open to RESOLVED).
+- **Backend tests:** 2477 passing (was 2444 at session start).
+- **Mobile tests:** 403 passing + 90 todo (was 339/89 at session start).
+- **Admin tests:** 88 passing + 3 todo + 0 unhandled errors (was
+  88/3 + 5 silenced errors).
+- **Escalations:** E01 resolved (Option A — react-native-signature-canvas
+  landed).
+- **New backend dependencies:** none.
+- **New mobile dependencies:** react-native-signature-canvas ^4.7.2,
+  react-native-webview 13.13.5, expo-file-system ~19.0.0.
+- **New migrations:** 115 (providers.government_id_number).
+
+### Remaining work that genuinely needs an external action
+
+Per CLAUDE.md hard-stop rules these cannot land autonomously:
+
+1. F#3 baseline capture (84 Maestro YAML flows) — needs iOS simulator
+   or Android emulator session.
+2. F#4 baseline capture (29 Playwright specs) — needs running admin
+   app + headless Chromium.
+3. F#10 final attorney-reviewed disclaimer wording — needs legal
+   review.
+4. 12 D14 operational items (NPC DPO registration, BIR ATP, PayMongo
+   live mode, S3 Object Lock, Postgres PITR, DNS+TLS, etc.) — all
+   manual ops work outside the codebase.
+5. LAUNCH-LIMITATIONS #5 (forced re-consent on policy publish) —
+   needs Ken's policy decision on which consent types are "material".
+
+Everything else is either closed, intentionally deferred per
+documented decisions, or covered by gates / runbooks.
+
 ## RESUME instructions for the next session
 
 1. Backend audit findings (Phase B + C + N + M + O) substantially
