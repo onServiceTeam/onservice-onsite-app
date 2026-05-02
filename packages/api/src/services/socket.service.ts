@@ -8,12 +8,46 @@ import * as messagingService from './messaging.service';
 interface AuthPayload {
   userId: string;
   role: string;
+  exp: number; // unix-seconds JWT expiry
 }
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
   userRole?: string;
+  // MED-N138 fix — track JWT exp on the socket so we can disconnect
+  // sessions whose token has expired even when the long-lived
+  // socket connection is still open. Pre-fix the role/userId set
+  // at handshake was trusted forever; an admin demoted to a lower
+  // role mid-session kept emitting admin events until the socket
+  // physically disconnected (potentially hours).
+  tokenExp?: number;
+  // MED-N139 fix — per-socket sliding-window event counter for rate
+  // limiting. Pre-fix a malicious client could flood typing/mark:read
+  // events with no throttle.
+  rlEventCount?: number;
+  rlWindowStart?: number;
 }
+
+// MED-N139 fix — per-socket rate limit constants. 60 events / 60s
+// window is a generous-but-finite cap. typing:start/stop, mark:read,
+// send:message, join/leave:conversation all count.
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_EVENTS = 60;
+
+function checkRateLimit(socket: AuthenticatedSocket): boolean {
+  const now = Date.now();
+  if (!socket.rlWindowStart || now - socket.rlWindowStart > RATE_LIMIT_WINDOW_MS) {
+    socket.rlWindowStart = now;
+    socket.rlEventCount = 1;
+    return true;
+  }
+  socket.rlEventCount = (socket.rlEventCount ?? 0) + 1;
+  return socket.rlEventCount <= RATE_LIMIT_MAX_EVENTS;
+}
+
+// MED-N138 fix — periodic exp check. If the socket's JWT has expired,
+// emit auth:expired and disconnect. Runs every 60s per socket.
+const EXP_CHECK_INTERVAL_MS = 60_000;
 
 let io: Server | null = null;
 
@@ -62,6 +96,7 @@ export function initSocketServer(httpServer: HttpServer): Server {
 
       socket.userId = payload.userId;
       socket.userRole = payload.role;
+      socket.tokenExp = payload.exp;
       next();
     } catch {
       next(new Error('Invalid token'));
@@ -80,7 +115,27 @@ export function initSocketServer(httpServer: HttpServer): Server {
       logger.debug('Admin socket joined admin:global', { userId });
     }
 
+    // MED-N138 fix — periodic JWT expiry check. If the socket's token
+    // has expired (exp passed), emit auth:expired and force-disconnect.
+    // Pre-fix the role/userId captured at handshake was trusted forever
+    // — a long-lived socket connection survived JWT rotation, role
+    // demotion, and account deactivation.
+    const expCheck = setInterval(() => {
+      const exp = socket.tokenExp;
+      if (exp && Date.now() / 1000 > exp) {
+        logger.info('Socket token expired; disconnecting', { userId, socketId: socket.id });
+        socket.emit('auth:expired', { reason: 'token_expired' });
+        socket.disconnect(true);
+      }
+    }, EXP_CHECK_INTERVAL_MS);
+    // Make sure the interval doesn't keep the process alive at shutdown.
+    expCheck.unref?.();
+
     socket.on('join:conversation', async (conversationId: string) => {
+      if (!checkRateLimit(socket)) {
+        socket.emit('error', { message: 'Rate limit exceeded; slow down.' });
+        return;
+      }
       try {
         await messagingService.getConversationById(conversationId, userId);
         socket.join(`conversation:${conversationId}`);
@@ -91,6 +146,7 @@ export function initSocketServer(httpServer: HttpServer): Server {
     });
 
     socket.on('leave:conversation', (conversationId: string) => {
+      if (!checkRateLimit(socket)) return;
       socket.leave(`conversation:${conversationId}`);
     });
 
@@ -100,6 +156,10 @@ export function initSocketServer(httpServer: HttpServer): Server {
       messageType?: 'text' | 'image' | 'location';
       imageUrl?: string;
     }) => {
+      if (!checkRateLimit(socket)) {
+        socket.emit('error', { message: 'Rate limit exceeded; slow down.' });
+        return;
+      }
       try {
         if (!data.content || typeof data.content !== 'string' || data.content.length > 2000) {
           socket.emit('error', { message: 'Message content is required and must be under 2000 characters.' });
@@ -140,6 +200,10 @@ export function initSocketServer(httpServer: HttpServer): Server {
     });
 
     socket.on('mark:read', async (conversationId: string) => {
+      if (!checkRateLimit(socket)) {
+        socket.emit('error', { message: 'Rate limit exceeded; slow down.' });
+        return;
+      }
       try {
         const count = await messagingService.markMessagesAsRead(conversationId, userId);
         if (count > 0) {
@@ -155,14 +219,18 @@ export function initSocketServer(httpServer: HttpServer): Server {
     });
 
     socket.on('typing:start', (conversationId: string) => {
+      // typing events are silent on rate-limit (no error spam back).
+      if (!checkRateLimit(socket)) return;
       socket.to(`conversation:${conversationId}`).emit('typing:start', { userId });
     });
 
     socket.on('typing:stop', (conversationId: string) => {
+      if (!checkRateLimit(socket)) return;
       socket.to(`conversation:${conversationId}`).emit('typing:stop', { userId });
     });
 
     socket.on('disconnect', () => {
+      clearInterval(expCheck);
       logger.debug('Socket disconnected', { userId, socketId: socket.id });
     });
   });
