@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+// Phase E CRIT-113 fix — withdraw screen no longer ships a fake
+// EarningsChart that synthesised 7 identical bars from availableBalance/7.
+// Now wired to the real /providers/me/earnings/trends endpoint, same
+// shape the payouts and earnings screens use (CRIT-112 / CRIT-K08).
 import {
   View,
   Text,
@@ -43,6 +47,24 @@ export default function WithdrawScreen(): React.ReactElement {
   const walletQuery = useQuery({
     queryKey: ['wallet'],
     queryFn: getWalletBalance,
+    staleTime: 60 * 1000,
+  });
+
+  // Phase E CRIT-113 fix — real /providers/me/earnings/trends data
+  // for the chart preview (was 7 bars of availableBalance/7). 7-day
+  // window since the chart sits next to a withdrawal action and the
+  // most recent week is the most relevant context.
+  const trendsQuery = useQuery<Array<{ period: string; netEarned: number }>>({
+    queryKey: ['providerEarningsTrends', 'daily', 7],
+    queryFn: async () => {
+      const res = await api.get<{ data: Array<{ period: string; netEarned: number | string }> }>(
+        '/api/v1/providers/me/earnings/trends?period=daily&days=7',
+      );
+      return res.data.data.map((r) => ({
+        period: r.period,
+        netEarned: Number(r.netEarned) || 0,
+      }));
+    },
     staleTime: 60 * 1000,
   });
 
@@ -129,19 +151,15 @@ export default function WithdrawScreen(): React.ReactElement {
           )}
         </View>
 
-        {/* Phase 14 R5-complete — EarningsChart 7-day preview */}
-        {availableBalance > 0 && (
+        {/* Phase E CRIT-113 fix — EarningsChart now driven by REAL
+             7-day /trends data (was 7 identical bars of avail/7). */}
+        {(trendsQuery.data?.length ?? 0) > 0 && (
           <View style={{ marginVertical: spacing.base }}>
             <EarningsChart
-              data={[
-                { date: '2026-04-25', amount: Math.round(availableBalance / 7) },
-                { date: '2026-04-26', amount: Math.round(availableBalance / 7) },
-                { date: '2026-04-27', amount: Math.round(availableBalance / 7) },
-                { date: '2026-04-28', amount: Math.round(availableBalance / 7) },
-                { date: '2026-04-29', amount: Math.round(availableBalance / 7) },
-                { date: '2026-04-30', amount: Math.round(availableBalance / 7) },
-                { date: '2026-05-01', amount: Math.round(availableBalance / 7) },
-              ]}
+              data={(trendsQuery.data ?? []).map((row) => ({
+                date: row.period.split('T')[0] ?? row.period,
+                amount: row.netEarned,
+              }))}
             />
           </View>
         )}

@@ -1,5 +1,18 @@
 import React, { useState, useCallback } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+// Phase E CRIT-108 fix — paste-image-URL UX replaced with real
+// camera/gallery picker + multipart upload.
+//
+// Pre-fix: provider was prompted to paste an `https://...` image URL.
+// In practice, providers don't have one — they have a photo on their
+// phone. The backend's POST /api/v1/providers/me/portfolio rejects
+// `file://` URIs (MED-N97 hardening) so any local-photo flow failed
+// at submit. The screen was technically wired but unusable.
+//
+// Post-fix: tap "Add Photo" → camera-or-gallery picker → optional
+// caption → uploadImages('onboarding') returns a real https URL →
+// POST /providers/me/portfolio with that URL. Same multipart pattern
+// the rest of the app uses (chat, change-orders, identity-verify).
 import {
   View,
   Text,
@@ -16,6 +29,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import * as ImagePicker from 'expo-image-picker';
 import {
   getMyPortfolio,
   addPortfolioItem,
@@ -23,6 +37,8 @@ import {
   removePortfolioItem,
   type PortfolioItem,
 } from '@/services/provider-api.service';
+import { uploadImages } from '@/services/upload.service';
+import { getErrorMessage } from '@/utils/errors';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle } from '@/components/icons';
@@ -38,6 +54,9 @@ export default function PortfolioScreen(): React.ReactElement {
   const [editItem, setEditItem] = useState<PortfolioItem | null>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [caption, setCaption] = useState('');
+  // Phase E CRIT-108 fix — local file URI from picker, before upload.
+  const [pendingLocalUri, setPendingLocalUri] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const { data: portfolio = [], isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['my-portfolio'],
@@ -55,7 +74,9 @@ export default function PortfolioScreen(): React.ReactElement {
       resetForm();
       Alert.alert('Success', 'Portfolio photo added.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    // Phase E CRIT-108 fix — canonical error helper.
+    onError: (err: unknown) =>
+      Alert.alert('Error', getErrorMessage(err, 'Could not add portfolio photo.')),
   });
 
   const updateMutation = useMutation({
@@ -66,7 +87,8 @@ export default function PortfolioScreen(): React.ReactElement {
       resetForm();
       Alert.alert('Updated', 'Caption updated.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) =>
+      Alert.alert('Error', getErrorMessage(err, 'Could not update caption.')),
   });
 
   const removeMutation = useMutation({
@@ -75,7 +97,8 @@ export default function PortfolioScreen(): React.ReactElement {
       invalidate();
       Alert.alert('Removed', 'Portfolio photo removed.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) =>
+      Alert.alert('Error', getErrorMessage(err, 'Could not remove photo.')),
   });
 
   const resetForm = useCallback((): void => {
@@ -83,6 +106,7 @@ export default function PortfolioScreen(): React.ReactElement {
     setEditItem(null);
     setImageUrl('');
     setCaption('');
+    setPendingLocalUri(null);
   }, []);
 
   const handleAdd = useCallback((): void => {
@@ -90,25 +114,83 @@ export default function PortfolioScreen(): React.ReactElement {
     setEditItem(null);
     setImageUrl('');
     setCaption('');
+    setPendingLocalUri(null);
   }, []);
 
   const handleEdit = useCallback((item: PortfolioItem): void => {
     setMode('edit');
     setEditItem(item);
     setCaption(item.caption ?? '');
+    setPendingLocalUri(null);
   }, []);
+
+  // Phase E CRIT-108 fix — open the native picker (camera or gallery).
+  // Sets pendingLocalUri to the device file:// URI; we don't upload
+  // until the user taps Save so they can change their mind.
+  const pickFromGallery = useCallback(async (): Promise<void> => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') {
+      Alert.alert('Permission Required', 'Photo library access is needed to select a photo.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: false,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPendingLocalUri(result.assets[0].uri);
+    }
+  }, []);
+
+  const pickFromCamera = useCallback(async (): Promise<void> => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (perm.status !== 'granted') {
+      Alert.alert('Permission Required', 'Camera access is needed to take a photo.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPendingLocalUri(result.assets[0].uri);
+    }
+  }, []);
+
+  const showPickerOptions = useCallback((): void => {
+    Alert.alert('Add Photo', 'Choose a source', [
+      { text: 'Camera', onPress: () => { void pickFromCamera(); } },
+      { text: 'Photo Library', onPress: () => { void pickFromGallery(); } },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [pickFromCamera, pickFromGallery]);
 
   const handleSubmit = useCallback((): void => {
     if (mode === 'add') {
-      if (!imageUrl.trim()) {
-        Alert.alert('Required', 'Please enter an image URL.');
+      // Phase E CRIT-108 fix — upload the picked file first to get a
+      // real https URL, then POST it to /providers/me/portfolio.
+      if (!pendingLocalUri) {
+        Alert.alert('Required', 'Please pick a photo to add.');
         return;
       }
-      addMutation.mutate({ imageUrl: imageUrl.trim(), caption: caption.trim() || undefined });
+      void (async () => {
+        setIsUploading(true);
+        try {
+          const uploaded = await uploadImages([pendingLocalUri], 'onboarding');
+          const url = uploaded[0]?.url;
+          if (!url) throw new Error('Upload returned no URL.');
+          addMutation.mutate({ imageUrl: url, caption: caption.trim() || undefined });
+        } catch (err) {
+          Alert.alert('Upload Failed', getErrorMessage(err, 'Could not upload photo.'));
+        } finally {
+          setIsUploading(false);
+        }
+      })();
     } else if (mode === 'edit' && editItem) {
       updateMutation.mutate({ itemId: editItem.id, caption: caption.trim() || undefined });
     }
-  }, [mode, imageUrl, caption, editItem, addMutation, updateMutation]);
+  }, [mode, pendingLocalUri, caption, editItem, addMutation, updateMutation]);
 
   const handleRemove = useCallback((item: PortfolioItem): void => {
     Alert.alert('Remove Photo', `Remove "${item.caption || 'this photo'}" from your portfolio?`, [
@@ -117,7 +199,7 @@ export default function PortfolioScreen(): React.ReactElement {
     ]);
   }, [removeMutation]);
 
-  const isPending = addMutation.isPending || updateMutation.isPending;
+  const isPending = addMutation.isPending || updateMutation.isPending || isUploading;
 
   if (isLoading) {
     return (
@@ -155,16 +237,30 @@ export default function PortfolioScreen(): React.ReactElement {
       {mode && (
         <View style={styles.formCard}>
           <Text style={styles.formTitle}>{mode === 'add' ? 'Add Photo' : 'Edit Caption'}</Text>
+          {/* Phase E CRIT-108 fix — picker preview replaces the
+               paste-URL TextInput. */}
           {mode === 'add' && (
-            <TextInput
-              style={styles.input}
-              value={imageUrl}
-              onChangeText={setImageUrl}
-              placeholder="Image URL (https://...)"
-              placeholderTextColor={colors.textTertiary}
-              autoCapitalize="none"
-              keyboardType="url"
-            />
+            <>
+              {pendingLocalUri ? (
+                <View style={styles.previewWrap}>
+                  <Image source={{ uri: pendingLocalUri }} style={styles.previewImg} resizeMode="cover" />
+                  <TouchableOpacity onPress={showPickerOptions} style={styles.changeBtn} disabled={isPending}>
+                    <Text style={styles.changeBtnText}>Change</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={showPickerOptions}
+                  style={styles.pickerCard}
+                  activeOpacity={0.8}
+                  disabled={isPending}
+                >
+                  <Text style={styles.pickerIcon}>📷</Text>
+                  <Text style={styles.pickerTitle}>Tap to add photo</Text>
+                  <Text style={styles.pickerHint}>Camera or photo library</Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
           <TextInput
             style={styles.input}
@@ -172,14 +268,15 @@ export default function PortfolioScreen(): React.ReactElement {
             onChangeText={setCaption}
             placeholder="Caption (optional)"
             placeholderTextColor={colors.textTertiary}
+            editable={!isPending}
           />
           <View style={styles.formActions}>
             <Button title="Cancel" onPress={resetForm} variant="ghost" />
             <Button
-              title={isPending ? 'Saving...' : 'Save'}
+              title={isUploading ? 'Uploading...' : isPending ? 'Saving...' : 'Save'}
               onPress={handleSubmit}
               loading={isPending}
-              disabled={isPending}
+              disabled={isPending || (mode === 'add' && !pendingLocalUri)}
             />
           </View>
         </View>
@@ -319,4 +416,39 @@ const styles = StyleSheet.create({
   photoActionBtn: { padding: spacing.md, minHeight: 44, minWidth: 44, justifyContent: 'center' as const },
   editText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
   removeText: { ...typography.caption, color: colors.error, fontWeight: '600' },
+
+  // Phase E CRIT-108 fix — picker UI styles.
+  pickerCard: {
+    backgroundColor: colors.background,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderStyle: 'dashed' as const,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerIcon: { fontSize: 40, marginBottom: spacing.xs },
+  pickerTitle: { ...typography.body, color: colors.text, fontWeight: '600' },
+  pickerHint: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  previewWrap: {
+    position: 'relative',
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.background,
+  },
+  previewImg: {
+    width: '100%',
+    aspectRatio: 1,
+  },
+  changeBtn: {
+    position: 'absolute',
+    bottom: spacing.sm,
+    right: spacing.sm,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  changeBtnText: { ...typography.bodySmall, color: colors.white, fontWeight: '600' },
 });

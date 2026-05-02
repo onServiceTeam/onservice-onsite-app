@@ -1,8 +1,19 @@
 import React, { useState, useCallback } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+// Phase E CRIT-109 fix — paste-image-URL UX replaced with real
+// camera/gallery picker + multipart upload (same fix shape as the
+// portfolio CRIT-108 fix). Certificate document is now picked from
+// the device, uploaded via /api/v1/uploads to get an https URL, and
+// only that URL is sent to /providers/me/certifications.
+//
+// Pre-fix: the cert form had a "Certificate Image URL" TextInput.
+// Providers don't have a hosted URL for their TESDA cert — they have
+// a photo of it. The screen looked wired but couldn't actually be
+// completed by a real provider.
 import {
   View,
   Text,
+  Image,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -14,6 +25,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import * as ImagePicker from 'expo-image-picker';
 import {
   getMyCertifications,
   addCertification,
@@ -21,6 +33,8 @@ import {
   removeCertification,
   type Certification,
 } from '@/services/provider-api.service';
+import { uploadImages } from '@/services/upload.service';
+import { getErrorMessage } from '@/utils/errors';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle } from '@/components/icons';
@@ -44,6 +58,9 @@ export default function CertificationsScreen(): React.ReactElement {
   const [certUrl, setCertUrl] = useState('');
   const [issuedDate, setIssuedDate] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
+  // Phase E CRIT-109 fix — local file URI from picker, before upload.
+  const [pendingLocalUri, setPendingLocalUri] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const { data: certifications = [], isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['my-certifications'],
@@ -64,7 +81,8 @@ export default function CertificationsScreen(): React.ReactElement {
       resetForm();
       Alert.alert('Success', 'Certification added. It will be reviewed for verification.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) =>
+      Alert.alert('Error', getErrorMessage(err, 'Could not add certification.')),
   });
 
   const updateMutation = useMutation({
@@ -80,7 +98,8 @@ export default function CertificationsScreen(): React.ReactElement {
       resetForm();
       Alert.alert('Updated', 'Certification updated.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) =>
+      Alert.alert('Error', getErrorMessage(err, 'Could not update certification.')),
   });
 
   const removeMutation = useMutation({
@@ -89,7 +108,8 @@ export default function CertificationsScreen(): React.ReactElement {
       invalidate();
       Alert.alert('Removed', 'Certification removed.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) =>
+      Alert.alert('Error', getErrorMessage(err, 'Could not remove certification.')),
   });
 
   const resetForm = useCallback((): void => {
@@ -101,7 +121,48 @@ export default function CertificationsScreen(): React.ReactElement {
     setCertUrl('');
     setIssuedDate('');
     setExpiryDate('');
+    setPendingLocalUri(null);
   }, []);
+
+  // Phase E CRIT-109 fix — picker handlers (mirror portfolio CRIT-108).
+  const pickFromGallery = useCallback(async (): Promise<void> => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') {
+      Alert.alert('Permission Required', 'Photo library access is needed to select a certificate photo.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: false,
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPendingLocalUri(result.assets[0].uri);
+    }
+  }, []);
+
+  const pickFromCamera = useCallback(async (): Promise<void> => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (perm.status !== 'granted') {
+      Alert.alert('Permission Required', 'Camera access is needed to photograph the certificate.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPendingLocalUri(result.assets[0].uri);
+    }
+  }, []);
+
+  const showPickerOptions = useCallback((): void => {
+    Alert.alert('Add Certificate Photo', 'Choose a source', [
+      { text: 'Camera', onPress: () => { void pickFromCamera(); } },
+      { text: 'Photo Library', onPress: () => { void pickFromGallery(); } },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [pickFromCamera, pickFromGallery]);
 
   const handleAdd = useCallback((): void => {
     resetForm();
@@ -124,20 +185,42 @@ export default function CertificationsScreen(): React.ReactElement {
       Alert.alert('Required', 'Certification name is required.');
       return;
     }
-    const payload = {
-      name: name.trim(),
-      issuingBody: issuingBody.trim() || undefined,
-      certificateNumber: certNumber.trim() || undefined,
-      certificateUrl: certUrl.trim() || undefined,
-      issuedDate: issuedDate.trim() || undefined,
-      expiryDate: expiryDate.trim() || undefined,
-    };
-    if (mode === 'add') {
-      addMutation.mutate(payload);
-    } else if (mode === 'edit' && editTarget) {
-      updateMutation.mutate({ certId: editTarget.id, ...payload });
-    }
-  }, [mode, editTarget, name, issuingBody, certNumber, certUrl, issuedDate, expiryDate, addMutation, updateMutation]);
+    // Phase E CRIT-109 fix — if a new photo was picked, upload it
+    // first to get an https URL; then send that URL through. If the
+    // user is editing and didn't pick a new photo, keep the existing
+    // certUrl unchanged.
+    void (async () => {
+      let finalCertUrl: string | undefined = certUrl.trim() || undefined;
+      if (pendingLocalUri) {
+        setIsUploading(true);
+        try {
+          const uploaded = await uploadImages([pendingLocalUri], 'onboarding');
+          const url = uploaded[0]?.url;
+          if (!url) throw new Error('Upload returned no URL.');
+          finalCertUrl = url;
+        } catch (err) {
+          Alert.alert('Upload Failed', getErrorMessage(err, 'Could not upload certificate photo.'));
+          setIsUploading(false);
+          return;
+        } finally {
+          setIsUploading(false);
+        }
+      }
+      const payload = {
+        name: name.trim(),
+        issuingBody: issuingBody.trim() || undefined,
+        certificateNumber: certNumber.trim() || undefined,
+        certificateUrl: finalCertUrl,
+        issuedDate: issuedDate.trim() || undefined,
+        expiryDate: expiryDate.trim() || undefined,
+      };
+      if (mode === 'add') {
+        addMutation.mutate(payload);
+      } else if (mode === 'edit' && editTarget) {
+        updateMutation.mutate({ certId: editTarget.id, ...payload });
+      }
+    })();
+  }, [mode, editTarget, name, issuingBody, certNumber, certUrl, issuedDate, expiryDate, pendingLocalUri, addMutation, updateMutation]);
 
   const handleRemove = useCallback((cert: Certification): void => {
     Alert.alert('Remove Certification', `Remove "${cert.name}"?`, [
@@ -146,7 +229,7 @@ export default function CertificationsScreen(): React.ReactElement {
     ]);
   }, [removeMutation]);
 
-  const isPending = addMutation.isPending || updateMutation.isPending;
+  const isPending = addMutation.isPending || updateMutation.isPending || isUploading;
 
   if (isLoading) {
     return (
@@ -207,15 +290,32 @@ export default function CertificationsScreen(): React.ReactElement {
             placeholder="Certificate Number"
             placeholderTextColor={colors.textTertiary}
           />
-          <TextInput
-            style={styles.input}
-            value={certUrl}
-            onChangeText={setCertUrl}
-            placeholder="Certificate Image URL"
-            placeholderTextColor={colors.textTertiary}
-            autoCapitalize="none"
-            keyboardType="url"
-          />
+          {/* Phase E CRIT-109 fix — picker preview replaces the
+               paste-URL TextInput. If editing and a previous URL
+               exists but no new photo picked, show that as preview. */}
+          {pendingLocalUri || certUrl ? (
+            <View style={styles.previewWrap}>
+              <Image
+                source={{ uri: pendingLocalUri ?? certUrl }}
+                style={styles.previewImg}
+                resizeMode="cover"
+              />
+              <TouchableOpacity onPress={showPickerOptions} style={styles.changeBtn} disabled={isPending}>
+                <Text style={styles.changeBtnText}>{pendingLocalUri ? 'Change' : 'Replace'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={showPickerOptions}
+              style={styles.pickerCard}
+              activeOpacity={0.8}
+              disabled={isPending}
+            >
+              <Text style={styles.pickerIcon}>📜</Text>
+              <Text style={styles.pickerTitle}>Tap to add certificate photo</Text>
+              <Text style={styles.pickerHint}>Camera or photo library (optional)</Text>
+            </TouchableOpacity>
+          )}
           <View style={styles.dateRow}>
             <TextInput
               style={[styles.input, styles.dateInput]}
@@ -235,7 +335,7 @@ export default function CertificationsScreen(): React.ReactElement {
           <View style={styles.formActions}>
             <Button title="Cancel" onPress={resetForm} variant="ghost" />
             <Button
-              title={isPending ? 'Saving...' : 'Save'}
+              title={isUploading ? 'Uploading...' : isPending ? 'Saving...' : 'Save'}
               onPress={handleSubmit}
               loading={isPending}
               disabled={isPending}
@@ -412,4 +512,39 @@ const styles = StyleSheet.create({
   certActionBtn: { padding: spacing.md, minHeight: 44, minWidth: 44, justifyContent: 'center' as const },
   editText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
   removeText: { ...typography.bodySmall, color: colors.error, fontWeight: '600' },
+
+  // Phase E CRIT-109 fix — picker UI styles (mirror portfolio CRIT-108).
+  pickerCard: {
+    backgroundColor: colors.background,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderStyle: 'dashed' as const,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerIcon: { fontSize: 36, marginBottom: spacing.xs },
+  pickerTitle: { ...typography.body, color: colors.text, fontWeight: '600' },
+  pickerHint: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  previewWrap: {
+    position: 'relative',
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.background,
+  },
+  previewImg: {
+    width: '100%',
+    aspectRatio: 1.5,
+  },
+  changeBtn: {
+    position: 'absolute',
+    bottom: spacing.sm,
+    right: spacing.sm,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  changeBtnText: { ...typography.bodySmall, color: colors.white, fontWeight: '600' },
 });
