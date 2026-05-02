@@ -165,13 +165,12 @@ export async function fileDispute(
     return d;
   });
 
-  if (dispute.status === 'resolved' && dispute.auto_resolved && Number(dispute.refund_amount) > 0) {
-    try {
-      await escrowService.refundFromEscrow(bookingId, Number(dispute.refund_amount), 'Auto-resolved dispute refund');
-    } catch (err) {
-      logger.error('Failed to process auto-resolve refund', { disputeId: dispute.id, bookingId, error: err instanceof Error ? err.message : 'Unknown' });
-    }
-  }
+  // MED-N19 fix: post-commit refund block REMOVED.
+  // refundFromEscrowInTransaction is now called inside attemptAutoResolution
+  // so the refund is atomic with the dispute resolution + booking
+  // status flip. If the refund fails, the whole transaction rolls
+  // back instead of leaving the dispute marked 'resolved' with no
+  // money moved.
 
   try {
     socketService.emitAdminEvent(socketService.ADMIN_EVENTS.DISPUTE_FILED, {
@@ -223,6 +222,20 @@ async function attemptAutoResolution(
           await client.query(
             `UPDATE bookings SET status = 'resolved', escrow_status = 'refunded', updated_at = NOW() WHERE id = $1`,
             [booking.id],
+          );
+
+          // MED-N19 fix: refund must run INSIDE the same transaction
+          // that flips dispute=resolved + booking.escrow_status=refunded.
+          // Pre-fix the refund was attempted post-commit; if it failed,
+          // the dispute was durably resolved and the customer never got
+          // their money back. Now: refundFromEscrowInTransaction reuses
+          // the same pg client, so any failure rolls back the whole
+          // auto-resolution.
+          await escrowService.refundFromEscrowInTransaction(
+            client as unknown as Parameters<typeof escrowService.refundFromEscrowInTransaction>[0],
+            booking.id,
+            totalAmount,
+            'Auto-resolved dispute refund',
           );
 
           logger.info('Dispute auto-resolved (no-show — suspicious timing)', { disputeId: dispute.id, bookingId: booking.id });
