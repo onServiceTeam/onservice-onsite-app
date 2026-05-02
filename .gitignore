@@ -61,3 +61,4 @@ docker-compose.override.yml
 # audit trail's terminal artifacts and must be on origin so the evidence chain
 # referenced by phase tag annotations resolves.
 /.ai-coder/checkpoints/logs/PHASE-*/gates/
+infra/terraform/.terraform/
