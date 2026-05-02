@@ -44,8 +44,9 @@ export async function holdInEscrow(bookingId: string, amount: number): Promise<v
  * 5. Reduces platform escrow pending balance
  */
 export async function releaseEscrow(bookingId: string): Promise<commissionService.CommissionBreakdown> {
-  const booking = await db.query<BookingAmountRow>(
-    `SELECT b.id, b.customer_id, b.provider_id, b.service_price, b.service_fee, b.total_amount, b.status, b.scheduled_at
+  const booking = await db.query<BookingAmountRow & { provider_suspended_during_booking_at: Date | null }>(
+    `SELECT b.id, b.customer_id, b.provider_id, b.service_price, b.service_fee, b.total_amount, b.status, b.scheduled_at,
+            b.provider_suspended_during_booking_at
      FROM bookings b WHERE b.id = $1`,
     [bookingId],
   );
@@ -56,6 +57,17 @@ export async function releaseEscrow(bookingId: string): Promise<commissionServic
   const releasableStatuses = new Set(['confirmed', 'paid', 'resolved']);
   if (!releasableStatuses.has(bk.status)) {
     throw createAppError(`Cannot release escrow — booking status is "${bk.status}".`, 409);
+  }
+
+  // MED-N73 fix: refuse to disburse to a provider who was suspended
+  // while this booking was in flight. Admin must explicitly resolve
+  // (manual refund or revoke suspension to clear the flag) before
+  // escrow can release.
+  if (bk.provider_suspended_during_booking_at != null) {
+    throw createAppError(
+      'Cannot release escrow — provider was suspended during this booking. Admin must resolve before disbursement.',
+      409,
+    );
   }
 
   if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
@@ -485,8 +497,9 @@ export async function releaseEscrowInTransaction(
   client: PgClient,
   bookingId: string,
 ): Promise<commissionService.CommissionBreakdown> {
-  const booking = await client.query<BookingAmountRow>(
-    `SELECT b.id, b.customer_id, b.provider_id, b.service_price, b.service_fee, b.total_amount, b.status, b.scheduled_at
+  const booking = await client.query<BookingAmountRow & { provider_suspended_during_booking_at: Date | null }>(
+    `SELECT b.id, b.customer_id, b.provider_id, b.service_price, b.service_fee, b.total_amount, b.status, b.scheduled_at,
+            b.provider_suspended_during_booking_at
      FROM bookings b WHERE b.id = $1 FOR UPDATE`,
     [bookingId],
   );
@@ -497,6 +510,16 @@ export async function releaseEscrowInTransaction(
   const releasableStatuses = new Set(['confirmed', 'paid', 'resolved']);
   if (!releasableStatuses.has(bk.status)) {
     throw createAppError(`Cannot release escrow — booking status is "${bk.status}".`, 409);
+  }
+
+  // MED-N73 fix: same guard as releaseEscrow above. Suspended-mid-
+  // booking providers cannot be paid out via the transactional path
+  // either (used by booking confirmation in booking.routes.ts).
+  if (bk.provider_suspended_during_booking_at != null) {
+    throw createAppError(
+      'Cannot release escrow — provider was suspended during this booking. Admin must resolve before disbursement.',
+      409,
+    );
   }
 
   if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);

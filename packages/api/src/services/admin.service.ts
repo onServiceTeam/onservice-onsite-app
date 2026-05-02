@@ -172,7 +172,42 @@ export async function listProviders(
   return { providers: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
 }
 
+// MED-N75 fix: required KYC document fields. Approval is refused
+// if any of these is null on the providers row at the time of
+// approval. Bug 1234 / NBI tracking depend on these being present.
+const REQUIRED_KYC_FIELDS = [
+  'nbi_clearance_url',
+  'government_id_front_url',
+  'selfie_url',
+] as const;
+
 export async function approveProvider(providerId: string, adminId: string): Promise<void> {
+  // MED-N75: pre-approval KYC check. SELECT outside the transaction
+  // so we can give a clean 400 error without rolling back any work.
+  interface KycRow {
+    nbi_clearance_url: string | null;
+    government_id_front_url: string | null;
+    selfie_url: string | null;
+  }
+  const kyc = await db.query<KycRow>(
+    `SELECT nbi_clearance_url, government_id_front_url, selfie_url FROM providers WHERE id = $1`,
+    [providerId],
+  );
+  if (kyc.rows.length === 0) {
+    throw createAppError('Provider not found.', 404);
+  }
+  const missing: string[] = [];
+  for (const field of REQUIRED_KYC_FIELDS) {
+    const v = kyc.rows[0]![field];
+    if (!v) missing.push(field);
+  }
+  if (missing.length > 0) {
+    throw createAppError(
+      `Cannot approve: missing KYC documents (${missing.join(', ')}). Provider must upload before admin can approve.`,
+      400,
+    );
+  }
+
   await db.transaction(async (client) => {
     const result = await client.query(
       `UPDATE providers SET status = 'approved', reviewed_at = NOW(), updated_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING id`,
@@ -231,6 +266,16 @@ export async function rejectProvider(providerId: string, adminId: string, reason
 }
 
 export async function suspendProvider(providerId: string, adminId: string, reason: string): Promise<void> {
+  // MED-N73 fix: when a provider is suspended, in-flight bookings
+  // (provider_en_route, provider_arrived, in_progress,
+  // completed_by_provider) need to be flagged for admin review
+  // before any further escrow release is allowed. We don't auto-
+  // cancel (refunds need explicit admin choice) but we DO mark the
+  // bookings with provider_suspended_during_booking_at so the
+  // confirm/escrow paths can refuse to release until admin
+  // resolves. Same transaction as the suspension itself so the
+  // flag and the status flip are atomic.
+  let flaggedCount = 0;
   await db.transaction(async (client) => {
     const result = await client.query(
       `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1 AND status IN ('approved', 'pending') RETURNING id`,
@@ -238,14 +283,26 @@ export async function suspendProvider(providerId: string, adminId: string, reaso
     );
     if (result.rowCount === 0) throw createAppError('Provider not found or already suspended.', 404);
 
+    const flagged = await client.query<{ id: string }>(
+      `UPDATE bookings
+          SET provider_suspended_during_booking_at = NOW(),
+              updated_at = NOW()
+        WHERE provider_id = $1
+          AND status IN ('provider_en_route', 'provider_arrived', 'in_progress', 'completed_by_provider')
+          AND provider_suspended_during_booking_at IS NULL
+        RETURNING id`,
+      [providerId],
+    );
+    flaggedCount = flagged.rowCount ?? 0;
+
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
        VALUES ($1, 'provider_suspended', 'provider', $2, $3, $4)`,
-      [adminId, providerId, JSON.stringify({ action: 'suspended' }), reason],
+      [adminId, providerId, JSON.stringify({ action: 'suspended', inFlightBookingsFlagged: flaggedCount }), reason],
     );
   });
 
-  logger.info('Provider suspended', { providerId, adminId, reason });
+  logger.info('Provider suspended', { providerId, adminId, reason, inFlightBookingsFlagged: flaggedCount });
 }
 
 export async function reactivateProvider(providerId: string, adminId: string): Promise<void> {
@@ -266,12 +323,26 @@ export async function reactivateProvider(providerId: string, adminId: string): P
   logger.info('Provider reactivated', { providerId, adminId });
 }
 
+// MED-N74 fix: tier whitelist matches migration 073 CHECK constraint
+// (founding | new | verified | pro | elite). Without this guard, an
+// admin could pass any string to changeProviderTier and the UPDATE
+// would either succeed (writing a value the rest of the code can't
+// interpret) or raise an opaque DB CHECK error. Whitelist gives a
+// clean 400 with the allowed values listed.
+const ALLOWED_TIERS = new Set<string>(['founding', 'new', 'verified', 'pro', 'elite']);
+
 export async function changeProviderTier(
   providerId: string,
   adminId: string,
   newTier: string,
   reason: string,
 ): Promise<void> {
+  if (!ALLOWED_TIERS.has(newTier)) {
+    throw createAppError(
+      `Invalid tier "${newTier}". Allowed: ${Array.from(ALLOWED_TIERS).join(', ')}.`,
+      400,
+    );
+  }
   interface TierRow { tier: string }
   const current = await db.query<TierRow>(`SELECT tier FROM providers WHERE id = $1`, [providerId]);
   if (current.rows.length === 0) throw createAppError('Provider not found.', 404);
