@@ -3,10 +3,32 @@
  * Never hardcode commission rates, fees, timeouts, etc. in code.
  * Reference this config everywhere.
  */
+// Phase D CRIT-82 fix — apiUrl no longer silently defaults to
+// localhost. Pre-fix: a release build that forgot to set
+// EXPO_PUBLIC_API_URL would point at http://localhost:7381 — every
+// API call would fail with a connection refused, but the user
+// would just see "something went wrong" toasts. Post-fix: in
+// production we throw at module load if the env var is missing
+// (preventing the broken build from booting at all). In dev/test
+// the localhost fallback is preserved.
+function resolveApiUrl(): string {
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL;
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  // Production builds MUST have the env var set.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'EXPO_PUBLIC_API_URL is required for production builds. ' +
+        'Set it in your build profile (eas.json or app.config.ts extra).',
+    );
+  }
+  // Dev / test fallback — local docker-compose API on 7381.
+  return 'http://localhost:7381';
+}
+
 export const platformConfig = {
   appVersion: '0.1.0',
   appName: 'onService',
-  apiUrl: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:7381',
+  apiUrl: resolveApiUrl(),
 
   currency: 'PHP' as const,
   currencySymbol: '₱',

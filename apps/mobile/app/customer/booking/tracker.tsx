@@ -107,12 +107,20 @@ export default function BookingTrackerScreen(): React.ReactElement {
         <Text style={styles.title}>Track Booking</Text>
       </View>
 
+      {/* Phase D CRIT-77 fix — fallback map center is Boracay
+           (where the launch market is), not Manila. Pre-fix any
+           booking missing coordinates centered on Manila so a
+           Boracay tourist tracking their cleaner saw the wrong
+           island. Coordinates: White Beach Station 1, Boracay
+           (the most central point of the launch service area).
+           Once we expand beyond Boracay, this can be the user's
+           saved default address center via useDefaultLocation(). */}
       <MapView
         ref={mapRef}
         style={styles.map}
         initialRegion={bookingRegion ?? {
-          latitude: 14.5995,
-          longitude: 120.9842,
+          latitude: 11.9685,
+          longitude: 121.9162,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}

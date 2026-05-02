@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import api, { storage } from '@/services/api';
 import {
   getAccessToken,
+  getRefreshToken,
   storeTokens,
   clearTokens,
   getStoredUser,
@@ -9,13 +10,18 @@ import {
   clearStoredUser,
 } from '@/services/secure-storage';
 
+// Phase D CRIT-88 fix — User.role no longer omits 'super_admin' (and
+// 'dpo' from E01). Pre-fix: a super_admin signing into the mobile
+// app cast through `as 'admin'` somewhere downstream and lost the
+// 'super_admin' privilege at the type boundary. Now the union
+// matches the backend (packages/api types/user.types.ts).
 export interface User {
   id: string;
   phone: string;
   email: string | null;
   firstName: string | null;
   lastName: string | null;
-  role: 'customer' | 'provider' | 'admin';
+  role: 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo';
   avatarUrl: string | null;
 }
 
@@ -86,7 +92,27 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     set({ user, isAuthenticated: true });
   },
 
-  logout: () => {
+  // Phase D CRIT-72 fix — call server /auth/logout to invalidate the
+  // refresh token. Pre-fix logout was purely client-side: tokens
+  // cleared from secure-storage but the server's refresh_tokens row
+  // stayed valid until natural expiry (30 days). A stolen refresh
+  // token from the device's secure store could continue to mint
+  // access tokens for weeks after the user logged out.
+  //
+  // Post-fix: best-effort POST /auth/logout with the refresh token
+  // BEFORE clearing local state. Server-side logout deletes the
+  // refresh_tokens row + revokes any device-bound state. If the
+  // server call fails (network down, 5xx), we still clear locally —
+  // logout must always succeed from the user's perspective.
+  logout: async () => {
+    try {
+      const refreshToken = getRefreshToken();
+      if (refreshToken) {
+        await api.post('/api/v1/auth/logout', { refreshToken });
+      }
+    } catch {
+      // Network/server error — proceed with local clear anyway.
+    }
     clearTokens();
     clearStoredUser();
     storage.delete('pushToken');
