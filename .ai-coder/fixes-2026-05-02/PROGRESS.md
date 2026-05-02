@@ -146,6 +146,15 @@ Landed:
 | c8486d7 | MED-N86+N96 | log customer self-assigns + require auth on GET /providers/:id |
 | d0febd5 | MED-N52+N54+N56 | account-deletion guards for pending escrow + cooling-off race + active dispute |
 | dc06517 | MED-N42+N79+N81 | consent atomicity + tighter NPC ref + email uniqueness pre-check |
+| 97e2707 | MED-N63+N64+N87+N88+N92 | five transactionality + audit-trail fixes (revokeDevice audit, blockIp re-block, suki UPDATE atomicity, no-show trx, refresh token trx) + mig 098 |
+| 131a438 | MED-N57+N60+N68+N72 | push retry queue (mig 099 + new push-retry.service); createNotification preserves caller keys; cancellations_last_30d no double-count; NotificationType union covers all observed types |
+| 29b90dc | MED-N13+N99+N128+N130+N131 | availability override Zod schema; review flagged-content extended (URLs + Tagalog profanity + threats); review service length-cap defense-in-depth; staff removeStaffMember soft-delete + audit (mig 100); provider-admin reviews + disputes paginate |
+| 3a4615b | MED-N55+N85+N125 | refresh-token device fingerprint binding (mig 101 + new platform setting); publishConsentVersion partial unique index for race (mig 102); account deletion in-progress error specificity |
+| 457af2c | MED-N129+N141+N147 | addStaffMember audit + trx (mig 103); messaging sendMessage + conversation update trx; referral generateCode uses crypto.randomBytes (CSPRNG) |
+| 826b639 | MED-N133+N142+N146+N150+N151 | slot waitlist dispatches notification; deleteTemplate audit; promotion lifecycle audit (create/update/delete); service-area-change verifies provider exists before applying |
+| 04c96eb | MED-N145+N161+N163+N164+N167 | catalog routes super_admin gating; notification-template DELETE super_admin; service-area waitlist rate limit; webhook rate limit; booking status partition invariant + metrics imports canonical sets |
+| 60673f9 | MED-N156+N158+N165 | webhook payment.paid trx (escrow + wallet trx-aware variants); wallet payment 4-step trx; business types + payment terms from platform_settings (mig 104) |
+| 31bdbe4 | MED-N46+N47+N48+N49 | vat-report TOCTOU race (FOR UPDATE + finalized_at IS NULL guard); pdf_url no longer NULLed during regen; createServiceArea audit + trx; generateSlug fallback uses CSPRNG. MED-N69 confirmed already addressed |
 
 **Deferred:** MED-N27 (handleCancellation atomicity) — needs a 9-test
 rewrite that's larger than the fix itself; left as the next session's
@@ -154,27 +163,39 @@ trx-aware variant `handleCancellationInTransaction` (used by the
 booking-admin path) is already correct.
 
 **Audit findings remaining (rough counts, v1.1 backlog):**
-- MED-N: ~108 of 169 still open (~41 landed in session 2 across 22 commits)
+- MED-N: ~70 of 169 still open (~99 landed across sessions 2+3)
 - MED-K, L, M, O batches: not yet touched in fixes phase
 
-## Session 2 final state — 2026-05-02 (final)
+## Session 3 final state — 2026-05-02 (cumulative)
 
-- **Test suite:** 2055/2055 passing.
-- **Commits this session:** 50+ total (Wave 2 P1 + P2 + 41 v1.1 MEDs + escalations + docs).
-- **Net new tests:** +434 (started at 1621 in session 1 close).
-- **Net new migrations:** 9 (089–097) all compatible with prod schema.
-- **Net new services:** 5 (gateway-retry, i18n, slack-alert, bir-filer-identity, test-fixtures router).
+- **Test suite:** 2139/2139 passing (started this session at 2055,
+  +84 net new tests).
+- **Commits this session (10):** 97e2707, 131a438, 29b90dc, 3a4615b,
+  457af2c, 826b639, 04c96eb, 60673f9, 31bdbe4 + earlier dc06517.
+- **MED-Ns landed this session:** 38 (across the 9 fix commits).
+- **Cumulative v1.1 MEDs landed:** 99 of ~169.
+- **Net new migrations this session:** 7 (098 device_revoked event
+  type, 099 push_retry_queue, 100 admin_staff soft-delete, 101
+  refresh_token_fingerprint, 102 consent_version_unique, 103
+  staff_added action_type, 104 business_account_config_settings).
+- **Net new services this session:** 1 (push-retry).
+- **Operator workflow before launch — ADD to existing list:**
+  - Apply migrations 098 → 104 in production database.
+  - In Settings UI, optionally tune
+    `refresh_token_strict_fingerprint` (default FALSE — observe-only),
+    `business_account_types`, `business_payment_terms`.
 - **Next session priorities:**
   1. Check `.ai-coder/decisions/` for Ken responses on E01 / E02.
-  2. If no decisions, tackle MED-N27 with the test rewrite (8-test
-     transition to dbTransactionMock pattern), then continue v1.1
-     backlog from MED-N03/N13/N57/N60-N72 onward.
-  3. Routes calling getProviderActivity / getCustomerActivity should
+  2. Continue v1.1 backlog from MED-N50/51/65/66/70/71/82/83/84/100+
+     onward.
+  3. Tackle MED-N27 (handleCancellation atomicity) when convenient —
+     still requires the 9-test rewrite.
+  4. Routes calling getProviderActivity / getCustomerActivity should
      forward `req.user.role` for accurate masking (currently default-
-     masked which is safe but slightly over-restrictive for super_admin).
-  4. Admin UI: update consumer of GET /financial/revenue/by-payment to
-     handle the new `{rows, degraded, message}` shape and render a
-     "schema not migrated" banner when degraded=true.
+     masked).
+  5. Admin UI: consumer of GET /financial/revenue/by-payment to
+     handle `{rows, degraded, message}` shape with a "schema not
+     migrated" banner when degraded=true.
 
 ## RESUME instructions for the next session
 
