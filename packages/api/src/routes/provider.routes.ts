@@ -175,6 +175,27 @@ router.post(
   },
 );
 
+// Phase E CRIT-118 fix — NBI status endpoint for the mobile
+// NbiStatusBanner global component. Pre-fix the component hit
+// /api/v1/provider/nbi-status which did not exist; every fetch
+// returned 404 and the banner silently never rendered. Post-fix
+// route exists at /api/v1/providers/me/nbi-status (canonical
+// `providers` namespace, /me self-scoped).
+router.get(
+  '/me/nbi-status',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const status = await providerService.getProviderNbiStatus(provider.id);
+      res.json({ success: true, data: status });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.get(
   '/me/services',
   authMiddleware,

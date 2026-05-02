@@ -1,9 +1,15 @@
 /**
  * Phase 14 Dispatch 12 — Pattern P1: NBI lifecycle global banner.
  *
+ * Phase E CRIT-118 fix — endpoint URL corrected from the
+ * never-existed singular `/provider/nbi-status` to the canonical
+ * `/providers/me/nbi-status` (added in this same commit on the API
+ * side). Pre-fix every fetch returned 404 and `query.data` stayed
+ * undefined, hiding the banner entirely.
+ *
  * Mounted in `apps/mobile/app/(provider-tabs)/_layout.tsx` so the banner
- * appears on every provider tab. The banner reads the existing
- * `/api/v1/provider/nbi-status` endpoint and renders one of three states:
+ * appears on every provider tab. The banner reads
+ * `/api/v1/providers/me/nbi-status` and renders one of three states:
  *
  *   - hidden (>30 days until expiry)
  *   - warning (≤30 days until expiry)
@@ -46,7 +52,7 @@ export function NbiStatusBanner({
     queryKey: ['provider-nbi-status'],
     queryFn: fetcher ?? (async () => {
       const apiModule = await import('@/services/api');
-      const res = await apiModule.default.get<NbiStatusResponse['data']>('/api/v1/provider/nbi-status');
+      const res = await apiModule.default.get<NbiStatusResponse['data']>('/api/v1/providers/me/nbi-status');
       return { data: res.data };
     }),
     staleTime: 15 * 60_000,

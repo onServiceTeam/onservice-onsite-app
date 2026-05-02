@@ -873,3 +873,66 @@ export async function getTierProgression(providerId: string): Promise<TierProgre
     allTiers: TIER_LADDER,
   };
 }
+
+// Phase E CRIT-118 fix — NbiStatusBanner (mobile component) used to
+// hit /api/v1/provider/nbi-status which did not exist on the backend.
+// Every render returned 404; the component fell through to render-null
+// because `query.data` stayed undefined, hiding the alert entirely.
+//
+// This service reads the providers row directly. The schema columns
+// `nbi_clearance_url` and `nbi_expiry_date` exist since migration
+// 002. Banner classification thresholds:
+//   missing  → no clearance URL on file
+//   expired  → expiry_date is past today
+//   expiring → expiry_date within `provider.nbi_expiry_warning_days`
+//              (admin-tunable platform_setting; default 30)
+//   valid    → expiry_date more than threshold away
+export async function getProviderNbiStatus(
+  providerId: string,
+): Promise<{
+  status: 'valid' | 'expiring' | 'expired' | 'missing';
+  expiresAt: string | null;
+}> {
+  const result = await db.query<{ nbi_clearance_url: string | null; nbi_expiry_date: string | null }>(
+    `SELECT nbi_clearance_url, nbi_expiry_date FROM providers WHERE id = $1`,
+    [providerId],
+  );
+  if (result.rows.length === 0) throw createAppError('Provider not found.', 404);
+  const row = result.rows[0]!;
+
+  if (!row.nbi_clearance_url) {
+    return { status: 'missing', expiresAt: null };
+  }
+  if (!row.nbi_expiry_date) {
+    // URL on file but no expiry recorded — treat as missing so the
+    // provider is prompted to upload a complete record.
+    return { status: 'missing', expiresAt: null };
+  }
+
+  // Read the warning-days threshold lazily via require() to avoid
+  // an import cycle (settings.service consults provider.service for
+  // some helpers in adjacent codepaths).
+  let warningDays = 30;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const settings = require('./settings.service') as {
+      getSettingNumber: (key: string) => Promise<number>;
+    };
+    const fromSettings = await settings.getSettingNumber('provider.nbi_expiry_warning_days');
+    if (Number.isFinite(fromSettings) && fromSettings > 0) warningDays = fromSettings;
+  } catch {
+    // settings.service or the row may not be present — fall back to 30.
+  }
+
+  const expiry = new Date(row.nbi_expiry_date);
+  const now = new Date();
+  const msUntil = expiry.getTime() - now.getTime();
+  const daysUntil = Math.floor(msUntil / 86_400_000);
+
+  let status: 'valid' | 'expiring' | 'expired';
+  if (daysUntil < 0) status = 'expired';
+  else if (daysUntil <= warningDays) status = 'expiring';
+  else status = 'valid';
+
+  return { status, expiresAt: expiry.toISOString() };
+}
