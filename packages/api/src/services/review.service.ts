@@ -53,6 +53,13 @@ interface BookingContextRow {
 
 const IMMUTABLE_AFTER_DAYS = 7;
 const MAX_REVIEW_PHOTOS = 5;
+// MED-N131 fix — defense-in-depth max length on review.comment and
+// privateNote. The Zod validator on the route already caps at 1000,
+// but services should never trust their input. This second layer
+// prevents a 1MB comment from any non-route caller (admin tools,
+// background workers, future test fixtures).
+const MAX_REVIEW_COMMENT_CHARS = 2000;
+const MAX_PRIVATE_NOTE_CHARS = 2000;
 
 export async function createReview(
   bookingId: string,
@@ -87,6 +94,15 @@ export async function createReview(
 
   if (!['confirmed', 'payout_ready', 'paid_out'].includes(bk.status)) {
     throw createAppError('Can only review after job is confirmed.', 409);
+  }
+
+  // MED-N131 — defense-in-depth length caps. Even if a caller bypassed
+  // the route validator, the service rejects oversized input.
+  if (data.comment && data.comment.length > MAX_REVIEW_COMMENT_CHARS) {
+    throw createAppError(`Review comment must be ${MAX_REVIEW_COMMENT_CHARS} characters or less.`, 400);
+  }
+  if (data.privateNote && data.privateNote.length > MAX_PRIVATE_NOTE_CHARS) {
+    throw createAppError(`Private note must be ${MAX_PRIVATE_NOTE_CHARS} characters or less.`, 400);
   }
 
   const existing = await db.query<CountRow>(
@@ -281,11 +297,58 @@ async function updateProviderAggregateRating(
   );
 }
 
+// MED-N130 fix — flagged-content detection used to only catch phone
+// numbers and emails (the original concern was customers/providers
+// trying to take the conversation off-platform). It missed three
+// classes of abuse:
+//   1. URLs / external links (off-platform contact attempts).
+//   2. Profanity / harassment / threats (review-quality abuse).
+//   3. PH-format mobile numbers without the +63/0 prefix (bare
+//      9XX-XXX-XXXX).
+//
+// Post-fix: we run a layered check. The list is tunable via a single
+// const so admin can grow it without touching call sites. Matching is
+// case-insensitive. We split on word boundaries / punctuation so an
+// in-context word like "passable" doesn't match the seed "ass".
 function containsFlaggedContent(text: string): boolean {
   if (!text) return false;
+  const lowered = text.toLowerCase();
+
+  // --- Phone numbers ---
   const phonePattern = /(\+?63|0)\d{10}/;
+  // Bare PH mobile (without +63/0 prefix). 9XX followed by 7 digits,
+  // optionally with spaces or dashes between groups.
+  const bareMobilePattern = /\b9\d{2}[\s-]?\d{3}[\s-]?\d{4}\b/;
+  // International formats (e.g., +1, +44, +65 etc.).
+  const intlPattern = /\+\d{1,3}[\s-]?\d{6,}/;
+
+  // --- Email ---
   const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-  return phonePattern.test(text) || emailPattern.test(text);
+
+  // --- URLs / off-platform links ---
+  const urlPattern = /\b(https?:\/\/|www\.|[a-z0-9-]+\.(com|net|org|ph|io|me|app|co|tk|ml|ga|cf|xyz|info|biz))\b/i;
+
+  // --- Profanity / harassment / threats (English + Tagalog/Filipino common terms) ---
+  const profanityList = [
+    'fuck', 'shit', 'cunt', 'bitch', 'asshole', 'dickhead', 'motherfucker',
+    'tangina', 'putang', 'gago', 'puta', 'ulol', 'tanga',
+    'kupal', 'pakyu', 'pakshet', 'leche',
+  ];
+  const profanityRegex = new RegExp(`\\b(${profanityList.join('|')})\\b`, 'i');
+
+  const threatList = [
+    'kill you', 'kill u', 'i will kill', 'papatayin kita', 'papatayin ka',
+    'i hope you die', 'rape', 'i will hurt', 'destroy you',
+  ];
+  const threatRegex = new RegExp(`(${threatList.join('|')})`, 'i');
+
+  return phonePattern.test(text)
+    || bareMobilePattern.test(text)
+    || intlPattern.test(text)
+    || emailPattern.test(text)
+    || urlPattern.test(text)
+    || profanityRegex.test(lowered)
+    || threatRegex.test(lowered);
 }
 
 export function formatReview(r: ReviewRow, images?: ReviewImageRow[]): Record<string, unknown> {

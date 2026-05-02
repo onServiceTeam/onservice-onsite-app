@@ -419,32 +419,51 @@ export async function getProviderFinancials(providerId: string): Promise<Provide
 // Reviews
 // ─────────────────────────────────────────────────────────────────
 
-export async function getProviderReviews(providerId: string): Promise<ProviderReview[]> {
-  const result = await db.query<{
-    id: string;
-    booking_id: string;
-    reviewer_name: string;
-    rating: number;
-    comment: string;
-    is_visible: boolean;
-    admin_response: string | null;
-    image_urls: string[] | null;
-    created_at: Date;
-  }>(
-    `SELECT r.id, r.booking_id,
-            (u.first_name || ' ' || u.last_name) AS reviewer_name,
-            r.rating, r.comment, r.is_visible, r.admin_response,
-            ARRAY(SELECT image_url FROM review_images ri WHERE ri.review_id = r.id) AS image_urls,
-            r.created_at
-       FROM reviews r
-       JOIN users u ON u.id = r.reviewer_id
-      WHERE r.provider_id = $1
-      ORDER BY r.created_at DESC
-      LIMIT 200`,
-    [providerId],
-  );
+// MED-N13 fix — pre-fix this returned a hardcoded LIMIT 200 with no
+// pagination. Providers with 200+ reviews silently lost the rest.
+// Post-fix: standard page/pageSize, returns total count alongside the
+// page so admin UI can render pagination controls. Defaults preserve
+// the old behaviour for callers that don't pass params.
+export async function getProviderReviews(
+  providerId: string,
+  page: number = 1,
+  pageSize: number = 50,
+): Promise<{ rows: ProviderReview[]; total: number; page: number; pageSize: number }> {
+  const safePage = Math.max(1, Math.floor(page));
+  const safeSize = Math.max(1, Math.min(200, Math.floor(pageSize)));
+  const offset = (safePage - 1) * safeSize;
 
-  return result.rows.map((r) => ({
+  const [countResult, dataResult] = await Promise.all([
+    db.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM reviews WHERE provider_id = $1`,
+      [providerId],
+    ),
+    db.query<{
+      id: string;
+      booking_id: string;
+      reviewer_name: string;
+      rating: number;
+      comment: string;
+      is_visible: boolean;
+      admin_response: string | null;
+      image_urls: string[] | null;
+      created_at: Date;
+    }>(
+      `SELECT r.id, r.booking_id,
+              (u.first_name || ' ' || u.last_name) AS reviewer_name,
+              r.rating, r.comment, r.is_visible, r.admin_response,
+              ARRAY(SELECT image_url FROM review_images ri WHERE ri.review_id = r.id) AS image_urls,
+              r.created_at
+         FROM reviews r
+         JOIN users u ON u.id = r.reviewer_id
+        WHERE r.provider_id = $1
+        ORDER BY r.created_at DESC
+        LIMIT $2 OFFSET $3`,
+      [providerId, safeSize, offset],
+    ),
+  ]);
+
+  const rows: ProviderReview[] = dataResult.rows.map((r) => ({
     id: r.id,
     bookingId: r.booking_id,
     reviewerName: r.reviewer_name,
@@ -455,6 +474,13 @@ export async function getProviderReviews(providerId: string): Promise<ProviderRe
     imageUrls: r.image_urls ?? [],
     createdAt: r.created_at.toISOString(),
   }));
+
+  return {
+    rows,
+    total: Number(countResult.rows[0]?.count ?? 0),
+    page: safePage,
+    pageSize: safeSize,
+  };
 }
 
 export async function setReviewVisibility(
@@ -483,30 +509,48 @@ export async function setReviewAdminResponse(
 // Disputes
 // ─────────────────────────────────────────────────────────────────
 
-export async function getProviderDisputes(providerId: string): Promise<ProviderDispute[]> {
-  const result = await db.query<{
-    id: string;
-    booking_id: string;
-    customer_name: string;
-    status: string;
-    resolution_type: string | null;
-    created_at: Date;
-  }>(
-    `SELECT d.id, d.booking_id,
-            (cu.first_name || ' ' || cu.last_name) AS customer_name,
-            d.status,
-            d.resolution_type,
-            d.created_at
-       FROM disputes d
-       JOIN bookings b ON b.id = d.booking_id
-       JOIN users cu ON cu.id = b.customer_id
-      WHERE b.provider_id = $1
-      ORDER BY d.created_at DESC
-      LIMIT 200`,
-    [providerId],
-  );
+// MED-N13 fix — pagination same shape as getProviderReviews above.
+export async function getProviderDisputes(
+  providerId: string,
+  page: number = 1,
+  pageSize: number = 50,
+): Promise<{ rows: ProviderDispute[]; total: number; page: number; pageSize: number }> {
+  const safePage = Math.max(1, Math.floor(page));
+  const safeSize = Math.max(1, Math.min(200, Math.floor(pageSize)));
+  const offset = (safePage - 1) * safeSize;
 
-  return result.rows.map((r) => ({
+  const [countResult, dataResult] = await Promise.all([
+    db.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+         FROM disputes d
+         JOIN bookings b ON b.id = d.booking_id
+        WHERE b.provider_id = $1`,
+      [providerId],
+    ),
+    db.query<{
+      id: string;
+      booking_id: string;
+      customer_name: string;
+      status: string;
+      resolution_type: string | null;
+      created_at: Date;
+    }>(
+      `SELECT d.id, d.booking_id,
+              (cu.first_name || ' ' || cu.last_name) AS customer_name,
+              d.status,
+              d.resolution_type,
+              d.created_at
+         FROM disputes d
+         JOIN bookings b ON b.id = d.booking_id
+         JOIN users cu ON cu.id = b.customer_id
+        WHERE b.provider_id = $1
+        ORDER BY d.created_at DESC
+        LIMIT $2 OFFSET $3`,
+      [providerId, safeSize, offset],
+    ),
+  ]);
+
+  const rows: ProviderDispute[] = dataResult.rows.map((r) => ({
     id: r.id,
     bookingId: r.booking_id,
     customerName: r.customer_name,
@@ -514,6 +558,13 @@ export async function getProviderDisputes(providerId: string): Promise<ProviderD
     resolutionType: r.resolution_type,
     createdAt: r.created_at.toISOString(),
   }));
+
+  return {
+    rows,
+    total: Number(countResult.rows[0]?.count ?? 0),
+    page: safePage,
+    pageSize: safeSize,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────

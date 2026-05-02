@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
-import { providerApplicationSchema, updateProfileSchema, addServiceSchema, setScheduleSchema } from '../validators/provider.validators';
+import { providerApplicationSchema, updateProfileSchema, addServiceSchema, setScheduleSchema, availabilityOverrideSchema } from '../validators/provider.validators';
 import * as providerService from '../services/provider.service';
 import * as reviewService from '../services/review.service';
 import * as providerToolsService from '../services/provider-tools.service';
@@ -440,6 +440,10 @@ router.get(
 router.post(
   '/me/availability/overrides',
   authMiddleware,
+  // MED-N99 fix — replace the manual presence-checks with the
+  // availabilityOverrideSchema which validates date format, time
+  // format, end > start, reason length cap, and rejects past dates.
+  validationMiddleware(availabilityOverrideSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireProvider(req);
@@ -447,8 +451,6 @@ router.post(
       const { overrideDate, isAvailable, startTime, endTime, reason } = req.body as {
         overrideDate: string; isAvailable: boolean; startTime?: string; endTime?: string; reason?: string;
       };
-      if (!overrideDate || typeof overrideDate !== 'string') throw createAppError('overrideDate is required.', 400);
-      if (typeof isAvailable !== 'boolean') throw createAppError('isAvailable is required.', 400);
       const override = await providerService.addAvailabilityOverride(provider.id, {
         overrideDate, isAvailable, startTime, endTime, reason,
       });

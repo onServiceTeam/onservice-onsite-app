@@ -272,27 +272,83 @@ export async function updateStaffMember(
   return member;
 }
 
-export async function removeStaffMember(staffId: string): Promise<void> {
-  // Prevent removing the last active super_admin
-  const staffRow = await db.query<{ role_name: string }>(
-    `SELECT ar.name AS role_name FROM admin_staff ast
-     JOIN admin_roles ar ON ast.role_id = ar.id
-     WHERE ast.id = $1`,
-    [staffId],
-  );
-  if (staffRow.rows[0]?.role_name === 'super_admin') {
-    const superCount = await db.query<{ count: string }>(
-      `SELECT COUNT(*) AS count FROM admin_staff ast
+// MED-N128 fix — pre-fix removeStaffMember did a hard DELETE with no
+// audit row. Two problems:
+//   1. The DELETE cascades or orphans related rows (admin_actions
+//      already done by the removed staff member, audit_log entries
+//      that FK to admin_staff.id) without a trace of WHO removed
+//      WHOM and when.
+//   2. If the removal was malicious (an attacker who got super_admin
+//      access removes legitimate staff to lock them out), there's no
+//      forensic trail to detect or recover.
+//
+// Post-fix: removal is now a SOFT-DELETE (set is_active=FALSE,
+// removed_at=NOW(), removed_by=actor) so the row stays for forensics
+// and admin_actions FKs remain valid. An admin_actions row records
+// the action with the actor's adminId for audit. Both writes happen
+// in a single transaction so it's all-or-nothing.
+//
+// The removeStaffMember signature now takes the actor's adminId. The
+// route passes req.user!.userId. The new admin_staff columns
+// removed_at + removed_by come from migration 100.
+export async function removeStaffMember(staffId: string, removedByAdminId: string): Promise<void> {
+  return db.transaction(async (client) => {
+    // Prevent removing the last active super_admin (unchanged invariant).
+    const staffRow = await client.query<{ role_name: string; is_active: boolean }>(
+      `SELECT ar.name AS role_name, ast.is_active FROM admin_staff ast
        JOIN admin_roles ar ON ast.role_id = ar.id
-       WHERE ar.name = 'super_admin' AND ast.is_active = TRUE AND ast.id != $1`,
+       WHERE ast.id = $1
+       FOR UPDATE`,
       [staffId],
     );
-    if (parseInt(superCount.rows[0]?.count ?? '0', 10) === 0) {
-      throw createAppError('Cannot remove the last active super admin.', 409);
+    if (staffRow.rows.length === 0) {
+      throw createAppError('Staff member not found.', 404);
     }
-  }
-  await db.query(`DELETE FROM admin_staff WHERE id = $1`, [staffId]);
-  logger.info('Admin staff removed', { staffId });
+    if (staffRow.rows[0]!.is_active === false) {
+      // Already removed — idempotent.
+      logger.info('removeStaffMember called on already-removed staff', { staffId });
+      return;
+    }
+    if (staffRow.rows[0]!.role_name === 'super_admin') {
+      const superCount = await client.query<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM admin_staff ast
+         JOIN admin_roles ar ON ast.role_id = ar.id
+         WHERE ar.name = 'super_admin' AND ast.is_active = TRUE AND ast.id != $1`,
+        [staffId],
+      );
+      if (parseInt(superCount.rows[0]?.count ?? '0', 10) === 0) {
+        throw createAppError('Cannot remove the last active super admin.', 409);
+      }
+    }
+
+    // Soft-delete: keep the row, mark inactive + record who/when.
+    await client.query(
+      `UPDATE admin_staff
+       SET is_active = FALSE,
+           removed_at = NOW(),
+           removed_by = $2,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [staffId, removedByAdminId],
+    );
+
+    // Audit row.
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'staff_removed', 'admin_staff', $2, $3::jsonb)`,
+      [
+        removedByAdminId,
+        staffId,
+        JSON.stringify({
+          removedRole: staffRow.rows[0]!.role_name,
+          softDeleted: true,
+        }),
+      ],
+    );
+
+    logger.info('Admin staff soft-removed', { staffId, removedByAdminId });
+  });
 }
 
 function validatePermissions(permissions: string[]): void {

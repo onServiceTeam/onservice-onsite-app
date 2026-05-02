@@ -125,7 +125,15 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const data = await providerAdminService.getProviderReviews((req.params.id as string));
+      // MED-N13 fix — accept pagination query params; service returns
+      // { rows, total, page, pageSize } so admin UI can paginate.
+      const page = Math.max(1, Number(req.query.page ?? 1) || 1);
+      const pageSize = Math.max(1, Math.min(200, Number(req.query.pageSize ?? 50) || 50));
+      const data = await providerAdminService.getProviderReviews(
+        req.params.id as string,
+        page,
+        pageSize,
+      );
       res.json({ success: true, data });
     } catch (error) {
       next(error);
@@ -177,7 +185,14 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const data = await providerAdminService.getProviderDisputes((req.params.id as string));
+      // MED-N13 fix — same pagination as /reviews above.
+      const page = Math.max(1, Number(req.query.page ?? 1) || 1);
+      const pageSize = Math.max(1, Math.min(200, Number(req.query.pageSize ?? 50) || 50));
+      const data = await providerAdminService.getProviderDisputes(
+        req.params.id as string,
+        page,
+        pageSize,
+      );
       res.json({ success: true, data });
     } catch (error) {
       next(error);

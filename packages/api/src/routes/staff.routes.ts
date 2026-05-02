@@ -134,7 +134,9 @@ router.delete(
   rbacMiddleware('super_admin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      await staffService.removeStaffMember(getParamId(req));
+      // MED-N128 fix — pass the acting super_admin's userId so the
+      // service can write the audit row + soft-delete attribution.
+      await staffService.removeStaffMember(getParamId(req), req.user!.userId);
       res.json({ success: true, message: 'Staff member removed.' });
     } catch (error) {
       next(error);

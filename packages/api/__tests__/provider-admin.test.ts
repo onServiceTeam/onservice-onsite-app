@@ -194,25 +194,32 @@ describe('getProviderFinancials', () => {
 // ─── getProviderReviews + mutations ─────────────────────────────────────────
 
 describe('getProviderReviews + mutations', () => {
-  it('returns reviews with image_urls', async () => {
-    dbQueryMock.mockResolvedValueOnce(
-      rows([
-        {
-          id: 'r1',
-          booking_id: 'b1',
-          reviewer_name: 'Joe Cust',
-          rating: 4,
-          comment: 'good',
-          is_visible: true,
-          admin_response: null,
-          image_urls: ['https://x/1.png'],
-          created_at: new Date('2024-02-01T00:00:00Z'),
-        },
-      ]),
-    );
+  it('returns reviews with image_urls (now paginated — MED-N13)', async () => {
+    // Service now does Promise.all([COUNT, data]) so the mocks must
+    // satisfy two queries.
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ count: '1' }]))
+      .mockResolvedValueOnce(
+        rows([
+          {
+            id: 'r1',
+            booking_id: 'b1',
+            reviewer_name: 'Joe Cust',
+            rating: 4,
+            comment: 'good',
+            is_visible: true,
+            admin_response: null,
+            image_urls: ['https://x/1.png'],
+            created_at: new Date('2024-02-01T00:00:00Z'),
+          },
+        ]),
+      );
     const out = await svc.getProviderReviews(PROVIDER_ID);
-    expect(out[0].rating).toBe(4);
-    expect(out[0].imageUrls).toEqual(['https://x/1.png']);
+    expect(out.rows[0].rating).toBe(4);
+    expect(out.rows[0].imageUrls).toEqual(['https://x/1.png']);
+    expect(out.total).toBe(1);
+    expect(out.page).toBe(1);
+    expect(out.pageSize).toBe(50);
   });
 
   it('setReviewVisibility throws 404 when missing', async () => {
@@ -230,21 +237,24 @@ describe('getProviderReviews + mutations', () => {
 // ─── getProviderDisputes ────────────────────────────────────────────────────
 
 describe('getProviderDisputes', () => {
-  it('projects resolution_type as resolutionType', async () => {
-    dbQueryMock.mockResolvedValueOnce(
-      rows([
-        {
-          id: 'd1',
-          booking_id: 'b1',
-          customer_name: 'Joe Cust',
-          status: 'resolved',
-          resolution_type: 'partial_refund',
-          created_at: new Date('2024-02-01T00:00:00Z'),
-        },
-      ]),
-    );
+  it('projects resolution_type as resolutionType (now paginated — MED-N13)', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ count: '1' }]))
+      .mockResolvedValueOnce(
+        rows([
+          {
+            id: 'd1',
+            booking_id: 'b1',
+            customer_name: 'Joe Cust',
+            status: 'resolved',
+            resolution_type: 'partial_refund',
+            created_at: new Date('2024-02-01T00:00:00Z'),
+          },
+        ]),
+      );
     const out = await svc.getProviderDisputes(PROVIDER_ID);
-    expect(out[0].resolutionType).toBe('partial_refund');
+    expect(out.rows[0].resolutionType).toBe('partial_refund');
+    expect(out.total).toBe(1);
   });
 });
 
