@@ -292,15 +292,47 @@ export async function requestAccountDeletion(
     );
   }
 
-  const pendingBalance = await db.query<{ balance: string }>(
-    `SELECT COALESCE(SUM(available_balance), 0)::text AS balance
-     FROM wallets WHERE user_id = $1 AND available_balance > 0`,
+  // MED-N56 fix: also block deletion when an unresolved dispute is
+  // open against the user. Anonymizing during a live dispute would
+  // resolve the dispute against an anonymized actor — admin can't
+  // contact, customer/provider can't follow up.
+  const activeDisputes = await db.query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM disputes d
+     JOIN bookings b ON b.id = d.booking_id
+     WHERE (b.customer_id = $1 OR b.provider_id = (SELECT id FROM providers WHERE user_id = $1))
+       AND d.status NOT IN ('resolved')`,
     [userId],
   );
+  if (Number(activeDisputes.rows[0]?.count ?? 0) > 0) {
+    throw createAppError(
+      'Cannot delete account while you have an unresolved dispute. Please wait for the dispute to be resolved.',
+      409,
+    );
+  }
 
-  if (Number(pendingBalance.rows[0]?.balance ?? 0) > 0) {
+  // MED-N52 fix: also check pending_balance (escrow holds). Pre-fix
+  // only checked available_balance — a provider with money held in
+  // escrow could request deletion and lose access to those funds
+  // when the cooling-off period ended (anonymized account can't
+  // withdraw).
+  const walletBalances = await db.query<{ available: string; pending: string }>(
+    `SELECT COALESCE(SUM(available_balance), 0)::text AS available,
+            COALESCE(SUM(pending_balance), 0)::text AS pending
+     FROM wallets WHERE user_id = $1`,
+    [userId],
+  );
+  const availBal = Number(walletBalances.rows[0]?.available ?? 0);
+  const pendBal = Number(walletBalances.rows[0]?.pending ?? 0);
+
+  if (availBal > 0) {
     throw createAppError(
       'Please withdraw your wallet balance before requesting account deletion.',
+      409,
+    );
+  }
+  if (pendBal > 0) {
+    throw createAppError(
+      'Cannot delete account while you have funds held in escrow. Please wait for in-flight bookings to complete and withdraw the released funds first.',
       409,
     );
   }
@@ -327,15 +359,24 @@ export async function requestAccountDeletion(
 export async function cancelAccountDeletion(
   userId: string,
 ): Promise<void> {
+  // MED-N54 fix: also check cooling_off_ends_at > NOW() so a user
+  // can't cancel after the cooling-off has elapsed and the
+  // processExpiredCoolingOff cron is about to flip the row to
+  // 'processing'. Race-window prevention.
   const result = await db.query(
     `UPDATE account_deletion_requests
      SET status = 'cancelled', cancelled_at = NOW()
-     WHERE user_id = $1 AND status IN ('pending', 'cooling_off')`,
+     WHERE user_id = $1
+       AND status IN ('pending', 'cooling_off')
+       AND cooling_off_ends_at > NOW()`,
     [userId],
   );
 
   if ((result.rowCount ?? 0) === 0) {
-    throw createAppError('No active deletion request found.', 404);
+    throw createAppError(
+      'No active deletion request found, or the cooling-off window has already elapsed.',
+      404,
+    );
   }
 
   logger.info('Account deletion cancelled', { userId });
