@@ -113,7 +113,7 @@ export async function uploadBookingPhoto(args: {
     }
   }
 
-  uploadService.validateFile(args.originalname, args.mimetype, args.buffer.length);
+  await uploadService.validateFile(args.originalname, args.mimetype, args.buffer.length);
 
   // Upload to S3 / local FS via existing helper.
   const saved = await uploadService.saveUploadedFile(
@@ -291,7 +291,7 @@ export async function uploadSignature(args: {
     }
   }
 
-  uploadService.validateFile(args.originalname, args.mimetype, args.buffer.length);
+  await uploadService.validateFile(args.originalname, args.mimetype, args.buffer.length);
 
   const context = args.bookingId
     ? `bookings/${args.bookingId}/signatures/${args.signatureType}`

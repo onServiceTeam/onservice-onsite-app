@@ -110,7 +110,15 @@ router.post(
 
       logger.info('PayMongo webhook received', { eventType, paymongoPaymentId, bookingId });
 
-      const isTopUp = bookingId?.startsWith('topup_') ?? false;
+      // MED-N157 fix — prefer an explicit metadata field over string-prefix
+      // detection. If PayMongo metadata carries `intent_kind: 'top_up'` we
+      // trust that. Otherwise fall back to the legacy `topup_` prefix
+      // sniff (back-compat for any pre-fix top-up flows still in flight).
+      // Going forward all top-up intent creation should set intent_kind.
+      const intentKind: string | undefined = paymentData?.metadata?.intent_kind;
+      const isTopUp =
+        intentKind === 'top_up' ||
+        (intentKind === undefined && (bookingId?.startsWith('topup_') ?? false));
 
       switch (eventType) {
         case 'payment.paid': {

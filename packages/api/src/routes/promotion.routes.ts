@@ -85,7 +85,10 @@ router.put(
 router.delete(
   '/:id',
   authMiddleware,
-  rbacMiddleware('admin', 'super_admin'),
+  // MED-N168 fix — promotion DELETE raised to super_admin only.
+  // Junior admin can still create/update via POST/PUT (audited per
+  // MED-N150/N151), but deletion is destructive and is gated up.
+  rbacMiddleware('super_admin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] as string;

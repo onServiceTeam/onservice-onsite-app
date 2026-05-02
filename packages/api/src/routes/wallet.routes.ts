@@ -89,11 +89,14 @@ router.post(
       }
 
       const topUpId = `topup_${userId}_${Date.now()}`;
+      // MED-N157 fix — pass intentKind='top_up' so the webhook handler
+      // routes via metadata field, not bookingId string prefix.
       const intent = await paymentService.createPaymentIntent(
         topUpId,
         amount,
         paymentMethod as 'gcash' | 'maya' | 'card' | 'qrph' | 'bank_transfer',
         `Wallet top-up for user ${userId}`,
+        'top_up',
       );
 
       logger.info('Wallet top-up intent created', { userId, amount, paymentMethod, intentId: intent.id });

@@ -4,6 +4,8 @@ import fs from 'node:fs/promises';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 import { createAppError } from '../middleware/error.middleware';
+// MED-N144 fix — admin-tunable allowed MIME types via platform_settings.
+import * as settingsService from './settings.service';
 
 // --- Storage Backend Selection ---
 // When S3_BUCKET is set, use S3-compatible storage (AWS S3 or DigitalOcean Spaces).
@@ -13,8 +15,27 @@ const USE_S3 = !!process.env.S3_BUCKET;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
 const BASE_URL = process.env.UPLOAD_BASE_URL || `http://localhost:${process.env.PORT || 7381}/uploads`;
 
-const ALLOWED_MIME = new Set<string>(platformConfig.allowedImageTypes);
+// MED-N144 fix — admin-tunable allowlist. Pre-fix the in-memory Set
+// was built from platformConfig at module-load time; admins couldn't
+// add a new MIME type (e.g., image/avif as adoption grows) without a
+// code deploy. Post-fix `loadAllowedMime()` reads from
+// platform_settings.allowed_image_mime_types (comma-separated) with
+// the platformConfig list as fallback.
+const FALLBACK_ALLOWED_MIME = new Set<string>(platformConfig.allowedImageTypes);
 const MAX_SIZE_BYTES = platformConfig.maxImageSizeMB * 1024 * 1024;
+
+async function loadAllowedMime(): Promise<Set<string>> {
+  try {
+    const raw = await settingsService.getSetting('allowed_image_mime_types');
+    if (typeof raw === 'string' && raw.trim()) {
+      const arr = raw.split(',').map((s) => s.trim()).filter(Boolean);
+      if (arr.length > 0) return new Set(arr);
+    }
+  } catch {
+    // fall through to in-code fallback
+  }
+  return FALLBACK_ALLOWED_MIME;
+}
 
 // --- Lazy S3 client initialization ---
 let s3Client: {
@@ -66,14 +87,17 @@ async function ensureUploadDir(): Promise<void> {
   }
 }
 
-export function validateFile(
+// MED-N144 fix — async to read the admin-tunable allowlist. Callers
+// already lived inside async handlers so the change ripples cleanly.
+export async function validateFile(
   originalname: string,
   mimetype: string,
   size: number,
-): void {
-  if (!ALLOWED_MIME.has(mimetype)) {
+): Promise<void> {
+  const allowedMime = await loadAllowedMime();
+  if (!allowedMime.has(mimetype)) {
     throw createAppError(
-      `File type "${mimetype}" is not allowed. Accepted: ${[...ALLOWED_MIME].join(', ')}`,
+      `File type "${mimetype}" is not allowed. Accepted: ${[...allowedMime].join(', ')}`,
       400,
     );
   }
@@ -84,6 +108,32 @@ export function validateFile(
     );
   }
 
+  const ext = path.extname(originalname).toLowerCase();
+  const allowedExts = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+  if (!allowedExts.has(ext)) {
+    throw createAppError(`File extension "${ext}" is not allowed.`, 400);
+  }
+}
+
+// Sync backwards-compat shim for callers that can't easily go async.
+// Uses the in-code FALLBACK_ALLOWED_MIME list (no admin tuning).
+export function validateFileSync(
+  originalname: string,
+  mimetype: string,
+  size: number,
+): void {
+  if (!FALLBACK_ALLOWED_MIME.has(mimetype)) {
+    throw createAppError(
+      `File type "${mimetype}" is not allowed. Accepted: ${[...FALLBACK_ALLOWED_MIME].join(', ')}`,
+      400,
+    );
+  }
+  if (size > MAX_SIZE_BYTES) {
+    throw createAppError(
+      `File is too large (${(size / 1024 / 1024).toFixed(1)}MB). Maximum: ${platformConfig.maxImageSizeMB}MB.`,
+      400,
+    );
+  }
   const ext = path.extname(originalname).toLowerCase();
   const allowedExts = new Set(['.jpg', '.jpeg', '.png', '.webp']);
   if (!allowedExts.has(ext)) {

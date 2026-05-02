@@ -15,6 +15,15 @@ function requireAdmin(req: AuthenticatedRequest): void {
   }
 }
 
+// MED-N159 fix — money-moving payout endpoints (approve/reject/complete)
+// require super_admin per Phase 14 D08 boundary. Junior admin can no
+// longer approve their own colleagues' fraudulent payout requests.
+function requireSuperAdmin(req: AuthenticatedRequest): void {
+  if (req.user!.role !== 'super_admin') {
+    throw createAppError('Super admin access required for payout decisions.', 403);
+  }
+}
+
 router.post(
   '/request',
   authMiddleware,
@@ -111,7 +120,8 @@ router.put(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      // MED-N159 fix — super_admin only.
+      requireSuperAdmin(req);
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
 
@@ -129,7 +139,8 @@ router.put(
   validationMiddleware(rejectPayoutSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      // MED-N159 fix — super_admin only.
+      requireSuperAdmin(req);
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
 
@@ -146,7 +157,8 @@ router.put(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      // MED-N159 fix — super_admin only.
+      requireSuperAdmin(req);
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
 

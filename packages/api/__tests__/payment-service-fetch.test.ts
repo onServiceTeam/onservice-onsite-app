@@ -76,7 +76,10 @@ describe('Bug 1271 + CRIT-N14 — payment.service uses native fetch', () => {
     const body = JSON.parse(init.body as string);
     expect(body.data.attributes.amount).toBe(50000);
     expect(body.data.attributes.currency).toBe('PHP');
-    expect(body.data.attributes.metadata).toEqual({ booking_id: 'b-1' });
+    // MED-N157 fix — metadata now also carries intent_kind so the
+    // webhook handler can route via metadata field instead of the
+    // legacy bookingId-prefix sniff.
+    expect(body.data.attributes.metadata).toEqual({ booking_id: 'b-1', intent_kind: 'booking' });
 
     expect(result.paymongo_intent_id).toBe('pi_test_123');
   });

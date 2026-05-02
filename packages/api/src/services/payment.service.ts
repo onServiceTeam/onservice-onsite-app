@@ -42,6 +42,10 @@ export async function createPaymentIntent(
   amount: number,
   paymentMethod: PaymentMethod,
   description: string,
+  // MED-N157 fix — caller can mark this intent as a non-booking flow
+  // (e.g., wallet top-up) so the webhook handler routes it correctly
+  // via metadata.intent_kind instead of sniffing the booking_id prefix.
+  intentKind: 'booking' | 'top_up' = 'booking',
 ): Promise<PaymentIntentRow> {
   if (amount < platformConfig.minimumPaymentAmount) {
     throw createAppError(`Minimum payment amount is ${formatPHP(platformConfig.minimumPaymentAmount)}.`, 400);
@@ -62,7 +66,7 @@ export async function createPaymentIntent(
               payment_method_allowed: mapPaymentMethodToPaymongo(paymentMethod),
               currency: 'PHP',
               description,
-              metadata: { booking_id: bookingId },
+              metadata: { booking_id: bookingId, intent_kind: intentKind },
             },
           },
         }),

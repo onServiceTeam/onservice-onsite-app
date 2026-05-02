@@ -63,7 +63,8 @@ router.post(
       const results: uploadService.UploadedFile[] = [];
 
       for (const file of files) {
-        uploadService.validateFile(file.originalname, file.mimetype, file.size);
+        // MED-N144 — validateFile is async (reads admin-tunable allowlist).
+        await uploadService.validateFile(file.originalname, file.mimetype, file.size);
         const saved = await uploadService.saveUploadedFile(
           file.buffer,
           file.originalname,
