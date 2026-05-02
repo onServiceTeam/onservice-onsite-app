@@ -224,9 +224,16 @@ export async function approveProvider(providerId: string, adminId: string): Prom
     interface UserIdRow { user_id: string }
     const provider = await client.query<UserIdRow>(`SELECT user_id FROM providers WHERE id = $1`, [providerId]);
     if (provider.rows[0]) {
+      // MED-N71 fix — pre-fix used type='tier_upgrade' which is the
+      // notification type for suki tier promotions, not for first-
+      // time provider account approval. Mobile clients route on
+      // notification.type so the wrong type sent the user to the
+      // wrong landing screen. Post-fix uses 'provider_approved' (now
+      // in the NotificationType union per MED-N72) which mobile maps
+      // to the dedicated approval screen.
       await client.query(
         `INSERT INTO notifications (user_id, type, title, body, data)
-         VALUES ($1, 'tier_upgrade', 'Account Approved', 'Congratulations! Your provider account has been approved. You can now start accepting jobs.', $2)`,
+         VALUES ($1, 'provider_approved', 'Account Approved', 'Congratulations! Your provider account has been approved. You can now start accepting jobs.', $2)`,
         [provider.rows[0].user_id, JSON.stringify({ providerId })],
       );
     }

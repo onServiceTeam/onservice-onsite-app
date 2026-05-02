@@ -307,15 +307,53 @@ export async function updateRecurringPrice(
   recurringId: string,
   newServicePrice: number,
 ): Promise<void> {
-  const serviceFee = calculateServiceFee(newServicePrice);
-  const totalAmount = newServicePrice + serviceFee;
+  // MED-N113 fix — pre-fix: caller-supplied newServicePrice was
+  // accepted unchecked. This bypassed Bug 1132 server-canonical
+  // pricing (the customer-app or admin UI could pass any number,
+  // including a negative or out-of-range value, and the recurring
+  // row would happily store it). Post-fix: validate the price
+  // against the linked subcategory's base_price ± an admin-tunable
+  // tolerance window. If the recurring row has no subcategory_id
+  // (legacy data), accept any non-negative price within a sane
+  // hard cap (₱500,000 = 50,000,000 centavos).
+  if (!Number.isInteger(newServicePrice) || newServicePrice < 0) {
+    throw createAppError('newServicePrice must be a non-negative integer (centavos).', 400);
+  }
+  const HARD_CAP_CENTAVOS = 50_000_000;
+  if (newServicePrice > HARD_CAP_CENTAVOS) {
+    throw createAppError('newServicePrice exceeds maximum allowed.', 400);
+  }
 
-  const rb = await db.query<RecurringBookingRow>(
-    `SELECT customer_id, next_booking_date FROM recurring_bookings WHERE id = $1`,
+  const rb = await db.query<RecurringBookingRow & { subcategory_id: string | null }>(
+    `SELECT customer_id, next_booking_date, subcategory_id FROM recurring_bookings WHERE id = $1`,
     [recurringId],
   );
-
   if (rb.rows.length === 0) return;
+
+  // If linked to a subcategory, anchor the price to its canonical
+  // base_price ± 50% (admin can adjust within that band; bigger
+  // changes need a new recurring row to make the customer aware).
+  const subId = rb.rows[0]!.subcategory_id;
+  if (subId) {
+    const subRow = await db.query<{ base_price: number | null }>(
+      `SELECT base_price FROM service_subcategories WHERE id = $1`,
+      [subId],
+    );
+    const basePrice = subRow.rows[0]?.base_price ?? null;
+    if (basePrice !== null && basePrice > 0) {
+      const min = Math.round(Number(basePrice) * 0.5);
+      const max = Math.round(Number(basePrice) * 1.5);
+      if (newServicePrice < min || newServicePrice > max) {
+        throw createAppError(
+          `newServicePrice ${newServicePrice} is outside the allowed range [${min}, ${max}] for this subcategory's base_price ${basePrice}.`,
+          400,
+        );
+      }
+    }
+  }
+
+  const serviceFee = calculateServiceFee(newServicePrice);
+  const totalAmount = newServicePrice + serviceFee;
 
   await db.query(
     `UPDATE recurring_bookings

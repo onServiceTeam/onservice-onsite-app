@@ -8,6 +8,7 @@ import {
   submitQuoteSchema,
   createJobRequestSchema,
   createChangeOrderSchema,
+  pricingPreviewSchema,
 } from '../validators/booking.validators';
 import { db } from '../models/db';
 import * as bookingService from '../services/booking.service';
@@ -292,29 +293,17 @@ router.post(
 router.post(
   '/pricing-preview',
   authMiddleware,
+  // MED-N91 fix — Zod schema replaces manual presence-checks for
+  // consistency with the rest of the booking routes.
+  validationMiddleware(pricingPreviewSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { basePrice, scheduledAt, categoryId, city } = req.body as {
         basePrice: number; scheduledAt: string; categoryId: string; city?: string;
       };
 
-      if (!basePrice || typeof basePrice !== 'number' || basePrice <= 0) {
-        throw createAppError('basePrice must be a positive number.', 400);
-      }
-      if (!scheduledAt || typeof scheduledAt !== 'string') {
-        throw createAppError('scheduledAt is required.', 400);
-      }
-      if (!categoryId || typeof categoryId !== 'string') {
-        throw createAppError('categoryId is required.', 400);
-      }
-
-      const scheduledDate = new Date(scheduledAt);
-      if (isNaN(scheduledDate.getTime())) {
-        throw createAppError('Invalid scheduledAt date.', 400);
-      }
-
       const pricing = await pricingService.calculatePricing(
-        basePrice, scheduledDate, categoryId, city,
+        basePrice, new Date(scheduledAt), categoryId, city,
       );
 
       res.json({ success: true, data: pricing });

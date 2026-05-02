@@ -434,33 +434,47 @@ export async function markInvoicePaid(
 export async function checkOverdueInvoices(): Promise<number> {
   const today = new Date().toISOString().split('T')[0]!;
 
-  const result = await db.query<{ id: string; business_account_id: string; invoice_number: string; total_amount: number }>(
-    `UPDATE business_invoices
-     SET status = 'overdue', updated_at = NOW()
-     WHERE status = 'sent' AND due_date < $1
-     RETURNING id, business_account_id, invoice_number, total_amount`,
+  // MED-N118 fix — pre-fix the UPDATE returned the overdue invoices,
+  // then a per-invoice SELECT looked up owner_user_id (1 round-trip
+  // per overdue invoice). With N=200 overdue invoices that's 200+
+  // extra round-trips per cron run. Post-fix: UPDATE now JOINs
+  // business_accounts in a CTE so each returned row already carries
+  // owner_user_id — single round-trip total.
+  const result = await db.query<{
+    id: string;
+    business_account_id: string;
+    invoice_number: string;
+    total_amount: number;
+    owner_user_id: string | null;
+  }>(
+    `WITH updated AS (
+       UPDATE business_invoices
+          SET status = 'overdue', updated_at = NOW()
+        WHERE status = 'sent' AND due_date < $1
+        RETURNING id, business_account_id, invoice_number, total_amount
+     )
+     SELECT u.id, u.business_account_id, u.invoice_number, u.total_amount,
+            ba.owner_user_id
+       FROM updated u
+       LEFT JOIN business_accounts ba ON ba.id = u.business_account_id`,
     [today],
   );
 
   const overdueCount = result.rows.length;
 
   if (overdueCount > 0) {
-    for (const inv of result.rows) { // SAFE-N+1: bounded daily cron over overdue invoices (small set); per-row owner lookup gated behind try/catch and used only to emit notification side effect.
+    // SAFE-N+1: bounded daily cron loop emitting one notification per
+    // overdue invoice; no DB lookup inside the loop after MED-N118.
+    for (const inv of result.rows) {
+      if (!inv.owner_user_id) continue;
       try {
-        const account = await db.query<{ owner_user_id: string }>(
-          `SELECT owner_user_id FROM business_accounts WHERE id = $1`,
-          [inv.business_account_id],
-        );
-
-        if (account.rows[0]) {
-          await notificationService.createNotification({
-            userId: account.rows[0].owner_user_id,
-            type: 'business_update',
-            title: 'Invoice Overdue',
-            body: `Invoice ${inv.invoice_number} for ${formatPHP(inv.total_amount)} is overdue. Please settle to avoid service interruption.`,
-            data: { invoiceNumber: inv.invoice_number, businessAccountId: inv.business_account_id },
-          });
-        }
+        await notificationService.createNotification({
+          userId: inv.owner_user_id,
+          type: 'business_update',
+          title: 'Invoice Overdue',
+          body: `Invoice ${inv.invoice_number} for ${formatPHP(inv.total_amount)} is overdue. Please settle to avoid service interruption.`,
+          data: { invoiceNumber: inv.invoice_number, businessAccountId: inv.business_account_id },
+        });
       } catch (err) {
         logger.error('Failed to send overdue notification', {
           invoiceId: inv.id,

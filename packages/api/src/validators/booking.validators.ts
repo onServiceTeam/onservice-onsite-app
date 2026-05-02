@@ -39,6 +39,17 @@ export const createBookingSchema = z.object({
   }).strict()).max(20).optional(),
 }).strict();
 
+// MED-N91 fix — POST /bookings/pricing-preview used to do manual
+// presence-checks on basePrice + scheduledAt + categoryId. Replace
+// with a Zod schema for consistency and to catch malformed input
+// at the middleware layer instead of the route handler.
+export const pricingPreviewSchema = z.object({
+  basePrice: z.number().int().positive('basePrice must be a positive integer (centavos)').max(50_000_000),
+  scheduledAt: z.string().datetime('scheduledAt must be a valid ISO date'),
+  categoryId: z.string().uuid('categoryId must be a valid UUID'),
+  city: z.string().min(1).max(100).optional(),
+}).strict();
+
 export const updateBookingStatusSchema = z.object({
   status: z.enum([
     'requested', 'quoted', 'matched', 'payment_pending', 'paid',
