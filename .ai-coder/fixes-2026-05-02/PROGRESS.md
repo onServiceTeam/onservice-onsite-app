@@ -155,6 +155,8 @@ Landed:
 | 04c96eb | MED-N145+N161+N163+N164+N167 | catalog routes super_admin gating; notification-template DELETE super_admin; service-area waitlist rate limit; webhook rate limit; booking status partition invariant + metrics imports canonical sets |
 | 60673f9 | MED-N156+N158+N165 | webhook payment.paid trx (escrow + wallet trx-aware variants); wallet payment 4-step trx; business types + payment terms from platform_settings (mig 104) |
 | 31bdbe4 | MED-N46+N47+N48+N49 | vat-report TOCTOU race (FOR UPDATE + finalized_at IS NULL guard); pdf_url no longer NULLed during regen; createServiceArea audit + trx; generateSlug fallback uses CSPRNG. MED-N69 confirmed already addressed |
+| 3811b33 | MED-N51+N67+N115+N117 | area_waitlist uniqueness includes province (mig 105); saveBookingAddons dead-code removed; recurring filters anonymized users via is_active JOIN; invoice generateMonthlyInvoices fully transactional |
+| 0055662 | MED-N82+N84 | admin 2FA setup transactional + admin_actions audit; admin auth (login, 2fa verify, 2fa disable) Zod schemas via validationMiddleware |
 
 **Deferred:** MED-N27 (handleCancellation atomicity) — needs a 9-test
 rewrite that's larger than the fix itself; left as the next session's
@@ -166,28 +168,34 @@ booking-admin path) is already correct.
 - MED-N: ~70 of 169 still open (~99 landed across sessions 2+3)
 - MED-K, L, M, O batches: not yet touched in fixes phase
 
-## Session 3 final state — 2026-05-02 (cumulative)
+## Session 3 final state — 2026-05-02 (cumulative, end of session)
 
-- **Test suite:** 2139/2139 passing (started this session at 2055,
-  +84 net new tests).
-- **Commits this session (10):** 97e2707, 131a438, 29b90dc, 3a4615b,
-  457af2c, 826b639, 04c96eb, 60673f9, 31bdbe4 + earlier dc06517.
-- **MED-Ns landed this session:** 38 (across the 9 fix commits).
-- **Cumulative v1.1 MEDs landed:** 99 of ~169.
-- **Net new migrations this session:** 7 (098 device_revoked event
+- **Test suite:** 2150/2150 passing (started this session at 2055,
+  +95 net new tests).
+- **Commits this session (12 fix + 2 docs):** 97e2707, 131a438,
+  29b90dc, 3a4615b, 457af2c, 826b639, 04c96eb, 60673f9, 31bdbe4,
+  3811b33, 0055662 (+ earlier dc06517 + cfd3e6c docs).
+- **MED-Ns landed this session:** 47 (across the 11 fix commits).
+- **Cumulative v1.1 MEDs landed:** 88 of ~169 (~52%).
+- **Net new migrations this session:** 8 (098 device_revoked event
   type, 099 push_retry_queue, 100 admin_staff soft-delete, 101
   refresh_token_fingerprint, 102 consent_version_unique, 103
-  staff_added action_type, 104 business_account_config_settings).
+  staff_added action_type, 104 business_account_config_settings,
+  105 area_waitlist province).
 - **Net new services this session:** 1 (push-retry).
 - **Operator workflow before launch — ADD to existing list:**
-  - Apply migrations 098 → 104 in production database.
+  - Apply migrations 098 → 105 in production database.
   - In Settings UI, optionally tune
     `refresh_token_strict_fingerprint` (default FALSE — observe-only),
     `business_account_types`, `business_payment_terms`.
+  - Before applying mig 105 (area_waitlist UNIQUE includes province),
+    dedupe area_waitlist rows on (phone, city) where province differs
+    — the migration is defensive and will RAISE NOTICE rather than
+    fail outright, but enforcement is delayed until dedupe lands.
+
 - **Next session priorities:**
   1. Check `.ai-coder/decisions/` for Ken responses on E01 / E02.
-  2. Continue v1.1 backlog from MED-N50/51/65/66/70/71/82/83/84/100+
-     onward.
+  2. Continue v1.1 backlog from MED-N50/65/66/70/71/83/100+ onward.
   3. Tackle MED-N27 (handleCancellation atomicity) when convenient —
      still requires the 9-test rewrite.
   4. Routes calling getProviderActivity / getCustomerActivity should
@@ -196,6 +204,9 @@ booking-admin path) is already correct.
   5. Admin UI: consumer of GET /financial/revenue/by-payment to
      handle `{rows, degraded, message}` shape with a "schema not
      migrated" banner when degraded=true.
+  6. Admin UI: render the new admin_actions audit rows (staff_added,
+     staff_removed, config_changed for service_area + promotion +
+     notification_template) in the existing audit timeline.
 
 ## RESUME instructions for the next session
 
