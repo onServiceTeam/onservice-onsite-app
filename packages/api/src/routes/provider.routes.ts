@@ -91,7 +91,21 @@ router.get(
 
 router.get(
   '/:id',
-  async (req: Request, res: Response, next: NextFunction) => {
+  // MED-N96 fix: pre-fix this endpoint was UNAUTHENTICATED and returned
+  // the provider's full profile including precise lat/long, city,
+  // province, and full first+last name. Combined with portfolio photo
+  // EXIF (preserved by Bug 1325 D01 SSE-KMS pipeline) this enabled
+  // reverse-geocoding to specific addresses by anonymous internet
+  // browsers.
+  //
+  // Now: requires authentication. Customers/providers/admins can all
+  // view (no role restriction) — the matching engine and search
+  // surfaces are already auth-gated, so any legitimate "browse a
+  // provider's profile" flow already has a logged-in actor. SEO/
+  // landing-page browsing of providers would need a separate explicit
+  // public endpoint with reduced fields (deferred to v1.1+).
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['id'];
       if (typeof providerId !== 'string' || !providerId) throw createAppError('Provider ID is required.', 400);

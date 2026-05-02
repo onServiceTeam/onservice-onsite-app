@@ -693,6 +693,38 @@ router.post(
         throw createAppError('Only the booking owner or an admin can assign providers.', 403);
       }
 
+      // MED-N86 fix: customer self-assigning a SPECIFIC provider
+      // bypasses the matching algorithm and skips conflict-of-interest
+      // checks (matching service area, surge pricing fairness). It's
+      // also a vector for collusion (customer pays in cash off-app for
+      // a discount, completes booking via app to launder the
+      // relationship). Per audit option (b), keep self-assign allowed
+      // (some customers legitimately want a specific provider) but
+      // surface every instance to the security_events feed so the
+      // bypass-detection cron + admin Compliance dashboard can
+      // identify patterns. Best-effort log; never block the booking.
+      if (!isAdmin && isBookingOwner) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { logSecurityEvent } = require('../services/security.service');
+          await logSecurityEvent({
+            userId,
+            eventType: 'suspicious_activity',
+            metadata: {
+              kind: 'customer_self_assigned_provider',
+              bookingId: id,
+              providerId,
+            },
+          });
+        } catch (logErr) {
+          // Logging failure must NOT block the booking flow.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (req as unknown as { log?: (m: string) => void }).log?.(
+            'logSecurityEvent failed for customer_self_assigned_provider',
+          );
+        }
+      }
+
       const currentStatus = booking.status as BookingStatus;
       if (!canTransition(currentStatus, 'matched')) {
         throw createAppError(
