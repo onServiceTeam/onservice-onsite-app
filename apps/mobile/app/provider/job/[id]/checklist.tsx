@@ -1,5 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+// Phase E CRIT-105 fix — checklist now fetched from the
+// server-driven /api/v1/jobs/:id/checklist endpoint (Phase 14 D07
+// Bug 460/463). Pre-fix the screen shipped a HARDCODED cleaning
+// checklist (Living Room → Kitchen → Bedroom → Bathroom) regardless
+// of what service the booking was for — a plumber's job displayed
+// "vacuum living room" + "wipe kitchen counters" instead of the
+// real plumbing checklist tied to the service category. Per-toggle
+// state is now persisted via PATCH /jobs/:id/checklist/items/:itemId
+// so the customer also sees real-time progress and the booking
+// transition gate (completed_by_provider requires checklist done)
+// reflects actual completion.
 import {
   View,
   Text,
@@ -16,6 +27,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/services/api';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { CheckCircle2, Camera, AlertCircle, X } from '@/components/icons';
 
@@ -92,11 +104,66 @@ interface FlatRow {
 export default function JobChecklistScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const [sections, setSections] = useState<ChecklistSection[]>(INITIAL_SECTIONS);
+  const [sections, setSections] = useState<ChecklistSection[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [issueOpen, setIssueOpen] = useState(false);
   const [issueItemId, setIssueItemId] = useState<string | null>(null);
   const [issueText, setIssueText] = useState('');
   const [issueSubmitting, setIssueSubmitting] = useState(false);
+
+  // Phase E CRIT-105 fix — fetch the canonical checklist for this
+  // booking from the server. The server's getChecklistForBooking
+  // returns sections + items based on the booking's service category
+  // (template tied to category_id). On first call it materializes
+  // a per-booking checklist row from the template; subsequent calls
+  // return the same row so partial-progress survives screen
+  // re-mounts.
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setIsLoading(true);
+        setLoadError(null);
+        const res = await api.get<{
+          success: boolean;
+          data: {
+            sections: Array<{
+              id: string;
+              title: string;
+              items: Array<{
+                id: string;
+                title: string;
+                isCompleted: boolean;
+                completedAt: string | null;
+                photoId: string | null;
+              }>;
+            }>;
+          };
+        }>(`/api/v1/jobs/${id}/checklist`);
+        if (cancelled) return;
+        const mapped: ChecklistSection[] = res.data.data.sections.map((s) => ({
+          id: s.id,
+          title: s.title,
+          items: s.items.map((it) => ({
+            id: it.id,
+            label: it.title,
+            done: it.isCompleted,
+            completedAt: it.completedAt,
+            photoUri: it.photoId ? `photo:${it.photoId}` : null,
+          })),
+        }));
+        setSections(mapped);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        setLoadError(getErrorMessage(err, 'Could not load the checklist for this job.'));
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
 
   const totals = useMemo(() => {
     let total = 0;
@@ -129,12 +196,25 @@ export default function JobChecklistScreen(): React.ReactElement {
     );
   };
 
+  // Phase E CRIT-105 fix — toggleDone now PATCHes the server so
+  // the customer's mirror view + the booking's "checklist complete"
+  // gate (used by status-transition validators) sees the updated
+  // state. Optimistic local update first; revert on server error.
   const toggleDone = (item: ChecklistItem): void => {
-    if (item.done) {
-      updateItem(item.id, { done: false, completedAt: null });
-    } else {
-      updateItem(item.id, { done: true, completedAt: new Date().toISOString() });
-    }
+    const nextDone = !item.done;
+    const nextCompletedAt = nextDone ? new Date().toISOString() : null;
+    updateItem(item.id, { done: nextDone, completedAt: nextCompletedAt });
+    void (async () => {
+      try {
+        await api.patch(`/api/v1/jobs/${id}/checklist/items/${item.id}`, {
+          isCompleted: nextDone,
+        });
+      } catch (err: unknown) {
+        // Revert local state and surface the error.
+        updateItem(item.id, { done: item.done, completedAt: item.completedAt });
+        Alert.alert('Could not save', getErrorMessage(err, 'Please try again.'));
+      }
+    })();
   };
 
   const capturePhoto = async (item: ChecklistItem): Promise<void> => {
@@ -244,6 +324,43 @@ export default function JobChecklistScreen(): React.ReactElement {
       </View>
     );
   };
+
+  // Phase E CRIT-105 — loading + error states for the server fetch.
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Text style={styles.backText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Service Checklist</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={[styles.progressWrap, { alignItems: 'center', paddingVertical: spacing.xl }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+  if (loadError) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Text style={styles.backText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Service Checklist</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={[styles.progressWrap, { alignItems: 'center', paddingVertical: spacing.xl }]}>
+          <AlertCircle size={32} color={colors.error} />
+          <Text style={[styles.progressText, { marginTop: spacing.md, color: colors.error }]}>
+            {loadError}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
