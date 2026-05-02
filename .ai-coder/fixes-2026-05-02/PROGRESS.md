@@ -157,6 +157,7 @@ Landed:
 | 31bdbe4 | MED-N46+N47+N48+N49 | vat-report TOCTOU race (FOR UPDATE + finalized_at IS NULL guard); pdf_url no longer NULLed during regen; createServiceArea audit + trx; generateSlug fallback uses CSPRNG. MED-N69 confirmed already addressed |
 | 3811b33 | MED-N51+N67+N115+N117 | area_waitlist uniqueness includes province (mig 105); saveBookingAddons dead-code removed; recurring filters anonymized users via is_active JOIN; invoice generateMonthlyInvoices fully transactional |
 | 0055662 | MED-N82+N84 | admin 2FA setup transactional + admin_actions audit; admin auth (login, 2fa verify, 2fa disable) Zod schemas via validationMiddleware |
+| b74b635 | MED-N71+N91+N113+N118 | approveProvider notification type fix; pricing-preview Zod schema; updateRecurringPrice canonical-price band; checkOverdueInvoices CTE JOIN |
 
 **Deferred:** MED-N27 (handleCancellation atomicity) — needs a 9-test
 rewrite that's larger than the fix itself; left as the next session's
@@ -170,13 +171,13 @@ booking-admin path) is already correct.
 
 ## Session 3 final state — 2026-05-02 (cumulative, end of session)
 
-- **Test suite:** 2150/2150 passing (started this session at 2055,
-  +95 net new tests).
+- **Test suite:** 2162/2162 passing (started this session at 2055,
+  +107 net new tests).
 - **Commits this session (12 fix + 2 docs):** 97e2707, 131a438,
   29b90dc, 3a4615b, 457af2c, 826b639, 04c96eb, 60673f9, 31bdbe4,
-  3811b33, 0055662 (+ earlier dc06517 + cfd3e6c docs).
-- **MED-Ns landed this session:** 47 (across the 11 fix commits).
-- **Cumulative v1.1 MEDs landed:** 88 of ~169 (~52%).
+  3811b33, 0055662, b74b635 (+ earlier dc06517 + cfd3e6c docs).
+- **MED-Ns landed this session:** 51 (across the 12 fix commits).
+- **Cumulative v1.1 MEDs landed:** 92 of ~169 (~54%).
 - **Net new migrations this session:** 8 (098 device_revoked event
   type, 099 push_retry_queue, 100 admin_staff soft-delete, 101
   refresh_token_fingerprint, 102 consent_version_unique, 103
