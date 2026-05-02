@@ -124,7 +124,16 @@ router.get(
     try {
       requireAdmin(req);
       const limit = Number(req.query.limit ?? 50);
-      const data = await customerAdminService.getCustomerActivity((req.params.id as string), limit);
+      // PROGRESS.md follow-up — forward the caller's role so MED-N17
+      // PII masking returns raw IP/UA for super_admin + dpo and masked
+      // values for junior admins. Pre-fix the route always passed the
+      // default ('admin'), so super_admin saw masked values.
+      const role = req.user?.role === 'super_admin' || req.user?.role === 'dpo'
+        ? 'super_admin'
+        : 'admin';
+      const data = await customerAdminService.getCustomerActivity(
+        (req.params.id as string), limit, role,
+      );
       res.json({ success: true, data });
     } catch (error) {
       next(error);

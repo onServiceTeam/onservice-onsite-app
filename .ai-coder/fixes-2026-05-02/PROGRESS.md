@@ -1039,6 +1039,96 @@ addressed without injecting an `afterAll` into all 184 test files
 individually. Left as documented limitation; the warning is
 informational and tests still pass.
 
+## Session 5r — LL#10 IAM + LL#12 password rotation + audit timeline UI + activity role forwarding + degraded shape
+
+5 commits across backend + infra + admin web.
+
+| # | Commit | Summary |
+|---|---|---|
+| 1 | b9747f3 | LAUNCH-LIMITATIONS #5 forced re-consent + audit dir tracked (5q) |
+| 2 | 3d42c1b | LL#10 IAM least-privilege Terraform + LL#12 admin password rotation campaign (12 tests) |
+| 3 | d7ebe55 | Admin audit timeline UNIONs audit_log + admin_actions with source discriminator (4 admin tests) |
+| 4 | (this) | Activity-route role forwarding (MED-N14/N17 follow-up) + Financials by-payment degraded banner (MED-N11 follow-up) |
+
+### What landed in 5r
+
+**LL#10 — IAM least-privilege Terraform spec.**
+New `infra/terraform/iam-api-service-role.tf` implementing
+INFRA-CHECKLIST items 2.1-2.5: dedicated `onservice-api-prod` role,
+S3 perms scoped to PutObject + GetObject on the BIR bucket only,
+explicit DENY on DeleteObject*, PutBucket*, PutObjectRetention,
+PutObjectLegalHold, BypassGovernanceRetention. Permission boundary
+blocks IAM/KMS mutation. Separate `onservice-data-export-prod` role
+scoped to `customer-uploads/exports/*` only. Operator still needs
+`terraform apply` against prod AWS.
+
+**LL#12 — proactive rotation campaign for legacy password hashes.**
+- Migration 116: `users.must_rotate_password` BOOLEAN + partial index
+  + `admin_actions.action_type` CHECK widened (introspection-based
+  to avoid clobbering the canonical list).
+- New service `admin-password-rotation.service.ts` with
+  `getLegacyPasswordStats`, `flagLegacyHashesForRotation`, and
+  `changeOwnAdminPassword`.
+- New routes: `GET /security/admin/legacy-password-stats` (admin
+  tier), `POST /security/admin/flag-legacy-password-hashes`
+  (super_admin), `POST /security/admin/me/change-password`.
+- Admin login + 2FA verify success responses now carry
+  `mustRotatePassword: boolean` so the admin web app can route
+  straight to the change-password screen.
+- 12 tests in launch-limit-12-admin-password-rotation.test.ts.
+
+**Admin audit timeline.**
+GET /admin/audit-log now UNIONs `audit_log` + `admin_actions` with a
+`source` discriminator. AuditLogPage gets:
+- Source badge (request / admin op) on every row.
+- ACTION_LABELS dictionary mapping the 25+ Phase 14+ admin verbs
+  (staff_added, dpo promotions, dsr_*, consent_version_published,
+  password rotation flagged, etc.) to friendly text.
+- Source filter dropdown (all / request / admin op).
+- Detail panel shows the `reason` field in an amber callout for
+  admin_actions rows.
+- 4 tests in audit-log-page-source-discriminator.real.test.tsx.
+
+**Activity-route role forwarding** (PROGRESS.md follow-up).
+Routes `GET /admin/customers/:id/activity` and
+`GET /admin/providers/:id/activity` now forward `req.user.role` to
+the service so MED-N14 / MED-N17 PII masking applies super_admin /
+dpo unmasking correctly. Pre-fix: every caller saw masked values
+because the routes always passed the default 'admin'.
+
+**Financials by-payment degraded banner** (PROGRESS.md follow-up).
+The admin Financials → Overview tab "Revenue by Payment Method"
+chart now renders a "Heads up: payment-method revenue is
+unavailable. Apply outstanding migrations." banner above the empty
+chart when the backend reports `degraded: true`. Closes the MED-N11
+follow-up note.
+
+### Numbers (session 5r final)
+
+- **Backend tests:** 2498 passing (was 2486; +12 from LL#12).
+- **Mobile tests:** 406 passing + 89 todo (unchanged).
+- **Admin tests:** 92 passing + 3 todo (was 88; +4 from audit
+  timeline source-discriminator test).
+- **LAUNCH-LIMITATIONS resolved this wave:** #5, #10 (spec ready;
+  needs `terraform apply`), #12 (so 8 of 31 catalogued items
+  RESOLVED via this overall wave: #3, #4, #5, #6, #7, #8, #9, #12;
+  plus #10 spec-ready).
+- **New migrations:** 1 (116 ll12_admin_password_rotation).
+- **New services:** 1 (admin-password-rotation).
+- **New Terraform files:** 1 (iam-api-service-role).
+
+### Operator workflow before launch — additions
+
+- `terraform apply` against the production AWS account to land
+  `iam-api-service-role.tf` (LL#10). Wire the resulting role ARNs
+  into the ECS task definitions / EKS pod spec.
+- Apply migration 116.
+- After mig 116 lands, optionally hit `POST /security/admin/flag-
+  legacy-password-hashes` to start the password rotation campaign.
+  Admins with legacy hashes will be routed to the change-password
+  screen on next login. Verify via
+  `GET /security/admin/legacy-password-stats`.
+
 ## RESUME instructions for the next session
 
 1. Backend audit findings (Phase B + C + N + M + O) substantially

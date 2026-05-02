@@ -237,10 +237,18 @@ function OverviewPanel(): React.ReactElement {
     },
   });
 
+  // MED-N11 / PROGRESS.md follow-up — by-payment endpoint returns a
+  // structured `{rows, degraded, message}` shape so the UI can show
+  // a "schema not migrated" banner instead of silently rendering
+  // "all unknown" rows.
   const byPaymentQ = useQuery({
     queryKey: ['fin-by-payment', from, to],
     queryFn: async () => {
-      const res = await api.get<ApiEnvelope<BreakdownItem[]>>(
+      const res = await api.get<ApiEnvelope<{
+        rows: BreakdownItem[];
+        degraded: boolean;
+        message: string | null;
+      }>>(
         '/api/v1/admin/financials/revenue/by-payment',
         { params: { from, to } },
       );
@@ -324,13 +332,28 @@ function OverviewPanel(): React.ReactElement {
           error={byTierQ.isError ? byTierQ.error : null}
           emptyText="No tier revenue in this range."
         />
-        <HorizontalBars
-          title="Revenue by Payment Method"
-          rows={normalizeBreakdown(byPaymentQ.data, 'paymentMethod')}
-          loading={byPaymentQ.isLoading}
-          error={byPaymentQ.isError ? byPaymentQ.error : null}
-          emptyText="No payment-method revenue in this range."
-        />
+        <div>
+          {byPaymentQ.data?.degraded && byPaymentQ.data.message && (
+            <div
+              className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="font-semibold">Heads up:</span> {byPaymentQ.data.message}
+            </div>
+          )}
+          <HorizontalBars
+            title="Revenue by Payment Method"
+            rows={normalizeBreakdown(byPaymentQ.data?.rows ?? [], 'paymentMethod')}
+            loading={byPaymentQ.isLoading}
+            error={byPaymentQ.isError ? byPaymentQ.error : null}
+            emptyText={
+              byPaymentQ.data?.degraded
+                ? 'Payment-method tracking unavailable.'
+                : 'No payment-method revenue in this range.'
+            }
+          />
+        </div>
       </div>
     </div>
   );

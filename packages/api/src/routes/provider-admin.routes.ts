@@ -209,7 +209,15 @@ router.get(
     try {
       requireAdmin(req);
       const limit = Number(req.query.limit ?? 50);
-      const data = await providerAdminService.getProviderActivity((req.params.id as string), limit);
+      // PROGRESS.md follow-up — forward the caller's role so MED-N14
+      // PII masking returns raw IP/UA for super_admin + dpo and
+      // masked values for junior admins.
+      const role = req.user?.role === 'super_admin' || req.user?.role === 'dpo'
+        ? 'super_admin'
+        : 'admin';
+      const data = await providerAdminService.getProviderActivity(
+        (req.params.id as string), limit, role,
+      );
       res.json({ success: true, data });
     } catch (error) {
       next(error);
