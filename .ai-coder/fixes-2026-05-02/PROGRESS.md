@@ -101,20 +101,33 @@ estimates and recommendations. Awaiting Ken's choice in chat or in
    and `gateway_retry_queue.status='failed_permanent'`.
 7. Mobile UI: add preferred_locale picker in user profile.
 
-## Wave 2 P2 — REMAINING (D-J27 through D-J30)
+## Wave 2 P2 — COMPLETE
 
-- **D-J27** F#3 fixture scripts for Maestro state captures
-- **D-J28** Webhook payment.amount mismatch alerting (MED-N155)
-- **D-J29** wallet.routes.ts /withdraw delegation to payout.service (MED-N166)
-- **D-J30** Reconciliation Slack alerting (MED-N120)
+| # | Dispatch | CRIT/MED | Status | Commit |
+|---|---|---|---|---|
+| 25 | D-J28 — webhook payment.amount mismatch alerting | MED-N155 | DONE | 734d8dd |
+| 26 | D-J29 — wallet.routes /withdraw delegates to payoutService | MED-N166 | DONE | 195999d |
+| 27 | D-J30 — reconciliation Slack alerting | MED-N120 | DONE | eff761c |
+| 28 | D-J27 — F#3 fixture scripts + /__test endpoints | (handoff) | DONE | ba5a67e |
 
-These are launch-quality polish, not launch-blocking individually.
+## Session 2 final state — 2026-05-02
+
+- **Test suite:** 1835/1835 passing.
+- **Commits this session:** 16 (from 044c19b to ba5a67e).
+- **All Wave 1 P0 + Wave 2 P1 + Wave 2 P2 dispatches DONE** except 2
+  hard-stops (D-J15 dpo role, D-J22 recurring auto_charge) which
+  await Ken's choice in escalation files E01 + E02.
 
 ## RESUME instructions for the next session
 
 1. Check `.ai-coder/decisions/` for Ken's responses on E01 (dpo) and
    E02 (auto_charge). If present, execute the chosen path.
-2. Otherwise, pick from D-J27–D-J30 P2 polish list above.
+2. Otherwise, return to the full audit findings list under
+   `.ai-coder/audit-2026-05-01/PHASE-*-BATCH-*.md` and start
+   working through remaining MEDs in audit batch order. The
+   launch-blocking subset (Wave 1 P0) and production-quality subset
+   (Wave 2 P1 + P2) are now closed; what's left is the v1.1
+   hardening backlog.
 3. Continue the same pattern: edit code, write test, run, commit.
 
 Each fix is one self-contained commit. The dispatches do not have
