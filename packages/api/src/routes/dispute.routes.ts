@@ -1,5 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { rbacMiddleware } from '../middleware/rbac.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import {
   fileDisputeSchema,
@@ -155,13 +156,19 @@ router.post(
   },
 );
 
+// MED-N160 fix: dispute resolution / escalation / assignment are
+// money-affecting actions (resolve writes refund or escrow-release;
+// escalate moves the dispute up the financial-impact ladder; assign
+// hands the case to a specific reviewer). These should require
+// super_admin rather than the generic admin role. Junior admins keep
+// read access (GET /, GET /:id) but cannot mutate dispute state.
 router.put(
   '/:id/resolve',
   authMiddleware,
+  rbacMiddleware('super_admin'),
   validationMiddleware(resolveDisputeSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Dispute ID is required.', 400);
 
@@ -176,10 +183,10 @@ router.put(
 router.post(
   '/:id/escalate',
   authMiddleware,
+  rbacMiddleware('super_admin'),
   validationMiddleware(escalateDisputeSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Dispute ID is required.', 400);
 
@@ -194,10 +201,10 @@ router.post(
 router.put(
   '/:id/assign',
   authMiddleware,
+  rbacMiddleware('super_admin'),
   validationMiddleware(assignDisputeSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Dispute ID is required.', 400);
 
