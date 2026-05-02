@@ -55,40 +55,67 @@ migrations 089 + 090 + new bir-filer-identity service):
 3. Verify AWS_S3_BUCKET + AWS_REGION env vars set in production for
    data-export delivery.
 
-## Wave 2 P1 — IN PROGRESS
+## Wave 2 P1 — COMPLETE (10 of 12 actionable; 2 escalated)
 
 | # | Dispatch | CRIT/MED | Status | Commit |
 |---|---|---|---|---|
 | 12 | D-J12 — wire pricing-preview to resolvePromo | CRIT-N15 | DONE | 5bdbd0b |
-| 13 | D-J13 — server.ts trust proxy + startup secret validation | CRIT-M04, M05 + MED-N66/N95/N169 | DONE | 58d37b0 |
+| 13 | D-J13 — server.ts trust proxy + startup secret validation | CRIT-M04/M05 + MED-N66/N95/N169 | DONE | 58d37b0 |
+| 14 | D-J16 — cacheMiddleware key by user + fail-closed | CRIT-M02 | DONE | 044c19b |
+| 15 | D-J14 — rate-limit middleware live settings | CRIT-M01 | DONE | a509576 |
+| 16 | D-J17 — provider tier canonicalization (founding tier) | MED-N22/N32/N102 | DONE | b165a21 |
+| 17 | D-J26 — dispute mutation endpoints super_admin | MED-N160 | DONE | da8b31a |
+| 18 | D-J21 — photo MIME plumbing + portfolio URL validation | MED-N89/N97 | DONE | 5265205 |
+| 19 | D-J19 — AML threshold for payouts + per-method format | MED-N77/N78 | DONE | 0a84bb3 |
+| 20 | D-J18 — gateway-action retry queue + worker | MED-N28 | DONE | b2a0077 |
+| 21 | D-J24 — provider suspension cascade + KYC + tier whitelist | MED-N73/N74/N75 | DONE | 2e38856 |
+| 22 | D-J23 — marketing channels + tier bonus admin-tunable | MED-N29/N102 | DONE | e7a72ef |
+| 23 | D-J25 — S3 server access logging on bir + uploads | MED-O03 | DONE | 46dd319 |
+| 24 | D-J20 — notification i18n + Tagalog bypass keywords | MED-N58/N59/N140 | DONE | 7d91d87 |
 
-### Remaining Wave 2 P1 + P2
+### Escalated to Ken (HARD STOPS per CLAUDE.md)
 
-- **D-J14** Promote rate-limit middleware to live settings (CRIT-M01)
-- **D-J15** Decide 'dpo' role: implement or remove (CRIT-M03, MED-O02)
-- **D-J16** Cache middleware: key by user identity (CRIT-M02)
-- **D-J17** Provider tier name canonicalization (MED-N22, N32, N102)
-- **D-J18** Failed-gateway-refund retry queue (MED-N28, N57)
-- **D-J19** AML threshold for payouts (MED-N77, N78)
-- **D-J20** i18n for notification bodies (MED-N58, N59, N140)
-- **D-J21** Photo MIME plumbing + portfolio URL validation (MED-N89, N97)
-- **D-J22** Recurring booking auto_charge: implement or remove (MED-N114, N115)
-- **D-J23** Marketing channel + tier weights admin tunability (MED-N29, N102, N126)
-- **D-J24** Provider suspension cascade + KYC pre-approval + tier whitelist (MED-N73-75)
-- **D-J25** Server access logging on S3 buckets (MED-O03)
-- **D-J26** Dispute /resolve, /escalate, /assign super_admin gating (MED-N160)
+- **D-J15** (CRIT-M03, MED-O02) — `dpo` role: implement or remove.
+  See `.ai-coder/escalations/E01-dpo-role-implement-or-remove-2026-05-02.md`.
+- **D-J22** (MED-N114, N115) — recurring booking `auto_charge`: implement or remove.
+  See `.ai-coder/escalations/E02-recurring-auto-charge-implement-or-remove-2026-05-02.md`.
 
-Plus D-J27 through D-J30 (P2 polish).
+Both have Path A (implement) + Path B (remove) laid out with effort
+estimates and recommendations. Awaiting Ken's choice in chat or in
+`.ai-coder/decisions/D15-*.md` and `.ai-coder/decisions/D22-*.md`.
+
+## Operator workflow before launch (cumulative — sessions 1 + 2)
+
+1. Apply migrations 089 → 094 in production database.
+2. Set production environment variables:
+   - `JWT_SECRET`, `TOTP_ENCRYPTION_KEY`, `CAPTCHA_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET`
+   - `AWS_S3_BUCKET`, `AWS_REGION`
+   - `TRUST_PROXY_HOPS` (default 1)
+3. Log in as super_admin and set the 5 BIR filer identity values.
+4. Apply terraform: `s3-access-log-bucket.tf` (creates the shared
+   access-log bucket + attaches logging to bir-receipts and uploads).
+5. Optional: tune `aml_large_transaction_threshold_centavos`,
+   `marketing_channels`, `matching_tier_bonus`, `rate_limit_*` via
+   Settings UI.
+6. Wire admin Compliance dashboard view of `payouts.requires_aml_review=TRUE`
+   and `gateway_retry_queue.status='failed_permanent'`.
+7. Mobile UI: add preferred_locale picker in user profile.
+
+## Wave 2 P2 — REMAINING (D-J27 through D-J30)
+
+- **D-J27** F#3 fixture scripts for Maestro state captures
+- **D-J28** Webhook payment.amount mismatch alerting (MED-N155)
+- **D-J29** wallet.routes.ts /withdraw delegation to payout.service (MED-N166)
+- **D-J30** Reconciliation Slack alerting (MED-N120)
+
+These are launch-quality polish, not launch-blocking individually.
 
 ## RESUME instructions for the next session
 
-1. Read this file to find the first non-DONE row in the next-session
-   list above. (Wave 1 is complete; pick from Wave 2 D-J12 onward.)
-2. Read the relevant CRIT/MED description in
-   `.ai-coder/audit-2026-05-01/PHASE-N-BATCH-*.md` and the matching
-   dispatch description in
-   `.ai-coder/audit-2026-05-01/AUDIT-CLOSEOUT-FINAL.md`.
-3. Continue with the same pattern: edit code, write test, run, commit.
+1. Check `.ai-coder/decisions/` for Ken's responses on E01 (dpo) and
+   E02 (auto_charge). If present, execute the chosen path.
+2. Otherwise, pick from D-J27–D-J30 P2 polish list above.
+3. Continue the same pattern: edit code, write test, run, commit.
 
 Each fix is one self-contained commit. The dispatches do not have
 inter-dependencies that force order.
