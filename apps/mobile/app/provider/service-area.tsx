@@ -1,5 +1,11 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+// Phase E CRIT-111 fix — POST /providers/me/service-area does not
+// exist on the backend (404). Replaced with the canonical PATCH
+// /providers/me endpoint, which accepts serviceRadiusKm + latitude +
+// longitude (validators/provider.validators.ts updateProfileSchema).
+// Field names also renamed: centerLat/centerLng → latitude/longitude
+// and radiusKm → serviceRadiusKm to match the schema.
 import {
   View,
   Text,
@@ -19,8 +25,13 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MapPin } from '@/components/icons';
 
 const RADIUS_OPTIONS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50] as const;
-const DEFAULT_LAT = 14.6042;
-const DEFAULT_LNG = 121.0421;
+// Phase E CRIT-111 fix — default map center is Boracay (the launch
+// market), not Quezon City. Same correction landed in the
+// onboarding service-area screen via CRIT-116 / K-MED-K06. Provider
+// almost always taps "Use My Current Location" anyway, so this only
+// matters for the initial map render before geolocation resolves.
+const DEFAULT_LAT = 11.9685;
+const DEFAULT_LNG = 121.9162;
 
 export default function ProviderServiceAreaScreen(): React.ReactElement {
   const router = useRouter();
@@ -51,10 +62,14 @@ export default function ProviderServiceAreaScreen(): React.ReactElement {
   const handleSave = async (): Promise<void> => {
     setSaving(true);
     try {
-      await api.post('/api/v1/providers/me/service-area', {
-        centerLat,
-        centerLng,
-        radiusKm,
+      // Phase E CRIT-111 fix — PATCH /providers/me with the canonical
+      // field names accepted by updateProfileSchema. The pre-fix POST
+      // /me/service-area endpoint never existed; every save returned
+      // 404 and was masked by the generic "Save failed" toast.
+      await api.patch('/api/v1/providers/me', {
+        latitude: centerLat,
+        longitude: centerLng,
+        serviceRadiusKm: radiusKm,
       });
       Alert.alert('Saved', 'Your service area has been updated.', [
         { text: 'OK', onPress: () => router.back() },
