@@ -39,10 +39,26 @@ export async function uploadImages(
   const rnForm: RNFormDataLike = formData;
   rnForm.append('context', context);
 
+  // Phase K MED-K14 audit context — the `type` field is derived from
+  // the file extension, which is client-controlled and trivially
+  // spoofable. We treat the client-supplied MIME as ADVISORY only.
+  // The backend (packages/api/src/services/upload.service +
+  // MED-N144 fix) byte-sniffs the actual file content via
+  // file-type / image-magic-bytes detection and rejects mismatched
+  // declarations at /api/v1/uploads. Allowed MIME list is admin-
+  // tunable via platform_settings.allowed_image_mime_types
+  // (mig 110). So even if a client sends type='image/jpeg' for a
+  // .exe payload, the server will return 400 before any storage
+  // write. Client-side extension whitelist below is just a sanity
+  // pre-filter to save the round-trip.
+  const ALLOWED_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp']);
   for (const uri of uris) {
     const pathPart = uri.split('?')[0] ?? uri;
     const ext = pathPart.split('.').pop()?.toLowerCase() ?? 'jpg';
-    const safeExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : 'jpg';
+    if (!ALLOWED_EXTS.has(ext)) {
+      throw new Error(`Unsupported image type ".${ext}". Allowed: ${Array.from(ALLOWED_EXTS).join(', ')}.`);
+    }
+    const safeExt = ext;
     const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
     const type = mimeMap[safeExt] ?? 'image/jpeg';
 

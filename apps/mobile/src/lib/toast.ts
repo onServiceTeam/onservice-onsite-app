@@ -17,11 +17,15 @@ export function showToast(message: string, type: ToastType = 'info'): void {
 
 export function showRetryableToast(
   message: string,
-  _onRetry: () => void,
+  onRetry: () => void,
   type: ToastType = 'error',
 ): void {
-  // v1.0: surfaces the error message; the screen's existing retry button
-  // is the recovery affordance. v1.1+ will inline an action button on the
-  // toast itself per Part 2B Pattern 7.
-  useToastStore.getState().show(message, type);
+  // Phase K MED-K22 fix — pass onRetry through to the Toast store so
+  // the provider can render an inline "Retry" button (Pattern 7).
+  // Pre-fix the onRetry callback was accepted but ignored, so users
+  // saw an error toast with no recovery affordance.
+  useToastStore.getState().show(message, type, {
+    onAction: onRetry,
+    actionLabel: 'Retry',
+  });
 }

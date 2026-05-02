@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { create } from 'zustand';
 import { hapticSuccess, hapticError, hapticWarning } from '@/utils/haptics';
@@ -11,7 +11,16 @@ interface ToastState {
   visible: boolean;
   message: string;
   type: ToastType;
-  show: (message: string, type?: ToastType) => void;
+  // Phase K MED-K22 fix — onAction is rendered as an inline button
+  // when set (e.g. "Retry" for error toasts). actionLabel is the
+  // button label.
+  onAction?: (() => void) | null;
+  actionLabel?: string | null;
+  show: (
+    message: string,
+    type?: ToastType,
+    opts?: { onAction?: () => void; actionLabel?: string },
+  ) => void;
   hide: () => void;
 }
 
@@ -19,11 +28,19 @@ export const useToastStore = create<ToastState>((set) => ({
   visible: false,
   message: '',
   type: 'info',
-  show: (message, type = 'info'): void => {
-    set({ visible: true, message, type });
+  onAction: null,
+  actionLabel: null,
+  show: (message, type = 'info', opts): void => {
+    set({
+      visible: true,
+      message,
+      type,
+      onAction: opts?.onAction ?? null,
+      actionLabel: opts?.actionLabel ?? null,
+    });
   },
   hide: (): void => {
-    set({ visible: false });
+    set({ visible: false, onAction: null, actionLabel: null });
   },
 }));
 
@@ -34,10 +51,19 @@ const TOAST_COLORS: Record<ToastType, { bg: string; text: string; icon: string }
   info: { bg: colors.info, text: colors.white, icon: 'i' },
 };
 
-const DISPLAY_DURATION = 3000;
+// Phase K MED-K19 fix — display duration is now severity-aware so a
+// transient 'success' confirmation doesn't block the screen for the
+// same duration as a critical 'error' the user needs time to read +
+// (per MED-K22) tap an action on. Pre-fix all severities were 3 s.
+const DISPLAY_DURATION_MS: Record<ToastType, number> = {
+  success: 2200,
+  info: 3000,
+  warning: 4000,
+  error: 5500,
+};
 
 export function ToastProvider(): React.ReactElement | null {
-  const { visible, message, type, hide } = useToastStore();
+  const { visible, message, type, onAction, actionLabel, hide } = useToastStore();
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(-100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -79,6 +105,8 @@ export function ToastProvider(): React.ReactElement | null {
         }),
       ]).start();
 
+      // MED-K19 — severity-aware duration
+      const duration = DISPLAY_DURATION_MS[type] ?? 3000;
       const timer = setTimeout(() => {
         Animated.parallel([
           Animated.timing(translateY, {
@@ -92,7 +120,7 @@ export function ToastProvider(): React.ReactElement | null {
             useNativeDriver: true,
           }),
         ]).start(() => hide());
-      }, DISPLAY_DURATION);
+      }, duration);
 
       return () => clearTimeout(timer);
     }
@@ -135,6 +163,29 @@ export function ToastProvider(): React.ReactElement | null {
       >
         {message}
       </Text>
+      {/* Phase K MED-K22 fix — render an inline action button when
+           caller passed onAction (e.g. "Retry" for error toasts).
+           Pre-fix showRetryableToast accepted an onRetry callback
+           but the button was never rendered, so the user could see
+           the error but had no recovery affordance from the toast. */}
+      {onAction && actionLabel ? (
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => {
+            try {
+              onAction();
+            } finally {
+              hide();
+            }
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={actionLabel}
+        >
+          <Text style={[styles.actionLabel, { color: toastStyle.text }]} maxFontSizeMultiplier={1.5}>
+            {actionLabel}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
     </Animated.View>
   );
 }
@@ -174,5 +225,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     lineHeight: 20,
+  },
+  // Phase K MED-K22 — inline action button styling.
+  actionButton: {
+    marginLeft: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  actionLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

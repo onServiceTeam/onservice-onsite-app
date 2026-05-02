@@ -10,6 +10,9 @@ import api from './api';
 // to customer screens. Real-time job notifications opened the
 // wrong screen.
 import { getStoredUser } from './secure-storage';
+// Phase K MED-K12 fix — publicStorage helpers for pushToken
+// persistence (token isn't PII; survives auth-migration).
+import { getPublicItem, setPublicItem } from './secure-storage.service';
 
 interface NotificationBehavior {
   shouldShowAlert: boolean;
@@ -191,7 +194,14 @@ export function usePushNotifications(): { isRegistered: boolean; registerForPush
   const responseListenerRef = useRef<{ remove: () => void } | null>(null);
 
   useEffect(() => {
-    const savedToken = storage.getString('pushToken');
+    // Phase K MED-K12 fix — pushToken used to live in the legacy
+    // `storage` MMKV which the auth-migration emptied, so
+    // isRegistered always started false and the user was prompted
+    // for push permission on EVERY app launch. publicStorage (id:
+    // 'onservice-public') is unaffected by the migration and is
+    // appropriate for the Expo push token (not PII; opaque
+    // identifier registered with Expo).
+    const savedToken = getPublicItem('pushToken');
     setIsRegistered(!!savedToken);
   }, []);
 
@@ -226,7 +236,9 @@ export function usePushNotifications(): { isRegistered: boolean; registerForPush
 
       const success = await registerTokenWithServer(token);
       if (success) {
-        storage.set('pushToken', token);
+        // MED-K12 — publicStorage survives the auth-migration; legacy
+        // `storage` would be emptied at next app launch.
+        setPublicItem('pushToken', token);
         setIsRegistered(true);
       }
       return success;
