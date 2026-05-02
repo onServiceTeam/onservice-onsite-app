@@ -32,7 +32,13 @@ interface CountRow { count: string }
 export type NotificationType =
   // Booking lifecycle
   | 'booking_created' | 'booking_confirmed' | 'booking_expired'
-  | 'booking_cancelled' | 'customer_cancelled'
+  // Phase N MED-N59 fix — `provider_cancelled` added so cancellation
+  // notifications correctly differentiate party-of-cancellation. Pre-fix
+  // both `cancelled_by_customer` and `cancelled_by_provider` mapped to
+  // the same `customer_cancelled` type, so a customer who looked at
+  // their notification list saw "The customer has cancelled this
+  // booking" even when the provider was the one who cancelled.
+  | 'booking_cancelled' | 'customer_cancelled' | 'provider_cancelled'
   | 'provider_assigned' | 'provider_en_route' | 'provider_arrived'
   | 'job_completed' | 'auto_confirmed'
   // Payments + disputes
@@ -383,7 +389,10 @@ export async function notifyBookingStatusChange(
     completed_by_provider: 'job_completed',
     confirmed: 'payment_released',
     cancelled_by_customer: 'customer_cancelled',
-    cancelled_by_provider: 'customer_cancelled',
+    // MED-N59 fix — distinct type so the i18n catalog can render the
+    // correct "provider has cancelled" body. Pre-fix both mapped to
+    // `customer_cancelled` even when the provider initiated.
+    cancelled_by_provider: 'provider_cancelled',
     disputed: 'dispute_update',
   };
 

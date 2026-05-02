@@ -780,10 +780,26 @@ router.get(
       requireProvider(req);
       const provider = await providerService.getProviderByUserId(req.user!.userId);
       const now = new Date();
-      const year = Math.max(2024, Math.min(now.getFullYear(), Number(req.query.year) || now.getFullYear()));
-      const month = Math.max(1, Math.min(12, Number(req.query.month) || now.getMonth() + 1));
+      // MED-N98 fix — pre-fix the year clamp `Math.min(now.getFullYear(), …)`
+      // forced any year query (including the legitimately current year)
+      // to be at most the current calendar year. Once we cross into
+      // 2027 (or beyond), querying the previous year still works, but
+      // reading historical 2026 data from a Jan-2027 admin session
+      // worked fine — the bug bites the OPPOSITE way: a provider can
+      // never query a future year for forecasts. Post-fix the clamp
+      // is just a sanity floor (no pre-platform years) and an upper
+      // bound of "current year + 1" so tooling can still preview the
+      // next BIR year. Bad input still safely defaults to current year.
+      const requestedYear = Number(req.query.year);
+      const safeYear = Number.isFinite(requestedYear) && requestedYear >= 2024 && requestedYear <= now.getFullYear() + 1
+        ? Math.floor(requestedYear)
+        : now.getFullYear();
+      const requestedMonth = Number(req.query.month);
+      const safeMonth = Number.isFinite(requestedMonth) && requestedMonth >= 1 && requestedMonth <= 12
+        ? Math.floor(requestedMonth)
+        : now.getMonth() + 1;
 
-      const summary = await providerToolsService.getMonthlySummary(provider.id, year, month);
+      const summary = await providerToolsService.getMonthlySummary(provider.id, safeYear, safeMonth);
       res.json({ success: true, data: summary });
     } catch (error) {
       next(error);

@@ -35,11 +35,21 @@ const webhookRateLimit = rateLimit({
   },
 });
 
+// MED-N169 fix — distinct sentinel value so the route can return a
+// 503 ("server misconfigured") instead of a 401 ("invalid signature")
+// when PAYMONGO_WEBHOOK_SECRET is missing. Pre-fix the missing-secret
+// case looked identical to a real signature mismatch in the response,
+// making it look to PayMongo's webhook dashboard like the integration
+// was rejecting events deliberately. The boot-time check in
+// server.ts (CRIT-M04 fix) catches this in production, but staging /
+// local dev without the env still need clear feedback.
+class WebhookSecretMissingError extends Error {}
+
 function verifyWebhookSignature(rawBody: string, signatureHeader: string): boolean {
   const secret = process.env.PAYMONGO_WEBHOOK_SECRET;
   if (!secret) {
     logger.error('PAYMONGO_WEBHOOK_SECRET not set — rejecting webhook for security');
-    return false;
+    throw new WebhookSecretMissingError('PAYMONGO_WEBHOOK_SECRET not configured');
   }
 
   const parts = signatureHeader.split(',');
@@ -91,10 +101,23 @@ router.post(
       }
 
       const rawBody = (req as Request & { rawBody?: string }).rawBody ?? JSON.stringify(req.body);
-      if (!verifyWebhookSignature(rawBody, signature)) {
-        logger.warn('Invalid PayMongo webhook signature');
-        res.status(401).json({ success: false, error: { message: 'Invalid signature' } });
-        return;
+      try {
+        if (!verifyWebhookSignature(rawBody, signature)) {
+          logger.warn('Invalid PayMongo webhook signature');
+          res.status(401).json({ success: false, error: { message: 'Invalid signature' } });
+          return;
+        }
+      } catch (err) {
+        if (err instanceof WebhookSecretMissingError) {
+          // MED-N169 fix — distinguish "we couldn't verify because
+          // we're misconfigured" from "we verified and it failed".
+          res.status(503).json({
+            success: false,
+            error: { message: 'Webhook verification temporarily unavailable.' },
+          });
+          return;
+        }
+        throw err;
       }
 
       const event = req.body?.data?.attributes;
