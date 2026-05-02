@@ -12,6 +12,9 @@ import {
   refreshTokenSchema,
   logoutSchema,
   updateProfileSchema,
+  adminLoginSchema,
+  adminTwoFactorVerifySchema,
+  adminTwoFactorDisableSchema,
 } from '../validators/auth.validators';
 import * as authService from '../services/auth.service';
 import * as securityService from '../services/security.service';
@@ -432,12 +435,13 @@ router.patch(
 router.post(
   '/admin/login',
   authRateLimit,
+  // MED-N84 fix — Zod schema replaces the inline manual type checks
+  // for consistency with the rest of the routes.
+  validationMiddleware(adminLoginSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const clientIp = getClientIp(req);
       const { email, password } = req.body;
-      if (typeof email !== 'string' || !email) throw createAppError('Email is required.', 400);
-      if (typeof password !== 'string' || !password) throw createAppError('Password is required.', 400);
 
       const result = await db.query<UserProfileRow & { password_hash: string | null }>(
         `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at, password_hash
@@ -622,12 +626,12 @@ router.post(
 router.post(
   '/admin/2fa/verify',
   authRateLimit,
+  // MED-N84 fix — Zod schema replaces inline manual checks.
+  validationMiddleware(adminTwoFactorVerifySchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const clientIp = getClientIp(req);
       const { preAuthToken, totpCode } = req.body;
-      if (typeof preAuthToken !== 'string' || !preAuthToken) throw createAppError('Pre-auth token is required.', 400);
-      if (typeof totpCode !== 'string' || !totpCode) throw createAppError('TOTP code is required.', 400);
 
       const jwt = await import('jsonwebtoken');
       const secret = process.env.JWT_SECRET;
@@ -745,12 +749,31 @@ router.post(
       const secret = generateTotpSecret();
       const uri = generateTotpUri(secret, user.email ?? userId);
 
-      // Store the secret encrypted (not yet enabled — must verify first)
+      // MED-N82 fix — pre-fix: encryptedSecret was written via a bare
+      // db.query with no audit trail. 2FA enrollment is a security-
+      // sensitive event (the secret stored is what the admin's
+      // authenticator app will use forever after). Post-fix: UPDATE +
+      // admin_actions audit run in a single transaction. The admin_2fa
+      // CHECK constraint already accepts 'admin_2fa_enrolled' (mig
+      // 087); we re-use it here for the setup-initiated event since
+      // setup is the de-facto enrollment step (verify just confirms).
       const encryptedSecret = encryptSecret(secret);
-      await db.query(
-        `UPDATE users SET totp_secret = $1, totp_enabled = FALSE, updated_at = NOW() WHERE id = $2`,
-        [encryptedSecret, userId],
-      );
+      await db.transaction(async (client) => {
+        await client.query(
+          `UPDATE users SET totp_secret = $1, totp_enabled = FALSE, updated_at = NOW() WHERE id = $2`,
+          [encryptedSecret, userId],
+        );
+        await client.query(
+          `INSERT INTO admin_actions
+             (admin_id, action_type, target_type, target_id, details)
+           VALUES ($1, 'admin_2fa_enrolled', 'user', $2, $3::jsonb)`,
+          [
+            userId,
+            userId,
+            JSON.stringify({ phase: 'setup', enabled: false }),
+          ],
+        );
+      });
 
       logger.info('Admin 2FA setup initiated', { userId });
 
@@ -950,6 +973,8 @@ router.post(
 router.post(
   '/admin/2fa/disable',
   authMiddleware,
+  // MED-N84 fix — Zod schema replaces inline manual checks.
+  validationMiddleware(adminTwoFactorDisableSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const userId = req.user!.userId;
@@ -958,10 +983,6 @@ router.post(
 
       if (role !== 'admin' && role !== 'super_admin') {
         throw createAppError('2FA is only available for admin accounts.', 403);
-      }
-
-      if (typeof totpCode !== 'string' || !totpCode) {
-        throw createAppError('Current verification code is required to disable 2FA.', 400);
       }
 
       const userResult = await db.query<{ totp_secret: string | null; totp_enabled: boolean }>(

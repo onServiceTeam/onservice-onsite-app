@@ -26,6 +26,26 @@ export const refreshTokenSchema = z.object({
   deviceFingerprint: z.string().min(8).max(256).optional(),
 });
 
+// MED-N84 fix — admin login + 2FA endpoints used to extract fields
+// directly from req.body with manual type checks. Inconsistent with
+// the rest of the routes that go through validationMiddleware(Zod).
+// These schemas centralize the validation so the route handlers can
+// just consume req.body knowing the shape is correct.
+export const adminLoginSchema = z.object({
+  email: z.string().email('Email must be a valid email address').max(254),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(200),
+});
+
+export const adminTwoFactorVerifySchema = z.object({
+  preAuthToken: z.string().min(10, 'preAuthToken is required'),
+  totpCode: z.string().regex(/^\d{6,8}$/, 'totpCode must be 6-8 digits'),
+});
+
+export const adminTwoFactorDisableSchema = z.object({
+  totpCode: z.string().regex(/^\d{6,8}$/, 'totpCode must be 6-8 digits'),
+  password: z.string().min(8).max(200).optional(),
+});
+
 export const logoutSchema = z.object({
   refreshToken: z.string().optional(),
 });
