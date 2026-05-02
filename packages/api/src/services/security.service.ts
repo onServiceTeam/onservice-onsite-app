@@ -89,8 +89,41 @@ export async function checkOtpLockout(phone: string, ipAddress: string): Promise
 
   const ipFailedCount = Number(ipFailedResult.rows[0]?.count ?? 0);
 
+  // MED-N62 fix: pre-fix `effectiveCount = max(failedCount, ipFailedCount)`
+  // let an attacker rotate phones to evade per-phone lockout. Hitting 5
+  // different phones from one IP (1 per-phone failure each, but 5 IP
+  // failures) gave only the LAST phone a lockout — the other 4 stayed
+  // open. Now: trigger lockout independently when ipFailedCount >=
+  // IP_OTP_LOCKOUT_THRESHOLD (default 10 = 2x phone threshold) so a
+  // dispersed attack across many phones still trips on the per-IP
+  // rolling failure count. captchaRequired uses sum-style logic too.
+  const IP_OTP_LOCKOUT_THRESHOLD = (platformConfig.ipOtpLockoutThreshold ?? 20);
   const effectiveCount = Math.max(failedCount, ipFailedCount);
-  const captchaRequired = effectiveCount >= CAPTCHA_THRESHOLD;
+  const ipLockedOut = ipFailedCount >= IP_OTP_LOCKOUT_THRESHOLD;
+  const captchaRequired = effectiveCount >= CAPTCHA_THRESHOLD || ipLockedOut;
+
+  // If the IP is over its independent threshold, return locked
+  // immediately regardless of which phone the attacker is currently
+  // trying. Lockout window matches the longest standard tier.
+  if (ipLockedOut) {
+    const ipLockoutMinutes = OTP_LOCKOUT_THRESHOLDS[OTP_LOCKOUT_THRESHOLDS.length - 1]?.lockoutMinutes ?? 60;
+    const lockoutEndsAt = new Date(Date.now() + ipLockoutMinutes * 60 * 1000);
+    await logSecurityEvent({
+      eventType: 'otp_lockout',
+      ipAddress,
+      metadata: {
+        phone: phone.slice(-4),
+        scope: 'ip',
+        ipFailedCount,
+        ipThreshold: IP_OTP_LOCKOUT_THRESHOLD,
+        lockoutMinutes: ipLockoutMinutes,
+      },
+    });
+    logger.warn('OTP lockout triggered (IP-level)', {
+      ipAddress, ipFailedCount, lockoutMinutes: ipLockoutMinutes,
+    });
+    return { locked: true, lockoutEndsAt, captchaRequired: true };
+  }
 
   for (let i = OTP_LOCKOUT_THRESHOLDS.length - 1; i >= 0; i--) {
     const threshold = OTP_LOCKOUT_THRESHOLDS[i]!;

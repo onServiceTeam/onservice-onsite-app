@@ -141,6 +141,10 @@ export const platformConfig = {
   ] as { failures: number; lockoutMinutes: number }[],
   captchaThreshold: 3,
   suspiciousIpThreshold: 10,
+  // MED-N62 fix: independent IP-level OTP-failure threshold so an
+  // attacker rotating across phones from one IP can't evade per-phone
+  // lockout. Set to 2x the highest per-phone threshold.
+  ipOtpLockoutThreshold: 20,
   loginAttemptRetentionDays: 90,
 
   // --- Service Areas ---
