@@ -366,6 +366,13 @@ interface ProviderYtdRow {
 interface ProviderInfoRow {
   id: string;
   business_name: string | null;
+  // MED-N20 fix: TIN is now stored on providers (migration 097).
+  // Used by generateBir2307Pdf to populate the payee TIN line.
+  // Nullable for legacy / pre-launch providers; PDF still renders
+  // the "[Provider TIN — pending]" sentinel so the batch job
+  // doesn't hard-fail, and admin gets a warning per missing TIN
+  // so they can chase the provider for it.
+  tin: string | null;
 }
 
 /** Sum provider_received per provider for the quarter window (non-cancellation ORs). */
@@ -419,12 +426,22 @@ async function aggregateYtdIncome(
 
 async function loadProviderInfo(providerIds: string[]): Promise<Map<string, ProviderInfoRow>> {
   if (providerIds.length === 0) return new Map();
+  // MED-N20 fix: also SELECT tin so the BIR 2307 PDF can populate
+  // the payee TIN line (was hardcoded "[Provider TIN — pending]").
   const result = await db.query<ProviderInfoRow>(
-    `SELECT id, business_name FROM providers WHERE id = ANY($1::uuid[])`,
+    `SELECT id, business_name, tin FROM providers WHERE id = ANY($1::uuid[])`,
     [providerIds],
   );
   const map = new Map<string, ProviderInfoRow>();
-  for (const row of result.rows) map.set(row.id, row);
+  for (const row of result.rows) {
+    map.set(row.id, row);
+    if (!row.tin) {
+      logger.warn('Provider missing TIN — BIR 2307 PDF will render placeholder', {
+        providerId: row.id,
+        businessName: row.business_name,
+      });
+    }
+  }
   return map;
 }
 
@@ -615,6 +632,10 @@ export async function generateQuarterly2307Batches(
     const providerInfo = providerInfoMap.get(providerId);
     const providerForPdf: PdfProvider = {
       businessName: providerInfo?.business_name ?? '(Unknown Provider)',
+      // MED-N20 fix: pass real TIN through to the PDF builder. Falls
+      // back to the placeholder via the `?? '[Provider TIN — pending]'`
+      // guard at the doc.text() site if still null.
+      tin: providerInfo?.tin ?? null,
     };
     batch = await attachPdfToBatch(batch, providerForPdf);
 
@@ -735,6 +756,8 @@ export async function regenerate2307ForProvider(
   }
   const providerForPdf: PdfProvider = {
     businessName: providerInfo.business_name ?? '(Unknown Provider)',
+    // MED-N20 fix: include TIN on regenerated PDFs too.
+    tin: providerInfo.tin ?? null,
   };
   batch = await attachPdfToBatch(batch, providerForPdf);
 

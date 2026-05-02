@@ -326,17 +326,23 @@ export async function getDemandInsights(
 
   const areaCity = providerArea.rows[0]?.city;
 
+  // MED-N30 fix: timezone is now passed as a SQL parameter ($N) so
+  // it can never be SQL-injected. Pre-fix interpolated platformConfig.
+  // timezone directly into the query string. Today timezone is a
+  // hardcoded literal ('Asia/Manila') so it was safe in practice,
+  // but if Phase 17 makes it admin-tunable through platform_settings
+  // the interpolation would have become a live injection vector.
   let cityClause = '';
-  const params: unknown[] = [safeDays];
+  const params: unknown[] = [safeDays, platformConfig.timezone];
 
   if (areaCity) {
-    cityClause = 'AND b.city ILIKE $2';
+    cityClause = 'AND b.city ILIKE $3';
     params.push(`%${areaCity}%`);
   }
 
   const hourResult = await db.query<DemandInsightRow>(
     `SELECT
-       EXTRACT(HOUR FROM b.scheduled_at AT TIME ZONE '${platformConfig.timezone}')::text AS hour_of_day,
+       EXTRACT(HOUR FROM b.scheduled_at AT TIME ZONE $2)::text AS hour_of_day,
        ''::text AS day_of_week,
        COUNT(*)::text AS booking_count
      FROM bookings b
@@ -351,7 +357,7 @@ export async function getDemandInsights(
   const dayResult = await db.query<DemandInsightRow>(
     `SELECT
        ''::text AS hour_of_day,
-       EXTRACT(DOW FROM b.scheduled_at AT TIME ZONE '${platformConfig.timezone}')::text AS day_of_week,
+       EXTRACT(DOW FROM b.scheduled_at AT TIME ZONE $2)::text AS day_of_week,
        COUNT(*)::text AS booking_count
      FROM bookings b
      WHERE b.scheduled_at >= NOW() - INTERVAL '1 day' * $1
