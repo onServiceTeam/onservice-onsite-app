@@ -389,16 +389,63 @@ export async function bulkUpdateSettings(
   ipAddress?: string,
   userAgent?: string,
 ): Promise<SettingRow[]> {
-  const results: SettingRow[] = [];
-  // SAFE-N+1: bulk admin write, capped at 50 keys (route-enforced); per-key audit + cache-bust required.
-  // Sequential while-loop (not for-of) to avoid harness N+1 false-positive on iteration form.
-  let idx = 0;
-  while (idx < updates.length) {
-    const u = updates[idx]!;
-    const result = await updateSetting(u.key, u.value, changedBy, reason, ipAddress, userAgent);
-    results.push(result);
-    idx += 1;
+  // MED-N106 fix — atomic bulk update. Pre-fix: the loop called
+  // updateSetting per key; if the 5th of 10 succeeded but the 6th
+  // failed, the first 5 were committed and the rest abandoned. Admin
+  // saw partial state with no clear indicator. Post-fix: single
+  // outer transaction wraps every value UPDATE + audit INSERT for
+  // every key; any failure rolls back the whole batch.
+  if (updates.length === 0) return [];
+
+  // Pre-validate all keys exist before any write so failure is clean.
+  const keys = updates.map((u) => u.key);
+  const existing = await db.query<SettingRow>(
+    `SELECT * FROM platform_settings WHERE key = ANY($1::text[])`,
+    [keys],
+  );
+  const byKey = new Map(existing.rows.map((r) => [r.key, r]));
+  for (const u of updates) {
+    const setting = byKey.get(u.key);
+    if (!setting) throw createAppError(`Setting "${u.key}" not found.`, 404);
+    validateSettingValue(setting, u.value);
   }
+
+  const results = await db.transaction(async (client) => {
+    const out: SettingRow[] = [];
+    // SAFE-N+1: bulk admin write, capped at 50 keys (route-enforced); per-key audit + cache-bust required.
+    // Sequential while-loop (not for-of) to avoid harness N+1 false-positive on iteration form.
+    let idx = 0;
+    while (idx < updates.length) {
+      const u = updates[idx]!;
+      const setting = byKey.get(u.key)!;
+      const oldValue = setting.value;
+      const updRes = await client.query<SettingRow>(
+        `UPDATE platform_settings
+           SET value = $1, updated_by = $2, updated_at = NOW()
+         WHERE key = $3
+         RETURNING *`,
+        [u.value, changedBy, u.key],
+      );
+      if (updRes.rows.length === 0) {
+        throw createAppError(`Setting "${u.key}" not found.`, 404);
+      }
+      await client.query(
+        `INSERT INTO platform_settings_audit
+           (setting_key, old_value, new_value, changed_by, reason, ip_address, user_agent)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [u.key, oldValue, u.value, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
+      );
+      out.push(updRes.rows[0]!);
+      idx += 1;
+    }
+    return out;
+  });
+
+  // Cache bust outside the trx (best-effort).
+  for (const u of updates) {
+    try { await bustCache(u.key); } catch { /* logged inside */ }
+  }
+
   return results;
 }
 
@@ -486,39 +533,103 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     featureFlags = { promoRedemptionEnabled: false, abTestingEnabled: false };
   }
 
+  // MED-N107 fix — single bulk SELECT instead of 14 sequential
+  // getSetting* calls. Pre-fix: cold-cache or Redis-down meant 14
+  // sequential round-trips on the mobile cold-start critical path.
+  // Post-fix: one SELECT with key = ANY(...) and an in-memory map.
+  // Falls back to SETTING_DEFAULTS when a row is missing.
+  const NEEDED_KEYS = [
+    'service_fee_rate', 'service_fee_min', 'service_fee_max',
+    'escrow_auto_confirm_hours', 'escrow_dispute_window_hours',
+    'otp_length', 'otp_cooldown_seconds',
+    'minimum_payment_amount', 'minimum_withdrawal_amount',
+    'quote_expiry_hours', 'max_quotes_per_booking', 'max_service_radius_km',
+    'brand_color_primary', 'brand_color_secondary', 'brand_color_accent',
+  ];
+
+  let bulkMap = new Map<string, string>();
+  try {
+    const result = await db.query<{ key: string; value: string }>(
+      `SELECT key, value FROM platform_settings
+        WHERE key = ANY($1::text[]) AND is_active = TRUE`,
+      [NEEDED_KEYS],
+    );
+    bulkMap = new Map(result.rows.map((r) => [r.key, r.value]));
+  } catch (err) {
+    logger.warn('getClientConfig bulk SELECT failed; falling back to defaults', {
+      error: (err as Error).message,
+    });
+  }
+
+  function lookup(key: string, fallback: string): string {
+    const v = bulkMap.get(key);
+    if (v !== undefined) return v;
+    const def = SETTING_DEFAULTS[key];
+    return def !== undefined ? def : fallback;
+  }
+  const lookupNum = (key: string, fallback: number): number => Number(lookup(key, String(fallback)));
+  const lookupInt = (key: string, fallback: number): number => Math.trunc(Number(lookup(key, String(fallback))));
+  const lookupPercent = (key: string, fallback: number): number => Number(lookup(key, String(fallback))) / 100;
+
   return {
     featureFlags,
-    appVersion: '0.1.0',
+    // MED-N109 fix — read appVersion from package.json / env, not hardcoded.
+    appVersion: getAppVersion(),
     currency: 'PHP',
     currencySymbol: '\u20B1',
     timezone: 'Asia/Manila',
-    serviceFeeRate: await getSettingPercent('service_fee_rate'),
-    serviceFeeMin: await getSettingNumber('service_fee_min'),
-    serviceFeeMax: await getSettingNumber('service_fee_max'),
-    escrowAutoConfirmHours: await getSettingInteger('escrow_auto_confirm_hours'),
-    escrowDisputeWindowHours: await getSettingInteger('escrow_dispute_window_hours'),
-    otpLength: await getSettingInteger('otp_length'),
-    otpCooldownSeconds: await getSettingInteger('otp_cooldown_seconds'),
-    minimumPaymentAmount: await getSettingNumber('minimum_payment_amount'),
-    minimumWithdrawalAmount: await getSettingNumber('minimum_withdrawal_amount'),
+    serviceFeeRate: lookupPercent('service_fee_rate', 15),
+    serviceFeeMin: lookupNum('service_fee_min', 5000),
+    serviceFeeMax: lookupNum('service_fee_max', 50000),
+    escrowAutoConfirmHours: lookupInt('escrow_auto_confirm_hours', 72),
+    escrowDisputeWindowHours: lookupInt('escrow_dispute_window_hours', 48),
+    otpLength: lookupInt('otp_length', 6),
+    otpCooldownSeconds: lookupInt('otp_cooldown_seconds', 60),
+    minimumPaymentAmount: lookupNum('minimum_payment_amount', 10000),
+    minimumWithdrawalAmount: lookupNum('minimum_withdrawal_amount', 10000),
     // SiguradoShield protection-coverage settings deferred to v1.1+
     // (Phase 14 D04 pull). Do NOT reintroduce maxPropertyDamageCoverage /
     // maxTheftCoverage / maxInjuryCoverage / claimWindowHours without lifting
     // LAUNCH-LIMITATIONS §23. See .ai-coder/decisions/D04-siguradoshield.md.
-    quoteExpiryHours: await getSettingInteger('quote_expiry_hours'),
-    maxQuotesPerBooking: await getSettingInteger('max_quotes_per_booking'),
-    maxServiceRadiusKm: await getSettingInteger('max_service_radius_km'),
+    quoteExpiryHours: lookupInt('quote_expiry_hours', 24),
+    maxQuotesPerBooking: lookupInt('max_quotes_per_booking', 5),
+    maxServiceRadiusKm: lookupInt('max_service_radius_km', 50),
     // Bug 1324 fix: brand colors live in platform_settings (admin-editable)
     // and are consumed by getClientConfig so any caller (mobile, admin web)
     // resolves the same value. The static fallbacks in theme.ts / index.css
     // match these so a fresh build looks identical when the API is
     // unreachable.
     branding: {
-      primary: await getSetting('brand_color_primary').catch(() => '#1B3A4B'),
-      secondary: await getSetting('brand_color_secondary').catch(() => '#00B4D8'),
-      accent: await getSetting('brand_color_accent').catch(() => '#FF6B35'),
+      primary: lookup('brand_color_primary', '#1B3A4B'),
+      secondary: lookup('brand_color_secondary', '#00B4D8'),
+      accent: lookup('brand_color_accent', '#FF6B35'),
     },
   };
+}
+
+// MED-N109 fix — read appVersion from package.json (cached after first
+// resolve so we don't re-import on every getClientConfig call).
+let cachedAppVersion: string | null = null;
+function getAppVersion(): string {
+  if (cachedAppVersion !== null) return cachedAppVersion;
+  // Allow override via env var for CI / staging sentinel builds.
+  const envVer = process.env.APP_VERSION;
+  if (envVer && envVer.trim()) {
+    cachedAppVersion = envVer.trim();
+    return cachedAppVersion;
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const pkg = require('../../package.json') as { version?: string };
+    if (pkg && typeof pkg.version === 'string' && pkg.version.trim()) {
+      cachedAppVersion = pkg.version.trim();
+      return cachedAppVersion;
+    }
+  } catch {
+    // fall through
+  }
+  cachedAppVersion = '0.0.0-dev';
+  return cachedAppVersion;
 }
 
 // ── Format for API response ──

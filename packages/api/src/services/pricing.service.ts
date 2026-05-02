@@ -53,7 +53,16 @@ interface CreatePricingRuleParams {
 
 // --- Admin CRUD ---
 
-export async function createPricingRule(params: CreatePricingRuleParams): Promise<PricingRuleRow> {
+export async function createPricingRule(
+  params: CreatePricingRuleParams,
+  // MED-N110 fix — acting admin id required so we can write the
+  // admin_actions audit row alongside the INSERT in a single trx.
+  // Pre-fix: pricing rules were created without any audit trail; an
+  // admin spinning up a 5x surge had no record of who did it.
+  // Optional for back-compat with legacy callers (tests, scripts);
+  // when omitted, the audit row is skipped and a warning is logged.
+  createdByAdminId?: string,
+): Promise<PricingRuleRow> {
   if (params.multiplier < 1.0 || params.multiplier > 5.0) {
     throw createAppError('Multiplier must be between 1.0 and 5.0.', 400);
   }
@@ -68,37 +77,61 @@ export async function createPricingRule(params: CreatePricingRuleParams): Promis
     throw createAppError('Peak hours pricing requires peakStartTime and peakEndTime.', 400);
   }
 
-  const result = await db.query<PricingRuleRow>(
-    `INSERT INTO pricing_rules
-       (name, type, multiplier, rush_hours_threshold, holiday_date,
-        peak_start_time, peak_end_time, peak_days_of_week,
-        category_id, service_area_id, priority, platform_surge_share, description)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-     RETURNING *`,
-    [
-      params.name,
-      params.type,
-      params.multiplier,
-      params.rushHoursThreshold ?? null,
-      params.holidayDate ?? null,
-      params.peakStartTime ?? null,
-      params.peakEndTime ?? null,
-      params.peakDaysOfWeek ?? null,
-      params.categoryId ?? null,
-      params.serviceAreaId ?? null,
-      params.priority ?? 0,
-      params.platformSurgeShare ?? 0.50,
-      params.description ?? '',
-    ],
-  );
+  const created = await db.transaction(async (client) => {
+    const result = await client.query<PricingRuleRow>(
+      `INSERT INTO pricing_rules
+         (name, type, multiplier, rush_hours_threshold, holiday_date,
+          peak_start_time, peak_end_time, peak_days_of_week,
+          category_id, service_area_id, priority, platform_surge_share, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       RETURNING *`,
+      [
+        params.name,
+        params.type,
+        params.multiplier,
+        params.rushHoursThreshold ?? null,
+        params.holidayDate ?? null,
+        params.peakStartTime ?? null,
+        params.peakEndTime ?? null,
+        params.peakDaysOfWeek ?? null,
+        params.categoryId ?? null,
+        params.serviceAreaId ?? null,
+        params.priority ?? 0,
+        params.platformSurgeShare ?? 0.50,
+        params.description ?? '',
+      ],
+    );
+    if (createdByAdminId) {
+      await client.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details)
+         VALUES ($1, 'config_changed', 'pricing_rule', $2, $3::jsonb)`,
+        [
+          createdByAdminId,
+          result.rows[0]!.id,
+          JSON.stringify({
+            op: 'create',
+            after: result.rows[0],
+          }),
+        ],
+      );
+    } else {
+      logger.warn('createPricingRule: no createdByAdminId; audit row skipped', {
+        ruleId: result.rows[0]!.id,
+      });
+    }
+    return result.rows[0]!;
+  });
 
-  logger.info('Pricing rule created', { ruleId: result.rows[0]!.id, type: params.type });
-  return result.rows[0]!;
+  logger.info('Pricing rule created', { ruleId: created.id, type: params.type });
+  return created;
 }
 
 export async function updatePricingRule(
   ruleId: string,
   updates: Partial<Omit<CreatePricingRuleParams, 'type'>>,
+  // MED-N111 fix — acting admin id required for audit trail.
+  updatedByAdminId?: string,
 ): Promise<PricingRuleRow> {
   const setClauses: string[] = ['updated_at = NOW()'];
   const values: unknown[] = [];
@@ -157,40 +190,123 @@ export async function updatePricingRule(
   }
 
   values.push(ruleId);
-  const result = await db.query<PricingRuleRow>(
-    `UPDATE pricing_rules SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
-    values,
-  );
-
-  if (result.rows.length === 0) {
-    throw createAppError('Pricing rule not found.', 404);
-  }
-
-  return result.rows[0]!;
+  const updated = await db.transaction(async (client) => {
+    const before = await client.query<PricingRuleRow>(
+      `SELECT * FROM pricing_rules WHERE id = $1 FOR UPDATE`,
+      [ruleId],
+    );
+    if (before.rows.length === 0) {
+      throw createAppError('Pricing rule not found.', 404);
+    }
+    const result = await client.query<PricingRuleRow>(
+      `UPDATE pricing_rules SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values,
+    );
+    if (result.rows.length === 0) {
+      throw createAppError('Pricing rule not found.', 404);
+    }
+    if (updatedByAdminId) {
+      await client.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details)
+         VALUES ($1, 'config_changed', 'pricing_rule', $2, $3::jsonb)`,
+        [
+          updatedByAdminId,
+          ruleId,
+          JSON.stringify({
+            op: 'update',
+            before: before.rows[0],
+            after: result.rows[0],
+            changes: updates,
+          }),
+        ],
+      );
+    } else {
+      logger.warn('updatePricingRule: no updatedByAdminId; audit row skipped', { ruleId });
+    }
+    return result.rows[0]!;
+  });
+  return updated;
 }
 
-export async function togglePricingRule(ruleId: string, isActive: boolean): Promise<PricingRuleRow> {
-  const result = await db.query<PricingRuleRow>(
-    `UPDATE pricing_rules SET is_active = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-    [isActive, ruleId],
-  );
-
-  if (result.rows.length === 0) {
-    throw createAppError('Pricing rule not found.', 404);
-  }
-
-  return result.rows[0]!;
+export async function togglePricingRule(
+  ruleId: string,
+  isActive: boolean,
+  // MED-N111 fix — acting admin id for audit trail.
+  toggledByAdminId?: string,
+): Promise<PricingRuleRow> {
+  return db.transaction(async (client) => {
+    const before = await client.query<{ is_active: boolean }>(
+      `SELECT is_active FROM pricing_rules WHERE id = $1 FOR UPDATE`,
+      [ruleId],
+    );
+    if (before.rows.length === 0) {
+      throw createAppError('Pricing rule not found.', 404);
+    }
+    const result = await client.query<PricingRuleRow>(
+      `UPDATE pricing_rules SET is_active = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [isActive, ruleId],
+    );
+    if (toggledByAdminId) {
+      await client.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details)
+         VALUES ($1, 'config_changed', 'pricing_rule', $2, $3::jsonb)`,
+        [
+          toggledByAdminId,
+          ruleId,
+          JSON.stringify({
+            op: 'toggle',
+            before: { is_active: before.rows[0]!.is_active },
+            after: { is_active: isActive },
+          }),
+        ],
+      );
+    } else {
+      logger.warn('togglePricingRule: no toggledByAdminId; audit row skipped', { ruleId });
+    }
+    return result.rows[0]!;
+  });
 }
 
-export async function deletePricingRule(ruleId: string): Promise<void> {
-  const result = await db.query(
-    `DELETE FROM pricing_rules WHERE id = $1`,
-    [ruleId],
-  );
-
-  if ((result.rowCount ?? 0) === 0) {
-    throw createAppError('Pricing rule not found.', 404);
-  }
+export async function deletePricingRule(
+  ruleId: string,
+  // MED-N111 fix — acting admin id for audit trail.
+  deletedByAdminId?: string,
+): Promise<void> {
+  await db.transaction(async (client) => {
+    const before = await client.query<PricingRuleRow>(
+      `SELECT * FROM pricing_rules WHERE id = $1 FOR UPDATE`,
+      [ruleId],
+    );
+    if (before.rows.length === 0) {
+      throw createAppError('Pricing rule not found.', 404);
+    }
+    const result = await client.query(
+      `DELETE FROM pricing_rules WHERE id = $1`,
+      [ruleId],
+    );
+    if ((result.rowCount ?? 0) === 0) {
+      throw createAppError('Pricing rule not found.', 404);
+    }
+    if (deletedByAdminId) {
+      await client.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details)
+         VALUES ($1, 'config_changed', 'pricing_rule', $2, $3::jsonb)`,
+        [
+          deletedByAdminId,
+          ruleId,
+          JSON.stringify({
+            op: 'delete',
+            before: before.rows[0],
+          }),
+        ],
+      );
+    } else {
+      logger.warn('deletePricingRule: no deletedByAdminId; audit row skipped', { ruleId });
+    }
+  });
 }
 
 export async function listPricingRules(filters?: {

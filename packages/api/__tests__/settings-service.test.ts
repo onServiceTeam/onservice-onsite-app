@@ -569,23 +569,32 @@ describe('bulkUpdateSettings', () => {
     expect(dbQueryMock).not.toHaveBeenCalled();
   });
 
-  it('processes each update sequentially and returns all rows (CRIT-N13: each update is its own transaction)', async () => {
-    // CRIT-N13 fix: each updateSetting call opens its own transaction.
-    // For two updates, we expect: 2 SELECTs (outside trx) + 2 trx invocations
-    // (each containing UPDATE + audit INSERT).
-    for (let i = 0; i < 2; i++) {
-      dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '10' })] });
-      dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
-        const clientQuery = jest.fn(async (sql: string) => {
-          if (/UPDATE platform_settings/.test(sql)) {
-            return { rows: [fakeRow({ value: String(20 + i) })], rowCount: 1 };
-          }
-          return { rows: [], rowCount: 1 };
-        });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (cb as any)({ query: clientQuery });
+  it('MED-N106 — processes all updates inside a SINGLE outer transaction (atomic)', async () => {
+    // MED-N106 fix: pre-fix bulkUpdateSettings looped per-key calling
+    // updateSetting (each its own trx) — partial state on mid-batch
+    // failure. Post-fix: 1 outer SELECT (key = ANY(...)) + 1 outer
+    // db.transaction wrapping every UPDATE + audit INSERT.
+    // Pre-validation SELECT returns BOTH rows.
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [
+        fakeRow({ key: 'service_fee_rate', value: '10' }),
+        fakeRow({ key: 'service_fee_min', value: '10' }),
+      ],
+    });
+    // Per-key UPDATE inside trx returns the new row.
+    let updateCount = 0;
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn(async (sql: string) => {
+        if (/UPDATE platform_settings/.test(sql)) {
+          updateCount++;
+          return { rows: [fakeRow({ value: String(19 + updateCount) })], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 1 };
       });
-    }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (cb as any)({ query: clientQuery });
+    });
+
     const out = await settingsService.bulkUpdateSettings(
       [
         { key: 'service_fee_rate', value: '20' },
@@ -597,19 +606,22 @@ describe('bulkUpdateSettings', () => {
     expect(out.length).toBe(2);
     expect(out[0]!.value).toBe('20');
     expect(out[1]!.value).toBe('21');
-    expect(dbQueryMock).toHaveBeenCalledTimes(2); // 2 SELECTs (outside trx)
-    expect(dbTransactionMock).toHaveBeenCalledTimes(2); // 2 trx invocations
+    // MED-N106 invariants: ONE bulk SELECT outside trx + ONE outer trx.
+    expect(dbQueryMock).toHaveBeenCalledTimes(1);
+    expect(dbTransactionMock).toHaveBeenCalledTimes(1);
   });
 
-  it('propagates the first failure and stops', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [] }); // first SELECT — not found
+  it('MED-N106 — pre-validation rejects unknown keys before any write', async () => {
+    // Bulk SELECT returns nothing for the unknown key.
+    dbQueryMock.mockResolvedValueOnce({ rows: [] });
     await expect(
       settingsService.bulkUpdateSettings(
         [{ key: 'missing', value: 'x' }, { key: 'service_fee_rate', value: '11' }],
         'admin',
       ),
     ).rejects.toMatchObject({ statusCode: 404 });
-    expect(dbQueryMock).toHaveBeenCalledTimes(1);
+    // No trx opened.
+    expect(dbTransactionMock).not.toHaveBeenCalled();
   });
 });
 
@@ -705,13 +717,26 @@ describe('cache management', () => {
 
 describe('getClientConfig', () => {
   it('returns the public client bundle with the expected static fields and resolved settings', async () => {
-    // 16 awaits in getClientConfig — just resolve every getSetting* call.
-    redisGetMock.mockResolvedValue('10');
+    // MED-N107 — getClientConfig now does ONE bulk SELECT after the
+    // feature_flag SELECT. Mock both in order.
+    dbQueryMock.mockReset();
+    dbQueryMock.mockResolvedValueOnce({ rows: [] }); // feature flags
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [
+        { key: 'service_fee_rate', value: '10' },
+        { key: 'service_fee_min', value: '10' },
+        { key: 'escrow_auto_confirm_hours', value: '10' },
+        { key: 'max_quotes_per_booking', value: '10' },
+      ],
+    });
     const cfg = await settingsService.getClientConfig();
     expect(cfg.appVersion).toBe('0.1.0');
     expect(cfg.currency).toBe('PHP');
     expect(cfg.currencySymbol).toBe('\u20B1');
     expect(cfg.timezone).toBe('Asia/Manila');
+    // MED-N107 \u2014 bulk SELECT was the SECOND db.query call.
+    const bulkSql = dbQueryMock.mock.calls[1]![0] as string;
+    expect(bulkSql).toMatch(/key = ANY\(\$1::text\[\]\)/);
     // Spot-check resolved values
     expect(cfg.serviceFeeRate).toBeCloseTo(0.1, 5);
     expect(cfg.serviceFeeMin).toBe(10);

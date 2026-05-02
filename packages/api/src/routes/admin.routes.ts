@@ -1105,7 +1105,8 @@ router.post(
         description?: string;
       };
 
-      const rule = await pricingService.createPricingRule(body);
+      // MED-N110 fix — pass acting admin id so service writes audit row.
+      const rule = await pricingService.createPricingRule(body, req.user!.userId);
 
       res.status(201).json({ success: true, data: pricingService.formatPricingRule(rule) });
     } catch (error) {
@@ -1122,7 +1123,8 @@ router.patch(
     try {
       requireAdmin(req);
       const id = req.params.id as string;
-      const rule = await pricingService.updatePricingRule(id, req.body);
+      // MED-N111 fix — pass acting admin id so service writes audit row.
+      const rule = await pricingService.updatePricingRule(id, req.body, req.user!.userId);
       res.json({ success: true, data: pricingService.formatPricingRule(rule) });
     } catch (error) {
       next(error);
@@ -1139,7 +1141,8 @@ router.post(
       const id = req.params.id as string;
       const { isActive } = req.body as { isActive: boolean };
       if (typeof isActive !== 'boolean') throw createAppError('isActive must be a boolean.', 400);
-      const rule = await pricingService.togglePricingRule(id, isActive);
+      // MED-N111 fix — pass acting admin id so service writes audit row.
+      const rule = await pricingService.togglePricingRule(id, isActive, req.user!.userId);
       res.json({ success: true, data: pricingService.formatPricingRule(rule) });
     } catch (error) {
       next(error);
@@ -1154,7 +1157,8 @@ router.delete(
     try {
       requireAdmin(req);
       const id = req.params.id as string;
-      await pricingService.deletePricingRule(id);
+      // MED-N111 fix — pass acting admin id so service writes audit row.
+      await pricingService.deletePricingRule(id, req.user!.userId);
       res.json({ success: true, message: 'Pricing rule deleted.' });
     } catch (error) {
       next(error);
