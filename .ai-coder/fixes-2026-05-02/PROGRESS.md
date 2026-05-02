@@ -138,6 +138,7 @@ Landed:
 | 07653f8 | MED-N20+N30 | provider TIN column for BIR 2307; parameterize timezone in SQL |
 | 5b69028 | MED-N12+N34 | escrow-summary aging buckets accurate; provider pendingEscrow NET |
 | d68d270 | MED-N14+N17 | activity endpoints mask IP+UA for junior admin |
+| 2f147bd | MED-N05+N41 | real responseScore from booking_quotes; widen contract status enum |
 
 **Deferred:** MED-N27 (handleCancellation atomicity) — needs a 9-test
 rewrite that's larger than the fix itself; left as the next session's
@@ -146,14 +147,14 @@ trx-aware variant `handleCancellationInTransaction` (used by the
 booking-admin path) is already correct.
 
 **Audit findings remaining (rough counts, v1.1 backlog):**
-- MED-N: ~125 of 169 still open (~26 landed in session 2 across 13 commits)
+- MED-N: ~123 of 169 still open (~28 landed in session 2 across 14 commits)
 - MED-K, L, M, O batches: not yet touched in fixes phase
 
 ## Session 2 final state — 2026-05-02 (final)
 
-- **Test suite:** 1968/1968 passing.
-- **Commits this session:** 40+ total (Wave 2 P1 + P2 + 26 v1.1 MEDs + escalations + docs).
-- **Net new tests:** +347 (started at 1621 in session 1 close).
+- **Test suite:** 1979/1979 passing.
+- **Commits this session:** 42+ total (Wave 2 P1 + P2 + 28 v1.1 MEDs + escalations + docs).
+- **Net new tests:** +358 (started at 1621 in session 1 close).
 - **Net new migrations:** 9 (089–097) all compatible with prod schema.
 - **Net new services:** 5 (gateway-retry, i18n, slack-alert, bir-filer-identity, test-fixtures router).
 - **Next session priorities:**
