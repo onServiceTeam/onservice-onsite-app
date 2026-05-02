@@ -16,6 +16,14 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useBookingStore } from '@/stores/booking.store';
 import { getCategories, getActivePromotions, type Category, type Promotion } from '@/services/catalog.service';
 import { getActiveBookings, getRecentBookings } from '@/services/booking.service';
+// Phase K MED-K09 fix — fetch saved addresses so the home header
+// can display the customer's selected location instead of the
+// generic "Select your address" placeholder. Pre-fix the user could
+// have a default Home address saved but the header said nothing
+// about it; now the header shows label + city of the default
+// address (or first address if none marked default), and tapping
+// it goes to the address picker as before.
+import { getAddresses, type SavedAddress } from '@/services/address.service';
 import api from '@/services/api';
 import { Badge } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
@@ -142,6 +150,20 @@ export default function HomeScreen(): React.ReactElement {
     staleTime: 60 * 1000,
   });
 
+  // Phase K MED-K09 fix — fetch saved addresses to populate the
+  // location header. Default address wins; falls back to first if
+  // no isDefault. 5-min staleTime — addresses don't change often.
+  const addressesQuery = useQuery({
+    queryKey: ['addresses'],
+    queryFn: getAddresses,
+    staleTime: 5 * 60 * 1000,
+  });
+  const headerAddress: SavedAddress | null = (() => {
+    const list = addressesQuery.data ?? [];
+    if (list.length === 0) return null;
+    return list.find((a) => a.isDefault) ?? list[0] ?? null;
+  })();
+
   const isRefreshing =
     categoriesQuery.isRefetching ||
     activeBookingsQuery.isRefetching ||
@@ -186,10 +208,21 @@ export default function HomeScreen(): React.ReactElement {
         <TouchableOpacity
           style={styles.locationSelector}
           onPress={() => router.push(Routes.CUSTOMER.ADDRESS_PICKER)}
+          accessibilityLabel={
+            headerAddress
+              ? `Current location: ${headerAddress.label} in ${headerAddress.city}. Tap to change.`
+              : 'No location selected. Tap to add an address.'
+          }
         >
           <Text style={styles.locationLabel}>Current Location</Text>
           <Text style={styles.locationValue} numberOfLines={1}>
-            Select your address ▾
+            {/* Phase K MED-K09 fix — show selected location instead
+                 of generic placeholder. Pre-fix the text was always
+                 "Select your address ▾" even when the user had a
+                 default Home address saved. */}
+            {headerAddress
+              ? `${headerAddress.label} · ${headerAddress.city} ▾`
+              : 'Select your address ▾'}
           </Text>
         </TouchableOpacity>
 
