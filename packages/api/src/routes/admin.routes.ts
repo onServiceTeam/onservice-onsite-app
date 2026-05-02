@@ -1544,9 +1544,23 @@ router.get(
 );
 
 // --- Audit Log ---
+//
+// Backed by a UNION ALL across two tables:
+//   * audit_log     — generic per-request log (any user, any action).
+//   * admin_actions — privileged actions (staff_added/removed,
+//                     consent_version_published, dsr_*, service_area_*,
+//                     promotion_*, notification_template_*, etc.).
+//
+// Pre-fix this endpoint only read audit_log, so admin-side staff +
+// catalog + DSR mutations were invisible from the audit timeline UI
+// even though they were fully recorded server-side. The UNION shape
+// preserves backward-compat field names (action, entityType, etc.)
+// and adds a `source` discriminator so the operator can distinguish
+// the two streams in the UI.
 
 interface AuditLogRow {
   id: string;
+  source: 'audit_log' | 'admin_actions';
   user_id: string | null;
   action: string;
   entity_type: string;
@@ -1555,7 +1569,7 @@ interface AuditLogRow {
   new_values: unknown;
   ip_address: string | null;
   user_agent: string | null;
-  request_id: string | null;
+  reason: string | null;
   created_at: Date;
   user_email: string | null;
   user_role: string | null;
@@ -1571,45 +1585,76 @@ router.get(
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 50));
       const offset = (page - 1) * pageSize;
 
+      // Filters are applied to the unioned subquery via an outer
+      // WHERE so they hit both source tables consistently.
       const filters: string[] = [];
       const params: unknown[] = [];
       let paramIdx = 1;
 
       if (req.query.userId && typeof req.query.userId === 'string') {
-        filters.push(`al.user_id = $${paramIdx++}`);
+        filters.push(`combined.user_id = $${paramIdx++}`);
         params.push(req.query.userId);
       }
       if (req.query.action && typeof req.query.action === 'string') {
-        filters.push(`al.action ILIKE $${paramIdx++}`);
+        filters.push(`combined.action ILIKE $${paramIdx++}`);
         params.push(`%${req.query.action}%`);
       }
       if (req.query.entityType && typeof req.query.entityType === 'string') {
-        filters.push(`al.entity_type = $${paramIdx++}`);
+        filters.push(`combined.entity_type = $${paramIdx++}`);
         params.push(req.query.entityType);
       }
       if (req.query.from && typeof req.query.from === 'string') {
-        filters.push(`al.created_at >= $${paramIdx++}`);
+        filters.push(`combined.created_at >= $${paramIdx++}`);
         params.push(req.query.from);
       }
       if (req.query.to && typeof req.query.to === 'string') {
-        filters.push(`al.created_at <= $${paramIdx++}`);
+        filters.push(`combined.created_at <= $${paramIdx++}`);
         params.push(req.query.to);
+      }
+      if (req.query.source && typeof req.query.source === 'string') {
+        // 'audit_log' | 'admin_actions' — restrict to a single stream.
+        filters.push(`combined.source = $${paramIdx++}`);
+        params.push(req.query.source);
       }
 
       const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
 
+      // The unioned base relation. admin_actions contributes its
+      // `details` JSONB as new_values, NULL for old_values, and the
+      // human-readable `reason` column. audit_log doesn't have a
+      // reason field; we emit NULL.
+      const baseRelation = `
+        SELECT 'audit_log'::text AS source,
+               id, user_id, action, entity_type, entity_id,
+               old_values, new_values, ip_address::text AS ip_address,
+               user_agent, NULL::text AS reason, created_at
+          FROM audit_log
+        UNION ALL
+        SELECT 'admin_actions'::text AS source,
+               id, admin_id AS user_id, action_type AS action,
+               target_type AS entity_type, target_id AS entity_id,
+               NULL::jsonb AS old_values,
+               details AS new_values,
+               NULL::text AS ip_address,
+               NULL::text AS user_agent,
+               reason, created_at
+          FROM admin_actions
+      `;
+
       const countResult = await db.query<{ count: string }>(
-        `SELECT COUNT(*)::text AS count FROM audit_log al ${whereClause}`,
+        `SELECT COUNT(*)::text AS count
+           FROM (${baseRelation}) combined
+         ${whereClause}`,
         params,
       );
       const total = Number(countResult.rows[0]?.count ?? 0);
 
       const dataResult = await db.query<AuditLogRow>(
-        `SELECT al.*, u.email AS user_email, u.role AS user_role
-         FROM audit_log al
-         LEFT JOIN users u ON u.id = al.user_id
+        `SELECT combined.*, u.email AS user_email, u.role AS user_role
+           FROM (${baseRelation}) combined
+           LEFT JOIN users u ON u.id = combined.user_id
          ${whereClause}
-         ORDER BY al.created_at DESC
+         ORDER BY combined.created_at DESC
          LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
         [...params, pageSize, offset],
       );
@@ -1618,6 +1663,7 @@ router.get(
         success: true,
         data: dataResult.rows.map((r) => ({
           id: r.id,
+          source: r.source,
           userId: r.user_id,
           userEmail: r.user_email,
           userRole: r.user_role,
@@ -1628,6 +1674,7 @@ router.get(
           newValues: r.new_values,
           ipAddress: r.ip_address,
           userAgent: r.user_agent,
+          reason: r.reason,
           createdAt: r.created_at,
         })),
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },

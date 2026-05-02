@@ -7,6 +7,12 @@ import { ClipboardList } from '@/components/icons';
 
 interface AuditEntry {
   id: string;
+  /**
+   * Backend now UNIONs audit_log + admin_actions. `source` discriminates
+   * the two streams so the UI can label them. Older API responses don't
+   * include this field; the UI defaults to 'audit_log'.
+   */
+  source?: 'audit_log' | 'admin_actions';
   userId: string | null;
   userEmail: string | null;
   userRole: string | null;
@@ -17,8 +23,44 @@ interface AuditEntry {
   newValues: Record<string, unknown> | null;
   ipAddress: string | null;
   userAgent: string | null;
+  /** admin_actions rows carry a reason text; audit_log rows return null. */
+  reason?: string | null;
   createdAt: string;
 }
+
+const SOURCE_BADGE: Record<NonNullable<AuditEntry['source']>, { label: string; cls: string }> = {
+  audit_log:    { label: 'request',  cls: 'bg-slate-100 text-slate-700' },
+  admin_actions:{ label: 'admin op', cls: 'bg-amber-100 text-amber-800' },
+};
+
+// Friendly labels for the new admin_actions verbs that have landed since
+// Phase 14. Anything not listed falls back to the raw action string.
+const ACTION_LABELS: Record<string, string> = {
+  staff_added: 'Staff member added',
+  staff_removed: 'Staff member removed',
+  staff_role_changed: 'Staff role changed',
+  staff_role_promoted_dpo: 'Promoted to DPO',
+  staff_role_demoted_from_dpo: 'Demoted from DPO',
+  config_changed: 'Configuration changed',
+  service_area_created: 'Service area created',
+  service_area_updated: 'Service area updated',
+  service_area_deleted: 'Service area deleted',
+  promotion_created: 'Promotion created',
+  promotion_updated: 'Promotion updated',
+  promotion_deleted: 'Promotion deleted',
+  notification_template_updated: 'Notification template updated',
+  notification_template_deleted: 'Notification template deleted',
+  consent_version_published: 'Consent version published',
+  customer_flagged_fraud: 'Customer flagged for fraud',
+  legacy_password_rotation_flagged: 'Bulk password rotation flagged',
+  admin_password_rotated: 'Admin password rotated',
+  dsr_status_changed: 'DSR status changed',
+  dsr_more_info_requested: 'DSR — more info requested',
+  dsr_rejected: 'DSR rejected',
+  dsr_escalated_to_npc: 'DSR escalated to NPC',
+  dsr_assigned: 'DSR assigned',
+  admin_message_sent: 'Admin message sent to customer',
+};
 
 interface AuditResponse {
   data: AuditEntry[];
@@ -49,15 +91,18 @@ export default function AuditLogPage(): React.ReactElement {
   const [page, setPage] = useState(1);
   const [actionFilter, setActionFilter] = useState('');
   const [entityTypeFilter, setEntityTypeFilter] = useState('');
+  // 'all' | 'audit_log' | 'admin_actions' — narrows the unioned response.
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'audit_log' | 'admin_actions'>('all');
   const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
   const pageSize = adminConfig.defaultPageSize;
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['admin', 'audit-log', page, actionFilter, entityTypeFilter],
+    queryKey: ['admin', 'audit-log', page, actionFilter, entityTypeFilter, sourceFilter],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize };
       if (actionFilter) params.action = actionFilter;
       if (entityTypeFilter) params.entityType = entityTypeFilter;
+      if (sourceFilter !== 'all') params.source = sourceFilter;
       const res = await api.get<AuditResponse>('/api/v1/admin/audit-log', { params });
       return res.data;
     },
@@ -83,10 +128,10 @@ export default function AuditLogPage(): React.ReactElement {
         )}
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 flex-wrap">
         <input
           type="text"
-          placeholder="Filter by action (e.g. POST)"
+          placeholder="Filter by action (e.g. POST, staff_added)"
           value={actionFilter}
           onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
           aria-label="Filter audit log by action"
@@ -100,9 +145,27 @@ export default function AuditLogPage(): React.ReactElement {
           aria-label="Filter audit log by entity type"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] w-60"
         />
-        {(actionFilter || entityTypeFilter) && (
+        <select
+          value={sourceFilter}
+          onChange={(e) => {
+            setSourceFilter(e.target.value as 'all' | 'audit_log' | 'admin_actions');
+            setPage(1);
+          }}
+          aria-label="Filter audit log by source stream"
+          className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+        >
+          <option value="all">All sources</option>
+          <option value="audit_log">Request log</option>
+          <option value="admin_actions">Admin operations</option>
+        </select>
+        {(actionFilter || entityTypeFilter || sourceFilter !== 'all') && (
           <button
-            onClick={() => { setActionFilter(''); setEntityTypeFilter(''); setPage(1); }}
+            onClick={() => {
+              setActionFilter('');
+              setEntityTypeFilter('');
+              setSourceFilter('all');
+              setPage(1);
+            }}
             className="px-3 py-2 text-sm text-[var(--color-primary)] hover:underline"
           >
             Clear Filters
@@ -161,7 +224,21 @@ export default function AuditLogPage(): React.ReactElement {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-[var(--color-text)]">{entry.action}</td>
+                    <td className="px-4 py-3 text-[var(--color-text)]">
+                      <div className="flex items-center gap-2">
+                        {entry.source && (
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${SOURCE_BADGE[entry.source].cls}`}
+                            title={`Source: ${entry.source}`}
+                          >
+                            {SOURCE_BADGE[entry.source].label}
+                          </span>
+                        )}
+                        <span className="font-mono text-xs">
+                          {ACTION_LABELS[entry.action] ?? entry.action}
+                        </span>
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <span className="text-[var(--color-text-secondary)]">{entry.entityType}</span>
                       {entry.entityId && (
@@ -201,6 +278,14 @@ export default function AuditLogPage(): React.ReactElement {
                   <p className="font-mono text-[var(--color-text)]">{selectedEntry.action}</p>
                 </div>
               </div>
+              {selectedEntry.reason && (
+                <div className="mt-4">
+                  <span className="text-[var(--color-text-secondary)] text-sm">Reason:</span>
+                  <p className="mt-1 text-[var(--color-text)] text-sm bg-amber-50 border border-amber-200 rounded p-3">
+                    {selectedEntry.reason}
+                  </p>
+                </div>
+              )}
               {(selectedEntry.oldValues || selectedEntry.newValues) && (
                 <div className="mt-4 grid grid-cols-2 gap-4">
                   {selectedEntry.oldValues && (
