@@ -983,6 +983,30 @@ export async function forceCompleteBooking(
       [bookingId],
     );
 
+    // MED-N10 fix: pre-fix the function set status='confirmed' and
+    // returned. autoConfirmBookings (workers.ts) only picks up
+    // bookings whose `completed_at < NOW() - 24h`, so the provider
+    // waited up to a full day after explicit admin force-complete
+    // to actually receive their money. Now: release escrow + flip
+    // to 'payout_ready' inside the SAME transaction when the
+    // booking has escrow held. Pre-check escrow_status so we don't
+    // throw on bookings that never had a payment captured.
+    const escrowStatusRow = await client.query<{ escrow_status: string | null }>(
+      `SELECT escrow_status FROM bookings WHERE id = $1`,
+      [bookingId],
+    );
+    const escrowStatus = escrowStatusRow.rows[0]?.escrow_status ?? null;
+    const releasable = escrowStatus === 'held';
+    let escrowReleased = false;
+    if (releasable) {
+      await escrowService.releaseEscrowInTransaction(client, bookingId);
+      await client.query(
+        `UPDATE bookings SET status = 'payout_ready', updated_at = NOW() WHERE id = $1`,
+        [bookingId],
+      );
+      escrowReleased = true;
+    }
+
     const actionResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
        VALUES ($1, 'booking_force_completed', 'booking', $2, $3::jsonb, $4)
@@ -990,7 +1014,7 @@ export async function forceCompleteBooking(
       [
         adminUserId,
         bookingId,
-        JSON.stringify({ previousStatus: booking.status }),
+        JSON.stringify({ previousStatus: booking.status, escrowReleased }),
         trimmedReason,
       ],
     );
@@ -1004,6 +1028,7 @@ export async function forceCompleteBooking(
       previousStatus: booking.status,
       adminUserId,
       adminActionId,
+      escrowReleased,
     });
 
     return { bookingId, adminActionId };
