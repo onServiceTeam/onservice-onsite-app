@@ -7,12 +7,25 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertCircle } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
-const HOLD_SECONDS = 15 * 60;
+// Phase D CRIT-89 fix — pre-fix the screen claimed bookings were
+// held for 15 minutes, but the server's unmatched-booking expiry
+// is platformConfig.unmatchedBookingExpiryHours (default 72 hours,
+// admin-tunable). The mismatch made customers panic when their
+// "15 min" timer hit 0 even though the booking was still recoverable.
+// Server is the source of truth; expose 72h here for now and TODO:
+// fetch from /api/v1/config when that endpoint widens to include it.
+const HOLD_SECONDS = 72 * 60 * 60; // 72 hours — matches server.
 
 function formatCountdown(totalSeconds: number): string {
+  // Phase D CRIT-89 fix — formatter now shows H:MM:SS for long
+  // durations (was M:SS only, which displayed "4320:00" for 72h).
   const safe = Math.max(0, totalSeconds);
-  const m = Math.floor(safe / 60);
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
   const s = safe % 60;
+  if (h > 0) {
+    return `${h}h ${String(m).padStart(2, '0')}m`;
+  }
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
@@ -84,7 +97,10 @@ export default function PaymentFailedScreen(): React.ReactElement {
 
         {bookingId && (
           <Text style={styles.holdText}>
-            Your booking is held for 15 minutes. Time left:{' '}
+            {/* Phase D CRIT-89 fix — was "15 minutes". Server actually
+                 holds the unmatched booking for 72h
+                 (unmatchedBookingExpiryHours). */}
+            Your booking is held for up to 72 hours. Time left:{' '}
             <Text style={styles.holdCountdown}>{formatCountdown(secondsLeft)}</Text>
           </Text>
         )}
