@@ -161,20 +161,47 @@ export async function getEarningsSummary(
     [providerId],
   );
 
-  const escrowResult = await db.query<{ pending: string }>(
-    `SELECT COALESCE(SUM(b.service_price), 0)::text AS pending
+  // MED-N34 fix: pre-fix returned `pendingEscrow` as gross
+  // SUM(service_price), but the dashboard's `earned*` totals are
+  // NET (post-commission via wallet_transactions). Mixed units
+  // misled the provider into thinking they'd receive a higher
+  // payout than they actually would.
+  //
+  // Now: read the provider's tier and compute pending net of
+  // commission for each booking. Falls back to platformConfig if
+  // settings is unreachable so the dashboard still renders.
+  let commissionRate = 0.15; // safe default = highest tier rate
+  try {
+    const tierRow = await db.query<{ tier: string }>(
+      `SELECT tier FROM providers WHERE id = $1`,
+      [providerId],
+    );
+    if (tierRow.rows[0]) {
+      commissionRate = await settingsService.getCommissionRate(tierRow.rows[0].tier);
+    }
+  } catch (err) {
+    logger.warn('Commission rate lookup failed in earnings summary; using 0.15 default', {
+      providerId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  const escrowResult = await db.query<{ pending_gross: string }>(
+    `SELECT COALESCE(SUM(b.service_price), 0)::text AS pending_gross
      FROM bookings b
      WHERE b.provider_id = $1
        AND b.status IN ('paid', 'provider_en_route', 'provider_arrived', 'in_progress', 'completed_by_provider')`,
     [providerId],
   );
+  const pendingGross = Number(escrowResult.rows[0]?.pending_gross ?? 0);
+  const pendingNet = Math.round(pendingGross * (1 - commissionRate));
 
   const row = result.rows[0]!;
   return {
     earnedToday: Number(row.earned_today),
     earnedThisWeek: Number(row.earned_this_week),
     earnedThisMonth: Number(row.earned_this_month),
-    pendingEscrow: Number(escrowResult.rows[0]?.pending ?? 0),
+    pendingEscrow: pendingNet, // MED-N34: now net of commission
     jobsToday: Number(row.total_jobs_today),
     jobsThisWeek: Number(row.total_jobs_week),
     jobsThisMonth: Number(row.total_jobs_month),

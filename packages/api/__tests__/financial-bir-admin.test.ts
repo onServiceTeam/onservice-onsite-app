@@ -1253,9 +1253,20 @@ describe('financial-admin.service.getFinancialOverview', () => {
 });
 
 describe('financial-admin.service.getEscrowSummary', () => {
-  it('classifies aging buckets from the row.bucket field', async () => {
+  it('classifies aging buckets from the dedicated aggregate query (MED-N12)', async () => {
+    // MED-N12 fix: function now runs THREE queries — wallet,
+    // bucket aggregate (no LIMIT), and the displayed list.
     dbQueryMock
       .mockResolvedValueOnce(rows([{ available: '500000', pending: '500000' }]))
+      // Aggregate query: per-bucket count + total. NO LIMIT.
+      .mockResolvedValueOnce(
+        rows([
+          { bucket: '0-24h',   count: '1', total: '100000' },
+          { bucket: '24-48h',  count: '1', total: '200000' },
+          { bucket: '48-168h', count: '1', total: '300000' },
+          { bucket: '168h+',   count: '1', total: '400000' },
+        ]),
+      )
       .mockResolvedValueOnce(
         rows([
           {

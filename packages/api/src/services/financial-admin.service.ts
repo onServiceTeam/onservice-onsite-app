@@ -500,7 +500,15 @@ interface EscrowPendingRow {
  * the same list to stay within the 3-query cap).
  */
 export async function getEscrowSummary(): Promise<EscrowSummary> {
-  const [walletRes, listRes] = await Promise.all([
+  // MED-N12 fix: pre-fix derived aging-bucket counts FROM the
+  // LIMIT 500 list, so any backlog above 500 silently undercounted.
+  // Now: separate aggregate query (no LIMIT) for the bucket
+  // counts/totals, and the displayed list keeps its 500 cap to
+  // bound payload size. The full count is exposed via
+  // pendingReleaseCount so admin UI can show "showing 500 of N
+  // total" when the list is truncated.
+  const PENDING_LIST_LIMIT = 500;
+  const [walletRes, aggRes, listRes] = await Promise.all([
     db.query<EscrowWalletRow>(
       `SELECT
          COALESCE(available_balance, 0)::text AS available,
@@ -508,6 +516,22 @@ export async function getEscrowSummary(): Promise<EscrowSummary> {
          FROM wallets
         WHERE type = 'platform_escrow' AND user_id IS NULL
         LIMIT 1`,
+    ),
+    db.query<{ bucket: '0-24h' | '24-48h' | '48-168h' | '168h+'; count: string; total: string }>(
+      `SELECT
+         CASE
+           WHEN b.completed_at IS NULL THEN '168h+'
+           WHEN NOW() - b.completed_at < INTERVAL '24 hours'  THEN '0-24h'
+           WHEN NOW() - b.completed_at < INTERVAL '48 hours'  THEN '24-48h'
+           WHEN NOW() - b.completed_at < INTERVAL '168 hours' THEN '48-168h'
+           ELSE '168h+'
+         END                                          AS bucket,
+         COUNT(*)::text                               AS count,
+         COALESCE(SUM(b.total_amount), 0)::text       AS total
+         FROM bookings b
+        WHERE b.escrow_status = 'held'
+          AND b.status IN ('completed_by_provider', 'confirmed')
+        GROUP BY bucket`,
     ),
     db.query<EscrowPendingRow>(
       `SELECT
@@ -530,42 +554,43 @@ export async function getEscrowSummary(): Promise<EscrowSummary> {
         WHERE b.escrow_status = 'held'
           AND b.status IN ('completed_by_provider', 'confirmed')
         ORDER BY b.completed_at NULLS LAST
-        LIMIT 500`,
+        LIMIT ${PENDING_LIST_LIMIT}`,
     ),
   ]);
 
   const available = Number(walletRes.rows[0]?.available ?? 0);
   const pending = Number(walletRes.rows[0]?.pending ?? 0);
 
-  const buckets: Record<EscrowSummary['agingBuckets'][number]['bucket'], { count: number; total: number }> = {
+  // MED-N12 fix: aging buckets sourced from the aggregate query so
+  // they're correct even when the pending-list display is capped.
+  const bucketTotals: Record<EscrowSummary['agingBuckets'][number]['bucket'], { count: number; total: number }> = {
     '0-24h': { count: 0, total: 0 },
     '24-48h': { count: 0, total: 0 },
     '48-168h': { count: 0, total: 0 },
     '168h+': { count: 0, total: 0 },
   };
+  let totalPendingCount = 0;
+  for (const row of aggRes.rows) {
+    bucketTotals[row.bucket] = { count: Number(row.count), total: Number(row.total) };
+    totalPendingCount += Number(row.count);
+  }
 
-  const pendingReleaseList: EscrowSummary['pendingReleaseList'] = listRes.rows.map((row) => {
-    const amt = Number(row.amount);
-    const bucket = row.bucket;
-    buckets[bucket].count += 1;
-    buckets[bucket].total += amt;
-    return {
-      bookingId: row.booking_id,
-      customerName: row.customer_name || '(unknown)',
-      providerName: row.provider_name ?? '(unassigned)',
-      amountCentavos: amt,
-      completedAt: row.completed_at ? row.completed_at.toISOString() : null,
-      ageHours: Math.round(Number(row.age_hours) * 10) / 10,
-    };
-  });
+  const pendingReleaseList: EscrowSummary['pendingReleaseList'] = listRes.rows.map((row) => ({
+    bookingId: row.booking_id,
+    customerName: row.customer_name || '(unknown)',
+    providerName: row.provider_name ?? '(unassigned)',
+    amountCentavos: Number(row.amount),
+    completedAt: row.completed_at ? row.completed_at.toISOString() : null,
+    ageHours: Math.round(Number(row.age_hours) * 10) / 10,
+  }));
 
   const agingBuckets: EscrowSummary['agingBuckets'] = (
     ['0-24h', '24-48h', '48-168h', '168h+'] as const
-  ).map((b) => ({ bucket: b, count: buckets[b].count, totalCentavos: buckets[b].total }));
+  ).map((b) => ({ bucket: b, count: bucketTotals[b].count, totalCentavos: bucketTotals[b].total }));
 
   return {
     totalInEscrowCentavos: available + pending,
-    pendingReleaseCount: pendingReleaseList.length,
+    pendingReleaseCount: totalPendingCount, // accurate count (was: list length)
     agingBuckets,
     pendingReleaseList,
   };
