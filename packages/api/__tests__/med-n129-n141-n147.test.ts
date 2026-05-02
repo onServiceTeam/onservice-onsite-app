@@ -141,14 +141,14 @@ describe('MED-N147 — referral generateCode uses crypto.randomBytes (not Math.r
   it('MED-N147 — generated codes use only the documented charset', async () => {
     // Drive a real call to getOrCreateReferralCode and inspect the
     // INSERTed code value.
+    // MED-N148 fix — getOrCreateReferralCode now does ONE INSERT...
+    // ON CONFLICT call per attempt (no separate dup check). Mock just
+    // the SELECT existing + the INSERT.
     const svc = require('../src/services/referral.service');
     // SELECT existing — none.
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    // dup check — no dup.
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 });
-    // INSERT returning row.
+    // INSERT returning row (no conflict, first try succeeds).
     dbQueryMock.mockImplementationOnce((_sql: string, params: unknown[]) => {
-      // params[1] is the code we generated.
       return Promise.resolve({
         rows: [{
           id: 'rc-1',

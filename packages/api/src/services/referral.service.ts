@@ -76,65 +76,88 @@ export async function getOrCreateReferralCode(userId: string): Promise<ReferralC
   );
   if (existing.rows.length > 0) return existing.rows[0]!;
 
-  let code: string;
+  // MED-N148 fix — INSERT ... ON CONFLICT DO NOTHING in a retry loop
+  // instead of SELECT-then-INSERT. Pre-fix the dup-check + INSERT had
+  // a race window: two simultaneous getOrCreateReferralCode calls for
+  // different users could both see "code free" and both INSERT, with
+  // the unique constraint catching one (raising a raw 23505 error to
+  // the second caller). Post-fix: each attempt INSERTs with ON
+  // CONFLICT (code) DO NOTHING; if RETURNING is empty we generated a
+  // colliding code (vanishingly rare with 32^8 = ~10^12 keyspace) and
+  // retry. Caps at 10 attempts to avoid runaway loops.
   let attempts = 0;
-  do {
-    code = generateCode();
-    const dup = await db.query<CountRow>(
-      `SELECT COUNT(*)::text as count FROM referral_codes WHERE code = $1`,
-      [code],
+  while (attempts < 10) {
+    const code = generateCode();
+    const result = await db.query<ReferralCodeRow>(
+      `INSERT INTO referral_codes (user_id, code, type)
+       VALUES ($1, $2, 'standard')
+       ON CONFLICT (code) DO NOTHING
+       RETURNING *`,
+      [userId, code],
     );
-    if (Number(dup.rows[0]?.count ?? 0) === 0) break;
+    if (result.rows.length > 0) {
+      logger.info('Referral code created', { userId, code });
+      return result.rows[0]!;
+    }
     attempts++;
-  } while (attempts < 10);
+  }
 
-  if (attempts >= 10) throw createAppError('Could not generate unique referral code. Try again.', 500);
-
-  const result = await db.query<ReferralCodeRow>(
-    `INSERT INTO referral_codes (user_id, code, type) VALUES ($1, $2, 'standard') RETURNING *`,
-    [userId, code],
-  );
-
-  logger.info('Referral code created', { userId, code });
-  return result.rows[0]!;
+  throw createAppError('Could not generate unique referral code. Try again.', 500);
 }
 
 export async function redeemReferralCode(
   refereeId: string,
   code: string,
 ): Promise<RedemptionRow> {
-  const codeResult = await db.query<ReferralCodeRow>(
-    `SELECT * FROM referral_codes WHERE code = $1`,
-    [code.toUpperCase()],
-  );
-  if (codeResult.rows.length === 0) throw createAppError('Invalid referral code.', 404);
-  const rc = codeResult.rows[0]!;
-
-  if (!rc.is_active) throw createAppError('This referral code is no longer active.', 409);
-  if (rc.expires_at && new Date(rc.expires_at) < new Date()) {
-    throw createAppError('This referral code has expired.', 409);
-  }
-  if (rc.max_uses && rc.uses_count >= rc.max_uses) {
-    throw createAppError('This referral code has reached its maximum uses.', 409);
-  }
-  if (rc.user_id === refereeId) {
-    throw createAppError('You cannot use your own referral code.', 400);
-  }
-
-  const existingRedemption = await db.query<CountRow>(
-    `SELECT COUNT(*)::text as count FROM referral_redemptions WHERE referee_id = $1`,
-    [refereeId],
-  );
-  if (Number(existingRedemption.rows[0]?.count ?? 0) > 0) {
-    throw createAppError('You have already used a referral code.', 409);
-  }
-
+  // MED-N149 fix — pull all pre-checks inside the trx with FOR UPDATE
+  // on the referral_codes row + the existing-redemption check. Pre-fix
+  // the SELECT * + COUNT for "have you redeemed before" both ran
+  // outside the trx; two simultaneous redemptions by the same referee
+  // could both pass the COUNT check and both INSERT (the unique
+  // constraint on referee_id would catch one but a raw 23505 error
+  // surfaced). Also locks the referral_codes row to serialize the
+  // uses_count increment so max_uses isn't violated under concurrency.
   return db.transaction(async (client) => {
-    const result = await client.query<RedemptionRow>(
-      `INSERT INTO referral_redemptions (referral_code_id, referrer_id, referee_id, referrer_bonus, referee_bonus)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [rc.id, rc.user_id, refereeId, Number(rc.referrer_bonus), Number(rc.referee_bonus)],
+    const codeResult = await client.query<ReferralCodeRow>(
+      `SELECT * FROM referral_codes WHERE code = $1 FOR UPDATE`,
+      [code.toUpperCase()],
     );
+    if (codeResult.rows.length === 0) throw createAppError('Invalid referral code.', 404);
+    const rc = codeResult.rows[0]!;
+
+    if (!rc.is_active) throw createAppError('This referral code is no longer active.', 409);
+    if (rc.expires_at && new Date(rc.expires_at) < new Date()) {
+      throw createAppError('This referral code has expired.', 409);
+    }
+    if (rc.max_uses && rc.uses_count >= rc.max_uses) {
+      throw createAppError('This referral code has reached its maximum uses.', 409);
+    }
+    if (rc.user_id === refereeId) {
+      throw createAppError('You cannot use your own referral code.', 400);
+    }
+
+    const existingRedemption = await client.query<CountRow>(
+      `SELECT COUNT(*)::text as count FROM referral_redemptions WHERE referee_id = $1`,
+      [refereeId],
+    );
+    if (Number(existingRedemption.rows[0]?.count ?? 0) > 0) {
+      throw createAppError('You have already used a referral code.', 409);
+    }
+
+    let result;
+    try {
+      result = await client.query<RedemptionRow>(
+        `INSERT INTO referral_redemptions (referral_code_id, referrer_id, referee_id, referrer_bonus, referee_bonus)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [rc.id, rc.user_id, refereeId, Number(rc.referrer_bonus), Number(rc.referee_bonus)],
+      );
+    } catch (err) {
+      // Defense in depth — friendly 409 if a unique-violation slips through.
+      if ((err as { code?: string }).code === '23505') {
+        throw createAppError('You have already used a referral code.', 409);
+      }
+      throw err;
+    }
 
     await client.query(
       `UPDATE referral_codes SET uses_count = uses_count + 1 WHERE id = $1`,
