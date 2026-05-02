@@ -421,21 +421,78 @@ addressed in Wave 1 P0 + MED-M16).
   callers should pass the captured paymentIntentId. The wallet path
   remains the default for v1.0 (route gates non-wallet at line 258).
 
+## Session 5c (2026-05-02 cont.) — Phase C + Phase K mobile fixes
+
+Per Ken's standing instruction "no skipping, no deferring", this
+sub-session pulled the mobile-app Phase K work into the backend
+session and also closed Phase C CRIT-50 + CRIT-46.
+
+### Phase C CRITs landed (1 commit)
+
+| # | Commit | CRITs |
+|---|---|---|
+| 1 | f5522f7 | C-CRIT-50 (graceful SIGTERM/SIGINT shutdown) + C-CRIT-46 (auth-specific tunable rate limiter) |
+
+### Phase K mobile-app fixes landed (3 commits)
+
+| # | Commit | Items |
+|---|---|---|
+| 2 | 5eb0e48 | K-CRIT-01 (legacy secure-storage deprecated) + K-CRIT-10 (terms.tsx no role flip) + K-CRIT-11 (wallet API path) + K-CRIT-12 (camelCase fields) |
+| 3 | f0f242b | K-CRIT-02 (provider tabs role gate) + K-CRIT-03 (push.service secure-storage) + K-CRIT-04 (socket.service secure-storage) + K-CRIT-07 (background-check real backend) + K-CRIT-08 (real earnings chart) + K-CRIT-09 (tier-specific commission) + MED-K20 (founding tier) |
+| 4 | 640edb1 | K-CRIT-05 (booking photo storage canonical) + K-CRIT-06 (KYC orphan deprecated) |
+| 5 | 3f52a09 | MED-K03 (single-flight refresh) + MED-K05 (founding in ProviderSelf.tier) + MED-K11 (job card totalAmount) + MED-K17 (full status map) |
+
+All 12 Phase K CRITs now have backend-aligned mobile fixes. Major
+mobile-side risks closed:
+- Sockets + push notifications now read tokens / user from canonical
+  per-device-keychain secure-storage (K01 + K03 + K04).
+- Provider tabs role-gated (K02).
+- Provider apps see real backend data on background-check + earnings
+  chart + commission breakdown (K07 + K08 + K09).
+- Wallet UI consistently hits /api/v1/wallet (singular) with camelCase
+  shape (K11 + K12).
+- Provider role no longer locally flipped pre-approval (K10).
+- Photo storage canonical model documented (K05); orphan KYC flow
+  documented as deprecated (K06).
+
+### Numbers (session 5c final)
+
+- **Backend tests:** 2444/2444 passing (was 2432).
+- **Mobile tests:** 333 passing + 91 todo (was 306 / 91).
+- **New mobile test files this session:** 3 (k-crit01-k10-k11-k12,
+  k-crit02-k03-k04-k07-k08-k09, k-med-fixes).
+- **K items landed (12 of 12 K CRITs + 4 K MEDs):**
+  - K01/K02/K03/K04/K05/K06/K07/K08/K09/K10/K11/K12 + K20/K05/K11/K17.
+
+### Operator workflow before launch — additions
+
+- Mobile clients should be re-built / re-deployed to pick up:
+  - Secure-storage migration (legacy MMKV bucket emptied; canonical
+    keychain-backed bucket is the only source for tokens + user PII).
+  - Wallet API path correction (no more 404s on /api/v1/wallets).
+  - Real provider earnings + commission display.
+- Backend: register graceful-shutdown hook with the process supervisor
+  (k8s/ECS preStop hook, SIGTERM grace period >= 30s).
+- Backend: DB_SSL_REJECT_UNAUTHORIZED=true in production (default).
+
 ## RESUME instructions for the next session
 
-1. Backend Phase B audit findings are now substantially closed.
-   Remaining Phase B items are smaller documentation / observability
-   items (MED-01 through MED-23) that could be addressed in another
-   pass.
-2. Mobile-app Phase K backlog awaits the mobile session. Notable
-   CRITs to hit first when that session starts: K01 (secure-storage
-   hardcoded key), K11+K12 (wallet API path/case mismatch),
-   K07-K09 (provider screen placeholder data), K10 (terms.tsx
-   auto-routing before approval).
-3. Pending operator items for v1.0 launch (per CLAUDE.md):
+1. Backend audit findings (Phase B + C + N + M + O) are substantially
+   closed. Remaining Phase B/C MEDs are mostly observability /
+   documentation items (e.g. MED-01 dev-only error swallow, MED-02
+   payout transferId required).
+2. Phase K mobile CRITs all landed. Remaining K MEDs (K01/K02/K04/
+   K06-K10/K12-K19/K21-K24) are smaller polish items (Haptics
+   reduceMotion gate, Toast severity-aware duration, useOffline
+   NetInfo events instead of polling, ITSAppUsesNonExemptEncryption
+   declaration). Could batch in another pass.
+3. Phase D + E + F deeper sweep of mobile + admin app pages still
+   available. Most CRITs already mapped to N-fixes via earlier
+   sessions; F#7 / F#10 remain operator items.
+4. Pending operator items for v1.0 launch (per CLAUDE.md):
    - F#3 baseline capture (84 Maestro YAMLs)
    - F#4 baseline capture (29 Playwright specs)
    - F#10 attorney-reviewed disclaimer wording
    - 12 D14 operational items (NPC DPO registration, BIR ATP,
      PayMongo live mode, S3 Object Lock, Postgres PITR, DNS+TLS, etc.)
-4. Then: tag `v1.0.0-launch-ready`.
+5. Then: tag `v1.0.0-launch-ready`.
