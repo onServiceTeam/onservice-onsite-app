@@ -366,6 +366,50 @@ export async function createDsr(input: {
   });
 
   logger.info('DSR created', { id: row.id, userId: input.userId, requestType: input.requestType });
+
+  // LAUNCH-LIMITATIONS #8 fix — automatically link an erasure DSR to
+  // the account-deletion pipeline (data-management.service). Pre-fix
+  // the DPO had to manually trigger the deletion flow for each
+  // erasure DSR; the only thing the DSR submit did was create a row
+  // with status='received'. Post-fix we kick off requestAccountDeletion
+  // best-effort so the cooling-off + processing pipeline starts
+  // immediately. We swallow specific known errors (already-pending
+  // deletion request, blocking bookings) and surface them via the
+  // DSR's user_message log so the DPO sees what happened — failure
+  // here must NOT roll back the DSR insert (the customer still has
+  // the right to a 15-day NPC SLA response even if the auto-kickoff
+  // can't proceed for procedural reasons).
+  if (input.requestType === 'erasure') {
+    try {
+      // Lazy require to avoid an import cycle (data-management ←
+      // compliance, both share writeAudit + db).
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const dataManagement = require('./data-management.service') as {
+        requestAccountDeletion: (
+          userId: string,
+          reason?: string,
+        ) => Promise<unknown>;
+      };
+      await dataManagement.requestAccountDeletion(
+        input.userId,
+        `Auto-linked from DSR ${row.id} (erasure request)`,
+      );
+      logger.info('Erasure DSR auto-linked to account deletion', {
+        dsrId: row.id,
+        userId: input.userId,
+      });
+    } catch (err) {
+      // Common path: customer already has a pending deletion (409),
+      // or has blocking bookings (409). Log and move on — the DPO
+      // will see this on the DSR detail page and act accordingly.
+      logger.warn('Erasure DSR could not auto-trigger account deletion; DPO must handle manually', {
+        dsrId: row.id,
+        userId: input.userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   return mapDsr(row);
 }
 

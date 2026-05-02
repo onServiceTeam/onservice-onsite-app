@@ -108,31 +108,30 @@ The NPC reference field accepts any string ≥3 characters (no regex
 validation). The actual NPC reference format may evolve; we accept
 free-text and rely on operator discipline.
 
-## 8. Erasure DSRs do not auto-delete data
+## 8. Erasure DSRs do not auto-delete data — RESOLVED 2026-05-02
 
 **Where:** Customer DSR (erasure) flow → backend processing.
 
-Submitting an erasure DSR does **not** automatically delete the user's
-data. It creates a `data_subject_requests` row with status `received`;
-the DPO is then responsible for executing the deletion through the
-existing account-management tooling (
-[apps/mobile/app/customer/account-management.tsx](apps/mobile/app/customer/account-management.tsx)
-already provides the 30-day cooling-off-then-delete pipeline).
+**Status:** RESOLVED — auto-linkage landed 2026-05-02.
 
-**Operator obligation:** for each erasure DSR, the DPO must trigger the
-account-deletion flow manually and then mark the DSR complete.
+**Resolution:** `compliance.service.createDsr` now kicks off
+`dataManagement.requestAccountDeletion` automatically when
+`requestType==='erasure'`. The cooling-off + processing pipeline
+starts immediately; the DPO no longer has to manually trigger it for
+each erasure DSR. Auto-trigger is best-effort: known procedural
+errors (existing pending deletion = 409; blocking bookings = 409) are
+logged and surfaced on the DSR detail page so the DPO sees what
+happened. Auto-trigger failure does NOT roll back the DSR insert —
+the customer's NPC 15-day SLA right is preserved either way.
 
-**Follow-up:** wire automated linkage between an erasure DSR and the
-account-deletion pipeline (Phase 14 candidate).
-
-## 9. Customer messaging in DSR confirmation — single submission shown
+## 9. Customer messaging in DSR confirmation — single submission shown — RESOLVED 2026-05-02
 
 **Where:** [apps/mobile/app/customer/data-rights.tsx](apps/mobile/app/customer/data-rights.tsx)
 
-The confirmation screen only shows the **most recent** submission. If
-the user submits two requests in a row without leaving the screen, only
-the second confirmation is visible. (See item 3 — full history endpoint
-deferred.)
+**Status:** RESOLVED via item #3 (DSR history endpoint landed
+2026-05-02). The screen now shows a "My past requests" list below the
+flow cards. If the user submits two requests, both appear with their
+own status and due date — no more single-submission gap.
 
 ## 10. BIR document bucket policy is not yet enforced
 
