@@ -112,11 +112,35 @@ estimates and recommendations. Awaiting Ken's choice in chat or in
 
 ## Session 2 final state — 2026-05-02
 
-- **Test suite:** 1835/1835 passing.
-- **Commits this session:** 16 (from 044c19b to ba5a67e).
+- **Test suite:** 1888/1888 passing.
+- **Commits this session:** 25+ (from 044c19b through 647b4e4).
 - **All Wave 1 P0 + Wave 2 P1 + Wave 2 P2 dispatches DONE** except 2
   hard-stops (D-J15 dpo role, D-J22 recurring auto_charge) which
   await Ken's choice in escalation files E01 + E02.
+
+## v1.1 hardening backlog progress (session 2 continuation)
+
+After Wave 2 P2 closed, kept going into the v1.1 audit findings.
+Landed:
+
+| Commit | MED | Title |
+|---|---|---|
+| 98963b3 | MED-N25/N26 | releasePartialEscrow money math guards |
+| 37e9146 | MED-N10 | forceCompleteBooking releases escrow when held |
+| 45f6b02 | MED-N19 | dispute auto-resolve refund is transactional |
+| 24cf86b | MED-N15 | flag_fraud uses correct action_type + queryable boolean |
+| d3690b8 | MED-N16 | fraud-pattern thresholds admin-tunable |
+| 647b4e4 | MED-N18+N24 | noshow window tunable + remove dismissed status |
+
+**Deferred:** MED-N27 (handleCancellation atomicity) — needs a 9-test
+rewrite that's larger than the fix itself; left as the next session's
+first item. The legacy entry point still has the multi-trx gap; the
+trx-aware variant `handleCancellationInTransaction` (used by the
+booking-admin path) is already correct.
+
+**Audit findings remaining (rough counts, v1.1 backlog):**
+- MED-N: ~150 of 169 still open
+- MED-K, L, M, O batches: not yet touched in fixes phase
 
 ## RESUME instructions for the next session
 
