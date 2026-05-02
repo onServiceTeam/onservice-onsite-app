@@ -282,13 +282,17 @@ Real PayMongo + wallet auto-charge with admin kill switch:
 - Decision file: .ai-coder/decisions/D22-recurring-auto-charge.md.
 - Tests: 32 (e02-recurring-auto-charge.test.ts).
 
-### Numbers
+### Numbers (mid-session 4)
 
-- **Tests at session 4 close:** 2220/2220 passing (was 2162 at
-  session 3 close; +58 net new across E01 + E02).
+- **Tests at session 4 close:** 2242/2242 passing (was 2162 at
+  session 3 close; +80 net new — E01 +26, E02 +32, MED-N100-105 +15,
+  MED-N106-111 +7).
 - **New migrations this session:** 2 (106 dpo_role_e01, 107
   recurring_auto_charge_e02).
 - **New services this session:** 1 (recurring-auto-charge).
+- **MED-Ns landed this session:** E01 + E02 + N100/101/103/104/105
+  + N106/107/109/110/111 = 12 new MEDs (plus 2 escalations resolved).
+- **Cumulative v1.1 MEDs landed:** ~104 of ~169 (~62%).
 - **Operator workflow before launch — ADD:**
   - Apply migrations 106 + 107 in production.
   - Assign a real DPO via super_admin Settings → Staff → DPO
