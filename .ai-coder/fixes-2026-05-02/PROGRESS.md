@@ -689,6 +689,60 @@ that decision needs Ken. Recommendation: Option A
   to E01), 111 was the only "missing endpoint" so the remaining
   service-area POST endpoint cleanup is fully closed.
 
+## Session 5i — K MEDs round 2 + Phase E aftercare (K02/K04/K07)
+
+| # | Commit | Summary |
+|---|---|---|
+| 1 | 618530f | K-MED-K02 verifyOtp shape validation + K-MED-K04 5 raw err.message migrations (10 tests) |
+| 2 | e9fd644 | K-MED-K07 capture NBI expiry + ID number during onboarding (mig 115 + validator + service + store + screen; 9 backend + 10 mobile tests) |
+
+### What landed in 5i
+
+**K-MED-K02** — auth.store.ts verifyOtp now validates the response
+shape before destructuring tokens / user. Pre-fix a malformed
+backend response would silently store undefined tokens and a
+signed-in user with no user object. Post-fix throws a specific error
+per missing field; the OTP screen catches via getErrorMessage.
+
+**K-MED-K04** — 5 mobile screens that the earlier batch-script regex
+missed migrated to canonical getErrorMessage helper:
+make-recurring.tsx, notification-settings.tsx, recurring/[id].tsx
+(4 mutations), provider/availability.tsx (3 mutations),
+provider/payout-settings.tsx. Pre-fix err.message rendered "Network
+Error" / "Request failed with status code 400" instead of the
+actual server-side validation message.
+
+**K-MED-K07** — NBI expiry + ID number now captured during onboarding
+end-to-end:
+  1. Migration 115 — adds providers.government_id_number TEXT.
+     nbi_expiry_date already existed since mig 002.
+  2. providerApplicationSchema — optional nbiExpiryDate (YYYY-MM-DD)
+     + governmentIdNumber (1..64).
+  3. createProviderApplication — INSERT carries both fields with a
+     42703 fallback for deployments where mig 115 isn't yet applied.
+  4. Route forwards both optional fields.
+  5. Mobile onboarding store + setters.
+  6. provider-onboarding/documents.tsx adds two optional inputs
+     (wrapped body in ScrollView since the screen now exceeds the
+     viewport).
+  7. terms.tsx submit spreads them only when set (legacy clients
+     keep working).
+
+### Numbers (session 5i final)
+
+- **Mobile tests:** 388 passing + 90 todo (was 368/90 at end of 5h).
+- **Backend tests:** 2459 passing (was 2450 at end of 5h — +9 from
+  k-med-k07-provider-application.test.ts).
+- **Phase E CRITs landed:** 15 of 18 (103/104 escalated to E01;
+  remaining 1 was service-area POST endpoint which CRIT-111 closed).
+- **Phase K MEDs landed:** K02, K04 (now 100% complete via remaining
+  5 screens), K05, K06, K07, K09, K10, K11, K12, K14, K15, K16, K17,
+  K18, K19, K20, K22, K23, K24 (19 of 24).
+- **K MEDs remaining (5 of 24):** K01 (mostly closed by CRIT-119),
+  K08 (orphan, file deprecated by K06/CRIT-115), K13 (intentional
+  shared role-select), K21 (would need runtime fetch on mobile),
+  K03 (small polish).
+
 ## RESUME instructions for the next session
 
 1. Backend audit findings (Phase B + C + N + M + O) substantially
