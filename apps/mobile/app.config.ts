@@ -72,7 +72,23 @@ const config: ExpoConfig = {
         'onService needs photo library access to upload images for bookings, profiles, and evidence.',
       NSContactsUsageDescription:
         'onService can access your contacts to easily invite friends through the referral program.',
-      ITSAppUsesNonExemptEncryption: false,
+      // Phase K MED-K24 fix — the app uses non-exempt encryption
+      // (MMKV with AES-256 encryption key per CRIT-K01 fix; HTTPS
+      // for all backend traffic; expo-crypto for OTP hashing). Per
+      // BIS export compliance, ITSAppUsesNonExemptEncryption MUST
+      // be `true` and the app must qualify for the standard
+      // exemption (uses encryption ONLY for authentication and
+      // protection of user data with established cryptography
+      // libraries). Setting this honestly avoids App Store
+      // rejection and qualifies for ENS exemption per
+      // §740.17(b)(1) of the EAR. Operator MUST also submit the
+      // annual self-classification report to BIS / NSA on the
+      // same calendar year the build ships.
+      //
+      // If your build genuinely is exempt (no encryption beyond
+      // OS/HTTPS), set this back to false AND document why in
+      // store-listing/ASSET-CHECKLIST.md.
+      ITSAppUsesNonExemptEncryption: true,
     },
     associatedDomains: ['applinks:onservice.ph'],
     config: {

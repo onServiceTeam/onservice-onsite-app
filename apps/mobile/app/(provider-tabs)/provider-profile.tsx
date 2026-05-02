@@ -68,10 +68,27 @@ export default function ProviderProfileScreen(): React.ReactElement {
     mutationFn: () => {
       const data: { bio?: string; yearsExperience?: number; serviceRadiusKm?: number } = {};
       if (bio.trim()) data.bio = bio.trim();
+      // Phase K MED-K10 fix — client-side bounds match the backend
+      // Zod validators (provider.validators.ts: yearsExperience
+      // 0..60, serviceRadiusKm 1..50). Pre-fix the form accepted
+      // any positive integer and pushed it to the server which
+      // returned a 400 with a Zod error the user couldn't easily
+      // map back to the field. Now we throw a friendly local
+      // Alert before the network round-trip.
       const yrs = parseInt(yearsExp, 10);
-      if (!isNaN(yrs) && yrs >= 0) data.yearsExperience = yrs;
+      if (!isNaN(yrs)) {
+        if (yrs < 0 || yrs > 60) {
+          throw new Error('Years of experience must be between 0 and 60.');
+        }
+        data.yearsExperience = yrs;
+      }
       const rad = parseInt(radius, 10);
-      if (!isNaN(rad) && rad > 0) data.serviceRadiusKm = rad;
+      if (!isNaN(rad)) {
+        if (rad < 1 || rad > 50) {
+          throw new Error('Service radius must be between 1 and 50 km.');
+        }
+        data.serviceRadiusKm = rad;
+      }
       return updateMyProfile(data);
     },
     onSuccess: () => {

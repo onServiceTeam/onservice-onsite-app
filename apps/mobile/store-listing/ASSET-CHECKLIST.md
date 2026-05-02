@@ -49,7 +49,7 @@
 - [ ] Certificates and provisioning profiles configured (EAS handles this)
 - [ ] App Privacy details completed in App Store Connect
 - [ ] Age rating questionnaire completed
-- [ ] Export compliance information submitted (ITSAppUsesNonExemptEncryption: false)
+- [ ] Export compliance information submitted (ITSAppUsesNonExemptEncryption: true — qualifies for §740.17(b)(1) standard exemption since the app uses encryption ONLY for authentication, HTTPS, and protection of user data via established libraries; annual self-classification report due to BIS / NSA on calendar-year build)
 
 ## Pre-Submission Verification
 

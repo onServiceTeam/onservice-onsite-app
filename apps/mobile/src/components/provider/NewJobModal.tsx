@@ -102,15 +102,26 @@ export default function NewJobModal(): React.ReactElement | null {
     return () => { clearTimer(); };
   }, [job, dismiss, clearTimer, progressAnim]);
 
+  // Phase K MED-K15 fix — provider passing on a NewJobModal offer is
+  // NOT the same as cancelling an accepted job. Pre-fix the modal
+  // called updateBookingStatus(id, 'cancelled_by_provider') which
+  // terminated the booking entirely (status flips to a cancelled_*
+  // terminal). The right semantics for "I'm not taking this job"
+  // is to simply dismiss the modal locally — the booking stays in
+  // 'requested' / 'quoted' state and the matching service offers it
+  // to the next eligible provider on the broadcast list.
+  // No backend call is made. (Future: a dedicated /providers/me/jobs/
+  // :id/pass endpoint would let the server route past this provider
+  // immediately instead of waiting for the offer-timeout to expire.)
   const declineMutation = useMutation({
-    mutationFn: (bookingId: string) =>
-      updateBookingStatus(bookingId, 'cancelled_by_provider'),
+    mutationFn: async (_bookingId: string) => {
+      // Intentionally no backend call — see comment above.
+      return undefined;
+    },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
       dismiss();
     },
     onError: () => {
-      // Still dismiss — the backend will handle rematch
       dismiss();
     },
   });

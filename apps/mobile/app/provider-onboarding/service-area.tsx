@@ -53,8 +53,20 @@ export default function ServiceAreaScreen(): React.ReactElement {
         finalLat = match.lat;
         finalLng = match.lng;
       } else {
-        finalLat = 14.5995;
-        finalLng = 120.9842;
+        // Phase K MED-K06 fix — pre-fix unknown cities defaulted to
+        // Manila (14.5995, 120.9842), so a Boracay / Cebu / Davao
+        // applicant whose city wasn't in the small PH_REGIONS list
+        // silently submitted Manila coordinates and the matching
+        // service then rejected them as out-of-range. Post-fix:
+        // refuse to submit; ask the user to use the GPS pin so the
+        // device-level coordinates are captured. The server-side
+        // PH lat/lng band check (validators/ph-coords.ts) will then
+        // accept anywhere within the country, not just Metro Manila.
+        Alert.alert(
+          'Pin your location',
+          `We don't have map data for "${city.trim()}". Tap "Use My Current Location" so we can capture your coordinates accurately. (You can still type the city + province above; we just need the GPS pin too.)`,
+        );
+        return;
       }
     }
 
