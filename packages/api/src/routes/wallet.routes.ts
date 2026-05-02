@@ -4,6 +4,7 @@ import { validationMiddleware } from '../middleware/validation.middleware';
 import { withdrawalSchema } from '../validators/wallet.validators';
 import * as walletService from '../services/wallet.service';
 import * as paymentService from '../services/payment.service';
+import * as payoutService from '../services/payout.service';
 import { createAppError } from '../middleware/error.middleware';
 import { platformConfig } from '../config/platform.config';
 import { formatPHP } from '../utils/currency';
@@ -120,61 +121,32 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const userId = req.user!.userId;
-      const { amount, method, destinationAccount } = req.body;
+      const { amount, method, destinationAccount, accountName, notes } = req.body;
 
       if (req.user!.role !== 'provider') {
         throw createAppError('Only providers can withdraw funds.', 403);
       }
 
-      if (amount < platformConfig.minimumWithdrawalAmount) {
-        throw createAppError(
-          `Minimum withdrawal is ${platformConfig.currencySymbol}${(platformConfig.minimumWithdrawalAmount / 100).toFixed(2)}.`,
-          400,
-        );
-      }
-
-      const wallet = await walletService.getUserWallet(userId, 'provider');
-      if (Number(wallet.available_balance) < amount) {
-        throw createAppError('Insufficient balance.', 400);
-      }
-
-      interface ProviderIdRow { id: string }
-      const providerRow = await db.query<ProviderIdRow>(
-        `SELECT id FROM providers WHERE user_id = $1`,
-        [userId],
-      );
-      if (providerRow.rows.length === 0) throw createAppError('Provider profile not found.', 404);
-      const providerId = providerRow.rows[0]!.id;
-
-      const payout = await db.transaction(async (client) => {
-        interface WalletBalanceRow { available_balance: number; [key: string]: unknown }
-        const walletUpdate = await client.query<WalletBalanceRow>(
-          `UPDATE wallets SET available_balance = available_balance - $1, updated_at = NOW()
-           WHERE id = $2 AND available_balance >= $1 RETURNING *`,
-          [amount, wallet.id],
-        );
-        if (walletUpdate.rows.length === 0) throw createAppError('Insufficient balance.', 400);
-        const updatedWallet = walletUpdate.rows[0]!;
-
-        await client.query(
-          `INSERT INTO wallet_transactions (wallet_id, type, amount, balance_after, description)
-           VALUES ($1, 'withdrawal', $2, $3, $4)`,
-          [wallet.id, -amount, updatedWallet.available_balance, `Withdrawal via ${method} to ${destinationAccount}`],
-        );
-
-        const payoutResult = await client.query<PayoutRow>(
-          `INSERT INTO payouts (provider_id, wallet_id, amount, method, destination_account)
-           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-          [providerId, wallet.id, amount, method, destinationAccount],
-        );
-        return payoutResult;
+      // MED-N166 fix: delegate to payoutService.requestPayout instead
+      // of running a parallel inline transaction. Pre-fix: this
+      // endpoint duplicated the wallet-debit + payouts INSERT and
+      // bypassed the AML threshold check (MED-N77), the per-method
+      // destination format validation (MED-N78), the pending-payout
+      // guard, and the audit pattern. Now everything money-path goes
+      // through the one service.
+      const payout = await payoutService.requestPayout(userId, {
+        amount,
+        method,
+        destinationAccount,
+        accountName,
+        notes,
       });
 
-      logger.info('Withdrawal initiated', { userId, amount, method });
+      logger.info('Withdrawal initiated via wallet route', { userId, amount, method });
 
       res.status(201).json({
         success: true,
-        data: formatPayout(payout.rows[0]!),
+        data: payoutService.formatPayout(payout),
       });
     } catch (error) {
       next(error);
