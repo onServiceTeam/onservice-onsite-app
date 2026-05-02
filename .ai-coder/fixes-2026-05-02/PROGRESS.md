@@ -743,6 +743,25 @@ end-to-end:
   shared role-select), K21 (would need runtime fetch on mobile),
   K03 (small polish).
 
+## Session 5j — Phase L admin polish (MED-L01)
+
+| # | Commit | Summary |
+|---|---|---|
+| 1 | f06f2d2 | MED-L01 admin 404 catch-all route + NotFoundPage (4 tests) |
+
+### What landed in 5j
+
+**MED-L01** — admin app had no catch-all route. Typoed URLs rendered
+a blank screen. Added NotFoundPage component (shows 404 + typoed
+pathname + "Back to dashboard" link) mounted as `<Route path="*" />`
+inside AdminLayout so admin chrome stays visible.
+
+### Numbers (session 5j final)
+
+- **Admin tests:** 88 passing + 3 todo (unchanged pre-existing
+  unhandled errors in 5 detail pages — not my work, separate issue).
+- **Backend tests:** 2459 passing. **Mobile tests:** 388 + 90 todo.
+
 ## RESUME instructions for the next session
 
 1. Backend audit findings (Phase B + C + N + M + O) substantially
