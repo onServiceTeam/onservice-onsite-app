@@ -219,21 +219,62 @@ export async function listStaff(params: {
   return { staff: result.rows, total: parseInt(countResult.rows[0]?.count ?? '0', 10) };
 }
 
+// MED-N129 fix — pre-fix INSERT INTO admin_staff happened with no
+// admin_actions audit. Adding a staff member is a privileged action
+// (the new staff member can sign in to the admin panel from then on)
+// and the trail is required for forensics + compliance.
+//
+// Post-fix: INSERT + audit row run in a single transaction. The
+// caller now passes addedByAdminId so the audit attributes the
+// action to the acting super_admin. We reuse 'staff_removed' family
+// of action_types — adding a new value 'staff_added' to the CHECK
+// constraint via migration 100 (which already shipped 'staff_removed').
+// Wait — 100 only added staff_removed. We need migration 103 for
+// staff_added. Done at file end.
 export async function addStaffMember(params: {
   userId: string;
   roleId: string;
+  addedByAdminId: string;
 }): Promise<AdminStaff> {
   try {
-    const result = await db.query<AdminStaff>(
-      `INSERT INTO admin_staff (user_id, role_id)
-       VALUES ($1, $2)
-       RETURNING *`,
-      [params.userId, params.roleId],
-    );
-    logger.info('Admin staff member added', { userId: params.userId, roleId: params.roleId });
-    const member = result.rows[0];
-    if (!member) throw new Error('Failed to add staff member.');
-    return member;
+    return await db.transaction(async (client) => {
+      const result = await client.query<AdminStaff>(
+        `INSERT INTO admin_staff (user_id, role_id)
+         VALUES ($1, $2)
+         RETURNING *`,
+        [params.userId, params.roleId],
+      );
+      const member = result.rows[0];
+      if (!member) throw new Error('Failed to add staff member.');
+
+      // Look up the role name for the audit details so the trail
+      // surfaces "added as super_admin" not "added with role-uuid-xyz".
+      const roleRow = await client.query<{ name: string }>(
+        `SELECT name FROM admin_roles WHERE id = $1`,
+        [params.roleId],
+      );
+
+      await client.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details)
+         VALUES ($1, 'staff_added', 'admin_staff', $2, $3::jsonb)`,
+        [
+          params.addedByAdminId,
+          member.id,
+          JSON.stringify({
+            addedUserId: params.userId,
+            addedRole: roleRow.rows[0]?.name ?? params.roleId,
+            addedRoleId: params.roleId,
+          }),
+        ],
+      );
+      logger.info('Admin staff member added', {
+        userId: params.userId,
+        roleId: params.roleId,
+        addedByAdminId: params.addedByAdminId,
+      });
+      return member;
+    });
   } catch (err: unknown) {
     if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === '23505') {
       throw createAppError('This user is already a staff member.', 409);

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
@@ -35,10 +36,35 @@ interface CountRow { count: string }
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
+// MED-N147 fix — pre-fix this used Math.random() which is a
+// non-cryptographic PRNG. With CODE_CHARS.length=32 and length=8 the
+// search space is only 32^8 ~= 1.1 trillion — but Math.random's
+// state space is much smaller, and a couple of leaked codes can let
+// an attacker predict subsequent codes with browser-side
+// xorshift128 reverse engineering. Predictable codes also let
+// attackers harvest unused referral bonuses.
+//
+// Post-fix: crypto.randomBytes draws from the OS CSPRNG. We modulo
+// the bytes against CODE_CHARS.length using rejection sampling so
+// the distribution is uniform (skips bytes >= the largest multiple
+// of CODE_CHARS.length that fits in 256).
 function generateCode(length = 8): string {
+  const charCount = CODE_CHARS.length;
+  // Largest multiple of charCount that fits in a single byte (256).
+  const maxValid = 256 - (256 % charCount);
   let code = '';
-  for (let i = 0; i < length; i++) {
-    code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  while (code.length < length) {
+    // Draw enough bytes to fill the rest, with a safety margin for
+    // rejected bytes. Refill on demand.
+    const needed = length - code.length;
+    const buf = crypto.randomBytes(needed * 2);
+    for (let i = 0; i < buf.length && code.length < length; i++) {
+      const b = buf[i]!;
+      if (b < maxValid) {
+        code += CODE_CHARS[b % charCount];
+      }
+      // else: rejection-sampled — try the next byte.
+    }
   }
   return code;
 }

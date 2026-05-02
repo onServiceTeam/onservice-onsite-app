@@ -105,7 +105,13 @@ router.post(
     try {
       const { userId, roleId } = req.body;
       if (!userId || !roleId) throw createAppError('User ID and role ID are required.', 400);
-      const member = await staffService.addStaffMember({ userId, roleId });
+      // MED-N129 fix — pass the acting super_admin's userId so the
+      // service can write the audit row.
+      const member = await staffService.addStaffMember({
+        userId,
+        roleId,
+        addedByAdminId: req.user!.userId,
+      });
       res.status(201).json({ success: true, data: member });
     } catch (error) {
       next(error);

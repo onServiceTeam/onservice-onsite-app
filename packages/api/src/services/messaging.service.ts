@@ -118,17 +118,31 @@ export async function sendMessage(
 
   const isFlagged = messageType === 'text' && checkPlatformBypass(content);
 
-  const result = await db.query<MessageRow>(
-    `INSERT INTO messages (conversation_id, sender_id, content, message_type, image_url, is_flagged)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING *`,
-    [conversationId, senderId, content, messageType, imageUrl ?? null, isFlagged],
-  );
+  // MED-N141 fix — pre-fix: INSERT messages and UPDATE conversations
+  // were two separate db.query calls. If the UPDATE failed after the
+  // message INSERT committed, the conversation row's last-activity
+  // timestamp went stale — affects sort order in conversation
+  // listings (the "most recent" conversation could appear stuck at
+  // the previous message's time).
+  //
+  // Post-fix: both writes run in the SAME transaction. INSERT first
+  // so the trigger that maintains the message count fires (if any),
+  // then UPDATE conversations.updated_at; either both land or neither.
+  const result = await db.transaction(async (client) => {
+    const inserted = await client.query<MessageRow>(
+      `INSERT INTO messages (conversation_id, sender_id, content, message_type, image_url, is_flagged)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [conversationId, senderId, content, messageType, imageUrl ?? null, isFlagged],
+    );
 
-  await db.query(
-    `UPDATE conversations SET updated_at = NOW() WHERE id = $1`,
-    [conversationId],
-  );
+    await client.query(
+      `UPDATE conversations SET updated_at = NOW() WHERE id = $1`,
+      [conversationId],
+    );
+
+    return inserted;
+  });
 
   if (isFlagged) {
     logger.warn('Platform bypass detected in message', {
