@@ -2,20 +2,34 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { type ApiResponse } from '@/services/api';
 import { useAuthStore } from '@/stores/auth.store';
 
+// Phase K CRIT-K12 fix — backend formatWallet returns camelCase
+// fields (availableBalance, pendingBalance, walletType — see
+// packages/api/src/services/wallet.service.ts:formatWallet). Pre-fix
+// this hook expected snake_case so the wallet UI rendered NaN /
+// undefined for the balance everywhere it was used (tabs/wallet,
+// home cards). Switching to camelCase here aligns with both the
+// backend response shape and the convention used throughout the rest
+// of the mobile codebase.
 interface WalletBalance {
   id: string;
-  available_balance: number;
-  pending_balance: number;
-  wallet_type: string;
+  userId: string;
+  type: string;
+  availableBalance: number;
+  pendingBalance: number;
+  currency: string;
+  createdAt: string;
 }
 
 interface WalletTransaction {
   id: string;
+  walletId: string;
+  bookingId: string | null;
   type: string;
   amount: number;
-  balance_after: number;
+  balanceAfter: number;
   description: string;
-  created_at: string;
+  referenceId: string | null;
+  createdAt: string;
 }
 
 interface WalletData {
@@ -26,6 +40,13 @@ interface WalletData {
 /**
  * Hook for wallet state and actions.
  * Fetches wallet balance + recent transactions, exposes top-up and withdrawal mutations.
+ *
+ * Phase K CRIT-K11 fix — backend mounts at /api/v1/wallet (singular)
+ * with the GET / endpoint returning the wallet (formatWallet output)
+ * directly. Pre-fix: this hook hit /api/v1/wallet/balance which 404'd
+ * silently. The transactions/top-up/withdraw paths were already
+ * correct (they use the singular form); only the balance endpoint
+ * was off.
  */
 export function useWallet() {
   const queryClient = useQueryClient();
@@ -35,7 +56,7 @@ export function useWallet() {
     queryKey: ['wallet'],
     queryFn: async () => {
       const [balanceRes, txRes] = await Promise.all([
-        api.get<ApiResponse<WalletBalance>>('/api/v1/wallet/balance'),
+        api.get<ApiResponse<WalletBalance>>('/api/v1/wallet'),
         api.get<ApiResponse<WalletTransaction[]>>('/api/v1/wallet/transactions?pageSize=20'),
       ]);
       return {
@@ -79,8 +100,8 @@ export function useWallet() {
     withdraw: withdrawMutation.mutateAsync,
     isWithdrawLoading: withdrawMutation.isPending,
     /** Available balance in centavos */
-    availableBalance: walletQuery.data?.balance?.available_balance ?? 0,
+    availableBalance: walletQuery.data?.balance?.availableBalance ?? 0,
     /** Pending balance in centavos */
-    pendingBalance: walletQuery.data?.balance?.pending_balance ?? 0,
+    pendingBalance: walletQuery.data?.balance?.pendingBalance ?? 0,
   };
 }

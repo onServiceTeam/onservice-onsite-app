@@ -1,7 +1,14 @@
 import { Platform } from 'react-native';
 import * as Application from 'expo-application';
 import * as Crypto from 'expo-crypto';
-import { getSecureItem, setSecureItem } from './secure-storage.service';
+// Phase K CRIT-K01 fix — migrate device fingerprint storage from
+// the legacy secure-storage.service (which used the hardcoded
+// 'onservice-dev-only-key' MMKV encryption key) to the new
+// secure-storage.ts module (per-device key materialized in OS
+// keychain via expo-secure-store). The fingerprint participates in
+// refresh-token binding (MED-N85), so it MUST live behind the same
+// keychain-backed cipher as the auth tokens themselves.
+import { getSecureItem, setSecureItem } from './secure-storage';
 
 const FP_KEY = 'device:fingerprint';
 const DEVICE_NAME_KEY = 'device:name';

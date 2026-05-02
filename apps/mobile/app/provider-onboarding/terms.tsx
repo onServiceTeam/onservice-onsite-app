@@ -8,7 +8,8 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation } from '@tanstack/react-query';
 import { useOnboardingStore } from '@/stores/onboarding.store';
-import { useAuthStore } from '@/stores/auth.store';
+// Phase K CRIT-K10 fix — useAuthStore import dropped; we no longer
+// mutate the auth store here. Role flip is canonical via backend.
 import api, { storage } from '@/services/api';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -17,7 +18,8 @@ import { Routes } from '@/config/navigation';
 export default function TermsScreen(): React.ReactElement {
   const router = useRouter();
   const store = useOnboardingStore();
-  const setUser = useAuthStore((s) => s.setUser);
+  // Phase K CRIT-K10 fix — setUser import removed; role flip now
+  // only happens via canonical backend approval + token refresh.
   const [agreed, setAgreed] = useState(store.icAgreed);
 
   const submitMutation = useMutation({
@@ -39,10 +41,20 @@ export default function TermsScreen(): React.ReactElement {
       return res.data;
     },
     onSuccess: () => {
-      const user = useAuthStore.getState().user;
-      if (user) {
-        setUser({ ...user, role: 'provider' });
-      }
+      // Phase K CRIT-K10 fix — DO NOT flip role to 'provider' before
+      // admin approval. Pre-fix: this set role='provider' locally
+      // immediately on submit, which made any route guard reading
+      // user.role pass the user as a fully-approved provider — they
+      // could navigate to provider-tabs / provider features before
+      // KYC was reviewed. Post-fix: role stays whatever the backend
+      // assigned (typically 'customer' since onboarding starts from
+      // a customer account); the application row sits at status
+      // 'pending'. When admin approves, the backend updates
+      // users.role; the next refreshAccessToken or sign-in picks up
+      // the new role from the JWT claims. The REVIEW_PENDING screen
+      // is the appropriate landing — it polls /provider/me for
+      // status and the customer/provider tab routing follows the
+      // canonical role from the auth store.
       storage.delete('isNewUser');
       store.reset();
       router.replace(Routes.PROVIDER_ONBOARDING.REVIEW_PENDING);
