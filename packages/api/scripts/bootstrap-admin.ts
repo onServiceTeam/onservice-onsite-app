@@ -23,8 +23,18 @@ import { hashPassword } from '../src/services/auth.service';
 import { db } from '../src/models/db';
 
 const PWD = process.env.ADMIN_BOOTSTRAP_PASSWORD;
-const ROLE = (process.env.ADMIN_BOOTSTRAP_ROLE ?? 'super_admin').toLowerCase();
+// MED-O01 fix — refuse to default ROLE to 'super_admin'. Pre-fix
+// admins running this script while forgetting to set
+// ADMIN_BOOTSTRAP_ROLE silently created a super_admin (and, if email
+// existed, silently promoted that user to super_admin). Post-fix:
+//   - ADMIN_BOOTSTRAP_ROLE is REQUIRED.
+//   - ADMIN_BOOTSTRAP_ROLE='super_admin' additionally requires the
+//     `--confirm-super-admin` argv flag so a typo can't escalate by
+//     accident.
+const ROLE_RAW = process.env.ADMIN_BOOTSTRAP_ROLE;
+const ROLE = ROLE_RAW ? ROLE_RAW.toLowerCase() : '';
 const email = process.argv[2];
+const HAS_SUPER_ADMIN_CONFIRM = process.argv.includes('--confirm-super-admin');
 
 const ALLOWED_ROLES = new Set([
   'super_admin',
@@ -79,9 +89,27 @@ async function main(): Promise<void> {
     process.stderr.write(`FATAL: provide email as argv[2]. Got: ${email}\n`);
     process.exit(1);
   }
+  // MED-O01 fix — explicit role required.
+  if (!ROLE_RAW || ROLE === '') {
+    process.stderr.write(
+      'FATAL: ADMIN_BOOTSTRAP_ROLE env var is required.\n' +
+        `Allowed: ${Array.from(ALLOWED_ROLES).join(', ')}\n` +
+        'Set ADMIN_BOOTSTRAP_ROLE=admin (or super_admin / dpo / finance / support / dispatcher) before running.\n',
+    );
+    process.exit(1);
+  }
   if (!roleIsAllowed(ROLE)) {
     process.stderr.write(
       `FATAL: ADMIN_BOOTSTRAP_ROLE '${ROLE}' invalid. Allowed: ${Array.from(ALLOWED_ROLES).join(', ')}\n`,
+    );
+    process.exit(1);
+  }
+  // MED-O01 fix — super_admin requires explicit confirmation.
+  if (ROLE === 'super_admin' && !HAS_SUPER_ADMIN_CONFIRM) {
+    process.stderr.write(
+      'FATAL: super_admin role requires the --confirm-super-admin flag.\n' +
+        'Re-run with: npx ts-node packages/api/scripts/bootstrap-admin.ts <email> --confirm-super-admin\n' +
+        'This guard prevents accidental escalation when the env var is set + an existing email is the target.\n',
     );
     process.exit(1);
   }
