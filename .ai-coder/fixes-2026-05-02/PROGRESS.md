@@ -312,15 +312,81 @@ Real PayMongo + wallet auto-charge with admin kill switch:
     sheet (out of scope for this backend session; tracked in mobile
     backlog).
 
+## Session 5 (2026-05-02 cont.) — Phase M + O closeout, v1.1 N tail
+
+### v1.1 MED-N tail (4 commits)
+
+| # | Commit | MEDs |
+|---|---|---|
+| 1 | aa05cc9 | N27 + N43 + N44 + N45 + N61 + N65 + N70 + N76 + N162 |
+| 2 | ebf255b | N80 + N90 + N108 + N112 |
+| Hint | — | N03 (route refactor) deferred; N23 doc-only; N50 deferred (PostGIS); N53 already-done; N98 withdrawn; N83/N93/N94 already-done |
+
+Net new in this session: 13 MED-Ns landed. Cumulative v1.1 MED-N coverage now ~138 of ~169 (~82%).
+
+### Phase M MEDs (3 commits)
+
+| # | Commit | MEDs |
+|---|---|---|
+| 3 | 0a25415 | M02 + M03 + M04 + M11 + M14 + M16 (M01 follow-up) |
+| 4 | 91bd4df | M05 + M06 + M08 + M09 |
+| Hint | — | M12 documented as intentional (not a bug); M07/M10/M13/M15/M17 already addressed |
+
+All Phase M CRITs (M01-M05) already addressed in earlier sessions.
+All Phase M MEDs now complete.
+
+### Phase O MEDs (1 commit)
+
+| # | Commit | MEDs |
+|---|---|---|
+| 5 | 8cd6415 | O01 (bootstrap-admin requires explicit role + super_admin confirm) |
+| Hint | — | O02 already addressed by E01; O03 already addressed; O04 deferred (Maestro baselines need device session) |
+
+### Numbers (session 5 final)
+
+- **Tests at session 5 close:** 2399/2399 passing (was 2313 at session
+  4 close; +86 net new across 5 fix commits).
+- **New migrations this session:** 2 (112 change_order_expiry,
+  113 users_email_lower_idx).
+- **New top-level modules this session:** 1 (validators/ph-coords.ts).
+- **MED-Ns + Ms + Os landed this session (~21 new):**
+  - N27 / N43-N45 / N61 / N65 / N70 / N76 / N80 / N90 / N108 / N112 / N162
+  - M02-M06 / M08-M09 / M11 / M14 / M16
+  - O01
+
+### Operator workflow before launch — additions
+
+- Apply migrations 112 + 113 in production.
+- Set DB_SSL_REJECT_UNAUTHORIZED=false ONLY for self-signed staging DBs;
+  default true.
+- Adjust `change_order_approval_expiry_hours` setting via Settings UI
+  if 24h is too long/short for your operational tempo.
+- Optionally tune `addon_price_max_cents` setting; validator hard
+  backstop is 10M centavos.
+- When running scripts/bootstrap-admin.ts: ADMIN_BOOTSTRAP_ROLE is
+  now REQUIRED. super_admin needs `--confirm-super-admin` flag.
+
+### Phase K mobile findings (deferred — out of scope for backend session)
+
+Phase K (mobile shared/layouts/onboarding/components) surfaced 12
+CRITs and 24 MEDs. All mobile-app fixes; tracked in mobile backlog
+per Ken's standing instruction that mobile UI work is out of scope
+for this backend session. Backend-side defenses for mobile-data
+consistency landed in earlier sessions (server-canonical pricing,
+audit, payment routing).
+
 ## RESUME instructions for the next session
 
-1. Both hard stops are resolved. No outstanding architectural
-   decisions blocking the v1.1 MED backlog.
-2. Return to the full audit findings list under
-   `.ai-coder/audit-2026-05-01/PHASE-*-BATCH-*.md` and continue
-   through remaining MEDs (~67 still open of 169 v1.1 MED-Ns;
-   plus untouched MED-K, L, M, O batches).
-3. Continue the same pattern: edit code, write test, run, commit.
-
-Each fix is one self-contained commit. The dispatches do not have
-inter-dependencies that force order.
+1. v1.1 MED-N + Phase M + Phase O backlog closed for backend.
+2. Mobile-app Phase K backlog awaits the mobile session. Notable
+   CRITs to hit first when that session starts: K01 (secure-storage
+   hardcoded key), K11+K12 (wallet API path/case mismatch),
+   K07-K09 (provider screen placeholder data), K10 (terms.tsx
+   auto-routing before approval).
+3. Pending operator items for v1.0 launch (per CLAUDE.md):
+   - F#3 baseline capture (84 Maestro YAMLs)
+   - F#4 baseline capture (29 Playwright specs)
+   - F#10 attorney-reviewed disclaimer wording
+   - 12 D14 operational items (NPC DPO registration, BIR ATP,
+     PayMongo live mode, S3 Object Lock, Postgres PITR, DNS+TLS, etc.)
+4. Then: tag `v1.0.0-launch-ready`.
