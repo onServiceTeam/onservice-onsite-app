@@ -44,23 +44,43 @@ router.post(
       );
 
       if (paymentMethod === 'wallet') {
+        // MED-N158 fix — pre-fix this path ran 4 separate operations
+        // (debit wallet, update payment status, UPDATE booking, hold
+        // escrow) as independent db.query calls. ANY failure mid-way
+        // left money in a broken state — wallet debited but no
+        // payment record, or payment marked succeeded but escrow not
+        // funded. Post-fix: all 4 writes share ONE db.transaction
+        // client. Either the customer's payment is fully accepted
+        // (debit + payment + booking + escrow ALL succeed) or NONE
+        // happens and the customer can retry.
         const customerWallet = await walletService.getUserWallet(userId, 'customer');
-        await walletService.debitWallet(
-          customerWallet.id,
-          Number(booking.total_amount),
-          'payment',
-          `Payment for booking`,
-          bookingId,
-        );
-
-        await paymentService.updatePaymentStatus(intent.id, 'succeeded');
-
-        await db.query(
-          `UPDATE bookings SET status = 'paid', escrow_status = 'held', updated_at = NOW() WHERE id = $1`,
-          [bookingId],
-        );
-
-        await escrowService.holdInEscrow(bookingId, Number(booking.total_amount));
+        await db.transaction(async (client) => {
+          // 1. Debit customer wallet (fails fast if insufficient).
+          await walletService.debitWalletInTransaction(
+            client,
+            customerWallet.id,
+            Number(booking.total_amount),
+            'payment',
+            `Payment for booking`,
+            bookingId,
+          );
+          // 2. Mark payment intent succeeded.
+          await client.query(
+            `UPDATE payment_intents SET status = 'succeeded', updated_at = NOW() WHERE id = $1`,
+            [intent.id],
+          );
+          // 3. Flip booking to paid + held.
+          await client.query(
+            `UPDATE bookings SET status = 'paid', escrow_status = 'held', updated_at = NOW() WHERE id = $1`,
+            [bookingId],
+          );
+          // 4. Hold the funds in the platform escrow wallet.
+          await escrowService.holdInEscrowInTransaction(
+            client,
+            bookingId,
+            Number(booking.total_amount),
+          );
+        });
 
         res.status(201).json({
           success: true,

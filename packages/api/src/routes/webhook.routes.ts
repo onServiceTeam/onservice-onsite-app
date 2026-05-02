@@ -201,25 +201,66 @@ router.post(
             break;
           }
 
-          const updateResult = await db.query(
-            `UPDATE bookings SET status = 'paid', escrow_status = 'held', updated_at = NOW()
-             WHERE id = $1 AND status = 'payment_pending' RETURNING id`,
-            [bookingId],
-          );
-          if ((updateResult.rowCount ?? 0) === 0) {
-            logger.info('Webhook: booking already paid or not in payment_pending', { bookingId });
-            break;
+          // MED-N156 fix — pre-fix the UPDATE bookings + holdInEscrow
+          // were two non-atomic operations. If holdInEscrow failed
+          // after the booking UPDATE committed, the booking was
+          // 'paid'+'held' but the escrow wallet's pending_balance
+          // wasn't actually credited — money invariant broken.
+          //
+          // Post-fix: both writes run inside a single db.transaction
+          // via holdInEscrowInTransaction. Either both commit or
+          // neither does. Webhook returns 5xx on failure which causes
+          // PayMongo to retry. Customer notification fires AFTER
+          // commit in try/catch (best-effort, never blocks).
+          let bookingForNotify: BookingRow | null = null;
+          try {
+            await db.transaction(async (client) => {
+              const updateResult = await client.query<{ id: string }>(
+                `UPDATE bookings SET status = 'paid', escrow_status = 'held', updated_at = NOW()
+                 WHERE id = $1 AND status = 'payment_pending' RETURNING id`,
+                [bookingId],
+              );
+              if ((updateResult.rowCount ?? 0) === 0) {
+                // Already paid (idempotent webhook re-delivery) or in
+                // an unexpected status. Bail out of the trx without
+                // doing anything.
+                logger.info('Webhook: booking already paid or not in payment_pending', { bookingId });
+                return;
+              }
+              const booking = await client.query<BookingRow>(
+                `SELECT id, customer_id, provider_id, status, total_amount FROM bookings WHERE id = $1`,
+                [bookingId],
+              );
+              if (booking.rows[0]) {
+                await escrowService.holdInEscrowInTransaction(
+                  client,
+                  bookingId,
+                  Number(booking.rows[0].total_amount),
+                );
+                bookingForNotify = booking.rows[0];
+              }
+            });
+          } catch (escrowErr) {
+            // Both the UPDATE and the escrow hold rolled back. Surface
+            // the error so PayMongo retries; admin gets the log.
+            logger.error('Webhook payment.paid trx failed (booking + escrow rolled back)', {
+              bookingId,
+              error: escrowErr instanceof Error ? escrowErr.message : 'Unknown',
+            });
+            throw escrowErr;
           }
 
-          const booking = await db.query<BookingRow>(
-            `SELECT id, customer_id, provider_id, status, total_amount FROM bookings WHERE id = $1`,
-            [bookingId],
-          );
-          if (booking.rows[0]) {
-            await escrowService.holdInEscrow(bookingId, Number(booking.rows[0].total_amount));
-            await notificationService.notifyBookingStatusChange(
-              booking.rows[0].customer_id, bookingId, 'paid',
-            );
+          if (bookingForNotify) {
+            try {
+              await notificationService.notifyBookingStatusChange(
+                (bookingForNotify as BookingRow).customer_id, bookingId, 'paid',
+              );
+            } catch (notifyErr) {
+              logger.error('Webhook payment.paid notification failed', {
+                bookingId,
+                error: notifyErr instanceof Error ? notifyErr.message : 'Unknown',
+              });
+            }
           }
           break;
         }

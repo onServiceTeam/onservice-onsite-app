@@ -3,6 +3,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { createAppError } from '../middleware/error.middleware';
 import * as businessService from '../services/business.service';
 import * as invoiceService from '../services/invoice.service';
+import * as settingsService from '../services/settings.service';
 
 const router = Router();
 
@@ -45,13 +46,30 @@ router.post(
         throw createAppError('Missing required fields.', 400);
       }
 
-      const validTypes = ['office', 'condo_management', 'restaurant', 'hotel', 'retail', 'school', 'hospital', 'other'];
+      // MED-N165 fix — pull both whitelists from platform_settings so
+      // admin can grow the lists without a code deploy. Hardcoded
+      // fallbacks preserve current behaviour if the settings table
+      // hasn't been migrated yet (mig 104).
+      let validTypes: string[];
+      try {
+        validTypes = await settingsService.getSettingArray('business_account_types');
+      } catch {
+        validTypes = ['office', 'condo_management', 'restaurant', 'hotel', 'retail', 'school', 'hospital', 'other'];
+      }
       if (!validTypes.includes(businessType)) {
         throw createAppError(`Invalid business type. Must be one of: ${validTypes.join(', ')}`, 400);
       }
 
-      if (paymentTerms && !['net_15', 'net_30', 'net_60'].includes(paymentTerms)) {
-        throw createAppError('Invalid payment terms. Must be net_15, net_30, or net_60.', 400);
+      if (paymentTerms) {
+        let validTerms: string[];
+        try {
+          validTerms = await settingsService.getSettingArray('business_payment_terms');
+        } catch {
+          validTerms = ['net_15', 'net_30', 'net_60'];
+        }
+        if (!validTerms.includes(paymentTerms)) {
+          throw createAppError(`Invalid payment terms. Must be one of: ${validTerms.join(', ')}`, 400);
+        }
       }
 
       const account = await businessService.createBusinessAccount({

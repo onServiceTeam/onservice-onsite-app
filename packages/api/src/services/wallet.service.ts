@@ -106,24 +106,41 @@ export async function debitWallet(
   referenceId?: string,
 ): Promise<TransactionRow> {
   if (amount <= 0) throw createAppError('Debit amount must be positive.', 400);
-
   return db.transaction(async (client) => {
-    const wallet = await client.query<WalletRow>(
-      `UPDATE wallets SET available_balance = available_balance - $1, updated_at = NOW()
-       WHERE id = $2 AND available_balance >= $1 RETURNING *`,
-      [amount, walletId],
+    return debitWalletInTransaction(
+      client, walletId, amount, txType, description, bookingId, referenceId,
     );
-
-    if (wallet.rows.length === 0) throw createAppError('Insufficient wallet balance.', 400);
-
-    const tx = await client.query<TransactionRow>(
-      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description, reference_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [walletId, bookingId ?? null, txType, -amount, wallet.rows[0]!.available_balance, description, referenceId ?? null],
-    );
-
-    return tx.rows[0]!;
   });
+}
+
+// MED-N158 fix — trx-aware variant. Used by the wallet-payment path
+// in payment.routes which needs to combine debit + payment status
+// update + booking flip + escrow hold into one atomic unit so
+// failures don't leave money in a stuck state (debited but no
+// payment record / escrow hold).
+export async function debitWalletInTransaction(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  client: { query: (text: string, params?: unknown[]) => Promise<any> },
+  walletId: string,
+  amount: number,
+  txType: TransactionType,
+  description: string,
+  bookingId?: string,
+  referenceId?: string,
+): Promise<TransactionRow> {
+  if (amount <= 0) throw createAppError('Debit amount must be positive.', 400);
+  const wallet = await client.query<WalletRow>(
+    `UPDATE wallets SET available_balance = available_balance - $1, updated_at = NOW()
+     WHERE id = $2 AND available_balance >= $1 RETURNING *`,
+    [amount, walletId],
+  );
+  if (wallet.rows.length === 0) throw createAppError('Insufficient wallet balance.', 400);
+  const tx = await client.query<TransactionRow>(
+    `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description, reference_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [walletId, bookingId ?? null, txType, -amount, wallet.rows[0]!.available_balance, description, referenceId ?? null],
+  );
+  return tx.rows[0]!;
 }
 
 export async function holdEscrow(
@@ -132,19 +149,38 @@ export async function holdEscrow(
   bookingId: string,
 ): Promise<void> {
   if (amount <= 0) throw createAppError('Escrow hold amount must be positive.', 400);
-
   await db.transaction(async (client) => {
-    await client.query(
-      `UPDATE wallets SET pending_balance = pending_balance + $1, updated_at = NOW() WHERE id = $2`,
-      [amount, walletId],
-    );
-
-    await client.query(
-      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-       VALUES ($1, $2, 'escrow_hold', $3, (SELECT pending_balance FROM wallets WHERE id = $1), $4)`,
-      [walletId, bookingId, amount, `Escrow hold for booking`],
-    );
+    await holdEscrowInTransaction(client, walletId, amount, bookingId);
   });
+}
+
+// MED-N156 fix — trx-aware variant so webhook handlers (and any other
+// caller that already owns a transactional client) can include the
+// escrow ledger writes in their own atomic unit. Same logic as
+// holdEscrow but takes the client instead of opening its own trx.
+//
+// We intentionally keep holdEscrow as a thin wrapper for back-compat
+// with callers that don't have a client to pass.
+//
+// Type for client mirrors db.transaction's callback parameter shape.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PgClient = { query: (text: string, params?: unknown[]) => Promise<any> };
+export async function holdEscrowInTransaction(
+  client: PgClient,
+  walletId: string,
+  amount: number,
+  bookingId: string,
+): Promise<void> {
+  if (amount <= 0) throw createAppError('Escrow hold amount must be positive.', 400);
+  await client.query(
+    `UPDATE wallets SET pending_balance = pending_balance + $1, updated_at = NOW() WHERE id = $2`,
+    [amount, walletId],
+  );
+  await client.query(
+    `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+     VALUES ($1, $2, 'escrow_hold', $3, (SELECT pending_balance FROM wallets WHERE id = $1), $4)`,
+    [walletId, bookingId, amount, `Escrow hold for booking`],
+  );
 }
 
 export async function getWalletTransactions(

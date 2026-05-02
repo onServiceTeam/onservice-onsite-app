@@ -35,6 +35,36 @@ export async function holdInEscrow(bookingId: string, amount: number): Promise<v
   logger.info('Escrow hold created', { bookingId, amount });
 }
 
+// MED-N156 fix — trx-aware variant. Takes the same trx client as the
+// caller so the booking UPDATE that flips status to 'paid' and the
+// escrow ledger writes commit atomically. If either side fails, both
+// roll back and the webhook returns 5xx — PayMongo retries the
+// webhook. Same shape as MED-N88 / CRIT-N10 cancellation /
+// confirmation patterns.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PgClient = { query: (text: string, params?: unknown[]) => Promise<any> };
+export async function holdInEscrowInTransaction(
+  client: PgClient,
+  bookingId: string,
+  amount: number,
+): Promise<void> {
+  // SELECT runs on the trx client so we see the (uncommitted) wallet
+  // row consistent with this transaction.
+  const escrowWalletRow = await client.query<{ id: string }>(
+    `SELECT id FROM wallets WHERE type = 'platform_escrow' LIMIT 1`,
+  );
+  if (escrowWalletRow.rows.length === 0) {
+    throw createAppError('Platform escrow wallet not configured.', 500);
+  }
+  await walletService.holdEscrowInTransaction(
+    client,
+    escrowWalletRow.rows[0]!.id,
+    amount,
+    bookingId,
+  );
+  logger.info('Escrow hold created (in-trx)', { bookingId, amount });
+}
+
 /**
  * Release escrow after customer confirmation (FR-101).
  * 1. Deducts commission from service price

@@ -222,6 +222,16 @@ export async function getSettingBoolean(key: string): Promise<boolean> {
   return val === 'true' || val === '1';
 }
 
+// MED-N165 fix — array settings stored as comma-separated values
+// (e.g. 'office,condo_management,restaurant'). The setting value
+// type is 'string' but the consumer wants string[]. Trims whitespace
+// and drops empty entries so admin can format the value with spaces
+// for readability.
+export async function getSettingArray(key: string): Promise<string[]> {
+  const val = await getSetting(key);
+  return val.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
 export async function getCommissionRate(tier: string): Promise<number> {
   try {
     return await getSettingPercent(`commission_rate_${tier}`);
