@@ -135,6 +135,9 @@ Landed:
 | d83ef78 | MED-N08+N09 | booking-evidence reads UNION of photo tables, drops dead gps/receipts |
 | e2b0fbc | MED-N31+N32+N33+N35 | provider-tools receipt + monthly summary fixes |
 | 1b0f558 | MED-N37+N38+N39+N40 | catalog duplicate-slug + business txn + member re-add + user check |
+| 07653f8 | MED-N20+N30 | provider TIN column for BIR 2307; parameterize timezone in SQL |
+| 5b69028 | MED-N12+N34 | escrow-summary aging buckets accurate; provider pendingEscrow NET |
+| d68d270 | MED-N14+N17 | activity endpoints mask IP+UA for junior admin |
 
 **Deferred:** MED-N27 (handleCancellation atomicity) — needs a 9-test
 rewrite that's larger than the fix itself; left as the next session's
@@ -143,21 +146,24 @@ trx-aware variant `handleCancellationInTransaction` (used by the
 booking-admin path) is already correct.
 
 **Audit findings remaining (rough counts, v1.1 backlog):**
-- MED-N: ~131 of 169 still open (20 landed in session 2 across 10 commits)
+- MED-N: ~125 of 169 still open (~26 landed in session 2 across 13 commits)
 - MED-K, L, M, O batches: not yet touched in fixes phase
 
 ## Session 2 final state — 2026-05-02 (final)
 
-- **Test suite:** 1926/1926 passing.
-- **Commits this session:** 35+ total (Wave 2 P1 + P2 + 20 v1.1 MEDs + escalations + docs).
-- **Net new tests:** +305 (started at 1621 in session 1 close).
-- **Net new migrations:** 7 (089–095 + 096) all compatible with prod schema.
+- **Test suite:** 1968/1968 passing.
+- **Commits this session:** 40+ total (Wave 2 P1 + P2 + 26 v1.1 MEDs + escalations + docs).
+- **Net new tests:** +347 (started at 1621 in session 1 close).
+- **Net new migrations:** 9 (089–097) all compatible with prod schema.
 - **Net new services:** 5 (gateway-retry, i18n, slack-alert, bir-filer-identity, test-fixtures router).
 - **Next session priorities:**
   1. Check `.ai-coder/decisions/` for Ken responses on E01 / E02.
   2. If no decisions, tackle MED-N27 with the test rewrite (8-test
      transition to dbTransactionMock pattern), then continue v1.1
      backlog from MED-N04 (memory-loaded churn pagination) onward.
+  3. Routes calling getProviderActivity / getCustomerActivity should
+     forward `req.user.role` for accurate masking (currently default-
+     masked which is safe but slightly over-restrictive for super_admin).
 
 ## RESUME instructions for the next session
 
