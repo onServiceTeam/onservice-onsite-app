@@ -25,7 +25,12 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import SignatureScreen, { type SignatureViewRef } from 'react-native-signature-canvas';
-import * as FileSystem from 'expo-file-system';
+// Phase L typecheck fix — expo-file-system v19 moved the legacy API
+// (cacheDirectory + EncodingType + writeAsStringAsync) to the
+// `expo-file-system/legacy` subpath. The new top-level API is
+// File/Directory class-based; the legacy free functions still work
+// for our base64-write-then-multipart-upload need.
+import * as FileSystem from 'expo-file-system/legacy';
 import { colors, borderRadius } from '@/config/theme';
 
 export interface SignaturePadRef {

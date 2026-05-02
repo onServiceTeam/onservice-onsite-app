@@ -16,6 +16,7 @@ import {
   type AccountDeletionEntry,
 } from '@/services/data-management.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { getErrorMessage } from '@/utils/errors';
 import { Package, AlertTriangle, CheckCircle2, XCircle, Hourglass } from '@/components/icons';
 // Phase 14 R5-complete — wire ConfirmModal into delete-account destructive flow.
 import ConfirmModal from '@/components/ConfirmModal';

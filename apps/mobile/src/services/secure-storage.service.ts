@@ -15,7 +15,11 @@
 // regress. Public helpers are preserved.
 
 import { MMKV } from 'react-native-mmkv';
-import { logger } from '@/utils/logger';
+// Phase L typecheck fix — logger lives at @/lib/logger, not @/utils.
+// Pre-fix this file imported a non-existent path; deprecation warnings
+// were silently dropped at runtime due to the require failure being
+// caught upstream.
+import { logger } from '@/lib/logger';
 
 const publicStorage = new MMKV({
   id: 'onservice-public',

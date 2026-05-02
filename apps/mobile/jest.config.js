@@ -71,7 +71,7 @@ module.exports = {
     // the real components live behind the platform layer and are
     // exercised at device level by F#3 Maestro.
     '^react-native-signature-canvas$': '<rootDir>/__mocks__/react-native-signature-canvas.js',
-    '^expo-file-system$': '<rootDir>/__mocks__/expo-file-system.js',
+    '^expo-file-system(/legacy)?$': '<rootDir>/__mocks__/expo-file-system.js',
   },
   testPathIgnorePatterns: ['/node_modules/', '/.expo/', '/dist/'],
   // Monorepo: node_modules live at the workspace root.
