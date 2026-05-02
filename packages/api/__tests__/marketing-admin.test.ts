@@ -31,6 +31,23 @@ jest.mock('../src/utils/logger', () => ({
   },
 }));
 
+// MED-N29 (D-J23) — marketing-admin.service now reads
+// platform_settings.marketing_channels via settingsService.getSetting
+// to support admin-tunable channels. Mock settingsService so the
+// existing tests don't hit Redis/DB. Return the same default channel
+// list these tests already exercise.
+jest.mock('../src/services/settings.service', () => ({
+  getSetting: async (key: string) => {
+    if (key === 'marketing_channels') {
+      return JSON.stringify([
+        'facebook_ads', 'google_ads', 'billboard', 'kiosk', 'influencer',
+        'sms', 'email', 'referral', 'other',
+      ]);
+    }
+    throw new Error(`unmocked setting: ${key}`);
+  },
+}));
+
 import * as svc from '../src/services/marketing-admin.service';
 
 type QueryResult<T> = { rows: T[]; rowCount: number };

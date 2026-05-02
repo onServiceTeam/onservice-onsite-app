@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
+import * as settingsService from './settings.service';
 
 /**
  * Provider matching algorithm (FR-051).
@@ -40,13 +41,39 @@ export interface ScoredProvider {
 // they get the same matching boost as 'pro'-tier providers (between
 // verified and elite). This pairs with the platformConfig.commissionRates
 // addition so all 5 tiers are recognized end-to-end.
-const TIER_BONUS: Record<string, number> = {
+//
+// MED-N102 (D-J23) admin-tunability: the weights are read from
+// platform_settings.matching_tier_bonus (JSON object) so ops can boost
+// or suppress a tier without a code deploy. Falls back to these
+// in-code defaults when the setting is missing or returns invalid JSON.
+const TIER_BONUS_DEFAULTS: Record<string, number> = {
   founding: 0.5,
   new: 0.0,
   verified: 0.25,
   pro: 0.5,
   elite: 1.0,
 };
+
+async function loadTierBonus(): Promise<Record<string, number>> {
+  try {
+    const raw = await settingsService.getSetting('matching_tier_bonus');
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const out: Record<string, number> = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        if (typeof v === 'number' && Number.isFinite(v)) {
+          out[k] = v;
+        }
+      }
+      if (Object.keys(out).length > 0) return out;
+    }
+  } catch (err) {
+    logger.warn('matching_tier_bonus setting unreadable; using fallback', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return TIER_BONUS_DEFAULTS;
+}
 
 const MAX_MATCH_ATTEMPTS = 10;
 const EARTH_RADIUS_KM = 6371;
@@ -117,13 +144,14 @@ export async function findMatchingProviders(
   }
 
   const maxDistance = Math.max(...result.rows.map((r) => r.distance_km), 1);
+  const tierBonus = await loadTierBonus();
 
   const scored: ScoredProvider[] = result.rows.map((p) => {
     const ratingScore = (p.rating / 5) * 0.4;
     const distanceScore = (1 - p.distance_km / maxDistance) * 0.3;
     const acceptanceRate = p.total_jobs / Math.max(p.total_reviews + p.total_jobs, 1);
     const acceptanceScore = acceptanceRate * 0.2;
-    const tierScore = (TIER_BONUS[p.tier] ?? 0) * 0.1;
+    const tierScore = (tierBonus[p.tier] ?? 0) * 0.1;
 
     return {
       providerId: p.provider_id,
@@ -184,13 +212,14 @@ export async function findMatchingProvidersSimple(
   if (result.rows.length === 0) return [];
 
   const maxDistance = Math.max(...result.rows.map((r) => r.distance_km), 1);
+  const tierBonus = await loadTierBonus();
 
   return result.rows.map((p) => {
     const ratingScore = (p.rating / 5) * 0.4;
     const distanceScore = (1 - p.distance_km / maxDistance) * 0.3;
     const acceptanceRate = p.total_jobs / Math.max(p.total_reviews + p.total_jobs, 1);
     const acceptanceScore = acceptanceRate * 0.2;
-    const tierScore = (TIER_BONUS[p.tier] ?? 0) * 0.1;
+    const tierScore = (tierBonus[p.tier] ?? 0) * 0.1;
 
     return {
       providerId: p.provider_id,

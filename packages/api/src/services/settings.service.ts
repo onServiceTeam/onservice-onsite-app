@@ -47,6 +47,24 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   // payouts.aml_threshold_at_request_centavos for audit.
   aml_large_transaction_threshold_centavos: '50000000',
 
+  // MED-N29 fix: marketing channels are admin-editable via the
+  // Settings UI. Stored as a JSON array string; marketing-admin.service
+  // parses on read and validates promo channels against the live
+  // list. Add a new channel by editing this setting — no code deploy.
+  marketing_channels: JSON.stringify([
+    'facebook_ads', 'google_ads', 'billboard', 'kiosk', 'influencer',
+    'sms', 'email', 'referral', 'other',
+  ]),
+
+  // MED-N102 fix: matching-engine tier bonus weights. Higher weight
+  // = better placement in `findMatchingProviders`. Stored as JSON
+  // keyed by tier; matching.service reads and falls back to in-code
+  // defaults if missing/invalid. Tunable so ops can promote a tier
+  // (e.g., boost founding visibility during launch month).
+  matching_tier_bonus: JSON.stringify({
+    founding: 0.5, new: 0.0, verified: 0.25, pro: 0.5, elite: 1.0,
+  }),
+
   // Cancellation
   cancel_refund_over_24h: '100',
   cancel_refund_2_to_24h: '100',

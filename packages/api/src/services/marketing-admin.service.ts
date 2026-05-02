@@ -16,6 +16,7 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import * as settingsService from './settings.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -111,17 +112,35 @@ interface CampaignRow {
 
 const CODE_REGEX = /^[A-Z0-9_-]{3,40}$/;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const ALLOWED_CHANNELS = new Set<string>([
-  'facebook_ads',
-  'google_ads',
-  'billboard',
-  'kiosk',
-  'influencer',
-  'sms',
-  'email',
-  'referral',
-  'other',
-]);
+
+// MED-N29 fix: marketing channels are no longer a hardcoded const.
+// They live in platform_settings.marketing_channels (JSON array).
+// Adding a new channel ('tiktok_ads', 'community_partnership') is now
+// a Settings UI edit, not a code deploy.
+//
+// Hardcoded fallback used when the setting is missing or returns
+// invalid JSON (Redis + DB both down). Matches the seed default in
+// settings.service.SETTING_DEFAULTS so behavior in dev/test with no
+// settings layer is preserved.
+const FALLBACK_CHANNELS = [
+  'facebook_ads', 'google_ads', 'billboard', 'kiosk', 'influencer',
+  'sms', 'email', 'referral', 'other',
+] as const;
+
+async function getAllowedChannels(): Promise<Set<string>> {
+  try {
+    const raw = await settingsService.getSetting('marketing_channels');
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed) && parsed.every((v) => typeof v === 'string')) {
+      return new Set(parsed as string[]);
+    }
+  } catch (err) {
+    logger.warn('marketing_channels setting unreadable; using fallback list', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return new Set<string>(FALLBACK_CHANNELS);
+}
 
 function validateCode(code: string): string {
   if (typeof code !== 'string' || !CODE_REGEX.test(code)) {
@@ -183,10 +202,11 @@ function validateValidityRange(from: string | undefined, until: string | null | 
   }
 }
 
-function validateChannel(channel: string): string {
-  if (!ALLOWED_CHANNELS.has(channel)) {
+async function validateChannel(channel: string): Promise<string> {
+  const allowed = await getAllowedChannels();
+  if (!allowed.has(channel)) {
     throw createAppError(
-      `channel must be one of: ${Array.from(ALLOWED_CHANNELS).join(', ')}.`,
+      `channel must be one of: ${Array.from(allowed).join(', ')}.`,
       400,
     );
   }
@@ -519,7 +539,7 @@ export async function listCampaigns(
   const params: unknown[] = [];
 
   if (filter?.channel !== undefined) {
-    validateChannel(filter.channel);
+    await validateChannel(filter.channel);
     params.push(filter.channel);
     where.push(`channel = $${params.length}`);
   }
@@ -579,7 +599,7 @@ export async function createCampaign(
   if (typeof input.name !== 'string' || input.name.trim().length === 0) {
     throw createAppError('name is required.', 400);
   }
-  validateChannel(input.channel);
+  await validateChannel(input.channel);
   validateDateString(input.startedAt, 'startedAt');
   if (input.endedAt !== undefined && input.endedAt !== null) {
     validateDateString(input.endedAt, 'endedAt');
