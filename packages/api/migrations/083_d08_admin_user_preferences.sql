@@ -20,9 +20,16 @@ CREATE TABLE admin_user_preferences (
     saved_filters_name TEXT,                    -- optional name like "My weekly review"
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (admin_user_id, page_key, COALESCE(saved_filters_name, ''))
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- CRIT-PHASE16-02c fix — Postgres rejects function calls in inline
+-- UNIQUE constraints (`UNIQUE (... COALESCE(...))` parse error). The
+-- intent is "one row per (admin, page, filter-name)", treating NULL
+-- filter-name as the sentinel "default" name. A unique INDEX with
+-- the same expression achieves the constraint cleanly.
+CREATE UNIQUE INDEX idx_admin_user_prefs_named
+    ON admin_user_preferences (admin_user_id, page_key, COALESCE(saved_filters_name, ''));
 
 CREATE INDEX idx_admin_user_prefs_user_page
     ON admin_user_preferences(admin_user_id, page_key);

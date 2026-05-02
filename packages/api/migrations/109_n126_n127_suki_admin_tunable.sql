@@ -19,18 +19,34 @@
 -- defaults if either setting is missing or unparseable, so this
 -- migration is non-blocking.
 
-INSERT INTO platform_settings (key, value, description)
+-- CRIT-PHASE16-02g fix — original INSERTs omitted category, label,
+-- value_type, default_value (all NOT NULL since mig 050).
+INSERT INTO platform_settings
+  (category, key, label, description, value_type, value, default_value, display_order)
   VALUES (
+    'loyalty',
     'suki_tiers',
+    'Suki Loyalty Tiers',
+    'JSON map of suki loyalty tiers. Each tier has minBookings (threshold to reach the tier), pointsPerPeso (multiplier when earning), and discount (percent off bookings at this tier).',
+    'json',
     '{"new":{"minBookings":0,"pointsPerPeso":1,"discount":0},"regular":{"minBookings":3,"pointsPerPeso":1,"discount":0},"suki":{"minBookings":10,"pointsPerPeso":2,"discount":5},"super_suki":{"minBookings":25,"pointsPerPeso":3,"discount":10}}',
-    'JSON map of suki loyalty tiers. Each tier has minBookings (threshold to reach the tier), pointsPerPeso (multiplier when earning), and discount (percent off bookings at this tier).'
+    '{"new":{"minBookings":0,"pointsPerPeso":1,"discount":0},"regular":{"minBookings":3,"pointsPerPeso":1,"discount":0},"suki":{"minBookings":10,"pointsPerPeso":2,"discount":5},"super_suki":{"minBookings":25,"pointsPerPeso":3,"discount":10}}',
+    100
   )
 ON CONFLICT (key) DO NOTHING;
 
-INSERT INTO platform_settings (key, value, description)
+INSERT INTO platform_settings
+  (category, key, label, description, value_type, value, default_value, min_value, max_value, display_order)
   VALUES (
+    'loyalty',
     'suki_points_to_peso_rate',
+    'Suki Points → Peso Rate',
+    'MED-N127. Suki points → wallet credit conversion rate. amountCredited = points / this rate. Default 100 means 100 points = ₱1 wallet credit (1% cashback at base tier).',
+    'integer',
     '100',
-    'MED-N127. Suki points → wallet credit conversion rate. amountCredited = points / this rate. Default 100 means 100 points = ₱1 wallet credit (1% cashback at base tier).'
+    '100',
+    1,
+    10000,
+    101
   )
 ON CONFLICT (key) DO NOTHING;

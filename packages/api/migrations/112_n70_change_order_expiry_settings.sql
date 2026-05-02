@@ -18,11 +18,21 @@
 -- Setting:
 --   change_order_expiry_hours :: integer (default 24)
 
-INSERT INTO platform_settings (key, value, description, updated_at)
+-- CRIT-PHASE16-02i fix — original INSERT omitted required columns.
+INSERT INTO platform_settings
+  (category, key, label, description, value_type, value, default_value, min_value, max_value, unit, display_order, updated_at)
 VALUES (
+  'booking',
   'change_order_approval_expiry_hours',
-  '24',
+  'Change Order Approval Expiry',
   'MED-N70 — hours after a customer-approved change order before the auto-expire worker flips it to status=expired.',
+  'integer',
+  '24',
+  '24',
+  1,
+  168,
+  'hours',
+  100,
   NOW()
 )
 ON CONFLICT (key) DO NOTHING;

@@ -68,19 +68,24 @@ BEGIN
     END IF;
 
     -- Existing CHECK present. Append only if the new types aren't in it.
+    -- pg_get_constraintdef serialises an ANY(ARRAY[...]) CHECK with a
+    -- shape like:
+    --   CHECK (((action_type)::text = ANY ((ARRAY['a'::character varying, ...])::text[])))
+    -- The closing punctuation is ARRAY's `]`, then `::text[])` (the
+    -- ARRAY cast), then `)` (closing the ANY arg list), then `)`
+    -- (closing the outer expression). We splice new values right
+    -- before the ARRAY's closing `]` so they get the same
+    -- `::character varying` cast as the existing entries.
     IF position('legacy_password_rotation_flagged' in cur_def) = 0
        OR position('admin_password_rotated' in cur_def) = 0 THEN
         ALTER TABLE admin_actions
             DROP CONSTRAINT admin_actions_action_type_check;
-        -- Splice the new values into the existing list. cur_def looks like
-        --   CHECK ((action_type = ANY (ARRAY['a'::text, 'b'::text, ...])))
-        -- We rewrite with regexp_replace to inject before the closing ']'.
         EXECUTE format(
             'ALTER TABLE admin_actions ADD CONSTRAINT admin_actions_action_type_check %s',
             regexp_replace(
                 cur_def,
-                '\]\)\)\)$',
-                ', ''legacy_password_rotation_flagged''::text, ''admin_password_rotated''::text]))) '
+                '\]\)::text\[\]\)\)\)$',
+                ', ''legacy_password_rotation_flagged''::character varying, ''admin_password_rotated''::character varying])::text[])))'
             )
         );
     END IF;

@@ -26,7 +26,7 @@ INSERT INTO users (phone, first_name, last_name, email, role, is_verified) VALUE
 ON CONFLICT (phone) DO NOTHING;
 
 -- Provider profiles (linked to provider user accounts)
-INSERT INTO providers (user_id, business_name, description, tier, status, service_radius_km, average_rating, total_reviews, total_jobs_completed, latitude, longitude, city, province)
+INSERT INTO providers (user_id, business_name, description, tier, status, service_radius_km, rating, total_reviews, total_jobs, latitude, longitude, city, province)
 SELECT u.id, p.business_name, p.description, p.tier, p.status, p.radius, p.rating, p.reviews, p.jobs, p.lat, p.lng, p.city, p.province
 FROM users u
 CROSS JOIN (VALUES
@@ -42,8 +42,8 @@ ON CONFLICT (user_id) DO NOTHING;
 -- Create wallets for all users (conflict target uses partial unique index on user_id)
 INSERT INTO wallets (user_id, type)
 SELECT id, 'customer' FROM users WHERE role = 'customer'
-ON CONFLICT (user_id) WHERE user_id IS NOT NULL DO NOTHING;
+ON CONFLICT (user_id, type) WHERE user_id IS NOT NULL DO NOTHING;
 
 INSERT INTO wallets (user_id, type)
 SELECT id, 'provider' FROM users WHERE role = 'provider'
-ON CONFLICT (user_id) WHERE user_id IS NOT NULL DO NOTHING;
+ON CONFLICT (user_id, type) WHERE user_id IS NOT NULL DO NOTHING;

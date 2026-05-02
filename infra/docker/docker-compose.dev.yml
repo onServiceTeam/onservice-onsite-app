@@ -25,7 +25,11 @@ name: onservice-dev
 
 services:
   postgres:
-    image: postgis/postgis:18-3.5
+    # Pinned to 17-3.5 — postgis/postgis:18-3.5 is not yet published on
+    # Docker Hub as of 2026-05-03 (the original pin failed with
+    # "not found"). Postgres 17 is the supported pinned version for
+    # local dev; production target remains Postgres 18.
+    image: postgis/postgis:17-3.5
     container_name: onservice-postgres
     environment:
       POSTGRES_USER: ${DB_USER:-onservice}

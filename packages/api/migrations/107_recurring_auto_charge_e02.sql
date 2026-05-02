@@ -83,11 +83,23 @@ CREATE INDEX IF NOT EXISTS idx_rac_attempts_outcome
 -- 4) Platform setting for failure threshold -------------------------------
 -- After this many consecutive failures we suspend the auto-charge and
 -- require the customer to re-confirm the payment method. Default 3.
-INSERT INTO platform_settings (key, value, description)
+-- CRIT-PHASE16-02e fix — original INSERT omitted category, label,
+-- value_type, default_value (all NOT NULL since mig 050 rich-schema
+-- rewrite). Adding all required columns.
+INSERT INTO platform_settings
+  (category, key, label, description, value_type, value, default_value, min_value, max_value, unit, display_order)
   VALUES (
+    'payment',
     'recurring_auto_charge_max_consecutive_failures',
+    'Recurring Auto-Charge Failure Threshold',
+    'After this many consecutive PayMongo failures the recurring auto-charge is suspended; customer must re-confirm payment method to resume.',
+    'integer',
     '3',
-    'After this many consecutive PayMongo failures the recurring auto-charge is suspended; customer must re-confirm payment method to resume.'
+    '3',
+    1,
+    10,
+    'attempts',
+    100
   )
 ON CONFLICT (key) DO NOTHING;
 

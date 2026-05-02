@@ -84,9 +84,7 @@ CREATE INDEX idx_bcl_items_completed ON booking_checklist_items(booking_checklis
 
 -- Cleaning
 WITH t AS (
-    INSERT INTO checklist_templates (category_id) VALUES (
-        (SELECT id FROM service_categories WHERE slug = 'cleaning')
-    ) RETURNING id
+    INSERT INTO checklist_templates (category_id) SELECT id FROM service_categories WHERE slug = 'cleaning' RETURNING id
 ), s AS (
     INSERT INTO checklist_template_sections (template_id, display_order, title)
     SELECT t.id, x.display_order, x.title FROM t CROSS JOIN (VALUES
@@ -124,9 +122,7 @@ WHERE s.display_order = x.section_order;
 
 -- Aircon Services
 WITH t AS (
-    INSERT INTO checklist_templates (category_id) VALUES (
-        (SELECT id FROM service_categories WHERE slug = 'aircon')
-    ) RETURNING id
+    INSERT INTO checklist_templates (category_id) SELECT id FROM service_categories WHERE slug = 'aircon' RETURNING id
 ), s AS (
     INSERT INTO checklist_template_sections (template_id, display_order, title)
     SELECT t.id, x.display_order, x.title FROM t CROSS JOIN (VALUES
@@ -156,9 +152,7 @@ WHERE s.display_order = x.section_order;
 
 -- Plumbing
 WITH t AS (
-    INSERT INTO checklist_templates (category_id) VALUES (
-        (SELECT id FROM service_categories WHERE slug = 'plumbing')
-    ) RETURNING id
+    INSERT INTO checklist_templates (category_id) SELECT id FROM service_categories WHERE slug = 'plumbing' RETURNING id
 ), s AS (
     INSERT INTO checklist_template_sections (template_id, display_order, title)
     SELECT t.id, x.display_order, x.title FROM t CROSS JOIN (VALUES
@@ -186,9 +180,7 @@ WHERE s.display_order = x.section_order;
 
 -- Electrical
 WITH t AS (
-    INSERT INTO checklist_templates (category_id) VALUES (
-        (SELECT id FROM service_categories WHERE slug = 'electrical')
-    ) RETURNING id
+    INSERT INTO checklist_templates (category_id) SELECT id FROM service_categories WHERE slug = 'electrical' RETURNING id
 ), s AS (
     INSERT INTO checklist_template_sections (template_id, display_order, title)
     SELECT t.id, x.display_order, x.title FROM t CROSS JOIN (VALUES
@@ -215,9 +207,7 @@ WHERE s.display_order = x.section_order;
 
 -- Carpentry
 WITH t AS (
-    INSERT INTO checklist_templates (category_id) VALUES (
-        (SELECT id FROM service_categories WHERE slug = 'carpentry')
-    ) RETURNING id
+    INSERT INTO checklist_templates (category_id) SELECT id FROM service_categories WHERE slug = 'carpentry' RETURNING id
 ), s AS (
     INSERT INTO checklist_template_sections (template_id, display_order, title)
     SELECT t.id, x.display_order, x.title FROM t CROSS JOIN (VALUES
@@ -244,9 +234,7 @@ WHERE s.display_order = x.section_order;
 
 -- Painting
 WITH t AS (
-    INSERT INTO checklist_templates (category_id) VALUES (
-        (SELECT id FROM service_categories WHERE slug = 'painting')
-    ) RETURNING id
+    INSERT INTO checklist_templates (category_id) SELECT id FROM service_categories WHERE slug = 'painting' RETURNING id
 ), s AS (
     INSERT INTO checklist_template_sections (template_id, display_order, title)
     SELECT t.id, x.display_order, x.title FROM t CROSS JOIN (VALUES
@@ -274,9 +262,7 @@ WHERE s.display_order = x.section_order;
 
 -- Pest Control
 WITH t AS (
-    INSERT INTO checklist_templates (category_id) VALUES (
-        (SELECT id FROM service_categories WHERE slug = 'pest-control')
-    ) RETURNING id
+    INSERT INTO checklist_templates (category_id) SELECT id FROM service_categories WHERE slug = 'pest-control' RETURNING id
 ), s AS (
     INSERT INTO checklist_template_sections (template_id, display_order, title)
     SELECT t.id, x.display_order, x.title FROM t CROSS JOIN (VALUES
@@ -302,9 +288,7 @@ WHERE s.display_order = x.section_order;
 
 -- Appliance Repair
 WITH t AS (
-    INSERT INTO checklist_templates (category_id) VALUES (
-        (SELECT id FROM service_categories WHERE slug = 'appliance-repair')
-    ) RETURNING id
+    INSERT INTO checklist_templates (category_id) SELECT id FROM service_categories WHERE slug = 'appliance-repair' RETURNING id
 ), s AS (
     INSERT INTO checklist_template_sections (template_id, display_order, title)
     SELECT t.id, x.display_order, x.title FROM t CROSS JOIN (VALUES
@@ -331,9 +315,7 @@ WHERE s.display_order = x.section_order;
 
 -- Roofing
 WITH t AS (
-    INSERT INTO checklist_templates (category_id) VALUES (
-        (SELECT id FROM service_categories WHERE slug = 'roofing')
-    ) RETURNING id
+    INSERT INTO checklist_templates (category_id) SELECT id FROM service_categories WHERE slug = 'roofing' RETURNING id
 ), s AS (
     INSERT INTO checklist_template_sections (template_id, display_order, title)
     SELECT t.id, x.display_order, x.title FROM t CROSS JOIN (VALUES
@@ -359,9 +341,7 @@ WHERE s.display_order = x.section_order;
 
 -- Landscaping
 WITH t AS (
-    INSERT INTO checklist_templates (category_id) VALUES (
-        (SELECT id FROM service_categories WHERE slug = 'landscaping')
-    ) RETURNING id
+    INSERT INTO checklist_templates (category_id) SELECT id FROM service_categories WHERE slug = 'landscaping' RETURNING id
 ), s AS (
     INSERT INTO checklist_template_sections (template_id, display_order, title)
     SELECT t.id, x.display_order, x.title FROM t CROSS JOIN (VALUES
