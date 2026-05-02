@@ -321,7 +321,9 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
             <img src={profile.avatarUrl} alt={profile.fullName} className="w-full h-full object-cover" />
           ) : (
             <span className="text-xl font-semibold text-[var(--color-text-secondary)]">
-              {profile.firstName.charAt(0).toUpperCase()}
+              {/* Phase L MED-L04 fix — fall back to '?' when firstName is
+                   missing during loading state. */}
+              {(profile.firstName ?? '?').charAt(0).toUpperCase()}
             </span>
           )}
         </div>
@@ -345,10 +347,13 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
             <span className="inline-flex items-center gap-1">
               <Calendar size={14} /> joined {new Date(profile.createdAt).toLocaleDateString('en-PH')}
             </span>
-            {profile.averageRatingGiven !== null && (
+            {profile.averageRatingGiven != null && (
               <span className="inline-flex items-center gap-1">
+                {/* Phase L MED-L04 fix — averageRatingGiven was checked for
+                     `!== null` but not for undefined; loose != null catches
+                     both. */}
                 <Star size={14} /> gives {profile.averageRatingGiven.toFixed(2)} avg
-                ({profile.totalReviewsGiven})
+                ({profile.totalReviewsGiven ?? 0})
               </span>
             )}
           </div>
@@ -412,21 +417,24 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
 function ProfileTab({ profile }: { profile: CustomerProfile }): React.ReactElement {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <KpiCard title="Lifetime bookings" value={profile.lifetimeBookings.toString()} icon={<FileText size={16} />} />
-      <KpiCard title="Lifetime spent" value={fmtCentavos(profile.lifetimeSpent)} icon={<Coins size={16} />} />
+      {/* Phase L MED-L04 fix — coalesce missing aggregate counts so the
+           KPI cards render '0' instead of throwing on .toString. */}
+      <KpiCard title="Lifetime bookings" value={(profile.lifetimeBookings ?? 0).toString()} icon={<FileText size={16} />} />
+      <KpiCard title="Lifetime spent" value={fmtCentavos(profile.lifetimeSpent ?? 0)} icon={<Coins size={16} />} />
       <KpiCard
         title="Avg rating given"
-        value={profile.averageRatingGiven !== null ? profile.averageRatingGiven.toFixed(2) : '—'}
+        value={profile.averageRatingGiven != null ? profile.averageRatingGiven.toFixed(2) : '—'}
         icon={<Star size={16} />}
       />
 
       <Card className="p-5 md:col-span-3">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Addresses</h3>
-        {profile.addresses.length === 0 ? (
+        {/* Phase L MED-L04 fix — guard against missing addresses array. */}
+        {(profile.addresses ?? []).length === 0 ? (
           <EmptyState title="No saved addresses." />
         ) : (
           <div className="space-y-2">
-            {profile.addresses.map((a) => (
+            {(profile.addresses ?? []).map((a) => (
               <div
                 key={a.id}
                 className="flex items-start gap-3 p-3 border border-[var(--color-border)] rounded-md"
@@ -452,7 +460,7 @@ function ProfileTab({ profile }: { profile: CustomerProfile }): React.ReactEleme
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3 flex items-center gap-2">
           <Heart size={14} /> Suki providers
         </h3>
-        {profile.sukiProviders.length === 0 ? (
+        {(profile.sukiProviders ?? []).length === 0 ? (
           <EmptyState title="No suki relationships yet." />
         ) : (
           <div className="overflow-x-auto">
@@ -468,7 +476,7 @@ function ProfileTab({ profile }: { profile: CustomerProfile }): React.ReactEleme
                 </tr>
               </thead>
               <tbody>
-                {profile.sukiProviders.map((s) => (
+                {(profile.sukiProviders ?? []).map((s) => (
                   <tr key={s.membershipId} className="border-t border-[var(--color-border)]">
                     <td className="px-3 py-2">
                       <Link

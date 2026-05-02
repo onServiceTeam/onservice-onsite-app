@@ -246,7 +246,18 @@ function OverviewTab(): React.ReactElement {
     );
   }
 
-  const o = overviewQuery.data;
+  // Phase L MED-L04 fix — coalesce missing numeric fields so a partial
+  // backend response (e.g. during tests, or while we extend the schema)
+  // doesn't throw on `.toLocaleString()`. The query type guarantees the
+  // wire shape but defensive defaults keep the page renderable.
+  const oRaw = overviewQuery.data;
+  const o = {
+    ...oRaw,
+    totalSpendCentavos: oRaw.totalSpendCentavos ?? 0,
+    totalSignups: oRaw.totalSignups ?? 0,
+    totalRevenueCentavos: oRaw.totalRevenueCentavos ?? 0,
+    aggregateCpaCentavos: oRaw.aggregateCpaCentavos ?? 0,
+  };
 
   return (
     <div className="space-y-6 mt-4">

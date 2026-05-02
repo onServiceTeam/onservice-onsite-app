@@ -213,7 +213,9 @@ function DisputeHeader({ detail }: { detail: DisputeFullDetail }): React.ReactEl
         <div className="flex-1 min-w-[260px]">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-semibold text-[var(--color-text)]">
-              Dispute #{detail.id.slice(0, 8)}
+              {/* Phase L MED-L04 fix — guard against undefined id during
+                   loading state. */}
+              Dispute #{(detail.id ?? '').slice(0, 8) || '—'}
             </h1>
             <Badge
               label={detail.status}
@@ -231,7 +233,7 @@ function DisputeHeader({ detail }: { detail: DisputeFullDetail }): React.ReactEl
               to={`/bookings/${detail.bookingId}`}
               className="inline-flex items-center gap-1 text-[var(--color-secondary)] hover:underline"
             >
-              <ExternalLink size={14} /> Booking {detail.bookingId.slice(0, 8)}
+              <ExternalLink size={14} /> Booking {(detail.bookingId ?? '').slice(0, 8) || '—'}
             </Link>
             <span className="inline-flex items-center gap-1">
               <Calendar size={14} /> filed {fmtDate(detail.filedAt)}
@@ -320,11 +322,13 @@ function EvidenceList({ detail }: { detail: DisputeFullDetail }): React.ReactEle
       provider: [],
       admin: [],
     };
-    for (const e of detail.evidence) g[e.uploadedBy].push(e);
+    // Phase L MED-L04 fix — guard against missing evidence array
+    // during partial loads.
+    for (const e of detail.evidence ?? []) g[e.uploadedBy].push(e);
     return g;
   }, [detail.evidence]);
 
-  if (detail.evidence.length === 0) {
+  if ((detail.evidence ?? []).length === 0) {
     return (
       <Card className="p-5">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Evidence</h3>

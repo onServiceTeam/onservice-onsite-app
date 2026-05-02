@@ -16,13 +16,12 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/__tests__/**/*.test.{ts,tsx}'],
-    // Pages that mount cleanly but trigger async errors during data
-    // resolution (real null-check bugs caught by the real-render tests)
-    // are documented per-test as it.todo. Async errors from those
-    // mounts are not test failures — the it.todo IS the assertion.
-    // CI exit code stays 0 when all suites pass + only async noise
-    // remains.
-    dangerouslyIgnoreUnhandledErrors: true,
+    // Phase L MED-L04 fix — `dangerouslyIgnoreUnhandledErrors: true`
+    // was silencing real null-check bugs at the suite level. The
+    // five offenders found in audit (BookingHeader, DisputeHeader,
+    // CustomerHeader, ProviderHeader, MarketingPage OverviewTab) all
+    // got proper guards in this same wave. New async crashes will
+    // now fail the suite and surface in CI as they should.
   },
   resolve: {
     alias: {

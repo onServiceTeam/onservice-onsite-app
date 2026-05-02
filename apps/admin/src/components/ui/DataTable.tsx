@@ -50,14 +50,16 @@ export default function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {data.length === 0 ? (
+            {/* Phase L MED-L04 fix — guard against undefined `data` so
+                 a partial/loading parent doesn't throw on .length. */}
+            {(data ?? []).length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="text-center py-12 text-sm text-[var(--color-text-secondary)]">
                   {emptyMessage}
                 </td>
               </tr>
             ) : (
-              data.map((row) => (
+              (data ?? []).map((row) => (
                 <tr
                   key={keyExtractor(row)}
                   onClick={() => onRowClick?.(row)}

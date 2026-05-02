@@ -132,7 +132,10 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
 }
 
-function statusVariant(status: string): 'success' | 'danger' | 'info' | 'warning' {
+function statusVariant(status: string | undefined | null): 'success' | 'danger' | 'info' | 'warning' {
+  // Phase L MED-L04 fix — guard against undefined/null status; loading
+  // state used to throw on .startsWith.
+  if (!status) return 'info';
   if (status.startsWith('cancelled')) return 'danger';
   if (status === 'confirmed' || status === 'paid_out') return 'success';
   if (status === 'disputed') return 'warning';
@@ -235,7 +238,9 @@ function BookingHeader({ detail }: { detail: BookingDetail }): React.ReactElemen
         <div className="flex-1 min-w-[260px]">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-semibold text-[var(--color-text)]">
-              Booking #{detail.id.slice(0, 8)}
+              {/* Phase L MED-L04 fix — guard against undefined id so a
+                   loading-state render doesn't throw on .slice. */}
+              Booking #{(detail.id ?? '').slice(0, 8) || '—'}
             </h1>
             <Badge label={detail.status} variant={statusVariant(detail.status)} />
             {detail.escrowStatus && (

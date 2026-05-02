@@ -292,35 +292,40 @@ export default function ProviderDetailPage(): React.ReactElement {
 // ─── Header ───────────────────────────────────────────────────────────────
 
 function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactElement {
+  // Phase L MED-L04 fix — guard against partial/missing user object
+  // during initial render. Pre-fix profile.user.avatarUrl threw when
+  // the user sub-object was still undefined from the API.
+  const user = profile.user ?? { avatarUrl: null, fullName: '' };
   return (
     <Card className="p-5 flex items-start gap-4">
       <div className="w-16 h-16 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center text-slate-500 text-xl font-semibold flex-shrink-0">
-        {profile.user.avatarUrl ? (
-          <img src={profile.user.avatarUrl} alt="" className="w-full h-full object-cover" />
+        {user.avatarUrl ? (
+          <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
         ) : (
-          profile.user.fullName.charAt(0).toUpperCase()
+          (user.fullName || '?').charAt(0).toUpperCase()
         )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-xl font-bold text-[var(--color-text)] truncate">
-            {profile.businessName || profile.user.fullName}
+            {profile.businessName || user.fullName || '—'}
           </h1>
           <Badge label={profile.status} variant={STATUS_BADGE[profile.status] ?? 'default'} />
           <Badge label={profile.tier} variant={TIER_BADGE[profile.tier] ?? 'default'} />
         </div>
-        <p className="text-sm text-[var(--color-text-secondary)] mt-1">{profile.user.fullName}</p>
+        <p className="text-sm text-[var(--color-text-secondary)] mt-1">{user.fullName || '—'}</p>
         <div className="flex items-center gap-4 text-xs text-[var(--color-text-secondary)] mt-2 flex-wrap">
           <span className="inline-flex items-center gap-1">
-            <Star size={12} /> {profile.averageRating.toFixed(2)} ({profile.totalReviews} reviews)
+            {/* Phase L MED-L04 fix — coalesce missing rating/review counts. */}
+            <Star size={12} /> {(profile.averageRating ?? 0).toFixed(2)} ({profile.totalReviews ?? 0} reviews)
           </span>
-          <span>{profile.totalJobsCompleted} jobs completed</span>
+          <span>{profile.totalJobsCompleted ?? 0} jobs completed</span>
           <span className="inline-flex items-center gap-1">
-            <Phone size={12} /> {profile.user.phone}
+            <Phone size={12} /> {('phone' in user ? (user as { phone?: string }).phone : '') || '—'}
           </span>
-          {profile.user.email && (
+          {('email' in user) && (user as { email?: string }).email && (
             <span className="inline-flex items-center gap-1">
-              <Mail size={12} /> {profile.user.email}
+              <Mail size={12} /> {(user as { email?: string }).email}
             </span>
           )}
           {profile.city && (
@@ -338,26 +343,34 @@ function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactE
 // ─── Tabs ─────────────────────────────────────────────────────────────────
 
 function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactElement {
+  // Phase L MED-L04 fix — guard the documents sub-object so the
+  // verification card renders even if the API hasn't sent it yet.
+  const docs = profile.documents ?? {
+    nbiClearanceUrl: null,
+    nbiExpiryDate: null,
+    governmentIdUrl: null,
+    selfieUrl: null,
+  };
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
       <Card className="p-4">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Verification Documents</h3>
-        <DocLine label="NBI Clearance" url={profile.documents.nbiClearanceUrl}
-          extra={profile.documents.nbiExpiryDate ? `expires ${formatDateOnly(profile.documents.nbiExpiryDate)}` : null} />
-        <DocLine label="Government ID" url={profile.documents.governmentIdUrl}
+        <DocLine label="NBI Clearance" url={docs.nbiClearanceUrl}
+          extra={docs.nbiExpiryDate ? `expires ${formatDateOnly(docs.nbiExpiryDate)}` : null} />
+        <DocLine label="Government ID" url={docs.governmentIdUrl}
           extra="not stored — see HONESTY-CHECK" />
-        <DocLine label="Selfie" url={profile.documents.selfieUrl}
+        <DocLine label="Selfie" url={docs.selfieUrl}
           extra="not stored — see HONESTY-CHECK" />
-        <DocLine label="Avatar" url={profile.documents.avatarUrl} extra={null} />
+        <DocLine label="Avatar" url={(docs as { avatarUrl?: string | null }).avatarUrl ?? null} extra={null} />
       </Card>
 
       <Card className="p-4">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Service Categories</h3>
-        {profile.categories.length === 0 ? (
+        {(profile.categories ?? []).length === 0 ? (
           <p className="text-xs text-[var(--color-text-secondary)]">No categories on file.</p>
         ) : (
           <ul className="space-y-1">
-            {profile.categories.map((c) => (
+            {(profile.categories ?? []).map((c) => (
               <li key={c.id} className="text-sm text-[var(--color-text)] flex justify-between">
                 <span>{c.name}</span>
                 <span className="text-xs text-[var(--color-text-secondary)]">
@@ -371,11 +384,11 @@ function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactEleme
 
       <Card className="p-4">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Service Areas</h3>
-        {profile.serviceAreas.length === 0 ? (
+        {(profile.serviceAreas ?? []).length === 0 ? (
           <p className="text-xs text-[var(--color-text-secondary)]">No service areas configured.</p>
         ) : (
           <ul className="space-y-1">
-            {profile.serviceAreas.map((a) => (
+            {(profile.serviceAreas ?? []).map((a) => (
               <li key={a.id} className="text-sm text-[var(--color-text)] flex justify-between">
                 <span>{a.name}</span>
                 {a.isPrimary && <Badge label="primary" variant="info" />}
@@ -387,11 +400,13 @@ function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactEleme
 
       <Card className="p-4">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Account</h3>
-        <DefRow k="User ID" v={profile.userId} />
-        <DefRow k="Verified" v={profile.user.isVerified ? 'Yes' : 'No'} />
-        <DefRow k="Active" v={profile.user.isActive ? 'Yes' : 'No'} />
-        <DefRow k="Last Login" v={formatDate(profile.user.lastLoginAt)} />
-        <DefRow k="Service Radius" v={`${profile.serviceRadiusKm} km`} />
+        {/* Phase L MED-L04 fix — guard the user sub-object so the Account
+             card renders even before the profile.user payload arrives. */}
+        <DefRow k="User ID" v={profile.userId ?? '—'} />
+        <DefRow k="Verified" v={(profile.user as { isVerified?: boolean })?.isVerified ? 'Yes' : 'No'} />
+        <DefRow k="Active" v={(profile.user as { isActive?: boolean })?.isActive ? 'Yes' : 'No'} />
+        <DefRow k="Last Login" v={formatDate((profile.user as { lastLoginAt?: string })?.lastLoginAt ?? null)} />
+        <DefRow k="Service Radius" v={`${profile.serviceRadiusKm ?? 0} km`} />
         <DefRow k="Joined" v={formatDateOnly(profile.createdAt)} />
       </Card>
     </div>
