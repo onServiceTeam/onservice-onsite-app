@@ -13,6 +13,8 @@
  * LAUNCH-LIMITATIONS.md). Form inputs include accessibility labels.
  */
 
+// LAUNCH-LIMITATIONS #3 fix — wired to the new
+// /api/v1/compliance/my-requests endpoint via listMyDsrs.
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
@@ -20,8 +22,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
+  listMyDsrs,
   submitDataSubjectRequest,
   type DsrRecord,
   type DsrRequestType,
@@ -87,6 +90,13 @@ export default function DataRightsScreen(): React.ReactElement {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [lastResult, setLastResult] = useState<SubmissionResult | null>(null);
 
+  // LAUNCH-LIMITATIONS #3 fix — pull the customer's past DSRs.
+  const myRequestsQuery = useQuery<DsrRecord[]>({
+    queryKey: ['my-dsr-requests'],
+    queryFn: () => listMyDsrs(50),
+    staleTime: 60 * 1000,
+  });
+
   const submitMutation = useMutation({
     mutationFn: (input: { flow: FlowConfig; userMessage: string }) =>
       submitDataSubjectRequest({
@@ -98,6 +108,8 @@ export default function DataRightsScreen(): React.ReactElement {
       setActiveFlow(null);
       setMessage('');
       setDeleteConfirmText('');
+      // Refresh the history so the new submission appears immediately.
+      void myRequestsQuery.refetch();
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
@@ -304,6 +316,50 @@ export default function DataRightsScreen(): React.ReactElement {
               For questions about your data rights, contact our Data Protection Officer at
               dpo@onservice.ph.
             </Text>
+
+            {/* LAUNCH-LIMITATIONS #3 fix — past DSR history. */}
+            <View style={styles.historySection}>
+              <Text style={styles.historyHeader}>My past requests</Text>
+              {myRequestsQuery.isLoading ? (
+                <ActivityIndicator size="small" color={colors.primary} style={styles.historyLoader} />
+              ) : myRequestsQuery.isError ? (
+                <Text style={styles.historyEmpty}>
+                  Could not load your past requests. Pull down to refresh, or check back later.
+                </Text>
+              ) : (myRequestsQuery.data?.length ?? 0) === 0 ? (
+                <Text style={styles.historyEmpty}>
+                  You have not submitted any data subject requests yet. When you do, they will
+                  appear here with their status and 15-day SLA date.
+                </Text>
+              ) : (
+                <View>
+                  {(myRequestsQuery.data ?? []).map((req) => {
+                    const due = new Date(req.dueAt);
+                    const dueLabel = due.toLocaleDateString();
+                    return (
+                      <View key={req.id} style={styles.historyRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.historyTitle}>
+                            {req.requestType.charAt(0).toUpperCase() + req.requestType.slice(1)}
+                          </Text>
+                          <Text style={styles.historyMeta}>
+                            Submitted {new Date(req.receivedAt).toLocaleDateString()} · due {dueLabel}
+                          </Text>
+                        </View>
+                        <Text style={[
+                          styles.historyStatus,
+                          req.status === 'completed' ? { color: colors.success } :
+                          req.status === 'rejected' ? { color: colors.error } :
+                          { color: colors.primary },
+                        ]}>
+                          {req.status}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -428,5 +484,46 @@ const styles = StyleSheet.create({
   footerNote: {
     ...typography.caption, color: colors.textTertiary,
     textAlign: 'center', marginTop: spacing.lg, lineHeight: 18,
+  },
+
+  // LAUNCH-LIMITATIONS #3 fix — DSR history section.
+  historySection: {
+    marginTop: spacing.xl,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  historyHeader: {
+    ...typography.h3,
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  historyLoader: { marginVertical: spacing.lg },
+  historyEmpty: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    paddingVertical: spacing.md,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  historyTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '600' as const,
+  },
+  historyMeta: {
+    ...typography.caption,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  historyStatus: {
+    ...typography.bodySmall,
+    fontWeight: '600' as const,
+    textTransform: 'uppercase' as const,
   },
 });

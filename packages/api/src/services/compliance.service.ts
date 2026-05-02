@@ -411,6 +411,30 @@ export async function listDsrs(filter: {
   return { rows: rowsResult.rows.map((r) => mapDsr(r)), total };
 }
 
+// LAUNCH-LIMITATIONS #3 fix — customer-facing DSR history.
+// Pre-fix: after submitting a DSR the mobile UI showed a one-shot
+// confirmation and that was the only visibility — customers had no way
+// to see their past requests, status, or due dates without emailing
+// the DPO. Post-fix: GET /api/v1/compliance/my-requests returns the
+// caller's DSR history (most recent first). Filtered by user_id at the
+// service layer so a malicious caller can't enumerate other users'
+// requests by passing a forged param.
+export async function listMyDsrs(userId: string, limit = 50): Promise<DsrRecord[]> {
+  if (typeof userId !== 'string' || userId.length === 0) {
+    throw createAppError('userId is required.', 400);
+  }
+  const safeLimit = Math.min(Math.max(1, Math.floor(limit) || 50), 200);
+  const result = await db.query<DsrRow>(
+    `SELECT ${DSR_COLS}, NULL::text AS user_email
+       FROM data_subject_requests
+      WHERE user_id = $1
+      ORDER BY received_at DESC
+      LIMIT ${safeLimit}`,
+    [userId],
+  );
+  return result.rows.map((r) => mapDsr(r));
+}
+
 export async function getDsr(id: string): Promise<DsrRecord | null> {
   const result = await db.query<DsrRow>(
     `SELECT ${DSR_COLS_WITH_USER}

@@ -1,9 +1,9 @@
 /**
  * Phase 13 Dispatch C — Customer-side compliance API client.
  *
- * Wraps POST /api/v1/compliance/dsr. The customer-side "list my requests"
- * endpoint is not yet implemented (tracked in LAUNCH-LIMITATIONS.md);
- * the mobile UI shows the most recent submission's confirmation locally.
+ * Wraps POST /api/v1/compliance/dsr and (LAUNCH-LIMITATIONS #3 fix —
+ * 2026-05-02) GET /api/v1/compliance/my-requests so the mobile UI can
+ * show the customer's DSR history without emailing the DPO.
  */
 
 import api from './api';
@@ -40,5 +40,15 @@ export async function submitDataSubjectRequest(input: {
     requestType: input.requestType,
     userMessage: input.userMessage ?? null,
   });
+  return res.data.data;
+}
+
+// LAUNCH-LIMITATIONS #3 fix — list the caller's DSR history.
+// Backend filters by user_id at the service layer; the limit query
+// param is clamped server-side to [1, 200].
+export async function listMyDsrs(limit = 50): Promise<DsrRecord[]> {
+  const res = await api.get<ApiResponse<DsrRecord[]>>(
+    `/api/v1/compliance/my-requests?limit=${limit}`,
+  );
   return res.data.data;
 }

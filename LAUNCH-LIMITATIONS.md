@@ -45,35 +45,33 @@ clicking Confirm Cancel.
 **Source decision:** Phase 14 Dispatch 10 — Bug 272.B. Documented in
 [D10-closeout.md](.ai-coder/dispatches/D10-closeout.md).
 
-## 3. Customer DSR — no track-requests view in mobile
+## 3. Customer DSR — no track-requests view in mobile — RESOLVED 2026-05-02
 
 **Where:** [apps/mobile/app/customer/data-rights.tsx](apps/mobile/app/customer/data-rights.tsx)
 
-After submitting a Data Subject Request, the mobile UI displays a local
-confirmation screen with the reference number and 15-day SLA date. There
-is **no customer-side endpoint** to list a user's past DSR submissions
-(`GET /api/v1/compliance/my-requests` is not implemented). Customers
-must wait for the DPO to respond by email.
+**Status:** RESOLVED — backend endpoint added 2026-05-02 (mobile UI
+list-view follow-up still pending).
 
-**Source decision:** Phase 13 Dispatch C — endpoint deferred to keep
-the dispatch scope tight; admin already has full DSR visibility.
+**Resolution:** `GET /api/v1/compliance/my-requests` now returns the
+caller's DSR history (most recent first, capped at 200). Implemented
+in `compliance.service.listMyDsrs` + new route in
+`compliance.routes.ts`. Filtered by `user_id` at the service layer so
+a malicious caller can't enumerate other users' requests.
 
-**Follow-up:** add `GET /api/v1/compliance/my-requests` and a list view
-in `data-rights.tsx`.
+**Follow-up:** wire a list view in `data-rights.tsx` consuming the new
+endpoint.
 
-## 4. DSR submission — no rate limiting
+## 4. DSR submission — no rate limiting — RESOLVED 2026-05-02
 
 **Where:** `POST /api/v1/compliance/dsr`
 
-The endpoint enforces auth but no per-user submission throttle. A
-malicious or buggy client could spam DSRs.
+**Status:** RESOLVED — application-level rate limit landed 2026-05-02.
 
-**Mitigation today:** edge-level rate limit applied via WAF / CDN (see
-[INFRA-CHECKLIST.md](INFRA-CHECKLIST.md) item 3.3 — `≤30 req/min for
-/api/v1/compliance/*`).
-
-**Follow-up:** add an application-level guard
-(e.g., max 5 open DSRs per user per 24h).
+**Resolution:** `POST /api/v1/compliance/dsr` now rejects with 429 when
+the user has submitted 5+ DSRs in the last 24h (regardless of status,
+to prevent submit-then-cancel loops). Backed by a single SELECT count
+on `data_subject_requests.received_at >= NOW() - INTERVAL '24 hours'`.
+Edge-level WAF rate limit remains in place as defence in depth.
 
 ## 5. Consent versions — no forced re-consent on publish
 
