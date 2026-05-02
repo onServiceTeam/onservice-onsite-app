@@ -429,14 +429,26 @@ interface RevenueByPaymentMethodRow {
 }
 
 /**
- * Tab 2 — revenue grouped by `bookings.payment_method`. If the column is not
- * present yet on this database (older schema), a single placeholder row is
- * returned and a warning is logged so the dashboard still renders.
+ * Tab 2 — revenue grouped by `bookings.payment_method`.
+ *
+ * MED-N11 fix: when bookings.payment_method is missing (older
+ * schema), the function used to return a silent "all unknown"
+ * placeholder. Operators couldn't distinguish "no data this
+ * period" from "schema not migrated". Now returns a structured
+ * result with a `degraded` flag + human-readable `message` so
+ * the admin UI can show a banner ("Payment-method tracking
+ * unavailable — apply migration X to enable").
  */
+export interface RevenueByPaymentMethodResult {
+  rows: RevenueByDimension[];
+  degraded: boolean;
+  message: string | null;
+}
+
 export async function getRevenueByPaymentMethod(
   from: string,
   to: string,
-): Promise<RevenueByDimension[]> {
+): Promise<RevenueByPaymentMethodResult> {
   assertDateRange(from, to);
 
   try {
@@ -454,22 +466,31 @@ export async function getRevenueByPaymentMethod(
         ORDER BY revenue DESC`,
       [from, to],
     );
-    return r.rows.map((row) => {
-      const method = row.method ?? 'unknown';
-      return {
-        dimension: method,
-        label: method === 'unknown' ? 'Unknown' : method.toUpperCase(),
-        revenueCentavos: Number(row.revenue ?? 0),
-        bookings: Number(row.bookings),
-      };
-    });
+    return {
+      rows: r.rows.map((row) => {
+        const method = row.method ?? 'unknown';
+        return {
+          dimension: method,
+          label: method === 'unknown' ? 'Unknown' : method.toUpperCase(),
+          revenueCentavos: Number(row.revenue ?? 0),
+          bookings: Number(row.bookings),
+        };
+      }),
+      degraded: false,
+      message: null,
+    };
   } catch (err) {
-    // MISSING COL — bookings.payment_method not present on this schema; fall
-    // back to a single placeholder row so the dashboard does not break.
-    logger.warn('getRevenueByPaymentMethod: payment_method column missing', {
-      error: err instanceof Error ? err.message : String(err),
+    // MED-N11 fix: surface the degradation to the caller (UI shows
+    // banner) instead of silently returning an "all unknown" row.
+    const errMsg = err instanceof Error ? err.message : String(err);
+    logger.warn('getRevenueByPaymentMethod: query failed (likely missing column)', {
+      error: errMsg,
     });
-    return [{ dimension: 'unknown', label: 'Unknown', revenueCentavos: 0, bookings: 0 }];
+    return {
+      rows: [],
+      degraded: true,
+      message: 'Payment-method revenue is unavailable. The bookings.payment_method column may be missing — apply outstanding migrations.',
+    };
   }
 }
 
