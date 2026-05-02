@@ -150,6 +150,25 @@ export async function getProviderServices(providerId: string): Promise<(Provider
   return result.rows;
 }
 
+/**
+ * Add (or re-add / re-activate) a provider's service offering.
+ *
+ * Phase 14 Dispatch 05 — Bug 1230. Validates basePrice against
+ * subcategory min/max bounds.
+ *
+ * MED-N23 documentation — UPSERT semantics:
+ *   - Insert path (no existing row): basePrice (or NULL) is written.
+ *   - Update path (row exists, was deactivated): is_active flips to
+ *     TRUE; basePrice behavior:
+ *       - basePrice supplied (number) → overwrites the existing
+ *         base_price.
+ *       - basePrice undefined → KEEPS the existing base_price
+ *         (COALESCE($4, provider_services.base_price)).
+ *   This means "re-add without passing basePrice" preserves the
+ *   provider's previously-saved price. To explicitly clear the
+ *   override and revert to the subcategory default, call
+ *   updateProviderService(..., {basePrice: null}) instead.
+ */
 export async function addProviderService(
   providerId: string,
   subcategoryId: string,

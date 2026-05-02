@@ -107,7 +107,14 @@ const ALLOWED_TRANSITIONS: Record<DsrStatus, ReadonlySet<DsrStatus>> = {
   rejected: new Set<DsrStatus>(),
 };
 
+// MED-N43 fix — only 'completed' is a *fulfilled* terminal status
+// for purposes of stamping completed_at. 'rejected' is also a
+// terminal status but does NOT mean the DSR was fulfilled — stamping
+// completed_at on rejection muddles NPC reporting (it's a closed
+// request, not a satisfied one). Reporting code should use
+// (status='completed') as the "satisfied within 30 days" predicate.
 const TERMINAL_STATUSES: ReadonlySet<DsrStatus> = new Set(['completed', 'rejected']);
+const FULFILLED_STATUSES: ReadonlySet<DsrStatus> = new Set(['completed']);
 
 const CONSENT_COLS = `id, user_id, consent_type, version, granted,
        granted_at, revoked_at, ip_address::text AS ip_address, user_agent`;
@@ -459,7 +466,11 @@ export async function updateDsrStatus(input: {
     params.push(input.responsePayloadUrl);
     sets.push(`response_payload_url = $${params.length}`);
   }
-  if (TERMINAL_STATUSES.has(input.newStatus)) {
+  // MED-N43 fix — only stamp completed_at on FULFILLED transitions,
+  // not on 'rejected'. compliance-admin's rejectDsr also enforces
+  // this (MED-N124), but updateDsrStatus is the lower-level path
+  // also used directly by routes; keep them consistent.
+  if (FULFILLED_STATUSES.has(input.newStatus)) {
     sets.push('completed_at = NOW()');
   }
 
@@ -506,14 +517,66 @@ function csvEscape(value: unknown): string {
   return s;
 }
 
-export async function exportAuditLogCsv(filter: {
+/**
+ * MED-N44 fix — viewerRole-aware PII masking on email + ip_address
+ * before serializing to CSV. Pre-fix the export returned raw email +
+ * raw IP regardless of which admin tier called the endpoint, which
+ * undermined the maskPiiForRole pattern enforced everywhere else
+ * (Bug 66 family). Junior admins now see masked email + masked IP;
+ * super_admin / dpo see the full values.
+ *
+ * MED-N45 fix — exportAuditLogCsvStream emits a NodeJS.ReadableStream
+ * via async-iterator semantics so the CSV is not built fully in
+ * memory. exportAuditLogCsv (string-returning) is preserved as a
+ * back-compat thin wrapper for existing callers; for very large
+ * exports the route should switch to the streaming variant.
+ */
+
+function maskEmailForRole(
+  email: string | null | undefined,
+  role: string | null | undefined,
+): string {
+  if (!email) return '';
+  if (role === 'super_admin' || role === 'dpo') return email;
+  // Mask: keep first char + first char of domain.
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return '***';
+  const localMask = local.length > 1 ? `${local[0]}***` : '***';
+  return `${localMask}@${domain[0] ?? '*'}***`;
+}
+
+function maskIpForRole(
+  ip: string | null | undefined,
+  role: string | null | undefined,
+): string {
+  if (!ip) return '';
+  if (role === 'super_admin' || role === 'dpo') return ip;
+  // Mask trailing octet for IPv4 (1.2.3.4 → 1.2.3.x); for IPv6 keep
+  // first 4 hextets.
+  const trimmed = ip.trim();
+  if (trimmed.includes('.')) {
+    const parts = trimmed.split('.');
+    if (parts.length === 4) return `${parts[0]}.${parts[1]}.${parts[2]}.x`;
+  }
+  if (trimmed.includes(':')) {
+    const parts = trimmed.split(':');
+    return `${parts.slice(0, 4).join(':')}::****`;
+  }
+  return '***';
+}
+
+interface ExportAuditFilter {
   userId?: string;
   action?: string;
   entityType?: string;
   from?: string;
   to?: string;
   limit?: number;
-}): Promise<string> {
+  /** Role of the admin calling the export (for PII masking). */
+  viewerRole?: string;
+}
+
+function buildExportWhere(filter: ExportAuditFilter): { whereSql: string; params: unknown[] } {
   const where: string[] = [];
   const params: unknown[] = [];
 
@@ -538,7 +601,29 @@ export async function exportAuditLogCsv(filter: {
     where.push(`al.created_at <= $${params.length}`);
   }
 
-  const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+  return {
+    whereSql: where.length > 0 ? `WHERE ${where.join(' AND ')}` : '',
+    params,
+  };
+}
+
+function rowToCsvLine(r: AuditLogExportRow, viewerRole?: string): string {
+  return [
+    csvEscape(r.id),
+    csvEscape(r.created_at.toISOString()),
+    csvEscape(maskEmailForRole(r.user_email, viewerRole)),
+    csvEscape(r.user_role),
+    csvEscape(r.action),
+    csvEscape(r.entity_type),
+    csvEscape(r.entity_id),
+    csvEscape(maskIpForRole(r.ip_address, viewerRole)),
+    csvEscape(r.old_values === null || r.old_values === undefined ? '' : JSON.stringify(r.old_values)),
+    csvEscape(r.new_values === null || r.new_values === undefined ? '' : JSON.stringify(r.new_values)),
+  ].join(',');
+}
+
+export async function exportAuditLogCsv(filter: ExportAuditFilter): Promise<string> {
+  const { whereSql, params } = buildExportWhere(filter);
   const limit = Math.max(1, Math.min(50000, filter.limit ?? 10000));
 
   const result = await db.query<AuditLogExportRow>(
@@ -557,20 +642,57 @@ export async function exportAuditLogCsv(filter: {
 
   const lines: string[] = [CSV_HEADER];
   for (const r of result.rows) {
-    lines.push([
-      csvEscape(r.id),
-      csvEscape(r.created_at.toISOString()),
-      csvEscape(r.user_email),
-      csvEscape(r.user_role),
-      csvEscape(r.action),
-      csvEscape(r.entity_type),
-      csvEscape(r.entity_id),
-      csvEscape(r.ip_address),
-      csvEscape(r.old_values === null || r.old_values === undefined ? '' : JSON.stringify(r.old_values)),
-      csvEscape(r.new_values === null || r.new_values === undefined ? '' : JSON.stringify(r.new_values)),
-    ].join(','));
+    lines.push(rowToCsvLine(r, filter.viewerRole));
   }
   return lines.join('\r\n');
+}
+
+/**
+ * MED-N45 — async-iterable variant. Emits CSV header first, then one
+ * line per audit row, paginating in chunks of `batchSize` so the
+ * CSV is never fully assembled in process memory. Caller pipes
+ * directly to a response stream:
+ *
+ *   for await (const line of exportAuditLogCsvStream(filter)) {
+ *     res.write(line);
+ *   }
+ *   res.end();
+ */
+export async function* exportAuditLogCsvStream(
+  filter: ExportAuditFilter & { batchSize?: number },
+): AsyncGenerator<string, void, unknown> {
+  const { whereSql, params } = buildExportWhere(filter);
+  const totalLimit = Math.max(1, Math.min(500000, filter.limit ?? 100000));
+  const batchSize = Math.max(100, Math.min(5000, filter.batchSize ?? 1000));
+
+  yield CSV_HEADER + '\r\n';
+
+  let offset = 0;
+  let yielded = 0;
+  while (yielded < totalLimit) {
+    const remaining = totalLimit - yielded;
+    const take = Math.min(batchSize, remaining);
+    const result = await db.query<AuditLogExportRow>(
+      `SELECT al.id, al.created_at,
+              u.email AS user_email, u.role AS user_role,
+              al.action, al.entity_type, al.entity_id,
+              al.ip_address::text AS ip_address,
+              al.old_values, al.new_values
+         FROM audit_log al
+         LEFT JOIN users u ON u.id = al.user_id
+         ${whereSql}
+        ORDER BY al.created_at DESC
+        LIMIT ${take} OFFSET ${offset}`,
+      params,
+    );
+    if (result.rows.length === 0) return;
+    for (const r of result.rows) {
+      yield rowToCsvLine(r, filter.viewerRole) + '\r\n';
+      yielded += 1;
+    }
+    offset += result.rows.length;
+    if (result.rows.length < take) return;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────

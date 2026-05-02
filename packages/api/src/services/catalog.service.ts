@@ -340,6 +340,62 @@ export async function updateSubcategory(
   });
 }
 
+/**
+ * MED-N162 fix — soft-delete a service subcategory with admin_actions
+ * audit, mirroring the deleteAddon shape. Pre-fix the route did an
+ * inline `UPDATE service_subcategories SET is_active = FALSE` with no
+ * audit row, so the fact that subcategoryX was deactivated by adminY
+ * at timeT was lost. The hard rule for catalog mutations
+ * (Phase 14 D06): every mutation lands in admin_actions atomically.
+ *
+ * Soft-delete (NOT hard DELETE) preserves FK integrity for historical
+ * booking_subcategory references. Idempotent on already-deactivated
+ * (returns 409 like deleteAddon).
+ */
+export async function deleteSubcategory(
+  subcategoryId: string,
+  adminUserId: string,
+  reason?: string,
+): Promise<void> {
+  await db.transaction(async (client) => {
+    const before = await client.query<SubcategoryMutationRow>(
+      `SELECT * FROM service_subcategories WHERE id = $1`,
+      [subcategoryId],
+    );
+    if (before.rows.length === 0) throw createAppError('Subcategory not found.', 404);
+    if (before.rows[0]!.is_active === false) {
+      throw createAppError('Subcategory is already deactivated.', 409);
+    }
+
+    const result = await client.query(
+      `UPDATE service_subcategories SET is_active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id`,
+      [subcategoryId],
+    );
+    if (result.rowCount === 0) throw createAppError('Subcategory not found.', 404);
+
+    const trimmedReason = (reason ?? '').trim();
+    const auditResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'service_subcategory_deleted', 'service_subcategory', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        adminUserId,
+        subcategoryId,
+        JSON.stringify({
+          categoryId: before.rows[0]!.category_id,
+          name: before.rows[0]!.name,
+          slug: before.rows[0]!.slug,
+        }),
+        trimmedReason ? trimmedReason.slice(0, 500) : `Service subcategory deactivated: ${before.rows[0]!.name}`,
+        trimmedReason || null,
+      ],
+    );
+    if (!auditResult.rows[0]?.id) {
+      throw createAppError('Failed to record service_subcategory_deleted audit.', 500);
+    }
+  });
+}
+
 export async function createAddon(
   input: {
     subcategoryId: string;

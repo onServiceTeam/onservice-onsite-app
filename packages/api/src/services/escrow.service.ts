@@ -424,122 +424,33 @@ export async function refundFromEscrow(
 /**
  * Handle cancellation with commission-aware refund (FR-102).
  */
+/**
+ * MED-N27 fix — legacy handleCancellation now wraps the trx-aware
+ * variant in a single db.transaction so escrow refund + provider
+ * compensation + no-show fee retention + bookings.escrow_status
+ * UPDATE all happen atomically. Pre-fix this opened up to 3
+ * separate transactions (provider-comp trx, no-show-fee trx, status
+ * UPDATE outside a trx) — a crash between trx 1 and trx 2 left
+ * customer refunded but provider unpaid, with bookings.escrow_status
+ * still 'held'. The trx-aware helper has been the canonical path
+ * since Phase 14 D06 (used by booking-admin); this back-compat
+ * wrapper now matches it.
+ */
 export async function handleCancellation(
   bookingId: string,
   hoursUntilScheduled: number,
   providerArrived: boolean,
   customerNoShow = false,
 ): Promise<commissionService.CancellationRefund> {
-  const booking = await db.query<BookingAmountRow>(
-    `SELECT id, customer_id, provider_id, service_price, service_fee, total_amount, status, escrow_status, scheduled_at FROM bookings WHERE id = $1`,
-    [bookingId],
+  return db.transaction((client) =>
+    handleCancellationInTransaction(
+      client,
+      bookingId,
+      hoursUntilScheduled,
+      providerArrived,
+      customerNoShow,
+    ),
   );
-
-  if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
-  const bk = booking.rows[0]!;
-
-  const alreadyProcessed = new Set(['refunded', 'partially_refunded', 'released']);
-  if (bk.escrow_status && alreadyProcessed.has(bk.escrow_status)) {
-    throw createAppError(`Cancellation already processed for this booking (escrow_status: ${bk.escrow_status}).`, 409);
-  }
-
-  const cancellationBase = Number(bk.service_price);
-  const serviceFee = Number(bk.service_fee);
-
-  const refund = await commissionService.calculateCancellationRefund(
-    cancellationBase,
-    hoursUntilScheduled,
-    providerArrived,
-    customerNoShow,
-  );
-
-  const feeRefund = customerNoShow ? 0 : serviceFee;
-  const totalCustomerRefund = refund.customerRefundAmount + feeRefund;
-  if (totalCustomerRefund > 0) {
-    await refundFromEscrow(bookingId, totalCustomerRefund, 'Cancellation refund (service price + service fee)');
-  }
-
-  if (refund.providerCompensationAmount > 0 && bk.provider_id) {
-    const providerRow = await db.query<ProviderRow>(
-      `SELECT user_id, tier FROM providers WHERE id = $1`,
-      [bk.provider_id],
-    );
-    if (providerRow.rows.length > 0) {
-      const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
-      const providerWallet = await walletService.getUserWallet(providerRow.rows[0]!.user_id, 'provider');
-
-      await db.transaction(async (client) => {
-        await client.query(
-          `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-          [refund.providerCompensationAmount, escrowWallet.id],
-        );
-        await client.query(
-          `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-           VALUES ($1, $2, 'escrow_release', $3,
-                   (SELECT pending_balance FROM wallets WHERE id = $1),
-                   'Escrow release for provider cancellation compensation')`,
-          [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
-        );
-
-        await client.query(
-          `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-          [refund.providerCompensationAmount, providerWallet.id],
-        );
-        await client.query(
-          `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-           VALUES ($1, $2, 'escrow_release', $3,
-                   (SELECT available_balance FROM wallets WHERE id = $1),
-                   'Cancellation compensation')`,
-          [providerWallet.id, bookingId, refund.providerCompensationAmount],
-        );
-      });
-    }
-  }
-
-  if (customerNoShow && serviceFee > 0) {
-    const revenueWallet = await walletService.getPlatformWallet('platform_revenue');
-    const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
-    await db.transaction(async (client) => {
-      await client.query(
-        `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-        [serviceFee, escrowWallet.id],
-      );
-      await client.query(
-        `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-         VALUES ($1, $2, 'escrow_release', $3,
-                 (SELECT pending_balance FROM wallets WHERE id = $1),
-                 'Service fee retained — customer no-show')`,
-        [escrowWallet.id, bookingId, -serviceFee],
-      );
-      await client.query(
-        `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-        [serviceFee, revenueWallet.id],
-      );
-      await client.query(
-        `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-         VALUES ($1, $2, 'commission', $3,
-                 (SELECT available_balance FROM wallets WHERE id = $1),
-                 'Service fee from customer no-show')`,
-        [revenueWallet.id, bookingId, serviceFee],
-      );
-    });
-  }
-
-  let escrowStatus: string;
-  if (refund.customerRefundPercent >= 1.0) {
-    escrowStatus = 'refunded';
-  } else if (refund.customerRefundPercent <= 0) {
-    escrowStatus = 'released';
-  } else {
-    escrowStatus = 'partially_refunded';
-  }
-  await db.query(
-    `UPDATE bookings SET escrow_status = $1, updated_at = NOW() WHERE id = $2`,
-    [escrowStatus, bookingId],
-  );
-
-  logger.info('Cancellation processed', { bookingId, escrowStatus, refund });
-  return refund;
 }
 
 // ─────────────────────────────────────────────────────────────────

@@ -455,15 +455,38 @@ export async function listBookingsAdmin(
   return { bookings: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
 }
 
+/**
+ * MED-N76 fix — replace dynamic SQL string interpolation with a
+ * static-fragment switch. The pre-fix code interpolated `truncUnit`
+ * (a whitelisted value) into the SQL string. The interpolation was
+ * SQL-safe since `truncUnit` came from a closed enum, but the
+ * pattern itself is a "looks-like-injection" footgun: a future
+ * refactor that widens the period type would silently break the
+ * whitelist. Switching to a static-string lookup makes the dynamic
+ * fragment provably static at compile time.
+ */
+type TruncFragment = "date_trunc('day', wt.created_at)" | "date_trunc('week', wt.created_at)" | "date_trunc('month', wt.created_at)";
+
+function truncFragmentForPeriod(period: 'daily' | 'weekly' | 'monthly'): TruncFragment {
+  switch (period) {
+    case 'daily':
+      return "date_trunc('day', wt.created_at)";
+    case 'weekly':
+      return "date_trunc('week', wt.created_at)";
+    case 'monthly':
+      return "date_trunc('month', wt.created_at)";
+  }
+}
+
 export async function getRevenueReport(
   period: 'daily' | 'weekly' | 'monthly',
   days = 30,
 ): Promise<RevenueRow[]> {
-  const truncUnit = period === 'daily' ? 'day' : period === 'weekly' ? 'week' : 'month';
+  const trunc: string = truncFragmentForPeriod(period);
 
   const result = await db.query<RevenueRow>(
     `SELECT
-       date_trunc('${truncUnit}', wt.created_at)::date::text AS date,
+       ${trunc}::date::text AS date,
        COALESCE(SUM(CASE WHEN wt.type = 'commission' THEN wt.amount ELSE 0 END), 0)::text AS total_commission,
        COALESCE(SUM(CASE WHEN wt.type = 'service_fee' THEN wt.amount ELSE 0 END), 0)::text AS total_service_fees,
        COALESCE(SUM(CASE WHEN wt.type = 'refund' THEN ABS(wt.amount) ELSE 0 END), 0)::text AS total_refunds,
@@ -471,7 +494,7 @@ export async function getRevenueReport(
      FROM wallet_transactions wt
      WHERE wt.created_at >= NOW() - make_interval(days => $1)
        AND wt.type IN ('commission', 'service_fee', 'refund')
-     GROUP BY date_trunc('${truncUnit}', wt.created_at)
+     GROUP BY ${trunc}
      ORDER BY date ASC`,
     [days],
   );

@@ -1174,6 +1174,104 @@ export async function respondToChangeOrder(
   return { id: changeOrderId, status: newStatus, paymentRequired: false };
 }
 
+/**
+ * MED-N70 fix — auto-expire change orders that were customer-approved
+ * but never had `finalizeChangeOrderPayment` called within the
+ * configured window (default 24 hours).
+ *
+ * Pre-fix: respondToChangeOrder(approved=TRUE) committed the
+ * status='approved' update, returned `paymentRequired: true`, and
+ * relied on the customer to call finalizeChangeOrderPayment. If the
+ * customer closed the app, lost network, or simply forgot, the
+ * change_order sat in 'approved' state forever, and the provider
+ * could (mis-)read this as authorization to do additional work that
+ * was never paid for.
+ *
+ * Post-fix: this worker runs in the cron schedule (alongside
+ * processRecurringBookings, expireBlockedIps, etc.). It flips any
+ * approved change_orders older than the window to 'expired' and
+ * notifies both the customer and the provider so they know the
+ * change-order amount has been canceled.
+ *
+ * Returns the count of expired rows.
+ */
+export async function expireApprovedChangeOrders(): Promise<number> {
+  // Read the window from settings; fallback to 24 h. Defensive: if
+  // the setting fetch fails (Redis/DB blip), default to the safe
+  // value rather than blocking the worker.
+  let windowHours = 24;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports
+    const settingsService = require('./settings.service');
+    if (typeof settingsService.getSettingNumber === 'function') {
+      const fetched = await settingsService.getSettingNumber('change_order_approval_expiry_hours');
+      if (Number.isFinite(fetched) && fetched > 0) windowHours = Number(fetched);
+    }
+  } catch {
+    /* fall through to default */
+  }
+
+  // Single UPDATE for atomicity. RETURNING gives us the rows for
+  // notification. Filter on customer_responded_at since that's the
+  // moment the approval clock starts (approvals immediately set it).
+  const expired = await db.query<{ id: string; booking_id: string; provider_id: string; additional_amount: number }>(
+    `UPDATE change_orders
+        SET status = 'expired', updated_at = NOW()
+      WHERE status = 'approved'
+        AND customer_responded_at IS NOT NULL
+        AND customer_responded_at < NOW() - make_interval(hours => $1)
+      RETURNING id, booking_id, provider_id, additional_amount`,
+    [windowHours],
+  );
+
+  if (expired.rowCount && expired.rowCount > 0) {
+    logger.info('Change orders auto-expired', { count: expired.rowCount, windowHours });
+
+    // Best-effort notification to both sides; failures here must NOT
+    // roll back the expiry since the worker is fire-and-forget and
+    // we don't want a notification outage to leave change_orders in
+    // 'approved' forever.
+    for (const row of expired.rows) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports
+        const notif = require('./notification.service');
+        const customerLookup = await db.query<{ customer_id: string; provider_user_id: string | null }>(
+          `SELECT b.customer_id, p.user_id AS provider_user_id
+             FROM bookings b
+             LEFT JOIN providers p ON p.id = $2
+            WHERE b.id = $1`,
+          [row.booking_id, row.provider_id],
+        );
+        const ids = customerLookup.rows[0];
+        if (!ids) continue;
+        await notif.createNotification({
+          userId: ids.customer_id,
+          type: 'change_order_expired',
+          title: 'Change order expired',
+          body: `An approved change order on your booking expired without payment and has been canceled.`,
+          data: { bookingId: row.booking_id, changeOrderId: row.id },
+        });
+        if (ids.provider_user_id) {
+          await notif.createNotification({
+            userId: ids.provider_user_id,
+            type: 'change_order_expired',
+            title: 'Change order expired',
+            body: `A customer-approved change order expired without payment. Do not perform the additional work.`,
+            data: { bookingId: row.booking_id, changeOrderId: row.id },
+          });
+        }
+      } catch (err) {
+        logger.warn('Failed to dispatch change-order expiry notification', {
+          changeOrderId: row.id,
+          error: (err as Error).message,
+        });
+      }
+    }
+  }
+
+  return expired.rowCount ?? 0;
+}
+
 export async function finalizeChangeOrderPayment(
   changeOrderId: string,
   customerId: string,

@@ -452,10 +452,11 @@ router.delete(
   },
 );
 
-// MED-N161 + MED-N162 fix — DELETE subcategory now (a) requires
-// super_admin and (b) delegates to the transactional service so the
-// soft-delete + admin_actions audit happen atomically (the inline
-// db.query pattern bypassed the audit row).
+// MED-N161 + MED-N162 fix — DELETE subcategory (a) requires
+// super_admin and (b) delegates to catalogService.deleteSubcategory
+// so the soft-delete + admin_actions audit happen atomically. The
+// pre-fix inline `UPDATE service_subcategories SET is_active = FALSE`
+// pattern bypassed the audit row.
 router.delete(
   '/admin/subcategories/:id',
   authMiddleware,
@@ -465,22 +466,10 @@ router.delete(
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Subcategory ID is required.', 400);
 
-      // Delegate to the transactional service if it exists; otherwise
-      // fall back to the inline UPDATE (back-compat for older
-      // deployments where catalog.service.deleteSubcategory hasn't
-      // shipped yet).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const svc = catalogService as any;
-      if (typeof svc.deleteSubcategory === 'function') {
-        await svc.deleteSubcategory(id, req.user!.userId);
-      } else {
-        const result = await db.query(
-          `UPDATE service_subcategories SET is_active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id`,
-          [id],
-        );
-        if (result.rowCount === 0) throw createAppError('Subcategory not found.', 404);
-      }
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+      await catalogService.deleteSubcategory(id, req.user!.userId, reason);
 
+      // gate-c-allowed: post-commit-cache-invalidation
       await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
       res.json({ success: true, data: { message: 'Subcategory deactivated.' } });
     } catch (error) {

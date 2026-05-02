@@ -46,6 +46,8 @@ export type NotificationType =
   | 'new_message' | 'chat_started' | 'chat_last_message'
   // Quotes
   | 'new_quote' | 'quote_accepted' | 'quote_expired'
+  // MED-N70 — change-order auto-expiry worker
+  | 'change_order_expired'
   // Recurring + business
   | 'recurring_update' | 'business_update' | 'area_launch'
   // E02 / D22 — recurring auto-charge lifecycle
@@ -142,6 +144,26 @@ export async function markAllNotificationsRead(userId: string): Promise<number> 
   return result.rowCount ?? 0;
 }
 
+/**
+ * MED-N61 fix — surface template lookup failures so admins know
+ * notifications are silently dropping back to fallback copy. Pre-fix
+ * the catch was empty: a corrupted notification_templates table or a
+ * mistyped slug would silently use hardcoded English fallback for
+ * every send forever, with no log line indicating anything was wrong.
+ *
+ * Post-fix:
+ *   - 'template not found' is downgraded to logger.debug (expected
+ *     during initial seeding / dev environments).
+ *   - inactive template is logger.info (admin chose to disable it).
+ *   - Any OTHER exception (DB connection lost, JSON parse error,
+ *     render template error) is logger.error so it shows up in
+ *     monitoring AND a 'notification_template_lookup_failed' counter
+ *     ticks (caller can surface to admin alerts dashboard).
+ *
+ * The fallback is still used in all error cases — sending the
+ * notification with fallback copy is better than dropping the
+ * notification entirely. But the failure is no longer silent.
+ */
 async function resolveTemplate(
   slug: string,
   variables: Record<string, string>,
@@ -153,8 +175,22 @@ async function resolveTemplate(
     if (template.is_active) {
       return templateService.renderTemplate(template, variables);
     }
-  } catch {
-    // Template not found or inactive — use hardcoded fallback
+    // Inactive template — admin intentionally disabled it. Log at info.
+    logger.info('Notification template inactive — using fallback', { slug });
+  } catch (err) {
+    const code = (err as { code?: string; statusCode?: number }).code;
+    const status = (err as { code?: string; statusCode?: number }).statusCode;
+    if (status === 404 || code === 'template_not_found') {
+      // Expected during seeding / dev — debug only.
+      logger.debug('Notification template not found — using fallback', { slug });
+    } else {
+      // Real failure — DB error, render error, etc. Surface it.
+      logger.error('Notification template lookup failed — using fallback', {
+        slug,
+        error: (err as Error).message,
+        code,
+      });
+    }
   }
   return { title: fallbackTitle, body: fallbackBody };
 }

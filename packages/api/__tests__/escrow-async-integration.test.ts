@@ -427,7 +427,7 @@ describe('releasePartialEscrow', () => {
   });
 });
 // -----------------------------------------------------------------------
-describe('handleCancellation', () => {
+describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via client.query)', () => {
   const happyBooking = {
     id: 'b1',
     customer_id: 'c1',
@@ -449,160 +449,173 @@ describe('handleCancellation', () => {
     }));
   });
 
-  it('throws 404 when booking not found', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [] });
+  /**
+   * MED-N27 fix — handleCancellation is now a thin wrapper around
+   * db.transaction((client) => handleCancellationInTransaction(...)).
+   * That means EVERY query (the booking SELECT FOR UPDATE, the
+   * provider lookup, the wallet UPDATEs / INSERTs, the final
+   * UPDATE bookings escrow_status) goes through client.query, not
+   * db.query. processRefundMock is no longer called either —
+   * refundFromEscrowInTransaction handles the wallet movements
+   * directly inside the trx.
+   *
+   * Helper: build a client mock that responds in sequence to the
+   * queries handleCancellationInTransaction issues.
+   */
+  function buildClientForCancellation(opts: {
+    bookingRow?: Record<string, unknown> | null;
+    providerRow?: Record<string, unknown> | null;
+  }): { calls: QueryCall[]; client: { query: jest.Mock } } {
+    const calls: QueryCall[] = [];
+    let bookingSelectIdx = -1;
+    let providerSelectIdx = -1;
+    const query = jest.fn(async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes('FROM bookings WHERE id = $1 FOR UPDATE')) {
+        bookingSelectIdx = calls.length - 1;
+        return opts.bookingRow ? { rows: [opts.bookingRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      if (sql.includes('SELECT user_id, tier FROM providers WHERE id = $1')) {
+        providerSelectIdx = calls.length - 1;
+        return opts.providerRow ? { rows: [opts.providerRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      // refundFromEscrowInTransaction: SELECT wallet
+      if (sql.includes('FROM wallets WHERE id = $1') && sql.includes('FOR UPDATE')) {
+        return { rows: [{ id: 'wallet-platform_escrow', pending_balance: '1000000' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    void bookingSelectIdx; void providerSelectIdx;
+    return { calls, client: { query } };
+  }
+
+  it('MED-N27 — throws 404 when booking not found (inside trx)', async () => {
+    const { client } = buildClientForCancellation({ bookingRow: null });
+    dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
     await expect(escrowService.handleCancellation('b1', 5, false))
       .rejects.toMatchObject({ statusCode: 404 });
   });
 
   it.each(['refunded', 'partially_refunded', 'released'])(
-    'throws 409 when escrow_status is already-processed "%s"',
+    'MED-N27 — throws 409 when escrow_status already-processed "%s" (inside trx)',
     async (status) => {
-      dbQueryMock.mockResolvedValueOnce({
-        rows: [{ ...happyBooking, escrow_status: status }],
+      const { client } = buildClientForCancellation({
+        bookingRow: { ...happyBooking, escrow_status: status },
       });
+      dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
       await expect(escrowService.handleCancellation('b1', 5, false))
         .rejects.toMatchObject({ statusCode: 409 });
     },
   );
 
-  it('full-refund path (>=24h): escrow_status set to "refunded", processRefund called with full amount', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [happyBooking] });
+  it('MED-N27 — full-refund path: final UPDATE bookings escrow_status="refunded" runs in trx', async () => {
+    const { client, calls } = buildClientForCancellation({ bookingRow: happyBooking, providerRow: null });
+    dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
     calculateCancellationRefundMock.mockResolvedValueOnce({
       customerRefundPercent: 1.0,
       providerCompensationPercent: 0,
       customerRefundAmount: 100000,
       providerCompensationAmount: 0,
     });
-    const calls: QueryCall[] = [];
-    dbTransactionMock.mockImplementation(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb(captureClientCalls(calls));
-    });
-    // Final UPDATE bookings escrow_status
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
     const out = await escrowService.handleCancellation('b1', 30, false);
-
-    // totalCustomerRefund = 100000 + 10000(serviceFee) = 110000
-    expect(processRefundMock).toHaveBeenCalledWith('b1', 110000, expect.any(String));
     expect(out.customerRefundAmount).toBe(100000);
-
-    const finalUpdate = dbQueryMock.mock.calls[dbQueryMock.mock.calls.length - 1]!;
-    expect(finalUpdate[0]).toContain('UPDATE bookings');
-    expect(finalUpdate[1]).toEqual(['refunded', 'b1']);
+    // processRefund is NO LONGER called — wallet movements happen
+    // entirely inside the trx via refundFromEscrowInTransaction.
+    expect(processRefundMock).not.toHaveBeenCalled();
+    // Final UPDATE inside the captured trx calls.
+    const finalUpdate = calls[calls.length - 1]!;
+    expect(finalUpdate.sql).toContain('UPDATE bookings');
+    expect(finalUpdate.params).toEqual(['refunded', 'b1']);
   });
 
-  it('no-refund path: escrow_status set to "released", processRefund NOT called', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [happyBooking] });
+  it('MED-N27 — no-refund (provider arrived) path: escrow_status="released" + provider compensation in trx', async () => {
+    const { client, calls } = buildClientForCancellation({
+      bookingRow: happyBooking,
+      providerRow: { user_id: 'u1', tier: 'new' },
+    });
+    dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
     calculateCancellationRefundMock.mockResolvedValueOnce({
       customerRefundPercent: 0,
       providerCompensationPercent: 1.0,
       customerRefundAmount: 0,
       providerCompensationAmount: 50000,
     });
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ user_id: 'u1', tier: 'new' }] });
-    const calls: QueryCall[] = [];
-    dbTransactionMock.mockImplementation(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb(captureClientCalls(calls));
-    });
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
+    getUserWalletMock.mockResolvedValueOnce({ id: 'wallet-user-u1' });
     await escrowService.handleCancellation('b1', 5, true);
-
-    // totalCustomerRefund = 0 + 10000 = 10000 → still calls refundFromEscrow
-    // because totalCustomerRefund > 0 (service fee was refunded since customerNoShow=false)
-    expect(processRefundMock).toHaveBeenCalledWith('b1', 10000, expect.any(String));
-
-    const finalUpdate = dbQueryMock.mock.calls[dbQueryMock.mock.calls.length - 1]!;
-    expect(finalUpdate[1]).toEqual(['released', 'b1']);
+    expect(processRefundMock).not.toHaveBeenCalled();
+    const finalUpdate = calls[calls.length - 1]!;
+    expect(finalUpdate.params).toEqual(['released', 'b1']);
   });
 
-  it('partial-refund path: escrow_status set to "partially_refunded"', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [happyBooking] });
+  it('MED-N27 — partial-refund path: escrow_status="partially_refunded"', async () => {
+    const { client, calls } = buildClientForCancellation({
+      bookingRow: happyBooking,
+      providerRow: { user_id: 'u1', tier: 'new' },
+    });
+    dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
     calculateCancellationRefundMock.mockResolvedValueOnce({
       customerRefundPercent: 0.5,
       providerCompensationPercent: 0.5,
       customerRefundAmount: 50000,
       providerCompensationAmount: 25000,
     });
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ user_id: 'u1', tier: 'new' }] });
-    const calls: QueryCall[] = [];
-    dbTransactionMock.mockImplementation(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb(captureClientCalls(calls));
-    });
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
+    getUserWalletMock.mockResolvedValueOnce({ id: 'wallet-user-u1' });
     await escrowService.handleCancellation('b1', 1.5, false);
-
-    const finalUpdate = dbQueryMock.mock.calls[dbQueryMock.mock.calls.length - 1]!;
-    expect(finalUpdate[1]).toEqual(['partially_refunded', 'b1']);
+    const finalUpdate = calls[calls.length - 1]!;
+    expect(finalUpdate.params).toEqual(['partially_refunded', 'b1']);
   });
 
-  it('customer-noshow path: feeRefund=0, retains service fee in revenue wallet', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [happyBooking] });
+  it('MED-N27 — customer-noshow: service fee retained in platform_revenue (in trx)', async () => {
+    const { client } = buildClientForCancellation({
+      bookingRow: happyBooking,
+      providerRow: { user_id: 'u1', tier: 'new' },
+    });
+    dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
     calculateCancellationRefundMock.mockResolvedValueOnce({
       customerRefundPercent: 0,
       providerCompensationPercent: 1.0,
       customerRefundAmount: 0,
       providerCompensationAmount: 100000,
     });
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ user_id: 'u1', tier: 'new' }] });
-    const calls: QueryCall[] = [];
-    dbTransactionMock.mockImplementation(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb(captureClientCalls(calls));
-    });
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
+    getUserWalletMock.mockResolvedValueOnce({ id: 'wallet-user-u1' });
     await escrowService.handleCancellation('b1', 5, true, true);
-
-    // customerNoShow=true → totalCustomerRefund = 0 + 0 = 0 → no refund
     expect(processRefundMock).not.toHaveBeenCalled();
-    // The service-fee retention block runs (serviceFee=10000>0)
-    // Should have called platform_revenue wallet with +10000
     expect(getPlatformWalletMock).toHaveBeenCalledWith('platform_revenue');
   });
 
-  it('skips provider compensation when providerCompensationAmount === 0', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [happyBooking] });
+  it('MED-N27 — skips provider lookup when providerCompensationAmount === 0', async () => {
+    const { client, calls } = buildClientForCancellation({ bookingRow: happyBooking });
+    dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
     calculateCancellationRefundMock.mockResolvedValueOnce({
       customerRefundPercent: 1.0,
       providerCompensationPercent: 0,
       customerRefundAmount: 100000,
       providerCompensationAmount: 0,
     });
-    const calls: QueryCall[] = [];
-    dbTransactionMock.mockImplementation(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb(captureClientCalls(calls));
-    });
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
     await escrowService.handleCancellation('b1', 30, false);
-
-    // No provider lookup happened
-    expect(dbQueryMock.mock.calls.find((c) => (c[0] as string).includes('FROM providers'))).toBeUndefined();
+    // No SELECT FROM providers in any captured call.
+    expect(calls.find((c) => c.sql.includes('FROM providers'))).toBeUndefined();
   });
 
-  it('skips provider compensation when provider not found', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [happyBooking] });
+  it('MED-N27 — skips provider compensation when provider not found', async () => {
+    const { client, calls } = buildClientForCancellation({
+      bookingRow: happyBooking,
+      providerRow: null,
+    });
+    dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
     calculateCancellationRefundMock.mockResolvedValueOnce({
       customerRefundPercent: 0.5,
       providerCompensationPercent: 0.5,
       customerRefundAmount: 50000,
       providerCompensationAmount: 25000,
     });
-    dbQueryMock.mockResolvedValueOnce({ rows: [] }); // provider not found
-    const calls: QueryCall[] = [];
-    dbTransactionMock.mockImplementation(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb(captureClientCalls(calls));
-    });
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
     await escrowService.handleCancellation('b1', 1.5, false);
-    // The provider-comp transaction must NOT have run.
-    // We expect only the refundFromEscrow transaction (1 call) — captureClientCalls
-    // pushes onto `calls`, so calls should be exactly the refundFromEscrow's 2 queries.
-    // refundFromEscrow does: 1 UPDATE escrow + 1 INSERT tx = 2 client.query calls
-    expect(calls.length).toBe(2);
+    // Provider SELECT was attempted (returned 0), but the wallet
+    // movement INSERTs for provider compensation should not have run.
+    const provComp = calls.find((c) =>
+      c.sql.includes('Cancellation compensation'),
+    );
+    expect(provComp).toBeUndefined();
   });
 });
 

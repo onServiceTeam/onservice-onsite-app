@@ -384,7 +384,7 @@ describe('updateDsrStatus transitions', () => {
     expect(updateSql).toMatch(/response_payload_url/);
   });
 
-  it('sets completed_at on rejected (terminal)', async () => {
+  it('MED-N43 — does NOT set completed_at on rejected (only on fulfilled)', async () => {
     dbQueryMock
       .mockResolvedValueOnce(rows([makeDsrRow({ status: 'received' })]))
       .mockResolvedValueOnce(rows([makeDsrRow({ status: 'rejected' })]))
@@ -394,8 +394,24 @@ describe('updateDsrStatus transitions', () => {
       id: DSR_ID, adminId: ADMIN_ID, newStatus: 'rejected', rejectionReason: 'duplicate',
     });
     const updateSql = dbQueryMock.mock.calls[1][0] as string;
-    expect(updateSql).toMatch(/completed_at = NOW\(\)/);
+    // MED-N43 fix — completed_at only stamps on FULFILLED_STATUSES
+    // (currently { 'completed' }), not on rejection. Reporting code
+    // uses (status='completed') to count "satisfied within 30 days".
+    expect(updateSql).not.toMatch(/completed_at = NOW\(\)/);
     expect(updateSql).toMatch(/rejection_reason/);
+  });
+
+  it('MED-N43 — DOES set completed_at on completed (the only fulfilled terminal)', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce(rows([makeDsrRow({ status: 'in_progress' })]))
+      .mockResolvedValueOnce(rows([makeDsrRow({ status: 'completed' })]))
+      .mockResolvedValueOnce(rows([{ id: 'al1' }]));
+
+    await svc.updateDsrStatus({
+      id: DSR_ID, adminId: ADMIN_ID, newStatus: 'completed',
+    });
+    const updateSql = dbQueryMock.mock.calls[1][0] as string;
+    expect(updateSql).toMatch(/completed_at = NOW\(\)/);
   });
 
   it('rejects completed → received (no transitions out of terminal)', async () => {
@@ -447,7 +463,7 @@ describe('exportAuditLogCsv', () => {
     );
   });
 
-  it('escapes commas, quotes and JSON-stringifies values per RFC 4180', async () => {
+  it('MED-N44 — escapes commas + JSON for super_admin viewer (sees full PII)', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([{
       id: 'al-1',
       created_at: new Date('2026-04-01T12:34:56Z'),
@@ -460,7 +476,8 @@ describe('exportAuditLogCsv', () => {
       old_values: { name: 'old "name"' },
       new_values: { name: 'new' },
     }]));
-    const csv = await svc.exportAuditLogCsv({});
+    // MED-N44 fix — pass viewerRole='super_admin' so PII is unmasked.
+    const csv = await svc.exportAuditLogCsv({ viewerRole: 'super_admin' });
     const lines = csv.split(/\r?\n/);
     expect(lines).toHaveLength(2);
     const dataLine = lines[1];
@@ -470,6 +487,31 @@ describe('exportAuditLogCsv', () => {
     expect(dataLine).toContain('"{""name"":""old \\""name\\""""}"');
     expect(dataLine).toContain('al-1');
     expect(dataLine).toContain('config.updated');
+  });
+
+  it('MED-N44 — junior admin viewer gets masked email + masked IP', async () => {
+    dbQueryMock.mockResolvedValueOnce(rows([{
+      id: 'al-1',
+      created_at: new Date('2026-04-01T12:34:56Z'),
+      user_email: 'jane@example.com',
+      user_role: 'admin',
+      action: 'config.updated',
+      entity_type: 'config',
+      entity_id: 'cfg-1',
+      ip_address: '203.0.113.1',
+      old_values: null,
+      new_values: null,
+    }]));
+    const csv = await svc.exportAuditLogCsv({ viewerRole: 'admin' });
+    const lines = csv.split(/\r?\n/);
+    const dataLine = lines[1]!;
+    // Email masked: first char + first char of domain.
+    expect(dataLine).toContain('j***@e***');
+    // IPv4 masked: trailing octet replaced with x.
+    expect(dataLine).toContain('203.0.113.x');
+    // No raw values leaked.
+    expect(dataLine).not.toContain('jane@example.com');
+    expect(dataLine).not.toContain('203.0.113.1');
   });
 
   it('builds WHERE clause from filters', async () => {

@@ -13,6 +13,7 @@ import * as securityService from '../services/security.service';
 import * as adminAnalyticsService from '../services/admin-analytics.service';
 import * as disputeService from '../services/dispute.service';
 import * as gatewayRetryService from '../services/gateway-retry.service';
+import * as bookingService from '../services/booking.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -459,6 +460,11 @@ const schedulerWorker = new Worker(
         // MED-N28 fix: drain the failed-gateway-action queue.
         results.gatewayRetry = await gatewayRetryService.processRetries(25);
         break;
+      case 'change-order-expire':
+        // MED-N70 fix: flip approved-but-unpaid change orders to
+        // 'expired' after the configured window.
+        results.changeOrdersExpired = await bookingService.expireApprovedChangeOrders();
+        break;
       case 'all': {
         results.confirmed = await autoConfirmBookings();
         results.expired = await expireStaleQuotes();
@@ -572,6 +578,16 @@ export async function initScheduledJobs(): Promise<void> {
   // failed_permanent for manual ops.
   await schedulerQueue.add('gateway-retry', {}, {
     repeat: { pattern: '*/5 * * * *' },
+    removeOnComplete: 30,
+    removeOnFail: 30,
+  });
+
+  // MED-N70 fix — every hour, flip approved-but-unpaid change orders
+  // older than the configured window (default 24h) to 'expired'. The
+  // hourly cadence keeps the worst-case dwell at ~25h regardless of
+  // when the customer's clock started.
+  await schedulerQueue.add('change-order-expire', {}, {
+    repeat: { pattern: '0 * * * *' },
     removeOnComplete: 30,
     removeOnFail: 30,
   });
