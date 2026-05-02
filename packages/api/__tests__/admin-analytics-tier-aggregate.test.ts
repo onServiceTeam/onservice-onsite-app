@@ -24,6 +24,20 @@ jest.mock('../src/utils/logger', () => ({
   },
 }));
 
+// MED-N06 (v1.1) — admin-analytics now reads commission rate via
+// settingsService.getCommissionRate. Mock it so the existing
+// "single query" test doesn't hit Redis/DB.
+jest.mock('../src/services/settings.service', () => ({
+  getCommissionRate: async (tier: string) => {
+    // Return the same rates platformConfig has so existing
+    // assertions about suggestedRate math remain valid.
+    const rates: Record<string, number> = {
+      founding: 0.10, new: 0.15, verified: 0.13, pro: 0.11, elite: 0.09,
+    };
+    return rates[tier] ?? 0.15;
+  },
+}));
+
 import * as analyticsService from '../src/services/admin-analytics.service';
 import { platformConfig } from '../src/config/platform.config';
 

@@ -2,6 +2,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
+import * as settingsService from './settings.service';
 
 // ────────────────────────────────────────────────────────────────────
 // 1. A/B TESTING FRAMEWORK
@@ -709,7 +710,23 @@ export async function getCommissionOptimizationSuggestions(): Promise<Array<{
   }> = [];
 
   for (const tier of tiers) {
-    const currentRate = platformConfig.commissionRates[tier]!;
+    // MED-N06 fix: read live commission rate from platform_settings
+    // (admin-editable). Pre-fix this used platformConfig.commissionRates[tier]
+    // which is the in-process default constant — if admin tuned the
+    // rate via /admin/settings, the suggestion compared to the wrong
+    // starting point. settingsService.getCommissionRate falls back to
+    // platformConfig if the setting isn't present, so behavior is
+    // backward-compatible with deployments that never wrote to settings.
+    let currentRate: number;
+    try {
+      currentRate = await settingsService.getCommissionRate(tier);
+    } catch (err) {
+      logger.warn('Commission rate lookup failed; using platformConfig fallback', {
+        tier,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      currentRate = platformConfig.commissionRates[tier]!;
+    }
     const row = byTier.get(tier) ?? {
       provider_count: '0',
       avg_quality: '50',
