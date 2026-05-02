@@ -97,38 +97,46 @@ interface CreateContractParams {
 export async function createBusinessAccount(
   params: CreateBusinessParams,
 ): Promise<BusinessAccountRow> {
-  const result = await db.query<BusinessAccountRow>(
-    `INSERT INTO business_accounts (
-      company_name, business_type, registration_number, tax_id,
-      billing_address, barangay, city, province,
-      contact_person, contact_email, contact_phone,
-      owner_user_id, payment_terms, notes
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-    RETURNING *`,
-    [
-      params.companyName, params.businessType,
-      params.registrationNumber ?? null, params.taxId ?? null,
-      params.billingAddress, params.barangay, params.city, params.province,
-      params.contactPerson, params.contactEmail, params.contactPhone,
-      params.ownerUserId,
-      params.paymentTerms ?? 'net_30',
-      params.notes ?? null,
-    ],
-  );
+  // MED-N38 fix: pre-fix ran two separate top-level db.query calls.
+  // If the second (business_members owner row) failed (FK violation
+  // on user_id, etc.), the business_accounts row was already
+  // committed with NO owner — orphan account that no one could
+  // access. Single-transaction wrap rolls back the account row if
+  // the owner-member INSERT throws.
+  return db.transaction(async (client) => {
+    const result = await client.query<BusinessAccountRow>(
+      `INSERT INTO business_accounts (
+        company_name, business_type, registration_number, tax_id,
+        billing_address, barangay, city, province,
+        contact_person, contact_email, contact_phone,
+        owner_user_id, payment_terms, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *`,
+      [
+        params.companyName, params.businessType,
+        params.registrationNumber ?? null, params.taxId ?? null,
+        params.billingAddress, params.barangay, params.city, params.province,
+        params.contactPerson, params.contactEmail, params.contactPhone,
+        params.ownerUserId,
+        params.paymentTerms ?? 'net_30',
+        params.notes ?? null,
+      ],
+    );
 
-  await db.query(
-    `INSERT INTO business_members (business_account_id, user_id, role, can_book, can_approve, can_view_invoices)
-     VALUES ($1, $2, 'owner', TRUE, TRUE, TRUE)`,
-    [result.rows[0]!.id, params.ownerUserId],
-  );
+    await client.query(
+      `INSERT INTO business_members (business_account_id, user_id, role, can_book, can_approve, can_view_invoices)
+       VALUES ($1, $2, 'owner', TRUE, TRUE, TRUE)`,
+      [result.rows[0]!.id, params.ownerUserId],
+    );
 
-  logger.info('Business account created', {
-    businessId: result.rows[0]!.id,
-    companyName: params.companyName,
-    ownerUserId: params.ownerUserId,
+    logger.info('Business account created', {
+      businessId: result.rows[0]!.id,
+      companyName: params.companyName,
+      ownerUserId: params.ownerUserId,
+    });
+
+    return result.rows[0]!;
   });
-
-  return result.rows[0]!;
 }
 
 export async function getBusinessAccount(
@@ -266,11 +274,39 @@ export async function addMember(
     throw createAppError('Only owners can assign the owner role.', 403);
   }
 
+  // MED-N40 fix: pre-validate the target user exists. Pre-fix
+  // relied on the FK constraint to fail; admin saw a raw 23503
+  // SQL error instead of a friendly 404.
+  const userExists = await db.query(
+    `SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL`,
+    [targetUserId],
+  );
+  if (userExists.rows.length === 0) {
+    throw createAppError('Target user not found.', 404);
+  }
+
+  // MED-N39 fix: pre-fix used ON CONFLICT DO NOTHING which
+  // silently no-op'd when a soft-deleted row already existed for
+  // (business_account_id, user_id). The function then threw "User
+  // is already a member" — confusing and incorrect (the user was
+  // a former member, not a current one). Now: UPDATE the existing
+  // row to clear deleted_at + reset role/permissions, preserving
+  // the audit trail (deleted_by, deleted_reason). For never-
+  // existed pairs, the same statement INSERTs.
   const result = await db.query<BusinessMemberRow>(
     `INSERT INTO business_members (
       business_account_id, user_id, role, can_book, can_approve, can_view_invoices, invited_by
     ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-    ON CONFLICT (business_account_id, user_id) DO NOTHING
+    ON CONFLICT (business_account_id, user_id) DO UPDATE
+    SET
+      role = EXCLUDED.role,
+      can_book = EXCLUDED.can_book,
+      can_approve = EXCLUDED.can_approve,
+      can_view_invoices = EXCLUDED.can_view_invoices,
+      invited_by = EXCLUDED.invited_by,
+      deleted_at = NULL,
+      updated_at = NOW()
+    WHERE business_members.deleted_at IS NOT NULL
     RETURNING *`,
     [
       businessId, targetUserId, role,
@@ -282,6 +318,9 @@ export async function addMember(
   );
 
   if (result.rows.length === 0) {
+    // The conflict matched a row whose deleted_at IS NULL — i.e.,
+    // they are a current active member, so the WHERE clause on
+    // the UPDATE branch matched 0 rows and nothing was returned.
     throw createAppError('User is already a member of this business.', 409);
   }
 

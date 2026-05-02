@@ -69,12 +69,23 @@ export async function createCategory(
   const slug = slugify(input.name);
 
   return db.transaction(async (client) => {
-    const result = await client.query<CategoryMutationRow>(
-      `INSERT INTO service_categories (name, slug, description, icon_url, display_order)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [input.name.trim(), slug, input.description ?? '', input.iconUrl ?? null, input.displayOrder ?? 0],
-    );
+    let result;
+    try {
+      result = await client.query<CategoryMutationRow>(
+        `INSERT INTO service_categories (name, slug, description, icon_url, display_order)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [input.name.trim(), slug, input.description ?? '', input.iconUrl ?? null, input.displayOrder ?? 0],
+      );
+    } catch (err) {
+      // MED-N37 fix: catch the UNIQUE-violation (Postgres SQLSTATE
+      // 23505) on the slug column and rethrow as a friendly 409 so
+      // admin sees "category exists" instead of a raw DB error.
+      if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === '23505') {
+        throw createAppError(`A category with this name already exists (slug: "${slug}").`, 409);
+      }
+      throw err;
+    }
     const row = result.rows[0];
     if (!row) throw createAppError('Failed to create category.', 500);
 
