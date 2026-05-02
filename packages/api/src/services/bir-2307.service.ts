@@ -50,6 +50,15 @@ export interface QuarterlyBatchResult {
   quarter: 1 | 2 | 3 | 4;
   batchesCreated: number;
   batchesSkipped: number;
+  // MED-N21 fix: surface attempted vs created/failed counts so the
+  // operator gets a clear signal that a run was incomplete (e.g.,
+  // some providers errored mid-batch). batchesAttempted = number
+  // of providers we tried to process (post-threshold-check) =
+  // batchesCreated + batchesFailed (batchesSkipped is for providers
+  // that already had a batch — different category).
+  batchesAttempted: number;
+  batchesFailed: number;
+  failures: Array<{ providerId: string; error: string }>;
   totalProvidersProcessed: number;
   totalGrossIncome: number;
   totalWithheld: number;
@@ -563,6 +572,9 @@ export async function generateQuarterly2307Batches(
     quarter,
     batchesCreated: 0,
     batchesSkipped: 0,
+    batchesAttempted: 0,
+    batchesFailed: 0,
+    failures: [],
     totalProvidersProcessed: providerIds.length,
     totalGrossIncome: 0,
     totalWithheld: 0,
@@ -594,75 +606,97 @@ export async function generateQuarterly2307Batches(
       continue;
     }
 
-    // Idempotency: skip if a batch already exists for (provider, year, quarter).
-    const existing = await db.query<Bir2307BatchRow>(
-      `SELECT ${BATCH_SELECT} FROM bir_2307_batches
-        WHERE provider_id = $1 AND tax_year = $2 AND tax_quarter = $3
-        LIMIT 1`,
-      [providerId, year, quarter],
-    );
-    if (existing.rows[0]) {
-      result.batchesSkipped += 1;
-      continue;
+    // MED-N21 fix: per-provider try/catch. Pre-fix a single
+    // provider's failure (DB hiccup, PDF render error, S3 upload
+    // throw) crashed the whole loop, leaving downstream providers
+    // unprocessed and the operator with no surfaced count of what
+    // got done vs not. Now: catch + log + continue, with each
+    // failure recorded in result.failures so the caller can decide
+    // whether to retry or escalate.
+    result.batchesAttempted += 1;
+    try {
+      // Idempotency: skip if a batch already exists for (provider, year, quarter).
+      const existing = await db.query<Bir2307BatchRow>(
+        `SELECT ${BATCH_SELECT} FROM bir_2307_batches
+          WHERE provider_id = $1 AND tax_year = $2 AND tax_quarter = $3
+          LIMIT 1`,
+        [providerId, year, quarter],
+      );
+      if (existing.rows[0]) {
+        result.batchesSkipped += 1;
+        continue;
+      }
+
+      const insertResult = await db.query<Bir2307BatchRow>(
+        `INSERT INTO bir_2307_batches
+           (provider_id, tax_year, tax_quarter, gross_income, withholding_rate, withheld_amount)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (provider_id, tax_year, tax_quarter) DO NOTHING
+         RETURNING ${BATCH_SELECT}`,
+        [
+          providerId,
+          year,
+          quarter,
+          computation.withholdable,
+          WITHHOLDING_RATE,
+          computation.withheld,
+        ],
+      );
+      const insertedRow = insertResult.rows[0];
+      if (!insertedRow) {
+        // Race: another worker created the batch between SELECT and INSERT.
+        result.batchesSkipped += 1;
+        continue;
+      }
+      let batch = mapBatchRow(insertedRow);
+
+      const providerInfo = providerInfoMap.get(providerId);
+      const providerForPdf: PdfProvider = {
+        businessName: providerInfo?.business_name ?? '(Unknown Provider)',
+        // MED-N20 fix: pass real TIN through to the PDF builder. Falls
+        // back to the placeholder via the `?? '[Provider TIN — pending]'`
+        // guard at the doc.text() site if still null.
+        tin: providerInfo?.tin ?? null,
+      };
+      batch = await attachPdfToBatch(batch, providerForPdf);
+
+      await writeBatchAuditRow(null, batch, reason, 'bir_2307_batch_generated');
+
+      result.batchesCreated += 1;
+      result.totalGrossIncome += batch.grossIncome;
+      result.totalWithheld += batch.withheldAmount;
+
+      logger.info('BIR 2307 batch generated', {
+        batchId: batch.id,
+        providerId: batch.providerId,
+        taxYear: batch.taxYear,
+        taxQuarter: batch.taxQuarter,
+        grossIncome: batch.grossIncome,
+        withheldAmount: batch.withheldAmount,
+      });
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      result.batchesFailed += 1;
+      result.failures.push({ providerId, error: errMsg });
+      logger.error('BIR 2307 batch generation failed for provider', {
+        providerId, year, quarter, error: errMsg,
+      });
+      // Continue to next provider — do NOT rethrow.
     }
-
-    const insertResult = await db.query<Bir2307BatchRow>(
-      `INSERT INTO bir_2307_batches
-         (provider_id, tax_year, tax_quarter, gross_income, withholding_rate, withheld_amount)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (provider_id, tax_year, tax_quarter) DO NOTHING
-       RETURNING ${BATCH_SELECT}`,
-      [
-        providerId,
-        year,
-        quarter,
-        computation.withholdable,
-        WITHHOLDING_RATE,
-        computation.withheld,
-      ],
-    );
-    const insertedRow = insertResult.rows[0];
-    if (!insertedRow) {
-      // Race: another worker created the batch between SELECT and INSERT.
-      result.batchesSkipped += 1;
-      continue;
-    }
-    let batch = mapBatchRow(insertedRow);
-
-    const providerInfo = providerInfoMap.get(providerId);
-    const providerForPdf: PdfProvider = {
-      businessName: providerInfo?.business_name ?? '(Unknown Provider)',
-      // MED-N20 fix: pass real TIN through to the PDF builder. Falls
-      // back to the placeholder via the `?? '[Provider TIN — pending]'`
-      // guard at the doc.text() site if still null.
-      tin: providerInfo?.tin ?? null,
-    };
-    batch = await attachPdfToBatch(batch, providerForPdf);
-
-    await writeBatchAuditRow(null, batch, reason, 'bir_2307_batch_generated');
-
-    result.batchesCreated += 1;
-    result.totalGrossIncome += batch.grossIncome;
-    result.totalWithheld += batch.withheldAmount;
-
-    logger.info('BIR 2307 batch generated', {
-      batchId: batch.id,
-      providerId: batch.providerId,
-      taxYear: batch.taxYear,
-      taxQuarter: batch.taxQuarter,
-      grossIncome: batch.grossIncome,
-      withheldAmount: batch.withheldAmount,
-    });
   }
 
-  logger.info('Quarterly BIR 2307 batch generation complete', {
+  const incomplete = result.batchesFailed > 0;
+  logger[incomplete ? 'warn' : 'info']('Quarterly BIR 2307 batch generation complete', {
     year,
     quarter,
     batchesCreated: result.batchesCreated,
     batchesSkipped: result.batchesSkipped,
+    batchesAttempted: result.batchesAttempted,
+    batchesFailed: result.batchesFailed,
     totalProvidersProcessed: result.totalProvidersProcessed,
     totalGrossIncome: result.totalGrossIncome,
     totalWithheld: result.totalWithheld,
+    incomplete,
   });
 
   return result;

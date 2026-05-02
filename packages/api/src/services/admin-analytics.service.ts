@@ -368,75 +368,111 @@ export async function getChurnPrediction(
   const safePageSize = Math.min(pageSize, platformConfig.maxPageSize);
   const offset = (page - 1) * safePageSize;
 
-  const result = await db.query<{
-    user_id: string;
-    name: string;
-    phone: string;
-    last_booking_date: Date | null;
-    days_since_last: string;
-    total_bookings: string;
-    total_spent: string;
-  }>(
-    `SELECT
-       u.id AS user_id,
-       TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS name,
-       u.phone,
-       MAX(b.created_at) AS last_booking_date,
-       COALESCE(EXTRACT(DAY FROM NOW() - MAX(b.created_at)), 999)::text AS days_since_last,
-       COUNT(b.id)::text AS total_bookings,
-       COALESCE(SUM(b.total_amount), 0)::text AS total_spent
-     FROM users u
-     LEFT JOIN bookings b ON b.customer_id = u.id
-       AND b.status NOT IN ('cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin')
-     WHERE u.role = 'customer'
-     GROUP BY u.id, u.first_name, u.last_name, u.phone
-     ORDER BY days_since_last DESC`,
-  );
+  // MED-N04 fix: pre-fix loaded ALL customer rows into Node memory,
+  // computed risk score per row in JS, filtered by riskLevel, then
+  // sliced to a page. For 100k+ customers, every page request
+  // pulled them all and dropped 99.98%. Now: risk-score components
+  // computed in SQL via CASE WHEN, riskLevel buckets derived as a
+  // computed column, ORDER BY + LIMIT/OFFSET in the database.
+  // Total count comes from a COUNT(*) over the same scoring CTE
+  // (with the optional risk-level filter applied), so pagination
+  // metadata stays accurate.
+  //
+  // The score-computation logic mirrors the previous JS code
+  // exactly:
+  //   days >= 90 → +40,  >= 60 → +25, >= 30 → +10
+  //   bookings <= 1 → +30, <= 3 → +15
+  //   spent === 0 → +30, < 100000 → +10
+  //   level: >= 80 critical, >= 60 high, >= 35 medium, else low
+  //   score capped at 100 via LEAST(100, ...).
+  const allowedLevels = new Set(['low', 'medium', 'high', 'critical']);
+  const safeLevel = riskLevel && allowedLevels.has(riskLevel) ? riskLevel : null;
 
-  const scored: ChurnRiskCustomer[] = result.rows.map((row) => {
-    const daysSince = Number(row.days_since_last);
-    const totalBookings = Number(row.total_bookings);
-    const totalSpent = Number(row.total_spent);
+  const scoringCte = `
+    WITH scored AS (
+      SELECT
+        u.id AS user_id,
+        TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS name,
+        u.phone,
+        MAX(b.created_at) AS last_booking_date,
+        COALESCE(EXTRACT(DAY FROM NOW() - MAX(b.created_at))::int, 999) AS days_since_last,
+        COUNT(b.id) AS total_bookings,
+        COALESCE(SUM(b.total_amount), 0)::bigint AS total_spent,
+        LEAST(100,
+          (CASE WHEN COALESCE(EXTRACT(DAY FROM NOW() - MAX(b.created_at))::int, 999) >= 90 THEN 40
+                WHEN COALESCE(EXTRACT(DAY FROM NOW() - MAX(b.created_at))::int, 999) >= 60 THEN 25
+                WHEN COALESCE(EXTRACT(DAY FROM NOW() - MAX(b.created_at))::int, 999) >= 30 THEN 10
+                ELSE 0 END)
+          + (CASE WHEN COUNT(b.id) <= 1 THEN 30
+                  WHEN COUNT(b.id) <= 3 THEN 15
+                  ELSE 0 END)
+          + (CASE WHEN COALESCE(SUM(b.total_amount), 0) = 0 THEN 30
+                  WHEN COALESCE(SUM(b.total_amount), 0) < 100000 THEN 10
+                  ELSE 0 END)
+        ) AS risk_score
+      FROM users u
+      LEFT JOIN bookings b ON b.customer_id = u.id
+        AND b.status NOT IN ('cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin')
+      WHERE u.role = 'customer'
+      GROUP BY u.id, u.first_name, u.last_name, u.phone
+    ),
+    leveled AS (
+      SELECT *,
+        CASE WHEN risk_score >= 80 THEN 'critical'
+             WHEN risk_score >= 60 THEN 'high'
+             WHEN risk_score >= 35 THEN 'medium'
+             ELSE 'low' END AS risk_level
+      FROM scored
+    )
+  `;
 
-    let riskScore = 0;
-    if (daysSince >= 90) riskScore += 40;
-    else if (daysSince >= 60) riskScore += 25;
-    else if (daysSince >= 30) riskScore += 10;
+  const filterClause = safeLevel ? 'WHERE risk_level = $1' : '';
+  const dataParams = safeLevel
+    ? [safeLevel, safePageSize, offset]
+    : [safePageSize, offset];
+  const limitParam = safeLevel ? '$2' : '$1';
+  const offsetParam = safeLevel ? '$3' : '$2';
 
-    if (totalBookings <= 1) riskScore += 30;
-    else if (totalBookings <= 3) riskScore += 15;
+  const [dataResult, countResult] = await Promise.all([
+    db.query<{
+      user_id: string;
+      name: string;
+      phone: string;
+      last_booking_date: Date | null;
+      days_since_last: number;
+      total_bookings: string;
+      total_spent: string;
+      risk_score: number;
+      risk_level: 'low' | 'medium' | 'high' | 'critical';
+    }>(
+      `${scoringCte}
+       SELECT * FROM leveled
+       ${filterClause}
+       ORDER BY risk_score DESC, days_since_last DESC
+       LIMIT ${limitParam} OFFSET ${offsetParam}`,
+      dataParams,
+    ),
+    db.query<{ count: string }>(
+      `${scoringCte}
+       SELECT COUNT(*)::text AS count FROM leveled
+       ${filterClause}`,
+      safeLevel ? [safeLevel] : [],
+    ),
+  ]);
 
-    if (totalSpent === 0) riskScore += 30;
-    else if (totalSpent < 100000) riskScore += 10;
+  const items: ChurnRiskCustomer[] = dataResult.rows.map((row) => ({
+    userId: row.user_id,
+    name: row.name,
+    phone: row.phone,
+    lastBookingDate: row.last_booking_date?.toISOString() ?? null,
+    daysSinceLastBooking: Number(row.days_since_last),
+    totalBookings: Number(row.total_bookings),
+    totalSpent: Number(row.total_spent),
+    riskScore: Number(row.risk_score),
+    riskLevel: row.risk_level,
+  }));
 
-    riskScore = Math.min(100, riskScore);
-
-    let level: 'low' | 'medium' | 'high' | 'critical' = 'low';
-    if (riskScore >= 80) level = 'critical';
-    else if (riskScore >= 60) level = 'high';
-    else if (riskScore >= 35) level = 'medium';
-
-    return {
-      userId: row.user_id,
-      name: row.name,
-      phone: row.phone,
-      lastBookingDate: row.last_booking_date?.toISOString() ?? null,
-      daysSinceLastBooking: daysSince,
-      totalBookings,
-      totalSpent,
-      riskScore,
-      riskLevel: level,
-    };
-  });
-
-  const filtered = riskLevel
-    ? scored.filter((c) => c.riskLevel === riskLevel)
-    : scored;
-
-  const total = filtered.length;
-  const items = filtered.slice(offset, offset + safePageSize);
-
-  return { items, total };
+  return { items, total: Number(countResult.rows[0]?.count ?? 0) };
 }
 
 // ────────────────────────────────────────────────────────────────────
