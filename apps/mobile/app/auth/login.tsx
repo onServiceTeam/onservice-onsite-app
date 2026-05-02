@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth.store';
 import { Button, Input } from '@/components/ui';
 import { validatePHPhone, normalizePHPhone } from '@/utils/phone';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography } from '@/config/theme';
 // Phase 14 R5-complete — PhoneInput cross-cutting component wired
 // into the login flow. Replaces the inline <Input> phone field with
@@ -34,9 +35,13 @@ export default function LoginScreen(): React.ReactElement {
       await requestOtp(normalized);
       router.push({ pathname: '/auth/otp-verify', params: { phone: normalized, mode: 'login' } });
     } catch (err: unknown) {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      const msg = axErr?.response?.data?.error?.message;
-      Alert.alert('Error', msg ?? 'Failed to send verification code. Please try again.');
+      // Phase D CRIT-69 fix — use canonical getErrorMessage helper
+      // so server-side messages (e.g. "Too many attempts. Please
+      // wait 60 seconds.") actually display instead of being
+      // swallowed by the legacy axios-shape parser that returned
+      // undefined for ApiError instances.
+      const msg = getErrorMessage(err, 'Failed to send verification code. Please try again.');
+      Alert.alert('Error', msg);
     } finally {
       setLoading(false);
     }
