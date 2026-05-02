@@ -15,9 +15,11 @@
  * `reconciliation_snapshots` + `admin_actions`.
  */
 
+import * as Sentry from '@sentry/node';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { sendSlackAlert } from './slack-alert.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -256,7 +258,7 @@ export async function runDailyReconciliation(
     discrepancy = paymongoBalance - expectedTotal;
     if (Math.abs(discrepancy) > ALERT_THRESHOLD_CENTAVOS) {
       alertSent = true;
-      logger.error('Reconciliation discrepancy exceeds threshold', {
+      const alertContext = {
         snapshotDate,
         paymongoBalance,
         expectedTotal,
@@ -266,6 +268,38 @@ export async function runDailyReconciliation(
         platformRevenueTotal: revenueTotal,
         guaranteeFundTotal: guaranteeTotal,
         sumOfUserWallets,
+      };
+      logger.error('Reconciliation discrepancy exceeds threshold', alertContext);
+
+      // MED-N120 fix: log + DB-flag is no longer the only alert path.
+      // Money-conservation discrepancies need ops eyes within minutes,
+      // not when someone next opens the admin dashboard.
+      // (a) Sentry capture for the existing alerting integration.
+      try {
+        Sentry.captureMessage('Reconciliation discrepancy exceeds threshold', {
+          level: discrepancy > 0 ? 'warning' : 'error',
+          extra: alertContext,
+        });
+      } catch (sentryErr) {
+        logger.warn('Sentry capture failed for reconciliation alert', {
+          error: sentryErr instanceof Error ? sentryErr.message : String(sentryErr),
+        });
+      }
+      // (b) Slack alert for direct ops channel posting.
+      // Best-effort — sendSlackAlert never throws.
+      void sendSlackAlert({
+        title: 'Reconciliation discrepancy detected',
+        body: `Money-conservation check found a discrepancy of \`${discrepancy}\` centavos on snapshot \`${snapshotDate}\`.`,
+        severity: Math.abs(discrepancy) > ALERT_THRESHOLD_CENTAVOS * 10 ? 'critical' : 'error',
+        fields: [
+          { key: 'PayMongo balance', value: `${paymongoBalance} centavos` },
+          { key: 'Expected total', value: `${expectedTotal} centavos` },
+          { key: 'Discrepancy', value: `${discrepancy} centavos (threshold ${ALERT_THRESHOLD_CENTAVOS})` },
+          { key: 'Platform escrow', value: `${escrowTotal} centavos` },
+          { key: 'Platform revenue', value: `${revenueTotal} centavos` },
+          { key: 'Guarantee fund', value: `${guaranteeTotal} centavos` },
+          { key: 'Sum of user wallets', value: `${sumOfUserWallets} centavos` },
+        ],
       });
     }
   }
