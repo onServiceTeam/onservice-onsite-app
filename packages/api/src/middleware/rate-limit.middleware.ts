@@ -1,8 +1,40 @@
 import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
+import RedisStore from 'rate-limit-redis';
 import { Request, Response, NextFunction } from 'express';
 import { platformConfig } from '../config/platform.config';
 import * as settingsService from '../services/settings.service';
+import { redis } from '../config/redis.config';
 import { logger } from '../utils/logger';
+
+// CRIT-PHASE17-03 fix — back the rate-limit store with Redis instead
+// of the default in-memory map.
+//
+// Pre-fix:
+//   * Counters reset on every API restart, so abusive clients only
+//     paid the limit for as long as the process was up.
+//   * In production behind multiple API replicas (k8s/ECS), each
+//     replica had its own counters, effectively allowing N×limit
+//     total requests where N is the replica count.
+//
+// Post-fix: rate-limit-redis uses the existing ioredis client. All
+// replicas share the same counters, restarts preserve them, and the
+// 1-replica dev case is unchanged behaviorally except that counters
+// now persist across `npm run dev` restarts (which is what we want
+// for testing too).
+type RedisStoreOpts = ConstructorParameters<typeof RedisStore>[0];
+
+function buildRedisStore(prefix: string): InstanceType<typeof RedisStore> {
+  // rate-limit-redis defines two Options shapes: SingleOptions has
+  // `sendCommand`, ClusterOptions has `sendCommandCluster`. We use
+  // single-node Redis. The discriminated union confuses TS unless we
+  // build the object as the explicit single-options shape first.
+  const opts = {
+    prefix,
+    sendCommand: (...args: string[]): Promise<unknown> =>
+      (redis as unknown as { call: (...a: string[]) => Promise<unknown> }).call(...args),
+  } as unknown as RedisStoreOpts;
+  return new RedisStore(opts);
+}
 
 /**
  * CRIT-M01 fix — rate-limit middleware now actually honors live
@@ -37,12 +69,10 @@ let activeLimiter: RateLimitRequestHandler = buildLimiter(currentWindow);
 function buildLimiter(windowMs: number): RateLimitRequestHandler {
   return rateLimit({
     windowMs,
-    // express-rate-limit v8: `limit` may be a function evaluated per
-    // request, so admin changes to currentMax take effect immediately
-    // without rebuilding the limiter or losing in-memory hit counters.
     limit: () => currentMax,
     standardHeaders: true,
     legacyHeaders: false,
+    store: buildRedisStore('rl:global:'),
     message: {
       success: false,
       error: {
@@ -147,6 +177,7 @@ function buildAuthLimiter(windowMs: number): RateLimitRequestHandler {
     limit: () => authCurrentMax,
     standardHeaders: true,
     legacyHeaders: false,
+    store: buildRedisStore('rl:auth:'),
     message: {
       success: false,
       error: {
