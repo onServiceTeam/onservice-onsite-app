@@ -369,11 +369,28 @@ export async function getRecurringInstances(
 export async function processRecurringBookings(): Promise<number> {
   const today = new Date().toISOString().split('T')[0]!;
 
+  // MED-N115 fix — pre-fix the cron created bookings for ALL active
+  // recurring rows whose next_booking_date <= today, with NO check
+  // that the customer is still active. anonymizeUser sets
+  // users.is_active = FALSE but does NOT cancel recurring_bookings,
+  // so anonymized users kept getting auto-bookings created against
+  // their dead account (which then errored downstream when notifying
+  // a non-existent customer, or worse, charged the wallet of an
+  // archived account).
+  //
+  // Post-fix: JOIN users on customer_id and require is_active = TRUE.
+  // Defense-in-depth — eventually we should also have anonymizeUser
+  // cascade-cancel recurring rows; this guards against the race in
+  // the meantime AND against any other future "user disabled but
+  // recurring not cleaned up" path.
   const dueBookings = await db.query<RecurringBookingRow>(
-    `SELECT * FROM recurring_bookings
-     WHERE status = 'active'
-       AND next_booking_date <= $1
-       AND NOT ($1 = ANY(skip_dates))`,
+    `SELECT rb.*
+       FROM recurring_bookings rb
+       JOIN users u ON u.id = rb.customer_id
+      WHERE rb.status = 'active'
+        AND rb.next_booking_date <= $1
+        AND NOT ($1 = ANY(rb.skip_dates))
+        AND u.is_active = TRUE`,
     [today],
   );
 

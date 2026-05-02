@@ -398,12 +398,16 @@ export async function joinWaitlist(params: {
 
   const serviceAreaId = matchingArea.rows[0]?.id ?? null;
 
+  // MED-N51 fix — ON CONFLICT key now includes province (mig 105).
+  // Pre-fix (phone, city) collapsed Mindanao "San Pedro" into Laguna
+  // "San Pedro". Post-fix the same phone in different provinces is
+  // recognized as separate signups.
   const result = await db.query<WaitlistRow>(
     `INSERT INTO area_waitlist (
       full_name, phone, email, city, province, barangay,
       latitude, longitude, service_area_id
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    ON CONFLICT (phone, city) DO UPDATE SET
+    ON CONFLICT (phone, city, province) DO UPDATE SET
       full_name = EXCLUDED.full_name,
       email = COALESCE(EXCLUDED.email, area_waitlist.email),
       barangay = COALESCE(EXCLUDED.barangay, area_waitlist.barangay),

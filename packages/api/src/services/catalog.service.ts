@@ -685,28 +685,19 @@ export async function getAddonsForSubcategory(subcategoryId: string): Promise<Re
   }));
 }
 
-export async function saveBookingAddons(
-  bookingId: string,
-  addons: { addonId: string; name: string; price: number }[],
-): Promise<void> {
-  if (addons.length === 0) return;
-
-  const values: unknown[] = [];
-  const placeholders: string[] = [];
-  let idx = 1;
-  for (const a of addons) {
-    placeholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++})`);
-    values.push(bookingId, a.addonId, a.name, a.price);
-  }
-
-  await db.query(
-    `INSERT INTO booking_addons (booking_id, addon_id, name, price)
-     VALUES ${placeholders.join(', ')}`,
-    values,
-  );
-
-  logger.debug('Booking addons saved', { bookingId, count: addons.length });
-}
+// MED-N67 fix — saveBookingAddons() was a dead export that accepted
+// CLIENT-supplied {name, price}. Pre-fix it had no callers in
+// packages/api/src/, but its presence created a future-bug magnet:
+// a contributor wiring a route to it would have re-opened the
+// CRIT-N05 bypass (client-trusted addon prices). The canonical
+// addon flow is booking.service.createBooking which does the
+// authoritative server-side lookup of addon name + price from
+// service_addons table. Function deleted to remove the foot gun.
+//
+// If a future legitimate use case appears (e.g., admin-driven addon
+// retrofit on existing bookings), implement it as a server-canonical
+// service that takes only { addonId } and looks up name + price
+// itself — never accept them from the caller.
 
 export async function getBookingAddons(bookingId: string): Promise<Record<string, unknown>[]> {
   const result = await db.query<{ id: string; addon_id: string; name: string; price: number }>(

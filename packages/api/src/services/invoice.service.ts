@@ -203,82 +203,97 @@ export async function generateMonthlyInvoices(): Promise<number> {
   const totals: number[] = computed.map((c) => c.totalAmount); // SAFE-N+1: in-memory column projection feeding bulk UNNEST insert (single round-trip).
   const dueDates: string[] = computed.map((c) => c.dueDateIso); // SAFE-N+1: in-memory column projection feeding bulk UNNEST insert (single round-trip).
 
-  const insertedInvoices = await db.query<{ id: string; business_account_id: string }>(
-    `INSERT INTO business_invoices (
-       business_account_id, invoice_number,
-       billing_period_start, billing_period_end,
-       subtotal, discount_amount, tax_amount, total_amount,
-       status, due_date
-     )
-     SELECT * FROM UNNEST(
-       $1::uuid[], $2::text[],
-       ARRAY_FILL($3::date, ARRAY[array_length($1::uuid[], 1)]),
-       ARRAY_FILL($4::date, ARRAY[array_length($1::uuid[], 1)]),
-       $5::bigint[], $6::bigint[], $7::bigint[], $8::bigint[],
-       ARRAY_FILL('sent'::varchar, ARRAY[array_length($1::uuid[], 1)]),
-       $9::date[]
-     )
-     RETURNING id, business_account_id`,
-    [
-      accountIds, invoiceNumbers,
-      periodStart, periodEnd,
-      subtotals, discounts, taxes, totals,
-      dueDates,
-    ],
-  );
+  // MED-N117 fix — pre-fix the bulk INSERT business_invoices and the
+  // bulk INSERT business_invoice_items ran as TWO separate
+  // db.query calls. If the items INSERT failed (DB blip, FK
+  // violation), invoices existed with NO line items — customer saw
+  // totals on screen but no breakdown, ops had to manually delete +
+  // regenerate.
+  //
+  // Post-fix: both bulk inserts run on the same trx client. Either
+  // both land or neither does. The post-trx work (notifications) is
+  // unchanged (best-effort, never blocks).
+  const insertedInvoices = await db.transaction(async (client) => {
+    const inv = await client.query<{ id: string; business_account_id: string }>(
+      `INSERT INTO business_invoices (
+         business_account_id, invoice_number,
+         billing_period_start, billing_period_end,
+         subtotal, discount_amount, tax_amount, total_amount,
+         status, due_date
+       )
+       SELECT * FROM UNNEST(
+         $1::uuid[], $2::text[],
+         ARRAY_FILL($3::date, ARRAY[array_length($1::uuid[], 1)]),
+         ARRAY_FILL($4::date, ARRAY[array_length($1::uuid[], 1)]),
+         $5::bigint[], $6::bigint[], $7::bigint[], $8::bigint[],
+         ARRAY_FILL('sent'::varchar, ARRAY[array_length($1::uuid[], 1)]),
+         $9::date[]
+       )
+       RETURNING id, business_account_id`,
+      [
+        accountIds, invoiceNumbers,
+        periodStart, periodEnd,
+        subtotals, discounts, taxes, totals,
+        dueDates,
+      ],
+    );
+    // Items insert — runs INSIDE the same trx via the same client.
+    // Build flat arrays here so we have invoice IDs from `inv` first.
+    const invoiceByAccount = new Map<string, string>();
+    for (const row of inv.rows) invoiceByAccount.set(row.business_account_id, row.id);
 
-  // Map account_id → invoice_id for items insert.
+    const tItemInvoiceIds: string[] = [];
+    const tItemBookingIds: string[] = [];
+    const tItemDescriptions: string[] = [];
+    const tItemServiceDates: string[] = [];
+    const tItemUnitPrices: number[] = [];
+    const tItemDiscounts: number[] = [];
+    const tItemAmounts: number[] = [];
+    for (const c of computed) {
+      const invoiceId = invoiceByAccount.get(c.account.id);
+      if (!invoiceId) continue;
+      for (const booking of c.account.items) {
+        const unitPrice = Number(booking.service_price);
+        const itemDiscount = Math.round(unitPrice * c.discountRate);
+        const amount = unitPrice - itemDiscount;
+        const scheduledAt = booking.scheduled_at instanceof Date
+          ? booking.scheduled_at
+          : new Date(booking.scheduled_at);
+        tItemInvoiceIds.push(invoiceId);
+        tItemBookingIds.push(booking.id);
+        tItemDescriptions.push(`${booking.category_name ?? 'Service'} - ${booking.description ?? ''}`.trim());
+        tItemServiceDates.push(scheduledAt.toISOString().split('T')[0]!);
+        tItemUnitPrices.push(unitPrice);
+        tItemDiscounts.push(itemDiscount);
+        tItemAmounts.push(amount);
+      }
+    }
+    if (tItemInvoiceIds.length > 0) {
+      await client.query(
+        `INSERT INTO business_invoice_items (
+           invoice_id, booking_id, description, service_date,
+           quantity, unit_price, discount_amount, amount
+         )
+         SELECT * FROM UNNEST(
+           $1::uuid[], $2::uuid[], $3::text[], $4::date[],
+           ARRAY_FILL(1::int, ARRAY[array_length($1::uuid[], 1)]),
+           $5::bigint[], $6::bigint[], $7::bigint[]
+         )`,
+        [
+          tItemInvoiceIds, tItemBookingIds, tItemDescriptions, tItemServiceDates,
+          tItemUnitPrices, tItemDiscounts, tItemAmounts,
+        ],
+      );
+    }
+    return inv;
+  });
+
+  // MED-N117 — items INSERT moved inside the trx above. Recompute
+  // the account→invoice map for the post-trx notification loop only
+  // (the items themselves are already persisted atomically).
   const invoiceByAccount = new Map<string, string>();
   for (const row of insertedInvoices.rows) {
     invoiceByAccount.set(row.business_account_id, row.id);
-  }
-
-  // Build flat arrays for the bulk items insert.
-  const itemInvoiceIds: string[] = [];
-  const itemBookingIds: string[] = [];
-  const itemDescriptions: string[] = [];
-  const itemServiceDates: string[] = [];
-  const itemUnitPrices: number[] = [];
-  const itemDiscounts: number[] = [];
-  const itemAmounts: number[] = [];
-
-  for (const c of computed) {
-    const invoiceId = invoiceByAccount.get(c.account.id);
-    if (!invoiceId) continue;
-    for (const booking of c.account.items) {
-      const unitPrice = Number(booking.service_price);
-      const itemDiscount = Math.round(unitPrice * c.discountRate);
-      const amount = unitPrice - itemDiscount;
-      const scheduledAt = booking.scheduled_at instanceof Date
-        ? booking.scheduled_at
-        : new Date(booking.scheduled_at);
-      itemInvoiceIds.push(invoiceId);
-      itemBookingIds.push(booking.id);
-      itemDescriptions.push(`${booking.category_name ?? 'Service'} - ${booking.description ?? ''}`.trim());
-      itemServiceDates.push(scheduledAt.toISOString().split('T')[0]!);
-      itemUnitPrices.push(unitPrice);
-      itemDiscounts.push(itemDiscount);
-      itemAmounts.push(amount);
-    }
-  }
-
-  // Query 3: bulk INSERT business_invoice_items via UNNEST.
-  if (itemInvoiceIds.length > 0) {
-    await db.query(
-      `INSERT INTO business_invoice_items (
-         invoice_id, booking_id, description, service_date,
-         quantity, unit_price, discount_amount, amount
-       )
-       SELECT * FROM UNNEST(
-         $1::uuid[], $2::uuid[], $3::text[], $4::date[],
-         ARRAY_FILL(1::int, ARRAY[array_length($1::uuid[], 1)]),
-         $5::bigint[], $6::bigint[], $7::bigint[]
-       )`,
-      [
-        itemInvoiceIds, itemBookingIds, itemDescriptions, itemServiceDates,
-        itemUnitPrices, itemDiscounts, itemAmounts,
-      ],
-    );
   }
 
   // Notifications — per-account, out of band, individual failures swallowed

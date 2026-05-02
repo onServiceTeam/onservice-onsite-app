@@ -13,10 +13,21 @@
  */
 
 const dbQueryMock = jest.fn();
+// MED-N117 follow-up: the items INSERT moved inside a db.transaction
+// for atomicity. The pre-existing N+1 regression test counts db.query
+// calls expecting at-most-3 — passthrough trx so client.query is
+// counted alongside the bare db.query calls.
+const dbTransactionMock = jest.fn(async (cb: unknown) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (cb as any)({
+    query: (...args: unknown[]) => dbQueryMock(...args),
+  });
+});
 
 jest.mock('../src/models/db', () => ({
   db: {
     query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (cb: unknown) => dbTransactionMock(cb),
   },
 }));
 
