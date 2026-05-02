@@ -291,6 +291,20 @@ app.use('/api/v1/promotions', promotionRoutes);
 app.use('/api/v1/support-tickets', supportTicketRoutes);
 app.use('/api/v1/staff', staffRoutes);
 
+// D-J27 / F#3 fix: Test fixture endpoints for Maestro visual baselines.
+// Gated by NODE_ENV !== 'production' AND ENABLE_TEST_FIXTURES=1, so
+// production is doubly protected. The router itself returns empty when
+// either gate fails, so even an accidental mount can't expose anything.
+{
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const testFixtures = require('./routes/test-fixtures.routes');
+  if (testFixtures.isFixturesEnabled()) {
+    app.use(testFixtures.consumeForceNextErrorMiddleware);
+    app.use('/__test', testFixtures.buildTestFixturesRouter());
+    logger.warn('Test fixture endpoints MOUNTED at /__test (NODE_ENV != production AND ENABLE_TEST_FIXTURES=1).');
+  }
+}
+
 // --- Prometheus Metrics Endpoint (before error handlers so it always responds) ---
 app.get('/metrics', async (_req, res) => {
   try {
