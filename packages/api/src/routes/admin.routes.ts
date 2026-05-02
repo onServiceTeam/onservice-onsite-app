@@ -849,7 +849,11 @@ router.post(
         settings?: Record<string, unknown>;
       };
 
-      const area = await serviceAreaService.createServiceArea(body);
+      // MED-N48 fix — pass actor for audit row.
+      const area = await serviceAreaService.createServiceArea({
+        ...body,
+        createdByAdminId: req.user!.userId,
+      });
 
       res.status(201).json({
         success: true,

@@ -117,6 +117,17 @@ const SNAPSHOT_ID = 's0000000-0000-0000-0000-000000000001';
 beforeEach(() => {
   dbQueryMock.mockReset();
   dbTransactionMock.mockReset();
+  // MED-N46 follow-up: default passthrough so services that wrap their
+  // body in db.transaction (e.g., generateMonthlyVatReport after the
+  // race fix) get their queries forwarded to dbQueryMock without
+  // breaking the existing test harness. Tests that need bespoke trx
+  // behavior can still call dbTransactionMock.mockImplementationOnce.
+  dbTransactionMock.mockImplementation(async (cb: unknown) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (cb as any)({
+      query: (sql: string, params?: unknown[]) => dbQueryMock(sql, params),
+    });
+  });
   loggerMock.info.mockClear();
   loggerMock.warn.mockClear();
   loggerMock.error.mockClear();

@@ -92,7 +92,14 @@ function generateSlug(name: string): string {
     .replace(/^-+|-+$/g, '');
 
   if (!slug) {
-    const fallback = Math.random().toString(36).substring(2, 10);
+    // MED-N49 fix — Math.random is non-cryptographic and predictable.
+    // Slugs are visible in URLs (low-sensitivity) but predictable
+    // slugs make it easier to enumerate test areas via brute force.
+    // Use a CSPRNG hex slice — same character class as the old
+    // [a-z0-9] base36 output.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const crypto = require('node:crypto');
+    const fallback = (crypto.randomBytes(4) as Buffer).toString('hex');
     return `area-${fallback}`;
   }
 
@@ -114,36 +121,68 @@ function haversineDistance(
   return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// MED-N48 fix — pre-fix createServiceArea wrote service_areas with
+// no admin_actions audit. Service areas drive customer-facing
+// "is your area covered?" UX and provider matching radius — every
+// other admin-mutation service in the codebase (catalog, promotions,
+// staff) writes paired audit rows; this was the gap.
+//
+// Post-fix: INSERT + admin_actions row run in a single trx. Caller
+// passes adminUserId so the audit attributes the action; the
+// existing `createdBy` field on CreateServiceAreaParams already
+// fits the same purpose (re-used here so we don't break callers).
 export async function createServiceArea(
-  params: CreateServiceAreaParams,
+  params: CreateServiceAreaParams & { createdByAdminId?: string },
 ): Promise<ServiceAreaRow> {
   const slug = generateSlug(params.name);
 
-  const result = await db.query<ServiceAreaRow>(
-    `INSERT INTO service_areas (
-      name, slug, city, province, region, zip_codes,
-      center_lat, center_lng, radius_km,
-      min_providers_to_launch, launch_date, settings
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-    RETURNING *`,
-    [
-      params.name, slug, params.city, params.province, params.region,
-      params.zipCodes ?? [],
-      params.centerLat, params.centerLng,
-      Math.min(params.radiusKm ?? platformConfig.defaultServiceAreaRadius, platformConfig.maxServiceRadius),
-      params.minProvidersToLaunch ?? 5,
-      params.launchDate ?? null,
-      JSON.stringify(params.settings ?? {}),
-    ],
-  );
+  return db.transaction(async (client) => {
+    const result = await client.query<ServiceAreaRow>(
+      `INSERT INTO service_areas (
+        name, slug, city, province, region, zip_codes,
+        center_lat, center_lng, radius_km,
+        min_providers_to_launch, launch_date, settings
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *`,
+      [
+        params.name, slug, params.city, params.province, params.region,
+        params.zipCodes ?? [],
+        params.centerLat, params.centerLng,
+        Math.min(params.radiusKm ?? platformConfig.defaultServiceAreaRadius, platformConfig.maxServiceRadius),
+        params.minProvidersToLaunch ?? 5,
+        params.launchDate ?? null,
+        JSON.stringify(params.settings ?? {}),
+      ],
+    );
+    const row = result.rows[0]!;
 
-  logger.info('Service area created', {
-    areaId: result.rows[0]!.id,
-    name: params.name,
-    city: params.city,
+    if (params.createdByAdminId) {
+      await client.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details)
+         VALUES ($1, 'config_changed', 'service_area', $2, $3::jsonb)`,
+        [
+          params.createdByAdminId,
+          row.id,
+          JSON.stringify({
+            op: 'create',
+            slug,
+            name: params.name,
+            city: params.city,
+            province: params.province,
+          }),
+        ],
+      );
+    }
+
+    logger.info('Service area created', {
+      areaId: row.id,
+      name: params.name,
+      city: params.city,
+      createdByAdminId: params.createdByAdminId ?? null,
+    });
+    return row;
   });
-
-  return result.rows[0]!;
 }
 
 export async function getServiceArea(areaId: string): Promise<ServiceAreaRow> {

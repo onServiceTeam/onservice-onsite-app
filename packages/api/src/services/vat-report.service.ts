@@ -310,59 +310,91 @@ export async function generateMonthlyVatReport(
     throw createAppError('Cannot generate VAT report for future periods', 400);
   }
 
-  // Refuse to overwrite a finalized report.
-  const existing = await db.query<VatMonthlyReportRow>(
-    `SELECT ${VAT_SELECT}
-       FROM vat_monthly_reports
-      WHERE period_year = $1 AND period_month = $2`,
-    [year, month],
-  );
-  const existingRow = existing.rows[0];
-  if (existingRow && existingRow.finalized_at !== null) {
-    throw createAppError(
-      `VAT report for ${year}-${String(month).padStart(2, '0')} is finalized; cannot regenerate.`,
-      409,
-    );
-  }
-
+  // MED-N46 + MED-N47 fix — pre-fix:
+  //   1. SELECT existing row for finalized check (line 314)
+  //   2. db.query INSERT ... ON CONFLICT DO UPDATE (line 348)
+  // Race: between SELECT and INSERT, another concurrent caller could
+  //   finalize the row. The INSERT's ON CONFLICT DO UPDATE then
+  //   overwrites the finalized data without the finalized check.
+  // Plus the upsert sets pdf_url = NULL during regen, so even within
+  //   the same trx the PDF link is stale until the next ship.
+  //
+  // Post-fix:
+  //   - Both the SELECT FOR UPDATE and the upsert run inside ONE
+  //     db.transaction so the row is locked between the check and the
+  //     upsert. Concurrent callers serialize on FOR UPDATE.
+  //   - The upsert WHERE clause adds AND finalized_at IS NULL, so even
+  //     if a concurrent caller finalized between our SELECT and the
+  //     upsert (impossible with FOR UPDATE, but defense-in-depth), the
+  //     UPDATE no-ops.
+  //   - pdf_url is no longer NULLed during regen — keep the previous
+  //     PDF URL until the new one is generated and patched in via
+  //     setVatReportPdfUrl.
   const { startIso, endIso } = monthWindow(year, month);
 
-  const agg = await db.query<VatAggregateRow>(
-    `SELECT
-        COALESCE(SUM(gross_amount), 0)::text AS total_gross_sales,
-        COALESCE(SUM(vat_amount), 0)::text   AS output_vat,
-        COUNT(*)::text                        AS or_count
-       FROM official_receipts
-      WHERE is_cancellation = FALSE
-        AND issued_at >= $1::timestamptz
-        AND issued_at <  $2::timestamptz`,
-    [startIso, endIso],
-  );
-  const a = agg.rows[0];
-  const totalGrossSales = a ? Number(a.total_gross_sales ?? 0) : 0;
-  const outputVat = a ? Number(a.output_vat ?? 0) : 0;
-  const orCount = a ? Number(a.or_count) : 0;
-  const inputVat = 0;
-  const vatPayable = outputVat - inputVat;
+  const trxResult = await db.transaction(async (client) => {
+    // Lock the row if it exists; concurrent callers wait.
+    const existing = await client.query<VatMonthlyReportRow>(
+      `SELECT ${VAT_SELECT}
+         FROM vat_monthly_reports
+        WHERE period_year = $1 AND period_month = $2
+        FOR UPDATE`,
+      [year, month],
+    );
+    const existingRow = existing.rows[0];
+    if (existingRow && existingRow.finalized_at !== null) {
+      throw createAppError(
+        `VAT report for ${year}-${String(month).padStart(2, '0')} is finalized; cannot regenerate.`,
+        409,
+      );
+    }
 
-  const upserted = await db.query<VatMonthlyReportRow>(
-    `INSERT INTO vat_monthly_reports (
-        period_year, period_month,
-        total_gross_sales, output_vat, input_vat, vat_payable,
-        or_count, generated_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-     ON CONFLICT (period_year, period_month) DO UPDATE
-       SET total_gross_sales = EXCLUDED.total_gross_sales,
-           output_vat        = EXCLUDED.output_vat,
-           input_vat         = EXCLUDED.input_vat,
-           vat_payable       = EXCLUDED.vat_payable,
-           or_count          = EXCLUDED.or_count,
-           generated_at      = NOW(),
-           pdf_url           = NULL
-     RETURNING ${VAT_SELECT}`,
-    [year, month, totalGrossSales, outputVat, inputVat, vatPayable, orCount],
-  );
-  const upsertedRow = upserted.rows[0];
+    const agg = await client.query<VatAggregateRow>(
+      `SELECT
+          COALESCE(SUM(gross_amount), 0)::text AS total_gross_sales,
+          COALESCE(SUM(vat_amount), 0)::text   AS output_vat,
+          COUNT(*)::text                        AS or_count
+         FROM official_receipts
+        WHERE is_cancellation = FALSE
+          AND issued_at >= $1::timestamptz
+          AND issued_at <  $2::timestamptz`,
+      [startIso, endIso],
+    );
+    const a = agg.rows[0];
+    const totalGrossSales = a ? Number(a.total_gross_sales ?? 0) : 0;
+    const outputVat = a ? Number(a.output_vat ?? 0) : 0;
+    const orCount = a ? Number(a.or_count) : 0;
+    const inputVat = 0;
+    const vatPayable = outputVat - inputVat;
+
+    const upserted = await client.query<VatMonthlyReportRow>(
+      `INSERT INTO vat_monthly_reports (
+          period_year, period_month,
+          total_gross_sales, output_vat, input_vat, vat_payable,
+          or_count, generated_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+       ON CONFLICT (period_year, period_month) DO UPDATE
+         SET total_gross_sales = EXCLUDED.total_gross_sales,
+             output_vat        = EXCLUDED.output_vat,
+             input_vat         = EXCLUDED.input_vat,
+             vat_payable       = EXCLUDED.vat_payable,
+             or_count          = EXCLUDED.or_count,
+             generated_at      = NOW()
+         WHERE vat_monthly_reports.finalized_at IS NULL
+       RETURNING ${VAT_SELECT}`,
+      [year, month, totalGrossSales, outputVat, inputVat, vatPayable, orCount],
+    );
+    return {
+      upsertedRow: upserted.rows[0],
+      existingRow,
+      totalGrossSales,
+      outputVat,
+      vatPayable,
+      orCount,
+    };
+  });
+  const { upsertedRow, existingRow, totalGrossSales, outputVat, vatPayable, orCount } = trxResult;
+  const inputVat = 0; // Currently always 0 — moved out of the trx for outer-scope use.
   if (!upsertedRow) {
     throw createAppError('Failed to upsert VAT monthly report.', 500);
   }
