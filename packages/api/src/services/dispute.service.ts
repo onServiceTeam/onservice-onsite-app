@@ -3,6 +3,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as escrowService from './escrow.service';
 import * as socketService from './socket.service';
+import * as settingsService from './settings.service';
 
 interface DisputeRow {
   id: string;
@@ -207,7 +208,20 @@ async function attemptAutoResolution(
         const completedMs = new Date(row.completed_at).getTime();
         const minutesBetween = (completedMs - scheduledMs) / (1000 * 60);
 
-        if (minutesBetween < 5) {
+        // MED-N18 fix: threshold is now admin-tunable via the
+        // `noshow_auto_resolve_window_minutes` setting (default 30,
+        // up from the hardcoded 5 that auto-flagged real providers
+        // doing legitimate quick repairs).
+        let noShowWindowMinutes = 30;
+        try {
+          noShowWindowMinutes = await settingsService.getSettingInteger('noshow_auto_resolve_window_minutes');
+        } catch (err) {
+          logger.debug('noshow_auto_resolve_window_minutes setting unreadable; using default 30', {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+
+        if (minutesBetween < noShowWindowMinutes) {
           const totalAmount = Number(booking.total_amount);
           await client.query(
             `UPDATE disputes SET

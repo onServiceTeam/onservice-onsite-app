@@ -75,6 +75,13 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   fraud_pattern_window_days: '30',
   fraud_pattern_favor_provider_rate: '0.80',
 
+  // MED-N18 fix: minutes-between-scheduled-and-completed below
+  // which a no_show dispute is auto-resolved as a full refund.
+  // Pre-fix hardcoded 5 minutes — too tight (a real provider
+  // arriving 2-3 min early and finishing a 4-min repair would
+  // trigger this). Default raised to 30; admin can tune.
+  noshow_auto_resolve_window_minutes: '30',
+
   // Cancellation
   cancel_refund_over_24h: '100',
   cancel_refund_2_to_24h: '100',

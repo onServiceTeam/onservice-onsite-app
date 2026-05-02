@@ -809,7 +809,12 @@ export async function getTierProgression(providerId: string): Promise<TierProgre
   const hasCert = Number(certResult.rows[0]?.count ?? 0) > 0;
 
   const disputeResult = await db.query<{ count: string }>(
-    `SELECT COUNT(*)::text as count FROM disputes WHERE provider_id = $1 AND status NOT IN ('resolved', 'dismissed')`,
+    // MED-N24 fix: pre-fix listed 'dismissed' which is NOT a valid
+    // value in the disputes.status enum (migration 014 defines:
+    // 'open', 'under_review', 'escalated', 'resolved'). The filter
+    // accidentally excluded nothing extra but signaled developer
+    // confusion about the enum. Now: only the actual terminal status.
+    `SELECT COUNT(*)::text as count FROM disputes WHERE provider_id = $1 AND status NOT IN ('resolved')`,
     [providerId],
   );
   const openDisputes = Number(disputeResult.rows[0]?.count ?? 0);
