@@ -347,6 +347,13 @@ httpServer.listen(PORT, () => {
   initScheduledJobs()
     .then(() => logger.info('Scheduled jobs initialized'))
     .catch((err: unknown) => logger.error('Failed to initialize scheduled jobs', { error: err }));
+
+  // MED-N108 fix — boot-time drift check between SETTING_DEFAULTS
+  // (in-memory fallback) and platform_settings (DB). Logs warnings
+  // for keys missing on either side; never blocks boot.
+  settingsService
+    .checkSettingsDriftAtBoot()
+    .catch((err: unknown) => logger.warn('Settings drift check threw', { error: err }));
 });
 
 export { httpServer };

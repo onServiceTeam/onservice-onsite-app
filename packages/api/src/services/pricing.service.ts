@@ -397,11 +397,38 @@ export async function calculatePricing(
 
   const scheduledDate = scheduledAt;
   const hoursUntilScheduled = (scheduledDate.getTime() - Date.now()) / (1000 * 60 * 60);
-  const scheduledInManila = new Date(scheduledDate.toLocaleString('en-US', { timeZone: platformConfig.timezone }));
-  const scheduledHour = scheduledInManila.getHours();
-  const scheduledMinutes = scheduledHour * 60 + scheduledInManila.getMinutes();
-  const scheduledDayOfWeek = scheduledInManila.getDay();
-  const scheduledDateStr = scheduledDate.toISOString().split('T')[0]!;
+  // MED-N112 fix — replace the toLocaleString round-trip with
+  // Intl.DateTimeFormat parts. The pre-fix code did
+  //   new Date(date.toLocaleString('en-US', { timeZone: ... }))
+  // which formats to a localized string then re-parses — fragile
+  // around DST edges and locale-specific date formats. Direct parts
+  // extraction avoids both round-trips. Pattern matches
+  // vat-report.service.ts:117-128 (the canonical timezone-aware path
+  // in the codebase).
+  const partsFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: platformConfig.timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    weekday: 'short',
+    hour12: false,
+  });
+  const partsByType = new Map<string, string>();
+  for (const p of partsFmt.formatToParts(scheduledDate)) {
+    partsByType.set(p.type, p.value);
+  }
+  const scheduledHour = Number(partsByType.get('hour') ?? '0');
+  // Intl emits '24' for midnight in some locales — normalize to 0.
+  const normalizedHour = scheduledHour === 24 ? 0 : scheduledHour;
+  const scheduledMinutes = normalizedHour * 60 + Number(partsByType.get('minute') ?? '0');
+  const WEEKDAY_TO_INDEX: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  };
+  const scheduledDayOfWeek = WEEKDAY_TO_INDEX[partsByType.get('weekday') ?? 'Sun'] ?? 0;
+  // Date string in target timezone (YYYY-MM-DD).
+  const scheduledDateStr = `${partsByType.get('year')}-${partsByType.get('month')}-${partsByType.get('day')}`;
 
   let bestRule: PricingRuleRow | null = null;
 

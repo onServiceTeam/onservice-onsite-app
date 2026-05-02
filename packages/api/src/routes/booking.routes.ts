@@ -654,12 +654,20 @@ router.get(
         new Date(booking.scheduled_at),
       );
 
+      // MED-N90 fix — internal matching algorithm config (distance
+      // weights, rating weights, surge eligibility, etc.) is no longer
+      // returned to the customer client. Pre-fix, exposing
+      // getMatchConfig() to anyone with a bookingId allowed reverse-
+      // engineering of the matcher to game it (e.g., infer that
+      // distance is weighted 40% and game scheduledAt to land in a
+      // less competitive window). Admin observability of these
+      // weights now lives on the admin-only /admin/matching/config
+      // endpoint.
       res.json({
         success: true,
         data: {
           bookingId: id,
           providers,
-          config: matchingService.getMatchConfig(),
         },
       });
     } catch (error) {

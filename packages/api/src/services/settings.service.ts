@@ -240,6 +240,73 @@ export async function getCommissionRate(tier: string): Promise<number> {
   }
 }
 
+// ── MED-N108 fix — boot-time drift check ──
+//
+// SETTING_DEFAULTS is the in-memory fallback used when DB is unreachable.
+// It is documented to "mirror migration 050 seeds", but no automated
+// check enforces this. If a future migration adds a new key (e.g.
+// commission_rate_partner) and SETTING_DEFAULTS isn't updated, then
+// during a DB outage the in-memory fallback throws 'setting_not_found'
+// for the new key — silent under steady-state, painful during incident.
+//
+// The check below runs once at server boot from server.ts (or any
+// caller). It diffs:
+//   - keys IN SETTING_DEFAULTS but NOT in platform_settings (defaults
+//     declare a key that the DB doesn't seed → fallback shadows DB on
+//     restore)
+//   - keys IN platform_settings but NOT in SETTING_DEFAULTS (DB has a
+//     seeded key that the fallback would 404 on during outage)
+// Either direction logs a warn so monitoring catches the drift.
+// Defensive: failure of the check (DB unreachable, etc.) is logged
+// but does NOT block boot — settings.service must keep working even
+// if the check itself fails.
+
+export async function checkSettingsDriftAtBoot(): Promise<{
+  defaultsOnly: string[];
+  dbOnly: string[];
+  matched: number;
+}> {
+  try {
+    const result = await db.query<{ key: string }>(
+      `SELECT key FROM platform_settings`,
+    );
+    const dbKeys = new Set(result.rows.map((r) => r.key));
+    const defaultsKeys = new Set(Object.keys(SETTING_DEFAULTS));
+
+    const defaultsOnly: string[] = [];
+    for (const k of defaultsKeys) {
+      if (!dbKeys.has(k)) defaultsOnly.push(k);
+    }
+    const dbOnly: string[] = [];
+    for (const k of dbKeys) {
+      if (!defaultsKeys.has(k)) dbOnly.push(k);
+    }
+    const matched = defaultsKeys.size - defaultsOnly.length;
+
+    if (defaultsOnly.length > 0) {
+      logger.warn('Settings drift: SETTING_DEFAULTS declares keys not present in platform_settings', {
+        keys: defaultsOnly,
+        action: 'Run the migration that seeds these keys, or remove from SETTING_DEFAULTS.',
+      });
+    }
+    if (dbOnly.length > 0) {
+      logger.warn('Settings drift: platform_settings has keys not present in SETTING_DEFAULTS (in-memory fallback will 404 for these during DB outage)', {
+        keys: dbOnly,
+        action: 'Add these keys to SETTING_DEFAULTS in settings.service.ts with the migration-seeded value.',
+      });
+    }
+    if (defaultsOnly.length === 0 && dbOnly.length === 0) {
+      logger.info('Settings drift check passed', { matched });
+    }
+    return { defaultsOnly, dbOnly, matched };
+  } catch (err) {
+    logger.warn('Settings drift check failed (DB unreachable?) — boot continues', {
+      error: (err as Error).message,
+    });
+    return { defaultsOnly: [], dbOnly: [], matched: 0 };
+  }
+}
+
 // ── Bulk read ──
 
 export async function getAllSettings(): Promise<SettingRow[]> {
