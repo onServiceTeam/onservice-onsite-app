@@ -3,6 +3,8 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 import { formatPHP } from '../utils/currency';
+// MED-N126/N127 fix — admin-tunable suki tiers + redemption rate.
+import * as settingsService from './settings.service';
 
 interface SukiMembershipRow {
   id: string;
@@ -29,14 +31,61 @@ interface SukiRewardRow {
 
 interface CountRow { count: string }
 
-const SUKI_TIERS = platformConfig.sukiTiers;
-const POINTS_REDEMPTION_RATE = platformConfig.sukiPointsRedemptionRate;
-const DEFAULT_TIER = { minBookings: 0, discount: 0, pointsPerPeso: 1 };
+// MED-N126 fix — tier definitions are admin-tunable via platform_settings.
+// Stored as a JSON string under key 'suki_tiers'. Falls back to the
+// hardcoded platformConfig.sukiTiers when the setting is unreadable.
+type SukiTier = { minBookings: number; pointsPerPeso: number; discount: number };
+type SukiTiersMap = Record<string, SukiTier>;
 
-function computeTier(totalBookings: number): string {
-  if (totalBookings >= (SUKI_TIERS['super_suki']?.minBookings ?? Infinity)) return 'super_suki';
-  if (totalBookings >= (SUKI_TIERS['suki']?.minBookings ?? Infinity)) return 'suki';
-  if (totalBookings >= (SUKI_TIERS['regular']?.minBookings ?? Infinity)) return 'regular';
+const FALLBACK_TIERS: SukiTiersMap = platformConfig.sukiTiers;
+const POINTS_REDEMPTION_MIN_MULTIPLE = platformConfig.sukiPointsRedemptionRate;
+const DEFAULT_TIER: SukiTier = { minBookings: 0, discount: 0, pointsPerPeso: 1 };
+
+async function loadSukiTiers(): Promise<SukiTiersMap> {
+  try {
+    const raw = await settingsService.getSetting('suki_tiers');
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const out: SukiTiersMap = {};
+      for (const [tierName, tierCfg] of Object.entries(parsed as Record<string, unknown>)) {
+        if (
+          tierCfg && typeof tierCfg === 'object' && !Array.isArray(tierCfg) &&
+          typeof (tierCfg as { minBookings?: unknown }).minBookings === 'number' &&
+          typeof (tierCfg as { pointsPerPeso?: unknown }).pointsPerPeso === 'number' &&
+          typeof (tierCfg as { discount?: unknown }).discount === 'number'
+        ) {
+          out[tierName] = tierCfg as SukiTier;
+        }
+      }
+      if (Object.keys(out).length > 0) return out;
+    }
+  } catch (err) {
+    logger.warn('suki_tiers setting unreadable; using platformConfig fallback', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return FALLBACK_TIERS;
+}
+
+// MED-N127 fix — explicit points-to-peso conversion rate. Pre-fix
+// `amountCredited = points` meant 100 points → ₱100 (100% cashback at
+// base tier, 300% at super_suki — unsustainable). Post-fix: 100 points
+// → ₱1 (admin-tunable via platform_settings.suki_points_to_peso_rate).
+async function loadPointsToPesoRate(): Promise<number> {
+  try {
+    const raw = await settingsService.getSetting('suki_points_to_peso_rate');
+    const n = parseFloat(raw);
+    if (Number.isFinite(n) && n > 0) return n;
+  } catch {
+    // fall through to default
+  }
+  return 100; // default: 100 points = ₱1
+}
+
+function computeTier(totalBookings: number, tiers: SukiTiersMap): string {
+  if (totalBookings >= (tiers['super_suki']?.minBookings ?? Infinity)) return 'super_suki';
+  if (totalBookings >= (tiers['suki']?.minBookings ?? Infinity)) return 'suki';
+  if (totalBookings >= (tiers['regular']?.minBookings ?? Infinity)) return 'regular';
   return 'new';
 }
 
@@ -65,13 +114,14 @@ export async function recordBookingForSuki(
 ): Promise<{ membership: SukiMembershipRow; tierChanged: boolean; pointsEarned: number }> {
   const membership = await getOrCreateMembership(customerId, providerId);
 
+  const tiers = await loadSukiTiers();
   const oldTier = membership.tier;
   const newBookings = membership.total_bookings + 1;
   const newSpent = Number(membership.total_spent) + bookingAmount;
-  const newTier = computeTier(newBookings);
+  const newTier = computeTier(newBookings, tiers);
   const tierChanged = newTier !== oldTier;
 
-  const tierConfig = SUKI_TIERS[newTier] ?? DEFAULT_TIER;
+  const tierConfig = tiers[newTier] ?? DEFAULT_TIER;
   const pointsEarned = Math.floor((bookingAmount / 100) * tierConfig.pointsPerPeso);
 
   return db.transaction(async (client) => {
@@ -107,7 +157,7 @@ export async function recordBookingForSuki(
         [providerId],
       );
       if (provInfo.rows[0]) {
-        const discount = SUKI_TIERS[newTier]?.discount ?? 0;
+        const discount = tiers[newTier]?.discount ?? 0;
         await client.query(
           `INSERT INTO notifications (user_id, type, title, body, data)
            VALUES ($1, 'suki', 'Suki Tier Up!', $2, $3)`,
@@ -131,8 +181,11 @@ export async function redeemPoints(
   membershipId: string,
   points: number,
 ): Promise<{ amountCredited: number; remainingPoints: number }> {
-  if (points <= 0 || points % POINTS_REDEMPTION_RATE !== 0) {
-    throw createAppError(`Points must be positive and a multiple of ${POINTS_REDEMPTION_RATE}.`, 400);
+  if (points <= 0 || points % POINTS_REDEMPTION_MIN_MULTIPLE !== 0) {
+    throw createAppError(
+      `Points must be positive and a multiple of ${POINTS_REDEMPTION_MIN_MULTIPLE}.`,
+      400,
+    );
   }
 
   const membership = await db.query<SukiMembershipRow>(
@@ -144,7 +197,12 @@ export async function redeemPoints(
 
   if (m.points_balance < points) throw createAppError('Insufficient points.', 400);
 
-  const amountCredited = points;
+  // MED-N127 fix — explicit points-to-peso conversion. Pre-fix
+  // amountCredited = points (so 100 points → ₱100, 100% cashback at
+  // base tier, 300% at super_suki = unsustainable). Post-fix divides
+  // by the configured rate (default 100 → 1% cashback at base tier).
+  const pointsToPesoRate = await loadPointsToPesoRate();
+  const amountCredited = points / pointsToPesoRate;
 
   return db.transaction(async (client) => {
     await client.query(
@@ -231,8 +289,19 @@ export async function getMembershipRewards(
   return { rewards: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
 }
 
+// MED-N126 — synchronous discount lookup retained for back-compat
+// (used in places that already have tier loaded). Reads from the
+// FALLBACK constants — admins editing tiers via platform_settings
+// won't see effect here until the next async-aware caller. Most hot
+// paths now use the async variant getSukiDiscountAsync below.
 export function getSukiDiscount(tier: string): number {
-  return SUKI_TIERS[tier]?.discount ?? 0;
+  return FALLBACK_TIERS[tier]?.discount ?? 0;
+}
+
+// MED-N126 — async variant that picks up admin-tuned tiers.
+export async function getSukiDiscountAsync(tier: string): Promise<number> {
+  const tiers = await loadSukiTiers();
+  return tiers[tier]?.discount ?? 0;
 }
 
 export async function calculateSukiDiscountForBooking(
@@ -245,18 +314,25 @@ export async function calculateSukiDiscountForBooking(
     [customerId, providerId],
   );
   const tier = result.rows[0]?.tier ?? 'new';
-  const discountPercent = SUKI_TIERS[tier]?.discount ?? 0;
+  const tiers = await loadSukiTiers();
+  const discountPercent = tiers[tier]?.discount ?? 0;
   if (discountPercent <= 0) return { discountPercent: 0, discountAmount: 0 };
   const discountAmount = Math.round(servicePrice * (discountPercent / 100));
   return { discountPercent, discountAmount };
 }
 
-export function getSukiTiers(): Record<string, { minBookings: number; pointsPerPeso: number; discount: number }> {
-  return SUKI_TIERS;
+// MED-N126 — sync getSukiTiers retained for tests + back-compat.
+// Admin-tuned override surfaces via the async getSukiTiersAsync.
+export function getSukiTiers(): SukiTiersMap {
+  return FALLBACK_TIERS;
+}
+
+export async function getSukiTiersAsync(): Promise<SukiTiersMap> {
+  return loadSukiTiers();
 }
 
 export function formatMembership(m: SukiMembershipRow & { provider_name?: string | null }): Record<string, unknown> {
-  const tierConfig = SUKI_TIERS[m.tier] ?? DEFAULT_TIER;
+  const tierConfig = FALLBACK_TIERS[m.tier] ?? DEFAULT_TIER;
   return {
     id: m.id,
     customerId: m.customer_id,
