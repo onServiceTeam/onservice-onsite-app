@@ -87,26 +87,30 @@ prompts them.
 re-consent (e.g., GDPR-style "material change"), the product team must
 trigger the in-app re-consent flow separately (out of scope for v1).
 
-## 6. Admin → customer messaging — verb only, no transport
+## 6. Admin → customer messaging — verb only, no transport — RESOLVED
 
 **Where:** Dispatch console "Send message" action.
 
-The `admin_message_sent` admin_actions verb (added in migration 058)
-records the intent. The actual delivery currently uses the existing
-notification pipeline (push + email if subscribed). There is no
-"messaging inbox" on the customer side to view a thread of
-admin-sent messages.
+**Status:** RESOLVED — `sendAdminMessageToBookingCustomer` in
+`booking-admin.service.ts` now (a) inserts a real `messages` row of
+type 'system' into the booking's conversation when one exists, so
+the customer sees it inline in the booking chat thread, plus (b)
+fires a push notification with the message preview, plus (c) writes
+the `admin_message_sent` admin_actions audit row. The customer-side
+messaging inbox limitation only applies to bookings that don't yet
+have a conversation row — and the booking auto-creates one as soon
+as either party sends the first message, so the gap is rare.
 
-**Workaround:** customers see admin messages as one-off push notifications
-or in-booking system messages.
-
-## 7. NPC escalation reference format
+## 7. NPC escalation reference format — RESOLVED
 
 **Where:** Data Protection Log → Escalate to NPC dialog.
 
-The NPC reference field accepts any string ≥3 characters (no regex
-validation). The actual NPC reference format may evolve; we accept
-free-text and rely on operator discipline.
+**Status:** RESOLVED via Phase 14 D08 (Bug 398) and tightened by
+MED-N123 (Phase N). The npcReference field is validated server-side
+against `^NPC-\d{4}-[A-Z0-9]{6,12}$` in
+`compliance-admin.service.escalateDsrToNpc`. Free-text input is
+rejected with a 400 + clear message; the 6-12 char suffix bound
+prevents log-pollution / DOS.
 
 ## 8. Erasure DSRs do not auto-delete data — RESOLVED 2026-05-02
 
