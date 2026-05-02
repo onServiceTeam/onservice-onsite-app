@@ -837,6 +837,54 @@ runs without STAGING_ADMIN_URL no longer hit ECONNREFUSED.
 - **Backend tests:** 2459 (unchanged).
 - **Phase L MEDs landed:** L01 + L02 + L03 + L04 + L05 (all 5).
 
+## Sessions 5m–5n — N tail items + LAUNCH-LIMITATIONS sweep
+
+| # | Commit | Summary |
+|---|---|---|
+| 1 | 2c4afd1 | MED-N59 (provider_cancelled notification type) + N98 (year clamp) + N169 (webhook 503) (9 tests) |
+| 2 | f6c168c | LAUNCH-LIMITATIONS #3 (DSR history endpoint + mobile UI) + #4 (per-user 24h DSR rate limit) (6 tests) |
+| 3 | 2007400 | LAUNCH-LIMITATIONS #8 (erasure DSR auto-links to account-deletion pipeline) + #9 (closed by #3) (3 tests) |
+
+### What landed in 5m–5n
+
+**N59** — distinct `provider_cancelled` NotificationType so customers
+no longer see "The customer has cancelled this booking" when the
+provider is the one who cancelled.
+
+**N98** — provider monthly-summary year clamp now allows current
+year + 1 (preview tooling for next BIR year). Bad input falls back
+to current year via `Number.isFinite` guard.
+
+**N169** — webhook signature verification throws WebhookSecretMissingError
+sentinel instead of returning false. Route catches it and returns
+503 ("Webhook verification temporarily unavailable") so PayMongo's
+dashboard can distinguish misconfiguration from a real signature
+mismatch (which still returns 401).
+
+**LL#3** — new `GET /api/v1/compliance/my-requests` endpoint +
+`listMyDsrs` service. Mobile data-rights screen wired with a "My
+past requests" section showing status + due date for each submission.
+
+**LL#4** — `POST /api/v1/compliance/dsr` now rejects with 429 when
+the user has submitted 5+ DSRs in the last 24h.
+
+**LL#8** — erasure DSR submission now auto-invokes
+`requestAccountDeletion`. DPO no longer has to manually trigger the
+deletion flow for each erasure request. Best-effort: failure (409s
+for existing pending deletion / blocking bookings) is logged at WARN
+level but does not roll back the DSR insert.
+
+**LL#9** — closed by LL#3; the DSR confirmation screen now shows
+all past submissions in a list, not just the most recent.
+
+### Numbers (after session 5n)
+
+- **Mobile tests:** 403 passing + 90 todo.
+- **Admin tests:** 88 passing + 3 todo + 0 unhandled errors.
+- **Backend tests:** 2477 passing (up from 2459 at end of 5l).
+- **LAUNCH-LIMITATIONS resolved this wave:** #3, #4, #8, #9 (4 items
+  marked RESOLVED).
+
 ## RESUME instructions for the next session
 
 1. Backend audit findings (Phase B + C + N + M + O) substantially
