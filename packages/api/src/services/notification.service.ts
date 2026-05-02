@@ -48,6 +48,10 @@ export type NotificationType =
   | 'new_quote' | 'quote_accepted' | 'quote_expired'
   // Recurring + business
   | 'recurring_update' | 'business_update' | 'area_launch'
+  // E02 / D22 — recurring auto-charge lifecycle
+  | 'recurring_auto_charge_succeeded'
+  | 'recurring_auto_charge_failed'
+  | 'recurring_auto_charge_suspended'
   // Compliance / data subject rights
   | 'dsr_info_requested'
   // Admin operational alerts (raw-INSERT in admin-analytics.service)

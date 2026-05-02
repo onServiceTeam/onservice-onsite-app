@@ -5,6 +5,8 @@ import { logger } from '../utils/logger';
 import * as notificationService from './notification.service';
 import { calculateServiceFee } from './booking.service';
 import { formatPHP } from '../utils/currency';
+// E02 / D22 (2026-05-02) — recurring auto-charge integration.
+import * as autoChargeService from './recurring-auto-charge.service';
 
 interface RecurringBookingRow {
   id: string;
@@ -30,6 +32,13 @@ interface RecurringBookingRow {
   last_booking_date: string | null;
   skip_dates: string[];
   auto_charge: boolean;
+  // E02 / D22 — auto-charge state.
+  payment_method_id?: string | null;
+  payment_method_label?: string | null;
+  auto_charge_status?: string | null;
+  auto_charge_consecutive_failures?: number;
+  auto_charge_suspended_at?: string | null;
+  auto_charge_last_attempt_at?: string | null;
   allow_substitute: boolean;
   total_instances: number;
   cancelled_at: Date | null;
@@ -478,13 +487,48 @@ export async function processRecurringBookings(): Promise<number> {
         [nextDate.toISOString().split('T')[0], rb.next_booking_date, rb.id],
       );
 
-      await notificationService.createNotification({
-        userId: rb.customer_id,
-        type: 'recurring_update',
-        title: 'Recurring Booking Created',
-        body: `Your recurring service has been scheduled for ${scheduledAt.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}.`,
-        data: { bookingId, recurringBookingId: rb.id },
-      });
+      // E02 / D22 — auto-charge the customer if they enabled it. The
+      // attempt fires AFTER the recurring clock advances so a charge
+      // failure can't block the recurrence; the customer just gets a
+      // manual-pay nudge for this cycle. The auto-charge service
+      // sends its own notifications (succeeded / failed / suspended)
+      // so we suppress the generic recurring_update one in the
+      // succeeded path.
+      let autoChargeSucceeded = false;
+      if (rb.auto_charge) {
+        try {
+          const result = await autoChargeService.attemptAutoCharge({
+            recurringBookingId: rb.id,
+            bookingId,
+            customerId: rb.customer_id,
+            amountCentavos: Math.round(Number(rb.total_amount) * 100),
+            paymentMethodId: null, // service re-loads from DB
+            description: `Recurring ${categoryName} booking`,
+          });
+          autoChargeSucceeded = result.outcome === 'succeeded';
+          logger.info('Recurring auto-charge attempt outcome', {
+            recurringId: rb.id, bookingId, outcome: result.outcome,
+          });
+        } catch (autoErr) {
+          // Never let auto-charge errors block instance creation.
+          logger.error('Recurring auto-charge attempt threw (non-fatal)', {
+            recurringId: rb.id, bookingId,
+            error: autoErr instanceof Error ? autoErr.message : String(autoErr),
+          });
+        }
+      }
+
+      // Send the generic "booking created" notification only when
+      // auto-charge didn't already send a "succeeded" one.
+      if (!autoChargeSucceeded) {
+        await notificationService.createNotification({
+          userId: rb.customer_id,
+          type: 'recurring_update',
+          title: 'Recurring Booking Created',
+          body: `Your recurring service has been scheduled for ${scheduledAt.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}.`,
+          data: { bookingId, recurringBookingId: rb.id },
+        });
+      }
 
       created++;
       logger.info('Recurring booking instance created', { recurringId: rb.id, bookingId });
@@ -545,6 +589,13 @@ export function formatRecurringBooking(rb: RecurringBookingRow): Record<string, 
     lastBookingDate: rb.last_booking_date,
     skipDates: rb.skip_dates,
     autoCharge: rb.auto_charge,
+    // E02 / D22 — auto-charge surface.
+    paymentMethodId: rb.payment_method_id ?? null,
+    paymentMethodLabel: rb.payment_method_label ?? null,
+    autoChargeStatus: rb.auto_charge_status ?? null,
+    autoChargeConsecutiveFailures: rb.auto_charge_consecutive_failures ?? 0,
+    autoChargeSuspendedAt: rb.auto_charge_suspended_at ?? null,
+    autoChargeLastAttemptAt: rb.auto_charge_last_attempt_at ?? null,
     allowSubstitute: rb.allow_substitute,
     totalInstances: rb.total_instances,
     cancelledAt: rb.cancelled_at,
