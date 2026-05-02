@@ -13,10 +13,19 @@ import { colors, spacing, borderRadius, typography } from '@/config/theme';
 import { i18n } from '@/lib/i18n';
 import { showToast } from '@/lib/toast';
 
-export const PH_MOBILE_REGEX = /^(09|9)\d{9}$/;
+// Phase K MED-K16 fix — accept the +63 prefix that utils/phone.
+// validatePHPhone accepts. Pre-fix this regex was `^(09|9)\d{9}$`
+// only, so users typing "+639171234567" got rejected by the
+// PhoneInput even though both backend AND validatePHPhone accept
+// that form. The two regexes are now consistent.
+export const PH_MOBILE_REGEX = /^(\+63|0)?9\d{9}$/;
 
 export function normalizePhilippineMobile(input: string): string {
-  const digits = input.replace(/\D/g, '');
+  // Preserve a leading + so '+639' digits aren't stripped by the
+  // \D filter (which treats + as non-digit).
+  const cleaned = input.replace(/[\s\-()]/g, '');
+  if (cleaned.startsWith('+63')) return cleaned;
+  const digits = cleaned.replace(/\D/g, '');
   if (digits.startsWith('09')) return `+63${digits.slice(1)}`;
   if (digits.startsWith('9') && digits.length === 10) return `+63${digits}`;
   if (digits.startsWith('63')) return `+${digits}`;
