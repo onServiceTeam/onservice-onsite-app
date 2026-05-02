@@ -12,12 +12,18 @@
 // are `'percentage'` and `'fixed_centavos'` (not `'percent'`/`'fixed'`).
 // See `D05-plan.md` §"Schema correction" for the full mapping.
 //
-// Per-customer limit (`usage_limit_per_customer`) is NOT enforced by this
-// resolver — there is no `promo_redemptions` table in v1.0 to count
-// per-user usage. Per-customer enforcement requires the booking-creation
-// transaction (D06 — transactional audit completeness) to also write
-// a redemption row inside the same transaction. See `D05-closeout.md`
-// §"Spec corrections applied" and the D06 plan once written.
+// MED-N154 fix — per-customer limit (`usage_limit_per_customer`) is now
+// ENFORCED. Pre-fix the audit found the column existed and the admin UI
+// accepted the value but it was silently ignored at resolve time, so a
+// customer could apply the same promo to N bookings if usage_limit_total
+// allowed. Migration 111 introduces the `promo_redemptions` table
+// (booking_id, promo_code_id, customer_id, created_at) with a
+// (promo_code_id, customer_id) usage count index. resolvePromo now
+// SELECTs COUNT from it; if the count >= usage_limit_per_customer
+// (default 1), throws promo_exhausted. The booking-creation flow is
+// expected to INSERT a row into promo_redemptions in the same trx
+// when a promo is applied — caller responsibility (helper exported
+// here as recordPromoRedemption).
 
 import { db } from '../../models/db';
 import { createAppError } from '../../middleware/error.middleware';
@@ -89,6 +95,29 @@ export async function resolvePromo(input: {
     throw createAppError(PROMO_ERRORS.promoExhausted, 400);
   }
 
+  // MED-N154 fix — per-customer enforcement. Defensive lookup against
+  // promo_redemptions; if the table is missing (older DB schema) we
+  // log + skip the check rather than failing the booking. Once mig 111
+  // is applied this becomes the canonical gate.
+  const perCustomerLimit = promo.usage_limit_per_customer ?? 1;
+  if (perCustomerLimit > 0) {
+    try {
+      const redemptionCount = await db.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM promo_redemptions
+          WHERE promo_code_id = $1 AND customer_id = $2`,
+        [promo.id, input.userId],
+      );
+      const used = Number(redemptionCount.rows[0]?.count ?? 0);
+      if (used >= perCustomerLimit) {
+        throw createAppError(PROMO_ERRORS.promoExhausted, 400);
+      }
+    } catch (err) {
+      // 42P01 = undefined_table (older DB without mig 111 applied).
+      // Re-throw application errors; swallow only the schema-missing case.
+      if ((err as { code?: string }).code !== '42P01') throw err;
+    }
+  }
+
   const minOrder = Number(promo.minimum_order_centavos);
   if (minOrder > 0 && input.subtotalCents < minOrder) {
     throw createAppError(PROMO_ERRORS.promoMinOrderNotMet, 400);
@@ -115,4 +144,36 @@ export async function resolvePromo(input: {
   }
 
   return discountCents;
+}
+
+/**
+ * MED-N154 fix — record a promo redemption row for per-customer limit
+ * enforcement. Booking creation should call this inside its own
+ * transaction (passing the trx client) right after applying the discount.
+ *
+ * Defensive: the INSERT is wrapped in try/catch; a 42P01 (table
+ * missing) or 23505 (unique violation — same booking already
+ * recorded) is logged and swallowed so booking creation isn't
+ * blocked. The unique index in mig 111 is on
+ * (booking_id, promo_code_id) so dup INSERTs are idempotent.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PgClient = { query: (text: string, params?: unknown[]) => Promise<any> };
+export async function recordPromoRedemption(
+  client: PgClient,
+  args: { promoCodeId: string; bookingId: string; customerId: string; discountCentavos: number },
+): Promise<void> {
+  try {
+    await client.query(
+      `INSERT INTO promo_redemptions
+         (promo_code_id, booking_id, customer_id, discount_centavos)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (booking_id, promo_code_id) DO NOTHING`,
+      [args.promoCodeId, args.bookingId, args.customerId, args.discountCentavos],
+    );
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    // 42P01 = table missing (mig 111 not applied yet) — degrade silently.
+    if (code !== '42P01') throw err;
+  }
 }

@@ -117,35 +117,86 @@ export async function getRebookingSuggestions(
     [customerId, booking.category_id, booking.subcategory_id, booking.cancelled_provider_id],
   );
 
+  // MED-N152 fix — only suggest providers whose service_radius_km
+  // actually covers the booking's location. Pre-fix the city/province
+  // ILIKE was a coarse text match: a provider in Manila with a 5km
+  // service radius would be suggested for a Boracay booking just
+  // because both rows had province='Aklan' (false positive from
+  // ILIKE on a substring). Post-fix: when the booking has lat/lng
+  // and the provider has lat/lng, we apply the same Haversine +
+  // service_radius_km filter that matching.service.ts uses.
+  // When the booking lacks coordinates, we fall back to the prior
+  // ILIKE behavior (degraded mode but no false negatives at launch).
+  const hasCoords = booking.latitude !== null && booking.longitude !== null;
+  const EARTH_RADIUS_KM = 6371;
   const availableProviders = await db.query<AvailableProviderRow>(
-    `SELECT DISTINCT ON (p.id)
-       p.id AS provider_id,
-       TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS provider_name,
-       p.business_name,
-       p.rating::text AS rating,
-       p.total_reviews,
-       p.total_jobs,
-       p.tier,
-       ps.base_price,
-       p.latitude::text AS latitude,
-       p.longitude::text AS longitude
-     FROM providers p
-     INNER JOIN users u ON p.user_id = u.id
-     INNER JOIN provider_services ps ON ps.provider_id = p.id
-       AND ps.is_active = TRUE AND ps.category_id = $1
-     WHERE p.status = 'approved'
-       AND p.id != COALESCE($5, '00000000-0000-0000-0000-000000000000'::uuid)
-       AND (p.city ILIKE $2 OR p.province ILIKE $3)
-       AND ($4::uuid IS NULL OR ps.subcategory_id = $4)
-     ORDER BY p.id, p.rating DESC
-     LIMIT 10`,
-    [
-      booking.category_id,
-      `%${booking.city}%`,
-      `%${booking.province}%`,
-      booking.subcategory_id,
-      booking.cancelled_provider_id,
-    ],
+    hasCoords
+      ? `SELECT DISTINCT ON (p.id)
+           p.id AS provider_id,
+           TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS provider_name,
+           p.business_name,
+           p.rating::text AS rating,
+           p.total_reviews,
+           p.total_jobs,
+           p.tier,
+           ps.base_price,
+           p.latitude::text AS latitude,
+           p.longitude::text AS longitude
+         FROM providers p
+         INNER JOIN users u ON p.user_id = u.id
+         INNER JOIN provider_services ps ON ps.provider_id = p.id
+           AND ps.is_active = TRUE AND ps.category_id = $1
+         WHERE p.status = 'approved'
+           AND p.id != COALESCE($5, '00000000-0000-0000-0000-000000000000'::uuid)
+           AND p.latitude IS NOT NULL AND p.longitude IS NOT NULL
+           AND ($4::uuid IS NULL OR ps.subcategory_id = $4)
+           AND (
+             ${EARTH_RADIUS_KM} * acos(
+               LEAST(1.0, GREATEST(-1.0,
+                 cos(radians($2::numeric)) * cos(radians(p.latitude::numeric))
+                 * cos(radians(p.longitude::numeric) - radians($3::numeric))
+                 + sin(radians($2::numeric)) * sin(radians(p.latitude::numeric))
+               ))
+             )
+           ) <= p.service_radius_km
+         ORDER BY p.id, p.rating DESC
+         LIMIT 10`
+      : `SELECT DISTINCT ON (p.id)
+           p.id AS provider_id,
+           TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS provider_name,
+           p.business_name,
+           p.rating::text AS rating,
+           p.total_reviews,
+           p.total_jobs,
+           p.tier,
+           ps.base_price,
+           p.latitude::text AS latitude,
+           p.longitude::text AS longitude
+         FROM providers p
+         INNER JOIN users u ON p.user_id = u.id
+         INNER JOIN provider_services ps ON ps.provider_id = p.id
+           AND ps.is_active = TRUE AND ps.category_id = $1
+         WHERE p.status = 'approved'
+           AND p.id != COALESCE($5, '00000000-0000-0000-0000-000000000000'::uuid)
+           AND (p.city ILIKE $2 OR p.province ILIKE $3)
+           AND ($4::uuid IS NULL OR ps.subcategory_id = $4)
+         ORDER BY p.id, p.rating DESC
+         LIMIT 10`,
+    hasCoords
+      ? [
+          booking.category_id,
+          Number(booking.latitude),
+          Number(booking.longitude),
+          booking.subcategory_id,
+          booking.cancelled_provider_id,
+        ]
+      : [
+          booking.category_id,
+          `%${booking.city}%`,
+          `%${booking.province}%`,
+          booking.subcategory_id,
+          booking.cancelled_provider_id,
+        ],
   );
 
   const previousProviderIds = new Set(previousProviders.rows.map((r) => r.provider_id));

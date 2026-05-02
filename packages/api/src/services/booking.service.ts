@@ -7,7 +7,7 @@ import * as pricingService from './pricing.service';
 import * as slotWaitlistService from './slot-waitlist.service';
 import * as sukiService from './suki.service';
 import * as socketService from './socket.service';
-import { resolvePromo } from './booking/promo.service';
+import { resolvePromo, recordPromoRedemption } from './booking/promo.service';
 
 interface BookingRow {
   id: string;
@@ -249,6 +249,35 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
       ],
     );
     const booking = result.rows[0]!;
+
+    // MED-N154 fix — record the promo redemption inside the same trx
+    // so the per-customer limit check (in resolvePromo's next call)
+    // sees this booking as a redemption. Defensive: if the promo
+    // table lookup fails (older schema, race-removed promo) we log
+    // and continue rather than blocking the booking creation.
+    if (params.promoCode && promoDiscountCents > 0) {
+      try {
+        const promoLookup = await client.query<{ id: string }>(
+          `SELECT id FROM promo_codes WHERE UPPER(code) = $1`,
+          [params.promoCode.trim().toUpperCase()],
+        );
+        if (promoLookup.rows[0]) {
+          await recordPromoRedemption(client, {
+            promoCodeId: promoLookup.rows[0].id,
+            bookingId: booking.id,
+            customerId: params.customerId,
+            discountCentavos: promoDiscountCents,
+          });
+        }
+      } catch (err) {
+        // Log but don't fail booking creation.
+        logger.warn('promo_redemption record failed (non-fatal)', {
+          bookingId: booking.id,
+          promoCode: params.promoCode,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
 
     if (resolvedAddons.length > 0) {
       // Single multi-row INSERT instead of N round-trips.

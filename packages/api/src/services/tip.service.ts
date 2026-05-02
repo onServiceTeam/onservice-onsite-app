@@ -70,6 +70,21 @@ export async function sendTip(
 
   const method = data.paymentMethod ?? 'wallet';
 
+  // MED-N153 fix — restrict tipping to wallet method only for v1.0.
+  // Pre-fix: gcash/maya/card tips were inserted as status='pending'
+  // but no PayMongo intent was created, no webhook handler flipped
+  // status to 'completed', and no provider notification fired —
+  // pending tips accumulated forever and the provider never saw the
+  // money. Post-fix: refuse non-wallet methods at the service layer
+  // until v1.1 ships the PayMongo + webhook integration. Tracked
+  // on LAUNCH-LIMITATIONS.
+  if (method !== 'wallet') {
+    throw createAppError(
+      'Tips currently support wallet payment only. Please top up your wallet first.',
+      400,
+    );
+  }
+
   return db.transaction(async (client) => {
     if (method === 'wallet') {
       const wallet = await walletService.getUserWallet(customerId, 'customer');
