@@ -1,5 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { rbacMiddleware } from '../middleware/rbac.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { requestPayoutSchema, rejectPayoutSchema } from '../validators/payout.validators';
 import * as payoutService from '../services/payout.service';
@@ -150,6 +151,27 @@ router.put(
       if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
 
       const payout = await payoutService.completePayout(id, req.body.paymongoTransferId);
+      res.json({ success: true, data: payoutService.formatPayout(payout) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// MED-N77 fix: super_admin AML clearance endpoint. Transitions a
+// payout from 'aml_review_pending' to 'pending' so the standard
+// approve/reject flow can take over. Requires super_admin role
+// (RA 9160 covered transactions are not a junior-admin call).
+router.put(
+  '/:id/clear-aml-review',
+  authMiddleware,
+  rbacMiddleware('super_admin'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id'];
+      if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
+
+      const payout = await payoutService.clearAmlReview(id, req.user!.userId);
       res.json({ success: true, data: payoutService.formatPayout(payout) });
     } catch (error) {
       next(error);

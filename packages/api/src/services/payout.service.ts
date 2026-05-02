@@ -3,7 +3,31 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 import * as walletService from './wallet.service';
+import * as settingsService from './settings.service';
 import { formatPHP } from '../utils/currency';
+
+// MED-N78 fix: per-method destination account format validation.
+// Without these, a typo in destinationAccount silently routes
+// payment to the wrong recipient. The regexes match the canonical
+// PH account formats:
+//   - GCash / Maya: 11-digit phone (09XXXXXXXXX)
+//   - InstaPay / PESONet: bank account number (8–16 digits)
+const DESTINATION_FORMATS: Record<string, { regex: RegExp; help: string }> = {
+  gcash: { regex: /^09\d{9}$/, help: 'GCash account must be an 11-digit PH mobile number (09XXXXXXXXX).' },
+  maya: { regex: /^09\d{9}$/, help: 'Maya account must be an 11-digit PH mobile number (09XXXXXXXXX).' },
+  bank_instapay: { regex: /^\d{8,16}$/, help: 'InstaPay bank account number must be 8–16 digits.' },
+  bank_pesonet: { regex: /^\d{8,16}$/, help: 'PESONet bank account number must be 8–16 digits.' },
+};
+
+export function validateDestinationAccount(method: string, account: string): void {
+  const fmt = DESTINATION_FORMATS[method];
+  if (!fmt) {
+    throw createAppError(`Unknown payout method "${method}".`, 400);
+  }
+  if (!fmt.regex.test(account)) {
+    throw createAppError(fmt.help, 400);
+  }
+}
 
 interface PayoutRow {
   id: string;
@@ -43,6 +67,26 @@ export async function requestPayout(
     );
   }
 
+  // MED-N78: validate destination account format BEFORE we touch the
+  // wallet so a typo can't decrement a balance and then bounce.
+  validateDestinationAccount(data.method, data.destinationAccount);
+
+  // MED-N77: AML threshold check. Read the current threshold from
+  // settings (admin-tunable, RA 9160 default ₱500K). If this single
+  // payout meets/exceeds it, file the request as 'aml_review_pending'
+  // with requires_aml_review=TRUE and snapshot the threshold value
+  // for audit. The admin Compliance dashboard surfaces these for
+  // super_admin review before disbursement.
+  let amlThresholdCentavos = 50_000_000; // RA 9160 ₱500K fallback default
+  try {
+    amlThresholdCentavos = await settingsService.getSettingInteger('aml_large_transaction_threshold_centavos');
+  } catch (err) {
+    logger.warn('AML threshold setting unavailable; using ₱500K fallback', {
+      error: (err as Error).message,
+    });
+  }
+  const requiresAmlReview = data.amount >= amlThresholdCentavos;
+
   interface ProviderRow { id: string }
   const providerResult = await db.query<ProviderRow>(
     `SELECT id FROM providers WHERE user_id = $1 AND status = 'approved'`,
@@ -77,11 +121,31 @@ export async function requestPayout(
       throw createAppError('Insufficient wallet balance.', 400);
     }
 
+    // MED-N77 fix: large payouts enter 'aml_review_pending' status
+    // with requires_aml_review=TRUE and a snapshot of the threshold
+    // that triggered the flag.
+    const status = requiresAmlReview ? 'aml_review_pending' : 'pending';
     const result = await client.query<PayoutRow>(
-      `INSERT INTO payouts (provider_id, wallet_id, amount, method, destination_account, account_name, notes, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') RETURNING *`,
-      [providerId, wallet.id, data.amount, data.method, data.destinationAccount, data.accountName ?? null, data.notes ?? null],
+      `INSERT INTO payouts (
+         provider_id, wallet_id, amount, method, destination_account,
+         account_name, notes, status, requires_aml_review,
+         aml_threshold_at_request_centavos
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [
+        providerId, wallet.id, data.amount, data.method, data.destinationAccount,
+        data.accountName ?? null, data.notes ?? null, status,
+        requiresAmlReview, amlThresholdCentavos,
+      ],
     );
+
+    if (requiresAmlReview) {
+      logger.warn('Payout flagged for AML review (RA 9160 covered transaction)', {
+        payoutId: result.rows[0]!.id,
+        providerId,
+        amount: data.amount,
+        thresholdCentavos: amlThresholdCentavos,
+      });
+    }
 
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, type, amount, balance_after, description, reference_id)
@@ -90,6 +154,49 @@ export async function requestPayout(
     );
 
     logger.info('Payout requested', { payoutId: result.rows[0]!.id, providerId, amount: data.amount });
+    return result.rows[0]!;
+  });
+}
+
+// MED-N77 fix: super_admin AML clearance step. A payout flagged at
+// request time (status='aml_review_pending', requires_aml_review=TRUE)
+// is held until super_admin clears it via this function. Clearance
+// transitions the row to standard 'pending' status so the existing
+// approvePayout / rejectPayout flow can take over. The decision is
+// audited via admin_actions with action_type='aml_review_cleared'.
+//
+// Caller (routes layer) MUST gate this with rbacMiddleware('super_admin')
+// — RA 9160 covered transactions are not a junior-admin call.
+export async function clearAmlReview(payoutId: string, superAdminId: string): Promise<PayoutRow> {
+  return db.transaction(async (client) => {
+    const result = await client.query<PayoutRow>(
+      `UPDATE payouts SET status = 'pending', reviewed_by = $1, reviewed_at = NOW()
+       WHERE id = $2 AND status = 'aml_review_pending' RETURNING *`,
+      [superAdminId, payoutId],
+    );
+    if (result.rows.length === 0) {
+      throw createAppError('Payout not found or not pending AML review.', 404);
+    }
+
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'aml_review_cleared', 'payout', $2, $3)`,
+      [
+        superAdminId,
+        payoutId,
+        JSON.stringify({
+          amount: Number(result.rows[0]!.amount),
+          method: result.rows[0]!.method,
+          aml_threshold_at_request: result.rows[0]!.amount, // we know it >= threshold by definition
+        }),
+      ],
+    );
+
+    logger.info('AML review cleared by super_admin', {
+      payoutId,
+      superAdminId,
+      amount: Number(result.rows[0]!.amount),
+    });
     return result.rows[0]!;
   });
 }

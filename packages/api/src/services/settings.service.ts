@@ -38,6 +38,15 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   minimum_withdrawal_amount: '10000',
   withdrawal_processing_days: '3',
 
+  // AML (Anti-Money Laundering, RA 9160)
+  // Single-payout threshold above which the request enters
+  // 'aml_review_pending' status and waits for super_admin approval.
+  // Default: ₱500,000 = 50,000,000 centavos (the AMLA covered-
+  // transaction threshold). Admin can tune via Settings UI; the
+  // value used at request time is snapshotted into
+  // payouts.aml_threshold_at_request_centavos for audit.
+  aml_large_transaction_threshold_centavos: '50000000',
+
   // Cancellation
   cancel_refund_over_24h: '100',
   cancel_refund_2_to_24h: '100',
