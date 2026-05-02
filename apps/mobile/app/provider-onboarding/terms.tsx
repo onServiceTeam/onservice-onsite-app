@@ -38,6 +38,9 @@ export default function TermsScreen(): React.ReactElement {
         nbiClearanceUrl: store.nbiClearanceUri,
         selfieUrl: store.selfieUri,
         icAgreementAccepted: true,
+        // Phase K MED-K07 — optional fields, dropped server-side when undefined.
+        ...(store.nbiExpiryDate ? { nbiExpiryDate: store.nbiExpiryDate } : {}),
+        ...(store.governmentIdNumber ? { governmentIdNumber: store.governmentIdNumber } : {}),
       });
       return res.data;
     },

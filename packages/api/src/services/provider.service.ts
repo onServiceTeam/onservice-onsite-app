@@ -285,6 +285,10 @@ export interface ProviderApplicationInput {
   governmentIdBackUrl: string;
   nbiClearanceUrl: string;
   selfieUrl: string;
+  // Phase K MED-K07: optional NBI expiry + ID number captured at
+  // application time (mig 115 + provider.validators.ts update).
+  nbiExpiryDate?: string;
+  governmentIdNumber?: string;
 }
 
 export async function createProviderApplication(
@@ -305,20 +309,53 @@ export async function createProviderApplication(
       [userId],
     );
 
-    const providerResult = await client.query<ProviderRow>(
-      `INSERT INTO providers (
-        user_id, business_name, service_radius_km, latitude, longitude,
-        city, province, government_id_front_url, government_id_back_url,
-        nbi_clearance_url, selfie_url, ic_agreement_accepted_at, applied_at, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW(), 'pending')
-      RETURNING *`,
-      [
-        userId, input.businessName, input.serviceRadiusKm,
-        input.latitude, input.longitude, input.city, input.province,
-        input.governmentIdFrontUrl, input.governmentIdBackUrl,
-        input.nbiClearanceUrl, input.selfieUrl,
-      ],
-    );
+    // Phase K MED-K07: optional nbi_expiry_date + government_id_number.
+    // Both columns nullable so legacy clients (or admins backfilling
+    // later) still work. The 42703 fallback handles deployments where
+    // mig 115 hasn't been applied yet — we drop the new column from
+    // the INSERT and retry with the legacy 11-column shape.
+    let providerResult;
+    try {
+      providerResult = await client.query<ProviderRow>(
+        `INSERT INTO providers (
+          user_id, business_name, service_radius_km, latitude, longitude,
+          city, province, government_id_front_url, government_id_back_url,
+          nbi_clearance_url, selfie_url, nbi_expiry_date, government_id_number,
+          ic_agreement_accepted_at, applied_at, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW(), 'pending')
+        RETURNING *`,
+        [
+          userId, input.businessName, input.serviceRadiusKm,
+          input.latitude, input.longitude, input.city, input.province,
+          input.governmentIdFrontUrl, input.governmentIdBackUrl,
+          input.nbiClearanceUrl, input.selfieUrl,
+          input.nbiExpiryDate ?? null,
+          input.governmentIdNumber ?? null,
+        ],
+      );
+    } catch (err: unknown) {
+      // Postgres SQLSTATE 42703 = undefined_column (mig 115 not yet
+      // applied). Retry with the legacy column set; the optional
+      // values are dropped silently in this case.
+      if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === '42703') {
+        providerResult = await client.query<ProviderRow>(
+          `INSERT INTO providers (
+            user_id, business_name, service_radius_km, latitude, longitude,
+            city, province, government_id_front_url, government_id_back_url,
+            nbi_clearance_url, selfie_url, ic_agreement_accepted_at, applied_at, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW(), 'pending')
+          RETURNING *`,
+          [
+            userId, input.businessName, input.serviceRadiusKm,
+            input.latitude, input.longitude, input.city, input.province,
+            input.governmentIdFrontUrl, input.governmentIdBackUrl,
+            input.nbiClearanceUrl, input.selfieUrl,
+          ],
+        );
+      } else {
+        throw err;
+      }
+    }
     const provider = providerResult.rows[0]!;
 
     for (const catId of input.categoryIds) {

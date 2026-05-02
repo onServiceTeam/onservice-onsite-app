@@ -14,6 +14,11 @@ export interface OnboardingState {
   nbiClearanceUri: string | null;
   selfieUri: string | null;
   icAgreed: boolean;
+  // Phase K MED-K07: optional NBI expiry + ID number captured on the
+  // documents step. Backend (mig 115 + provider.validators.ts) accepts
+  // them as optional fields on /providers/apply.
+  nbiExpiryDate: string | null;
+  governmentIdNumber: string | null;
 
   setRole: (role: 'customer' | 'provider') => void;
   setBusinessName: (name: string) => void;
@@ -21,6 +26,8 @@ export interface OnboardingState {
   setServiceArea: (area: { radiusKm: number; lat: number; lng: number; city: string; province: string }) => void;
   setDocument: (field: 'governmentIdFrontUri' | 'governmentIdBackUri' | 'nbiClearanceUri' | 'selfieUri', uri: string) => void;
   setIcAgreed: (agreed: boolean) => void;
+  setNbiExpiryDate: (date: string | null) => void;
+  setGovernmentIdNumber: (idNumber: string | null) => void;
   reset: () => void;
 }
 
@@ -38,6 +45,9 @@ const initialState = {
   nbiClearanceUri: null as string | null,
   selfieUri: null as string | null,
   icAgreed: false,
+  // Phase K MED-K07
+  nbiExpiryDate: null as string | null,
+  governmentIdNumber: null as string | null,
 };
 
 export const useOnboardingStore = create<OnboardingState>((set) => ({
@@ -55,5 +65,8 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   }),
   setDocument: (field, uri) => set({ [field]: uri }),
   setIcAgreed: (agreed) => set({ icAgreed: agreed }),
+  // Phase K MED-K07 setters.
+  setNbiExpiryDate: (date) => set({ nbiExpiryDate: date }),
+  setGovernmentIdNumber: (idNumber) => set({ governmentIdNumber: idNumber }),
   reset: () => set(initialState),
 }));

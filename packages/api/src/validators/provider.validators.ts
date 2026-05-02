@@ -8,6 +8,18 @@ import { phLatitude, phLongitude } from './ph-coords';
 
 const urlString = z.string().url('Must be a valid URL');
 
+// Phase K MED-K07 fix — accept optional nbiExpiryDate + idNumber
+// during provider onboarding. Pre-fix the schema dropped both fields
+// even if the client sent them, so the providers row insert had no
+// place to store them and the NBI lifecycle banner (CRIT-118) had to
+// fall back to status='missing' until an admin manually backfilled
+// the column. Post-fix: optional + ISO-8601 date format check; the
+// admin-manual workflow still works for legacy applicants.
+const isoDateString = z.string().regex(
+  /^\d{4}-\d{2}-\d{2}$/,
+  'Date must be in YYYY-MM-DD format',
+);
+
 export const providerApplicationSchema = z.object({
   businessName: z.string().min(2, 'Business name must be at least 2 characters').max(200),
   categoryIds: z.array(z.string().uuid()).min(1, 'Select at least one service category').max(10),
@@ -21,6 +33,9 @@ export const providerApplicationSchema = z.object({
   nbiClearanceUrl: urlString,
   selfieUrl: urlString,
   icAgreementAccepted: z.literal(true, 'You must accept the Independent Contractor agreement'),
+  // K-MED-K07: optional NBI expiry + ID number fields.
+  nbiExpiryDate: isoDateString.optional(),
+  governmentIdNumber: z.string().min(1).max(64).optional(),
 });
 
 export const updateProfileSchema = z.object({

@@ -33,6 +33,9 @@ router.post(
         governmentIdBackUrl: req.body.governmentIdBackUrl,
         nbiClearanceUrl: req.body.nbiClearanceUrl,
         selfieUrl: req.body.selfieUrl,
+        // Phase K MED-K07: optional fields, dropped when undefined.
+        nbiExpiryDate: req.body.nbiExpiryDate,
+        governmentIdNumber: req.body.governmentIdNumber,
       });
       res.status(201).json({
         success: true,

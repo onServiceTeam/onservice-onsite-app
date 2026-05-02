@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from 'react-native';
+// Phase K MED-K07 fix — capture optional NBI expiry date + ID number
+// during onboarding. Pre-fix the only NBI metadata captured was the
+// image URL; admins had to OCR the photo to backfill the
+// providers.nbi_expiry_date column the NbiStatusBanner depends on.
+// Post-fix: two optional text inputs below the document slots feed
+// the onboarding store; terms.tsx submit forwards them to
+// /providers/apply (validator + service updated in this same fix).
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, Image, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -83,7 +90,7 @@ export default function DocumentsScreen(): React.ReactElement {
         <Text style={styles.step}>3 / 5</Text>
       </View>
 
-      <View style={styles.body}>
+      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: spacing.lg }} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Verification Documents</Text>
         <Text style={styles.subtitle}>
           Upload your government ID and NBI clearance for identity verification.
@@ -121,7 +128,30 @@ export default function DocumentsScreen(): React.ReactElement {
             </TouchableOpacity>
           );
         })}
-      </View>
+
+        {/* Phase K MED-K07 fix — optional NBI expiry + ID number. */}
+        <Text style={styles.fieldLabel}>NBI Expiry Date (optional)</Text>
+        <Text style={styles.fieldHint}>Format: YYYY-MM-DD. Helps us warn you before it lapses.</Text>
+        <TextInput
+          style={styles.input}
+          value={store.nbiExpiryDate ?? ''}
+          onChangeText={(v) => store.setNbiExpiryDate(v.length === 0 ? null : v)}
+          placeholder="2027-01-15"
+          placeholderTextColor={colors.textTertiary}
+          autoCapitalize="none"
+          keyboardType="numbers-and-punctuation"
+        />
+        <Text style={styles.fieldLabel}>Government ID Number (optional)</Text>
+        <Text style={styles.fieldHint}>Speeds up admin review. Stored alongside the ID image.</Text>
+        <TextInput
+          style={styles.input}
+          value={store.governmentIdNumber ?? ''}
+          onChangeText={(v) => store.setGovernmentIdNumber(v.length === 0 ? null : v)}
+          placeholder="e.g. 1234-5678-9012"
+          placeholderTextColor={colors.textTertiary}
+          autoCapitalize="characters"
+        />
+      </ScrollView>
 
       <View style={styles.footer}>
         <Button title="Next" onPress={handleNext} disabled={!allUploaded} />
@@ -191,5 +221,19 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  // Phase K MED-K07 styles.
+  fieldLabel: { ...typography.body, fontWeight: '600', color: colors.text, marginTop: spacing.md, marginBottom: 2 },
+  fieldHint: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.sm },
+  input: {
+    ...typography.body,
+    color: colors.text,
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
   },
 });
