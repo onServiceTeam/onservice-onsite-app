@@ -246,6 +246,46 @@ export async function releasePartialEscrow(
 
   const breakdown = await commissionService.calculateCommission(proportionalServicePrice, provider.tier);
 
+  // MED-N25 + MED-N26 fix: pre-flight money math validation BEFORE
+  // we touch any wallet. Two distinct guards:
+  //
+  //   (a) MED-N25 — platformAmount (= remainingAmount - providerReceives
+  //       - guaranteeContribution) cannot be negative. If proportional
+  //       commission yields providerReceives + guarantee > remainingAmount
+  //       (possible in edge cases where serviceFee dominates total),
+  //       the platform revenue wallet would receive a NEGATIVE credit
+  //       recorded as 'commission' — money creation. Refuse.
+  //
+  //   (b) MED-N26 — sum of disbursements MUST equal remainingAmount
+  //       (mirrors the CRIT-N04 conservation check on the full release
+  //       path). Without this, a future code change to commission
+  //       math could silently break partial-release conservation.
+  const platformAmount = remainingAmount - breakdown.providerReceives - breakdown.guaranteeFundContribution;
+  if (platformAmount < 0) {
+    logger.error('PARTIAL ESCROW NEGATIVE PLATFORM AMOUNT', {
+      bookingId, remainingAmount,
+      providerReceives: breakdown.providerReceives,
+      guaranteeContribution: breakdown.guaranteeFundContribution,
+      platformAmount,
+    });
+    throw createAppError('Internal accounting error in partial release. Please contact support.', 500);
+  }
+  const totalOut = breakdown.providerReceives + platformAmount + breakdown.guaranteeFundContribution;
+  if (totalOut !== remainingAmount) {
+    const diff = remainingAmount - totalOut;
+    if (Math.abs(diff) <= 2) {
+      logger.debug('Rounding adjustment in partial escrow release', { bookingId, diff });
+    } else {
+      logger.error('MONEY CONSERVATION VIOLATION in partial escrow release', {
+        bookingId, remainingAmount, totalOut, diff,
+        providerReceives: breakdown.providerReceives,
+        platformAmount,
+        guaranteeContribution: breakdown.guaranteeFundContribution,
+      });
+      throw createAppError('Internal accounting error in partial release. Please contact support.', 500);
+    }
+  }
+
   const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
   const revenueWallet = await walletService.getPlatformWallet('platform_revenue');
   const guaranteeWallet = await walletService.getPlatformWallet('guarantee_fund');
@@ -286,7 +326,7 @@ export async function releasePartialEscrow(
        `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
     );
 
-    const platformAmount = remainingAmount - breakdown.providerReceives - breakdown.guaranteeFundContribution;
+    // platformAmount + conservation already validated above (MED-N25/N26).
     await client.query(
       `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
       [platformAmount, revenueWallet.id],
