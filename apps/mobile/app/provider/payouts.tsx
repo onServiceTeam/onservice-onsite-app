@@ -1,5 +1,11 @@
 import React, { useCallback } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+// Phase E CRIT-112 fix — payouts page no longer ships hardcoded fake
+// chart + commission preview. EarningsChart now hits the real
+// /providers/me/earnings/trends endpoint (same as the earnings tab
+// per CRIT-K08); CommissionBreakdown computed from the provider's
+// real tier (per CRIT-K09 / CRIT-101). The static 50000/75000/etc
+// numbers are gone.
 import {
   View,
   Text,
@@ -11,12 +17,13 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatRelative } from '@/utils/date';
 import { Badge } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { platformConfig } from '@/config/platform.config';
 // Phase 14 R5-complete — PaginationLoader + EarningsChart + CommissionBreakdown panels.
 import PaginationLoader from '@/components/PaginationLoader';
 import EarningsChart from '@/components/provider/EarningsChart';
@@ -89,6 +96,50 @@ export default function PayoutsScreen(): React.ReactElement {
   const payouts = data?.pages.flatMap((p) => p.payouts) ?? [];
   const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
 
+  // Phase E CRIT-112 fix — real /providers/me/earnings/trends data
+  // for the chart preview (was hardcoded 50000/75000/...). 30-day
+  // window so the chart matches the totals below.
+  const trendsQuery = useQuery<Array<{ period: string; netEarned: number; totalEarned: number; totalCommission: number }>>({
+    queryKey: ['providerEarningsTrends', 'daily', 30],
+    queryFn: async () => {
+      const res = await api.get<{ data: Array<{ period: string; netEarned: number | string; totalEarned: number | string; totalCommission: number | string }> }>(
+        '/api/v1/providers/me/earnings/trends?period=daily&days=30',
+      );
+      return res.data.data.map((r) => ({
+        period: r.period,
+        netEarned: Number(r.netEarned) || 0,
+        totalEarned: Number(r.totalEarned) || 0,
+        totalCommission: Number(r.totalCommission) || 0,
+      }));
+    },
+    staleTime: 60 * 1000,
+  });
+
+  // Provider tier for the commission breakdown.
+  const providerMeQuery = useQuery<{ tier: string }>({
+    queryKey: ['providerMe'],
+    queryFn: async () => {
+      const res = await api.get<{ data: { tier: string } }>('/api/v1/providers/me');
+      return { tier: res.data.data.tier };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const providerTier = providerMeQuery.data?.tier ?? 'new';
+  const tierCommissionRate =
+    platformConfig.commissionRates[providerTier] ?? platformConfig.commissionRates.new ?? 0.15;
+  const tierCommissionPct = Math.round(tierCommissionRate * 100);
+
+  // Aggregate the 30-day trends for the breakdown card.
+  const totals = (trendsQuery.data ?? []).reduce(
+    (acc, row) => ({
+      gross: acc.gross + row.totalEarned,
+      commission: acc.commission + row.totalCommission,
+      net: acc.net + row.netEarned,
+      total: acc.total + 1,
+    }),
+    { gross: 0, commission: 0, net: 0, total: 0 },
+  );
+
   const renderItem = ({ item }: { item: Payout }): React.ReactElement => (
     <View style={styles.card}>
       <View style={styles.cardTop}>
@@ -128,29 +179,31 @@ export default function PayoutsScreen(): React.ReactElement {
         <Text style={styles.title}>Payout History</Text>
       </View>
 
-      {/* Phase 14 R5-complete — EarningsChart + CommissionBreakdown preview */}
+      {/* Phase E CRIT-112 fix — EarningsChart + CommissionBreakdown
+           now driven by REAL backend data. */}
       <View style={{ paddingHorizontal: spacing.base, marginTop: spacing.sm }}>
         <EarningsChart
-          data={[
-            { date: '2026-04-25', amount: 50000 },
-            { date: '2026-04-26', amount: 75000 },
-            { date: '2026-04-27', amount: 25000 },
-            { date: '2026-04-28', amount: 100000 },
-            { date: '2026-04-29', amount: 60000 },
-            { date: '2026-04-30', amount: 85000 },
-            { date: '2026-05-01', amount: 45000 },
-          ]}
+          data={(trendsQuery.data ?? []).map((row) => ({
+            date: row.period.split('T')[0] ?? row.period,
+            amount: row.netEarned,
+          }))}
         />
-        <View style={{ marginTop: spacing.sm }}>
-          <CommissionBreakdown
-            gross={440000}
-            lines={[
-              { label: 'Platform fee', amount: 52800, pct: 12 },
-              { label: 'VAT', amount: 6336 },
-            ]}
-            net={380864}
-          />
-        </View>
+        {totals && totals.total > 0 && (
+          <View style={{ marginTop: spacing.sm }}>
+            <CommissionBreakdown
+              gross={totals.gross}
+              lines={[
+                {
+                  label: `Platform commission (${tierCommissionPct}%)`,
+                  amount: totals.commission,
+                  pct: tierCommissionPct,
+                  helpText: `Your tier (${providerTier}). Earn higher tier for lower commission.`,
+                },
+              ]}
+              net={totals.net}
+            />
+          </View>
+        )}
       </View>
 
       {isError ? (
