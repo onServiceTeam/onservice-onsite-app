@@ -270,7 +270,11 @@ describe('getBookingEvidence', () => {
     });
   });
 
-  it('returns photos + chat count + gps + receipts', async () => {
+  it('returns photos (UNION of legacy + new) + chat count; gpsCheckIns + receipts are empty arrays (MED-N08+N09)', async () => {
+    // MED-N09: photos query is now ONE call (UNION ALL across
+    // booking_images + booking_photos with normalized columns).
+    // MED-N08: gps_checkins + receipts dead-code lookups removed
+    // — function returns empty arrays for those fields.
     dbQueryMock
       .mockResolvedValueOnce(
         rows([{ id: BOOKING_ID, customer_id: CUSTOMER_ID, provider_user_id: 'pu1' }]),
@@ -279,61 +283,47 @@ describe('getBookingEvidence', () => {
         rows([
           {
             id: 'img1',
-            image_url: 'https://x/a.jpg',
-            image_type: 'before',
+            photo_url: 'https://x/a.jpg',
+            photo_type: 'before',
             uploaded_by: CUSTOMER_ID,
             created_at: new Date('2024-01-01T00:00:00Z'),
           },
           {
             id: 'img2',
-            image_url: 'https://x/b.jpg',
-            image_type: 'after',
+            photo_url: 'https://x/b.jpg',
+            photo_type: 'after',
             uploaded_by: 'pu1',
             created_at: new Date('2024-01-02T00:00:00Z'),
           },
         ]),
       )
-      .mockResolvedValueOnce(rows([{ cnt: '5' }]))
-      .mockResolvedValueOnce(rows([{ tbl: 'public.gps_checkins' }]))
-      .mockResolvedValueOnce(
-        rows([
-          {
-            created_at: new Date('2024-01-01T00:00:00Z'),
-            latitude: '14.5',
-            longitude: '121.0',
-            event_type: 'arrived',
-          },
-        ]),
-      )
-      .mockResolvedValueOnce(rows([{ tbl: 'public.receipts' }]))
-      .mockResolvedValueOnce(
-        rows([{ id: 'r1', url: 'https://x/r.pdf', created_at: new Date('2024-01-01T00:00:00Z') }]),
-      );
+      .mockResolvedValueOnce(rows([{ cnt: '5' }]));
 
     const out = await bookingSvc.getBookingEvidence(BOOKING_ID);
     expect(out.photos).toHaveLength(2);
     expect(out.photos[0].uploadedBy).toBe('customer');
     expect(out.photos[1].uploadedBy).toBe('provider');
     expect(out.chatMessageCount).toBe(5);
-    expect(out.gpsCheckIns).toEqual([
-      { at: '2024-01-01T00:00:00.000Z', lat: 14.5, lng: 121.0, eventType: 'arrived' },
-    ]);
-    expect(out.receipts[0].url).toBe('https://x/r.pdf');
+    // MED-N08: gpsCheckIns + receipts are always empty arrays now.
+    expect(out.gpsCheckIns).toEqual([]);
+    expect(out.receipts).toEqual([]);
   });
 
-  it('skips gps + receipts when to_regclass returns null', async () => {
+  it('photos query SQL is a single UNION ALL across both tables (MED-N09)', async () => {
     dbQueryMock
       .mockResolvedValueOnce(
         rows([{ id: BOOKING_ID, customer_id: CUSTOMER_ID, provider_user_id: 'pu1' }]),
       )
       .mockResolvedValueOnce(rows([]))
-      .mockResolvedValueOnce(rows([{ cnt: '0' }]))
-      .mockResolvedValueOnce(rows([{ tbl: null }]))
-      .mockResolvedValueOnce(rows([{ tbl: null }]));
-    const out = await bookingSvc.getBookingEvidence(BOOKING_ID);
-    expect(out.gpsCheckIns).toEqual([]);
-    expect(out.receipts).toEqual([]);
-    expect(out.chatMessageCount).toBe(0);
+      .mockResolvedValueOnce(rows([{ cnt: '0' }]));
+
+    await bookingSvc.getBookingEvidence(BOOKING_ID);
+
+    const photosCall = dbQueryMock.mock.calls[1]!;
+    expect(photosCall[0]).toMatch(/FROM booking_images/);
+    expect(photosCall[0]).toMatch(/FROM booking_photos/);
+    expect(photosCall[0]).toMatch(/UNION ALL/);
+    expect(photosCall[0]).toMatch(/deleted_at IS NULL/);
   });
 });
 

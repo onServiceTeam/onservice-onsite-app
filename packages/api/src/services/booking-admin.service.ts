@@ -466,17 +466,28 @@ export async function getBookingEvidence(bookingId: string): Promise<BookingEvid
   const booking = bookingResult.rows[0];
   if (!booking) throw createAppError('Booking not found.', 404);
 
+  // MED-N09 fix: read from BOTH the legacy `booking_images` table
+  // (pre-D07) AND the new canonical `booking_photos` table
+  // (migration 079, written to by the upload service since D07).
+  // Pre-fix: only legacy table was queried, so any photo uploaded
+  // through the post-D07 mobile flow was invisible to admin
+  // evidence review. UNION ALL with normalized columns; the
+  // resulting list is sorted by created_at across both sources.
   const photosResult = await db.query<{
     id: string;
-    image_url: string;
-    image_type: string;
+    photo_url: string;
+    photo_type: string | null;
     uploaded_by: string;
     created_at: Date;
   }>(
-    `SELECT id, image_url, image_type, uploaded_by, created_at
+    `SELECT id, image_url AS photo_url, image_type AS photo_type, uploaded_by, created_at
        FROM booking_images
       WHERE booking_id = $1
-      ORDER BY created_at ASC`,
+    UNION ALL
+     SELECT id, COALESCE(storage_url, storage_key) AS photo_url, photo_type, uploaded_by, created_at
+       FROM booking_photos
+      WHERE booking_id = $1 AND deleted_at IS NULL
+    ORDER BY created_at ASC`,
     [bookingId],
   );
 
@@ -485,10 +496,10 @@ export async function getBookingEvidence(bookingId: string): Promise<BookingEvid
       r.uploaded_by === booking.customer_id ? 'customer' : 'provider';
     return {
       id: r.id,
-      url: r.image_url,
+      url: r.photo_url,
       uploadedBy,
       uploadedAt: r.created_at.toISOString(),
-      caption: r.image_type ?? null,
+      caption: r.photo_type ?? null,
     };
   });
 
@@ -501,57 +512,14 @@ export async function getBookingEvidence(bookingId: string): Promise<BookingEvid
   );
   const chatMessageCount = Number(chatResult.rows[0]?.cnt ?? 0);
 
-  // GPS check-ins (best-effort — table may not exist yet)
+  // MED-N08 fix: pre-fix had two `to_regclass` defensive checks for
+  // `gps_checkins` and `receipts` tables that don't exist in any
+  // migration (and are not planned for v1.0). The dead code added
+  // two round-trips per evidence query for nothing. Removed; the
+  // BookingEvidence type still has the empty arrays for forward
+  // compatibility (admin UI renders an "empty" state).
   const gpsCheckIns: BookingEvidence['gpsCheckIns'] = [];
-  const gpsExists = await db.query<{ tbl: string | null }>(
-    `SELECT to_regclass('public.gps_checkins')::text AS tbl`,
-    [],
-  );
-  if (gpsExists.rows[0]?.tbl) {
-    const gpsRows = await db.query<{
-      created_at: Date;
-      latitude: string;
-      longitude: string;
-      event_type: string;
-    }>(
-      `SELECT created_at, latitude::text, longitude::text, event_type
-         FROM gps_checkins
-        WHERE booking_id = $1
-        ORDER BY created_at ASC`,
-      [bookingId],
-    );
-    for (const r of gpsRows.rows) {
-      gpsCheckIns.push({
-        at: r.created_at.toISOString(),
-        lat: Number(r.latitude),
-        lng: Number(r.longitude),
-        eventType: r.event_type,
-      });
-    }
-  }
-
-  // Receipts (best-effort)
   const receipts: BookingEvidence['receipts'] = [];
-  const receiptsExists = await db.query<{ tbl: string | null }>(
-    `SELECT to_regclass('public.receipts')::text AS tbl`,
-    [],
-  );
-  if (receiptsExists.rows[0]?.tbl) {
-    const receiptRows = await db.query<{ id: string; url: string; created_at: Date }>(
-      `SELECT id, url, created_at
-         FROM receipts
-        WHERE booking_id = $1
-        ORDER BY created_at ASC`,
-      [bookingId],
-    );
-    for (const r of receiptRows.rows) {
-      receipts.push({
-        id: r.id,
-        url: r.url,
-        createdAt: r.created_at.toISOString(),
-      });
-    }
-  }
 
   return { photos, chatMessageCount, gpsCheckIns, receipts };
 }
