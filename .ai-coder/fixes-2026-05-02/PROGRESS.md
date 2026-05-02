@@ -585,6 +585,51 @@ mobile-side risks closed:
 - K21 — platformConfig vs platform_settings divergence (would need
   runtime fetch on mobile to keep in sync)
 
+## Session 5g — Phase E provider screens wave 2 (CRIT-108/109/110/113)
+
+| # | Commit | Summary |
+|---|---|---|
+| 1 | 44ed81f | E-CRIT-108 + E-CRIT-109 + E-CRIT-110 + E-CRIT-113 (4 fixes + 21 tests) |
+
+### What landed in 5g
+
+**E-CRIT-113** — withdraw screen no longer ships a fake EarningsChart
+that synthesised 7 identical bars from `availableBalance/7`. Now hits
+the same `/providers/me/earnings/trends?period=daily&days=7` endpoint
+the payouts and earnings screens use, and only renders when real data
+exists.
+
+**E-CRIT-110** — `app/provider/skills.tsx` deprecated. The screen had
+hardcoded category ids (`cleaning-general`, `plumb-leak`, etc.) that
+never mapped to any real subcategory_id, and POSTed to a non-existent
+`/api/v1/providers/me/skills`. The real surface is `/provider/services`
+(canonical, fetches real categories, writes via `/me/services`). Same
+K06 redirect-on-mount pattern used to retire identity-verification.
+
+**E-CRIT-108** — `app/provider/portfolio.tsx` paste-image-URL UX
+replaced with real camera/gallery picker via expo-image-picker +
+`uploadImages()` multipart flow. Backend POST `/providers/me/portfolio`
+rejects `file://` (MED-N97 hardening) so the pre-fix flow couldn't be
+completed by a real provider.
+
+**E-CRIT-109** — `app/provider/certifications.tsx` same fix shape as
+CRIT-108. Certificate photo now picked from camera/gallery, uploaded
+via `/api/v1/uploads` to get an https URL, then sent to
+`/providers/me/certifications`. Edit mode preserves existing certUrl
+as preview if no new photo is picked.
+
+All four also migrated to canonical `getErrorMessage` helper.
+
+### Numbers (session 5g final)
+
+- **Mobile tests:** 354 passing + 91 todo (up from 339/89 in 5d).
+- **Backend tests:** 2444/2444 (unchanged).
+- **Phase E CRITs landed:** 101, 105, 108, 109, 110, 112, 113, 114, 116, 117, 119.
+- **Phase E CRITs remaining:** 102/103/104 (signature persistence — needs
+  backend signature-storage endpoint), 111 (service-area POST endpoint
+  missing), 115 (orphan, deprecated by K06), 118 (NbiStatusBanner
+  endpoint missing).
+
 ## RESUME instructions for the next session
 
 1. Backend audit findings (Phase B + C + N + M + O) substantially
