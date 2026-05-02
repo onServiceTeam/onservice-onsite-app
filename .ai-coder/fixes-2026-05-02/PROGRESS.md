@@ -475,6 +475,48 @@ mobile-side risks closed:
   (k8s/ECS preStop hook, SIGTERM grace period >= 30s).
 - Backend: DB_SSL_REJECT_UNAUTHORIZED=true in production (default).
 
+## Session 5e (2026-05-02 cont.) — Phase D wave + error helper
+
+### Phase D CRITs landed (4 commits)
+
+| # | Commit | Items |
+|---|---|---|
+| 1 | e9857a6 | D-CRIT-72 (logout server call) + D-CRIT-77 (Boracay map default) + D-CRIT-82 (apiUrl prod requires env) + D-CRIT-88 (super_admin/dpo role union) |
+| 2 | d86e9f3 | D-CRIT-89 (payment-failed 72h timer) |
+| 3 | 4c8448b | D-CRIT-69 + K-MED-K04 (canonical getErrorMessage helper + login wired) |
+| 4 | 668b387 | D-CRIT-69 follow (otp-verify + register wired) |
+| 5 | 7edb19d | D-CRIT-69 batch (all 25 remaining mobile callers migrated) |
+
+### Numbers (session 5e final)
+
+- **Mobile tests:** 339 passing + 89 todo (was 339/89 at session 5d).
+- **Backend tests:** 2444/2444 (unchanged).
+- **D CRITs landed:** D-CRIT-68 (already fixed via K03 single-flight),
+  D-CRIT-69 (error helper + 27 callers migrated), D-CRIT-71 (already
+  K11), D-CRIT-72 (logout), D-CRIT-77 (map default), D-CRIT-78
+  (already K11), D-CRIT-82 (apiUrl), D-CRIT-85/86/87/91 (already
+  K03/K04/K12), D-CRIT-88 (role union), D-CRIT-89 (payment-failed
+  timer).
+
+### D MEDs / CRITs remaining (lower-priority)
+
+- D-CRIT-70 — register flow can leave empty profile if register call
+  fails after verifyOtp (would need transactional create-user-with-
+  profile endpoint on backend)
+- D-CRIT-73 — profile error handling (already fixed via D-CRIT-69)
+- D-CRIT-74 — booking created BEFORE payment attempt (architectural;
+  needs payment-first flow redesign)
+- D-CRIT-75 — mobile fee constants vs server (already addressed via
+  B-CRIT-13 backend-side)
+- D-CRIT-76 — tip cap hardcoded (mobile mirrors server validator;
+  could fetch live)
+- D-CRIT-79/80 — dead Routes constants (Routes.CUSTOMER.WALLET +
+  Routes.CUSTOMER.SETTINGS — needs route-name audit)
+- D-CRIT-81 — platformConfig duplicates server (K-MED-K21 dup)
+- D-CRIT-83 — TOS escrow timing 48h vs server 24h (legal copy edit)
+- D-CRIT-84 — two account-deletion flows (UX scope)
+- D-CRIT-90 — auto-confirm hours mismatch (legal copy edit)
+
 ## Session 5d (2026-05-02 cont.) — Phase K MED polish wave
 
 | # | Commit | Items |
