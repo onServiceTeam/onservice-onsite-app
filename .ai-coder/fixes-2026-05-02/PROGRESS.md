@@ -131,6 +131,7 @@ Landed:
 | 24cf86b | MED-N15 | flag_fraud uses correct action_type + queryable boolean |
 | d3690b8 | MED-N16 | fraud-pattern thresholds admin-tunable |
 | 647b4e4 | MED-N18+N24 | noshow window tunable + remove dismissed status |
+| 46971df | MED-N06+N07 | commission optimization reads live rate + recognizes founding |
 
 **Deferred:** MED-N27 (handleCancellation atomicity) — needs a 9-test
 rewrite that's larger than the fix itself; left as the next session's
@@ -139,8 +140,20 @@ trx-aware variant `handleCancellationInTransaction` (used by the
 booking-admin path) is already correct.
 
 **Audit findings remaining (rough counts, v1.1 backlog):**
-- MED-N: ~150 of 169 still open
+- MED-N: ~140 of 169 still open
 - MED-K, L, M, O batches: not yet touched in fixes phase
+
+## Session 2 final state — 2026-05-02 (final)
+
+- **Test suite:** 1895/1895 passing.
+- **Commits this session:** 28+ total (Wave 2 P1 + P2 + 9 v1.1 MEDs + escalations + docs).
+- **Net new tests:** +274 (started at 1621 in session 1 close).
+- **Net new migrations:** 7 (089–095 + 096) all compatible with prod schema.
+- **Next session priorities:**
+  1. Check `.ai-coder/decisions/` for Ken responses on E01 / E02.
+  2. If no decisions, tackle MED-N27 with the test rewrite (8-test
+     transition to dbTransactionMock pattern), then continue v1.1
+     backlog from MED-N04 (memory-loaded churn pagination) onward.
 
 ## RESUME instructions for the next session
 
