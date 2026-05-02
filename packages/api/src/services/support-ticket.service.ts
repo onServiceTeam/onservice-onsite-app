@@ -1,6 +1,43 @@
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
+import {
+  maskPhilippinePhone,
+  maskEmail,
+  type ActorRole,
+} from '../utils/pii-mask';
+
+// MED-N137 fix — role-aware PII masking for support tickets returned
+// to admin queries. Pre-fix every admin role saw raw user_phone +
+// user_email + user_first_name + user_last_name. Post-fix:
+//   - super_admin: raw (audit the read at the route layer if surfaced
+//     via a "reveal" affordance).
+//   - dpo: masked phone/email (DPO doesn't need raw user contacts to
+//     do their compliance job).
+//   - all other admin roles: masked phone/email + last initial only.
+// First name is always preserved (needed to greet the customer in
+// reply messages).
+export function maskTicketForRole<T extends {
+  user_phone?: string | null;
+  user_email?: string | null;
+  user_last_name?: string | null;
+}>(ticket: T, role: ActorRole | null | undefined): T {
+  // Only super_admin sees raw; null/undefined defaults to FULL masking
+  // (defense in depth — never assume an unknown role is privileged).
+  if (role === 'super_admin') return ticket;
+  const out: T = { ...ticket };
+  if (out.user_phone !== undefined) {
+    out.user_phone = maskPhilippinePhone(out.user_phone) as T['user_phone'];
+  }
+  if (out.user_email !== undefined) {
+    out.user_email = maskEmail(out.user_email) as T['user_email'];
+  }
+  // Last name: keep first letter only for non-super_admin/non-dpo.
+  if (role !== 'dpo' && out.user_last_name) {
+    out.user_last_name = (out.user_last_name.charAt(0) + '.') as T['user_last_name'];
+  }
+  return out;
+}
 
 const VALID_TICKET_TYPES = ['booking_issue', 'payment_issue', 'provider_no_show', 'app_bug', 'account_issue', 'general_inquiry'] as const;
 const VALID_STATUSES = ['open', 'in_progress', 'waiting_on_customer', 'waiting_on_provider', 'escalated', 'resolved', 'closed'] as const;
@@ -23,6 +60,7 @@ export interface SupportTicket {
   created_at: string;
   updated_at: string;
   user_phone?: string;
+  user_email?: string;
   user_first_name?: string;
   user_last_name?: string;
   agent_first_name?: string;
@@ -137,6 +175,10 @@ export async function createTicket(params: {
   subject: string;
   description: string;
   bookingId?: string;
+  // MED-N135 fix — when admin creates a ticket on behalf of a user
+  // (or system creates one from a webhook), capture the acting admin
+  // for the audit trail. Optional for back-compat.
+  createdByAdminId?: string;
 }): Promise<SupportTicket> {
   if (!VALID_TICKET_TYPES.includes(params.type as typeof VALID_TICKET_TYPES[number])) {
     throw createAppError(`Invalid ticket type: ${params.type}`, 400);
@@ -151,15 +193,38 @@ export async function createTicket(params: {
     throw createAppError('Description must be 5000 characters or fewer.', 400);
   }
   const ticketNumber = await generateTicketNumber();
-  const result = await db.query<SupportTicket>(
-    `INSERT INTO support_tickets (ticket_number, user_id, type, priority, subject, description, booking_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING *`,
-    [ticketNumber, params.userId, params.type, params.priority, params.subject, params.description, params.bookingId ?? null],
-  );
-  logger.info('Support ticket created', { ticketId: result.rows[0]?.id, ticketNumber });
-  const ticket = result.rows[0];
-  if (!ticket) throw new Error('Failed to create ticket.');
+
+  // MED-N135 fix — wrap INSERT + (optional) admin_actions audit in trx.
+  const ticket = await db.transaction(async (client) => {
+    const result = await client.query<SupportTicket>(
+      `INSERT INTO support_tickets (ticket_number, user_id, type, priority, subject, description, booking_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [ticketNumber, params.userId, params.type, params.priority, params.subject, params.description, params.bookingId ?? null],
+    );
+    if (result.rows.length === 0) throw new Error('Failed to create ticket.');
+    if (params.createdByAdminId && params.createdByAdminId !== params.userId) {
+      await client.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details)
+         VALUES ($1, 'config_changed', 'support_ticket', $2, $3::jsonb)`,
+        [
+          params.createdByAdminId,
+          result.rows[0]!.id,
+          JSON.stringify({
+            op: 'create_on_behalf_of_user',
+            ticketNumber,
+            forUserId: params.userId,
+            type: params.type,
+            priority: params.priority,
+          }),
+        ],
+      );
+    }
+    return result.rows[0]!;
+  });
+
+  logger.info('Support ticket created', { ticketId: ticket.id, ticketNumber });
   return ticket;
 }
 
@@ -173,21 +238,27 @@ export async function addMessage(params: {
   if (params.message.length > 5000) {
     throw createAppError('Message must be 5000 characters or fewer.', 400);
   }
-  const result = await db.query<TicketMessage>(
-    `INSERT INTO support_ticket_messages (ticket_id, sender_id, sender_role, message, is_internal_note)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
-    [params.ticketId, params.senderId, params.senderRole, params.message, params.isInternalNote ?? false],
-  );
 
-  await db.query(
-    `UPDATE support_tickets SET updated_at = NOW() WHERE id = $1`,
-    [params.ticketId],
-  );
-
-  const msg = result.rows[0];
-  if (!msg) throw new Error('Failed to add message.');
-  return msg;
+  // MED-N136 fix — INSERT message + UPDATE ticket timestamp in single
+  // trx. Pre-fix the two queries were separate; if the UPDATE failed
+  // after the INSERT committed, the ticket's updated_at was stale and
+  // affected sort order in conversation listings + "new message"
+  // notification ordering.
+  return db.transaction(async (client) => {
+    const result = await client.query<TicketMessage>(
+      `INSERT INTO support_ticket_messages (ticket_id, sender_id, sender_role, message, is_internal_note)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [params.ticketId, params.senderId, params.senderRole, params.message, params.isInternalNote ?? false],
+    );
+    await client.query(
+      `UPDATE support_tickets SET updated_at = NOW() WHERE id = $1`,
+      [params.ticketId],
+    );
+    const msg = result.rows[0];
+    if (!msg) throw new Error('Failed to add message.');
+    return msg;
+  });
 }
 
 export async function updateTicketStatus(

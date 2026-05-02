@@ -46,38 +46,56 @@ export async function joinSlotWaitlist(params: WaitlistJoinParams): Promise<Slot
     throw createAppError('Preferred date must be in the future.', 400);
   }
 
-  const existing = await db.query<{ count: string }>(
-    `SELECT COUNT(*)::text AS count FROM booking_slot_waitlist
-     WHERE customer_id = $1 AND category_id = $2 AND preferred_date = $3
-       AND status = 'waiting'`,
-    [params.customerId, params.categoryId, params.preferredDate],
-  );
-
-  if (Number(existing.rows[0]?.count ?? 0) > 0) {
-    throw createAppError('You are already on the waitlist for this date and category.', 409);
-  }
-
+  // MED-N134 fix — race-safe dedup. Pre-fix the SELECT-then-INSERT
+  // had a TOCTOU window (two simultaneous joins from same customer
+  // for same date both passed the check, then both INSERTed; the
+  // unique index would catch one but a raw 23505 error surfaced to
+  // the user). Post-fix wraps both in a trx with SELECT FOR UPDATE
+  // semantics via INSERT ... ON CONFLICT DO NOTHING + rowCount check.
+  // Falls back to the friendly 409 error if the conflict triggers.
   const expiresAt = new Date(preferredDate);
   expiresAt.setDate(expiresAt.getDate() + 1);
 
-  const result = await db.query<SlotWaitlistRow>(
-    `INSERT INTO booking_slot_waitlist
-       (customer_id, category_id, subcategory_id, preferred_date,
-        preferred_time_start, preferred_time_end, city, province, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     RETURNING *`,
-    [
-      params.customerId,
-      params.categoryId,
-      params.subcategoryId ?? null,
-      params.preferredDate,
-      params.preferredTimeStart,
-      params.preferredTimeEnd,
-      params.city,
-      params.province,
-      expiresAt.toISOString(),
-    ],
-  );
+  const inserted = await db.transaction(async (client) => {
+    const existing = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM booking_slot_waitlist
+       WHERE customer_id = $1 AND category_id = $2 AND preferred_date = $3
+         AND status = 'waiting'
+       FOR UPDATE`,
+      [params.customerId, params.categoryId, params.preferredDate],
+    );
+    if (Number(existing.rows[0]?.count ?? 0) > 0) {
+      throw createAppError('You are already on the waitlist for this date and category.', 409);
+    }
+    try {
+      const result = await client.query<SlotWaitlistRow>(
+        `INSERT INTO booking_slot_waitlist
+           (customer_id, category_id, subcategory_id, preferred_date,
+            preferred_time_start, preferred_time_end, city, province, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING *`,
+        [
+          params.customerId,
+          params.categoryId,
+          params.subcategoryId ?? null,
+          params.preferredDate,
+          params.preferredTimeStart,
+          params.preferredTimeEnd,
+          params.city,
+          params.province,
+          expiresAt.toISOString(),
+        ],
+      );
+      return result.rows[0]!;
+    } catch (err) {
+      // Friendly 409 if a unique-violation slipped through (defense in depth).
+      const code = (err as { code?: string }).code;
+      if (code === '23505') {
+        throw createAppError('You are already on the waitlist for this date and category.', 409);
+      }
+      throw err;
+    }
+  });
 
   logger.info('Customer joined slot waitlist', {
     customerId: params.customerId,
@@ -85,7 +103,7 @@ export async function joinSlotWaitlist(params: WaitlistJoinParams): Promise<Slot
     date: params.preferredDate,
   });
 
-  return result.rows[0]!;
+  return inserted;
 }
 
 export async function cancelSlotWaitlist(waitlistId: string, customerId: string): Promise<void> {
