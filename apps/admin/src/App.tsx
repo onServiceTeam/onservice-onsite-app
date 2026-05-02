@@ -33,6 +33,8 @@ const DispatchConsolePage = lazy(() => import('@/pages/DispatchConsolePage'));
 const CompliancePage = lazy(() => import('@/pages/CompliancePage'));
 const DataProtectionLogPage = lazy(() => import('@/pages/DataProtectionLogPage'));
 const ConsentVersionsPage = lazy(() => import('@/pages/ConsentVersionsPage'));
+// Phase L MED-L01 fix — 404 catch-all page.
+const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 
 export default function App(): React.ReactElement {
   const hydrate = useAuthStore((s) => s.hydrate);
@@ -80,6 +82,10 @@ export default function App(): React.ReactElement {
           <Route path="/data-protection-log" element={<DataProtectionLogPage />} />
           <Route path="/consent-versions" element={<ConsentVersionsPage />} />
           <Route path="/pricing-rules" element={<PricingRulesPage />} />
+          {/* Phase L MED-L01 fix — catch-all 404. Inside AdminLayout
+               so admin chrome stays visible; pre-fix typoed URLs just
+               rendered a blank page. */}
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </Sentry.ErrorBoundary>
