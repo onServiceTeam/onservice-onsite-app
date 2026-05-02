@@ -270,6 +270,23 @@ router.post(
         imageUrl: string; caption?: string; categoryId?: string; displayOrder?: number;
       };
       if (!imageUrl || typeof imageUrl !== 'string') throw createAppError('imageUrl is required.', 400);
+      // MED-N97 fix: same Bug 36/461/1224 family as booking photo
+      // validation. Reject `file://` URIs and other non-HTTP schemes
+      // — the URL must come from the /api/v1/uploads multipart step
+      // so it's a real S3 / local-uploads URL viewable by anyone
+      // browsing the provider's portfolio.
+      if (!/^https?:\/\//i.test(imageUrl)) {
+        throw createAppError(
+          'Invalid imageUrl. Portfolio images must be uploaded via /api/v1/uploads first; raw file:// URIs are not accepted.',
+          400,
+        );
+      }
+      // MED-N97 fix: cap portfolio at 50 items per provider so a
+      // misbehaving client can't fill the table with junk.
+      const existing = await providerService.getPortfolio(provider.id);
+      if (existing.length >= 50) {
+        throw createAppError('Portfolio is at its 50-item limit. Delete an item before adding another.', 400);
+      }
       const item = await providerService.addPortfolioItem(provider.id, { imageUrl, caption, categoryId, displayOrder });
       res.status(201).json({ success: true, data: providerService.formatPortfolioItem(item) });
     } catch (error) {

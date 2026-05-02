@@ -882,7 +882,15 @@ router.post(
     try {
       const id = getParamId(req);
       await verifyBookingAccess(id, req.user!.userId, req.user!.role);
-      const { phase, urls } = req.body as { phase: 'before' | 'after'; urls: string[] };
+      const { phase, urls, mimeTypes } = req.body as {
+        phase: 'before' | 'after';
+        urls: string[];
+        // MED-N89 fix: optional per-photo MIME type. Mobile clients
+        // know the picked photo's mimeType from ImagePicker and the
+        // /api/v1/uploads response includes it; pass it through here
+        // so booking_photos.mime_type stops being a hardcoded lie.
+        mimeTypes?: string[];
+      };
 
       if (!phase || !['before', 'after'].includes(phase)) {
         throw createAppError('Phase must be "before" or "after".', 400);
@@ -892,6 +900,25 @@ router.post(
       }
       if (urls.length > 20) {
         throw createAppError('Maximum 20 photos per phase.', 400);
+      }
+      if (mimeTypes !== undefined) {
+        if (!Array.isArray(mimeTypes) || mimeTypes.length !== urls.length) {
+          throw createAppError(
+            'mimeTypes (when provided) must be an array with the same length as urls.',
+            400,
+          );
+        }
+        const allowed = new Set([
+          'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
+        ]);
+        for (const m of mimeTypes) {
+          if (typeof m !== 'string' || !allowed.has(m)) {
+            throw createAppError(
+              `Invalid mimeType "${m}". Allowed: image/jpeg, image/png, image/webp, image/heic, image/heif.`,
+              400,
+            );
+          }
+        }
       }
 
       // Phase 14 Dispatch 07 — Bug 36 + 461 + 1224 root-cause guard.
@@ -918,12 +945,29 @@ router.post(
       // until D11/D12 mobile polish migrates the readers.
       const column = phase === 'before' ? 'provider_before_photos' : 'provider_after_photos';
       const photoType = phase; // 'before' | 'after' — both valid in booking_photos.photo_type CHECK
+      // MED-N89 fix: derive each photo's MIME type from
+      // (a) explicit mimeTypes[i] when the client provided one
+      //     (mobile knows from ImagePicker / /api/v1/uploads);
+      // (b) URL extension as fallback (.png/.webp/.heic/.heif/.jpg);
+      // (c) image/jpeg as final default.
+      function mimeFromUrl(u: string): string {
+        const lower = u.toLowerCase().split(/[?#]/)[0]!;
+        if (lower.endsWith('.png')) return 'image/png';
+        if (lower.endsWith('.webp')) return 'image/webp';
+        if (lower.endsWith('.heic')) return 'image/heic';
+        if (lower.endsWith('.heif')) return 'image/heif';
+        if (lower.endsWith('.jpeg') || lower.endsWith('.jpg')) return 'image/jpeg';
+        return 'image/jpeg';
+      }
+
       await db.transaction(async (client) => {
         await client.query(
           `UPDATE bookings SET ${column} = array_cat(${column}, $1::text[]), updated_at = NOW() WHERE id = $2`,
           [urls, id],
         );
-        for (const url of urls) {
+        for (let i = 0; i < urls.length; i++) {
+          const url = urls[i]!;
+          const resolvedMime = mimeTypes?.[i] ?? mimeFromUrl(url);
           await client.query(
             `INSERT INTO booking_photos
                (booking_id, uploaded_by, uploaded_by_role, photo_type,
@@ -936,7 +980,7 @@ router.post(
               photoType,
               url, // legacy callers don't have a separate storage_key; URL doubles as both
               url,
-              'image/jpeg',
+              resolvedMime,
             ],
           );
         }
