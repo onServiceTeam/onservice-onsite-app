@@ -144,10 +144,35 @@ export async function decide(input: {
       [input.changeId, input.decision, input.adminUserId, input.reason.trim()],
     );
 
-    // If approved, apply the area change to the provider profile.
+    // MED-N146 fix — pre-fix, the UPDATE applied to providers WHERE
+    // user_id = $1 silently affected 0 rows if the provider had been
+    // deleted between request submission and admin decision. The
+    // change_request was marked 'approved' but the actual provider
+    // profile was unchanged. Customer-visible service area would not
+    // reflect the approved request.
+    //
+    // Post-fix: verify the provider row exists and is non-suspended
+    // BEFORE the UPDATE. If missing, throw 409 — admin sees a clear
+    // error and can reject the request instead.
     if (input.decision === 'approved') {
       const row = updated.rows[0]!;
-      await client.query(
+      const provCheck = await client.query<{ id: string; status: string }>(
+        `SELECT id, status FROM providers WHERE user_id = $1 LIMIT 1 FOR UPDATE`,
+        [row.provider_id],
+      );
+      if (provCheck.rows.length === 0) {
+        throw createAppError(
+          'Cannot approve: the provider account no longer exists. Please reject this request.',
+          409,
+        );
+      }
+      if (provCheck.rows[0]!.status === 'suspended') {
+        throw createAppError(
+          'Cannot approve: the provider is currently suspended. Please reject this request.',
+          409,
+        );
+      }
+      const updateRes = await client.query(
         `UPDATE providers
             SET service_area_id = $2,
                 service_radius_km = $3,
@@ -155,6 +180,12 @@ export async function decide(input: {
           WHERE user_id = $1`,
         [row.provider_id, row.requested_area_id, row.requested_radius_km],
       );
+      if ((updateRes.rowCount ?? 0) === 0) {
+        // Defense-in-depth: should be impossible after the SELECT
+        // above (same trx, FOR UPDATE) but if it happens we'd rather
+        // roll back than silently lie about success.
+        throw createAppError('Provider profile update did not match a row. Aborting.', 500);
+      }
     }
 
     const verb = input.decision === 'approved'

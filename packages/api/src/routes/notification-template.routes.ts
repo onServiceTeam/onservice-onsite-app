@@ -99,7 +99,9 @@ router.delete(
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Template ID is required.', 400);
 
-      await templateService.deleteTemplate(id);
+      // MED-N142 fix — pass the actor's userId so the service can
+      // record the admin_actions audit row.
+      await templateService.deleteTemplate(id, req.user!.userId);
       res.json({ success: true, data: { message: 'Template deleted.' } });
     } catch (error) {
       next(error);

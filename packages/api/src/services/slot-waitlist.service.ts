@@ -138,6 +138,15 @@ export async function processSlotAvailability(
 
   if (waitlistEntries.rows.length === 0) return 0;
 
+  // MED-N133 fix — pre-fix this UPDATEd status='notified' but never
+  // actually dispatched a notification. The customer waiting on a
+  // cancelled-and-now-available slot got no signal. Post-fix: for
+  // each entry we (a) flip status to 'notified' and (b) call
+  // notificationService.createNotification with type 'area_launch'
+  // (closest existing type — slot newly available is conceptually
+  // the same shape). Notifications run AFTER the bulk UPDATE so the
+  // status flip stays atomic; per-entry notification failures are
+  // caught and logged but never block the batch.
   const ids = waitlistEntries.rows.map((e) => e.id);
   await db.query(
     `UPDATE booking_slot_waitlist SET status = 'notified', notified_at = NOW()
@@ -145,7 +154,33 @@ export async function processSlotAvailability(
     [ids],
   );
 
-  logger.info('Slot waitlist entries notified', {
+  // Best-effort dispatch — never block the cron / triggering caller.
+  for (const entry of waitlistEntries.rows) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const notificationService = require('./notification.service');
+      await notificationService.createNotification({
+        userId: entry.customer_id,
+        type: 'area_launch',
+        title: 'A slot just opened in your wishlist',
+        body: `A booking slot for ${availableDate} in ${city} is now available. Open the app to grab it before it's gone.`,
+        data: {
+          waitlistId: entry.id,
+          categoryId,
+          city,
+          availableDate,
+        },
+      });
+    } catch (err) {
+      logger.error('Slot waitlist notification dispatch failed', {
+        waitlistId: entry.id,
+        customerId: entry.customer_id,
+        error: err instanceof Error ? err.message : 'Unknown',
+      });
+    }
+  }
+
+  logger.info('Slot waitlist entries notified + dispatched', {
     categoryId,
     city,
     date: availableDate,

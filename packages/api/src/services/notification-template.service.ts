@@ -153,12 +153,51 @@ export async function updateTemplate(
   return result.rows[0]!;
 }
 
-export async function deleteTemplate(templateId: string): Promise<void> {
-  const result = await db.query(
-    `DELETE FROM notification_templates WHERE id = $1 RETURNING id`,
-    [templateId],
-  );
-  if (result.rowCount === 0) throw createAppError('Template not found.', 404);
+// MED-N142 fix — pre-fix this did a hard DELETE with no
+// admin_actions audit. Templates power critical customer comms (OTP
+// SMS, booking confirmations); a deletion later "I didn't get the
+// confirmation SMS" report had no trail of who broke the template.
+//
+// Post-fix: capture the row's slug + content BEFORE deleting (for
+// the audit details so admin can restore from the audit row if
+// needed) + INSERT the admin_actions row in the same transaction.
+// The action_type 'config_changed' is the existing catch-all; we put
+// the slug + the deleted state under details so the trail is full.
+export async function deleteTemplate(templateId: string, deletedByAdminId: string): Promise<void> {
+  return db.transaction(async (client) => {
+    const before = await client.query<TemplateRow>(
+      `SELECT * FROM notification_templates WHERE id = $1 FOR UPDATE`,
+      [templateId],
+    );
+    if (before.rows.length === 0) throw createAppError('Template not found.', 404);
+    const tpl = before.rows[0]!;
+
+    const result = await client.query(
+      `DELETE FROM notification_templates WHERE id = $1`,
+      [templateId],
+    );
+    if ((result.rowCount ?? 0) === 0) throw createAppError('Template not found.', 404);
+
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'config_changed', 'notification_template', $2, $3::jsonb)`,
+      [
+        deletedByAdminId,
+        templateId,
+        JSON.stringify({
+          op: 'delete',
+          slug: tpl.slug,
+          type: tpl.type,
+          channel: tpl.channel,
+          // Snapshot the content so admin can re-create from the audit log.
+          deletedTitleTemplate: tpl.title_template,
+          deletedBodyTemplate: tpl.body_template,
+        }),
+      ],
+    );
+    logger.info('Notification template deleted', { templateId, slug: tpl.slug, deletedByAdminId });
+  });
 }
 
 export function renderTemplate(

@@ -70,7 +70,11 @@ router.put(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] as string;
-      const promo = await promotionService.updatePromotion(id, req.body as Record<string, unknown>);
+      // MED-N151 fix — pass actor for audit row.
+      const promo = await promotionService.updatePromotion(id, {
+        ...(req.body as Record<string, unknown>),
+        updatedByAdminId: req.user!.userId,
+      });
       res.json({ success: true, data: promotionService.formatPromotion(promo) });
     } catch (error) {
       next(error);
@@ -85,7 +89,8 @@ router.delete(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] as string;
-      await promotionService.deletePromotion(id);
+      // MED-N150 fix — pass actor for audit row.
+      await promotionService.deletePromotion(id, req.user!.userId);
       res.json({ success: true, data: { message: 'Promotion deleted.' } });
     } catch (error) {
       next(error);

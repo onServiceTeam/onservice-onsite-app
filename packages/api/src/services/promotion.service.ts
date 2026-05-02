@@ -65,64 +65,140 @@ export interface CreatePromotionParams {
   createdBy?: string;
 }
 
+// MED-N150 + MED-N151 fix — promotions are admin-managed customer-
+// facing marketing copy. Pre-fix create / update / delete all ran as
+// raw db.query with no admin_actions audit. Post-fix each one runs
+// in a transaction that also writes an audit row of type
+// 'config_changed' with op + before/after snapshots in details.
 export async function createPromotion(params: CreatePromotionParams): Promise<PromotionRow> {
-  const result = await db.query<PromotionRow>(
-    `INSERT INTO promotions (title, subtitle, image_url, badge, cta_text, cta_link, target_audience, start_date, end_date, display_order, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamptz, NOW()), $9::timestamptz, COALESCE($10, 0), $11)
-     RETURNING *`,
-    [
-      params.title,
-      params.subtitle ?? null,
-      params.imageUrl ?? null,
-      params.badge ?? null,
-      params.ctaText ?? null,
-      params.ctaLink ?? null,
-      params.targetAudience ?? 'all',
-      params.startDate ?? null,
-      params.endDate ?? null,
-      params.displayOrder ?? 0,
-      params.createdBy ?? null,
-    ],
-  );
-  logger.info('Promotion created', { id: result.rows[0]!.id, title: params.title });
-  return result.rows[0]!;
+  return db.transaction(async (client) => {
+    const result = await client.query<PromotionRow>(
+      `INSERT INTO promotions (title, subtitle, image_url, badge, cta_text, cta_link, target_audience, start_date, end_date, display_order, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamptz, NOW()), $9::timestamptz, COALESCE($10, 0), $11)
+       RETURNING *`,
+      [
+        params.title,
+        params.subtitle ?? null,
+        params.imageUrl ?? null,
+        params.badge ?? null,
+        params.ctaText ?? null,
+        params.ctaLink ?? null,
+        params.targetAudience ?? 'all',
+        params.startDate ?? null,
+        params.endDate ?? null,
+        params.displayOrder ?? 0,
+        params.createdBy ?? null,
+      ],
+    );
+    const row = result.rows[0]!;
+    if (params.createdBy) {
+      await client.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details)
+         VALUES ($1, 'config_changed', 'promotion', $2, $3::jsonb)`,
+        [
+          params.createdBy,
+          row.id,
+          JSON.stringify({
+            op: 'create',
+            title: params.title,
+            targetAudience: params.targetAudience ?? 'all',
+            startDate: params.startDate ?? null,
+            endDate: params.endDate ?? null,
+          }),
+        ],
+      );
+    }
+    logger.info('Promotion created', { id: row.id, title: params.title, createdBy: params.createdBy ?? null });
+    return row;
+  });
 }
 
 export async function updatePromotion(
   id: string,
-  data: Partial<CreatePromotionParams> & { isActive?: boolean },
+  data: Partial<CreatePromotionParams> & { isActive?: boolean; updatedByAdminId?: string },
 ): Promise<PromotionRow> {
-  const existing = await getPromotionById(id);
-  const result = await db.query<PromotionRow>(
-    `UPDATE promotions SET
-      title = $2, subtitle = $3, image_url = $4, badge = $5,
-      cta_text = $6, cta_link = $7, target_audience = $8,
-      start_date = $9, end_date = $10, is_active = $11,
-      display_order = $12, updated_at = NOW()
-     WHERE id = $1 RETURNING *`,
-    [
-      id,
-      data.title ?? existing.title,
-      data.subtitle ?? existing.subtitle,
-      data.imageUrl ?? existing.image_url,
-      data.badge ?? existing.badge,
-      data.ctaText ?? existing.cta_text,
-      data.ctaLink ?? existing.cta_link,
-      data.targetAudience ?? existing.target_audience,
-      data.startDate ?? existing.start_date,
-      data.endDate ?? existing.end_date,
-      data.isActive ?? existing.is_active,
-      data.displayOrder ?? existing.display_order,
-    ],
-  );
-  logger.info('Promotion updated', { id });
-  return result.rows[0]!;
+  return db.transaction(async (client) => {
+    const before = await client.query<PromotionRow>(
+      `SELECT * FROM promotions WHERE id = $1 FOR UPDATE`,
+      [id],
+    );
+    if (before.rows.length === 0) throw createAppError('Promotion not found.', 404);
+    const existing = before.rows[0]!;
+
+    const result = await client.query<PromotionRow>(
+      `UPDATE promotions SET
+        title = $2, subtitle = $3, image_url = $4, badge = $5,
+        cta_text = $6, cta_link = $7, target_audience = $8,
+        start_date = $9, end_date = $10, is_active = $11,
+        display_order = $12, updated_at = NOW()
+       WHERE id = $1 RETURNING *`,
+      [
+        id,
+        data.title ?? existing.title,
+        data.subtitle ?? existing.subtitle,
+        data.imageUrl ?? existing.image_url,
+        data.badge ?? existing.badge,
+        data.ctaText ?? existing.cta_text,
+        data.ctaLink ?? existing.cta_link,
+        data.targetAudience ?? existing.target_audience,
+        data.startDate ?? existing.start_date,
+        data.endDate ?? existing.end_date,
+        data.isActive ?? existing.is_active,
+        data.displayOrder ?? existing.display_order,
+      ],
+    );
+    if (data.updatedByAdminId) {
+      await client.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details)
+         VALUES ($1, 'config_changed', 'promotion', $2, $3::jsonb)`,
+        [
+          data.updatedByAdminId,
+          id,
+          JSON.stringify({
+            op: 'update',
+            beforeTitle: existing.title,
+            afterTitle: data.title ?? existing.title,
+            beforeIsActive: existing.is_active,
+            afterIsActive: data.isActive ?? existing.is_active,
+          }),
+        ],
+      );
+    }
+    logger.info('Promotion updated', { id, updatedBy: data.updatedByAdminId ?? null });
+    return result.rows[0]!;
+  });
 }
 
-export async function deletePromotion(id: string): Promise<void> {
-  const result = await db.query(`DELETE FROM promotions WHERE id = $1`, [id]);
-  if (result.rowCount === 0) throw createAppError('Promotion not found.', 404);
-  logger.info('Promotion deleted', { id });
+export async function deletePromotion(id: string, deletedByAdminId: string): Promise<void> {
+  return db.transaction(async (client) => {
+    const before = await client.query<PromotionRow>(
+      `SELECT * FROM promotions WHERE id = $1 FOR UPDATE`,
+      [id],
+    );
+    if (before.rows.length === 0) throw createAppError('Promotion not found.', 404);
+    const tpl = before.rows[0]!;
+
+    await client.query(`DELETE FROM promotions WHERE id = $1`, [id]);
+
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'config_changed', 'promotion', $2, $3::jsonb)`,
+      [
+        deletedByAdminId,
+        id,
+        JSON.stringify({
+          op: 'delete',
+          deletedTitle: tpl.title,
+          deletedTargetAudience: tpl.target_audience,
+          deletedIsActive: tpl.is_active,
+        }),
+      ],
+    );
+    logger.info('Promotion deleted', { id, deletedBy: deletedByAdminId });
+  });
 }
 
 export function formatPromotion(p: PromotionRow): Record<string, unknown> {
