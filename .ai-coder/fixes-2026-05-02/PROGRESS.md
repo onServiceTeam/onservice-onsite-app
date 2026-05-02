@@ -799,6 +799,44 @@ End-to-end:
 - **Phase E CRITs landed:** 18 of 18 (full closure including the
   three signature-family items that had been escalated).
 
+## Session 5l — Phase L admin null-check + featureFlags + playwright (L02/L03/L04/L05)
+
+| # | Commit | Summary |
+|---|---|---|
+| 1 | 023aceb | L02/L03/L04/L05 — featureFlags shape, 8 null-check guards, vitest silencing removed, playwright port (7 tests) |
+
+### What landed in 5l
+
+**L02 verified** — mobile getErrorMessage already exists; new test
+asserts the export.
+
+**L03** — apps/mobile/src/hooks/useFeatureFlags.ts queryFn returned
+`res.data` (the {success, data} envelope) instead of `res.data.data`
+(the inner ClientConfig). DEFAULT_FLAGS was returned forever. Fixed
+the destructure + split types into ClientConfig + ClientConfigEnvelope.
+
+**L04** — apps/admin/vitest.config.ts removed
+`dangerouslyIgnoreUnhandledErrors: true`. The 5 unhandled errors
+that were being silenced are real null-check bugs; all 8 underlying
+issues fixed in this same wave (BookingDetailPage statusVariant +
+header, DisputeDetailPage bookingId + evidence, CustomerDetailPage
+firstName/charAt + addresses/suki/lifetime, ProviderDetailPage user
+sub-object + rating/categories/serviceAreas + documents fallback +
+isVerified, MarketingPage OverviewTab numeric coalesce, DataTable
+data array guard). Admin suite: 88/3 todo with 0 errors (was 88/3/5).
+
+**L05** — apps/admin/playwright.config.ts baseURL fallback corrected
+from 5173 to 7382 (the canonical vite dev port). Local Playwright
+runs without STAGING_ADMIN_URL no longer hit ECONNREFUSED.
+
+### Numbers (session 5l final)
+
+- **Mobile tests:** 403 passing + 90 todo (was 396/90 at end of 5k).
+- **Admin tests:** 88 passing + 3 todo + 0 unhandled errors
+  (was 88/3/5 — all 5 silenced errors fixed at the source).
+- **Backend tests:** 2459 (unchanged).
+- **Phase L MEDs landed:** L01 + L02 + L03 + L04 + L05 (all 5).
+
 ## RESUME instructions for the next session
 
 1. Backend audit findings (Phase B + C + N + M + O) substantially
