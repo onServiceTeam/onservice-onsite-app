@@ -14,7 +14,11 @@ export const platformConfig = {
 
   timezone: 'Asia/Manila',
 
+  // Phase K MED-K20 fix — 'founding' tier added (matches migration 073
+  // CHECK constraint and platform_settings commission_rate_founding=10%).
+  // The 5 tiers are: founding, new, verified, pro, elite.
   commissionRates: {
+    founding: 0.10,
     new: 0.15,
     verified: 0.13,
     pro: 0.11,

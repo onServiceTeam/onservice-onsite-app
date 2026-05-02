@@ -1,6 +1,14 @@
 import { io, Socket } from 'socket.io-client';
 import { platformConfig } from '@/config/platform.config';
-import { storage } from './api';
+// Phase K CRIT-K04 fix — read access token from the canonical
+// secure-storage (per-device keychain-backed encryption key) NOT
+// the legacy `storage` MMKV instance. Pre-fix the socket connected
+// with `auth.token = undefined` because the access token had been
+// migrated to the new secure-storage module long ago — this file
+// was still reading from the empty legacy bucket. Result: server
+// rejected every socket connection, real-time chat / messaging /
+// new-job-modal silently broken in production.
+import { getAccessToken } from './secure-storage';
 
 let socket: Socket | null = null;
 
@@ -11,7 +19,7 @@ export function getSocket(): Socket | null {
 export function connectSocket(): Socket {
   if (socket?.connected) return socket;
 
-  const token = storage.getString('accessToken');
+  const token = getAccessToken();
   socket = io(platformConfig.apiUrl, {
     auth: { token },
     transports: ['websocket'],

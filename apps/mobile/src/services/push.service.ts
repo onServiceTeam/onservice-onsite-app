@@ -2,7 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import api from './api';
-import { storage } from './api';
+// Phase K CRIT-K03 fix — read user from canonical secure-storage
+// (per-device keychain-backed encryption). Pre-fix this file read
+// the legacy unencrypted `storage` MMKV instance which the auth-
+// migration emptied long ago, so `getUserRole()` always returned
+// 'customer'. Provider deep-links from push notifications routed
+// to customer screens. Real-time job notifications opened the
+// wrong screen.
+import { getStoredUser } from './secure-storage';
 
 interface NotificationBehavior {
   shouldShowAlert: boolean;
@@ -99,7 +106,7 @@ async function registerTokenWithServer(token: string): Promise<boolean> {
 
 function getUserRole(): string {
   try {
-    const userJson = storage.getString('user');
+    const userJson = getStoredUser();
     if (userJson) {
       const user = JSON.parse(userJson) as { role?: string };
       return user.role ?? 'customer';

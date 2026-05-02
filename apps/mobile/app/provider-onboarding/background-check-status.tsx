@@ -1,5 +1,15 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+// Phase K CRIT-K07 fix — useBackgroundCheckStatus now hits the real
+// /api/v1/providers/application-status endpoint (backend service:
+// providerService.getApplicationStatus). Pre-fix this hook returned
+// hardcoded 'pending' state with a +48h ETA — the screen was a UI
+// shell with no data wiring. Real implementation:
+//   - GET /api/v1/providers/application-status
+//   - Maps backend statuses (pending/approved/rejected/suspended) to
+//     the screen's CheckStatus enum.
+//   - Surfaces rejection_reason when status='rejected'.
+//   - Refresh polls the same endpoint.
 import {
   View,
   Text,
@@ -13,6 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { formatDateTime } from '@/utils/date';
 import { Routes } from '@/config/navigation';
+import api, { type ApiResponse } from '@/services/api';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -37,6 +48,18 @@ interface BackgroundCheckHookResult {
   refetch: () => Promise<void>;
 }
 
+interface ApplicationStatusResponse {
+  status: string;
+  rejectionReason: string | null;
+}
+
+function mapServerStatus(serverStatus: string): CheckStatus {
+  if (serverStatus === 'approved') return 'approved';
+  if (serverStatus === 'rejected' || serverStatus === 'suspended') return 'rejected';
+  // pending, under_review, and any unknown string default to 'pending'.
+  return 'pending';
+}
+
 function useBackgroundCheckStatus(): BackgroundCheckHookResult {
   const defaultEta = new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString();
   const [data, setData] = useState<BackgroundCheckState>({
@@ -48,13 +71,44 @@ function useBackgroundCheckStatus(): BackgroundCheckHookResult {
   const refetch = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      // Placeholder: real implementation would call the backend.
-      await new Promise<void>((resolve) => setTimeout(resolve, 600));
-      setData((prev) => ({ ...prev }));
+      const res = await api.get<ApiResponse<ApplicationStatusResponse | null>>(
+        '/api/v1/providers/application-status',
+      );
+      const body = res.data.data;
+      if (!body) {
+        // No application row yet — keep pending default with the
+        // estimatedCompletionAt baseline so the UI doesn't flicker
+        // to an empty state.
+        setData({ status: 'pending', estimatedCompletionAt: defaultEta });
+        return;
+      }
+      const mapped: BackgroundCheckState = {
+        status: mapServerStatus(body.status),
+        // ETA is not stored server-side yet; we keep the +48h default
+        // for the pending case so the user sees the same expectation
+        // bar.
+        ...(body.status === 'pending' || body.status === 'under_review'
+          ? { estimatedCompletionAt: defaultEta }
+          : {}),
+        ...(body.rejectionReason ? { reason: body.rejectionReason } : {}),
+      };
+      setData(mapped);
+    } catch {
+      // Don't clobber displayed state on transient network error;
+      // user can hit refresh again. Future: surface a toast on
+      // repeated failure.
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [defaultEta]);
+
+  // Initial fetch on mount + every 60s while screen is open so the
+  // user sees fresh status without manually refreshing.
+  useEffect(() => {
+    void refetch();
+    const interval = setInterval(() => { void refetch(); }, 60_000);
+    return () => clearInterval(interval);
+  }, [refetch]);
 
   return { data, loading, refetch };
 }

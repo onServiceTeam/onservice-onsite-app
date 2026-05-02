@@ -79,6 +79,43 @@ export default function EarningsScreen(): React.ReactElement {
     staleTime: 60 * 1000,
   });
 
+  // Phase K CRIT-K08 fix — replace the hardcoded 7-day chart (which
+  // divided wallet.availableBalance by 7 to fake per-day amounts)
+  // with the real /api/v1/providers/me/earnings/trends endpoint.
+  // Returns one row per day (or week/month) with the actual net
+  // earnings for that period.
+  const trendsQuery = useQuery<Array<{ period: string; netEarned: number }>>({
+    queryKey: ['providerEarningsTrends', 'daily', 7],
+    queryFn: async () => {
+      const res = await api.get<{ data: Array<{ period: string; netEarned: number | string }> }>(
+        '/api/v1/providers/me/earnings/trends?period=daily&days=7',
+      );
+      return res.data.data.map((r) => ({
+        period: r.period,
+        netEarned: Number(r.netEarned) || 0,
+      }));
+    },
+    staleTime: 60 * 1000,
+  });
+
+  // Phase K CRIT-K09 fix — fetch the provider's real tier so the
+  // CommissionBreakdown panel can show the correct rate. Pre-fix
+  // displayed a hardcoded "12%" regardless of tier.
+  const providerQuery = useQuery<{ tier: string }>({
+    queryKey: ['providerMe'],
+    queryFn: async () => {
+      const res = await api.get<{ data: { tier: string } }>('/api/v1/providers/me');
+      return { tier: res.data.data.tier };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Tier-specific commission rate (live from platformConfig table).
+  const providerTier = providerQuery.data?.tier ?? 'new';
+  const tierCommissionRate =
+    platformConfig.commissionRates[providerTier] ?? platformConfig.commissionRates.new ?? 0.15;
+  const tierCommissionPct = Math.round(tierCommissionRate * 100);
+
   const transactionsQuery = useQuery({
     queryKey: ['walletTransactions'],
     queryFn: async () => {
@@ -144,41 +181,42 @@ export default function EarningsScreen(): React.ReactElement {
         </View>
         <View style={styles.infoCard}>
           <BarChart3 size={22} color={colors.primary} style={styles.infoIconImg} />
-          <Text style={styles.infoLabel}>Commission</Text>
-          <Text style={styles.infoValue}>{`${Math.round((platformConfig.commissionRates.elite ?? 0.09) * 100)}-${Math.round((platformConfig.commissionRates.new ?? 0.15) * 100)}%`}</Text>
+          <Text style={styles.infoLabel}>Your Commission</Text>
+          {/* Phase K CRIT-K09 fix — show this provider's actual tier
+               commission, not the platform-wide range. */}
+          <Text style={styles.infoValue}>{`${tierCommissionPct}%`}</Text>
         </View>
       </View>
 
-      {/* Phase 14 R5-complete — EarningsChart for last-7-days visualisation */}
+      {/* Phase K CRIT-K08 fix — EarningsChart driven by REAL backend
+           data (provider/me/earnings/trends?period=daily&days=7). */}
       <View style={{ marginBottom: spacing.base }}>
         <EarningsChart
-          data={[
-            { date: '2026-04-25', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
-            { date: '2026-04-26', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
-            { date: '2026-04-27', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
-            { date: '2026-04-28', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
-            { date: '2026-04-29', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
-            { date: '2026-04-30', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
-            { date: '2026-05-01', amount: wallet?.availableBalance ? Math.round(wallet.availableBalance / 7) : 0 },
-          ]}
+          data={(trendsQuery.data ?? []).map((row) => ({
+            date: row.period.split('T')[0] ?? row.period,
+            amount: row.netEarned,
+          }))}
         />
       </View>
 
-      {/* Phase 14 R5-complete — CommissionBreakdown sample for current period */}
+      {/* Phase K CRIT-K09 fix — CommissionBreakdown uses the provider's
+           ACTUAL tier-specific commission rate (was hardcoded 12%). */}
       {wallet && wallet.availableBalance > 0 && (
         <View style={{ marginBottom: spacing.base }}>
           <CommissionBreakdown
-            gross={Math.round(wallet.availableBalance * 1.13)}
+            gross={Math.round(wallet.availableBalance / (1 - tierCommissionRate - platformConfig.guaranteeFundRate))}
             lines={[
               {
-                label: 'Platform fee',
-                amount: Math.round(wallet.availableBalance * 0.12),
-                pct: 12,
-                helpText: 'Tier-based; lower for Founding/Pro/Elite providers.',
+                label: 'Platform commission',
+                amount: Math.round(wallet.availableBalance * (tierCommissionRate / (1 - tierCommissionRate))),
+                pct: tierCommissionPct,
+                helpText: `Your tier (${providerTier}) commission rate. Earn higher tier for lower commission.`,
               },
               {
-                label: 'VAT',
-                amount: Math.round(wallet.availableBalance * 0.0144),
+                label: 'Guarantee fund',
+                amount: Math.round(wallet.availableBalance * (platformConfig.guaranteeFundRate / (1 - tierCommissionRate))),
+                pct: Math.round(platformConfig.guaranteeFundRate * 100 * 10) / 10,
+                helpText: 'Funds the platform guarantee program for completed bookings.',
               },
             ]}
             net={wallet.availableBalance}
