@@ -117,3 +117,89 @@ export function __forceRebuildForTest(windowMs: number, max: number): void {
 export function __getCachedForTest(): { windowMs: number; max: number } {
   return { windowMs: currentWindow, max: currentMax };
 }
+
+// ── Phase C CRIT-46 fix — auth-specific stricter rate limiter ──
+//
+// Pre-fix: ALL endpoints shared the same rate limiter (from
+// platform_settings.rate_limit_max_requests, default 100/min). Auth
+// endpoints (OTP request, OTP verify, admin login, refresh) needed
+// to be MUCH stricter so credential-stuffing / OTP spam attacks
+// can't burn through the broad limit.
+//
+// Post-fix: a dedicated authRateLimitMiddleware reads its own
+// settings keys (auth_rate_limit_window_ms, auth_rate_limit_max_requests)
+// with conservative defaults (10 requests / 60s). Routes for
+// /auth/send-otp, /auth/verify-otp, /auth/admin/login,
+// /auth/refresh apply this in addition to the global limiter.
+//
+// The settings keys default to:
+//   auth_rate_limit_window_ms: 60000  (1 minute)
+//   auth_rate_limit_max_requests: 10
+// — operator can tune via Settings UI.
+
+let authCurrentWindow: number = 60_000;
+let authCurrentMax: number = 10;
+let authActiveWindow: number = authCurrentWindow;
+
+function buildAuthLimiter(windowMs: number): RateLimitRequestHandler {
+  return rateLimit({
+    windowMs,
+    limit: () => authCurrentMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: {
+        message: 'Too many authentication attempts. Please wait a moment and try again.',
+        statusCode: 429,
+      },
+    },
+  });
+}
+
+let authActiveLimiter: RateLimitRequestHandler = buildAuthLimiter(authCurrentWindow);
+
+export async function refreshAuthRateLimits(): Promise<void> {
+  try {
+    const fetched = await Promise.all([
+      settingsService.getSettingInteger('auth_rate_limit_window_ms').catch(() => authCurrentWindow),
+      settingsService.getSettingInteger('auth_rate_limit_max_requests').catch(() => authCurrentMax),
+    ]);
+    const [nextWindow, nextMax] = fetched;
+    authCurrentWindow = Number.isFinite(nextWindow) && nextWindow > 0 ? Number(nextWindow) : authCurrentWindow;
+    authCurrentMax = Number.isFinite(nextMax) && nextMax > 0 ? Number(nextMax) : authCurrentMax;
+    if (authCurrentWindow !== authActiveWindow) {
+      authActiveLimiter = buildAuthLimiter(authCurrentWindow);
+      authActiveWindow = authCurrentWindow;
+      logger.info('Auth rate-limit windowMs changed; limiter rebuilt', {
+        windowMs: authCurrentWindow,
+        max: authCurrentMax,
+      });
+    }
+  } catch (err) {
+    logger.warn('Auth rate-limit settings refresh failed; keeping current values', {
+      error: (err as Error).message,
+    });
+  }
+}
+
+export async function initAuthRateLimit(): Promise<void> {
+  await refreshAuthRateLimits();
+  setInterval(() => { void refreshAuthRateLimits(); }, 60_000).unref();
+}
+
+export function authRateLimitMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  (authActiveLimiter as unknown as (
+    r: Request,
+    s: Response,
+    n: NextFunction,
+  ) => void)(req, res, next);
+}
+
+export function __getAuthCachedForTest(): { windowMs: number; max: number } {
+  return { windowMs: authCurrentWindow, max: authCurrentMax };
+}

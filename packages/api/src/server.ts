@@ -356,5 +356,75 @@ httpServer.listen(PORT, () => {
     .catch((err: unknown) => logger.warn('Settings drift check threw', { error: err }));
 });
 
-export { httpServer };
+// Phase C CRIT-50 fix — graceful shutdown on SIGTERM / SIGINT.
+//
+// Pre-fix: server.ts had no signal handlers, so a Kubernetes / ECS
+// rolling restart sent SIGTERM and the process died immediately,
+// killing in-flight requests. Webhook deliveries mid-write would
+// half-commit; long-running admin reports would 502 to the operator.
+//
+// Post-fix: on SIGTERM/SIGINT, stop accepting new connections,
+// drain in-flight requests with a timeout cap, then exit. The cap
+// prevents a stuck handler from blocking the deploy forever — at
+// 30 seconds we force-exit and log loudly so ops can investigate.
+//
+// We register the same handler for both SIGTERM (k8s/ECS standard)
+// and SIGINT (Ctrl-C in dev). The handler is idempotent: the
+// SHUTTING_DOWN flag ensures multiple signals don't race.
+let SHUTTING_DOWN = false;
+const SHUTDOWN_TIMEOUT_MS = 30_000;
+
+function gracefulShutdown(signal: NodeJS.Signals): void {
+  if (SHUTTING_DOWN) {
+    logger.warn(`Received ${signal} during shutdown — ignoring`);
+    return;
+  }
+  SHUTTING_DOWN = true;
+  logger.info(`Received ${signal} — beginning graceful shutdown (max ${SHUTDOWN_TIMEOUT_MS}ms)`);
+
+  // Stop accepting new HTTP connections; existing keep-alive sockets
+  // are allowed to finish their in-flight request (Node's default
+  // behavior for server.close()).
+  httpServer.close((err) => {
+    if (err) {
+      logger.error('httpServer.close errored', { error: err.message });
+      process.exit(1);
+    }
+    logger.info('HTTP server closed cleanly — exiting');
+    process.exit(0);
+  });
+
+  // Force-exit cap. If a hung handler keeps sockets open past the
+  // timeout, exit anyway so the deploy can roll forward.
+  const forceExit = setTimeout(() => {
+    logger.error(`Graceful shutdown timed out after ${SHUTDOWN_TIMEOUT_MS}ms — forcing exit`);
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExit.unref();
+}
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
+// Don't crash on unhandled rejections; log them. (Otherwise a single
+// missed `.catch` blows up the whole process.)
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('unhandledRejection', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+    promise: String(promise),
+  });
+});
+
+process.on('uncaughtException', (err) => {
+  // Uncaught exceptions ARE fatal — log loudly then exit so the
+  // process supervisor can restart us in a clean state.
+  logger.error('uncaughtException — process will exit', {
+    message: err.message,
+    stack: err.stack,
+  });
+  process.exit(1);
+});
+
+export { httpServer, gracefulShutdown };
 export default app;
