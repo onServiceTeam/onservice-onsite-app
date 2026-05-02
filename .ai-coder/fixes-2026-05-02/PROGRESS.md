@@ -209,16 +209,103 @@ booking-admin path) is already correct.
      staff_removed, config_changed for service_area + promotion +
      notification_template) in the existing audit timeline.
 
+## Session 4 (2026-05-02 cont.) — Hard stops resolved + v1.1 continues
+
+Ken's standing instruction (chat, 2026-05-02): "I want you to do the
+maximal effort, not the decision that removes things or takes a lazy
+route which we have to go back and do later anyways. it should be
+done now." Both hard stops chose Path A (real implementation), not
+Path B (delete the feature).
+
+| # | Escalation | Decision | Status | Commit |
+|---|---|---|---|---|
+| 1 | E01 — DPO role | D15 — Path A (real role) | DONE | (latest) |
+| 2 | E02 — recurring auto-charge | D22 — Path A (real PayMongo + wallet) | DONE | (latest) |
+
+### E01 — DPO role (resolved)
+
+NPC RA 10173 §21 segregation-of-duties role implemented end-to-end:
+
+- Migration 106: users.role CHECK widened with 'dpo'; admin_actions
+  CHECK widened with staff_role_promoted_dpo + staff_role_demoted_
+  from_dpo.
+- Type system: UserRole, AuthPayload.role, rbac UserRole all include
+  'dpo'. New ADMIN_TIER_ROLES + DPO_AUTHORIZED_ROLES helper sets.
+- Admin login flow: /admin/login query widened to admin tier; 2FA
+  setup/enable/disable + forced enrollment all admit 'dpo'.
+- Service: promoteToDpo, demoteFromDpo, listDpos with SELECT FOR
+  UPDATE + audit insert in single trx. Idempotent on re-promote;
+  refuses to promote super_admin (segregation), refuses deactivated
+  user; refuses demoteTo='super_admin'.
+- Routes: GET /staff/dpos, POST /staff/dpos/:userId/promote, POST
+  /staff/dpos/:userId/demote (all super_admin-gated).
+- Runbook: docs/runbooks/dpo-role.md (NPC registration, audit trail,
+  failure modes).
+- Decision file: .ai-coder/decisions/D15-dpo-role.md.
+- Tests: 26 (e01-dpo-role.test.ts).
+
+### E02 — recurring auto-charge (resolved)
+
+Real PayMongo + wallet auto-charge with admin kill switch:
+
+- Migration 107: recurring_bookings adds payment_method_id (PayMongo
+  source token), payment_method_label, auto_charge_status,
+  auto_charge_consecutive_failures, auto_charge_suspended_at,
+  auto_charge_last_attempt_at. Partial index for the scheduler hot
+  path. New audit table recurring_auto_charge_attempts (every
+  attempt logged with wallet+paymongo split, payment ID, failure
+  reason). platform_settings row for max_consecutive_failures
+  (default 3).
+- Service: recurring-auto-charge.service.ts (new):
+  setAutoChargePaymentMethod / clearAutoChargePaymentMethod
+  (customer-side capture/clear with ownership check, idempotent on
+  re-set, resets failure counter). attemptAutoCharge (wallet-first
+  then PayMongo for the remainder; on success → booking confirmed,
+  escrow held, counter reset, succeeded notification; on failure →
+  counter incremented, suspended at threshold, failed/suspended
+  notifications). chargePaymongoMethod (POST /payments with stored
+  source ID; sandbox-friendly). LEDGER_RECONCILE_NEEDED audit-row
+  marker for the rare case where PayMongo charged but our DB
+  failed. listAttempts for history.
+- recurring.service.ts: scheduler calls attemptAutoCharge when
+  rb.auto_charge=TRUE, AFTER the recurring clock advances (so a
+  charge failure can never block the recurrence). Suppresses
+  generic 'recurring_update' notification on auto-charge success.
+- notification.service.ts: NotificationType union extended with
+  three new lifecycle types.
+- Routes: PUT /recurring/:id/auto-charge (capture/replace), DELETE
+  /recurring/:id/auto-charge (clear), GET /recurring/:id/auto-
+  charge/attempts (history).
+- Runbook: docs/runbooks/recurring-auto-charge.md (PCI scope SAQ A
+  preserved, reconciliation procedure for LEDGER_RECONCILE_NEEDED,
+  kill switches).
+- Decision file: .ai-coder/decisions/D22-recurring-auto-charge.md.
+- Tests: 32 (e02-recurring-auto-charge.test.ts).
+
+### Numbers
+
+- **Tests at session 4 close:** 2220/2220 passing (was 2162 at
+  session 3 close; +58 net new across E01 + E02).
+- **New migrations this session:** 2 (106 dpo_role_e01, 107
+  recurring_auto_charge_e02).
+- **New services this session:** 1 (recurring-auto-charge).
+- **Operator workflow before launch — ADD:**
+  - Apply migrations 106 + 107 in production.
+  - Assign a real DPO via super_admin Settings → Staff → DPO
+    management. Register DPO with NPC within 30 days (Circular 17-01).
+  - Mobile UI work to wire the auto-charge toggle to the new
+    PUT /recurring/:id/auto-charge endpoint with PayMongo capture
+    sheet (out of scope for this backend session; tracked in mobile
+    backlog).
+
 ## RESUME instructions for the next session
 
-1. Check `.ai-coder/decisions/` for Ken's responses on E01 (dpo) and
-   E02 (auto_charge). If present, execute the chosen path.
-2. Otherwise, return to the full audit findings list under
-   `.ai-coder/audit-2026-05-01/PHASE-*-BATCH-*.md` and start
-   working through remaining MEDs in audit batch order. The
-   launch-blocking subset (Wave 1 P0) and production-quality subset
-   (Wave 2 P1 + P2) are now closed; what's left is the v1.1
-   hardening backlog.
+1. Both hard stops are resolved. No outstanding architectural
+   decisions blocking the v1.1 MED backlog.
+2. Return to the full audit findings list under
+   `.ai-coder/audit-2026-05-01/PHASE-*-BATCH-*.md` and continue
+   through remaining MEDs (~67 still open of 169 v1.1 MED-Ns;
+   plus untouched MED-K, L, M, O batches).
 3. Continue the same pattern: edit code, write test, run, commit.
 
 Each fix is one self-contained commit. The dispatches do not have
