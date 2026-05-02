@@ -1,5 +1,32 @@
 import React, { useMemo, useRef, useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+// Phase E CRIT-102 fix — completion submit now actually persists
+// the captured photos.
+//
+// Pre-fix the screen:
+//   1. POSTed to /api/v1/bookings/{id}/complete which DOES NOT EXIST
+//      on the backend. Every submit returned 404 and was masked by
+//      a generic "Submission failed" toast.
+//   2. Even if the endpoint had existed, it sent file:// URIs
+//      directly in JSON. The backend's MED-N97 hardening rejects
+//      file:// values defensively for any persistence URL field.
+//
+// Post-fix:
+//   - Each captured photo uploaded individually via the existing
+//     /api/v1/uploads/booking-photo multipart endpoint with
+//     photoType='after' (booking_photos table from migration 079).
+//   - The booking is then transitioned via PATCH
+//     /api/v1/bookings/:id/status with status='completed_by_provider'
+//     (the canonical state machine from booking.service.ts).
+//
+// CRIT-103/104 (signature visual persistence) is escalated to Ken
+// because every viable path requires a NEW dependency:
+//   - mobile: react-native-signature-canvas or react-native-view-shot
+//     (to rasterise the PanResponder points to a real PNG buffer)
+//   - backend: sharp or node-canvas (to rasterise client-sent SVG)
+// See .ai-coder/escalations/E01-signature-image-persistence.md.
+// In the interim the timestamp + presence-of-strokes is captured;
+// the visual is shown on-screen but not yet uploaded.
 import {
   View,
   Text,
@@ -18,6 +45,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/services/api';
+import { uploadBookingPhoto } from '@/services/booking-photo.service';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Camera, CheckCircle2, Edit } from '@/components/icons';
@@ -121,11 +149,23 @@ export default function JobCompleteScreen(): React.ReactElement {
     }
     setSubmitting(true);
     try {
-      await api.post(`/api/v1/bookings/${id}/complete`, {
-        photos: photos.filter((p): p is string => p !== null),
-        signedAt,
-        notes: notes.trim(),
+      // Phase E CRIT-102 fix — upload each captured photo to the
+      // existing /uploads/booking-photo multipart endpoint with
+      // photoType='after'. Pre-fix the file:// URIs were sent
+      // verbatim in JSON to a 404 endpoint and dropped on the floor.
+      const validPhotos = photos.filter((p): p is string => p !== null);
+      for (const photoUri of validPhotos) {
+        await uploadBookingPhoto({ uri: photoUri, bookingId: id, photoType: 'after' });
+      }
+
+      // Phase E CRIT-102 fix — transition the booking via the real
+      // canonical PATCH /:id/status endpoint. The transition handler
+      // in booking.service.ts enforces minimumTimeOnSiteMinutes etc.
+      await api.patch(`/api/v1/bookings/${id}/status`, {
+        status: 'completed_by_provider',
+        notes: notes.trim() || undefined,
       });
+
       Alert.alert('Submitted', 'Job marked as complete.');
       router.replace(Routes.PROVIDER_TABS.DASHBOARD);
     } catch (err) {
