@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert, ScrollVi
 import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth.store';
+import { getErrorMessage } from '@/utils/errors';
 import { Button, Input } from '@/components/ui';
 import { validatePHPhone, normalizePHPhone } from '@/utils/phone';
 import { colors, spacing, typography } from '@/config/theme';
@@ -46,9 +47,9 @@ export default function RegisterScreen(): React.ReactElement {
         },
       });
     } catch (err: unknown) {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      const msg = axErr?.response?.data?.error?.message;
-      Alert.alert('Error', msg ?? 'Failed to send verification code. Please try again.');
+      // Phase D CRIT-69 / K-MED-K04 fix — canonical error helper.
+      const msg = getErrorMessage(err, 'Failed to send verification code. Please try again.');
+      Alert.alert('Error', msg);
     } finally {
       setLoading(false);
     }

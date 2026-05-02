@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth.store';
+import { getErrorMessage } from '@/utils/errors';
 import { Button, OTPInput } from '@/components/ui';
 import { formatPHPhone } from '@/utils/phone';
 import { platformConfig } from '@/config/platform.config';
@@ -55,9 +56,9 @@ export default function OTPVerifyScreen(): React.ReactElement {
       }
     } catch (err: unknown) {
       setError(true);
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      const msg = axErr?.response?.data?.error?.message;
-      Alert.alert('Verification Failed', msg ?? 'Invalid code. Please try again.');
+      // Phase D CRIT-69 / K-MED-K04 fix — canonical error helper.
+      const msg = getErrorMessage(err, 'Invalid code. Please try again.');
+      Alert.alert('Verification Failed', msg);
       setCode('');
     } finally {
       setLoading(false);
