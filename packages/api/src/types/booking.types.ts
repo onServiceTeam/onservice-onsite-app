@@ -90,3 +90,35 @@ export const VALID_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
 export function canTransition(from: BookingStatus, to: BookingStatus): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;
 }
+
+// ─────────────────────────────────────────────────────────────────
+// MED-N145 fix — single source of truth for "active vs completed vs
+// cancelled" booking status buckets. metrics.service used to define
+// these inline so any new state added to BookingStatus would silently
+// drift (bookings in the new state appear in NO bucket → undercount).
+//
+// Invariant: every status in BookingStatus must appear in exactly
+// one of {ACTIVE_STATUSES, COMPLETED_STATUSES, CANCELLED_STATUSES}.
+// A regression test in metrics.service tests asserts this — adding a
+// new status without updating the buckets fails the test.
+// ─────────────────────────────────────────────────────────────────
+export const ACTIVE_BOOKING_STATUSES: readonly BookingStatus[] = [
+  'requested', 'quoted', 'matched', 'payment_pending', 'paid',
+  'provider_en_route', 'provider_arrived', 'in_progress',
+  'disputed',
+] as const;
+
+export const COMPLETED_BOOKING_STATUSES: readonly BookingStatus[] = [
+  'completed_by_provider', 'confirmed', 'resolved', 'payout_ready', 'paid_out',
+] as const;
+
+export const CANCELLED_BOOKING_STATUSES: readonly BookingStatus[] = [
+  'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin',
+] as const;
+
+/** All known statuses — used by the partition invariant test. */
+export const ALL_BOOKING_STATUSES: readonly BookingStatus[] = [
+  ...ACTIVE_BOOKING_STATUSES,
+  ...COMPLETED_BOOKING_STATUSES,
+  ...CANCELLED_BOOKING_STATUSES,
+] as const;

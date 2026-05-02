@@ -1,5 +1,13 @@
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
+// MED-N145 fix — import canonical status sets from the type module
+// instead of inlining them. If a new status is added to BookingStatus
+// the partition test in booking-status-partition.test.ts fails first.
+import {
+  ACTIVE_BOOKING_STATUSES,
+  COMPLETED_BOOKING_STATUSES,
+  CANCELLED_BOOKING_STATUSES,
+} from '../types/booking.types';
 
 interface MetricSnapshot {
   timestamp: string;
@@ -36,15 +44,22 @@ export async function collectMetrics(): Promise<MetricSnapshot> {
   };
 
   try {
+    // MED-N145 — render the IN(...) lists from the canonical sets so
+    // a new status added to BookingStatus is automatically counted in
+    // exactly one bucket.
+    const activeList = ACTIVE_BOOKING_STATUSES.map((s) => `'${s}'`).join(',');
+    const completedList = COMPLETED_BOOKING_STATUSES.map((s) => `'${s}'`).join(',');
+    const cancelledList = CANCELLED_BOOKING_STATUSES.map((s) => `'${s}'`).join(',');
+
     const [active, completed, cancelled, disputes, providers, payments] = await Promise.all([
       db.query<{ count: string }>(
-        `SELECT COUNT(*)::text as count FROM bookings WHERE status IN ('requested','quoted','matched','payment_pending','paid','provider_en_route','provider_arrived','in_progress')`,
+        `SELECT COUNT(*)::text as count FROM bookings WHERE status IN (${activeList})`,
       ),
       db.query<{ count: string }>(
-        `SELECT COUNT(*)::text as count FROM bookings WHERE status IN ('completed_by_provider','confirmed','payout_ready','paid_out') AND updated_at >= CURRENT_DATE`,
+        `SELECT COUNT(*)::text as count FROM bookings WHERE status IN (${completedList}) AND updated_at >= CURRENT_DATE`,
       ),
       db.query<{ count: string }>(
-        `SELECT COUNT(*)::text as count FROM bookings WHERE status LIKE 'cancelled_%' AND updated_at >= CURRENT_DATE`,
+        `SELECT COUNT(*)::text as count FROM bookings WHERE status IN (${cancelledList}) AND updated_at >= CURRENT_DATE`,
       ),
       db.query<{ count: string }>(
         `SELECT COUNT(*)::text as count FROM disputes WHERE status IN ('open','under_review','escalated')`,

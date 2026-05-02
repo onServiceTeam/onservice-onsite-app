@@ -13,6 +13,17 @@ function requireAdmin(req: AuthenticatedRequest): void {
   }
 }
 
+// MED-N167 fix — DELETE on a notification template removes
+// customer-facing copy (OTP SMS, booking confirmations, payout
+// receipts). A junior admin shouldn't be able to do that without
+// super_admin oversight. Pairs with MED-N142 (audit row on delete)
+// for full coverage.
+function requireSuperAdmin(req: AuthenticatedRequest): void {
+  if (req.user!.role !== 'super_admin') {
+    throw createAppError('Super admin access required.', 403);
+  }
+}
+
 router.get(
   '/',
   authMiddleware,
@@ -95,7 +106,7 @@ router.delete(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req); // MED-N167
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Template ID is required.', 400);
 

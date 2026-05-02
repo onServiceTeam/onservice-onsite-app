@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import * as serviceAreaService from '../services/service-area.service';
@@ -7,6 +8,29 @@ import { cacheMiddleware } from '../middleware/cache.middleware';
 import { CacheTTL } from '../services/cache.service';
 
 const router = Router();
+
+// MED-N163 fix — POST /service-areas/waitlist is unauthenticated and
+// has no CAPTCHA. A scraper / spam bot could flood the
+// service_area_waitlist table with junk entries (which then bias the
+// "expand here next" growth signal and pollute marketing exports).
+//
+// Per-IP rate limit at 5/min strikes a balance: legitimate users
+// rarely re-submit; scripted floods hit the wall fast. Defense-in-
+// depth: the service still validates phone format + city/province
+// presence; this is the network-edge layer.
+const waitlistRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      message: 'Too many waitlist submissions from this IP. Please try again in a minute.',
+      statusCode: 429,
+    },
+  },
+});
 
 router.get(
   '/',
@@ -88,6 +112,7 @@ router.get(
 
 router.post(
   '/waitlist',
+  waitlistRateLimit, // MED-N163
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { fullName, phone, email, city, province, barangay, latitude, longitude } = req.body as {

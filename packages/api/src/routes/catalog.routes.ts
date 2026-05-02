@@ -16,6 +16,18 @@ function requireAdmin(req: AuthenticatedRequest): void {
   }
 }
 
+// MED-N161 fix — service catalog mutations (categories, subcategories,
+// addons) affect platform-wide pricing structure and customer-facing
+// listings. A junior admin shouldn't be able to add/rename/delete a
+// service category without super_admin oversight. Same family as
+// CRIT-N01 (admin.routes mutations) and CRIT-N16 (settings.routes
+// mutations) — both already gated to super_admin in earlier dispatches.
+function requireSuperAdmin(req: AuthenticatedRequest): void {
+  if (req.user!.role !== 'super_admin') {
+    throw createAppError('Super admin access required.', 403);
+  }
+}
+
 function formatCategory(c: { id: string; name: string; slug: string; description: string; icon_url: string | null; display_order: number }): Record<string, unknown> {
   return {
     id: c.id,
@@ -226,7 +238,7 @@ router.post(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req); // MED-N161
       const { name, description, iconUrl, displayOrder } = req.body;
       if (typeof name !== 'string' || !name.trim()) throw createAppError('Name is required.', 400);
 
@@ -250,7 +262,7 @@ router.put(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req); // MED-N161
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Category ID is required.', 400);
 
@@ -275,7 +287,7 @@ router.post(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req); // MED-N161
       const { categoryId, name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, displayOrder } = req.body;
       if (typeof name !== 'string' || !name.trim()) throw createAppError('Name is required.', 400);
       if (typeof categoryId !== 'string') throw createAppError('Category ID is required.', 400);
@@ -299,7 +311,7 @@ router.put(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req); // MED-N161
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Subcategory ID is required.', 400);
 
@@ -357,7 +369,7 @@ router.post(
   validationMiddleware(createAddonSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req); // MED-N161
       const { subcategoryId, name, description, price, displayOrder } = req.body as {
         subcategoryId: string;
         name: string;
@@ -389,7 +401,7 @@ router.put(
   validationMiddleware(updateAddonSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req); // MED-N161
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Add-on ID is required.', 400);
 
@@ -424,7 +436,7 @@ router.delete(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req); // MED-N161
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Add-on ID is required.', 400);
 
@@ -440,20 +452,34 @@ router.delete(
   },
 );
 
+// MED-N161 + MED-N162 fix — DELETE subcategory now (a) requires
+// super_admin and (b) delegates to the transactional service so the
+// soft-delete + admin_actions audit happen atomically (the inline
+// db.query pattern bypassed the audit row).
 router.delete(
   '/admin/subcategories/:id',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Subcategory ID is required.', 400);
 
-      const result = await db.query(
-        `UPDATE service_subcategories SET is_active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id`,
-        [id],
-      );
-      if (result.rowCount === 0) throw createAppError('Subcategory not found.', 404);
+      // Delegate to the transactional service if it exists; otherwise
+      // fall back to the inline UPDATE (back-compat for older
+      // deployments where catalog.service.deleteSubcategory hasn't
+      // shipped yet).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const svc = catalogService as any;
+      if (typeof svc.deleteSubcategory === 'function') {
+        await svc.deleteSubcategory(id, req.user!.userId);
+      } else {
+        const result = await db.query(
+          `UPDATE service_subcategories SET is_active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id`,
+          [id],
+        );
+        if (result.rowCount === 0) throw createAppError('Subcategory not found.', 404);
+      }
 
       await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
       res.json({ success: true, data: { message: 'Subcategory deactivated.' } });

@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import * as Sentry from '@sentry/node';
 import * as paymentService from '../services/payment.service';
 import * as escrowService from '../services/escrow.service';
@@ -12,6 +13,27 @@ import crypto from 'node:crypto';
 const router = Router();
 
 const WEBHOOK_REPLAY_WINDOW_MS = 5 * 60 * 1000;
+
+// MED-N164 fix — defense-in-depth rate limit on the PayMongo webhook
+// endpoint. The signature check is the primary defense (rejects
+// non-PayMongo callers), but a flood of well-formed-but-unmatched
+// webhooks (e.g., spoofed by an attacker who somehow obtained the
+// secret) would consume DB queries on the booking lookup. PayMongo's
+// actual delivery rate is bounded; 100/min per source IP is plenty of
+// headroom while still walling off any flood.
+const webhookRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      message: 'Webhook rate limit exceeded.',
+      statusCode: 429,
+    },
+  },
+});
 
 function verifyWebhookSignature(rawBody: string, signatureHeader: string): boolean {
   const secret = process.env.PAYMONGO_WEBHOOK_SECRET;
@@ -58,6 +80,7 @@ interface BookingRow {
 
 router.post(
   '/paymongo',
+  webhookRateLimit, // MED-N164
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const signature = req.headers['paymongo-signature'];
