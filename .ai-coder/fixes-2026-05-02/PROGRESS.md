@@ -475,20 +475,47 @@ mobile-side risks closed:
   (k8s/ECS preStop hook, SIGTERM grace period >= 30s).
 - Backend: DB_SSL_REJECT_UNAUTHORIZED=true in production (default).
 
+## Session 5d (2026-05-02 cont.) — Phase K MED polish wave
+
+| # | Commit | Items |
+|---|---|---|
+| 1 | 02a5c7d | K-MED-K12 (push token publicStorage) + K14 (mime advisory) + K18 (haptics reduceMotion) + K19 (toast severity duration) + K22 (toast retry button rendered) |
+| 2 | 51a5014 | K-MED-K16 (PhoneInput +63 regex) + K23 (NetInfo events) |
+| 3 | 2771f81 | K-MED-K06 (no Manila default) + K10 (form bounds 0..60 / 1..50) + K15 (NewJobModal decline no longer cancels booking) + K24 (ENS true) |
+| 4 | d19fa77 | K-MED-K09 (home header selected location) |
+
+### Numbers (session 5d final)
+
+- **Mobile tests:** 339 passing + 89 todo (was 333/89 at session 5c).
+- **Backend tests:** 2444/2444 (unchanged from session 5c).
+- **Mobile CRITs landed (sessions 5b+5c+5d):** K01-K12 (all 12).
+- **Mobile MEDs landed:** K05, K06, K09, K10, K11, K12, K14, K15, K16,
+  K17, K18, K19, K20, K22, K23, K24 (16 of 24 MEDs).
+
+### K MEDs remaining (8 of 24, all minor / non-blocking)
+
+- K01 — getDeviceFingerprint race condition (transient, low impact)
+- K02 — auth.store.verifyOtp lacks API response shape validation
+- K04 — Auth/onboarding error parsing axios-shape on ApiError objects
+- K07 — Provider onboarding doesn't capture ID number / NBI expiry
+  (UX scope; backend doesn't require these fields yet)
+- K08 — identity-verification silent-404 fallback (file deprecated
+  by K06 fix; no longer reachable via stack)
+- K13 — Auth screens default register-mode landing in
+  provider-onboarding/role-select (folder name confusing but flow
+  correct — role-select serves both customer + provider)
+- K21 — platformConfig vs platform_settings divergence (would need
+  runtime fetch on mobile to keep in sync)
+
 ## RESUME instructions for the next session
 
-1. Backend audit findings (Phase B + C + N + M + O) are substantially
+1. Backend audit findings (Phase B + C + N + M + O) substantially
    closed. Remaining Phase B/C MEDs are mostly observability /
-   documentation items (e.g. MED-01 dev-only error swallow, MED-02
-   payout transferId required).
-2. Phase K mobile CRITs all landed. Remaining K MEDs (K01/K02/K04/
-   K06-K10/K12-K19/K21-K24) are smaller polish items (Haptics
-   reduceMotion gate, Toast severity-aware duration, useOffline
-   NetInfo events instead of polling, ITSAppUsesNonExemptEncryption
-   declaration). Could batch in another pass.
-3. Phase D + E + F deeper sweep of mobile + admin app pages still
-   available. Most CRITs already mapped to N-fixes via earlier
-   sessions; F#7 / F#10 remain operator items.
+   documentation items.
+2. Phase K mobile: 12/12 CRITs + 16/24 MEDs landed. Remaining K MEDs
+   are small polish/observability items.
+3. Phase D + E + F deeper sweep available. Most CRITs already mapped
+   to N-fixes via earlier sessions.
 4. Pending operator items for v1.0 launch (per CLAUDE.md):
    - F#3 baseline capture (84 Maestro YAMLs)
    - F#4 baseline capture (29 Playwright specs)
