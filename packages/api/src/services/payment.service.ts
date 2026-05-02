@@ -12,7 +12,11 @@ interface PaymentIntentRow {
   id: string;
   booking_id: string;
   paymongo_intent_id: string | null;
+  /** Phase B CRIT-02 fix — captured from payment.paid webhook (mig 114). */
+  paymongo_payment_id?: string | null;
   amount: string;
+  /** Phase B CRIT-01 fix — cumulative refunded centavos (mig 114). */
+  refunded_amount?: string | number;
   payment_method: string;
   status: string;
   client_key: string | null;
@@ -128,32 +132,127 @@ export async function updatePaymentStatus(
   status: 'succeeded' | 'failed' | 'refunded' | 'partially_refunded',
   referenceId?: string,
 ): Promise<PaymentIntentRow> {
-  const result = await db.query<PaymentIntentRow>(
-    `UPDATE payment_intents SET status = $1, updated_at = NOW(),
-       metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
-     WHERE id = $2 RETURNING *`,
-    [status, intentId, JSON.stringify({ reference_id: referenceId ?? null, updated: new Date().toISOString() })],
-  );
-
-  if (result.rows.length === 0) throw createAppError('Payment intent not found.', 404);
-
-  logger.info('Payment status updated', { intentId, status });
-  return result.rows[0]!;
+  // Phase B CRIT-02 fix — when the webhook hands us a PayMongo
+  // payment ID (pay_XYZ), write it to the dedicated paymongo_payment_id
+  // column (added by mig 114) so the refund path can find it without
+  // parsing JSON metadata. Pre-mig-114 the column doesn't exist yet;
+  // the COALESCE-style write is defensive: we attempt the column
+  // update inside try/catch and fall back to metadata-only on
+  // undefined_column (42703) so the webhook handler stays green during
+  // rolling deploys.
+  const isPaymongoPaymentId = typeof referenceId === 'string' && referenceId.startsWith('pay_');
+  try {
+    const result = await db.query<PaymentIntentRow>(
+      `UPDATE payment_intents
+          SET status = $1,
+              updated_at = NOW(),
+              metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
+              paymongo_payment_id = COALESCE($4, paymongo_payment_id)
+        WHERE id = $2 RETURNING *`,
+      [
+        status,
+        intentId,
+        JSON.stringify({ reference_id: referenceId ?? null, updated: new Date().toISOString() }),
+        isPaymongoPaymentId ? referenceId : null,
+      ],
+    );
+    if (result.rows.length === 0) throw createAppError('Payment intent not found.', 404);
+    logger.info('Payment status updated', { intentId, status });
+    return result.rows[0]!;
+  } catch (err) {
+    if ((err as { code?: string }).code === '42703') {
+      // Column doesn't exist yet (mig 114 not applied). Fall back to
+      // the original metadata-only write.
+      const fallback = await db.query<PaymentIntentRow>(
+        `UPDATE payment_intents SET status = $1, updated_at = NOW(),
+           metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+         WHERE id = $2 RETURNING *`,
+        [status, intentId, JSON.stringify({ reference_id: referenceId ?? null, updated: new Date().toISOString() })],
+      );
+      if (fallback.rows.length === 0) throw createAppError('Payment intent not found.', 404);
+      logger.info('Payment status updated (pre-mig-114 fallback)', { intentId, status });
+      return fallback.rows[0]!;
+    }
+    throw err;
+  }
 }
 
+/**
+ * Phase B CRIT-01 + CRIT-02 fix.
+ *
+ * Pre-fix:
+ *   - Status check rejected any refund when status != 'succeeded'.
+ *     A second partial refund (legitimate use case) returned 409.
+ *   - PayMongo refund POST sent the INTENT id (pi_XYZ) as
+ *     `payment_id`. PayMongo expects the PAYMENT id (pay_XYZ) which
+ *     comes from the payment.paid webhook. Production refunds were
+ *     failing silently (caught + logged + swallowed in non-prod).
+ *
+ * Post-fix:
+ *   - Allow status in ('succeeded', 'partially_refunded').
+ *   - Track cumulative refunded_amount (mig 114). Reject if the new
+ *     refund would push cumulative > intent.amount.
+ *   - Use the PayMongo payment ID captured from the webhook
+ *     (paymongo_payment_id column post-mig-114; falls back to
+ *     metadata.reference_id for in-flight rows pre-migration).
+ *   - On success: UPDATE refunded_amount AND status atomically.
+ *     status = 'refunded' if cumulative === amount, else
+ *     'partially_refunded'.
+ */
 export async function processRefund(
   bookingId: string,
   refundAmount: number,
   reason: string,
 ): Promise<void> {
+  if (!Number.isInteger(refundAmount) || refundAmount <= 0) {
+    throw createAppError('refundAmount must be a positive integer (centavos).', 400);
+  }
+
   const intent = await getBookingPaymentIntent(bookingId);
   if (!intent) throw createAppError('No payment found for this booking.', 404);
 
-  if (intent.status !== 'succeeded') {
-    throw createAppError('Can only refund succeeded payments.', 409);
+  // CRIT-01 — accept either succeeded or partially_refunded.
+  if (intent.status !== 'succeeded' && intent.status !== 'partially_refunded') {
+    throw createAppError(
+      `Can only refund payments in status 'succeeded' or 'partially_refunded' (current: ${intent.status}).`,
+      409,
+    );
   }
 
-  if (intent.paymongo_intent_id && !intent.paymongo_intent_id.startsWith('pi_sandbox_')) {
+  // CRIT-01 — cumulative refunded check. The column is added by
+  // mig 114; for older deployments before mig 114 lands, refunded_amount
+  // may be undefined — treat it as 0 (matching the column default).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const currentRefunded = Number((intent as any).refunded_amount ?? 0);
+  const intentAmount = Number(intent.amount);
+  const newCumulative = currentRefunded + refundAmount;
+  if (newCumulative > intentAmount) {
+    throw createAppError(
+      `Refund amount ${refundAmount} would exceed remaining refundable balance (already refunded: ${currentRefunded}, intent total: ${intentAmount}).`,
+      400,
+    );
+  }
+
+  // CRIT-02 — get the actual PayMongo payment ID (pay_XYZ) for the
+  // refund call. paymongo_payment_id column populated from the
+  // payment.paid webhook (post-mig-114 + webhook fix). Fall back to
+  // metadata.reference_id for in-flight rows before the column lands.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const paymongoPaymentId: string | null =
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (intent as any).paymongo_payment_id ??
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (intent.metadata as any)?.reference_id ??
+    null;
+
+  // Skip PayMongo call for sandbox intents and intents with no captured
+  // payment id (sandbox / test fixtures / pre-mig rows).
+  const shouldCallPayMongo =
+    paymongoPaymentId !== null &&
+    paymongoPaymentId.startsWith('pay_') &&
+    !paymongoPaymentId.includes('sandbox');
+
+  if (shouldCallPayMongo) {
     try {
       const response = await globalThis.fetch(`${PAYMONGO_BASE}/refunds`, {
         method: 'POST',
@@ -162,7 +261,8 @@ export async function processRefund(
           data: {
             attributes: {
               amount: refundAmount,
-              payment_id: intent.paymongo_intent_id,
+              // CRIT-02 — use the PAYMENT id, not the intent id.
+              payment_id: paymongoPaymentId,
               reason: 'requested_by_customer',
               notes: reason,
             },
@@ -178,11 +278,48 @@ export async function processRefund(
         throw createAppError('Refund processing failed. Please contact support.', 502);
       }
     }
+  } else if (paymongoPaymentId === null && process.env.NODE_ENV === 'production') {
+    // Production should always have a payment id by the time refund
+    // runs (the webhook captures it on payment.paid). If we get here
+    // in prod, log loudly but don't block the refund — the customer
+    // still gets the wallet credit; we just need ops to reconcile
+    // with PayMongo manually.
+    logger.error('Refund attempted without PayMongo payment ID — manual reconciliation required', {
+      bookingId,
+      intentId: intent.id,
+      paymongoIntentId: intent.paymongo_intent_id,
+    });
   }
 
-  const newStatus = refundAmount >= Number(intent.amount) ? 'refunded' : 'partially_refunded';
-  await updatePaymentStatus(intent.id, newStatus);
-  logger.info('Refund processed', { bookingId, refundAmount, reason });
+  const finalStatus = newCumulative >= intentAmount ? 'refunded' : 'partially_refunded';
+
+  // Atomic UPDATE — both fields move together.
+  await db.query(
+    `UPDATE payment_intents
+        SET status = $1,
+            refunded_amount = $2,
+            updated_at = NOW(),
+            metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb
+      WHERE id = $3`,
+    [
+      finalStatus,
+      newCumulative,
+      intent.id,
+      JSON.stringify({
+        last_refund_at: new Date().toISOString(),
+        last_refund_amount: refundAmount,
+        last_refund_reason: reason,
+      }),
+    ],
+  );
+
+  logger.info('Refund processed', {
+    bookingId,
+    refundAmount,
+    cumulativeRefunded: newCumulative,
+    intentAmount,
+    finalStatus,
+  });
 }
 
 function mapPaymentMethodToPaymongo(method: PaymentMethod): string[] {

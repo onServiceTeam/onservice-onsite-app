@@ -114,14 +114,18 @@ describe('Bug 1271 + CRIT-N14 — payment.service uses native fetch', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('Bug 1271 — processRefund POSTs to PayMongo /refunds via globalThis.fetch', async () => {
-    // First call: getBookingPaymentIntent
+  it('Bug 1271 + Phase B CRIT-02 — processRefund POSTs to PayMongo /refunds via globalThis.fetch with PAYMENT id (not intent id)', async () => {
+    // First call: getBookingPaymentIntent — post-CRIT-02 fix the row
+    // also carries paymongo_payment_id captured from the webhook.
     dbQueryMock.mockResolvedValueOnce({
       rows: [{
         id: 'intent-1',
         booking_id: 'b-1',
         paymongo_intent_id: 'pi_real_456',
+        // Phase B CRIT-02 — refund call must use this, NOT the intent id.
+        paymongo_payment_id: 'pay_real_456',
         amount: '50000',
+        refunded_amount: 0,
         payment_method: 'gcash',
         status: 'succeeded',
         client_key: null,
@@ -139,22 +143,9 @@ describe('Bug 1271 + CRIT-N14 — payment.service uses native fetch', () => {
       json: async () => ({}),
     });
 
-    // updatePaymentStatus query
-    dbQueryMock.mockResolvedValueOnce({
-      rows: [{
-        id: 'intent-1',
-        booking_id: 'b-1',
-        paymongo_intent_id: 'pi_real_456',
-        amount: '50000',
-        payment_method: 'gcash',
-        status: 'refunded',
-        client_key: null,
-        metadata: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      }],
-      rowCount: 1,
-    });
+    // updatePaymentStatus query (post-CRIT-01 the UPDATE writes both
+    // status + refunded_amount in one query).
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
     await processRefund('b-1', 50000, 'customer requested');
 
@@ -164,7 +155,11 @@ describe('Bug 1271 + CRIT-N14 — payment.service uses native fetch', () => {
     expect(init.method).toBe('POST');
     const body = JSON.parse(init.body as string);
     expect(body.data.attributes.amount).toBe(50000);
-    expect(body.data.attributes.payment_id).toBe('pi_real_456');
+    // Phase B CRIT-02 fix — payment_id is the PAYMENT id (pay_*),
+    // not the INTENT id (pi_*). The pre-fix bug sent the intent id
+    // and PayMongo silently rejected production refunds.
+    expect(body.data.attributes.payment_id).toBe('pay_real_456');
+    expect(body.data.attributes.payment_id).not.toBe('pi_real_456');
     expect(body.data.attributes.notes).toBe('customer requested');
   });
 });
