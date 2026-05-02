@@ -1,9 +1,11 @@
 import React, { useEffect, lazy } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import { useAuthStore } from '@/stores/auth.store';
 import AdminLayout from '@/components/AdminLayout';
 import LoginPage from '@/pages/LoginPage';
+// LAUNCH-LIMITATIONS #12 — must-rotate-password redirect target.
+const ChangePasswordPage = lazy(() => import('@/pages/ChangePasswordPage'));
 
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const ProvidersPage = lazy(() => import('@/pages/ProvidersPage'));
@@ -36,6 +38,21 @@ const ConsentVersionsPage = lazy(() => import('@/pages/ConsentVersionsPage'));
 // Phase L MED-L01 fix — 404 catch-all page.
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 
+// LAUNCH-LIMITATIONS #12 — route guard layout. When the auth store
+// has mustRotatePassword=true the user is forced to /change-password
+// regardless of where they tried to navigate. The change-password
+// page itself is mounted OUTSIDE this guard (sibling route under
+// AdminLayout) so the redirect target stays reachable without an
+// infinite loop.
+function MustRotateGuard(): React.ReactElement {
+  const mustRotate = useAuthStore((s) => s.mustRotatePassword);
+  const location = useLocation();
+  if (mustRotate && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
+  }
+  return <Outlet />;
+}
+
 export default function App(): React.ReactElement {
   const hydrate = useAuthStore((s) => s.hydrate);
 
@@ -54,38 +71,47 @@ export default function App(): React.ReactElement {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<AdminLayout />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/providers" element={<ProvidersPage />} />
-          <Route path="/providers/:id" element={<ProviderDetailPage />} />
-          <Route path="/customers" element={<CustomersPage />} />
-          <Route path="/customers/:id" element={<CustomerDetailPage />} />
-          <Route path="/bookings" element={<BookingsPage />} />
-          <Route path="/bookings/:id" element={<BookingDetailPage />} />
-          <Route path="/catalog" element={<CatalogPage />} />
-          <Route path="/disputes" element={<DisputesPage />} />
-          <Route path="/disputes/:id" element={<DisputeDetailPage />} />
-          <Route path="/financials" element={<FinancialsPage />} />
-          <Route path="/payouts" element={<PayoutsPage />} />
-          <Route path="/notification-templates" element={<NotificationTemplatesPage />} />
-          <Route path="/recurring" element={<RecurringPage />} />
-          <Route path="/business-accounts" element={<BusinessAccountsPage />} />
-          <Route path="/service-areas" element={<ServiceAreasPage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/audit-log" element={<AuditLogPage />} />
-          <Route path="/support-tickets" element={<SupportTicketsPage />} />
-          <Route path="/staff" element={<StaffRolesPage />} />
-          <Route path="/settings" element={<SystemSettingsPage />} />
-          <Route path="/settings/cancellation-policy" element={<CancellationPolicyPage />} />
-          <Route path="/marketing" element={<MarketingPage />} />
-          <Route path="/dispatch" element={<DispatchConsolePage />} />
-          <Route path="/compliance" element={<CompliancePage />} />
-          <Route path="/data-protection-log" element={<DataProtectionLogPage />} />
-          <Route path="/consent-versions" element={<ConsentVersionsPage />} />
-          <Route path="/pricing-rules" element={<PricingRulesPage />} />
-          {/* Phase L MED-L01 fix — catch-all 404. Inside AdminLayout
-               so admin chrome stays visible; pre-fix typoed URLs just
-               rendered a blank page. */}
-          <Route path="*" element={<NotFoundPage />} />
+          {/* LL#12 — change-password is reachable inside the admin
+              layout chrome so the user keeps context. Not wrapped in
+              MustRotateGuard (it's the redirect target). */}
+          <Route path="/change-password" element={<ChangePasswordPage />} />
+          {/* All other admin routes are gated by MustRotateGuard via
+              the wrapper element below; if mustRotatePassword=true the
+              guard redirects to /change-password. */}
+          <Route element={<MustRotateGuard />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/providers" element={<ProvidersPage />} />
+            <Route path="/providers/:id" element={<ProviderDetailPage />} />
+            <Route path="/customers" element={<CustomersPage />} />
+            <Route path="/customers/:id" element={<CustomerDetailPage />} />
+            <Route path="/bookings" element={<BookingsPage />} />
+            <Route path="/bookings/:id" element={<BookingDetailPage />} />
+            <Route path="/catalog" element={<CatalogPage />} />
+            <Route path="/disputes" element={<DisputesPage />} />
+            <Route path="/disputes/:id" element={<DisputeDetailPage />} />
+            <Route path="/financials" element={<FinancialsPage />} />
+            <Route path="/payouts" element={<PayoutsPage />} />
+            <Route path="/notification-templates" element={<NotificationTemplatesPage />} />
+            <Route path="/recurring" element={<RecurringPage />} />
+            <Route path="/business-accounts" element={<BusinessAccountsPage />} />
+            <Route path="/service-areas" element={<ServiceAreasPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/audit-log" element={<AuditLogPage />} />
+            <Route path="/support-tickets" element={<SupportTicketsPage />} />
+            <Route path="/staff" element={<StaffRolesPage />} />
+            <Route path="/settings" element={<SystemSettingsPage />} />
+            <Route path="/settings/cancellation-policy" element={<CancellationPolicyPage />} />
+            <Route path="/marketing" element={<MarketingPage />} />
+            <Route path="/dispatch" element={<DispatchConsolePage />} />
+            <Route path="/compliance" element={<CompliancePage />} />
+            <Route path="/data-protection-log" element={<DataProtectionLogPage />} />
+            <Route path="/consent-versions" element={<ConsentVersionsPage />} />
+            <Route path="/pricing-rules" element={<PricingRulesPage />} />
+            {/* Phase L MED-L01 fix — catch-all 404. Inside AdminLayout
+                 so admin chrome stays visible; pre-fix typoed URLs just
+                 rendered a blank page. */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
         </Route>
       </Routes>
     </Sentry.ErrorBoundary>

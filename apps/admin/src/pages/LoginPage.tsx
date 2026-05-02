@@ -69,8 +69,10 @@ export default function LoginPage(): React.ReactElement {
 
       // Bug 1251 fix: server set cookies on the response. We only need the
       // user payload for client-side state.
-      const { user } = data;
-      completeLogin(user);
+      // LL#12 — surface mustRotatePassword from the response so the
+      // route guard can redirect to /change-password.
+      const { user, mustRotatePassword } = data;
+      completeLogin(user, { mustRotatePassword: mustRotatePassword === true });
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -85,8 +87,8 @@ export default function LoginPage(): React.ReactElement {
 
     try {
       const res = await api.post('/api/v1/auth/admin/2fa/verify', { preAuthToken, totpCode });
-      const { user } = res.data.data;
-      completeLogin(user);
+      const { user, mustRotatePassword } = res.data.data;
+      completeLogin(user, { mustRotatePassword: mustRotatePassword === true });
     } catch (err) {
       setError(getErrorMessage(err));
       setTotpCode('');
@@ -112,7 +114,8 @@ export default function LoginPage(): React.ReactElement {
         setPreAuthToken('');
         return;
       }
-      completeLogin(user);
+      const { mustRotatePassword } = res.data.data;
+      completeLogin(user, { mustRotatePassword: mustRotatePassword === true });
     } catch (err) {
       setError(getErrorMessage(err));
       setEnrolCode('');
@@ -121,9 +124,13 @@ export default function LoginPage(): React.ReactElement {
     }
   };
 
-  const completeLogin = (user: Record<string, unknown>): void => {
+  const completeLogin = (
+    user: Record<string, unknown>,
+    opts: { mustRotatePassword?: boolean } = {},
+  ): void => {
     const role = user.role as string;
-    if (role !== 'admin' && role !== 'super_admin') {
+    // E01 / D15 — DPO is admin-tier and must reach the admin app.
+    if (role !== 'admin' && role !== 'super_admin' && role !== 'dpo') {
       setError('Access denied. Admin privileges required.');
       return;
     }
@@ -134,12 +141,15 @@ export default function LoginPage(): React.ReactElement {
       phone: user.phone as string,
       firstName: user.firstName as string,
       lastName: user.lastName as string,
-      role,
+      role: role as 'admin' | 'super_admin' | 'dpo',
       avatarUrl: user.avatarUrl as string | null,
     };
 
-    login(adminUser);
-    navigate('/');
+    login(adminUser, { mustRotatePassword: opts.mustRotatePassword === true });
+    // LL#12 — when must rotate, route guard at App level redirects to
+    // /change-password regardless of where we navigate. Going to root
+    // is fine because the guard intercepts first.
+    navigate(opts.mustRotatePassword ? '/change-password' : '/');
   };
 
   // 2FA force-enrollment step (admin/super_admin without TOTP)

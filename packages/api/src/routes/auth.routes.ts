@@ -351,8 +351,14 @@ router.get(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const result = await db.query<UserProfileRow>(
-        `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at
+      // LL#12 — also pull must_rotate_password so a hydrating admin
+      // session can route the user to the change-password screen
+      // even on app reload (not just at login). COALESCE keeps the
+      // response valid against pre-mig-116 databases.
+      const result = await db.query<UserProfileRow & { must_rotate_password: boolean | null }>(
+        `SELECT id, phone, email, first_name, last_name, role, avatar_url,
+                is_verified, is_active, created_at,
+                COALESCE(must_rotate_password, FALSE) AS must_rotate_password
          FROM users WHERE id = $1`,
         [req.user!.userId],
       );
@@ -362,7 +368,14 @@ router.get(
         return;
       }
 
-      res.json({ success: true, data: formatUserResponse(result.rows[0]!) });
+      const row = result.rows[0]!;
+      res.json({
+        success: true,
+        data: {
+          ...formatUserResponse(row),
+          mustRotatePassword: row.must_rotate_password === true,
+        },
+      });
     } catch (error) {
       next(error);
     }

@@ -7,7 +7,8 @@ export interface AdminUser {
   phone: string;
   firstName: string | null;
   lastName: string | null;
-  role: 'admin' | 'super_admin';
+  // E01 / D15 — `dpo` is a real role with NPC RA 10173 §21 segregation.
+  role: 'admin' | 'super_admin' | 'dpo';
   avatarUrl: string | null;
 }
 
@@ -15,11 +16,23 @@ interface AuthState {
   user: AdminUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  /**
+   * LAUNCH-LIMITATIONS #12 — when true the user must rotate their
+   * password before reaching any other admin route. The post-login,
+   * post-2FA-verify, and /auth/me responses all carry this flag; the
+   * App-level route guard reads `useAuthStore().mustRotatePassword`
+   * and redirects to /change-password when set. clearMustRotate is
+   * called by the change-password page on success.
+   */
+  mustRotatePassword: boolean;
 
   hydrate: () => Promise<void>;
-  login: (user: AdminUser) => void;
+  login: (user: AdminUser, opts?: { mustRotatePassword?: boolean }) => void;
+  clearMustRotate: () => void;
   logout: () => Promise<void>;
 }
+
+const ADMIN_TIER_ROLES: ReadonlySet<string> = new Set(['admin', 'super_admin', 'dpo']);
 
 // Bug 1251 fix: tokens are stored in HttpOnly cookies, never in localStorage.
 // Hydration calls /api/v1/auth/me — if the admin_session cookie is valid the
@@ -28,6 +41,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
   isLoading: true,
+  mustRotatePassword: false,
 
   hydrate: async () => {
     // One-time migration for users still carrying tokens from before this fix:
@@ -39,28 +53,42 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch { /* not a hard requirement */ }
 
     try {
-      const res = await api.get<{ success: true; data: AdminUser & { id: string; role: string } }>(
-        '/api/v1/auth/me',
-      );
+      const res = await api.get<{
+        success: true;
+        data: AdminUser & { id: string; role: string; mustRotatePassword?: boolean };
+      }>('/api/v1/auth/me');
       const u = res.data.data;
-      if (u && (u.role === 'admin' || u.role === 'super_admin')) {
-        set({ user: u as AdminUser, isAuthenticated: true, isLoading: false });
+      if (u && ADMIN_TIER_ROLES.has(u.role)) {
+        set({
+          user: u as AdminUser,
+          isAuthenticated: true,
+          isLoading: false,
+          mustRotatePassword: u.mustRotatePassword === true,
+        });
         return;
       }
     } catch {
       // Not authenticated — fall through.
     }
-    set({ user: null, isAuthenticated: false, isLoading: false });
+    set({ user: null, isAuthenticated: false, isLoading: false, mustRotatePassword: false });
   },
 
-  login: (user) => {
-    set({ user, isAuthenticated: true });
+  login: (user, opts) => {
+    set({
+      user,
+      isAuthenticated: true,
+      mustRotatePassword: opts?.mustRotatePassword === true,
+    });
+  },
+
+  clearMustRotate: () => {
+    set({ mustRotatePassword: false });
   },
 
   logout: async () => {
     try {
       await api.post('/api/v1/auth/admin/logout');
     } catch { /* best effort — clear local state regardless */ }
-    set({ user: null, isAuthenticated: false });
+    set({ user: null, isAuthenticated: false, mustRotatePassword: false });
   },
 }));
