@@ -547,28 +547,45 @@ export async function transitionBookingStatus(
       });
     }
 
-    // Track provider cancellation penalty (PROV-007)
+    // MED-N68 fix — pre-fix code ran this UPDATE OUTSIDE the parent
+    // transaction (`db.query` not `client.query`) and added `+ 1` to
+    // the COUNT subquery. After the parent trx committed the just-
+    // cancelled booking was already visible in the subquery, so the
+    // `+ 1` produced double-count.
+    //
+    // Post-fix: UPDATE runs INSIDE the parent trx via `client.query`
+    // (atomic with the booking state change). The COUNT subquery sees
+    // the freshly-UPDATE'd bookings row in this same transaction
+    // (READ COMMITTED + same client) so no `+ 1` is needed and the
+    // count is exactly right. Errors throw and roll back the booking
+    // status flip too.
     if (newStatus === 'cancelled_by_provider' && updated.provider_id) {
-      db.query(
-        `UPDATE providers
-         SET total_cancellations = total_cancellations + 1,
-             cancellations_last_30d = (
-               SELECT COUNT(*) FROM bookings
-               WHERE provider_id = $1
-                 AND status = 'cancelled_by_provider'
-                 AND cancelled_at > NOW() - INTERVAL '30 days'
-             ) + 1,
-             last_cancellation_at = NOW(),
-             updated_at = NOW()
-         WHERE id = $1`,
-        [updated.provider_id],
-      ).catch((err: unknown) => {
+      try {
+        await client.query(
+          `UPDATE providers
+           SET total_cancellations = total_cancellations + 1,
+               cancellations_last_30d = (
+                 SELECT COUNT(*) FROM bookings
+                 WHERE provider_id = $1
+                   AND status = 'cancelled_by_provider'
+                   AND cancelled_at > NOW() - INTERVAL '30 days'
+               ),
+               last_cancellation_at = NOW(),
+               updated_at = NOW()
+           WHERE id = $1`,
+          [updated.provider_id],
+        );
+      } catch (err: unknown) {
+        // Re-throw — we want the booking transition to ROLL BACK if
+        // we cannot record the penalty (provider count must always
+        // match the bookings table).
         logger.error('Provider cancellation tracking update failed', {
           bookingId,
           providerId: updated.provider_id,
           error: err instanceof Error ? err.message : 'Unknown',
         });
-      });
+        throw err;
+      }
     }
 
     return updated;

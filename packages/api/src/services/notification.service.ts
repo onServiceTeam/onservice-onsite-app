@@ -18,15 +18,42 @@ interface NotificationRow {
 
 interface CountRow { count: string }
 
-type NotificationType =
-  | 'booking_confirmed' | 'booking_expired' | 'provider_assigned' | 'provider_en_route'
-  | 'provider_arrived' | 'job_completed' | 'auto_confirmed'
+// MED-N72 fix — pre-fix the union was missing many types that the rest
+// of the codebase (admin.service, booking-admin.service, admin-
+// analytics.service, recurring.service, etc.) was already passing into
+// `createNotification` or writing directly via raw INSERT. The
+// notifications.type column is `VARCHAR(50)` with no CHECK so DB
+// silently accepts any string — meaning the type-mismatch only ever
+// surfaced at compile time at the few callers that go through
+// createNotification(). After this fix the union enumerates EVERY
+// notification.type value that any service in this package emits;
+// callers that emit something not in the union now get a TS compile
+// error and the audit can keep using a single source of truth.
+export type NotificationType =
+  // Booking lifecycle
+  | 'booking_created' | 'booking_confirmed' | 'booking_expired'
+  | 'booking_cancelled' | 'customer_cancelled'
+  | 'provider_assigned' | 'provider_en_route' | 'provider_arrived'
+  | 'job_completed' | 'auto_confirmed'
+  // Payments + disputes
   | 'refund_processed' | 'dispute_update' | 'payment_released'
-  | 'new_job_available' | 'job_accepted' | 'customer_cancelled'
+  // Provider-side
+  | 'new_job_available' | 'job_accepted'
   | 'rating_received' | 'tier_upgrade' | 'nbi_expiring'
-  | 'new_message' | 'new_quote' | 'quote_accepted' | 'quote_expired'
+  | 'provider_approved' | 'provider_rejected' | 'provider_suspended'
+  | 'provider_reactivated' | 'provider_tier_changed'
+  // Chat / messaging
+  | 'new_message' | 'chat_started' | 'chat_last_message'
+  // Quotes
+  | 'new_quote' | 'quote_accepted' | 'quote_expired'
+  // Recurring + business
   | 'recurring_update' | 'business_update' | 'area_launch'
-  | 'dsr_info_requested';
+  // Compliance / data subject rights
+  | 'dsr_info_requested'
+  // Admin operational alerts (raw-INSERT in admin-analytics.service)
+  | 'provider_consecutive_one_star' | 'paymongo_webhook_failure'
+  | 'provider_nbi_expiring' | 'customer_chronic_disputes'
+  | 'city_low_provider_count' | 'guarantee_fund_low';
 
 interface CreateNotificationParams {
   userId: string;
@@ -37,7 +64,25 @@ interface CreateNotificationParams {
 }
 
 export async function createNotification(params: CreateNotificationParams): Promise<NotificationRow> {
-  const enrichedData = { ...params.data, type: params.type };
+  // MED-N60 fix — old code did `{ ...params.data, type: params.type }`
+  // which let params.type silently OVERWRITE any 'type' key the caller
+  // had explicitly set in data. Now:
+  //
+  //   1. params.type is also written under `notificationType` — the
+  //      canonical, never-collides field. Push handlers and admin UIs
+  //      should read `data.notificationType` going forward.
+  //   2. We still write `data.type = params.type` BEFORE caller spread
+  //      for back-compat with mobile clients that already read it. If
+  //      the caller intentionally put a different `type` in data, their
+  //      value wins (the spread is after).
+  //   3. The row's own `type` column is unchanged and remains the
+  //      authoritative source of the notification type.
+  const callerData = params.data ?? {};
+  const enrichedData = {
+    type: params.type, // back-compat for older mobile readers
+    ...callerData,     // caller wins for any colliding keys
+    notificationType: params.type, // canonical, always set, never overridden
+  };
   const result = await db.query<NotificationRow>(
     `INSERT INTO notifications (user_id, type, title, body, data)
      VALUES ($1, $2, $3, $4, $5)
@@ -180,10 +225,42 @@ async function deliverPushToDevice(
 
     logger.info('Push notification sent', { userId, tokenCount: messages.length });
   } catch (err) {
+    // MED-N57 fix — pre-fix this catch only logger.error()'d. The
+    // notification ROW already exists in DB from createNotification
+    // upstream, but the immediate push that wakes the device never
+    // arrived. Critical alerts ("provider arrived", "refund processed")
+    // silently failed.
+    //
+    // Post-fix: enqueue a row in push_retry_queue. A scheduled worker
+    // (push-retry.service.processPushRetries) picks pending rows up
+    // and retries with exponential backoff; after 5 attempts the row
+    // is marked failed_permanent for admin ops.
+    //
+    // require() instead of top-level import to avoid a circular dep:
+    // push-retry.service is a small leaf module but the worker invokes
+    // deliverPushToDevice via callback so the cycle would be created
+    // if either side imported the other up-front.
     logger.error('Expo push API call failed', {
       userId,
       error: err instanceof Error ? err.message : 'Unknown',
     });
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { enqueuePushRetry } = require('./push-retry.service');
+      await enqueuePushRetry({
+        userId,
+        notificationId: (data?.notificationId as string | undefined) ?? null,
+        title,
+        body,
+        data: data ?? {},
+        initialError: err instanceof Error ? err.message : String(err),
+      });
+    } catch (enqueueErr) {
+      logger.error('FAILED to enqueue push retry; original push failure remains primary record', {
+        userId,
+        enqueueError: enqueueErr instanceof Error ? enqueueErr.message : String(enqueueErr),
+      });
+    }
   }
 }
 
