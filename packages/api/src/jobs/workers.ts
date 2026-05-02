@@ -56,38 +56,39 @@ async function autoConfirmBookings(): Promise<number> {
   let confirmed = 0;
   for (const booking of stale.rows) {
     try {
-      const updateResult = await db.query(
-        `UPDATE bookings SET status = 'confirmed', confirmed_at = NOW(), updated_at = NOW()
-         WHERE id = $1 AND status = 'completed_by_provider'`,
-        [booking.id],
-      );
-
-      if ((updateResult.rowCount ?? 0) === 0) continue;
-
-      try {
-        await escrowService.releaseEscrow(booking.id);
-      } catch (escrowErr) {
-        await db.query(
-          `UPDATE bookings SET status = 'completed_by_provider', confirmed_at = NULL, updated_at = NOW()
-           WHERE id = $1 AND status = 'confirmed'`,
+      // MED-M16 fix — wrap the status flip + escrow release + final
+      // status flip in a SINGLE transaction so any failure rolls back
+      // the whole sequence. Pre-fix the post-escrow status flip to
+      // 'payout_ready' was a separate db.query in a try/catch that
+      // only logged on failure — leaving the booking stuck at
+      // 'confirmed' with escrow already released. Reconciliation
+      // jobs would then mis-count this as "escrow held but not
+      // payable" and never page on the inconsistency. Post-fix uses
+      // releaseEscrowInTransaction (the trx-aware variant from
+      // CRIT-N04) so wallet movement, audit, and status flip are
+      // all atomic.
+      await db.transaction(async (client) => {
+        const claimResult = await client.query(
+          `UPDATE bookings SET status = 'confirmed', confirmed_at = NOW(), updated_at = NOW()
+           WHERE id = $1 AND status = 'completed_by_provider'
+           RETURNING id`,
           [booking.id],
         );
-        throw escrowErr;
-      }
-
-      try {
-        await db.query(
+        if ((claimResult.rowCount ?? 0) === 0) {
+          // Another worker won the race or the booking moved.
+          throw new Error('booking_already_advanced');
+        }
+        await escrowService.releaseEscrowInTransaction(client, booking.id);
+        await client.query(
           `UPDATE bookings SET status = 'payout_ready', updated_at = NOW()
            WHERE id = $1 AND status = 'confirmed'`,
           [booking.id],
         );
-      } catch (statusErr) {
-        logger.error('Post-escrow status update failed — escrow released but booking stuck at confirmed', {
-          bookingId: booking.id,
-          error: statusErr instanceof Error ? statusErr.message : 'Unknown',
-        });
-      }
+      });
 
+      // Notification is fire-and-forget (no money risk if it fails);
+      // outside the trx so a notification outage doesn't roll back
+      // a successful payout-ready transition.
       await notificationService.createNotification({
         userId: booking.customer_id,
         type: 'auto_confirmed',
@@ -99,10 +100,15 @@ async function autoConfirmBookings(): Promise<number> {
       confirmed++;
       logger.info('Auto-confirmed booking', { bookingId: booking.id });
     } catch (err) {
-      logger.error('Auto-confirm failed for booking', {
-        bookingId: booking.id,
-        error: err instanceof Error ? err.message : 'Unknown',
-      });
+      const msg = err instanceof Error ? err.message : 'Unknown';
+      // MED-M16 — race on two workers picking up the same booking
+      // is expected and not an error.
+      if (msg !== 'booking_already_advanced') {
+        logger.error('Auto-confirm failed for booking', {
+          bookingId: booking.id,
+          error: msg,
+        });
+      }
     }
   }
 

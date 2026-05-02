@@ -26,6 +26,15 @@ function redactString(value: string): string {
   return out;
 }
 
+// MED-M11 fix — key-based redaction. The PII regex passes only catch
+// values whose shape matches a known PII pattern (phone, email, JWT).
+// Values that DON'T match the regex (scrypt hashes, random secrets,
+// tokens, refresh tokens, API keys, encryption keys) would slip
+// through if a caller logs them under a sensitive key. Defense in
+// depth: any object key matching this regex has its value replaced
+// with [REDACTED:key] regardless of value content.
+const SENSITIVE_KEY_PATTERN = /(password|hash|secret|token|api[_-]?key|encryption[_-]?key|totp[_-]?secret|refresh|access)/i;
+
 function redactValue(value: unknown, seen: WeakSet<object>): unknown {
   if (typeof value === 'string') return redactString(value);
   if (value === null || typeof value !== 'object') return value;
@@ -39,6 +48,11 @@ function redactValue(value: unknown, seen: WeakSet<object>): unknown {
   }
   const obj = value as Record<string, unknown>;
   for (const k of Object.keys(obj)) {
+    // MED-M11 — sensitive key gets value-blind redaction.
+    if (SENSITIVE_KEY_PATTERN.test(k)) {
+      obj[k] = '[REDACTED:key]';
+      continue;
+    }
     obj[k] = redactValue(obj[k], seen);
   }
   return obj;

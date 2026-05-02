@@ -66,7 +66,26 @@ export function authMiddleware(
 
     req.user = payload;
     next();
-  } catch {
+  } catch (err) {
+    // MED-M04 fix — distinguish expired vs malformed JWT so the
+    // client can take the right action: TokenExpiredError → mobile/
+    // admin should silently call refresh; JsonWebTokenError → force
+    // re-login. The error code travels in the AppError under `code`
+    // so route-level handlers can branch without parsing the message.
+    const e = err as { name?: string };
+    if (e?.name === 'TokenExpiredError') {
+      const expired = createAppError('Authentication token expired.', 401);
+      (expired as { code?: string }).code = 'token_expired';
+      next(expired);
+      return;
+    }
+    if (e?.name === 'JsonWebTokenError' || e?.name === 'NotBeforeError') {
+      const malformed = createAppError('Invalid authentication token.', 401);
+      (malformed as { code?: string }).code = 'token_invalid';
+      next(malformed);
+      return;
+    }
+    // Unknown error class — keep generic message for safety.
     next(createAppError('Invalid or expired authentication token.', 401));
   }
 }

@@ -118,8 +118,29 @@ export async function revokeAdminCsrfTokens(adminUserId: string): Promise<void> 
   );
 }
 
-// Re-export the configured admin-session lifetime so tests and route handlers
-// can read it without copy-pasting magic numbers.
+// MED-M12 audit context — the audit flagged this as ignoring the
+// admin-tunable platformConfig.adminSessionTimeoutHours, but the
+// 15-minute cap on the ACCESS cookie is intentional security and
+// orthogonal to the admin SESSION timeout (which governs the
+// refresh cookie + admin_sessions row, not the access cookie).
+//
+// The architecture is:
+//   - access cookie (this constant) — short-lived JWT carrying
+//     identity for one request burst. Hard-capped at 15 min so a
+//     stolen cookie can do at most 15 min of damage before requiring
+//     a refresh round-trip (which re-validates fingerprint + CSRF +
+//     admin_sessions row).
+//   - refresh cookie + admin_sessions.expires_at — governed by
+//     platformConfig.adminSessionTimeoutHours (default 1 h, admin-
+//     tunable up to 24 h). This is what the admin Settings UI
+//     "session timeout" actually controls.
+//   - admin_csrf_tokens.expires_at — bound to the access cookie
+//     lifetime so refresh re-mints the CSRF token in lockstep.
+//
+// We keep the 15-min cap and document the intent loudly so the
+// audit's reading doesn't get re-applied. The Math.min preserves
+// the case where an admin explicitly configures <15 min for tighter
+// security.
 export const ADMIN_SESSION_ACCESS_LIFETIME_MS =
   Math.min(
     platformConfig.adminSessionTimeoutHours * 3600 * 1000,
