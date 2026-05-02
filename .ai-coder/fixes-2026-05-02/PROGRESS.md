@@ -630,6 +630,65 @@ All four also migrated to canonical `getErrorMessage` helper.
   missing), 115 (orphan, deprecated by K06), 118 (NbiStatusBanner
   endpoint missing).
 
+## Session 5h — Phase E provider screens wave 3 (CRIT-111/118/115/102)
+
+| # | Commit | Summary |
+|---|---|---|
+| 1 | 810951f | E-CRIT-111 service-area PATCH /me canonical (5 tests) |
+| 2 | 87f987c | E-CRIT-118 NbiStatusBanner backend endpoint added (6 tests) |
+| 3 | 0760fe4 | E-CRIT-115 identity-verification redirect to documents |
+| 4 | 66344ee | E-CRIT-102 complete.tsx real photo upload + status PATCH; CRIT-103/104 escalated (6 tests) |
+
+### What landed in 5h
+
+**E-CRIT-111** — provider/service-area.tsx no longer POSTs to a
+non-existent `/me/service-area` endpoint. Now PATCHes `/me` with
+canonical `latitude`/`longitude`/`serviceRadiusKm` accepted by
+updateProfileSchema. Also corrected DEFAULT_LAT/LNG from Quezon City
+to Boracay (the launch market — same fix as CRIT-116/K06).
+
+**E-CRIT-118** — NbiStatusBanner global component had been hitting
+`/api/v1/provider/nbi-status` (singular) which never existed. Every
+fetch returned 404 and the banner silently never rendered. Added
+new backend service `getProviderNbiStatus` reading the providers row
+(nbi_clearance_url + nbi_expiry_date columns from migration 002),
+classifying as missing/expired/expiring/valid using the existing
+admin-tunable `provider.nbi_expiry_warning_days` setting (default 30).
+New route GET `/api/v1/providers/me/nbi-status`. Mobile component
+updated to canonical URL.
+
+**E-CRIT-115** — `provider-onboarding/identity-verification.tsx`
+already documented as deprecated by K06 audit, but the screen body
+was preserved in case anyone deep-linked to it. Body submitted
+base64-in-JSON to a non-existent endpoint. Replaced body with
+redirect to `/provider-onboarding/documents` (the active KYC entry).
+Same K06/K10 redirect pattern used for skills.tsx (CRIT-110).
+
+**E-CRIT-102** — `provider/job/[id]/complete.tsx` was POSTing to a
+non-existent `/bookings/:id/complete` endpoint AND sending file://
+URIs as JSON strings. Now uploads each captured photo individually
+via the existing `/uploads/booking-photo` multipart endpoint with
+photoType='after', then PATCHes `/:id/status` with
+`status='completed_by_provider'`.
+
+**E-CRIT-103/104** (signature visual persistence) — escalated to Ken
+in `.ai-coder/escalations/E01-signature-image-persistence-2026-05-02.md`.
+Every viable path requires a NEW dependency (mobile signature canvas,
+mobile view-shot, or backend sharp). Per CLAUDE.md hard-stop rule #3
+that decision needs Ken. Recommendation: Option A
+(react-native-signature-canvas).
+
+### Numbers (session 5h final)
+
+- **Mobile tests:** 368 passing + 90 todo (was 354/91 at end of 5g).
+- **Backend tests:** 2450 passing (was 2444 at end of 5g — +6 from
+  the new e-crit118-nbi-status.test.ts).
+- **Phase E CRITs landed:** 101, 102, 105, 108, 109, 110, 111, 112,
+  113, 114, 115, 116, 117, 118, 119 (15 of 18).
+- **Phase E CRITs remaining:** 103/104 (signature visual — escalated
+  to E01), 111 was the only "missing endpoint" so the remaining
+  service-area POST endpoint cleanup is fully closed.
+
 ## RESUME instructions for the next session
 
 1. Backend audit findings (Phase B + C + N + M + O) substantially
