@@ -653,6 +653,10 @@ export async function getCustomerReferrals(customerId: string): Promise<Customer
 export async function getCustomerActivity(
   customerId: string,
   limit: number,
+  // MED-N17 fix: same pattern as MED-N14 in provider-admin.service.
+  // Junior admins see masked IPs + truncated user agents; super_admin
+  // sees raw values. Defaults to 'admin' for callers not yet updated.
+  requesterRole: 'admin' | 'super_admin' = 'admin',
 ): Promise<CustomerActivityRow[]> {
   const safeLimit = Math.min(200, Math.max(1, Math.floor(limit) || 50));
 
@@ -710,13 +714,24 @@ export async function getCustomerActivity(
     ),
   ]);
 
+  // MED-N17 fix: same masking helper pattern as MED-N14.
+  const { maskIp, maskUserAgent } = await import('../utils/pii-mask');
+  const maskIfNeeded = (ip: string | null): string | null => {
+    if (ip === null) return null;
+    return requesterRole === 'super_admin' ? ip : maskIp(ip);
+  };
+  const maskUaIfNeeded = (ua: string | null): string | null => {
+    if (ua === null) return null;
+    return requesterRole === 'super_admin' ? ua : maskUserAgent(ua);
+  };
+
   const audit = auditRows.rows.map<CustomerActivityRow>((r) => ({
     id: `audit:${r.id}`,
     source: 'audit',
     action: r.action,
     detail: r.new_values ? JSON.stringify(r.new_values) : null,
-    ipAddress: r.ip_address,
-    userAgent: r.user_agent,
+    ipAddress: maskIfNeeded(r.ip_address),
+    userAgent: maskUaIfNeeded(r.user_agent),
     createdAt: r.created_at.toISOString(),
   }));
 
@@ -725,8 +740,8 @@ export async function getCustomerActivity(
     source: 'login',
     action: `${r.attempt_type}:${r.success ? 'ok' : 'fail'}`,
     detail: null,
-    ipAddress: r.ip_address,
-    userAgent: r.user_agent,
+    ipAddress: maskIfNeeded(r.ip_address),
+    userAgent: maskUaIfNeeded(r.user_agent),
     createdAt: r.created_at.toISOString(),
   }));
 

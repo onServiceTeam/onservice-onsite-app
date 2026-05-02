@@ -523,6 +523,11 @@ export async function getProviderDisputes(providerId: string): Promise<ProviderD
 export async function getProviderActivity(
   providerId: string,
   limit: number,
+  // MED-N14 fix: caller passes the requesting admin's role so
+  // junior admins see masked IPs + truncated user agents. Defaults
+  // to 'admin' (the most-restrictive role) so callers that haven't
+  // been updated still get masking. super_admin sees raw values.
+  requesterRole: 'admin' | 'super_admin' = 'admin',
 ): Promise<ProviderActivityRow[]> {
   const safeLimit = Math.min(200, Math.max(1, Math.floor(limit) || 50));
 
@@ -569,13 +574,27 @@ export async function getProviderActivity(
     ),
   ]);
 
+  // MED-N14 fix: dynamic-import the masking helpers to avoid
+  // pulling pii-mask into the cold-start graph for read paths
+  // that don't need it. Junior admins see partial IPs +
+  // category-only user agents; super_admin sees raw values.
+  const { maskIp, maskUserAgent } = await import('../utils/pii-mask');
+  const maskIfNeeded = (ip: string | null): string | null => {
+    if (ip === null) return null;
+    return requesterRole === 'super_admin' ? ip : maskIp(ip);
+  };
+  const maskUaIfNeeded = (ua: string | null): string | null => {
+    if (ua === null) return null;
+    return requesterRole === 'super_admin' ? ua : maskUserAgent(ua);
+  };
+
   const audit = auditRows.rows.map<ProviderActivityRow>((r) => ({
     id: `audit:${r.id}`,
     source: 'audit',
     action: r.action,
     detail: r.new_values ? JSON.stringify(r.new_values) : null,
-    ipAddress: r.ip_address,
-    userAgent: r.user_agent,
+    ipAddress: maskIfNeeded(r.ip_address),
+    userAgent: maskUaIfNeeded(r.user_agent),
     createdAt: r.created_at.toISOString(),
   }));
 
@@ -584,8 +603,8 @@ export async function getProviderActivity(
     source: 'login',
     action: `${r.attempt_type}:${r.success ? 'ok' : 'fail'}`,
     detail: null,
-    ipAddress: r.ip_address,
-    userAgent: r.user_agent,
+    ipAddress: maskIfNeeded(r.ip_address),
+    userAgent: maskUaIfNeeded(r.user_agent),
     createdAt: r.created_at.toISOString(),
   }));
 
