@@ -24,6 +24,7 @@ import {
   type AvailabilityOverride,
 } from '@/services/provider-api.service';
 import { Button } from '@/components/ui';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle, Calendar, ClipboardList } from '@/components/icons';
 
@@ -59,7 +60,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
   const toggleMutation = useMutation({
     mutationFn: (available: boolean) => toggleAvailability(available),
     onSuccess: () => { invalidateAll(); },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
   });
 
   const addMutation = useMutation({
@@ -71,7 +72,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
       resetForm();
       Alert.alert('Saved', 'Availability override added.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
   });
 
   const removeMutation = useMutation({
@@ -80,7 +81,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
       invalidateAll();
       Alert.alert('Removed', 'Override removed.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
   });
 
   const resetForm = useCallback((): void => {

@@ -74,7 +74,33 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
 
   verifyOtp: async (phone: string, code: string) => {
     const res = await api.post('/api/v1/auth/verify-otp', { phone, code });
-    const { accessToken, refreshToken, user, isNewUser } = res.data.data;
+    // Phase K MED-K02 fix — validate the response shape before
+    // trusting it. Pre-fix the destructure assumed `res.data.data`
+    // contained accessToken / refreshToken / user / isNewUser; if
+    // the backend returned `{success: false, error: ...}` (or 200
+    // with a different shape due to a route change), we'd silently
+    // call storeTokens(undefined, undefined), corrupt secure-storage,
+    // and `set({ user: undefined, isAuthenticated: true })` — a
+    // signed-in user with NO user object.
+    const data = res.data?.data as
+      | { accessToken?: unknown; refreshToken?: unknown; user?: unknown; isNewUser?: unknown }
+      | undefined;
+    if (!data) {
+      throw new Error('OTP verification returned an unexpected response. Please try again.');
+    }
+    if (typeof data.accessToken !== 'string' || data.accessToken.length === 0) {
+      throw new Error('OTP verification returned no access token. Please try again.');
+    }
+    if (typeof data.refreshToken !== 'string' || data.refreshToken.length === 0) {
+      throw new Error('OTP verification returned no refresh token. Please try again.');
+    }
+    if (!data.user || typeof data.user !== 'object') {
+      throw new Error('OTP verification returned no user object. Please try again.');
+    }
+    const accessToken = data.accessToken;
+    const refreshToken = data.refreshToken;
+    const user = data.user as User;
+    const isNewUser = data.isNewUser === true;
     storeTokens(accessToken, refreshToken);
     storeUser(JSON.stringify(user));
     if (isNewUser) {

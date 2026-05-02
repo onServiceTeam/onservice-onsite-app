@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle } from '@/components/icons';
 
@@ -82,7 +83,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['recurring-bookings'] });
       Alert.alert('Paused', 'Your recurring booking has been paused.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
   });
 
   const resumeMutation = useMutation({
@@ -92,7 +93,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['recurring-bookings'] });
       Alert.alert('Resumed', 'Your recurring booking has been resumed.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
   });
 
   const cancelMutation = useMutation({
@@ -102,7 +103,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['recurring-bookings'] });
       Alert.alert('Cancelled', 'Your recurring booking has been cancelled.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
   });
 
   const skipMutation = useMutation({
@@ -112,7 +113,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['recurring-instances', id] });
       Alert.alert('Skipped', 'The next instance has been skipped.');
     },
-    onError: (err: Error) => Alert.alert('Error', err.message),
+    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
   });
 
   const handlePause = useCallback(() => {

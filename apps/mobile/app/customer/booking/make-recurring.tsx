@@ -9,6 +9,7 @@ import api from '@/services/api';
 import { getBookingById } from '@/services/booking.service';
 import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle } from '@/components/icons';
 
@@ -73,8 +74,9 @@ export default function MakeRecurringScreen(): React.ReactElement {
         [{ text: 'Great!', onPress: (): void => { router.replace(Routes.TABS.BOOKINGS); } }],
       );
     },
-    onError: (err: Error) => {
-      Alert.alert('Error', err.message || 'Failed to create recurring booking.');
+    onError: (err: unknown) => {
+      // Phase K MED-K04 fix — canonical error helper instead of raw err.message.
+      Alert.alert('Error', getErrorMessage(err, 'Failed to create recurring booking.'));
     },
   });
 

@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 interface NotificationPrefs {
@@ -83,8 +84,9 @@ export default function NotificationSettingsScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['notification-preferences'] });
       Alert.alert('Saved', 'Your notification preferences have been updated.');
     },
-    onError: (err: Error) => {
-      Alert.alert('Error', err.message || 'Failed to save preferences.');
+    onError: (err: unknown) => {
+      // Phase K MED-K04 fix — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Failed to save preferences.'));
     },
   });
 

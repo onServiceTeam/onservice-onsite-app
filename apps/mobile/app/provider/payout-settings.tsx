@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import { formatPHP } from '@/utils/currency';
+import { getErrorMessage } from '@/utils/errors';
 import api from '@/services/api';
 
 interface PayoutPrefs {
@@ -69,8 +70,9 @@ export default function PayoutSettingsScreen(): React.ReactElement {
       setDirty(false);
       Alert.alert('Saved', 'Your payout preferences have been updated.');
     },
-    onError: (err: Error) => {
-      Alert.alert('Error', err.message || 'Failed to save preferences.');
+    onError: (err: unknown) => {
+      // Phase K MED-K04 fix — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Failed to save preferences.'));
     },
   });
 
