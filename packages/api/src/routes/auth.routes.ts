@@ -369,6 +369,23 @@ router.patch(
         vals.push(lastName);
       }
       if (email !== undefined) {
+        // MED-N81 fix: pre-check uniqueness BEFORE the UPDATE so
+        // the user gets a friendly 409 instead of a raw 23505
+        // SQL error (or worse, no error at all if the column lacks
+        // a UNIQUE constraint — which would silently break
+        // admin-login lookup and password-reset). Case-insensitive
+        // because email comparisons should be.
+        const dup = await db.query<{ id: string }>(
+          `SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id != $2 LIMIT 1`,
+          [email, req.user!.userId],
+        );
+        if (dup.rows.length > 0) {
+          res.status(409).json({
+            success: false,
+            error: { message: 'That email is already in use by another account.', statusCode: 409 },
+          });
+          return;
+        }
         sets.push(`email = $${idx++}`);
         vals.push(email);
       }

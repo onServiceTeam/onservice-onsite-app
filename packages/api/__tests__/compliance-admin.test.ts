@@ -12,9 +12,20 @@
 
 const dbQueryMock = jest.fn();
 
+// MED-N42 fix (compliance.service.recordConsent now uses
+// db.transaction for the revoke + insert pair). The transaction
+// callback receives a client whose `query` is the same dbQueryMock,
+// so existing tests that mock dbQueryMock.mockResolvedValueOnce(...)
+// still work — they just count calls inside the transaction.
+const dbTransactionMock = jest.fn(async (cb: unknown) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (cb as any)({ query: (...args: unknown[]) => dbQueryMock(...args) });
+});
+
 jest.mock('../src/models/db', () => ({
   db: {
     query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (cb: unknown) => dbTransactionMock(cb),
   },
 }));
 
@@ -143,16 +154,19 @@ describe('recordConsent', () => {
     expect((dbQueryMock.mock.calls[0][0] as string)).toMatch(/INSERT/);
   });
 
-  it('still inserts main row when revoke UPDATE throws (warn logged)', async () => {
-    dbQueryMock
-      .mockRejectedValueOnce(new Error('revoke boom'))
-      .mockResolvedValueOnce(rows([makeConsentRow({ granted: false })]));
+  it('MED-N42 — when revoke UPDATE throws, the WHOLE transaction rolls back (does NOT silently insert a phantom revoke)', async () => {
+    // Pre-fix the function caught the revoke error + still inserted
+    // a 'revoked' row, leaving prior consents intact but the user's
+    // current state showing revoked. Now: atomic — revoke failure
+    // rolls back the transaction so the caller knows nothing
+    // happened and can retry.
+    dbQueryMock.mockRejectedValueOnce(new Error('revoke boom'));
 
-    const out = await svc.recordConsent({
-      userId: USER_ID, consentType: 'marketing_email', version: 'v1', granted: false,
-    });
-    expect(out.id).toBe(CONSENT_ID);
-    expect(loggerWarn).toHaveBeenCalled();
+    await expect(
+      svc.recordConsent({
+        userId: USER_ID, consentType: 'marketing_email', version: 'v1', granted: false,
+      }),
+    ).rejects.toThrow(/revoke boom/);
   });
 
   it('rejects empty consentType', async () => {

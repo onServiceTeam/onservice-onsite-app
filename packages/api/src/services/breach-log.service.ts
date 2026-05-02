@@ -34,7 +34,13 @@ const BREACH_STATUSES = new Set<BreachStatus>([
   'investigating', 'mitigating', 'reported', 'closed',
 ]);
 
-const NPC_REF_REGEX = /^NPC-\d{4}-[A-Z0-9]{6,}$/;
+// MED-N79 fix: NPC reference number format per NPC documentation
+// (https://privacy.gov.ph) is `NPC-YYYY-XXXXXX` — exactly 6 alpha-
+// numeric chars after the year. Pre-fix regex used `{6,}` which
+// allowed unbounded suffix length and would have accepted obviously-
+// malformed references (e.g., a paste of an entire NPC URL ending
+// in "...NPC-2026-ABC123XYZ_garbage"). Tightened to exactly 6.
+const NPC_REF_REGEX = /^NPC-\d{4}-[A-Z0-9]{6}$/;
 
 export interface BreachLogRow {
   id: string;

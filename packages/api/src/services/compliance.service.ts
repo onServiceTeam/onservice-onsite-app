@@ -222,10 +222,17 @@ export async function recordConsent(input: {
     throw createAppError('granted must be a boolean.', 400);
   }
 
-  // If revoking, mark any prior granted (non-revoked) record of same type as revoked.
-  if (!input.granted) {
-    try {
-      await db.query(
+  // MED-N42 fix: pre-fix the revoke UPDATE and the INSERT ran as
+  // two separate top-level db.query calls. If the UPDATE succeeded
+  // but the INSERT failed, prior consent rows were marked revoked
+  // but the new "revocation event" row was never recorded — user
+  // ended up with no current consent record AND no audit trail
+  // for the revocation. NPC RA 10173 §5(a) requires a verifiable
+  // consent trail. Now: both writes inside a single db.transaction
+  // so the revoke rolls back if the insert throws.
+  return db.transaction(async (client) => {
+    if (!input.granted) {
+      await client.query(
         `UPDATE consent_records
             SET revoked_at = NOW()
           WHERE user_id = $1
@@ -234,30 +241,26 @@ export async function recordConsent(input: {
             AND revoked_at IS NULL`,
         [input.userId, input.consentType],
       );
-    } catch (err) {
-      logger.warn('Failed to revoke prior consent rows', {
-        userId: input.userId, consentType: input.consentType, err: String(err),
-      });
     }
-  }
 
-  const result = await db.query<ConsentRow>(
-    `INSERT INTO consent_records
-       (user_id, consent_type, version, granted, ip_address, user_agent)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING ${CONSENT_COLS}`,
-    [
-      input.userId,
-      input.consentType,
-      input.version,
-      input.granted,
-      input.ipAddress ?? null,
-      input.userAgent ?? null,
-    ],
-  );
-  const row = result.rows[0];
-  if (!row) throw createAppError('Failed to record consent.', 500);
-  return mapConsent(row);
+    const result = await client.query<ConsentRow>(
+      `INSERT INTO consent_records
+         (user_id, consent_type, version, granted, ip_address, user_agent)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING ${CONSENT_COLS}`,
+      [
+        input.userId,
+        input.consentType,
+        input.version,
+        input.granted,
+        input.ipAddress ?? null,
+        input.userAgent ?? null,
+      ],
+    );
+    const row = result.rows[0];
+    if (!row) throw createAppError('Failed to record consent.', 500);
+    return mapConsent(row);
+  });
 }
 
 export async function listConsentForUser(userId: string): Promise<ConsentRecord[]> {
