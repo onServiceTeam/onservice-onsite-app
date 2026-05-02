@@ -941,6 +941,42 @@ Per CLAUDE.md hard-stop rules these cannot land autonomously:
 Everything else is either closed, intentionally deferred per
 documented decisions, or covered by gates / runbooks.
 
+## Sessions 5o + 5p — typecheck cleanup (api + mobile + admin)
+
+| # | Commit | Summary |
+|---|---|---|
+| 1 | 9a7fd94 | Backend typecheck: 14 → 0 errors (PgClient generic, Sentry namespace, customer_flagged_fraud union, booking_payment → payment, SUKI_TIERS → getSukiTiers, duplicate PgClient removed) |
+| 2 | 9b1c629 | Mobile typecheck: 10 → 0 errors (getErrorMessage imports, signature-canvas ambient types, expo-file-system/legacy path, logger path) |
+
+### What landed in 5o + 5p
+
+**Backend typecheck** — 14 errors closed: duplicate `type PgClient`
+declaration in escrow.service removed; PgClient widened to use pg's
+QueryResult<R extends QueryResultRow> shape so `.query<TRow>()`
+flows; customer-admin actionType union widened to include the
+already-implemented 'customer_flagged_fraud' branch from MED-N15;
+recurring-auto-charge `'booking_payment'` → `'payment'` (the
+wallet_transactions CHECK constraint accepts only the latter);
+suki.service `SUKI_TIERS` reference replaced with `getSukiTiers()`
+(MED-N126 admin-tunable refactor leftover); Sentry namespace import
+cast to `typeof SentryRaw & typeof import('@sentry/core')` so
+captureMessage is reachable.
+
+**Mobile typecheck** — 10 errors closed: account-management screens
+(customer + provider) added the missing getErrorMessage imports;
+new ambient declaration at `apps/mobile/types/react-native-signature-canvas.d.ts`;
+SignaturePad migrated to `expo-file-system/legacy` for the v19 API;
+secure-storage.service logger import corrected to `@/lib/logger`;
+jest moduleNameMapper updated to also catch `expo-file-system/legacy`.
+
+### Final numbers
+
+- **Backend tests:** 2477 passing (typecheck 0 errors).
+- **Mobile tests:** 406 passing + 89 todo (typecheck 0 errors).
+- **Admin tests:** 88 passing + 3 todo (typecheck 0 errors,
+  unhandled-error count 0).
+- **Total commits this wave (5g–5p):** 33 across the three packages.
+
 ## RESUME instructions for the next session
 
 1. Backend audit findings (Phase B + C + N + M + O) substantially
