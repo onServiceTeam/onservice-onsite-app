@@ -30,8 +30,22 @@ export interface Booking {
   surgeAmount: number;
   rebookedFromId: string | null;
   sukiDiscount: number;
+  /**
+   * Phase K CRIT-K05 audit context — these legacy TEXT[] array fields
+   * (jobPhotos, providerBeforePhotos, providerAfterPhotos) date from
+   * migration 037 and were superseded by the booking_photos table in
+   * migration 079. New uploads MUST go through booking-photo.service
+   * (uploadBookingPhoto → /api/v1/uploads/booking-photo). The arrays
+   * are kept here only because legacy bookings may still have data
+   * in them; the canonical photo source is /api/v1/bookings/:id/photos
+   * which UNIONS both for read.
+   *
+   * @deprecated Use booking-photo.service.uploadBookingPhoto for writes.
+   */
   jobPhotos: string[];
+  /** @deprecated See note on jobPhotos. */
   providerBeforePhotos: string[];
+  /** @deprecated See note on jobPhotos. */
   providerAfterPhotos: string[];
   createdAt: string;
   providerName?: string;
@@ -228,6 +242,16 @@ export async function payChangeOrder(changeOrderId: string, paymentMethod: strin
   return res.data.data;
 }
 
+/**
+ * Phase K CRIT-K05 — uploadJobPhotos still posts to the legacy
+ * /bookings/:id/photos endpoint that writes the TEXT[] arrays. New
+ * code MUST call booking-photo.service.uploadBookingPhoto instead,
+ * which writes to the canonical booking_photos table (migration
+ * 079). This function remains for back-compat with the few flows
+ * that haven't migrated; new screens should not use it.
+ *
+ * @deprecated Prefer @/services/booking-photo.service.uploadBookingPhoto.
+ */
 export async function uploadJobPhotos(
   bookingId: string,
   phase: 'before' | 'after',

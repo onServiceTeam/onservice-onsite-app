@@ -1,5 +1,14 @@
 import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+// Phase K CRIT-K06 fix — onboarding stack now declares
+// background-check-status (the post-submit polling screen, now wired
+// to real /api/v1/providers/application-status per CRIT-K07 fix).
+// identity-verification.tsx remains undeclared because the active
+// flow uses the documents + selfie + terms upload chain (writing to
+// /api/v1/uploads + /api/v1/providers/apply); identity-verification
+// posted base64-in-JSON to a /provider-onboarding/identity endpoint
+// that doesn't exist on the backend. The orphan file is documented
+// as deprecated in its header comment.
 import { Stack } from 'expo-router';
 
 export default function ProviderOnboardingLayout(): React.ReactElement {
@@ -12,6 +21,7 @@ export default function ProviderOnboardingLayout(): React.ReactElement {
       <Stack.Screen name="selfie" />
       <Stack.Screen name="terms" />
       <Stack.Screen name="review-pending" />
+      <Stack.Screen name="background-check-status" />
     </Stack>
   );
 }

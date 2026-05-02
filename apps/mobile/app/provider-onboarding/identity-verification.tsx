@@ -1,5 +1,18 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+//
+// Phase K CRIT-K06 audit context — this file is DEPRECATED and not
+// reachable from the active provider-onboarding stack
+// (apps/mobile/app/provider-onboarding/_layout.tsx). The active KYC
+// flow is documents.tsx + selfie.tsx + terms.tsx (uploads via
+// /api/v1/uploads then submits to /api/v1/providers/apply).
+//
+// This screen submits base64-in-JSON to a /provider-onboarding/identity
+// endpoint that does NOT exist on the backend. Kept in the repo only
+// because deleting it requires removing references in any
+// in-progress feature branch first; the layout no longer mounts it.
+// Do NOT add features here — touch documents.tsx / selfie.tsx
+// instead.
 import {
   View,
   Text,
