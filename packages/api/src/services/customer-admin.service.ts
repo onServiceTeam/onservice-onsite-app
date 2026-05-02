@@ -762,10 +762,14 @@ export async function updateCustomerStatus(
       newIsActive = true;
       actionType = 'customer_reactivated';
     } else {
-      // flag_fraud — does NOT change is_active; only writes admin_actions.
-      // Re-use the action_type CHECK constraint: 'flag_fraud' is not a valid
-      // value, so we record under customer_suspended with a reason prefix.
-      actionType = 'customer_suspended';
+      // MED-N15 fix: 'flag_fraud' now records correctly as
+      // 'customer_flagged_fraud' (added to admin_actions.action_type
+      // CHECK constraint in mig 096) AND sets users.is_flagged_fraud=TRUE
+      // so the flag is queryable directly. Pre-fix the action wrote
+      // 'customer_suspended' with a reason prefix, inflating
+      // suspension counts in analytics and hiding the flag from
+      // anyone querying admin_actions.action_type.
+      actionType = 'customer_flagged_fraud';
     }
 
     if (action !== 'flag_fraud' && newIsActive !== user.is_active) {
@@ -775,7 +779,15 @@ export async function updateCustomerStatus(
       );
     }
 
-    const detailsPrefix = action === 'flag_fraud' ? '[fraud_flag] ' : '';
+    if (action === 'flag_fraud') {
+      // MED-N15 fix: flip the queryable boolean so analytics + admin
+      // listings can filter without parsing admin_actions reason.
+      await client.query(
+        `UPDATE users SET is_flagged_fraud = TRUE, updated_at = NOW() WHERE id = $1`,
+        [customerId],
+      );
+    }
+
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
        VALUES ($1, $2, 'customer', $3, $4::jsonb, $5)`,
@@ -784,7 +796,7 @@ export async function updateCustomerStatus(
         actionType,
         customerId,
         JSON.stringify({ requestedAction: action }),
-        detailsPrefix + trimmed,
+        trimmed,
       ],
     );
 

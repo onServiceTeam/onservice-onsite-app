@@ -582,7 +582,7 @@ describe('updateCustomerStatus', () => {
     expect(insertCall.params[1]).toBe('customer_reactivated');
   });
 
-  it('flag_fraud writes admin_actions but does NOT change is_active', async () => {
+  it('flag_fraud writes admin_actions and sets is_flagged_fraud=TRUE but does NOT change is_active (MED-N15)', async () => {
     const { calls } = setupTransaction([{ id: CUSTOMER_ID, is_active: true }]);
     const out = await svc.updateCustomerStatus(
       CUSTOMER_ID,
@@ -591,9 +591,14 @@ describe('updateCustomerStatus', () => {
       ADMIN_ID,
     );
     expect(out.isActive).toBe(true);
-    expect(calls.some((c) => c.sql.startsWith('UPDATE users'))).toBe(false);
+    // The is_active UPDATE must NOT run.
+    expect(calls.some((c) => c.sql.startsWith('UPDATE users SET is_active'))).toBe(false);
+    // BUT the is_flagged_fraud UPDATE MUST run (MED-N15).
+    expect(calls.some((c) => c.sql.startsWith('UPDATE users SET is_flagged_fraud = TRUE'))).toBe(true);
     const insertCall = calls.find((c) => c.sql.startsWith('INSERT INTO admin_actions'))!;
-    expect(String(insertCall.params[4])).toContain('[fraud_flag]');
+    // MED-N15: action_type now correctly recorded; reason no longer needs the prefix.
+    expect(insertCall.params[1]).toBe('customer_flagged_fraud');
+    expect(String(insertCall.params[4])).not.toContain('[fraud_flag]');
   });
 
   it('skips UPDATE when suspending an already-suspended customer', async () => {
