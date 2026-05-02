@@ -488,8 +488,10 @@ router.put(
       const provider = await providerService.getProviderByUserId(req.user!.userId);
       const { isAvailable } = req.body as { isAvailable: boolean };
       if (typeof isAvailable !== 'boolean') throw createAppError('isAvailable is required.', 400);
-      await providerService.toggleInstantAvailability(provider.id, isAvailable);
-      res.json({ success: true, data: { isAvailable } });
+      // MED-N100 fix — use the server-computed value the service
+      // returns, not the input.
+      const updated = await providerService.toggleInstantAvailability(provider.id, isAvailable);
+      res.json({ success: true, data: { isAvailable: updated.isAvailable } });
     } catch (error) {
       next(error);
     }

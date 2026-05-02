@@ -640,10 +640,18 @@ router.get(
         throw createAppError('Booking must have location coordinates for matching.', 400);
       }
 
+      // MED-N103 fix — pass scheduledAt so the simple matcher applies
+      // the same provider_availability filter as findMatchingProviders.
+      // Without this, customers were being shown providers whose
+      // working hours did NOT cover the booking time.
+      if (!booking.scheduled_at) {
+        throw createAppError('Booking must have a scheduled time for matching.', 400);
+      }
       const providers = await matchingService.findMatchingProvidersSimple(
         booking.category_id,
         Number(booking.latitude),
         Number(booking.longitude),
+        new Date(booking.scheduled_at),
       );
 
       res.json({

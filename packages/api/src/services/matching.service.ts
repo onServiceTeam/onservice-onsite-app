@@ -129,8 +129,21 @@ export async function findMatchingProviders(
          WHERE pa.provider_id = p.id
            AND pa.day_of_week = ${subcategoryId ? '$5' : '$4'}
            AND pa.is_available = TRUE
-           AND pa.start_time <= ${subcategoryId ? '$6' : '$5'}::time
-           AND pa.end_time >= ${subcategoryId ? '$6' : '$5'}::time
+           -- MED-N104 fix — overnight schedule support. When start_time
+           -- <= end_time the schedule is same-day (e.g., 09:00-17:00).
+           -- When start_time > end_time the schedule wraps midnight
+           -- (e.g., bartender 22:00-06:00) and we accept times >= start
+           -- OR <= end. Pre-fix: pa.end_time >= $time always failed
+           -- the wrapping case so overnight providers were never matched.
+           AND (
+             (pa.start_time <= pa.end_time
+               AND pa.start_time <= ${subcategoryId ? '$6' : '$5'}::time
+               AND pa.end_time   >= ${subcategoryId ? '$6' : '$5'}::time)
+             OR
+             (pa.start_time > pa.end_time
+               AND (${subcategoryId ? '$6' : '$5'}::time >= pa.start_time
+                    OR ${subcategoryId ? '$6' : '$5'}::time <= pa.end_time))
+           )
        )
      ORDER BY p.id, ${distanceExpr} ASC
      LIMIT $${subcategoryId ? '7' : '6'}`,
@@ -180,8 +193,17 @@ export async function findMatchingProvidersSimple(
   categoryId: string,
   customerLat: number,
   customerLng: number,
+  // MED-N103 fix — scheduledAt is now REQUIRED for the simple matcher
+  // so it can apply the same provider_availability filter as the full
+  // matcher. Pre-fix: simple matcher returned providers without
+  // checking their working hours, so a 03:00 booking could be matched
+  // to a provider whose schedule is 09:00-17:00. Post-fix: same
+  // overnight-aware availability join as findMatchingProviders.
+  scheduledAt: Date,
 ): Promise<ScoredProvider[]> {
   const distanceExpr = haversineDistanceSQL();
+  const dayOfWeek = scheduledAt.getDay();
+  const timeStr = scheduledAt.toTimeString().slice(0, 8);
 
   const result = await db.query<MatchableProvider>(
     `SELECT DISTINCT ON (p.id)
@@ -204,9 +226,24 @@ export async function findMatchingProvidersSimple(
        AND p.longitude IS NOT NULL
        AND ps.category_id = $1
        AND ${distanceExpr} <= p.service_radius_km
+       AND EXISTS (
+         SELECT 1 FROM provider_availability pa
+         WHERE pa.provider_id = p.id
+           AND pa.day_of_week = $4
+           AND pa.is_available = TRUE
+           AND (
+             (pa.start_time <= pa.end_time
+               AND pa.start_time <= $5::time
+               AND pa.end_time   >= $5::time)
+             OR
+             (pa.start_time > pa.end_time
+               AND ($5::time >= pa.start_time
+                    OR $5::time <= pa.end_time))
+           )
+       )
      ORDER BY p.id, p.rating DESC, ${distanceExpr} ASC
-     LIMIT $4`,
-    [categoryId, customerLat, customerLng, MAX_MATCH_ATTEMPTS],
+     LIMIT $6`,
+    [categoryId, customerLat, customerLng, dayOfWeek, timeStr, MAX_MATCH_ATTEMPTS],
   );
 
   if (result.rows.length === 0) return [];
@@ -257,23 +294,40 @@ export async function hasBookingConflict(
   estimatedDurationMinutes: number = platformConfig.defaultServiceDurationMinutes,
   excludeBookingId?: string,
 ): Promise<boolean> {
-  const windowStart = new Date(scheduledAt.getTime() - estimatedDurationMinutes * 60 * 1000);
-  const windowEnd = new Date(scheduledAt.getTime() + estimatedDurationMinutes * 60 * 1000);
+  // MED-N105 fix — use ACTUAL existing-booking durations to detect
+  // overlap, not just a default-sized window around the new booking.
+  // Pre-fix: a 6h booking starting at 09:00 would not conflict with a
+  // new booking at 12:00 because the window-around-new-12:00 (±2h
+  // default) didn't extend back to 09:00. Post-fix: each existing
+  // booking carries its own estimated_duration_minutes (via
+  // booking_quotes or pricing rules), and we test true interval
+  // overlap: existing.end > new.start AND existing.start < new.end.
+  // We still take the larger of (new duration, default) to bound the
+  // new-booking side.
+  const newDurationMs = Math.max(estimatedDurationMinutes, platformConfig.defaultServiceDurationMinutes) * 60 * 1000;
+  const newStart = scheduledAt.toISOString();
+  const newEnd = new Date(scheduledAt.getTime() + newDurationMs).toISOString();
 
   const result = await db.query<{ id: string }>(
-    `SELECT id FROM bookings
-     WHERE provider_id = $1
-       AND status NOT IN (
+    `SELECT b.id FROM bookings b
+     LEFT JOIN booking_quotes bq ON bq.booking_id = b.id AND bq.is_active = TRUE
+     WHERE b.provider_id = $1
+       AND b.status NOT IN (
          'cancelled_by_customer','cancelled_by_provider','cancelled_by_admin',
          'paid_out','rejected','expired'
        )
-       AND scheduled_at > $2
-       AND scheduled_at < $3
-       ${excludeBookingId ? 'AND id != $4' : ''}
+       -- existing booking's end > new booking's start
+       -- existing booking's start < new booking's end
+       AND b.scheduled_at < $3::timestamptz
+       AND (b.scheduled_at + (
+         INTERVAL '1 minute' *
+         COALESCE(bq.estimated_duration_minutes, $4::int)
+       )) > $2::timestamptz
+       ${excludeBookingId ? 'AND b.id != $5' : ''}
      LIMIT 1`,
     excludeBookingId
-      ? [providerId, windowStart.toISOString(), windowEnd.toISOString(), excludeBookingId]
-      : [providerId, windowStart.toISOString(), windowEnd.toISOString()],
+      ? [providerId, newStart, newEnd, platformConfig.defaultServiceDurationMinutes, excludeBookingId]
+      : [providerId, newStart, newEnd, platformConfig.defaultServiceDurationMinutes],
   );
 
   return result.rows.length > 0;

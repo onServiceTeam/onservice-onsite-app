@@ -162,13 +162,33 @@ export async function getChecklistForBooking(
         [tpl.id],
       );
 
-      for (const item of items.rows) {
+      // MED-N101 fix — single multi-row INSERT instead of N round-trips.
+      // Pre-fix: 50-item template = 50 sequential INSERTs inside the
+      // trx (~500ms latency on the provider's first checklist-open).
+      // Post-fix: one INSERT carrying all rows (~10ms regardless of
+      // template size).
+      if (items.rows.length > 0) {
+        const params: unknown[] = [];
+        const tuples: string[] = [];
+        let paramIdx = 1;
+        for (const item of items.rows) {
+          tuples.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5})`);
+          params.push(
+            created.id,
+            item.item_id,
+            item.title,
+            item.description,
+            item.photo_required,
+            item.is_required,
+          );
+          paramIdx += 6;
+        }
         await client.query(
           `INSERT INTO booking_checklist_items
              (booking_checklist_id, template_item_id, title_snapshot,
               description_snapshot, photo_required, is_required)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [created.id, item.item_id, item.title, item.description, item.photo_required, item.is_required],
+           VALUES ${tuples.join(', ')}`,
+          params,
         );
       }
 

@@ -638,12 +638,26 @@ export function formatOverride(o: OverrideRow): Record<string, unknown> {
   };
 }
 
-export async function toggleInstantAvailability(providerId: string, isAvailable: boolean): Promise<void> {
-  await db.query(
-    `UPDATE providers SET is_available = $1, updated_at = NOW() WHERE id = $2`,
+export async function toggleInstantAvailability(
+  providerId: string,
+  isAvailable: boolean,
+): Promise<{ isAvailable: boolean }> {
+  // MED-N100 fix — use UPDATE ... RETURNING so the response reflects
+  // ACTUAL server state, not the input. Pre-fix the route echoed the
+  // request's isAvailable, so a partial / no-row UPDATE silently lied
+  // to the client. Post-fix: 0 rows updated = 404, otherwise the value
+  // returned is the column we wrote (which equals the input on
+  // success — but now the client knows it was actually written).
+  const result = await db.query<{ is_available: boolean }>(
+    `UPDATE providers SET is_available = $1, updated_at = NOW()
+     WHERE id = $2 RETURNING is_available`,
     [isAvailable, providerId],
   );
-  logger.info('Instant availability toggled', { providerId, isAvailable });
+  if (result.rowCount === 0) {
+    throw createAppError('Provider not found.', 404);
+  }
+  logger.info('Instant availability toggled', { providerId, isAvailable: result.rows[0]!.is_available });
+  return { isAvailable: result.rows[0]!.is_available };
 }
 
 export async function getInstantAvailability(providerId: string): Promise<boolean> {
