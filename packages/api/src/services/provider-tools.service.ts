@@ -2,6 +2,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
+import * as settingsService from './settings.service';
 
 // --- Interfaces ---
 
@@ -457,13 +458,35 @@ export async function generateReceipt(
     throw createAppError('Receipt can only be generated for completed bookings.', 400);
   }
 
-  const commissionRate = platformConfig.commissionRates[prov.tier] ?? platformConfig.commissionRates['new']!;
+  // MED-N31 + MED-N32 fix: read commission rate from settingsService
+  // (which routes through admin-editable platform_settings, with
+  // platformConfig fallback). Pre-fix used platformConfig directly,
+  // ignoring any rate the admin had tuned via /admin/settings AND
+  // missing the 'founding' tier entirely (D-J17 has since added it
+  // to platformConfig as a defensive default, but settingsService
+  // is still the canonical path).
+  let commissionRate: number;
+  try {
+    commissionRate = await settingsService.getCommissionRate(prov.tier);
+  } catch (err) {
+    logger.warn('Commission rate lookup failed in receipt generation; using platformConfig fallback', {
+      tier: prov.tier,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    commissionRate = platformConfig.commissionRates[prov.tier] ?? platformConfig.commissionRates['new']!;
+  }
   const servicePrice = Number(bk.service_price);
   const commissionAmount = Math.round(servicePrice * commissionRate);
   const netEarnings = servicePrice - commissionAmount;
 
+  // MED-N33 fix: receipt number now includes the FULL booking UUID
+  // (not just first 8 hex chars). Pre-fix the 8-char prefix had a
+  // ~50% UUID4 birthday-collision rate at ~77K bookings — very
+  // real for a launching marketplace. Two providers with similarly-
+  // prefixed booking UUIDs would have produced the same receipt
+  // number. Format remains human-readable: RCP-YYYYMM-<full-uuid>.
   const receiptDate = new Date();
-  const receiptNumber = `RCP-${receiptDate.getFullYear()}${String(receiptDate.getMonth() + 1).padStart(2, '0')}-${bookingId.slice(0, 8).toUpperCase()}`;
+  const receiptNumber = `RCP-${receiptDate.getFullYear()}${String(receiptDate.getMonth() + 1).padStart(2, '0')}-${bookingId.toUpperCase()}`;
 
   const fullAddress = [bk.address, bk.barangay, bk.city, bk.province].filter(Boolean).join(', ');
   const serviceName = [bk.category_name, bk.subcategory_name].filter(Boolean).join(' — ');
@@ -550,10 +573,15 @@ export async function getMonthlySummary(
        AND wt.type = 'escrow_release'
        AND wt.amount > 0
      WHERE b.provider_id = $1
-       AND b.status IN ('confirmed', 'payout_ready', 'paid_out')
-       AND b.confirmed_at >= $2::date
-       AND b.confirmed_at < ($3::date + INTERVAL '1 day')
-     ORDER BY b.confirmed_at ASC`,
+       -- MED-N35 fix: include 'completed_by_provider' so bookings
+       -- that completed near month-end and haven't yet auto-
+       -- confirmed are still reported. The COALESCE-based date
+       -- filter below handles either confirmed_at OR completed_at
+       -- so neither status is silently excluded.
+       AND b.status IN ('confirmed', 'payout_ready', 'paid_out', 'completed_by_provider')
+       AND COALESCE(b.confirmed_at, b.completed_at) >= $2::date
+       AND COALESCE(b.confirmed_at, b.completed_at) < ($3::date + INTERVAL '1 day')
+     ORDER BY COALESCE(b.confirmed_at, b.completed_at) ASC`,
     [providerId, startDate, endDateStr],
   );
 
