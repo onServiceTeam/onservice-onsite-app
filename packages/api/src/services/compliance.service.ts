@@ -455,6 +455,134 @@ export async function listDsrs(filter: {
   return { rows: rowsResult.rows.map((r) => mapDsr(r)), total };
 }
 
+// ─────────────────────────────────────────────────────────────────
+// LAUNCH-LIMITATIONS #5 fix — pending material re-consents.
+// ─────────────────────────────────────────────────────────────────
+// When the DPO publishes a NEW consent_version with `material: true`,
+// every user who previously granted an OLDER version of that
+// consent_type must re-acknowledge before continuing to use the
+// affected surfaces. The mechanism is opt-in per publish event so
+// existing publishes (the "marker only" pattern) keep their current
+// no-op behaviour.
+//
+// This function returns one row per consent_type the caller has not
+// yet re-acknowledged at the latest material version. The mobile +
+// admin web clients call this on app start (and after each consent
+// publish in admin) and surface a re-consent prompt.
+//
+// Source of truth for "latest material version" is the admin_actions
+// audit row (action_type='consent_version_published'). We pick the
+// MOST RECENT row per consentType where details.material === true.
+// If no material publish exists for a consentType, the consent is
+// not "pending" — only material publishes drive the re-consent
+// requirement.
+//
+// User has acknowledged a version when their most recent
+// consent_records row for that consent_type has the same version
+// AND granted=TRUE AND revoked_at IS NULL. A user who explicitly
+// REVOKED is not considered "pending re-consent" — they made an
+// active decision to opt out and the surface that depends on the
+// consent must respect that. The mobile prompt copy distinguishes
+// "you previously accepted v1; please review v2" (pending) from
+// "you previously revoked v1" (treated as new opt-in flow).
+
+export interface PendingMaterialConsent {
+  consentType: string;
+  latestVersion: string;
+  effectiveAt: string;
+  changeSummary: string;
+  /** The version the user previously granted, or null if no prior grant. */
+  userCurrentVersion: string | null;
+  /** When the user last took an action (grant or revoke) on this type. */
+  userLastActionAt: string | null;
+  /** What the user's last action was. Drives the prompt copy. */
+  userLastAction: 'granted' | 'revoked' | null;
+}
+
+interface PendingMaterialRow {
+  consent_type: string;
+  latest_version: string;
+  effective_at: string;
+  change_summary: string;
+  user_current_version: string | null;
+  user_last_action_at: Date | null;
+  user_granted: boolean | null;
+}
+
+export async function getPendingMaterialConsents(
+  userId: string,
+): Promise<PendingMaterialConsent[]> {
+  if (typeof userId !== 'string' || userId.length === 0) {
+    throw createAppError('userId is required.', 400);
+  }
+
+  // The CTE collects, per consent_type, the latest admin_actions row
+  // where details.material is the boolean true. Postgres jsonb '?'
+  // operator + boolean cast covers both `"material":true` and a stored
+  // string "true". DISTINCT ON keeps only the newest publish per type.
+  // The LATERAL join then pulls the user's most recent consent_records
+  // row for that type so we can decide if a re-consent is needed.
+  const sql = `
+    WITH latest_material AS (
+      SELECT DISTINCT ON (details->>'consentType')
+             details->>'consentType'   AS consent_type,
+             details->>'version'       AS latest_version,
+             COALESCE(details->>'effectiveAt', created_at::text) AS effective_at,
+             COALESCE(details->>'changeSummary', '')             AS change_summary,
+             created_at                AS published_at
+        FROM admin_actions
+       WHERE action_type = 'consent_version_published'
+         AND target_type = 'consent_version'
+         AND (details->>'material')::boolean IS TRUE
+       ORDER BY details->>'consentType', created_at DESC
+    )
+    SELECT lm.consent_type,
+           lm.latest_version,
+           lm.effective_at,
+           lm.change_summary,
+           ucr.version       AS user_current_version,
+           ucr.granted_at    AS user_last_action_at,
+           ucr.granted       AS user_granted
+      FROM latest_material lm
+      LEFT JOIN LATERAL (
+        SELECT version, granted, granted_at
+          FROM consent_records
+         WHERE user_id = $1
+           AND consent_type = lm.consent_type
+         ORDER BY granted_at DESC
+         LIMIT 1
+      ) ucr ON TRUE
+     WHERE
+       -- User has no record at all for this consentType -> they're a
+       -- new user; surface as pending so the prompt explains the
+       -- material change before they can grant.
+       ucr.version IS NULL
+       -- OR they granted an older version -> needs re-consent.
+       OR (ucr.granted = TRUE AND ucr.version <> lm.latest_version)
+       -- A user who explicitly revoked is not in this list. The
+       -- absence covers them.
+     ORDER BY lm.published_at DESC
+  `;
+
+  const result = await db.query<PendingMaterialRow>(sql, [userId]);
+
+  return result.rows.map((r) => {
+    const lastAction: 'granted' | 'revoked' | null =
+      r.user_granted === null ? null : r.user_granted ? 'granted' : 'revoked';
+    return {
+      consentType: r.consent_type,
+      latestVersion: r.latest_version,
+      effectiveAt: r.effective_at,
+      changeSummary: r.change_summary,
+      userCurrentVersion: r.user_current_version,
+      userLastActionAt: r.user_last_action_at
+        ? r.user_last_action_at.toISOString()
+        : null,
+      userLastAction: lastAction,
+    };
+  });
+}
+
 // LAUNCH-LIMITATIONS #3 fix — customer-facing DSR history.
 // Pre-fix: after submitting a DSR the mobile UI showed a one-shot
 // confirmation and that was the only visibility — customers had no way

@@ -52,3 +52,38 @@ export async function listMyDsrs(limit = 50): Promise<DsrRecord[]> {
   );
   return res.data.data;
 }
+
+// LAUNCH-LIMITATIONS #5 fix — pending material re-consent surface.
+// Returns the list of consent types the caller has not re-acknowledged
+// since the most recent material publish. The mobile shell calls this
+// on app start and after the user grants/revokes a consent. An empty
+// list is the steady-state and means no re-consent is required.
+
+export interface PendingMaterialConsent {
+  consentType: string;
+  latestVersion: string;
+  effectiveAt: string;
+  changeSummary: string;
+  /** Version the user previously granted (if any). */
+  userCurrentVersion: string | null;
+  /** When the user last took an action on this consent type. */
+  userLastActionAt: string | null;
+  /** Their last action — drives the prompt copy. */
+  userLastAction: 'granted' | 'revoked' | null;
+}
+
+export async function listPendingMaterialConsents(): Promise<PendingMaterialConsent[]> {
+  const res = await api.get<ApiResponse<PendingMaterialConsent[]>>(
+    '/api/v1/compliance/my-pending-consents',
+  );
+  return res.data.data;
+}
+
+// Same canonical body shape as the existing recordConsent backend.
+export async function recordConsent(input: {
+  consentType: string;
+  version: string;
+  granted: boolean;
+}): Promise<void> {
+  await api.post('/api/v1/compliance/consent', input);
+}

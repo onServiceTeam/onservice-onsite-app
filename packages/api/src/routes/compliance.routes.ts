@@ -77,6 +77,21 @@ router.get(
   },
 );
 
+// LAUNCH-LIMITATIONS #5 fix — customer-facing pending material
+// consents. Mobile + admin clients hit this on app start (and after
+// the user accepts/revokes a consent) to discover which consent
+// types need re-acknowledgement after a material policy change.
+router.get(
+  '/my-pending-consents',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const data = await compliance.getPendingMaterialConsents(req.user!.userId);
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
 router.post(
   '/consent',
   authMiddleware,

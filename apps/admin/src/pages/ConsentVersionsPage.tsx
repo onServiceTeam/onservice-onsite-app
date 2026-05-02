@@ -52,6 +52,12 @@ interface PublishedConsentVersion {
   version: string;
   effectiveAt: string;
   changeSummary: string;
+  /**
+   * LAUNCH-LIMITATIONS #5 — when true, the publish event forces every
+   * user with an older grant of this consentType to re-acknowledge.
+   * Server returns false for legacy publishes that predate the flag.
+   */
+  material: boolean;
   publishedBy: string | null;
   publishedAt: string;
 }
@@ -77,6 +83,12 @@ export default function ConsentVersionsPage(): React.ReactElement {
   const [versionStr, setVersionStr] = useState('');
   const [effectiveDate, setEffectiveDate] = useState(todayLocalIso());
   const [changeSummary, setChangeSummary] = useState('');
+  // LAUNCH-LIMITATIONS #5 — defaults to false so a routine publish
+  // keeps the legacy marker-only semantics. Operator must explicitly
+  // tick the box when the change is material (e.g., adds new processing
+  // purpose, expands data sharing). Acknowledgement copy in the dialog
+  // explains the consequence.
+  const [material, setMaterial] = useState(false);
 
   const versionsQuery = useQuery({
     queryKey: ['adminConsentVersions'],
@@ -100,12 +112,14 @@ export default function ConsentVersionsPage(): React.ReactElement {
       version: string;
       effectiveAt: string;
       changeSummary: string;
+      material: boolean;
     }) => {
       await api.post('/api/v1/admin/compliance/consent-versions', {
         consentType: input.consentType,
         version: input.version,
         effectiveAt: input.effectiveAt,
         changeSummary: input.changeSummary,
+        material: input.material,
       });
     },
     onSuccess: () => {
@@ -122,6 +136,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
     setVersionStr('');
     setEffectiveDate(todayLocalIso());
     setChangeSummary('');
+    setMaterial(false);
   };
 
   const publishDisabled = consentType.trim().length === 0
@@ -162,6 +177,18 @@ export default function ConsentVersionsPage(): React.ReactElement {
       key: 'summary',
       header: 'Change summary',
       render: (r) => <span className="text-xs text-slate-700">{r.changeSummary}</span>,
+    },
+    {
+      key: 'material',
+      header: 'Material',
+      render: (r) => r.material ? (
+        <span
+          className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900"
+          aria-label="Material change requiring re-consent"
+        >Material</span>
+      ) : (
+        <span className="text-xs text-slate-400">—</span>
+      ),
     },
     {
       key: 'publishedBy',
@@ -241,9 +268,11 @@ export default function ConsentVersionsPage(): React.ReactElement {
           <DialogHeader>
             <DialogTitle>Publish a new consent version</DialogTitle>
             <DialogDescription>
-              Records a new policy version for NPC traceability. Existing user consents are NOT
-              automatically revoked — users will be prompted to re-consent on next interaction
-              with the affected surface.
+              Records a new policy version for NPC traceability. Tick the
+              "material change" box only when the change is significant
+              enough that every user with a prior grant must re-acknowledge
+              before continuing — that flag is what drives the customer
+              re-consent prompt.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -301,6 +330,34 @@ export default function ConsentVersionsPage(): React.ReactElement {
                 Minimum 30 characters. Will appear in the audit trail.
               </p>
             </div>
+            {/* LAUNCH-LIMITATIONS #5 — material flag toggle. */}
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  id="cv-material"
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 accent-amber-600"
+                  checked={material}
+                  onChange={(e) => setMaterial(e.target.checked)}
+                  aria-describedby="cv-material-help"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-amber-900">
+                    This is a material change (force re-consent)
+                  </span>
+                  <span
+                    id="cv-material-help"
+                    className="block text-xs text-amber-800 mt-1"
+                  >
+                    Every user with a prior grant of this consent type
+                    will see a re-consent prompt at next interaction.
+                    Use only for changes large enough to require
+                    explicit fresh acknowledgement (new processing
+                    purposes, expanded data sharing, etc.).
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closePublishDialog} disabled={publishMutation.isPending}>
@@ -315,6 +372,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
                     ? new Date(effectiveDate + 'T00:00:00Z').toISOString()
                     : new Date().toISOString(),
                   changeSummary: changeSummary.trim(),
+                  material,
                 });
               }}
               disabled={publishDisabled}

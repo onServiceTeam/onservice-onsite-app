@@ -25,9 +25,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   listMyDsrs,
+  listPendingMaterialConsents,
+  recordConsent,
   submitDataSubjectRequest,
   type DsrRecord,
   type DsrRequestType,
+  type PendingMaterialConsent,
 } from '@/services/compliance.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Shield, FileText, AlertTriangle, CheckCircle2 } from '@/components/icons';
@@ -95,6 +98,31 @@ export default function DataRightsScreen(): React.ReactElement {
     queryKey: ['my-dsr-requests'],
     queryFn: () => listMyDsrs(50),
     staleTime: 60 * 1000,
+  });
+
+  // LAUNCH-LIMITATIONS #5 fix — pull the customer's pending material
+  // consent re-acknowledgements (if any). When the DPO publishes a new
+  // consent_version with material=true, this returns the affected
+  // types so the user can re-grant inline. Empty list = nothing to do.
+  const pendingConsentsQuery = useQuery<PendingMaterialConsent[]>({
+    queryKey: ['my-pending-consents'],
+    queryFn: () => listPendingMaterialConsents(),
+    staleTime: 60 * 1000,
+  });
+
+  const reConsentMutation = useMutation({
+    mutationFn: (input: PendingMaterialConsent) => recordConsent({
+      consentType: input.consentType,
+      version: input.latestVersion,
+      granted: true,
+    }),
+    onSuccess: () => { void pendingConsentsQuery.refetch(); },
+    onError: (err: unknown) => {
+      Alert.alert(
+        'Could not record consent',
+        getErrorMessage(err, 'Please try again in a moment.'),
+      );
+    },
   });
 
   const submitMutation = useMutation({
@@ -283,6 +311,48 @@ export default function DataRightsScreen(): React.ReactElement {
         {lastResult ? renderConfirmation(lastResult) : null}
 
         {!lastResult && activeFlow ? renderFlow(FLOWS.find((f) => f.key === activeFlow)!) : null}
+
+        {/* LAUNCH-LIMITATIONS #5 fix — pending material re-consents.
+            Surfaced above the action cards so the user sees them on
+            entering the screen. Each row gets an inline "I agree"
+            button that hits POST /api/v1/compliance/consent with the
+            latest version. */}
+        {!lastResult && !activeFlow
+          && (pendingConsentsQuery.data?.length ?? 0) > 0 && (
+          <View style={styles.consentBanner}>
+            <View style={styles.consentBannerHeader}>
+              <AlertTriangle size={20} color={colors.warning ?? colors.error} />
+              <Text style={styles.consentBannerTitle}>
+                Updated policies need your acknowledgement
+              </Text>
+            </View>
+            {(pendingConsentsQuery.data ?? []).map((c) => (
+              <View key={c.consentType} style={styles.consentRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.consentRowTitle}>
+                    {c.consentType.replace(/_/g, ' ')} — v{c.latestVersion}
+                  </Text>
+                  <Text style={styles.consentRowSummary}>{c.changeSummary}</Text>
+                  {c.userCurrentVersion ? (
+                    <Text style={styles.consentRowMeta}>
+                      You previously {c.userLastAction === 'granted' ? 'accepted' : 'reviewed'}{' '}
+                      v{c.userCurrentVersion}.
+                    </Text>
+                  ) : null}
+                </View>
+                <TouchableOpacity
+                  style={styles.consentAcceptBtn}
+                  onPress={() => reConsentMutation.mutate(c)}
+                  disabled={reConsentMutation.isPending}
+                  accessibilityLabel={`I agree to the new ${c.consentType.replace(/_/g, ' ')} version ${c.latestVersion}`}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.consentAcceptBtnText}>I agree</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
 
         {!lastResult && !activeFlow && (
           <View>
@@ -525,5 +595,67 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     fontWeight: '600' as const,
     textTransform: 'uppercase' as const,
+  },
+
+  // LAUNCH-LIMITATIONS #5 fix — pending material consent banner.
+  consentBanner: {
+    backgroundColor: colors.warningLight ?? colors.errorLight,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.warning ?? colors.error,
+  },
+  consentBannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  consentBannerTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '700' as const,
+    flex: 1,
+  },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  consentRowTitle: {
+    ...typography.bodySmall,
+    color: colors.text,
+    fontWeight: '600' as const,
+    textTransform: 'capitalize' as const,
+  },
+  consentRowSummary: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  consentRowMeta: {
+    ...typography.caption,
+    color: colors.textTertiary,
+    marginTop: 2,
+    fontStyle: 'italic' as const,
+  },
+  consentAcceptBtn: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+  },
+  consentAcceptBtnText: {
+    ...typography.caption,
+    color: colors.white,
+    fontWeight: '600' as const,
   },
 });

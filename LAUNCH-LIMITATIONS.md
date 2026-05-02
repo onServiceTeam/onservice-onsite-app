@@ -73,19 +73,28 @@ to prevent submit-then-cancel loops). Backed by a single SELECT count
 on `data_subject_requests.received_at >= NOW() - INTERVAL '24 hours'`.
 Edge-level WAF rate limit remains in place as defence in depth.
 
-## 5. Consent versions — no forced re-consent on publish
+## 5. Consent versions — no forced re-consent on publish — RESOLVED 2026-05-02
 
 **Where:** [apps/admin/src/pages/ConsentVersionsPage.tsx](apps/admin/src/pages/ConsentVersionsPage.tsx)
 
-Publishing a new consent version is a **marker**: it writes an audit row
-(`admin_actions.consent_version_published`) but does NOT invalidate
-existing user consents or push a re-consent prompt to clients. Users will
-record the new version only when they next interact with a surface that
-prompts them.
+**Status:** RESOLVED — opt-in `material` flag added to consent publish.
 
-**Operator obligation:** when a major policy change requires explicit
-re-consent (e.g., GDPR-style "material change"), the product team must
-trigger the in-app re-consent flow separately (out of scope for v1).
+**Resolution:** `complianceAdmin.publishConsentVersion` now accepts an
+optional `material: boolean` (defaults to `false`, preserving the legacy
+marker-only semantics). When the operator passes `material: true`, every
+user who previously granted an OLDER version of that consent type is
+considered "pending re-consent". A new customer-facing endpoint
+`GET /api/v1/compliance/my-pending-consents` returns the outstanding
+items per user; mobile `customer/data-rights.tsx` surfaces a banner with
+an inline "I agree" button that calls `POST /api/v1/compliance/consent`
+with the latest version. Users who explicitly REVOKED an earlier version
+are intentionally not in the pending list — their opt-out is respected
+and any surface that needs the consent must trigger its own opt-in
+flow. The decision of which publishes are material is captured at
+publish time (operator UI passes `material: true`) and is not applied
+retroactively, so historical publishes remain inert. See
+`packages/api/__tests__/launch-limit-5-material-reconsent.test.ts` for
+the 9 behavioural tests.
 
 ## 6. Admin → customer messaging — verb only, no transport — RESOLVED
 

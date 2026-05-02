@@ -401,6 +401,17 @@ export interface PublishedConsentVersion {
   version: string;
   effectiveAt: string;
   changeSummary: string;
+  /**
+   * LAUNCH-LIMITATIONS #5 fix — when `material` is true, every user
+   * who has previously granted this consentType at an older version
+   * is required to re-acknowledge before continuing to use the
+   * affected surfaces. Mobile/admin clients call
+   * `GET /api/v1/compliance/my-pending-consents` to discover what's
+   * outstanding and re-grant via `POST /api/v1/compliance/consent`.
+   * Defaults to false so legacy publishes keep their "marker only"
+   * semantics described in the docs comment above publishConsentVersion.
+   */
+  material: boolean;
   publishedBy: string | null;
   publishedAt: string;
 }
@@ -408,7 +419,13 @@ export interface PublishedConsentVersion {
 interface PublishedRow {
   id: string;
   admin_id: string | null;
-  details: { consentType?: string; version?: string; effectiveAt?: string; changeSummary?: string } | null;
+  details: {
+    consentType?: string;
+    version?: string;
+    effectiveAt?: string;
+    changeSummary?: string;
+    material?: boolean;
+  } | null;
   created_at: Date;
 }
 
@@ -418,6 +435,16 @@ export async function publishConsentVersion(input: {
   version: string;
   effectiveAt?: string;
   changeSummary: string;
+  /**
+   * LAUNCH-LIMITATIONS #5 — when true, the publish event is a "material
+   * change" and every user who granted an older version of the same
+   * consentType will be prompted to re-acknowledge before continuing.
+   * Defaults to false (back-compat with the existing marker-only
+   * behaviour). The decision of which publishes are material belongs
+   * to the operator and is captured here at publish time, not retro-
+   * actively.
+   */
+  material?: boolean;
 }): Promise<PublishedConsentVersion> {
   if (!input.adminUserId) throw createAppError('adminUserId is required.', 400);
   if (!input.consentType || input.consentType.trim().length === 0
@@ -473,6 +500,7 @@ export async function publishConsentVersion(input: {
           version: input.version.trim(),
           effectiveAt: effective,
           changeSummary: input.changeSummary.trim(),
+          material: input.material === true,
         }),
         input.changeSummary.trim(),
       ],
@@ -503,6 +531,7 @@ export async function publishConsentVersion(input: {
     version: input.version.trim(),
     effectiveAt: effective,
     changeSummary: input.changeSummary.trim(),
+    material: input.material === true,
     publishedBy: input.adminUserId,
     publishedAt: row.created_at.toISOString(),
   };
@@ -533,6 +562,7 @@ export async function listPublishedConsentVersions(filter: {
     version: r.details?.version ?? '',
     effectiveAt: r.details?.effectiveAt ?? r.created_at.toISOString(),
     changeSummary: r.details?.changeSummary ?? '',
+    material: r.details?.material === true,
     publishedBy: r.admin_id,
     publishedAt: r.created_at.toISOString(),
   }));

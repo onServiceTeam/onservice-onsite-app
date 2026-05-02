@@ -339,6 +339,8 @@ router.post(
         version: typeof body.version === 'string' ? body.version : '',
         effectiveAt: typeof body.effectiveAt === 'string' ? body.effectiveAt : undefined,
         changeSummary: typeof body.changeSummary === 'string' ? body.changeSummary : '',
+        // LAUNCH-LIMITATIONS #5 — admin-supplied flag. Defaults to false.
+        material: body.material === true,
       });
       res.status(201).json({ success: true, data });
     } catch (error) { next(error); }
