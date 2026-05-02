@@ -371,8 +371,33 @@ router.get(
       requireSuperAdmin(req);
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
-      const adminId = typeof req.query.adminId === 'string' ? req.query.adminId : undefined;
-      const actionType = typeof req.query.actionType === 'string' ? req.query.actionType : undefined;
+
+      // MED-N02 fix: validate adminId is a UUID + actionType is a
+      // sane slug shape BEFORE passing to the service. Pre-fix,
+      // garbage values either returned empty results or caused
+      // unparseable-UUID errors to bubble up as 500. Now: clean
+      // 400 with a helpful message.
+      const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const ACTION_TYPE_REGEX = /^[a-z][a-z0-9_]{2,80}$/;
+
+      let adminId: string | undefined;
+      if (typeof req.query.adminId === 'string' && req.query.adminId.length > 0) {
+        if (!UUID_REGEX.test(req.query.adminId)) {
+          throw createAppError('adminId must be a valid UUID.', 400);
+        }
+        adminId = req.query.adminId;
+      }
+
+      let actionType: string | undefined;
+      if (typeof req.query.actionType === 'string' && req.query.actionType.length > 0) {
+        if (!ACTION_TYPE_REGEX.test(req.query.actionType)) {
+          throw createAppError(
+            'actionType must be lowercase letters, digits, or underscores (3-80 chars).',
+            400,
+          );
+        }
+        actionType = req.query.actionType;
+      }
 
       const { actions, total } = await adminService.getAdminActions(
         { adminId, actionType, page, pageSize },
