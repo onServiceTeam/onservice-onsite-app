@@ -26,10 +26,29 @@ interface MessageRow {
 
 interface CountRow { count: string }
 
+// MED-N140 fix: BYPASS_KEYWORDS now includes Tagalog patterns
+// commonly used by providers/customers steering each other off-
+// platform for a better cut. Pattern matching is whole-string
+// `.includes()` (case-insensitive), so we keep these conservative
+// — overly common Tagalog words like "pera" (money) would generate
+// false positives in legitimate service-discussion messages.
 const BYPASS_KEYWORDS = [
+  // English (original list)
   'gcash', 'maya', 'direct', 'outside', 'cash', 'bank transfer',
   'personal number', 'facebook', 'messenger', 'viber', 'whatsapp',
   'telegram', 'text me', 'call me directly',
+  // Tagalog additions
+  'tawagan mo ako',     // "call me" (lit: you-call me)
+  'i-text mo ako',      // "text me" (txt-shorthand variant)
+  'text mo ako',        // bare "text me"
+  'labas sa app',       // "outside the app"
+  'wag mo na sa app',   // "don't use the app anymore"
+  'deretso sa akin',    // "direct to me"
+  'huwag mo sa app',    // formal "don't use the app"
+  'sariling cellphone', // "personal cellphone"
+  'sariling number',    // "personal number"
+  'paypal',             // payment platform commonly suggested for bypass
+  'palit-text',         // "let's switch to text"
 ];
 
 function checkPlatformBypass(content: string): boolean {

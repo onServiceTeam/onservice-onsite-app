@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import * as templateService from './notification-template.service';
+import * as i18n from './i18n.service';
 import { formatPHP } from '../utils/currency';
 import { emitToUser } from './socket.service';
 
@@ -253,66 +254,57 @@ export async function notifyBookingStatusChange(
   bookingId: string,
   status: string,
 ): Promise<void> {
-  const statusMessages: Record<string, { title: string; body: string; type: NotificationType }> = {
-    matched: {
-      title: 'Provider Matched',
-      body: 'A provider has been matched to your booking.',
-      type: 'provider_assigned',
-    },
-    paid: {
-      title: 'Payment Confirmed',
-      body: 'Your payment has been confirmed and held in escrow.',
-      type: 'booking_confirmed',
-    },
-    provider_en_route: {
-      title: 'Provider On The Way',
-      body: 'Your service provider is heading to your location.',
-      type: 'provider_en_route',
-    },
-    provider_arrived: {
-      title: 'Provider Has Arrived',
-      body: 'Your service provider has arrived at your location.',
-      type: 'provider_arrived',
-    },
-    completed_by_provider: {
-      title: 'Job Completed',
-      body: 'The provider has marked the job as complete. Please confirm within 48 hours.',
-      type: 'job_completed',
-    },
-    confirmed: {
-      title: 'Payment Released',
-      body: 'Thank you for confirming! Payment has been released to the provider.',
-      type: 'payment_released',
-    },
-    cancelled_by_customer: {
-      title: 'Booking Cancelled',
-      body: 'The customer has cancelled this booking.',
-      type: 'customer_cancelled',
-    },
-    cancelled_by_provider: {
-      title: 'Booking Cancelled',
-      body: 'The provider has cancelled this booking.',
-      type: 'customer_cancelled',
-    },
-    disputed: {
-      title: 'Dispute Filed',
-      body: 'A dispute has been filed for this booking. Our team will review it.',
-      type: 'dispute_update',
-    },
+  // MED-N58 fix: titles + bodies are now sourced from
+  // i18n.service.NOTIFICATION_CATALOG. The notification type stays
+  // hardcoded per status (it's not user-facing copy — it's the
+  // discriminator the mobile UI uses to pick an icon + screen).
+  const statusToType: Record<string, NotificationType> = {
+    matched: 'provider_assigned',
+    paid: 'booking_confirmed',
+    provider_en_route: 'provider_en_route',
+    provider_arrived: 'provider_arrived',
+    completed_by_provider: 'job_completed',
+    confirmed: 'payment_released',
+    cancelled_by_customer: 'customer_cancelled',
+    cancelled_by_provider: 'customer_cancelled',
+    disputed: 'dispute_update',
   };
 
-  const msg = statusMessages[status];
-  if (!msg) return;
+  const type = statusToType[status];
+  if (!type) return;
+
+  // Look up the user's preferred locale (default 'en' from migration 094).
+  let locale: i18n.Locale = 'en';
+  try {
+    const result = await db.query<{ preferred_locale: string }>(
+      `SELECT preferred_locale FROM users WHERE id = $1`,
+      [userId],
+    );
+    if (result.rows[0]?.preferred_locale) {
+      locale = result.rows[0].preferred_locale as i18n.Locale;
+    }
+  } catch (err) {
+    // Pre-094 deployments may not have the column — log and fall
+    // through to English so notifications keep flowing.
+    logger.debug('preferred_locale lookup failed; defaulting to en', {
+      userId, error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  const translation = i18n.translate(status, locale);
+  if (!translation) return; // Unknown status — same behavior as pre-fix.
+
+  const { title, body } = translation;
 
   const n = await createNotification({
     userId,
-    type: msg.type,
-    title: msg.title,
-    body: msg.body,
-    data: { bookingId, status },
+    type,
+    title,
+    body,
+    data: { bookingId, status, locale },
   });
 
-  void deliverPushToDevice(userId, msg.title, msg.body, { bookingId, status, notificationId: n.id, type: msg.type });
+  void deliverPushToDevice(userId, title, body, { bookingId, status, notificationId: n.id, type });
 }
 
 export function formatNotification(n: NotificationRow): Record<string, unknown> {
