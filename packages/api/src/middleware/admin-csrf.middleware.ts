@@ -38,6 +38,19 @@ export async function requireAdminCsrf(
     return next();
   }
 
+  // CRIT-PHASE17-02 fix — exempt Bearer-token auth from CSRF.
+  // CSRF requires the browser to auto-attach a credential (cookie)
+  // to a forged cross-origin request. Authorization headers are
+  // never auto-attached by the browser, so Bearer requests aren't
+  // a CSRF attack vector. Pre-fix: any non-browser client (curl,
+  // Postman, native mobile, server-to-server, integration tests)
+  // hit `csrf_invalid` on every POST/PUT/PATCH/DELETE even when
+  // they correctly authenticated via Bearer JWT.
+  const authHeader = (req.header('authorization') ?? '').trim();
+  if (authHeader.toLowerCase().startsWith('bearer ')) {
+    return next();
+  }
+
   const headerToken =
     (req.header('x-csrf-token') ?? req.header('X-CSRF-Token') ?? '').trim();
   // Express needs cookie-parser middleware mounted earlier for req.cookies.

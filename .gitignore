@@ -62,3 +62,4 @@ docker-compose.override.yml
 # referenced by phase tag annotations resolves.
 /.ai-coder/checkpoints/logs/PHASE-*/gates/
 infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl
