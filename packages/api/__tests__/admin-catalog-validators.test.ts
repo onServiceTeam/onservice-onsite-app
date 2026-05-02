@@ -16,12 +16,16 @@ describe('Bug 266 — createAddonSchema (admin addon create)', () => {
     expect(createAddonSchema.safeParse(validCreate).success).toBe(true);
   });
 
-  it('bug-266-addon-bounds: rejects price above 5_000_000 centavos (₱50,000)', () => {
-    const result = createAddonSchema.safeParse({ ...validCreate, price: 5_000_001 });
+  it('MED-M09 — rejects price above hard backstop (10_000_000 centavos / ₱100,000)', () => {
+    const result = createAddonSchema.safeParse({ ...validCreate, price: 10_000_001 });
     expect(result.success).toBe(false);
   });
 
-  it('accepts price exactly at the cap (5_000_000)', () => {
+  it('MED-M09 — accepts price exactly at the hard backstop (10_000_000)', () => {
+    expect(createAddonSchema.safeParse({ ...validCreate, price: 10_000_000 }).success).toBe(true);
+  });
+
+  it('MED-M09 — accepts the previous cap (5_000_000) since the backstop was raised', () => {
     expect(createAddonSchema.safeParse({ ...validCreate, price: 5_000_000 }).success).toBe(true);
   });
 
@@ -77,8 +81,8 @@ describe('Bug 266 — updateAddonSchema (admin addon update)', () => {
     expect(updateAddonSchema.safeParse({ price: 100000 }).success).toBe(true);
   });
 
-  it('rejects price above the cap', () => {
-    expect(updateAddonSchema.safeParse({ price: 6_000_000 }).success).toBe(false);
+  it('MED-M09 — rejects price above the hard backstop (10M centavos)', () => {
+    expect(updateAddonSchema.safeParse({ price: 10_000_001 }).success).toBe(false);
   });
 
   it('rejects unknown keys via .strict()', () => {

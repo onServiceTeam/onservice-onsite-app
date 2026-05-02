@@ -406,6 +406,19 @@ export async function createAddon(
   },
   adminUserId: string,
 ): Promise<AddonMutationRow> {
+  // MED-M09 fix — apply the admin-tunable cap from platform_settings
+  // (validator only enforces the hard backstop). Tuned cap is the
+  // narrower of the two; service-layer rejection here keeps the
+  // validator backstop as a defense-in-depth.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getAddonPriceMaxCentsLive } = require('../validators/admin-catalog.validators');
+  const liveMaxCents: number = await getAddonPriceMaxCentsLive();
+  if (input.price > liveMaxCents) {
+    throw createAppError(
+      `Add-on price ${input.price} exceeds the configured maximum (${liveMaxCents} centavos). Adjust addon_price_max_cents via Settings to raise the cap.`,
+      400,
+    );
+  }
   return db.transaction(async (client) => {
     const result = await client.query<AddonMutationRow>(
       `INSERT INTO service_addons (subcategory_id, name, description, price, display_order)

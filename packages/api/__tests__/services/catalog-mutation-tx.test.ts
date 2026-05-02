@@ -13,6 +13,13 @@ jest.mock('../../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
+// MED-M09 — createAddon now consults settings.service.getSettingNumber
+// for the live addon-price ceiling. Mock returns a high number so the
+// existing test fixtures (price: 25000) pass.
+jest.mock('../../src/services/settings.service', () => ({
+  getSettingNumber: jest.fn().mockResolvedValue(10_000_000),
+}));
+
 import {
   createCategory,
   updateCategory,

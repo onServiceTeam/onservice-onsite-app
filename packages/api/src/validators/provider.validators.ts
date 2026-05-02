@@ -1,4 +1,10 @@
 import { z } from 'zod';
+// MED-M06 fix — both lat/lng usages in this file now share the
+// canonical phLatitude/phLongitude (4.5..21.5 / 116..127.5). Pre-fix
+// updateProfileSchema used the loose 4..22 / 116..128 band which
+// contradicted providerApplicationSchema 8 lines above and
+// migration 074 CHECKs.
+import { phLatitude, phLongitude } from './ph-coords';
 
 const urlString = z.string().url('Must be a valid URL');
 
@@ -6,8 +12,8 @@ export const providerApplicationSchema = z.object({
   businessName: z.string().min(2, 'Business name must be at least 2 characters').max(200),
   categoryIds: z.array(z.string().uuid()).min(1, 'Select at least one service category').max(10),
   serviceRadiusKm: z.number().int().min(1, 'Minimum service radius is 1km').max(50, 'Maximum service radius is 50km'),
-  latitude: z.number().min(4.5, 'Must be within Philippines').max(21.5, 'Must be within Philippines'),
-  longitude: z.number().min(116, 'Must be within Philippines').max(127.5, 'Must be within Philippines'),
+  latitude: phLatitude,
+  longitude: phLongitude,
   city: z.string().min(1).max(100),
   province: z.string().min(1).max(100),
   governmentIdFrontUrl: urlString,
@@ -21,8 +27,8 @@ export const updateProfileSchema = z.object({
   bio: z.string().max(1000).optional(),
   yearsExperience: z.number().int().min(0).max(60).optional(),
   serviceRadiusKm: z.number().min(1).max(50).optional(),
-  latitude: z.number().min(4).max(22).optional(),
-  longitude: z.number().min(116).max(128).optional(),
+  latitude: phLatitude.optional(),
+  longitude: phLongitude.optional(),
   isAvailable: z.boolean().optional(),
 }).refine(
   (data) => Object.values(data).some((v) => v !== undefined),

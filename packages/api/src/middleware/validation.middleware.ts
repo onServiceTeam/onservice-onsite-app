@@ -3,12 +3,57 @@ import { ZodSchema, ZodError } from 'zod';
 
 /**
  * Request body validation middleware using Zod schemas.
- * Validates req.body against the provided schema.
+ *
+ * Two call shapes for back-compat:
+ *
+ * 1. validationMiddleware(bodySchema) — original: validate req.body
+ *    against the schema. All existing routes use this form.
+ *
+ * 2. MED-M05 fix — validationMiddleware({ body?, query?, params? }) —
+ *    new shape: pass an object with any combination of body/query/
+ *    params schemas. The middleware validates each independently
+ *    and writes the parsed values back. Routes that need to validate
+ *    list-endpoint query strings (page/pageSize/status/etc.) or URL
+ *    params (uuid validation) can now use the same middleware
+ *    instead of re-implementing validation per-route.
+ *
+ * Both shapes yield the same 400 + error.details payload on failure;
+ * the `field` in the failure detail is prefixed with `body.`,
+ * `query.`, or `params.` so the client can map back to its source.
  */
-export function validationMiddleware(schema: ZodSchema) {
+export interface MultiSchema {
+  body?: ZodSchema;
+  query?: ZodSchema;
+  params?: ZodSchema;
+}
+
+function isMultiSchema(arg: ZodSchema | MultiSchema): arg is MultiSchema {
+  return (
+    typeof arg === 'object' &&
+    arg !== null &&
+    !('parse' in arg) &&
+    ('body' in arg || 'query' in arg || 'params' in arg)
+  );
+}
+
+export function validationMiddleware(schemaOrMulti: ZodSchema | MultiSchema) {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
-      req.body = schema.parse(req.body) as typeof req.body;
+      if (isMultiSchema(schemaOrMulti)) {
+        if (schemaOrMulti.body) {
+          req.body = schemaOrMulti.body.parse(req.body) as typeof req.body;
+        }
+        if (schemaOrMulti.query) {
+          // Express 5: req.query is a getter, but we can cast and
+          // mutate the underlying record for downstream handlers.
+          (req as unknown as { query: unknown }).query = schemaOrMulti.query.parse(req.query);
+        }
+        if (schemaOrMulti.params) {
+          req.params = schemaOrMulti.params.parse(req.params) as typeof req.params;
+        }
+      } else {
+        req.body = schemaOrMulti.parse(req.body) as typeof req.body;
+      }
       next();
     } catch (error) {
       if (error instanceof ZodError) {
