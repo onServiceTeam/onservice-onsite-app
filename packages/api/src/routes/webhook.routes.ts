@@ -1,8 +1,10 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import * as Sentry from '@sentry/node';
 import * as paymentService from '../services/payment.service';
 import * as escrowService from '../services/escrow.service';
 import * as walletService from '../services/wallet.service';
 import * as notificationService from '../services/notification.service';
+import * as securityService from '../services/security.service';
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import crypto from 'node:crypto';
@@ -104,9 +106,42 @@ router.post(
 
           const webhookAmount = paymentData?.amount;
           if (webhookAmount != null && Number(webhookAmount) !== Number(intent.amount)) {
-            logger.error('Webhook amount mismatch', {
-              bookingId, webhookAmount, intentAmount: intent.amount,
-            });
+            // MED-N155 fix: payment.amount mismatch is a potential
+            // tampering signal. Pre-fix: only logger.error + break.
+            // Post-fix: also (a) Sentry capture for ops alerting and
+            // (b) security_events row for the admin Compliance dash.
+            const mismatchInfo = {
+              bookingId,
+              intentId: intent.id,
+              webhookAmount: Number(webhookAmount),
+              intentAmount: Number(intent.amount),
+              deltaCentavos: Number(webhookAmount) - Number(intent.amount),
+              paymongoPaymentId,
+            };
+            logger.error('Webhook amount mismatch — POSSIBLE TAMPERING', mismatchInfo);
+            // Best-effort Sentry capture; never let alerting failures
+            // mask the underlying mismatch.
+            try {
+              Sentry.captureMessage('Webhook payment.amount mismatch', {
+                level: 'error',
+                extra: mismatchInfo,
+              });
+            } catch (sentryErr) {
+              logger.warn('Sentry capture failed for amount mismatch', {
+                error: sentryErr instanceof Error ? sentryErr.message : String(sentryErr),
+              });
+            }
+            // Best-effort DB audit; same — alerting must not throw.
+            try {
+              await securityService.logSecurityEvent({
+                eventType: 'payment_amount_mismatch',
+                metadata: mismatchInfo,
+              });
+            } catch (auditErr) {
+              logger.warn('security_events insert failed for amount mismatch', {
+                error: auditErr instanceof Error ? auditErr.message : String(auditErr),
+              });
+            }
             break;
           }
 
