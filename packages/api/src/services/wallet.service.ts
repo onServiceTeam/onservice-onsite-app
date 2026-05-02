@@ -119,8 +119,10 @@ export async function debitWallet(
 // failures don't leave money in a stuck state (debited but no
 // payment record / escrow hold).
 export async function debitWalletInTransaction(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  client: { query: (text: string, params?: unknown[]) => Promise<any> },
+  // Phase L typecheck fix — was inline `{ query: ...Promise<any> }`
+  // which lost the generic and produced TS2558 on the .query<TRow>
+  // calls. Use the canonical PgClient alias.
+  client: PgClient,
   walletId: string,
   amount: number,
   txType: TransactionType,
@@ -162,9 +164,16 @@ export async function holdEscrow(
 // We intentionally keep holdEscrow as a thin wrapper for back-compat
 // with callers that don't have a client to pass.
 //
-// Type for client mirrors db.transaction's callback parameter shape.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type PgClient = { query: (text: string, params?: unknown[]) => Promise<any> };
+// Type for client mirrors db.transaction's callback parameter shape
+// (a thin wrapper around pg's PoolClient.query that returns the
+// QueryResultRow-constrained shape).
+import type { QueryResult, QueryResultRow } from 'pg';
+type PgClient = {
+  query: <R extends QueryResultRow = QueryResultRow>(
+    text: string,
+    params?: unknown[],
+  ) => Promise<QueryResult<R>>;
+};
 export async function holdEscrowInTransaction(
   client: PgClient,
   walletId: string,

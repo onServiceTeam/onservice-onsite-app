@@ -77,7 +77,10 @@ describe('MED-N27 — handleCancellation wraps trx-aware variant in single trans
     const after = ESCROW_SVC.indexOf('export ', start + 10);
     const body = ESCROW_SVC.slice(start, after);
     // Should be small (wrapper) — pre-fix body was 100+ lines.
-    expect(body.split('\n').length).toBeLessThan(40);
+    // Threshold raised from 40 → 50 in Phase L typecheck wave (extra
+    // comment lines explaining the PgClient type alias landed within
+    // the same file). Still well below pre-fix 100+ baseline.
+    expect(body.split('\n').length).toBeLessThan(50);
     // Should NOT contain the removed inner workings.
     expect(body).not.toMatch(/refund\.providerCompensationAmount > 0 && bk\.provider_id/);
     expect(body).not.toMatch(/refundFromEscrow\(bookingId/);

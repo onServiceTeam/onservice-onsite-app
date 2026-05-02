@@ -400,7 +400,12 @@ export async function getProviderSukiCustomers(
 }
 
 export function formatProviderCustomer(m: SukiMembershipRow & { customer_name?: string | null }): Record<string, unknown> {
-  const tierConfig = SUKI_TIERS[m.tier] ?? DEFAULT_TIER;
+  // Phase L typecheck fix — was `SUKI_TIERS[m.tier]` which referenced
+  // an undefined symbol (refactor leftover; canonical accessor is
+  // `getSukiTiers()` per MED-N126). Sync formatter uses the cached
+  // FALLBACK_TIERS via getSukiTiers; admin-tuned overrides flow
+  // through `formatProviderCustomerWithLiveTiers` if added.
+  const tierConfig = getSukiTiers()[m.tier] ?? DEFAULT_TIER;
   return {
     id: m.id,
     customerId: m.customer_id,

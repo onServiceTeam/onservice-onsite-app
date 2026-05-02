@@ -41,8 +41,16 @@ export async function holdInEscrow(bookingId: string, amount: number): Promise<v
 // roll back and the webhook returns 5xx — PayMongo retries the
 // webhook. Same shape as MED-N88 / CRIT-N10 cancellation /
 // confirmation patterns.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type PgClient = { query: (text: string, params?: unknown[]) => Promise<any> };
+// Generic PgClient type matching db.transaction's callback parameter
+// (a thin wrapper around pg's PoolClient.query). Constrains TRow to
+// QueryResultRow so .query<TRow>() flows match pg's signature.
+import type { QueryResult, QueryResultRow } from 'pg';
+type PgClient = {
+  query: <R extends QueryResultRow = QueryResultRow>(
+    text: string,
+    params?: unknown[],
+  ) => Promise<QueryResult<R>>;
+};
 export async function holdInEscrowInTransaction(
   client: PgClient,
   bookingId: string,
@@ -478,7 +486,9 @@ export async function handleCancellation(
 // reads + post-commit gateway calls; they are NOT replaced here.
 // ─────────────────────────────────────────────────────────────────
 
-type PgClient = { query: typeof db.query };
+// Note: PgClient already declared at top of file; do not redeclare.
+// (Earlier MED-N9X refactor introduced this duplicate; harmless at
+// runtime but TS2300.) Just reuse the upper definition.
 
 /**
  * Release escrow inside an existing transaction. Caller owns the outer

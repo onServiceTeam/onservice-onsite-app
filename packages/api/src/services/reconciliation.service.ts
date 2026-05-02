@@ -15,7 +15,9 @@
  * `reconciliation_snapshots` + `admin_actions`.
  */
 
-import * as Sentry from '@sentry/node';
+// Phase L typecheck fix — see webhook.routes.ts for context.
+import * as SentryRaw from '@sentry/node';
+const Sentry = SentryRaw as typeof SentryRaw & typeof import('@sentry/core');
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';

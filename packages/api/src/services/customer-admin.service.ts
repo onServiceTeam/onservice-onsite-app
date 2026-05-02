@@ -787,7 +787,10 @@ export async function updateCustomerStatus(
     if (!user) throw createAppError('Customer not found.', 404);
 
     let newIsActive = user.is_active;
-    let actionType: 'customer_suspended' | 'customer_reactivated';
+    // Phase L typecheck fix — widen union to include the
+     // 'customer_flagged_fraud' branch added by MED-N15. Pre-fix the
+     // narrower union made the assignment on line ~806 a TS2322.
+    let actionType: 'customer_suspended' | 'customer_reactivated' | 'customer_flagged_fraud';
 
     if (action === 'suspend') {
       newIsActive = false;

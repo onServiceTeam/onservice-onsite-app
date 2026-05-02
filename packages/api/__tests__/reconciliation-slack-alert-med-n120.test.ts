@@ -29,7 +29,11 @@ const SLACK = readFileSync(
 
 describe('MED-N120 — reconciliation.service alerts via Sentry + Slack', () => {
   it('imports Sentry', () => {
-    expect(RECON).toMatch(/import \* as Sentry from '@sentry\/node'/);
+    // Phase L typecheck fix — accepts either the original
+    // `import * as Sentry` shape or the new typecheck-friendly
+    // `import * as SentryRaw` pattern (cast to a wider namespace
+    // alias on the next line so the runtime call shape is identical).
+    expect(RECON).toMatch(/import \* as (Sentry|SentryRaw) from '@sentry\/node'/);
   });
 
   it('imports sendSlackAlert from the new slack-alert.service', () => {

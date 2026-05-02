@@ -1,6 +1,13 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
-import * as Sentry from '@sentry/node';
+// Phase L typecheck fix — `import * as Sentry from '@sentry/node'` is
+// the canonical shape and works at runtime (captureMessage is
+// re-exported from @sentry/core via the index barrel). The TypeScript
+// barrel sometimes loses the re-export under namespace import; we
+// cast the namespace once to expose the full surface. Behaviour is
+// unchanged from the pre-fix shape — only the type lookup differs.
+import * as SentryRaw from '@sentry/node';
+const Sentry = SentryRaw as typeof SentryRaw & typeof import('@sentry/core');
 import * as paymentService from '../services/payment.service';
 import * as escrowService from '../services/escrow.service';
 import * as walletService from '../services/wallet.service';

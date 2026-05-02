@@ -301,8 +301,11 @@ export async function attemptAutoCharge(
       await db.transaction(async (client) => {
         if (walletPortion > 0 && walletId) {
           // Convert centavos to pesos for the wallet helper (it expects pesos).
+          // Phase L typecheck fix — wallet_transactions.transaction_type
+          // CHECK constraint (mig 005) accepts 'payment'; the
+          // 'booking_payment' string never existed in the union or DB.
           await walletService.debitWalletInTransaction(
-            client, walletId, walletPortion / 100, 'booking_payment',
+            client, walletId, walletPortion / 100, 'payment',
             'Auto-charge for recurring booking', ctx.bookingId,
           );
         }
