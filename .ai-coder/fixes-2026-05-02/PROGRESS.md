@@ -375,9 +375,58 @@ for this backend session. Backend-side defenses for mobile-data
 consistency landed in earlier sessions (server-canonical pricing,
 audit, payment routing).
 
+## Session 5b (2026-05-02 cont.) — Phase B audit deep dive
+
+The Phase B audit findings (the "money path" findings catalogued
+under .ai-coder/audit-2026-05-01/findings/B01-B09) included CRIT-01
+through CRIT-27 from the early audit phases. Many were re-numbered
+as CRIT-N* in Phase N and addressed in earlier waves; this session
+identified the residual unaddressed Phase B CRITs and closed them.
+
+### Phase B CRITs landed this sub-session (3 commits)
+
+| # | Commit | CRITs |
+|---|---|---|
+| 1 | 06a4831 | B-CRIT-01 (partial-refund-twice) + B-CRIT-02 (PayMongo refund payment-id) |
+| 2 | cddbecf | B-CRIT-03 (escrow corrupt-row throws) + B-CRIT-10 (quote re-acceptance rejected) + B-CRIT-11 (suki redeem race-safe) + B-CRIT-13 (calculateServiceFee live settings) |
+| 3 | f49c140 | B-CRIT-15 (change-order payment proof required) |
+
+Plus verified-already-addressed: B-CRIT-04 (settings drift, addressed
+via earlier sessions), B-CRIT-05 (non-wallet tips, MED-N153),
+B-CRIT-08 (promo discount stub, CRIT-N15), B-CRIT-09 (per-customer
+promo limit, MED-N154), B-CRIT-12 (pricing timezone, MED-N112),
+B-CRIT-14 (customer self-confirm — VALID_TRANSITIONS prevents),
+B-CRIT-16 (provider cancellation tracking, MED-N68),
+B-CRIT-17 (stale change orders, MED-N70), B-CRIT-18 through B-CRIT-23
+(webhook/auth/state, addressed in Wave 1 P0 dispatches),
+B-CRIT-24 through B-CRIT-27 (settings/wallet/auto-confirm,
+addressed in Wave 1 P0 + MED-M16).
+
+### Numbers (session 5b final)
+
+- **Tests at session 5b close:** 2432/2432 passing (was 2399 at
+  session 5 close; +33 net new across 5 fix commits).
+- **New migrations this session:** 1 (114 partial_refund_tracking +
+  paymongo_payment_id column).
+- **MED-Bs landed this session-segment (9 new CRITs):**
+  - B-CRIT-01/02/03/10/11/13/15 (real fixes)
+  - Plus verified-already: B-CRIT-04/05/08/09/12/14/16/17/18-27
+
+### Operator workflow before launch — additions
+
+- Apply migration 114 in production. Backfill statements are
+  embedded; idempotent.
+- Mobile UI work for change-order PayMongo flow (paymentProof.kind=
+  'paymongo' path) is now wired on the backend; mobile + admin
+  callers should pass the captured paymentIntentId. The wallet path
+  remains the default for v1.0 (route gates non-wallet at line 258).
+
 ## RESUME instructions for the next session
 
-1. v1.1 MED-N + Phase M + Phase O backlog closed for backend.
+1. Backend Phase B audit findings are now substantially closed.
+   Remaining Phase B items are smaller documentation / observability
+   items (MED-01 through MED-23) that could be addressed in another
+   pass.
 2. Mobile-app Phase K backlog awaits the mobile session. Notable
    CRITs to hit first when that session starts: K01 (secure-storage
    hardcoded key), K11+K12 (wallet API path/case mismatch),
