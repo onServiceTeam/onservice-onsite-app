@@ -132,6 +132,9 @@ Landed:
 | d3690b8 | MED-N16 | fraud-pattern thresholds admin-tunable |
 | 647b4e4 | MED-N18+N24 | noshow window tunable + remove dismissed status |
 | 46971df | MED-N06+N07 | commission optimization reads live rate + recognizes founding |
+| d83ef78 | MED-N08+N09 | booking-evidence reads UNION of photo tables, drops dead gps/receipts |
+| e2b0fbc | MED-N31+N32+N33+N35 | provider-tools receipt + monthly summary fixes |
+| 1b0f558 | MED-N37+N38+N39+N40 | catalog duplicate-slug + business txn + member re-add + user check |
 
 **Deferred:** MED-N27 (handleCancellation atomicity) — needs a 9-test
 rewrite that's larger than the fix itself; left as the next session's
@@ -140,15 +143,16 @@ trx-aware variant `handleCancellationInTransaction` (used by the
 booking-admin path) is already correct.
 
 **Audit findings remaining (rough counts, v1.1 backlog):**
-- MED-N: ~140 of 169 still open
+- MED-N: ~131 of 169 still open (20 landed in session 2 across 10 commits)
 - MED-K, L, M, O batches: not yet touched in fixes phase
 
 ## Session 2 final state — 2026-05-02 (final)
 
-- **Test suite:** 1895/1895 passing.
-- **Commits this session:** 28+ total (Wave 2 P1 + P2 + 9 v1.1 MEDs + escalations + docs).
-- **Net new tests:** +274 (started at 1621 in session 1 close).
+- **Test suite:** 1926/1926 passing.
+- **Commits this session:** 35+ total (Wave 2 P1 + P2 + 20 v1.1 MEDs + escalations + docs).
+- **Net new tests:** +305 (started at 1621 in session 1 close).
 - **Net new migrations:** 7 (089–095 + 096) all compatible with prod schema.
+- **Net new services:** 5 (gateway-retry, i18n, slack-alert, bir-filer-identity, test-fixtures router).
 - **Next session priorities:**
   1. Check `.ai-coder/decisions/` for Ken responses on E01 / E02.
   2. If no decisions, tackle MED-N27 with the test rewrite (8-test
