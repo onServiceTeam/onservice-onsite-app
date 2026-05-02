@@ -2,8 +2,9 @@
 
 **Date raised:** 2026-05-02
 **Raised by:** Claude (Phase E CRIT-103/104 cleanup)
-**Status:** PENDING KEN DECISION
-**Related code:** `apps/mobile/app/provider/job/[id]/complete.tsx`
+**Status:** RESOLVED 2026-05-02 — Ken authorized "do all recommendations waiting for Ken" → Option A landed.
+**Resolution:** react-native-signature-canvas + expo-file-system added to apps/mobile/package.json. New `apps/mobile/src/components/SignaturePad.tsx` wraps the canvas with an imperative ref + onCapture(file://uri). complete.tsx replaces the PanResponder dot canvas with SignaturePad and uploads the PNG via the existing /api/v1/uploads/booking-signature endpoint with signatureType='customer_acceptance'. booking_signatures rows now land for every completed job. Tests: extended e-crit102-complete-photos.test.ts (+8 assertions) plus new signature-pad-component.test.tsx (+3 behavioural assertions exercising the mocked WebView + FileSystem path).
+**Related code:** `apps/mobile/app/provider/job/[id]/complete.tsx`, `apps/mobile/src/components/SignaturePad.tsx`
 
 ## The hard stop
 

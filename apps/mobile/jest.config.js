@@ -66,6 +66,12 @@ module.exports = {
     '^react-native-safe-area-context$': '<rootDir>/__mocks__/safe-area.js',
     '^react-native-gesture-handler$': '<rootDir>/__mocks__/gesture-handler.js',
     '^lucide-react-native$': '<rootDir>/__mocks__/lucide.js',
+    // Phase E CRIT-103/104 (E01 Option A) — WebView-backed signature
+    // canvas + its expo-file-system dep are mocked for the jest harness;
+    // the real components live behind the platform layer and are
+    // exercised at device level by F#3 Maestro.
+    '^react-native-signature-canvas$': '<rootDir>/__mocks__/react-native-signature-canvas.js',
+    '^expo-file-system$': '<rootDir>/__mocks__/expo-file-system.js',
   },
   testPathIgnorePatterns: ['/node_modules/', '/.expo/', '/dist/'],
   // Monorepo: node_modules live at the workspace root.

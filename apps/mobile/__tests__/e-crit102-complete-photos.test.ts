@@ -1,19 +1,18 @@
-// Phase E CRIT-102 — provider/job/[id]/complete.tsx photo upload + status transition.
+// Phase E CRIT-102/103/104 — provider/job/[id]/complete.tsx full
+// completion flow now persists photos AND signature, then transitions
+// the booking via the canonical status PATCH.
 //
-// Pre-fix: api.post('/api/v1/bookings/{id}/complete', { photos: [...file:// URIs], signedAt, notes })
-// Three problems:
-//   1. The endpoint /:id/complete doesn't exist. Real route is
-//      PATCH /:id/status (booking.routes.ts:425).
-//   2. file:// URIs sent as JSON strings — backend MED-N97 hardening
-//      rejects file:// for any persistence URL field.
-//   3. Photos never landed in booking_photos table.
+// Pre-fix:
+//   - POST to /api/v1/bookings/{id}/complete (404, never existed)
+//   - file:// URIs sent verbatim in JSON
+//   - PanResponder collected (x,y) points but never produced a PNG
+//   - booking_signatures rows never landed → no legal proof of acceptance
 //
-// Post-fix asserted below: each photo uploaded individually via
-// uploadBookingPhoto with photoType='after', then PATCH /:id/status
-// with status='completed_by_provider'.
-//
-// CRIT-103/104 (signature visual persistence) is escalated separately
-// — see .ai-coder/escalations/E01-signature-image-persistence-2026-05-02.md.
+// Post-fix asserted below:
+//   - photos uploaded individually via uploadBookingPhoto with photoType='after'
+//   - signature canvas (react-native-signature-canvas) produces a real PNG;
+//     uploadSignature posts it with signatureType='customer_acceptance'
+//   - booking transitioned via PATCH /:id/status with status='completed_by_provider'
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -29,7 +28,7 @@ describe('Phase E CRIT-102 — complete.tsx persists real photos and uses canoni
   });
   it('CRIT-102 — uploadBookingPhoto helper imported from booking-photo.service', () => {
     expect(COMPLETE).toMatch(
-      /import \{ uploadBookingPhoto \} from ['"]@\/services\/booking-photo\.service['"]/,
+      /import \{ uploadBookingPhoto, uploadSignature \} from ['"]@\/services\/booking-photo\.service['"]/,
     );
   });
   it('CRIT-102 — each captured photo uploaded with photoType=after', () => {
@@ -42,20 +41,37 @@ describe('Phase E CRIT-102 — complete.tsx persists real photos and uses canoni
       /api\.patch\(`?\/api\/v1\/bookings\/\$\{id\}\/status`?[^)]*completed_by_provider/s,
     );
   });
-  it('CRIT-102 — header comment references the CRIT-103/104 signature escalation', () => {
-    expect(COMPLETE).toMatch(/E01-signature-image-persistence/);
-  });
 });
 
-describe('Phase E CRIT-103/104 — signature persistence escalation file exists', () => {
-  it('CRIT-103/104 — escalation file present', () => {
-    const ESCALATION = readFileSync(
-      resolve(__dirname, '../../../.ai-coder/escalations/E01-signature-image-persistence-2026-05-02.md'),
-      'utf8',
+describe('Phase E CRIT-103/104 (E01 Option A) — signature persistence end-to-end', () => {
+  it('CRIT-103 — SignaturePad component imported', () => {
+    expect(COMPLETE).toMatch(
+      /import SignaturePad, \{ type SignaturePadRef \} from ['"]@\/components\/SignaturePad['"]/,
     );
-    expect(ESCALATION).toMatch(/PENDING KEN DECISION/);
-    expect(ESCALATION).toMatch(/Option A/);
-    expect(ESCALATION).toMatch(/Option B/);
-    expect(ESCALATION).toMatch(/Option C/);
+  });
+  it('CRIT-103 — signature ref + capture promise plumbing present', () => {
+    expect(COMPLETE).toMatch(/signaturePadRef = useRef<SignaturePadRef \| null>/);
+    expect(COMPLETE).toMatch(/captureResolverRef = useRef/);
+  });
+  it('CRIT-103 — readSignatureFile awaits the WebView round-trip with timeout', () => {
+    expect(COMPLETE).toMatch(/readSignatureFile = \(\): Promise<string>/);
+    expect(COMPLETE).toMatch(/Signature capture timed out/);
+  });
+  it('CRIT-104 — uploadSignature called on submit with customer_acceptance type', () => {
+    expect(COMPLETE).toMatch(
+      /uploadSignature\(\{[^}]*signatureType: ['"]customer_acceptance['"]/s,
+    );
+  });
+  it('CRIT-104 — bookingId forwarded to uploadSignature', () => {
+    expect(COMPLETE).toMatch(/uploadSignature\(\{[^}]*bookingId: id/s);
+  });
+  it('CRIT-103 — old PanResponder dot-canvas removed from JSX render path', () => {
+    // Outside of the deprecation comment block.
+    expect(COMPLETE).not.toMatch(/panResponder\.panHandlers/);
+    expect(COMPLETE).not.toMatch(/signaturePoints\.map\(\(pt, i\)/);
+  });
+  it('CRIT-103 — signedAt captured at first stroke via onBegin', () => {
+    expect(COMPLETE).toMatch(/handleSignatureBegin = \(\): void/);
+    expect(COMPLETE).toMatch(/setSignedAt\(new Date\(\)\.toISOString\(\)\)/);
   });
 });

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 // Phase E CRIT-102 fix — completion submit now actually persists
 // the captured photos.
@@ -19,14 +19,14 @@ import React, { useMemo, useRef, useState } from 'react';
 //     /api/v1/bookings/:id/status with status='completed_by_provider'
 //     (the canonical state machine from booking.service.ts).
 //
-// CRIT-103/104 (signature visual persistence) is escalated to Ken
-// because every viable path requires a NEW dependency:
-//   - mobile: react-native-signature-canvas or react-native-view-shot
-//     (to rasterise the PanResponder points to a real PNG buffer)
-//   - backend: sharp or node-canvas (to rasterise client-sent SVG)
-// See .ai-coder/escalations/E01-signature-image-persistence.md.
-// In the interim the timestamp + presence-of-strokes is captured;
-// the visual is shown on-screen but not yet uploaded.
+// Phase E CRIT-103/104 fix (E01 Option A landed) — customer
+// signature now produces a real PNG bitmap via the new SignaturePad
+// component (react-native-signature-canvas under the hood). Submit
+// reads the canvas, writes the base64 to a cache file, then uploads
+// via the existing /api/v1/uploads/booking-signature endpoint with
+// signatureType='customer_acceptance' (booking_signatures table).
+// Removed the old PanResponder + signaturePoints render path — the
+// new pad owns the canvas and returns ready-to-upload pixels.
 import {
   View,
   Text,
@@ -37,16 +37,14 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
-  PanResponder,
-  GestureResponderEvent,
-  PanResponderGestureState,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/services/api';
-import { uploadBookingPhoto } from '@/services/booking-photo.service';
+import { uploadBookingPhoto, uploadSignature } from '@/services/booking-photo.service';
 import { getErrorMessage } from '@/utils/errors';
+import SignaturePad, { type SignaturePadRef } from '@/components/SignaturePad';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Camera, CheckCircle2, Edit } from '@/components/icons';
 // Phase 14 R5-complete — CommissionBreakdown post-complete summary panel.
@@ -56,22 +54,30 @@ import { Routes } from '@/config/navigation';
 const PHOTO_SLOTS = 4;
 const MIN_PHOTOS = 2;
 
-interface SignaturePoint {
-  x: number;
-  y: number;
-}
-
 export default function JobCompleteScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [photos, setPhotos] = useState<(string | null)[]>(() =>
     Array.from({ length: PHOTO_SLOTS }, () => null),
   );
-  const [signaturePoints, setSignaturePoints] = useState<SignaturePoint[]>([]);
+  // Phase E CRIT-103/104 fix (E01 Option A) — signature state is now
+  // a single boolean (the WebView canvas owns the strokes) plus the
+  // first-stroke timestamp. The signature pad fires onBegin when the
+  // user starts drawing; we record signedAt then. On submit we ask
+  // the pad to emit the captured PNG via the imperative ref.
+  const [hasSignature, setHasSignature] = useState(false);
   const [signedAt, setSignedAt] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const signaturePointsRef = useRef<SignaturePoint[]>([]);
+  const signaturePadRef = useRef<SignaturePadRef | null>(null);
+  // Resolved by the SignaturePad's onCapture callback after we tap
+  // submit and call readSignature(). Holds the file:// URI of the
+  // freshly written PNG.
+  const pendingSignatureUri = useRef<string | null>(null);
+  // Promise resolver for the readSignature → onCapture round trip;
+  // submit awaits this so the upload happens after the canvas has
+  // produced the bitmap.
+  const captureResolverRef = useRef<((uri: string) => void) | null>(null);
 
   const pickPhoto = async (index: number): Promise<void> => {
     try {
@@ -98,40 +104,44 @@ export default function JobCompleteScreen(): React.ReactElement {
   };
 
   const clearSignature = (): void => {
-    setSignaturePoints([]);
-    signaturePointsRef.current = [];
+    signaturePadRef.current?.clear();
+    setHasSignature(false);
     setSignedAt(null);
+    pendingSignatureUri.current = null;
   };
 
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (evt: GestureResponderEvent) => {
-          const { locationX, locationY } = evt.nativeEvent;
-          const pt = { x: locationX, y: locationY };
-          signaturePointsRef.current = [pt];
-          setSignaturePoints([pt]);
-          if (!signedAt) setSignedAt(new Date().toISOString());
-        },
-        onPanResponderMove: (evt: GestureResponderEvent, _g: PanResponderGestureState) => {
-          const { locationX, locationY } = evt.nativeEvent;
-          const pt = { x: locationX, y: locationY };
-          signaturePointsRef.current = [...signaturePointsRef.current, pt];
-          if (signaturePointsRef.current.length % 4 === 0) {
-            setSignaturePoints(signaturePointsRef.current);
-          }
-        },
-        onPanResponderRelease: () => {
-          setSignaturePoints(signaturePointsRef.current);
-        },
-      }),
-    [signedAt],
-  );
+  const handleSignatureBegin = (): void => {
+    if (!signedAt) setSignedAt(new Date().toISOString());
+    setHasSignature(true);
+  };
+
+  const handleSignatureCapture = (uri: string): void => {
+    pendingSignatureUri.current = uri;
+    captureResolverRef.current?.(uri);
+    captureResolverRef.current = null;
+  };
+
+  /**
+   * Ask the WebView for the current signature as a PNG file URI.
+   * Resolves once SignaturePad fires onCapture (round-trip via the
+   * library's onOK). Times out after 5s to avoid hanging the submit
+   * if the WebView never responds.
+   */
+  const readSignatureFile = (): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        captureResolverRef.current = null;
+        reject(new Error('Signature capture timed out. Please try again.'));
+      }, 5000);
+      captureResolverRef.current = (uri: string) => {
+        clearTimeout(timer);
+        resolve(uri);
+      };
+      signaturePadRef.current?.readSignature();
+    });
+  };
 
   const photoCount = photos.filter((p): p is string => p !== null).length;
-  const hasSignature = signaturePoints.length > 4 && signedAt !== null;
   const canSubmit = photoCount >= MIN_PHOTOS && hasSignature && !submitting;
 
   const handleSubmit = async (): Promise<void> => {
@@ -157,6 +167,19 @@ export default function JobCompleteScreen(): React.ReactElement {
       for (const photoUri of validPhotos) {
         await uploadBookingPhoto({ uri: photoUri, bookingId: id, photoType: 'after' });
       }
+
+      // Phase E CRIT-103/104 fix (E01 Option A) — read the signature
+      // PNG out of the WebView canvas and upload it to the existing
+      // /uploads/booking-signature multipart endpoint with
+      // signatureType='customer_acceptance' (booking_signatures
+      // table from migration 079). This is the legal proof of work
+      // acceptance for dispute defence.
+      const signatureUri = await readSignatureFile();
+      await uploadSignature({
+        uri: signatureUri,
+        bookingId: id,
+        signatureType: 'customer_acceptance',
+      });
 
       // Phase E CRIT-102 fix — transition the booking via the real
       // canonical PATCH /:id/status endpoint. The transition handler
@@ -233,24 +256,21 @@ export default function JobCompleteScreen(): React.ReactElement {
           <Text style={styles.sectionHint}>
             Ask the customer to sign below to confirm the work was completed.
           </Text>
-          <View style={styles.signaturePad} {...panResponder.panHandlers}>
-            {signaturePoints.length === 0 ? (
-              <View style={styles.signatureHintWrap}>
-                <Edit size={20} color={colors.textTertiary} />
-                <Text style={styles.signatureHint}>Sign here</Text>
-              </View>
-            ) : (
-              signaturePoints.map((pt, i) => (
-                <View
-                  key={`pt-${i}`}
-                  style={[
-                    styles.signatureDot,
-                    { left: pt.x - 1.5, top: pt.y - 1.5 },
-                  ]}
-                />
-              ))
-            )}
-          </View>
+          {/* Phase E CRIT-103/104 fix (E01 Option A) — real signature
+               canvas (WebView-backed); replaces the dot-rendering
+               PanResponder that never produced a real bitmap. */}
+          <SignaturePad
+            ref={signaturePadRef}
+            onCapture={handleSignatureCapture}
+            onBegin={handleSignatureBegin}
+            height={180}
+          />
+          {!hasSignature && (
+            <View style={styles.signatureHintRow}>
+              <Edit size={16} color={colors.textTertiary} />
+              <Text style={styles.signatureHint}>Tap inside the box and sign</Text>
+            </View>
+          )}
           {hasSignature && (
             <View style={styles.signatureMeta}>
               <CheckCircle2 size={16} color={colors.success} />
@@ -366,29 +386,16 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   photoPlaceholderText: { ...typography.caption, color: colors.textTertiary },
-  signaturePad: {
-    height: 180,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundSecondary,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  signatureHintWrap: {
-    flex: 1,
+  // Phase E CRIT-103/104 fix — old PanResponder canvas styles
+  // (signaturePad, signatureHintWrap, signatureDot) replaced by the
+  // new SignaturePad component which owns its own canvas styling.
+  signatureHintRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: spacing.xs,
+    marginTop: spacing.xs,
   },
   signatureHint: { ...typography.bodySmall, color: colors.textTertiary },
-  signatureDot: {
-    position: 'absolute',
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: colors.text,
-  },
   signatureMeta: {
     flexDirection: 'row',
     alignItems: 'center',

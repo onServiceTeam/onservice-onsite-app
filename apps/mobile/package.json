@@ -25,6 +25,7 @@
     "expo-constants": "~17.1.0",
     "expo-crypto": "~14.1.0",
     "expo-device": "~55.0.15",
+    "expo-file-system": "~19.0.0",
     "expo-haptics": "~14.1.0",
     "expo-image": "~55.0.0",
     "expo-image-manipulator": "~13.1.0",
@@ -45,7 +46,9 @@
     "react-native-reanimated": "~3.17.0",
     "react-native-safe-area-context": "~5.4.0",
     "react-native-screens": "~4.10.0",
+    "react-native-signature-canvas": "^4.7.2",
     "react-native-svg": "15.8.0",
+    "react-native-webview": "13.13.5",
     "socket.io-client": "^4.8.0",
     "zod": "^4.3.0",
     "zustand": "^5.0.0"
