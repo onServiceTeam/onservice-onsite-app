@@ -466,6 +466,10 @@ export async function computeProviderQualityScores(
   const periodStartStr = periodStart.toISOString().split('T')[0]!;
   const periodEndStr = new Date().toISOString().split('T')[0]!;
 
+  // MED-N05 fix: also pull average response-time-to-quote from
+  // booking_quotes for the responseScore component (was hardcoded
+  // 75). LEFT JOIN so providers with zero quotes in the period
+  // still get a row (avg_response_minutes = NULL → fallback to 75).
   const providers = await db.query<{
     provider_id: string;
     avg_rating: string;
@@ -473,8 +477,20 @@ export async function computeProviderQualityScores(
     completed_jobs: string;
     cancelled_by_provider: string;
     on_time_jobs: string;
+    avg_response_minutes: string | null;
+    quote_count: string;
   }>(
-    `SELECT
+    `WITH quote_response AS (
+       SELECT
+         bq.provider_id,
+         AVG(EXTRACT(EPOCH FROM (bq.created_at - b.created_at)) / 60.0) AS avg_minutes,
+         COUNT(*) AS qcount
+         FROM booking_quotes bq
+         JOIN bookings b ON b.id = bq.booking_id
+        WHERE bq.created_at >= $1::date
+        GROUP BY bq.provider_id
+     )
+     SELECT
        p.id AS provider_id,
        COALESCE(p.rating, 0)::text AS avg_rating,
        COUNT(b.id)::text AS total_jobs,
@@ -484,12 +500,15 @@ export async function computeProviderQualityScores(
          WHERE b.status IN ('confirmed', 'payout_ready', 'paid_out')
            AND b.completed_at IS NOT NULL
            AND b.completed_at <= b.scheduled_at + INTERVAL '2 hours'
-       )::text AS on_time_jobs
+       )::text AS on_time_jobs,
+       qr.avg_minutes::text AS avg_response_minutes,
+       COALESCE(qr.qcount, 0)::text AS quote_count
      FROM providers p
      LEFT JOIN bookings b ON b.provider_id = p.id
        AND b.created_at >= $1::date
+     LEFT JOIN quote_response qr ON qr.provider_id = p.id
      WHERE p.status = 'approved'
-     GROUP BY p.id, p.rating`,
+     GROUP BY p.id, p.rating, qr.avg_minutes, qr.qcount`,
     [periodStartStr],
   );
 
@@ -516,7 +535,36 @@ export async function computeProviderQualityScores(
       ? Math.max(0, 100 - (cancelledByProvider / totalJobs) * 200)
       : 100;
 
-    const responseScore = 75;
+    // MED-N05 fix: real responseScore based on average minutes
+    // between job-request creation and provider's quote submission.
+    // Pre-fix this was a hardcoded 75. Sliding tier:
+    //   < 30 min  → 100  (instant)
+    //   30-60 min → 90
+    //   1-2 h     → 80
+    //   2-6 h     → 70
+    //   6-24 h    → 50
+    //   > 24 h    → 25
+    //   0 quotes  → 75   (no signal yet — same as pre-fix default)
+    const quoteCount = Number(prov.quote_count);
+    const avgRespMins = prov.avg_response_minutes !== null
+      ? Number(prov.avg_response_minutes)
+      : null;
+    let responseScore: number;
+    if (quoteCount === 0 || avgRespMins === null) {
+      responseScore = 75;
+    } else if (avgRespMins < 30) {
+      responseScore = 100;
+    } else if (avgRespMins < 60) {
+      responseScore = 90;
+    } else if (avgRespMins < 120) {
+      responseScore = 80;
+    } else if (avgRespMins < 360) {
+      responseScore = 70;
+    } else if (avgRespMins < 1440) {
+      responseScore = 50;
+    } else {
+      responseScore = 25;
+    }
 
     const w = platformConfig.qualityScoreWeights;
     const overall = Math.round(

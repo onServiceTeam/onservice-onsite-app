@@ -622,11 +622,35 @@ export async function getContracts(
   };
 }
 
+// MED-N41 fix: status type was 'active' | 'cancelled' only. The
+// underlying DB CHECK constraint accepts the full lifecycle —
+// 'draft' | 'active' | 'expired' | 'cancelled' — and the
+// admin / business-owner UI needs at least 'expired' to mark
+// contracts whose end_date has passed (until a worker job
+// auto-expires them in v1.2). Widened the param type to match
+// the CHECK; runtime guard rejects invalid values with 400.
+//
+// The `auto_renew` flag on business_contracts is currently a
+// UI-only marker — there is no scheduler implementation that
+// renews contracts based on it. v1.2 backlog item.
+export type BusinessContractStatus = 'draft' | 'active' | 'expired' | 'cancelled';
+
+const ALLOWED_CONTRACT_STATUSES = new Set<BusinessContractStatus>([
+  'draft', 'active', 'expired', 'cancelled',
+]);
+
 export async function updateContractStatus(
   contractId: string,
   userId: string,
-  status: 'active' | 'cancelled',
+  status: BusinessContractStatus,
 ): Promise<BusinessContractRow> {
+  if (!ALLOWED_CONTRACT_STATUSES.has(status)) {
+    throw createAppError(
+      `Invalid status "${status}". Allowed: ${Array.from(ALLOWED_CONTRACT_STATUSES).join(', ')}.`,
+      400,
+    );
+  }
+
   const contract = await db.query<BusinessContractRow & { business_account_id: string }>(
     `SELECT * FROM business_contracts WHERE id = $1`,
     [contractId],
