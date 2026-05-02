@@ -12,6 +12,7 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import * as settingsService from './settings.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -494,20 +495,38 @@ export async function getCustomerDisputes(customerId: string): Promise<CustomerD
     createdAt: r.created_at.toISOString(),
   }));
 
-  // Fraud pattern: 5+ disputes in last 30 days where ≥80% resolved without refund
+  // MED-N16 fix: fraud-pattern thresholds are now admin-tunable.
+  // Pre-fix: hardcoded 5 disputes / 30 days / 80% threshold. Ops
+  // couldn't adjust as real-world dispute patterns revealed
+  // themselves. Now: read from platform_settings (defaults match
+  // the original constants).
+  let countThreshold = 5;
+  let windowDays = 30;
+  let favorRateThreshold = 0.80;
+  try {
+    countThreshold = await settingsService.getSettingInteger('fraud_pattern_dispute_count_threshold');
+    windowDays = await settingsService.getSettingInteger('fraud_pattern_window_days');
+    favorRateThreshold = Number(await settingsService.getSetting('fraud_pattern_favor_provider_rate'));
+    if (!Number.isFinite(favorRateThreshold)) favorRateThreshold = 0.80;
+  } catch (err) {
+    logger.warn('Fraud-pattern threshold settings unreadable; using built-in defaults', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   const now = Date.now();
-  const cutoff = now - 30 * 24 * 60 * 60 * 1000;
+  const cutoff = now - windowDays * 24 * 60 * 60 * 1000;
   const recent = rows.filter((r) => new Date(r.createdAt).getTime() >= cutoff);
   const resolved = recent.filter((r) => r.status === 'resolved');
   const favorProvider = resolved.filter(
     (r) => r.resolutionType === 'no_refund' || r.resolutionType === 'refund_with_warning' || r.resolutionType === 'refund_with_suspension',
   ).length;
   const favorProviderRate = resolved.length > 0 ? favorProvider / resolved.length : null;
-  const flagged = recent.length >= 5 && favorProviderRate !== null && favorProviderRate >= 0.8;
+  const flagged = recent.length >= countThreshold && favorProviderRate !== null && favorProviderRate >= favorRateThreshold;
   let reason: string | null = null;
   if (flagged) {
     const pct = Math.round((favorProviderRate ?? 0) * 100);
-    reason = `Filed ${recent.length} disputes in 30 days; ${pct}% resolved in favor of provider — possible fraudulent pattern.`;
+    reason = `Filed ${recent.length} disputes in ${windowDays} days; ${pct}% resolved in favor of provider — possible fraudulent pattern.`;
   }
 
   return {

@@ -24,6 +24,23 @@ jest.mock('../src/models/db', () => ({
   },
 }));
 
+// MED-N16 (D-J... v1.1) — customer-admin.service now reads
+// fraud-pattern thresholds from platform_settings. Mock the
+// settings service so the existing fraud-pattern tests don't hit
+// Redis/DB. Return the same defaults the SETTING_DEFAULTS map seeds
+// so existing assertions about "5 disputes in 30 days" remain valid.
+jest.mock('../src/services/settings.service', () => ({
+  getSettingInteger: async (key: string) => {
+    if (key === 'fraud_pattern_dispute_count_threshold') return 5;
+    if (key === 'fraud_pattern_window_days') return 30;
+    throw new Error(`unmocked setting: ${key}`);
+  },
+  getSetting: async (key: string) => {
+    if (key === 'fraud_pattern_favor_provider_rate') return '0.80';
+    throw new Error(`unmocked setting: ${key}`);
+  },
+}));
+
 import * as svc from '../src/services/customer-admin.service';
 
 beforeEach(() => {

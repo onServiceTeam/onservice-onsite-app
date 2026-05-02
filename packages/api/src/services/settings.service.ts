@@ -65,6 +65,16 @@ export const SETTING_DEFAULTS: Record<string, string> = {
     founding: 0.5, new: 0.0, verified: 0.25, pro: 0.5, elite: 1.0,
   }),
 
+  // MED-N16 fix: customer fraud-pattern detection thresholds.
+  // customer-admin.service.getCustomerDisputes flags a customer
+  // when their recent dispute history shows enough volume + a
+  // skew toward provider-favoring resolutions. The 3 thresholds
+  // are now admin-tunable so ops can adjust as real-world dispute
+  // patterns reveal themselves.
+  fraud_pattern_dispute_count_threshold: '5',
+  fraud_pattern_window_days: '30',
+  fraud_pattern_favor_provider_rate: '0.80',
+
   // Cancellation
   cancel_refund_over_24h: '100',
   cancel_refund_2_to_24h: '100',
