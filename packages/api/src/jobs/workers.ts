@@ -12,6 +12,7 @@ import * as dataManagementService from '../services/data-management.service';
 import * as securityService from '../services/security.service';
 import * as adminAnalyticsService from '../services/admin-analytics.service';
 import * as disputeService from '../services/dispute.service';
+import * as gatewayRetryService from '../services/gateway-retry.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -454,6 +455,10 @@ const schedulerWorker = new Worker(
       case 'dispute-escalate':
         results.disputesEscalated = await disputeService.autoEscalateStaleDisputes();
         break;
+      case 'gateway-retry':
+        // MED-N28 fix: drain the failed-gateway-action queue.
+        results.gatewayRetry = await gatewayRetryService.processRetries(25);
+        break;
       case 'all': {
         results.confirmed = await autoConfirmBookings();
         results.expired = await expireStaleQuotes();
@@ -556,6 +561,17 @@ export async function initScheduledJobs(): Promise<void> {
 
   await schedulerQueue.add('dispute-escalate', {}, {
     repeat: { pattern: '0 */6 * * *' },
+    removeOnComplete: 30,
+    removeOnFail: 30,
+  });
+
+  // MED-N28 fix: gateway retry queue drains every 5 minutes.
+  // Exponential backoff inside processRetries means rows that
+  // can't yet retry are skipped; rows past their next_retry_at
+  // get attempted up to max_attempts (default 5), then marked
+  // failed_permanent for manual ops.
+  await schedulerQueue.add('gateway-retry', {}, {
+    repeat: { pattern: '*/5 * * * *' },
     removeOnComplete: 30,
     removeOnFail: 30,
   });

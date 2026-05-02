@@ -21,6 +21,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as disputeService from './dispute.service';
 import * as escrowService from './escrow.service';
+import * as gatewayRetryService from './gateway-retry.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -552,9 +553,21 @@ export async function adminResolveDispute(
       );
       refundSucceeded = true;
     } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
       logger.error('Failed to process admin dispute refund (post-commit)', {
-        disputeId, refundAmount: resolution.refundAmount,
-        error: err instanceof Error ? err.message : String(err),
+        disputeId, refundAmount: resolution.refundAmount, error: errMsg,
+      });
+      // MED-N28 fix: enqueue for the gateway-retry worker so the
+      // refund actually happens eventually instead of relying on
+      // manual ops triage of logs. Best-effort enqueue (does NOT
+      // throw — durable dispute state is already committed).
+      await gatewayRetryService.enqueueRetry({
+        actionType: 'refund_from_escrow',
+        bookingId: resolution.bookingId,
+        disputeId,
+        amountCentavos: resolution.refundAmount,
+        description: `Admin dispute resolution: ${input.resolutionType}`,
+        initialError: errMsg,
       });
     }
 
@@ -563,9 +576,17 @@ export async function adminResolveDispute(
       try {
         await escrowService.releasePartialEscrow(resolution.bookingId, remainingAmount);
       } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
         logger.error('Failed to release remaining escrow after partial refund (post-commit)', {
-          disputeId, remainingAmount,
-          error: err instanceof Error ? err.message : String(err),
+          disputeId, remainingAmount, error: errMsg,
+        });
+        await gatewayRetryService.enqueueRetry({
+          actionType: 'release_partial_escrow',
+          bookingId: resolution.bookingId,
+          disputeId,
+          amountCentavos: remainingAmount,
+          description: `Partial release after refund (${input.resolutionType})`,
+          initialError: errMsg,
         });
       }
     }
@@ -578,9 +599,16 @@ export async function adminResolveDispute(
     try {
       await escrowService.releaseEscrow(resolution.bookingId);
     } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
       logger.error('Failed to release escrow after dispute resolution (post-commit)', {
-        disputeId, resolutionType: input.resolutionType,
-        error: err instanceof Error ? err.message : String(err),
+        disputeId, resolutionType: input.resolutionType, error: errMsg,
+      });
+      await gatewayRetryService.enqueueRetry({
+        actionType: 'release_escrow',
+        bookingId: resolution.bookingId,
+        disputeId,
+        description: `Release after dispute (${input.resolutionType})`,
+        initialError: errMsg,
       });
     }
   }
