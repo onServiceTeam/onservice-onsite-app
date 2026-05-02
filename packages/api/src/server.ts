@@ -21,7 +21,7 @@ import morgan from 'morgan';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { errorMiddleware } from './middleware/error.middleware';
-import { rateLimitMiddleware } from './middleware/rate-limit.middleware';
+import { rateLimitMiddleware, initRateLimit } from './middleware/rate-limit.middleware';
 import { requireAdminCsrf } from './middleware/admin-csrf.middleware';
 import { logger } from './utils/logger';
 import { platformConfig } from './config/platform.config';
@@ -321,6 +321,13 @@ logger.info('Socket.io server initialized');
 httpServer.listen(PORT, () => {
   logger.info(`onService API server running on port ${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  // CRIT-M01 fix — pull live rate-limit settings from DB before
+  // accepting traffic (best-effort: limiter falls back to platformConfig
+  // defaults if DB read fails) and start the periodic refresh loop.
+  initRateLimit()
+    .then(() => logger.info('Rate-limit live config loaded'))
+    .catch((err: unknown) => logger.error('Rate-limit init failed; using platformConfig defaults', { error: err }));
 
   // Initialize background jobs after server is listening
   initScheduledJobs()
