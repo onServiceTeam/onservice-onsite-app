@@ -762,6 +762,43 @@ inside AdminLayout so admin chrome stays visible.
   unhandled errors in 5 detail pages — not my work, separate issue).
 - **Backend tests:** 2459 passing. **Mobile tests:** 388 + 90 todo.
 
+## Session 5k — E01 RESOLVED + signature persistence (CRIT-103/104)
+
+| # | Commit | Summary |
+|---|---|---|
+| 1 | 278dd48 | E-CRIT-103/104 real signature persistence — react-native-signature-canvas + SignaturePad component + uploadSignature wiring (11 tests) |
+
+### What landed in 5k
+
+**E01 RESOLVED — Option A.** Ken authorized "do all recommendations
+waiting for Ken" so I picked Option A (react-native-signature-canvas)
+from my own E01 recommendation.
+
+End-to-end:
+  1. apps/mobile/package.json — adds react-native-signature-canvas
+     ^4.7.2, react-native-webview 13.13.5 (peer dep), and
+     expo-file-system ~19.0.0.
+  2. apps/mobile/src/components/SignaturePad.tsx — thin wrapper
+     exposing imperative ref (readSignature, clear) + onCapture
+     (file:// URI of a freshly written PNG cache file).
+  3. Two jest mocks: react-native-signature-canvas (synthesises a
+     1x1 PNG via onOK so behavioural tests can run) +
+     expo-file-system (deterministic fake file:// URIs).
+  4. complete.tsx — replaces the PanResponder dot canvas with the
+     SignaturePad. Submit awaits readSignatureFile() (5s-timeout
+     wrapper around the canvas → onCapture round-trip), then calls
+     uploadSignature with signatureType='customer_acceptance' and
+     bookingId. booking_signatures rows now land for every
+     completed job — closes the legal-proof-of-acceptance gap that
+     CRIT-102 left open.
+
+### Numbers (session 5k final)
+
+- **Mobile tests:** 396 passing + 90 todo (was 388/90 at end of 5j).
+- **Backend tests:** 2459 (unchanged).
+- **Phase E CRITs landed:** 18 of 18 (full closure including the
+  three signature-family items that had been escalated).
+
 ## RESUME instructions for the next session
 
 1. Backend audit findings (Phase B + C + N + M + O) substantially
