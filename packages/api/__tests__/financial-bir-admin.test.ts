@@ -39,6 +39,12 @@ jest.mock('../src/utils/logger', () => ({
 // test we mock the loader directly so the BIR identity gate doesn't
 // hit the dbQueryMock plumbing (which is reserved for the OR/2307/VAT
 // query traffic these tests assert on).
+// MED-N119 fix — reconciliation.service now reads the alert threshold
+// from settings.service.getSetting. Mock so it doesn't hit Redis/DB.
+jest.mock('../src/services/settings.service', () => ({
+  getSetting: jest.fn().mockResolvedValue('10000'),
+}));
+
 jest.mock('../src/services/bir-filer-identity.service', () => ({
   getBirFilerIdentity: jest.fn().mockResolvedValue({
     companyName: 'Test Co.',
@@ -1073,10 +1079,15 @@ describe('reconciliation.service.runDailyReconciliation', () => {
   });
 
   it('paymongoBalance=null → discrepancy=0 + notes mention "PayMongo balance unavailable"', async () => {
+    // MED-N121 fix — single bulk SELECT replaces the prior two queries.
     dbQueryMock
-      .mockResolvedValueOnce(rows([])) // existing
-      .mockResolvedValueOnce(rows([])) // platform totals
-      .mockResolvedValueOnce(rows([{ total: '0' }])) // user wallets
+      .mockResolvedValueOnce(rows([])) // existing snapshot check
+      .mockResolvedValueOnce(rows([{
+        platform_escrow_total: '0',
+        platform_revenue_total: '0',
+        guarantee_fund_total: '0',
+        user_wallets_total: '0',
+      }])) // bulk wallet totals
       .mockResolvedValueOnce(
         rows([
           snapshotRow({
@@ -1096,8 +1107,12 @@ describe('reconciliation.service.runDailyReconciliation', () => {
   it('paymongoBalance over expected by 5_000 → no alert (under threshold)', async () => {
     dbQueryMock
       .mockResolvedValueOnce(rows([])) // existing
-      .mockResolvedValueOnce(rows([])) // platform totals
-      .mockResolvedValueOnce(rows([{ total: '0' }])) // user wallets
+      .mockResolvedValueOnce(rows([{
+        platform_escrow_total: '0',
+        platform_revenue_total: '0',
+        guarantee_fund_total: '0',
+        user_wallets_total: '0',
+      }])) // bulk wallet totals
       .mockResolvedValueOnce(
         rows([
           snapshotRow({
@@ -1122,8 +1137,12 @@ describe('reconciliation.service.runDailyReconciliation', () => {
   it('paymongoBalance over expected by 20_000 → alert flag + logger.error', async () => {
     dbQueryMock
       .mockResolvedValueOnce(rows([]))
-      .mockResolvedValueOnce(rows([]))
-      .mockResolvedValueOnce(rows([{ total: '0' }]))
+      .mockResolvedValueOnce(rows([{
+        platform_escrow_total: '0',
+        platform_revenue_total: '0',
+        guarantee_fund_total: '0',
+        user_wallets_total: '0',
+      }])) // bulk wallet totals
       .mockResolvedValueOnce(
         rows([
           snapshotRow({
@@ -1156,8 +1175,12 @@ describe('reconciliation.service.runDailyReconciliation', () => {
   it('writes audit with SQL literal "reconciliation_run"', async () => {
     dbQueryMock
       .mockResolvedValueOnce(rows([]))
-      .mockResolvedValueOnce(rows([]))
-      .mockResolvedValueOnce(rows([{ total: '0' }]))
+      .mockResolvedValueOnce(rows([{
+        platform_escrow_total: '0',
+        platform_revenue_total: '0',
+        guarantee_fund_total: '0',
+        user_wallets_total: '0',
+      }])) // bulk wallet totals
       .mockResolvedValueOnce(rows([snapshotRow()]))
       .mockResolvedValueOnce(rows([]));
 

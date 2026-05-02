@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
@@ -66,8 +67,18 @@ interface CountRow { count: string }
 function generateInvoiceNumber(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
-  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `INV-${year}${month}-${random}`;
+  // MED-N116 fix — replace Math.random with crypto.randomBytes. Pre-fix
+  // Math.random is Predictable PRNG; sequential invoice numbers across
+  // many issuances could collide and aid enumeration. Post-fix uses
+  // CSPRNG over an unambiguous 32-char alphanumeric set (no I/O/0/1
+  // for human readability), 6 chars = ~30 bits of entropy.
+  const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const buf = crypto.randomBytes(8);
+  let suffix = '';
+  for (let i = 0; i < 6; i++) {
+    suffix += ALPHABET[buf[i]! % ALPHABET.length];
+  }
+  return `INV-${year}${month}-${suffix}`;
 }
 
 function getDueDate(invoiceDate: Date, paymentTerms: string): Date {

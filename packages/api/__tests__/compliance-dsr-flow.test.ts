@@ -23,10 +23,12 @@
  */
 
 const dbQueryMock = jest.fn();
+const dbTransactionMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({
   db: {
     query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (cb: unknown) => dbTransactionMock(cb),
   },
 }));
 
@@ -93,12 +95,22 @@ function makeDsrRow(overrides: Record<string, unknown> = {}): Record<string, unk
 
 beforeEach(() => {
   dbQueryMock.mockReset();
+  dbTransactionMock.mockReset();
   loggerWarn.mockReset();
   loggerInfo.mockReset();
   loggerError.mockReset();
   loggerDebug.mockReset();
   createNotificationMock.mockReset();
   createNotificationMock.mockResolvedValue({ id: 'n-1' });
+  // Default trx passthrough so dbQueryMock-based tests still see all
+  // queries through the same mock (MED-N122 fix wraps DSR mutations
+  // in db.transaction).
+  dbTransactionMock.mockImplementation(async (cb: unknown) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (cb as any)({
+      query: (sql: string, params?: unknown[]) => dbQueryMock(sql, params),
+    });
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────
@@ -275,9 +287,14 @@ describe('requestDsrMoreInfo', () => {
     const updateParams = dbQueryMock.mock.calls[1][1] as unknown[];
     // status param is 2nd ($2)
     expect(updateParams[1]).toBe('in_progress');
-    const auditParams = dbQueryMock.mock.calls[2][1] as unknown[];
-    expect(auditParams[1]).toBe('dsr_more_info_requested');
-    expect(auditParams[2]).toBe('dsr_request');
+    // MED-N122 fix — audit insert is in-trx with action_type INLINED
+    // in the SQL string (not a parameter). Assert by SQL shape.
+    const auditCall = dbQueryMock.mock.calls.find(
+      ([sql]) => /INSERT INTO admin_actions/.test(sql as string),
+    );
+    expect(auditCall).toBeDefined();
+    expect(auditCall![0]).toMatch(/'dsr_more_info_requested'/);
+    expect(auditCall![0]).toMatch(/'dsr_request'/);
   });
 
   it('rejects info needed shorter than 10 chars', async () => {
@@ -346,11 +363,17 @@ describe('rejectDsr', () => {
 
     expect(out.status).toBe('rejected');
     expect(out.rejectionReason).toMatch(/Identity could not be verified/);
-    const auditParams = dbQueryMock.mock.calls[2][1] as unknown[];
-    expect(auditParams[1]).toBe('dsr_rejected');
-    expect(auditParams[2]).toBe('dsr_request');
-    // reason is the 6th param ($6)
-    expect(auditParams[5]).toMatch(/Identity could not be verified/);
+    // MED-N122 fix — audit insert is in-trx with action_type INLINED
+    // in the SQL (not a parameter). MED-N124 — reason is now $4
+    // (admin_id, target_id, details, reason).
+    const auditCall = dbQueryMock.mock.calls.find(
+      ([sql]) => /INSERT INTO admin_actions/.test(sql as string),
+    );
+    expect(auditCall).toBeDefined();
+    expect(auditCall![0]).toMatch(/'dsr_rejected'/);
+    expect(auditCall![0]).toMatch(/'dsr_request'/);
+    const auditParams = auditCall![1] as unknown[];
+    expect(auditParams[3]).toMatch(/Identity could not be verified/);
   });
 
   it('rejects reason shorter than 20 chars', async () => {

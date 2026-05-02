@@ -59,7 +59,9 @@ describe('MED-N120 — reconciliation.service alerts via Sentry + Slack', () => 
 
   it('Slack alert includes severity escalation when 10x threshold', () => {
     // > threshold = 'error', > 10x threshold = 'critical'
-    expect(RECON).toMatch(/Math\.abs\(discrepancy\) > ALERT_THRESHOLD_CENTAVOS \* 10/);
+    // MED-N119 fix — threshold is now read from settings via local
+    // `thresholdCentavos` instead of the hardcoded constant.
+    expect(RECON).toMatch(/Math\.abs\(discrepancy\) > thresholdCentavos \* 10/);
     expect(RECON).toMatch(/'critical' : 'error'/);
   });
 });

@@ -20,6 +20,10 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { sendSlackAlert } from './slack-alert.service';
+// MED-N119 fix — threshold is admin-tunable via platform_settings
+// (key: reconciliation_alert_threshold_centavos). Hardcoded fallback
+// retained as default. settings service is async + Redis-cached.
+import * as settingsService from './settings.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -53,6 +57,18 @@ export interface RunReconciliationInput {
 
 /** Centavos. |discrepancy| above this triggers an alert (P100). */
 export const ALERT_THRESHOLD_CENTAVOS = 10_000;
+
+// MED-N119 fix — admin-tunable via platform_settings.
+async function getAlertThresholdCentavos(): Promise<number> {
+  try {
+    const raw = await settingsService.getSetting('reconciliation_alert_threshold_centavos');
+    const n = parseInt(raw, 10);
+    if (Number.isFinite(n) && n > 0) return n;
+  } catch {
+    // fall through to default
+  }
+  return ALERT_THRESHOLD_CENTAVOS;
+}
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_LIST_LIMIT = 30;
@@ -211,38 +227,43 @@ export async function runDailyReconciliation(
     );
   }
 
-  // Compute platform-bucket totals (user_id IS NULL for platform wallets).
-  const platformTotals = await db.query<{
-    type: 'platform_escrow' | 'platform_revenue' | 'guarantee_fund';
-    total: string;
+  // MED-N121 fix — atomic snapshot. Pre-fix the platform-bucket SELECT
+  // and the user-wallet SELECT were two separate queries against the
+  // wallets table; concurrent debit/credit between them produced a
+  // discrepancy of exactly the moved amount, looking like real money
+  // loss. Post-fix: ONE query with a CASE/COALESCE per bucket so all
+  // values come from a single MVCC snapshot.
+  const allTotals = await db.query<{
+    platform_escrow_total: string;
+    platform_revenue_total: string;
+    guarantee_fund_total: string;
+    user_wallets_total: string;
   }>(
-    `SELECT type,
-            COALESCE(SUM(available_balance + pending_balance), 0)::text AS total
-       FROM wallets
-      WHERE user_id IS NULL
-        AND type IN ('platform_escrow', 'platform_revenue', 'guarantee_fund')
-      GROUP BY type`,
+    `SELECT
+       COALESCE(SUM(CASE WHEN user_id IS NULL AND type = 'platform_escrow'
+                         THEN available_balance + pending_balance ELSE 0 END), 0)::text
+         AS platform_escrow_total,
+       COALESCE(SUM(CASE WHEN user_id IS NULL AND type = 'platform_revenue'
+                         THEN available_balance + pending_balance ELSE 0 END), 0)::text
+         AS platform_revenue_total,
+       COALESCE(SUM(CASE WHEN user_id IS NULL AND type = 'guarantee_fund'
+                         THEN available_balance + pending_balance ELSE 0 END), 0)::text
+         AS guarantee_fund_total,
+       COALESCE(SUM(CASE WHEN user_id IS NOT NULL
+                         THEN available_balance + pending_balance ELSE 0 END), 0)::text
+         AS user_wallets_total
+       FROM wallets`,
     [],
   );
 
-  let escrowTotal = 0;
-  let revenueTotal = 0;
-  let guaranteeTotal = 0;
-  for (const row of platformTotals.rows) { // SAFE-N+1: in-memory aggregation of bounded result set (3 platform-account types); no DB calls inside loop.
-    const total = Number(row.total);
-    if (row.type === 'platform_escrow') escrowTotal = total;
-    else if (row.type === 'platform_revenue') revenueTotal = total;
-    else if (row.type === 'guarantee_fund') guaranteeTotal = total;
+  const totalsRow = allTotals.rows[0];
+  if (!totalsRow) {
+    throw createAppError('Failed to read wallet totals.', 500);
   }
-
-  // Sum of all user wallets (customer + provider).
-  const userWalletsResult = await db.query<{ total: string }>(
-    `SELECT COALESCE(SUM(available_balance + pending_balance), 0)::text AS total
-       FROM wallets
-      WHERE user_id IS NOT NULL`,
-    [],
-  );
-  const sumOfUserWallets = Number(userWalletsResult.rows[0]?.total ?? 0);
+  const escrowTotal = Number(totalsRow.platform_escrow_total);
+  const revenueTotal = Number(totalsRow.platform_revenue_total);
+  const guaranteeTotal = Number(totalsRow.guarantee_fund_total);
+  const sumOfUserWallets = Number(totalsRow.user_wallets_total);
 
   const expectedTotal =
     escrowTotal + revenueTotal + guaranteeTotal + sumOfUserWallets;
@@ -256,14 +277,16 @@ export async function runDailyReconciliation(
     computedNote = callerNote ? `${callerNote} | ${fallbackNote}` : fallbackNote;
   } else {
     discrepancy = paymongoBalance - expectedTotal;
-    if (Math.abs(discrepancy) > ALERT_THRESHOLD_CENTAVOS) {
+    // MED-N119 fix — read threshold from platform_settings (with fallback).
+    const thresholdCentavos = await getAlertThresholdCentavos();
+    if (Math.abs(discrepancy) > thresholdCentavos) {
       alertSent = true;
       const alertContext = {
         snapshotDate,
         paymongoBalance,
         expectedTotal,
         discrepancy,
-        thresholdCentavos: ALERT_THRESHOLD_CENTAVOS,
+        thresholdCentavos,
         platformEscrowTotal: escrowTotal,
         platformRevenueTotal: revenueTotal,
         guaranteeFundTotal: guaranteeTotal,
@@ -290,11 +313,11 @@ export async function runDailyReconciliation(
       void sendSlackAlert({
         title: 'Reconciliation discrepancy detected',
         body: `Money-conservation check found a discrepancy of \`${discrepancy}\` centavos on snapshot \`${snapshotDate}\`.`,
-        severity: Math.abs(discrepancy) > ALERT_THRESHOLD_CENTAVOS * 10 ? 'critical' : 'error',
+        severity: Math.abs(discrepancy) > thresholdCentavos * 10 ? 'critical' : 'error',
         fields: [
           { key: 'PayMongo balance', value: `${paymongoBalance} centavos` },
           { key: 'Expected total', value: `${expectedTotal} centavos` },
-          { key: 'Discrepancy', value: `${discrepancy} centavos (threshold ${ALERT_THRESHOLD_CENTAVOS})` },
+          { key: 'Discrepancy', value: `${discrepancy} centavos (threshold ${thresholdCentavos})` },
           { key: 'Platform escrow', value: `${escrowTotal} centavos` },
           { key: 'Platform revenue', value: `${revenueTotal} centavos` },
           { key: 'Guarantee fund', value: `${guaranteeTotal} centavos` },

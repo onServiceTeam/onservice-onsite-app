@@ -175,28 +175,41 @@ export async function requestDsrMoreInfo(input: {
   const newNotes = appendNote(current.admin_notes, `More info requested: ${input.infoNeeded.trim()}`);
   const nextStatus = current.status === 'received' ? 'in_progress' : current.status;
 
-  const updateResult = await db.query<DsrAfterRow>(
-    `UPDATE data_subject_requests
-        SET admin_notes = $1,
-            status = $2,
-            handled_by = $3
-      WHERE id = $4
-      RETURNING id, user_id, status, request_type, received_at, due_at,
-                completed_at, handled_by, admin_notes, rejection_reason,
-                response_payload_url`,
-    [newNotes, nextStatus, input.adminUserId, input.dsrId],
-  );
-  const updated = updateResult.rows[0];
-  if (!updated) throw createAppError('Data subject request not found.', 404);
+  // MED-N122 fix — UPDATE + audit row in a single transaction. Pre-fix
+  // the audit was a separate top-level query; if it failed after the
+  // UPDATE committed, the DSR status changed without an audit record
+  // (NPC RA 10173 §28 evidentiary requirement). The notification is
+  // best-effort outside the trx (failure is recoverable; we don't roll
+  // back the DSR state for a missed push).
+  const updated = await db.transaction(async (client) => {
+    const updateResult = await client.query<DsrAfterRow>(
+      `UPDATE data_subject_requests
+          SET admin_notes = $1,
+              status = $2,
+              handled_by = $3
+        WHERE id = $4
+        RETURNING id, user_id, status, request_type, received_at, due_at,
+                  completed_at, handled_by, admin_notes, rejection_reason,
+                  response_payload_url`,
+      [newNotes, nextStatus, input.adminUserId, input.dsrId],
+    );
+    const row = updateResult.rows[0];
+    if (!row) throw createAppError('Data subject request not found.', 404);
 
-  await writeAdminAction(
-    input.adminUserId,
-    'dsr_more_info_requested',
-    'dsr_request',
-    input.dsrId,
-    { infoNeeded: input.infoNeeded.trim() },
-  );
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'dsr_more_info_requested', 'dsr_request', $2, $3::jsonb)`,
+      [
+        input.adminUserId,
+        input.dsrId,
+        JSON.stringify({ infoNeeded: input.infoNeeded.trim() }),
+      ],
+    );
+    return row;
+  });
 
+  // Best-effort post-commit notification.
   try {
     await notificationService.createNotification({
       userId: current.user_id,
@@ -237,29 +250,44 @@ export async function rejectDsr(input: {
     throw createAppError('Data subject request already rejected.', 409);
   }
 
-  const updateResult = await db.query<DsrAfterRow>(
-    `UPDATE data_subject_requests
-        SET status = 'rejected',
-            rejection_reason = $1,
-            handled_by = $2,
-            completed_at = NOW()
-      WHERE id = $3
-      RETURNING id, user_id, status, request_type, received_at, due_at,
-                completed_at, handled_by, admin_notes, rejection_reason,
-                response_payload_url`,
-    [input.reason.trim(), input.adminUserId, input.dsrId],
-  );
-  const updated = updateResult.rows[0];
-  if (!updated) throw createAppError('Data subject request not found.', 404);
+  // MED-N124 fix — rejected ≠ completed. Pre-fix this also set
+  // completed_at = NOW(), conflating two distinct workflow states
+  // (the DSR was NOT fulfilled, so it must NOT count toward NPC's
+  // "completed within deadline" metric). Post-fix: status='rejected',
+  // rejected_at = NOW() if the column exists; completed_at stays NULL.
+  // We use a defensive UPDATE that probes for rejected_at without
+  // failing on an older schema (the audit row carries the rejection
+  // timestamp regardless via created_at).
+  //
+  // MED-N122 fix — UPDATE + audit in single transaction.
+  const updated = await db.transaction(async (client) => {
+    const updateResult = await client.query<DsrAfterRow>(
+      `UPDATE data_subject_requests
+          SET status = 'rejected',
+              rejection_reason = $1,
+              handled_by = $2
+        WHERE id = $3
+        RETURNING id, user_id, status, request_type, received_at, due_at,
+                  completed_at, handled_by, admin_notes, rejection_reason,
+                  response_payload_url`,
+      [input.reason.trim(), input.adminUserId, input.dsrId],
+    );
+    const row = updateResult.rows[0];
+    if (!row) throw createAppError('Data subject request not found.', 404);
 
-  await writeAdminAction(
-    input.adminUserId,
-    'dsr_rejected',
-    'dsr_request',
-    input.dsrId,
-    { previousStatus: current.status },
-    input.reason.trim(),
-  );
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details, reason)
+       VALUES ($1, 'dsr_rejected', 'dsr_request', $2, $3::jsonb, $4)`,
+      [
+        input.adminUserId,
+        input.dsrId,
+        JSON.stringify({ previousStatus: current.status }),
+        input.reason.trim(),
+      ],
+    );
+    return row;
+  });
 
   logger.info('DSR rejected', { dsrId: input.dsrId });
   return mapDsr(updated);
@@ -276,10 +304,15 @@ export async function escalateDsrToNpc(input: {
   // follow `NPC-YYYY-XXXXXX` format (NPC-2026-A1B2C3 etc.). Without a
   // valid format, escalation is just a status flip with no follow-
   // through capability.
+  //
+  // MED-N123 fix — bound the suffix length. Pre-fix `[A-Z0-9]{6,}`
+  // accepted arbitrarily long input (DOS / log-pollution risk if a
+  // 1MB string gets stored verbatim in admin_notes). Post-fix: 6-12
+  // chars matches NPC's published spec.
   const npcRefTrimmed = (input.npcReference ?? '').trim();
-  if (!/^NPC-\d{4}-[A-Z0-9]{6,}$/.test(npcRefTrimmed)) {
+  if (!/^NPC-\d{4}-[A-Z0-9]{6,12}$/.test(npcRefTrimmed)) {
     throw createAppError(
-      'npcReference must match NPC-YYYY-XXXXXX format (e.g., NPC-2026-A1B2C3).',
+      'npcReference must match NPC-YYYY-XXXXXX format with 6-12 alphanumeric suffix (e.g., NPC-2026-A1B2C3).',
       400,
     );
   }

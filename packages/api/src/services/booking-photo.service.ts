@@ -124,31 +124,47 @@ export async function uploadBookingPhoto(args: {
     `bookings/${args.bookingId}/photos/${args.photoType}`,
   );
 
-  // Persist DB row.
-  const result = await db.query<{ id: string; uploaded_at: Date }>(
-    `INSERT INTO booking_photos
-       (booking_id, uploaded_by, uploaded_by_role, photo_type,
-        storage_key, storage_url,
-        original_size_bytes, stored_size_bytes, mime_type)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8)
-     RETURNING id, uploaded_at`,
-    [
-      args.bookingId,
-      args.uploadedByUserId,
-      args.uploadedByRole,
-      args.photoType,
-      saved.filename,
-      saved.url,
-      args.buffer.length,
-      args.mimetype,
-    ],
-  );
-
-  const row = result.rows[0];
-  if (!row) {
-    // Clean up the uploaded file to avoid orphans.
-    await uploadService.deleteUploadedFile(saved.filename).catch(() => undefined);
-    throw createAppError('Failed to record uploaded photo.', 500);
+  // MED-N132 fix — pseudo-atomic upload + INSERT with full cleanup on
+  // any failure path. S3 + Postgres are different systems so true 2PC
+  // isn't available; the right pattern is saga compensation: if the
+  // DB INSERT fails OR throws (network blip, FK violation, statement
+  // timeout), delete the S3 object so we don't leak orphaned files.
+  // Pre-fix the cleanup only ran on the rowCount=0 branch; INSERT
+  // throws bypassed it entirely.
+  let row: { id: string; uploaded_at: Date } | undefined;
+  try {
+    const result = await db.query<{ id: string; uploaded_at: Date }>(
+      `INSERT INTO booking_photos
+         (booking_id, uploaded_by, uploaded_by_role, photo_type,
+          storage_key, storage_url,
+          original_size_bytes, stored_size_bytes, mime_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8)
+       RETURNING id, uploaded_at`,
+      [
+        args.bookingId,
+        args.uploadedByUserId,
+        args.uploadedByRole,
+        args.photoType,
+        saved.filename,
+        saved.url,
+        args.buffer.length,
+        args.mimetype,
+      ],
+    );
+    row = result.rows[0];
+    if (!row) {
+      throw createAppError('Failed to record uploaded photo.', 500);
+    }
+  } catch (insertErr) {
+    // Compensating action — delete the orphaned S3 object.
+    await uploadService.deleteUploadedFile(saved.filename).catch((cleanupErr) => {
+      logger.error('Booking photo cleanup failed after INSERT error — orphan file', {
+        bookingId: args.bookingId,
+        storageKey: saved.filename,
+        cleanupError: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+      });
+    });
+    throw insertErr;
   }
 
   logger.info('Booking photo uploaded', {
@@ -289,30 +305,41 @@ export async function uploadSignature(args: {
     context,
   );
 
-  const result = await db.query<{ id: string; signed_at: Date }>(
-    `INSERT INTO booking_signatures
-       (booking_id, signed_by, signed_role, signature_type,
-        storage_key, storage_url,
-        full_name_typed, ip_address, user_agent)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     RETURNING id, signed_at`,
-    [
-      args.bookingId,
-      args.signedByUserId,
-      args.signedRole,
-      args.signatureType,
-      saved.filename,
-      saved.url,
-      args.fullNameTyped ?? null,
-      args.ipAddress ?? null,
-      args.userAgent ?? null,
-    ],
-  );
-
-  const row = result.rows[0];
-  if (!row) {
-    await uploadService.deleteUploadedFile(saved.filename).catch(() => undefined);
-    throw createAppError('Failed to record signature.', 500);
+  // MED-N132 fix — pseudo-atomic upload + INSERT with full cleanup on
+  // any failure path (same pattern as uploadBookingPhoto). Pre-fix
+  // cleanup only ran on rowCount=0; INSERT throws bypassed it.
+  let row: { id: string; signed_at: Date } | undefined;
+  try {
+    const result = await db.query<{ id: string; signed_at: Date }>(
+      `INSERT INTO booking_signatures
+         (booking_id, signed_by, signed_role, signature_type,
+          storage_key, storage_url,
+          full_name_typed, ip_address, user_agent)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, signed_at`,
+      [
+        args.bookingId,
+        args.signedByUserId,
+        args.signedRole,
+        args.signatureType,
+        saved.filename,
+        saved.url,
+        args.fullNameTyped ?? null,
+        args.ipAddress ?? null,
+        args.userAgent ?? null,
+      ],
+    );
+    row = result.rows[0];
+    if (!row) throw createAppError('Failed to record signature.', 500);
+  } catch (insertErr) {
+    await uploadService.deleteUploadedFile(saved.filename).catch((cleanupErr) => {
+      logger.error('Signature cleanup failed after INSERT error — orphan file', {
+        bookingId: args.bookingId,
+        storageKey: saved.filename,
+        cleanupError: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+      });
+    });
+    throw insertErr;
   }
 
   logger.info('Signature uploaded', {
