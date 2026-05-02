@@ -155,10 +155,16 @@ export async function flagLegacyHashesForRotation(
     // Audit row — single entry per campaign run, not per user, so the
     // audit log doesn't get spammed. Includes the affected user count
     // and the predicate used so the rotation can be verified later.
+    // Phase 17 fix — `target_type` must be in the existing CHECK
+    // constraint list. 'user_batch' was not in the list (verified
+    // 2026-05-03 against the live admin_actions_target_type_check),
+    // so the bulk-flag campaign returned 500. Use 'system' since
+    // this is a system-wide operation and the affected count + IDs
+    // are in details JSONB.
     await client.query(
       `INSERT INTO admin_actions
          (admin_id, action_type, target_type, target_id, details, reason)
-       VALUES ($1, 'legacy_password_rotation_flagged', 'user_batch', uuid_generate_v4(),
+       VALUES ($1, 'legacy_password_rotation_flagged', 'system', uuid_generate_v4(),
                $2::jsonb, $3)`,
       [
         adminUserId,
