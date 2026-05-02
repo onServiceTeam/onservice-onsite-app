@@ -8,6 +8,7 @@ import { getBookingById } from '@/services/booking.service';
 import { sendTip } from '@/services/tip.service';
 import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
+import { getErrorMessage } from '@/utils/errors';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle } from '@/components/icons';
@@ -54,9 +55,9 @@ export default function TipScreen(): React.ReactElement {
       ]);
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      const msg = axErr?.response?.data?.error?.message;
-      Alert.alert('Error', msg ?? 'Failed to send tip. Please try again.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      const msg = getErrorMessage(err, 'Failed to send tip. Please try again.');
+      Alert.alert('Error', msg);
     },
   });
 

@@ -8,6 +8,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getBookingById, uploadJobPhotos } from '@/services/booking.service';
+import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
@@ -44,8 +45,8 @@ export default function ProviderPhotosScreen(): React.ReactElement {
       Alert.alert('Uploaded', `${phase === 'before' ? 'Before' : 'After'} photos saved successfully.`);
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Upload Failed', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not upload photos.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Upload Failed', getErrorMessage(err, 'Could not upload photos.'));
     },
   });
 

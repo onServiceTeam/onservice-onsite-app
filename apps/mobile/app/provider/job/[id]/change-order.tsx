@@ -10,6 +10,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Info } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
 import { formatPHP } from '@/utils/currency';
+import { getErrorMessage } from '@/utils/errors';
 
 export default function ChangeOrderFormScreen(): React.ReactElement {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
@@ -33,8 +34,8 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
       ]);
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not submit change order.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Could not submit change order.'));
     },
   });
 

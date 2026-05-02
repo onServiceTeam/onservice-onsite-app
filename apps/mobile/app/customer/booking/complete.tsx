@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
+import { getErrorMessage } from '@/utils/errors';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
@@ -27,9 +28,9 @@ export default function JobCompletionScreen(): React.ReactElement {
       router.replace({ pathname: '/customer/booking/review', params: { bookingId: bookingId! } });
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      const msg = axErr?.response?.data?.error?.message;
-      Alert.alert('Error', msg ?? 'Failed to confirm. Please try again.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      const msg = getErrorMessage(err, 'Failed to confirm. Please try again.');
+      Alert.alert('Error', msg);
     },
   });
 

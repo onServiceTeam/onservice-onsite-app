@@ -63,8 +63,8 @@ export default function AccountManagementScreen(): React.ReactElement {
       );
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not process request.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Could not process request.'));
     },
   });
 
@@ -75,8 +75,8 @@ export default function AccountManagementScreen(): React.ReactElement {
       Alert.alert('Cancelled', 'Your account deletion has been cancelled. Your account is safe.');
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? 'Could not cancel.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Could not cancel.'));
     },
   });
 
@@ -87,8 +87,8 @@ export default function AccountManagementScreen(): React.ReactElement {
       Alert.alert('Export Requested', 'Your data export is being prepared. Check back shortly.');
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? 'Could not export data.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Could not export data.'));
     },
   });
 

@@ -11,6 +11,7 @@ import { useOnboardingStore } from '@/stores/onboarding.store';
 // Phase K CRIT-K10 fix — useAuthStore import dropped; we no longer
 // mutate the auth store here. Role flip is canonical via backend.
 import api, { storage } from '@/services/api';
+import { getErrorMessage } from '@/utils/errors';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
@@ -60,8 +61,8 @@ export default function TermsScreen(): React.ReactElement {
       router.replace(Routes.PROVIDER_ONBOARDING.REVIEW_PENDING);
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      const msg = axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not submit your application. Please try again.';
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      const msg = getErrorMessage(err, 'Could not submit your application. Please try again.');
       Alert.alert('Submission Failed', msg);
     },
   });

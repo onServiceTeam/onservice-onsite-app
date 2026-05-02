@@ -6,6 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { submitQuote } from '@/services/booking.service';
 import { formatPHP } from '@/utils/currency';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 
@@ -74,8 +75,8 @@ export default function QuoteBuilderScreen(): React.ReactElement {
       ]);
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not submit quote.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Could not submit quote.'));
     },
   });
 

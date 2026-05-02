@@ -18,6 +18,7 @@ import { getMyProfile } from '@/services/provider-api.service';
 import api from '@/services/api';
 import { Button } from '@/components/ui';
 import { formatRelative } from '@/utils/date';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle, Star } from '@/components/icons';
 
@@ -154,8 +155,8 @@ export default function ProviderReviewsScreen(): React.ReactElement {
       Alert.alert('Response Sent', 'Your response has been posted.');
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? 'Failed to submit response.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Failed to submit response.'));
     },
   });
 

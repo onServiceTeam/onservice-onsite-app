@@ -26,6 +26,7 @@ import { formatPHP } from '@/utils/currency';
 // Phase 14 Remediation #5 — Bug 1234 NBI lifecycle banner.
 import NbiStatusBanner from '@/components/provider/NbiStatusBanner';
 import { formatRelative } from '@/utils/date';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 import { Routes } from '@/config/navigation';
@@ -81,8 +82,8 @@ export default function ProviderDashboardScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['provider-calendar'] });
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? 'Failed to update availability.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Failed to update availability.'));
     },
   });
 

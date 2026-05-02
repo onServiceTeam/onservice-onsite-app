@@ -14,6 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '@/services/api';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { CheckCircle2, Search, ChevronRight } from '@/components/icons';
 
@@ -217,10 +218,10 @@ export default function ProviderSkillsScreen(): React.ReactElement {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (err) {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
       Alert.alert(
         'Save failed',
-        axErr?.response?.data?.error?.message ?? 'Could not update skills. Please try again.',
+        getErrorMessage(err, 'Could not update skills. Please try again.'),
       );
     } finally {
       setSaving(false);

@@ -11,6 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createReview, type CreateReviewPayload } from '@/services/review.service';
+import { getErrorMessage } from '@/utils/errors';
 import { Button, Input } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Star, Lock } from '@/components/icons';
@@ -116,9 +117,9 @@ export default function ReviewScreen(): React.ReactElement {
       await createReview(payload);
       router.replace({ pathname: '/customer/booking/tip', params: { bookingId } });
     } catch (err: unknown) {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      const msg = axErr?.response?.data?.error?.message;
-      Alert.alert('Error', msg ?? 'Failed to submit review. Please try again.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      const msg = getErrorMessage(err, 'Failed to submit review. Please try again.');
+      Alert.alert('Error', msg);
     } finally {
       setLoading(false);
     }

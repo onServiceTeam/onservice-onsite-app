@@ -16,6 +16,7 @@ import { getWalletBalance } from '@/services/payment.service';
 import api from '@/services/api';
 import { Button, Input } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 // Phase 14 R5-complete — EarningsChart preview of recent earnings.
@@ -63,8 +64,8 @@ export default function WithdrawScreen(): React.ReactElement {
       ]);
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? 'Failed to process withdrawal.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Failed to process withdrawal.'));
     },
   });
 

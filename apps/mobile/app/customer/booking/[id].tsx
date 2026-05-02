@@ -20,6 +20,7 @@ import { getBookingById } from '@/services/booking.service';
 import { Badge, Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatBookingRef } from '@/utils/date';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 // Phase 14 Remediation #5 — Bug 909, 910 (cancel confirm), Bug 895 (status badge),
 // Bug 906/907 (live indicator), Bug 902 (provider avatar) wired here.
@@ -78,8 +79,8 @@ export default function BookingDetailScreen(): React.ReactElement {
       Alert.alert('Booking Cancelled', 'Your booking has been cancelled. Any applicable refund will be processed automatically.');
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? 'Could not cancel booking.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Could not cancel booking.'));
     },
   });
 

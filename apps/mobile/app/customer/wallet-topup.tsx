@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getWalletBalance, topUpWallet } from '@/services/payment.service';
 import { formatPHP } from '@/utils/currency';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
@@ -71,8 +72,8 @@ export default function WalletTopUpScreen(): React.ReactElement {
       }
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Top-Up Failed', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not process top-up.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Top-Up Failed', getErrorMessage(err, 'Could not process top-up.'));
     },
   });
 

@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import MapView, { Marker, Circle as MapCircle, PROVIDER_DEFAULT } from 'react-native-maps';
 import api from '@/services/api';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MapPin } from '@/components/icons';
 
@@ -59,10 +60,10 @@ export default function ProviderServiceAreaScreen(): React.ReactElement {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (err) {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
       Alert.alert(
         'Save failed',
-        axErr?.response?.data?.error?.message ?? 'Could not update service area. Please try again.',
+        getErrorMessage(err, 'Could not update service area. Please try again.'),
       );
     } finally {
       setSaving(false);

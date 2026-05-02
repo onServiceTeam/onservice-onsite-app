@@ -7,6 +7,7 @@ import { createBooking } from '@/services/booking.service';
 import { createPaymentIntent } from '@/services/payment.service';
 import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
+import { getErrorMessage } from '@/utils/errors';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
@@ -101,9 +102,9 @@ export default function CheckoutScreen(): React.ReactElement {
         }
       }
     } catch (err: unknown) {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      const msg = axErr?.response?.data?.error?.message;
-      Alert.alert('Payment Failed', msg ?? 'Something went wrong. Please try again.');
+      // Phase D CRIT-69 / K-MED-K04 fix — canonical error helper.
+      const msg = getErrorMessage(err, 'Something went wrong. Please try again.');
+      Alert.alert('Payment Failed', msg);
     } finally {
       setLoading(false);
     }

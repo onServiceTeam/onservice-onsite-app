@@ -19,6 +19,7 @@ import { updateBookingStatus } from '@/services/provider-api.service';
 import { Badge, Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatRelative, formatBookingRef } from '@/utils/date';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MapIcon } from '@/components/icons';
 import { useLocation } from '@/hooks/useLocation';
@@ -77,8 +78,8 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? 'Failed to update status.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Failed to update status.'));
     },
   });
 
@@ -95,8 +96,8 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
       router.back();
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? 'Failed to cancel.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Failed to cancel.'));
     },
   });
 

@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fileDispute, type DisputeEvidence } from '@/services/booking.service';
+import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
@@ -55,8 +56,8 @@ export default function DisputeScreen(): React.ReactElement {
       );
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-      Alert.alert('Error', axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Failed to submit dispute. Please try again or contact support.');
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      Alert.alert('Error', getErrorMessage(err, 'Failed to submit dispute. Please try again or contact support.'));
     },
   });
 

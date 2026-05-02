@@ -28,6 +28,7 @@ import {
 } from '@/services/compliance.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Shield, FileText, AlertTriangle, CheckCircle2 } from '@/components/icons';
+import { getErrorMessage } from '@/utils/errors';
 
 type FlowKey = 'access' | 'correction' | 'erasure';
 
@@ -99,10 +100,10 @@ export default function DataRightsScreen(): React.ReactElement {
       setDeleteConfirmText('');
     },
     onError: (err: unknown) => {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
       Alert.alert(
         'Request failed',
-        axErr?.response?.data?.error?.message ?? axErr?.message ?? 'Could not submit your request. Please try again.',
+        getErrorMessage(err, 'Could not submit your request. Please try again.'),
       );
     },
   });

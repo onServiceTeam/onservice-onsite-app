@@ -18,6 +18,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/services/api';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Camera, CheckCircle2, Edit } from '@/components/icons';
 // Phase 14 R5-complete — CommissionBreakdown post-complete summary panel.
@@ -128,10 +129,10 @@ export default function JobCompleteScreen(): React.ReactElement {
       Alert.alert('Submitted', 'Job marked as complete.');
       router.replace(Routes.PROVIDER_TABS.DASHBOARD);
     } catch (err) {
-      const axErr = err as { response?: { data?: { error?: { message?: string } } } };
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
       Alert.alert(
         'Submission failed',
-        axErr?.response?.data?.error?.message ?? 'Could not submit completion. Please try again.',
+        getErrorMessage(err, 'Could not submit completion. Please try again.'),
       );
     } finally {
       setSubmitting(false);
