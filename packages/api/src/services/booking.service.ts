@@ -73,12 +73,51 @@ interface CreateBookingParams {
   addons?: Array<{ addonId: string; quantity: number }>;
 }
 
-export function calculateServiceFee(servicePrice: number): number {
+/**
+ * Phase B CRIT-13 fix — async, settings-backed calculateServiceFee.
+ *
+ * Pre-fix: this function read the in-memory platformConfig.* constants,
+ * so when the admin updated service_fee_rate / service_fee_min /
+ * service_fee_max via the Settings UI, NEW bookings created via
+ * createBooking still used the in-code defaults until a redeploy. The
+ * admin-tunable knob was effectively read-only at the entry point.
+ *
+ * Post-fix: read the live values from settings.service. Defensive
+ * fallback to platformConfig defaults on any settings error so the
+ * booking flow can't be blocked by a Redis blip.
+ *
+ * For the rare callers that need the synchronous shape (legacy
+ * tests, math helpers), `calculateServiceFeeSync` is preserved with
+ * the in-memory defaults.
+ */
+export function calculateServiceFeeSync(servicePrice: number): number {
   const fee = Math.round(servicePrice * platformConfig.serviceFeeRate);
   return Math.max(
     platformConfig.minimumServiceFee,
     Math.min(fee, platformConfig.maximumServiceFee),
   );
+}
+
+export async function calculateServiceFee(servicePrice: number): Promise<number> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const settingsService = require('./settings.service');
+    if (typeof settingsService.getSettingPercent !== 'function') {
+      return calculateServiceFeeSync(servicePrice);
+    }
+    const [rate, min, max] = await Promise.all([
+      settingsService.getSettingPercent('service_fee_rate'),
+      settingsService.getSettingNumber('service_fee_min').catch(() => platformConfig.minimumServiceFee),
+      settingsService.getSettingNumber('service_fee_max').catch(() => platformConfig.maximumServiceFee),
+    ]);
+    if (!Number.isFinite(rate) || !Number.isFinite(min) || !Number.isFinite(max)) {
+      return calculateServiceFeeSync(servicePrice);
+    }
+    const fee = Math.round(servicePrice * Number(rate));
+    return Math.max(Number(min), Math.min(fee, Number(max)));
+  } catch {
+    return calculateServiceFeeSync(servicePrice);
+  }
 }
 
 export async function createBooking(params: CreateBookingParams): Promise<BookingRow> {
@@ -201,7 +240,7 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
   }
 
   const servicePrice = Math.max(0, baseServicePrice + surgeAmount + addonsTotal - promoDiscountCents);
-  const serviceFee = params.bookingType === 'fixed_price' ? calculateServiceFee(servicePrice) : 0;
+  const serviceFee = params.bookingType === 'fixed_price' ? await calculateServiceFee(servicePrice) : 0;
   const totalAmount = servicePrice + serviceFee;
 
   const initialStatus = 'requested';
@@ -929,7 +968,7 @@ export async function acceptQuote(bookingId: string, quoteId: string, customerId
     customerId, quote.provider_id, quote.quoted_price,
   );
   const discountedPrice = quote.quoted_price - discountAmount;
-  const serviceFee = calculateServiceFee(discountedPrice);
+  const serviceFee = await calculateServiceFee(discountedPrice);
   const totalAmount = discountedPrice + serviceFee;
 
   return db.transaction(async (client) => {
@@ -1148,7 +1187,7 @@ export async function respondToChangeOrder(
     if (!current) throw createAppError('Booking not found.', 404);
 
     const newServicePrice = current.service_price + co.additional_amount;
-    const newServiceFee = calculateServiceFee(newServicePrice);
+    const newServiceFee = await calculateServiceFee(newServicePrice);
     const newTotalAmount = newServicePrice + newServiceFee;
     const additionalTotal = newTotalAmount - current.total_amount;
     const additionalServiceFee = additionalTotal - co.additional_amount;
@@ -1308,7 +1347,7 @@ export async function finalizeChangeOrderPayment(
     if (!current) throw createAppError('Booking not found.', 404);
 
     const newServicePrice = current.service_price + co.additional_amount;
-    const newServiceFee = calculateServiceFee(newServicePrice);
+    const newServiceFee = await calculateServiceFee(newServicePrice);
     const newTotalAmount = newServicePrice + newServiceFee;
     const additionalTotal = newTotalAmount - current.total_amount;
 

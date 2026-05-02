@@ -68,7 +68,17 @@ interface QuoteRow {
 }
 
 const QUOTE_ACCEPTABLE_BOOKING_STATES = new Set(['requested', 'quoted']);
-const QUOTE_ACCEPTABLE_QUOTE_STATUSES = new Set([null, 'submitted', 'accepted']);
+// Phase B CRIT-10 fix — drop 'accepted' from the acceptable set.
+// Pre-fix: validateAndResolveQuote accepted re-acceptance of an
+// already-accepted quote, which let a customer trigger a second
+// price recompute (potentially with a different surge multiplier or
+// addon set) on a booking whose price was already locked. Combined
+// with the booking row's service_price already being set from the
+// first acceptance, this opened a re-charge / double-charge window.
+// Post-fix: a quote can only be resolved once. The is_accepted check
+// below adds a second layer (defense in depth in case some other
+// caller writes 'submitted' status while is_accepted=TRUE).
+const QUOTE_ACCEPTABLE_QUOTE_STATUSES = new Set([null, 'submitted']);
 
 export async function validateAndResolveQuote(
   input: QuoteAcceptInput,
@@ -107,6 +117,11 @@ export async function validateAndResolveQuote(
   }
 
   if (!QUOTE_ACCEPTABLE_QUOTE_STATUSES.has(quote.status as string | null)) {
+    throw createAppError(QUOTE_ERRORS.quoteWrongStatus, 400);
+  }
+  // Phase B CRIT-10 fix — explicit is_accepted guard. Defense in
+  // depth on top of the status set restriction above.
+  if (quote.is_accepted === true) {
     throw createAppError(QUOTE_ERRORS.quoteWrongStatus, 400);
   }
 

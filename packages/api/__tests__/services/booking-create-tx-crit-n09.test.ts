@@ -35,6 +35,17 @@ jest.mock('../../src/services/socket.service', () => socketMock);
 const promoMock = { resolvePromo: jest.fn() };
 jest.mock('../../src/services/booking/promo.service', () => promoMock);
 
+// Phase B CRIT-13 fix — calculateServiceFee is now async and reads
+// from settings.service. Mock it so the test doesn't hit Redis.
+jest.mock('../../src/services/settings.service', () => ({
+  getSettingPercent: jest.fn().mockResolvedValue(0.1),
+  getSettingNumber: jest.fn().mockImplementation((key: string) => {
+    if (key === 'service_fee_min') return Promise.resolve(2500);
+    if (key === 'service_fee_max') return Promise.resolve(50000);
+    return Promise.resolve(0);
+  }),
+}));
+
 import { createBooking } from '../../src/services/booking.service';
 
 const SUBCAT_ID = 'sub-1';

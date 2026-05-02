@@ -205,10 +205,25 @@ export async function redeemPoints(
   const amountCredited = points / pointsToPesoRate;
 
   return db.transaction(async (client) => {
-    await client.query(
-      `UPDATE suki_memberships SET points_balance = points_balance - $1, updated_at = NOW() WHERE id = $2`,
+    // Phase B CRIT-11 fix — race-safe redemption. Pre-fix the UPDATE
+    // had no WHERE guard on points_balance, so two concurrent
+    // redemptions could both pass the read-check at line 198 above
+    // and then both subtract — driving points_balance negative.
+    // Post-fix: WHERE points_balance >= $1 + RETURNING; if 0 rows
+    // touched, throw 409 (caller can retry or surface to user).
+    const decResult = await client.query<{ id: string }>(
+      `UPDATE suki_memberships
+          SET points_balance = points_balance - $1, updated_at = NOW()
+        WHERE id = $2 AND points_balance >= $1
+        RETURNING id`,
       [points, membershipId],
     );
+    if (decResult.rowCount === 0) {
+      throw createAppError(
+        'Insufficient points (concurrent redemption may have consumed the balance — please retry).',
+        409,
+      );
+    }
 
     await client.query(
       `INSERT INTO suki_rewards (membership_id, type, points, description)

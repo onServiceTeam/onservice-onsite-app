@@ -178,15 +178,21 @@ describe('CRIT-N04 — releaseEscrowInTransaction money-conservation guard', () 
       return { rows: [], rowCount: 0 };
     });
 
+    // Phase B CRIT-03 fix — eager input-row check now throws BEFORE
+    // the downstream conservation calc would run. The CRIT-N04
+    // conservation guard remains as defense-in-depth for the case
+    // where the input row IS internally consistent but settings
+    // drift causes the computed totalOut to mismatch.
     await expect(
       releaseEscrowInTransaction({ query }, BOOKING_ID),
-    ).rejects.toThrow(/Internal accounting error/);
+    ).rejects.toThrow(/Booking amount mismatch|Internal accounting error/);
 
     expect(loggerMock.error).toHaveBeenCalledWith(
-      'MONEY CONSERVATION VIOLATION in releaseEscrowInTransaction',
+      'Booking amount mismatch — refusing escrow release (trx)',
       expect.objectContaining({
         bookingId: BOOKING_ID,
-        diff: 1000,
+        totalAmount: 12000,
+        expected: 11000,
       }),
     );
   });

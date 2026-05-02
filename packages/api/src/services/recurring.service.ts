@@ -132,7 +132,7 @@ export async function createRecurringBooking(
     throw createAppError('Service price could not be determined for this subcategory.', 400);
   }
 
-  const serviceFee = calculateServiceFee(servicePrice);
+  const serviceFee = await calculateServiceFee(servicePrice);
   const totalAmount = servicePrice + serviceFee;
   const nextDate = calculateNextDate(params.frequency, params.preferredDay);
 
@@ -361,7 +361,7 @@ export async function updateRecurringPrice(
     }
   }
 
-  const serviceFee = calculateServiceFee(newServicePrice);
+  const serviceFee = await calculateServiceFee(newServicePrice);
   const totalAmount = newServicePrice + serviceFee;
 
   await db.query(

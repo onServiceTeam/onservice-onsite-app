@@ -784,7 +784,7 @@ router.post(
       await db.transaction(async (client) => {
         if (discountAmount > 0) {
           const newPrice = booking.service_price - discountAmount;
-          const newFee = bookingService.calculateServiceFee(newPrice);
+          const newFee = await bookingService.calculateServiceFee(newPrice);
           const newTotal = newPrice + newFee;
           notificationAmount = newTotal;
           await client.query(

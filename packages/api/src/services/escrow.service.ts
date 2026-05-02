@@ -107,11 +107,24 @@ export async function releaseEscrow(bookingId: string): Promise<commissionServic
   const totalAmount = Number(bk.total_amount);
   if (servicePrice <= 0) throw createAppError('Invalid booking amount.', 400);
 
-  if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 1) {
-    logger.error('Booking amount mismatch detected', {
+  // Phase B CRIT-03 fix — refuse to disburse on a corrupt booking row.
+  // Pre-fix this only logged the mismatch and proceeded with whatever
+  // numbers were stored, so a booking with total_amount=1500 and
+  // service_price+service_fee=1400 would release 1500 from escrow but
+  // distribute 1400 + 100-of-thin-air to provider/platform. The
+  // downstream MONEY CONSERVATION check at line 138 catches a
+  // different invariant (sum of distributions = total) but doesn't
+  // catch a corrupt input row whose totals are internally consistent.
+  // Throwing here forces an admin to investigate before any movement.
+  if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 2) {
+    logger.error('Booking amount mismatch — refusing escrow release', {
       bookingId, servicePrice, serviceFee, totalAmount,
       expected: servicePrice + serviceFee,
     });
+    throw createAppError(
+      `Booking amount mismatch: total_amount=${totalAmount} but service_price+service_fee=${servicePrice + serviceFee}. Refusing release; admin must reconcile.`,
+      500,
+    );
   }
 
   const providerRow = await db.query<ProviderRow>(
@@ -509,6 +522,21 @@ export async function releaseEscrowInTransaction(
   const serviceFee = Number(bk.service_fee);
   const totalAmount = Number(bk.total_amount);
   if (servicePrice <= 0) throw createAppError('Invalid booking amount.', 400);
+
+  // Phase B CRIT-03 fix (also applied here in the trx variant) —
+  // refuse to disburse on a corrupt input row. Mirror the eager check
+  // from releaseEscrow above. Throwing inside the trx rolls back the
+  // FOR UPDATE row lock cleanly.
+  if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 2) {
+    logger.error('Booking amount mismatch — refusing escrow release (trx)', {
+      bookingId, servicePrice, serviceFee, totalAmount,
+      expected: servicePrice + serviceFee,
+    });
+    throw createAppError(
+      `Booking amount mismatch: total_amount=${totalAmount} but service_price+service_fee=${servicePrice + serviceFee}. Refusing release; admin must reconcile.`,
+      500,
+    );
+  }
 
   const providerRow = await client.query<ProviderRow>(
     `SELECT user_id, tier FROM providers WHERE id = $1`,
