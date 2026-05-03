@@ -89,6 +89,20 @@ const AUTH_TAG_LENGTH = 16;
 function getEncryptionKey(): Buffer | null {
   const keyHex = process.env.TOTP_ENCRYPTION_KEY;
   if (!keyHex) return null;
+  // BUG-PHASE23-01 fix: pre-fix this silently returned a wrong-length
+  // Buffer if the env var was not 64-char hex (the .env had a plain
+  // ASCII placeholder by mistake). AES-256-GCM cipher creation then
+  // crashed with "Invalid key length" → 2FA enrollment 500'd silently
+  // → admin tier completely locked out of the platform's mandatory-2FA
+  // path. Validate strictly: exactly 64 hex chars (AES-256 = 32 bytes).
+  // Throw with a clear message instead of a cryptic crash later.
+  if (!/^[0-9a-fA-F]{64}$/.test(keyHex)) {
+    throw new Error(
+      `TOTP_ENCRYPTION_KEY must be exactly 64 hex chars (32 bytes for AES-256). ` +
+      `Got ${keyHex.length} chars; first chars: "${keyHex.slice(0, 8)}". ` +
+      `Generate one with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+    );
+  }
   return Buffer.from(keyHex, 'hex');
 }
 

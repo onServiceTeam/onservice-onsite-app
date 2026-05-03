@@ -200,7 +200,17 @@ function signRefreshToken(userId: string, role: string): string {
   if (!secret) throw new Error('JWT_SECRET is not configured');
 
   const duration = process.env.JWT_REFRESH_EXPIRES_IN || platformConfig.jwtRefreshExpiresIn;
-  return jwt.sign({ userId, role, type: 'refresh' }, secret, { algorithm: 'HS256', expiresIn: parseDurationToSeconds(duration) });
+  // BUG-PHASE23-02 fix: pre-fix the refresh-token payload was
+  // {userId, role, type, iat, exp} where iat is seconds-precision.
+  // Two refresh tokens signed in the same second for the same user
+  // produced byte-identical payloads → identical signatures → identical
+  // hashes → unique-key violation on refresh_tokens.token_hash_key.
+  // This crashed 2FA verify retries, near-simultaneous logins, and any
+  // refresh-rotation that lands inside a one-second window. Add a jti
+  // (JWT-ID) random nonce so every token is unique regardless of timing.
+  const jti = crypto.randomBytes(16).toString('hex');
+  return jwt.sign({ userId, role, type: 'refresh', jti }, secret,
+    { algorithm: 'HS256', expiresIn: parseDurationToSeconds(duration) });
 }
 
 function parseDurationToSeconds(duration: string): number {

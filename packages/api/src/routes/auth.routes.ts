@@ -681,8 +681,14 @@ router.post(
         throw createAppError('Invalid token type.', 401);
       }
 
-      const userResult = await db.query<{ id: string; totp_secret: string | null; totp_enabled: boolean; role: string }>(
-        `SELECT id, totp_secret, totp_enabled, role FROM users WHERE id = $1 AND role IN ('admin', 'super_admin') AND is_active = TRUE`,
+      // BUG-PHASE23-03 fix: also select `phone` so the recordLoginAttempt
+      // call below can pass a value that fits in login_attempts.phone
+      // (varchar(15)). Pre-fix passed `user.id` (a 36-char UUID) which
+      // crashed with "value too long for type character varying(15)" —
+      // 2FA verify always 500'd on success, blocking admin tier login
+      // entirely. Now we pass the user's actual phone (PH format = 13 chars).
+      const userResult = await db.query<{ id: string; phone: string | null; totp_secret: string | null; totp_enabled: boolean; role: string }>(
+        `SELECT id, phone, totp_secret, totp_enabled, role FROM users WHERE id = $1 AND role IN ('admin', 'super_admin') AND is_active = TRUE`,
         [payload.userId],
       );
 
@@ -710,8 +716,11 @@ router.post(
 
       const tokens = await authService.createTokenPair(user.id, user.role);
 
+      // BUG-PHASE23-03 fix: pass user.phone (varchar(15) compatible),
+      // not user.id (36-char UUID overflows). Truncate defensively if
+      // phone is unexpectedly missing/long for any user row.
       await securityService.recordLoginAttempt({
-        phone: user.id,
+        phone: (user.phone ?? '').slice(0, 15),
         ipAddress: clientIp,
         attemptType: 'admin_login',
         success: true,
