@@ -587,14 +587,19 @@ export async function getMonthlySummary(
   const jobsResult = await db.query<{
     booking_id: string;
     description: string;
-    confirmed_at: Date;
+    confirmed_at: Date | null;
+    completed_at: Date | null;
     service_price: number;
     provider_received: string;
   }>(
+    // BUG-PHASE18-09 fix: select completed_at too so the breakdown can
+    // fall back when confirmed_at is null (booking in completed_by_provider
+    // state hasn't been customer-confirmed yet). Pre-fix omitted the column.
     `SELECT
        b.id AS booking_id,
        COALESCE(b.description, sc.name, 'Service') AS description,
        b.confirmed_at,
+       b.completed_at,
        b.service_price,
        COALESCE(wt.amount, 0)::text AS provider_received
      FROM bookings b
@@ -640,14 +645,22 @@ export async function getMonthlySummary(
 
   let totalGross = 0;
   let totalNet = 0;
+  // BUG-PHASE18-09 fix: the SQL above selects rows where COALESCE(b.confirmed_at,
+  // b.completed_at) is in the month, so confirmed_at can be NULL when the
+  // booking is in 'completed_by_provider' state (not yet customer-confirmed).
+  // Pre-fix `r.confirmed_at.toISOString()` threw TypeError on null and bubbled
+  // a 500 to the mobile provider monthly-summary screen. Fall back to
+  // completed_at, then to today, so the date field is always set.
   const breakdown = jobsResult.rows.map((r) => {
     const gross = Number(r.service_price);
     const net = Number(r.provider_received);
     const commission = gross - net;
     totalGross += gross;
     totalNet += net;
+    const dateRow = r as unknown as { confirmed_at: Date | null; completed_at?: Date | null };
+    const dateValue = dateRow.confirmed_at ?? dateRow.completed_at ?? new Date();
     return {
-      date: r.confirmed_at.toISOString().split('T')[0]!,
+      date: dateValue.toISOString().split('T')[0]!,
       bookingId: r.booking_id,
       description: r.description,
       grossAmount: gross,

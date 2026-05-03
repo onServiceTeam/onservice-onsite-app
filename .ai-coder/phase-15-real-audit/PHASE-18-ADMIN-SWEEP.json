@@ -112,11 +112,10 @@
       "name": "notification-templates",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 4,
+      "consoleErrCount": 2,
       "errs": [
         "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
       ],
       "reqFailCount": 0,
       "reqFails": []
@@ -373,11 +372,10 @@
       "name": "booking-detail",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 4,
+      "consoleErrCount": 2,
       "errs": [
         "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
       ],
       "reqFailCount": 0,
       "reqFails": []

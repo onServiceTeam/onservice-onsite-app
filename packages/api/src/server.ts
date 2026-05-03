@@ -282,6 +282,14 @@ app.use('/api/v1/notification-templates', notificationTemplateRoutes);
 // the original mount is risky (any external caller might already use it).
 app.use('/api/v1/admin/notification-templates', notificationTemplateRoutes);
 app.use('/api/v1/messaging', messagingRoutes);
+// BUG-PHASE18-07 fix — mobile messaging service
+// (apps/mobile/src/services/messaging.service.ts) calls /api/v1/conversations
+// for list, create, send-message, mark-read, and unread-count. The route
+// was only mounted at /api/v1/messaging, so the entire mobile chat feature
+// (chat/[id].tsx for both customer and provider, plus the unread-count
+// badge) silently 404'd. Adding the alias preserves the existing
+// /messaging mount and unblocks mobile without requiring a mobile rebuild.
+app.use('/api/v1/conversations', messagingRoutes);
 app.use('/api/v1/addresses', addressRoutes);
 app.use('/api/v1/referrals', referralRoutes);
 app.use('/api/v1/recurring', recurringRoutes);

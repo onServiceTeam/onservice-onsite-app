@@ -884,7 +884,17 @@ export async function getTierProgression(providerId: string): Promise<TierProgre
     // 'open', 'under_review', 'escalated', 'resolved'). The filter
     // accidentally excluded nothing extra but signaled developer
     // confusion about the enum. Now: only the actual terminal status.
-    `SELECT COUNT(*)::text as count FROM disputes WHERE provider_id = $1 AND status NOT IN ('resolved')`,
+    //
+    // BUG-PHASE18-08 fix: disputes table has NO provider_id column.
+    // It links to providers via bookings.provider_id. Pre-fix the
+    // direct WHERE provider_id = $1 returned 500 ("column does not
+    // exist") on every tier-progression call from the mobile provider
+    // tab. Joining through bookings is the correct path.
+    `SELECT COUNT(*)::text as count
+       FROM disputes d
+       JOIN bookings b ON b.id = d.booking_id
+      WHERE b.provider_id = $1
+        AND d.status NOT IN ('resolved')`,
     [providerId],
   );
   const openDisputes = Number(disputeResult.rows[0]?.count ?? 0);
