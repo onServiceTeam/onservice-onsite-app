@@ -13,14 +13,43 @@ export function createAppError(message: string, statusCode: number): AppError {
   return error;
 }
 
+// BUG-PHASE26 follow-up: multer raises errors with `.code` like
+// 'LIMIT_FILE_SIZE', 'LIMIT_UNEXPECTED_FILE', 'LIMIT_FILE_COUNT' that
+// extend Error but lack our isOperational/statusCode shape. Pre-fix
+// they bubbled to the generic 500 branch so a client uploading a 20MB
+// file got "An unexpected error occurred" instead of a clear 400.
+// Post-fix: the lookup below normalizes multer errors to 400 with the
+// message preserved.
+const MULTER_4XX_CODES = new Set([
+  'LIMIT_PART_COUNT',
+  'LIMIT_FILE_SIZE',
+  'LIMIT_FILE_COUNT',
+  'LIMIT_FIELD_KEY',
+  'LIMIT_FIELD_VALUE',
+  'LIMIT_FIELD_COUNT',
+  'LIMIT_UNEXPECTED_FILE',
+]);
+
+function isMulterError(err: Error): boolean {
+  return (err as { name?: string }).name === 'MulterError'
+    || MULTER_4XX_CODES.has((err as { code?: string }).code ?? '');
+}
+
 export function errorMiddleware(
   err: AppError | Error,
   req: Request,
   res: Response,
   _next: NextFunction,
 ): void {
-  const statusCode = 'statusCode' in err ? err.statusCode : 500;
-  const isOperational = 'isOperational' in err ? err.isOperational : false;
+  let statusCode = 'statusCode' in err ? err.statusCode : 500;
+  let isOperational = 'isOperational' in err ? err.isOperational : false;
+
+  // Multer errors are user-input issues — normalize to 400 with the
+  // multer message preserved so clients get an actionable error.
+  if (statusCode === 500 && isMulterError(err)) {
+    statusCode = 400;
+    isOperational = true;
+  }
 
   // Log error with structured data
   logger.error('Request error', {

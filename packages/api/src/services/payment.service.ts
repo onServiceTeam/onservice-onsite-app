@@ -100,13 +100,30 @@ export async function createPaymentIntent(
     }
   }
 
+  // BUG-PHASE27-01 fix: when intentKind='top_up', the caller passes a
+  // string topUpId of form 'topup_<userId>_<ts>' as `bookingId`. That
+  // doesn't fit `payment_intents.booking_id uuid`. Migration 122 added
+  // `topup_id text` and made `booking_id` nullable; route to the right
+  // column based on intentKind. metadata.booking_id retains the topUpId
+  // (back-compat with the webhook handler which reads from metadata).
+  const isTopUp = intentKind === 'top_up';
   const result = await db.query<PaymentIntentRow>(
-    `INSERT INTO payment_intents (booking_id, paymongo_intent_id, amount, payment_method, status, client_key)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [bookingId, paymongoIntentId, amount, paymentMethod, paymentMethod === 'wallet' ? 'processing' : 'awaiting_payment', clientKey],
+    `INSERT INTO payment_intents
+       (booking_id, topup_id, paymongo_intent_id, amount, payment_method, status, client_key, metadata)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb) RETURNING *`,
+    [
+      isTopUp ? null : bookingId,
+      isTopUp ? bookingId : null,
+      paymongoIntentId,
+      amount,
+      paymentMethod,
+      paymentMethod === 'wallet' ? 'processing' : 'awaiting_payment',
+      clientKey,
+      JSON.stringify({ booking_id: bookingId, intent_kind: intentKind }),
+    ],
   );
 
-  logger.info('Payment intent created', { bookingId, amount, paymentMethod, intentId: paymongoIntentId });
+  logger.info('Payment intent created', { bookingId, amount, paymentMethod, intentId: paymongoIntentId, intentKind });
   return result.rows[0]!;
 }
 
@@ -123,6 +140,16 @@ export async function getBookingPaymentIntent(bookingId: string): Promise<Paymen
   const result = await db.query<PaymentIntentRow>(
     `SELECT * FROM payment_intents WHERE booking_id = $1 ORDER BY created_at DESC LIMIT 1`,
     [bookingId],
+  );
+  return result.rows[0] ?? null;
+}
+
+// BUG-PHASE27-01 — webhook handler routes topup events through here
+// (string topUpId, not uuid booking_id). See migration 122.
+export async function getTopupPaymentIntent(topupId: string): Promise<PaymentIntentRow | null> {
+  const result = await db.query<PaymentIntentRow>(
+    `SELECT * FROM payment_intents WHERE topup_id = $1 ORDER BY created_at DESC LIMIT 1`,
+    [topupId],
   );
   return result.rows[0] ?? null;
 }

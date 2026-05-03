@@ -154,9 +154,14 @@ router.post(
         case 'payment.paid': {
           if (!bookingId) break;
 
-          const intent = await paymentService.getBookingPaymentIntent(bookingId);
+          // BUG-PHASE27-01 fix — topup intents store the topup_<userId>_<ts>
+          // string in payment_intents.topup_id (migration 122), NOT in
+          // booking_id (which is uuid). Route the lookup based on isTopUp.
+          const intent = isTopUp
+            ? await paymentService.getTopupPaymentIntent(bookingId)
+            : await paymentService.getBookingPaymentIntent(bookingId);
           if (!intent) {
-            logger.warn('Webhook: no payment intent found', { bookingId });
+            logger.warn('Webhook: no payment intent found', { bookingId, isTopUp });
             break;
           }
 
@@ -305,7 +310,10 @@ router.post(
 
         case 'payment.failed': {
           if (!bookingId) break;
-          const intent = await paymentService.getBookingPaymentIntent(bookingId);
+          // BUG-PHASE27-01 — same routing as payment.paid above.
+          const intent = isTopUp
+            ? await paymentService.getTopupPaymentIntent(bookingId)
+            : await paymentService.getBookingPaymentIntent(bookingId);
           if (intent) {
             if (intent.status === 'failed' || intent.status === 'succeeded') {
               logger.info('Webhook: payment.failed skipped — intent already terminal', {

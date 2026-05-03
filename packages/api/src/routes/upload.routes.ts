@@ -38,7 +38,9 @@ const upload = multer({
     if (ALLOWED_MIME_SET.has(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error(`File type "${file.mimetype}" is not allowed.`), false);
+      // BUG-PHASE26 follow-up: throw an AppError so error.middleware
+      // returns 400 (not the generic 500) for invalid MIME uploads.
+      cb(createAppError(`File type "${file.mimetype}" is not allowed.`, 400), false);
     }
   },
 });
