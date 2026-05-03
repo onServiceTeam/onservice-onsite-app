@@ -258,11 +258,42 @@ export async function rejectPayout(payoutId: string, adminId: string, reason: st
       [adminId, reason, payoutId],
     );
 
-    await client.query(
-      `UPDATE wallets SET available_balance = available_balance + $1, pending_balance = pending_balance - $1, updated_at = NOW()
-       WHERE id = $2`,
-      [Number(p.amount), p.wallet_id],
-    );
+    // BUG-PHASE22-01 fix: pre-fix this unconditionally moved money
+    // pending → available, assuming the requestPayout flow had reserved
+    // it in pending_balance. If the payout row exists without that
+    // reservation (data drift, manual insert, or older buggy creation
+    // path), this UPDATE drove pending_balance below zero and hit the
+    // positive_pending CHECK with a cryptic error. Defensive check:
+    // verify pending_balance >= amount before subtracting. If short,
+    // log the data inconsistency and rebate only what's actually there.
+    const wallet = await client.query<{ pending_balance: string }>(
+      `SELECT pending_balance::text FROM wallets WHERE id = $1 FOR UPDATE`,
+      [p.wallet_id]);
+    const pendingBefore = Number(wallet.rows[0]?.pending_balance ?? 0);
+    const amount = Number(p.amount);
+    if (pendingBefore < amount) {
+      logger.warn('payout_reject_data_drift', {
+        payoutId, walletId: p.wallet_id, pendingBefore, amount,
+        note: 'Pending balance < payout amount — payout may not have reserved money. Rebating what exists; investigate.',
+      });
+      // Rebate the partial amount that's actually in pending. If pending
+      // is 0, this becomes a no-op (no money movement). The payout is
+      // still marked rejected.
+      const rebate = Math.max(0, pendingBefore);
+      if (rebate > 0) {
+        await client.query(
+          `UPDATE wallets SET available_balance = available_balance + $1, pending_balance = pending_balance - $1, updated_at = NOW()
+           WHERE id = $2`,
+          [rebate, p.wallet_id],
+        );
+      }
+    } else {
+      await client.query(
+        `UPDATE wallets SET available_balance = available_balance + $1, pending_balance = pending_balance - $1, updated_at = NOW()
+         WHERE id = $2`,
+        [amount, p.wallet_id],
+      );
+    }
 
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, type, amount, balance_after, description, reference_id)

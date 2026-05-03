@@ -403,7 +403,7 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
               Flag for fraud
             </Button>
             {statusMutation.isError && (
-              <span className="text-xs text-red-500 ml-2">{getErrorMessage(statusMutation.error)}</span>
+              <span className="text-xs text-red-600 ml-2">{getErrorMessage(statusMutation.error)}</span>
             )}
           </div>
         </div>
@@ -732,7 +732,7 @@ function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement
               Issue credit
             </Button>
             {credit.isError && (
-              <span className="text-xs text-red-500">{getErrorMessage(credit.error)}</span>
+              <span className="text-xs text-red-600">{getErrorMessage(credit.error)}</span>
             )}
             {credit.isSuccess && (
               <span className="text-xs text-green-600">

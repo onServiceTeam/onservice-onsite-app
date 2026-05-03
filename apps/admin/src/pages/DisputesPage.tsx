@@ -256,7 +256,7 @@ export default function DisputesPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p className="text-sm text-red-500 mb-4">Failed to load disputes. Please try again.</p>}
+      {isError && <p className="text-sm text-red-600 mb-4">Failed to load disputes. Please try again.</p>}
 
       <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No disputes found." />
 

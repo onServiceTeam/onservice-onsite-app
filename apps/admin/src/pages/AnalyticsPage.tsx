@@ -77,11 +77,11 @@ function AbTestsTab(): React.ReactElement {
   });
 
   if (isLoading) return <p className="text-sm text-slate-500">Loading...</p>;
-  if (isError) return <p className="text-sm text-red-500">Failed to load A/B tests. Please try again.</p>;
+  if (isError) return <p className="text-sm text-red-600">Failed to load A/B tests. Please try again.</p>;
 
   return (
     <div className="space-y-4">
-      {actionError && <p className="text-sm text-red-500 mb-2">{actionError}</p>}
+      {actionError && <p className="text-sm text-red-600 mb-2">{actionError}</p>}
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">A/B Tests ({data?.pagination.total ?? 0})</h3>
         <button onClick={() => setShowCreate(!showCreate)} className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded-md hover:opacity-90">
@@ -117,7 +117,7 @@ function AbTestsTab(): React.ReactElement {
           <button onClick={() => createMut.mutate(form)} disabled={!form.name || createMut.isPending} className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
             {createMut.isPending ? 'Creating...' : 'Create Test'}
           </button>
-          {createMut.isError && <p className="text-red-500 text-xs">{getErrorMessage(createMut.error)}</p>}
+          {createMut.isError && <p className="text-red-600 text-xs">{getErrorMessage(createMut.error)}</p>}
         </div>
       )}
 
@@ -153,7 +153,7 @@ function AbTestsTab(): React.ReactElement {
         </table>
       </div>
 
-      {isResultsError && selectedTestId && <p className="text-sm text-red-500">Failed to load test results.</p>}
+      {isResultsError && selectedTestId && <p className="text-sm text-red-600">Failed to load test results.</p>}
 
       {resultsData && selectedTestId && (
         <div className="bg-white border rounded-lg p-4 space-y-3">
@@ -212,7 +212,7 @@ function CohortTab(): React.ReactElement {
         </select>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-500">Failed to load cohort data. Please try again.</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-600">Failed to load cohort data. Please try again.</p> : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">
             <thead>
@@ -297,7 +297,7 @@ function ChurnTab(): React.ReactElement {
         <span className="text-sm text-slate-500">{data?.pagination.total ?? 0} customers</span>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-500">Failed to load churn data. Please try again.</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-600">Failed to load churn data. Please try again.</p> : (
         <>
           <table className="w-full text-sm">
             <thead className="bg-slate-50">
@@ -382,7 +382,7 @@ function QualityTab(): React.ReactElement {
 
   return (
     <div className="space-y-4">
-      {actionError && <p className="text-sm text-red-500 mb-2">{actionError}</p>}
+      {actionError && <p className="text-sm text-red-600 mb-2">{actionError}</p>}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-500">{data?.pagination.total ?? 0} scored providers</span>
@@ -398,7 +398,7 @@ function QualityTab(): React.ReactElement {
         </button>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-500">Failed to load quality scores. Please try again.</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-600">Failed to load quality scores. Please try again.</p> : (
         <table className="w-full text-sm">
           <thead className="bg-slate-50">
             <tr>
@@ -458,7 +458,7 @@ function CommissionTab(): React.ReactElement {
 
   return (
     <div className="space-y-4">
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-500">Failed to load commission data. Please try again.</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-600">Failed to load commission data. Please try again.</p> : (
         <div className="grid gap-4">
           {data?.map((s) => {
             const delta = s.suggestedRate - s.currentRate;

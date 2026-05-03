@@ -8,11 +8,8 @@
       "name": "dashboard",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -21,11 +18,8 @@
       "name": "providers",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -34,11 +28,8 @@
       "name": "customers",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -47,11 +38,8 @@
       "name": "bookings",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -60,11 +48,8 @@
       "name": "catalog",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -73,11 +58,8 @@
       "name": "disputes",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -86,11 +68,8 @@
       "name": "financials",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -99,11 +78,8 @@
       "name": "payouts",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -112,11 +88,8 @@
       "name": "notification-templates",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -125,11 +98,8 @@
       "name": "recurring",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -138,11 +108,8 @@
       "name": "business-accounts",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -151,11 +118,8 @@
       "name": "service-areas",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -164,11 +128,8 @@
       "name": "analytics",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -177,11 +138,8 @@
       "name": "audit-log",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -190,11 +148,8 @@
       "name": "support-tickets",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -203,11 +158,8 @@
       "name": "staff",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -216,11 +168,8 @@
       "name": "settings",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -229,11 +178,8 @@
       "name": "cancellation-policy",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -242,11 +188,8 @@
       "name": "marketing",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -255,11 +198,8 @@
       "name": "dispatch",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -268,11 +208,8 @@
       "name": "compliance",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -281,11 +218,8 @@
       "name": "data-protection-log",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -294,11 +228,8 @@
       "name": "consent-versions",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -307,11 +238,8 @@
       "name": "pricing-rules",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -320,11 +248,8 @@
       "name": "change-password",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -333,24 +258,18 @@
       "name": "not-found",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
     {
-      "route": "/providers/3ef5d1e0-90f7-41b2-8759-6e774bfda9d2",
+      "route": "/providers/b019dca1-efe5-4bc2-bd1a-bf106f6d2c57",
       "name": "provider-detail",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -359,11 +278,8 @@
       "name": "customer-detail",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     },
@@ -372,11 +288,8 @@
       "name": "booking-detail",
       "status": "pass",
       "detail": "",
-      "consoleErrCount": 2,
-      "errs": [
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.74 (foreground color: #62748e, background color: #0f172a, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
-        "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #ef4444, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
-      ],
+      "consoleErrCount": 0,
+      "errs": [],
       "reqFailCount": 0,
       "reqFails": []
     }

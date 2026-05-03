@@ -123,17 +123,49 @@ export async function getChecklistForBooking(
       if (inTx.rows[0]) return inTx.rows[0];
 
       // Find active template for the booking's category.
-      const template = await client.query<{ id: string; version: number }>(
+      let template = await client.query<{ id: string; version: number }>(
         `SELECT id, version FROM checklist_templates
           WHERE category_id = $1 AND is_active = TRUE
           ORDER BY version DESC LIMIT 1`,
         [booking.category_id],
       );
+
+      // BUG-PHASE21-02 fix: pre-fix this threw 500 ("No active checklist
+      // template for this service category"), permanently blocking the
+      // provider from completing the booking. Production seed has zero
+      // templates; the platform was effectively launch-broken.
+      //
+      // Post-fix: lazy-create an empty default template (zero sections,
+      // zero items) for this category. Combined with BUG-PHASE21-03's
+      // fix to treat 0/0 required items as the success case, the
+      // provider can now complete the booking even when admin hasn't
+      // configured a category-specific template. The empty template is
+      // marked is_active=TRUE so subsequent bookings in the same
+      // category reuse it (no duplication). Admin can later replace it
+      // by creating a richer template (admin path: bumps version + sets
+      // old version is_active=FALSE).
       if (template.rows.length === 0) {
-        throw createAppError(
-          `No active checklist template for this service category. Contact admin support.`,
-          500,
+        logger.warn('checklist_template_missing_lazy_create', {
+          categoryId: booking.category_id,
+          bookingId,
+          note: 'No category template seeded; creating empty placeholder. Admin should replace with a real template.',
+        });
+        // Insert an empty template (zero sections/items). Even if two
+        // concurrent bookings race on this for the same category, we end
+        // up with at most one extra row — both are is_active=TRUE, the
+        // SELECT below picks the latest version. Not a correctness issue.
+        template = await client.query<{ id: string; version: number }>(
+          `INSERT INTO checklist_templates (category_id, version, is_active)
+           VALUES ($1, 1, TRUE)
+           RETURNING id, version`,
+          [booking.category_id],
         );
+        if (template.rows.length === 0) {
+          throw createAppError(
+            'Could not create checklist template. Admin support needed.',
+            500,
+          );
+        }
       }
       const tpl = template.rows[0]!;
 

@@ -92,7 +92,11 @@ export default function Sidebar(): React.ReactElement {
         ))}
       </nav>
       <div className="px-5 py-3 border-t border-white/10">
-        <p className="text-xs text-slate-500">v0.1.0</p>
+        {/* Phase 22f a11y fix — was text-slate-500 (3.74:1 on slate-900,
+            fails WCAG AA 4.5:1). slate-400 (#94a3b8) on slate-900 = 5.2:1
+            which passes. axe-core dev plugin previously flagged this on
+            every admin page. */}
+        <p className="text-xs text-slate-400">v0.1.0</p>
       </div>
     </aside>
   );

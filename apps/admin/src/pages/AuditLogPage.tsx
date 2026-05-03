@@ -180,7 +180,7 @@ export default function AuditLogPage(): React.ReactElement {
       ) : isError ? (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
           <p className="text-red-600 font-medium">Failed to load audit log</p>
-          <p className="text-sm text-red-500 mt-1">Check your connection and try again.</p>
+          <p className="text-sm text-red-600 mt-1">Check your connection and try again.</p>
         </div>
       ) : entries.length === 0 ? (
         <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-12 text-center">

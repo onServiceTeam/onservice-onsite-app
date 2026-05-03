@@ -269,7 +269,7 @@ export default function CatalogPage(): React.ReactElement {
   }
 
   if (isError) {
-    return <p className="text-sm text-red-500 py-10 text-center">Failed to load catalog. Please try again.</p>;
+    return <p className="text-sm text-red-600 py-10 text-center">Failed to load catalog. Please try again.</p>;
   }
 
   return (
@@ -395,7 +395,7 @@ export default function CatalogPage(): React.ReactElement {
                                 </button>
                               </div>
                               {isAddonsError && (
-                                <p className="text-xs text-red-500">Failed to load add-ons. Please try again.</p>
+                                <p className="text-xs text-red-600">Failed to load add-ons. Please try again.</p>
                               )}
                               {!isAddonsError && (addonsData ?? []).length === 0 ? (
                                 <p className="text-xs text-[var(--color-text-secondary)]">No add-ons yet.</p>
@@ -411,7 +411,7 @@ export default function CatalogPage(): React.ReactElement {
                                       </div>
                                       <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium text-[var(--color-text)]">{formatCurrency(addon.price)}</span>
-                                        {!addon.isActive && <span className="text-xs text-red-500">(inactive)</span>}
+                                        {!addon.isActive && <span className="text-xs text-red-600">(inactive)</span>}
                                         <button
                                           onClick={() => openEditAddon(addon)}
                                           className="px-2 py-0.5 text-xs text-sky-700 bg-sky-50 rounded hover:bg-sky-100 transition-colors"

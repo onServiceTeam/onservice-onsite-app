@@ -262,7 +262,7 @@ export default function ServiceAreasPage(): React.ReactElement {
         </button>
       </div>
 
-      {isStatsError && <p className="text-sm text-red-500 mb-2">Failed to load area statistics.</p>}
+      {isStatsError && <p className="text-sm text-red-600 mb-2">Failed to load area statistics.</p>}
       {stats && (
         <div className="grid grid-cols-4 gap-4">
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
@@ -388,8 +388,8 @@ export default function ServiceAreasPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p className="text-sm text-red-500 mb-4">Failed to load service areas. Please try again.</p>}
-      {actionError && <p className="text-sm text-red-500 mb-4">{actionError}</p>}
+      {isError && <p className="text-sm text-red-600 mb-4">Failed to load service areas. Please try again.</p>}
+      {actionError && <p className="text-sm text-red-600 mb-4">{actionError}</p>}
 
       <DataTable columns={columns} data={areas} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No service areas found." />
 

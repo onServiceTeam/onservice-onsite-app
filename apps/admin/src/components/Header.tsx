@@ -26,7 +26,10 @@ export default function Header(): React.ReactElement {
         </div>
         <button
           onClick={() => void handleLogout()}
-          className="text-xs text-[var(--color-danger)] hover:text-red-700 font-medium px-3 py-1.5 rounded-md hover:bg-red-50 transition-colors"
+          /* Phase 22f a11y fix — was text-[var(--color-danger)] (#ef4444)
+             on white = 3.76:1, fails WCAG AA 4.5:1. red-600 (#dc2626)
+             on white = 4.83:1, passes. */
+          className="text-xs text-red-600 hover:text-red-700 font-medium px-3 py-1.5 rounded-md hover:bg-red-50 transition-colors"
         >
           Logout
         </button>

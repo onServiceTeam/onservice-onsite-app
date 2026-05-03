@@ -188,7 +188,7 @@ function RolesTab(): React.ReactElement {
       )}
 
       {isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Loading...</p>}
-      {(isRolesError || isPermsError) && <p className="text-sm text-red-500">Failed to load roles. Please try again.</p>}
+      {(isRolesError || isPermsError) && <p className="text-sm text-red-600">Failed to load roles. Please try again.</p>}
 
       <div className="grid gap-3">
         {(roles ?? []).map((role) => (
@@ -392,8 +392,8 @@ function StaffTab(): React.ReactElement {
         </form>
       )}
 
-      {isError && <p className="text-sm text-red-500">Failed to load staff members. Please try again.</p>}
-      {isRolesError && <p className="text-sm text-red-500">Failed to load roles for assignment. Please refresh.</p>}
+      {isError && <p className="text-sm text-red-600">Failed to load staff members. Please try again.</p>}
+      {isRolesError && <p className="text-sm text-red-600">Failed to load roles for assignment. Please refresh.</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No staff members." />

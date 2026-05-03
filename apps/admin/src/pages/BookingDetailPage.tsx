@@ -584,27 +584,27 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
               Cancel
             </Button>
             {open === 'release' && releaseMut.isError && (
-              <span className="text-xs text-red-500">
+              <span className="text-xs text-red-600">
                 {getErrorMessage(releaseMut.error)}
               </span>
             )}
             {open === 'refund' && refundMut.isError && (
-              <span className="text-xs text-red-500">
+              <span className="text-xs text-red-600">
                 {getErrorMessage(refundMut.error)}
               </span>
             )}
             {open === 'reassign' && reassignMut.isError && (
-              <span className="text-xs text-red-500">
+              <span className="text-xs text-red-600">
                 {getErrorMessage(reassignMut.error)}
               </span>
             )}
             {open === 'cancel' && cancelMut.isError && (
-              <span className="text-xs text-red-500">
+              <span className="text-xs text-red-600">
                 {getErrorMessage(cancelMut.error)}
               </span>
             )}
             {open === 'force_complete' && forceMut.isError && (
-              <span className="text-xs text-red-500">
+              <span className="text-xs text-red-600">
                 {getErrorMessage(forceMut.error)}
               </span>
             )}

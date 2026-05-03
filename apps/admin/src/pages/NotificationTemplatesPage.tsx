@@ -266,8 +266,8 @@ export default function NotificationTemplatesPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p className="text-sm text-red-500 mb-4">Failed to load templates. Please try again.</p>}
-      {actionError && <p className="text-sm text-red-500 mb-4">{actionError}</p>}
+      {isError && <p className="text-sm text-red-600 mb-4">Failed to load templates. Please try again.</p>}
+      {actionError && <p className="text-sm text-red-600 mb-4">{actionError}</p>}
 
       <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No templates found." />
 

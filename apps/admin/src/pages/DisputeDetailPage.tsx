@@ -624,7 +624,7 @@ function DisputeActions({
             <RefreshCw size={14} /> Assign
           </Button>
           {assignMut.isError && (
-            <span className="text-xs text-red-500">{getErrorMessage(assignMut.error)}</span>
+            <span className="text-xs text-red-600">{getErrorMessage(assignMut.error)}</span>
           )}
         </div>
       </div>
@@ -707,7 +707,7 @@ function DisputeActions({
               <Wallet size={14} /> Resolve &amp; notify
             </Button>
             {resolveMut.isError && (
-              <span className="text-xs text-red-500">
+              <span className="text-xs text-red-600">
                 {getErrorMessage(resolveMut.error)}
               </span>
             )}
@@ -784,7 +784,7 @@ function DisputeActions({
             <AlertTriangle size={14} /> Escalate
           </Button>
           {escalateMut.isError && (
-            <span className="text-xs text-red-500">
+            <span className="text-xs text-red-600">
               {getErrorMessage(escalateMut.error)}
             </span>
           )}
@@ -826,7 +826,7 @@ function DisputeActions({
             <Send size={14} /> Send <MessageSquare size={14} />
           </Button>
           {messageMut.isError && (
-            <span className="text-xs text-red-500">
+            <span className="text-xs text-red-600">
               {getErrorMessage(messageMut.error)}
             </span>
           )}
@@ -860,7 +860,7 @@ function DisputeActions({
               <RefreshCw size={14} /> Reopen
             </Button>
             {reopenMut.isError && (
-              <span className="text-xs text-red-500">
+              <span className="text-xs text-red-600">
                 {getErrorMessage(reopenMut.error)}
               </span>
             )}
