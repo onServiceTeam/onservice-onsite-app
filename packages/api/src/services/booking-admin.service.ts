@@ -19,6 +19,7 @@ import * as escrowService from './escrow.service';
 import * as notificationService from './notification.service';
 import * as orService from './or.service';
 import * as paymentService from './payment.service';
+import * as gatewayRetryService from './gateway-retry.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -124,6 +125,9 @@ export interface CancelResult {
   bookingId: string;
   refundAmount: number;
   adminActionId: string;
+  // BUG-PHASE26-01: surfaced so callers can verify the customer-portion
+  // refund amount that was sent to PayMongo post-commit.
+  customerRefundAmount?: number;
 }
 
 export interface ForceCompleteResult {
@@ -863,8 +867,16 @@ export async function cancelBookingAsAdmin(
   // escrow handling (via trx-aware helper), booking status update, and
   // admin_actions insert. If the audit insert throws, the escrow money
   // movement and the booking status flip both roll back.
-  return db.transaction(async (client) => {
+  // BUG-PHASE26-01 fix: capture serviceFee BEFORE the trx so we can
+  // post-commit issue the PayMongo refund with the same total amount
+  // that refundFromEscrowInTransaction debited.
+  const feeRow = await db.query<{ service_fee: string | number }>(
+    `SELECT service_fee FROM bookings WHERE id = $1`, [bookingId]);
+  const serviceFee = feeRow.rows[0] ? Number(feeRow.rows[0].service_fee) : 0;
+
+  const trxResult = await db.transaction(async (client) => {
     let refundAmount = 0;
+    let customerRefundAmount = 0;
     if (booking.escrow_status === 'held') {
       const refund = await escrowService.handleCancellationInTransaction(
         client,
@@ -874,6 +886,7 @@ export async function cancelBookingAsAdmin(
         noShowValue,
       );
       refundAmount = Number(refund.customerRefundAmount ?? 0);
+      customerRefundAmount = Number(refund.customerRefundAmount ?? 0);
     }
 
     await client.query(
@@ -918,8 +931,45 @@ export async function cancelBookingAsAdmin(
       customerNoShow: noShowValue,
     });
 
-    return { bookingId, refundAmount, adminActionId };
+    return { bookingId, refundAmount, adminActionId, customerRefundAmount };
   });
+
+  // BUG-PHASE26-01 fix: post-commit PayMongo refund. Without this,
+  // admin force-cancel debited platform_escrow but never returned
+  // the customer's money to their bank. Mirrors the dispute-resolve
+  // pattern (escrow.service.ts lines ~564-572) — failure enqueues to
+  // gateway_retry_queue rather than blocking the cancellation.
+  if (!noShowValue && trxResult.customerRefundAmount > 0) {
+    const totalCustomerRefund = trxResult.customerRefundAmount + serviceFee;
+    // gate-c-allowed: post-commit-gateway-refund
+    try {
+      await paymentService.processRefund(
+        bookingId,
+        totalCustomerRefund,
+        `Admin cancellation: ${trimmedReason.slice(0, 100)}`,
+      );
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (/no payment found/i.test(errMsg)) {
+        logger.info('Admin-cancel refund skipped — no PayMongo intent for booking', {
+          bookingId, totalCustomerRefund,
+        });
+      } else {
+        logger.error('PayMongo admin-cancel refund failed (post-commit); enqueueing retry', {
+          bookingId, totalCustomerRefund, error: errMsg,
+        });
+        await gatewayRetryService.enqueueRetry({
+          actionType: 'refund_from_escrow',
+          bookingId,
+          amountCentavos: totalCustomerRefund,
+          description: 'Admin cancellation refund',
+          initialError: errMsg,
+        });
+      }
+    }
+  }
+
+  return trxResult;
 }
 
 // ─────────────────────────────────────────────────────────────────

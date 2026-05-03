@@ -12,6 +12,9 @@ build/
 .expo/
 *.tsbuildinfo
 
+# Local upload backend (dev-only; production uses S3)
+packages/api/uploads/
+
 # OS files
 .DS_Store
 Thumbs.db

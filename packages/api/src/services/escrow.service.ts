@@ -463,7 +463,17 @@ export async function handleCancellation(
   providerArrived: boolean,
   customerNoShow = false,
 ): Promise<commissionService.CancellationRefund> {
-  return db.transaction((client) =>
+  // Capture booking's service_fee BEFORE the trx so we can compute the
+  // total customer refund (service portion + service fee) to pass to
+  // PayMongo post-commit. Reading inside the trx is also fine but this
+  // avoids having to thread the value back through.
+  const feeRow = await db.query<{ service_fee: string | number }>(
+    `SELECT service_fee FROM bookings WHERE id = $1`,
+    [bookingId],
+  );
+  const serviceFee = feeRow.rows[0] ? Number(feeRow.rows[0].service_fee) : 0;
+
+  const refund = await db.transaction((client) =>
     handleCancellationInTransaction(
       client,
       bookingId,
@@ -472,6 +482,54 @@ export async function handleCancellation(
       customerNoShow,
     ),
   );
+
+  // BUG-PHASE26-01 fix: trigger the PayMongo refund post-commit so the
+  // money debited from escrow actually returns to the customer's bank.
+  // Pre-fix (MED-N27 regression): refundFromEscrowInTransaction debited
+  // the platform_escrow wallet but no caller invoked paymentService
+  // .processRefund, so escrow shrank but PayMongo never refunded —
+  // every customer cancellation since MED-N27 lost money. Now: post-
+  // commit gateway call mirrors the dispute-resolve pattern — failure
+  // enqueues to gateway_retry_queue (action_type='refund_from_escrow').
+  if (!customerNoShow && refund.customerRefundAmount > 0) {
+    const totalCustomerRefund = refund.customerRefundAmount + serviceFee;
+    // gate-c-allowed: post-commit-gateway-refund
+    try {
+      const paymentService = await import('./payment.service');
+      await paymentService.processRefund(
+        bookingId,
+        totalCustomerRefund,
+        'Customer-initiated cancellation',
+      );
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      // Sandbox / test fixtures that never went through PayMongo have
+      // no payment_intent — escrow already debited, nothing to refund
+      // externally. Log + carry on (do NOT enqueue retry).
+      if (/no payment found/i.test(errMsg)) {
+        logger.info('Cancellation refund skipped — no PayMongo intent for booking', {
+          bookingId,
+          totalCustomerRefund,
+        });
+      } else {
+        logger.error('PayMongo cancellation refund failed (post-commit); enqueueing retry', {
+          bookingId,
+          totalCustomerRefund,
+          error: errMsg,
+        });
+        const gatewayRetryService = await import('./gateway-retry.service');
+        await gatewayRetryService.enqueueRetry({
+          actionType: 'refund_from_escrow',
+          bookingId,
+          amountCentavos: totalCustomerRefund,
+          description: 'Customer cancellation refund',
+          initialError: errMsg,
+        });
+      }
+    }
+  }
+
+  return refund;
 }
 
 // ─────────────────────────────────────────────────────────────────

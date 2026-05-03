@@ -308,9 +308,18 @@ export async function hasBookingConflict(
   const newStart = scheduledAt.toISOString();
   const newEnd = new Date(scheduledAt.getTime() + newDurationMs).toISOString();
 
+  // BUG-PHASE26-02 fix: column was `bq.is_active` which doesn't exist
+  // on booking_quotes (only `is_accepted` + `status` do). Pre-fix every
+  // hasBookingConflict() call 500'd because the SQL parser rejected
+  // the column reference. The route /bookings/:id/assign (manual
+  // provider assignment) was the user-visible casualty — it always
+  // returned 500 instead of either assigning or detecting an overlap.
+  // Post-fix: join the accepted quote (the one whose duration estimate
+  // is authoritative); `bq.status='accepted'` is the canonical signal
+  // since migration 018 added that column.
   const result = await db.query<{ id: string }>(
     `SELECT b.id FROM bookings b
-     LEFT JOIN booking_quotes bq ON bq.booking_id = b.id AND bq.is_active = TRUE
+     LEFT JOIN booking_quotes bq ON bq.booking_id = b.id AND bq.status = 'accepted'
      WHERE b.provider_id = $1
        AND b.status NOT IN (
          'cancelled_by_customer','cancelled_by_provider','cancelled_by_admin',
