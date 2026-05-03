@@ -46,6 +46,7 @@ import financialAdminRoutes from './routes/financial-admin.routes';
 import birAdminRoutes from './routes/bir-admin.routes';
 import marketingAdminRoutes from './routes/marketing-admin.routes';
 import complianceAdminRoutes from './routes/compliance-admin.routes';
+import adminLatentRoutes from './routes/admin-latent.routes';
 import complianceRoutes from './routes/compliance.routes';
 import webhookRoutes from './routes/webhook.routes';
 import notificationRoutes from './routes/notification.routes';
@@ -247,6 +248,10 @@ app.use('/api/v1/admin/marketing', marketingAdminRoutes);
 app.use('/api/v1/admin/compliance', complianceAdminRoutes);
 // Phase 14 Dispatch 08 — Bug 1366 breach log (DPO-only).
 app.use('/api/v1/admin/breach-log', breachLogRoutes);
+// Phase 28a — wire previously-latent admin services (provider applications,
+// service-area-changes, admin TOTP backup codes regen). Must mount BEFORE
+// the generic adminRoutes catch-all so the more specific paths match first.
+app.use('/api/v1/admin', adminLatentRoutes);
 app.use('/api/v1/admin', adminRoutes);
 // Phase 11: end-user compliance endpoints (DSR + consent recording).
 app.use('/api/v1/compliance', complianceRoutes);

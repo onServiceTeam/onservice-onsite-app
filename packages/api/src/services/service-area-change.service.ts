@@ -172,20 +172,38 @@ export async function decide(input: {
           409,
         );
       }
-      const updateRes = await client.query(
+      // BUG-PHASE28-01 fix: providers table has no service_area_id
+      // column — area assignment is the join table provider_service_areas.
+      // Pre-fix this UPDATE 500'd on every approval (column does not
+      // exist). Now: (a) update the provider's radius, (b) demote any
+      // existing primary, (c) upsert the requested area as primary.
+      const radiusUpdate = await client.query(
         `UPDATE providers
-            SET service_area_id = $2,
-                service_radius_km = $3,
+            SET service_radius_km = $2,
                 updated_at = NOW()
           WHERE user_id = $1`,
-        [row.provider_id, row.requested_area_id, row.requested_radius_km],
+        [row.provider_id, row.requested_radius_km],
       );
-      if ((updateRes.rowCount ?? 0) === 0) {
-        // Defense-in-depth: should be impossible after the SELECT
-        // above (same trx, FOR UPDATE) but if it happens we'd rather
-        // roll back than silently lie about success.
+      if ((radiusUpdate.rowCount ?? 0) === 0) {
         throw createAppError('Provider profile update did not match a row. Aborting.', 500);
       }
+      // Demote whatever is currently primary for this provider.
+      await client.query(
+        `UPDATE provider_service_areas
+            SET is_primary = FALSE
+          WHERE provider_id = (SELECT id FROM providers WHERE user_id = $1)
+            AND is_primary = TRUE`,
+        [row.provider_id],
+      );
+      // Upsert the requested area as the new primary. UNIQUE constraint
+      // (provider_id, service_area_id) makes this safe to re-run.
+      await client.query(
+        `INSERT INTO provider_service_areas (provider_id, service_area_id, is_primary)
+         VALUES ((SELECT id FROM providers WHERE user_id = $1), $2, TRUE)
+         ON CONFLICT (provider_id, service_area_id)
+         DO UPDATE SET is_primary = TRUE`,
+        [row.provider_id, row.requested_area_id],
+      );
     }
 
     const verb = input.decision === 'approved'

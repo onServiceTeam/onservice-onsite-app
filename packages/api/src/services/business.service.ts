@@ -277,8 +277,13 @@ export async function addMember(
   // MED-N40 fix: pre-validate the target user exists. Pre-fix
   // relied on the FK constraint to fail; admin saw a raw 23503
   // SQL error instead of a friendly 404.
+  // BUG-PHASE28-02 fix: `users.deleted_at` doesn't exist — the soft-delete
+  // signal on users is `is_active=FALSE` (see users schema). Pre-fix this
+  // query 500'd with "column deleted_at does not exist", so adding any
+  // member to a business account always returned 500. Now: gate on
+  // is_active = TRUE.
   const userExists = await db.query(
-    `SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL`,
+    `SELECT 1 FROM users WHERE id = $1 AND is_active = TRUE`,
     [targetUserId],
   );
   if (userExists.rows.length === 0) {
@@ -293,6 +298,12 @@ export async function addMember(
   // row to clear deleted_at + reset role/permissions, preserving
   // the audit trail (deleted_by, deleted_reason). For never-
   // existed pairs, the same statement INSERTs.
+  // BUG-PHASE28-03 fix: business_members has no `updated_at` column.
+  // Pre-fix the upsert's `updated_at = NOW()` clause crashed every
+  // re-add of a previously-removed member with "column updated_at does
+  // not exist". Same-shape impact: every POST /:id/members 500'd in
+  // production. Fix: drop the updated_at SET clause; if the table needs
+  // an updated_at later, add it via migration first.
   const result = await db.query<BusinessMemberRow>(
     `INSERT INTO business_members (
       business_account_id, user_id, role, can_book, can_approve, can_view_invoices, invited_by
@@ -304,8 +315,7 @@ export async function addMember(
       can_approve = EXCLUDED.can_approve,
       can_view_invoices = EXCLUDED.can_view_invoices,
       invited_by = EXCLUDED.invited_by,
-      deleted_at = NULL,
-      updated_at = NOW()
+      deleted_at = NULL
     WHERE business_members.deleted_at IS NOT NULL
     RETURNING *`,
     [
