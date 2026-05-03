@@ -57,14 +57,21 @@ export async function joinSlotWaitlist(params: WaitlistJoinParams): Promise<Slot
   expiresAt.setDate(expiresAt.getDate() + 1);
 
   const inserted = await db.transaction(async (client) => {
-    const existing = await client.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM booking_slot_waitlist
+    // BUG-PHASE29-01 fix: Postgres rejects `SELECT COUNT(*) FOR UPDATE`
+    // with "FOR UPDATE is not allowed with aggregate functions". The
+    // MED-N134 race-safe dedup intent stands but the implementation was
+    // never exercised against a real DB. Use `SELECT 1 ... LIMIT 1 FOR
+    // UPDATE` (row-level lock on any matching row) instead — same TOCTOU
+    // protection without the aggregate. The ON CONFLICT DO NOTHING +
+    // 23505 catch on the INSERT below is still the defense-in-depth.
+    const existing = await client.query<{ id: string }>(
+      `SELECT id FROM booking_slot_waitlist
        WHERE customer_id = $1 AND category_id = $2 AND preferred_date = $3
          AND status = 'waiting'
-       FOR UPDATE`,
+       LIMIT 1 FOR UPDATE`,
       [params.customerId, params.categoryId, params.preferredDate],
     );
-    if (Number(existing.rows[0]?.count ?? 0) > 0) {
+    if (existing.rows.length > 0) {
       throw createAppError('You are already on the waitlist for this date and category.', 409);
     }
     try {
