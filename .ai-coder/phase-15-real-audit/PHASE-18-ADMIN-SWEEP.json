@@ -342,7 +342,7 @@
       "reqFails": []
     },
     {
-      "route": "/providers/b019dca1-efe5-4bc2-bd1a-bf106f6d2c57",
+      "route": "/providers/3ef5d1e0-90f7-41b2-8759-6e774bfda9d2",
       "name": "provider-detail",
       "status": "pass",
       "detail": "",
@@ -355,7 +355,7 @@
       "reqFails": []
     },
     {
-      "route": "/customers/72cfdca1-a287-46c3-9113-bcc55105cc34",
+      "route": "/customers/4311779b-9e00-4026-a703-ad9851d4bcb7",
       "name": "customer-detail",
       "status": "pass",
       "detail": "",

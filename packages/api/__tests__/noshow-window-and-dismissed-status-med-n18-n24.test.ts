@@ -54,8 +54,17 @@ describe('MED-N18 — noshow_auto_resolve_window_minutes is admin-tunable', () =
 
 describe('MED-N24 — getTierProgression no longer references non-existent "dismissed" status', () => {
   it('the open-disputes COUNT query no longer includes \'dismissed\'', () => {
-    // The filter is now `NOT IN ('resolved')` only.
-    expect(PROVIDER_SVC).toMatch(/disputes WHERE provider_id = \$1 AND status NOT IN \('resolved'\)/);
+    // BUG-PHASE18-08 fix update: pre-fix the test asserted the SQL was
+    // `disputes WHERE provider_id = $1 AND status NOT IN ('resolved')`,
+    // but `disputes` table has no `provider_id` column — that query
+    // returned 500 in production. Phase 18 changed the query to join
+    // through bookings; the constraint we still want to enforce is
+    // (a) the filter still excludes ONLY 'resolved' (no 'dismissed'),
+    // and (b) the join is via bookings.provider_id, not a direct
+    // disputes.provider_id reference.
+    expect(PROVIDER_SVC).toMatch(/JOIN bookings b ON b\.id = d\.booking_id/);
+    expect(PROVIDER_SVC).toMatch(/WHERE b\.provider_id = \$1/);
+    expect(PROVIDER_SVC).toMatch(/d\.status NOT IN \('resolved'\)/);
   });
 
   it("does NOT include 'dismissed' as a SQL filter value in any disputes query", () => {
