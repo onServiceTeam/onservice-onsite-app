@@ -25,7 +25,7 @@ import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import 'leaflet/dist/leaflet.css';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -51,6 +51,38 @@ import { Activity, RefreshCw, MapPin, AlertCircle } from '@/components/icons';
 
 // Vite ships broken default icon URLs; merge in the bundled assets.
 L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
+
+// BUG-PHASE18-03 fix (defense-in-depth): React 19 StrictMode + react-leaflet
+// 4.2.1 cause MapContainer's mount effect to fire twice in dev. The second
+// invocation calls L.map(divEl) on the same div that already has _leaflet_id
+// stamped on it — Leaflet throws "Map container is already initialized" and
+// the page hits the Sentry error boundary. The proper fix lives in react-
+// leaflet 5+ which we cannot upgrade to in this dispatch.
+//
+// Workaround: shim L.Map.prototype.initialize to defensively clear
+// _leaflet_id before constructing if the container is already stamped.
+// In production (no StrictMode dual-mount) this branch never fires.
+// Idempotent — guarded by a marker flag so HMR doesn't re-wrap.
+type LeafletMapInternal = {
+  initialize: (id: HTMLElement | string, options?: unknown) => unknown;
+  __osPhase18Patched?: boolean;
+};
+{
+  const proto = (L.Map as unknown as { prototype: LeafletMapInternal }).prototype;
+  if (!proto.__osPhase18Patched) {
+    const originalInitialize = proto.initialize;
+    proto.initialize = function (id: HTMLElement | string, options?: unknown) {
+      if (id && typeof id !== 'string') {
+        const div = id as HTMLElement & { _leaflet_id?: number };
+        if (div._leaflet_id) {
+          delete div._leaflet_id;
+        }
+      }
+      return originalInitialize.call(this, id, options);
+    };
+    proto.__osPhase18Patched = true;
+  }
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -405,8 +437,34 @@ export default function DispatchConsolePage(): React.ReactElement {
     void providersQuery.refetch();
   }
 
-  // Resize fix for leaflet inside flex panels — invalidate after first paint.
-  const [mapKey] = useState(() => `dispatch-map-${Date.now()}`);
+  // BUG-PHASE18-03 fix: pre-fix `useState(() => 'dispatch-map-' + Date.now())`
+  // set the key ONCE per fresh component instance. Under React 19 StrictMode
+  // every component double-mounts in dev, and react-leaflet 4.2.1's internal
+  // useEffect calls L.map(divRef) again — Leaflet throws "Map container is
+  // already initialized" because `_leaflet_id` was already stamped on the div
+  // by the first invocation. The whole page hits the Sentry error boundary.
+  //
+  // Fix has TWO parts:
+  // 1. Defer mapKey to AFTER the StrictMode dual-mount cycle finishes by
+  //    setting it inside useEffect. The MapContainer doesn't even mount until
+  //    after the parent has finished its dev-only mount-unmount-mount dance.
+  // 2. Guard the key-setter with a useRef so the SECOND useEffect call (the
+  //    one StrictMode triggers as a dev-only re-run of all mount effects)
+  //    becomes a no-op. Without the guard, both invocations would call
+  //    setMapKey, the second producing a different value and force-remounting
+  //    the MapContainer — which would itself trigger another L.map() call.
+  //
+  // Net effect: MapContainer mounts exactly once per fresh page navigation,
+  // its internal effect fires exactly once, no `_leaflet_id` collision.
+  // mapKey === null shows a "Loading map…" placeholder for ~16ms before the
+  // effect commits the real key; not user-visible.
+  const [mapKey, setMapKey] = useState<string | null>(null);
+  const mapKeySetRef = useRef(false);
+  useEffect(() => {
+    if (mapKeySetRef.current) return;
+    mapKeySetRef.current = true;
+    setMapKey(`dispatch-map-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  }, []);
   useEffect(() => {
     const t = window.setTimeout(() => {
       window.dispatchEvent(new Event('resize'));
@@ -473,6 +531,11 @@ export default function DispatchConsolePage(): React.ReactElement {
 
       {/* ── Map ─────────────────────────────────────────────────────── */}
       <section className="flex-1 min-h-[280px] bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+        {mapKey === null ? (
+          <div className="h-full w-full flex items-center justify-center text-sm text-slate-500">
+            Loading map…
+          </div>
+        ) : (
         <MapContainer
           key={mapKey}
           center={MANILA}
@@ -519,6 +582,7 @@ export default function DispatchConsolePage(): React.ReactElement {
               </Marker>
             ))}
         </MapContainer>
+        )}
       </section>
 
       {/* ── Bottom panels ───────────────────────────────────────────── */}

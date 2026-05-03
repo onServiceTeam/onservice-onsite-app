@@ -1194,9 +1194,18 @@ export async function getOperationalAlerts(): Promise<DashboardAlert[]> {
           GROUP BY provider_id
          HAVING COUNT(*) = 3
        )
-       SELECT lt.provider_id, p.full_name, '3' AS consec, lt.latest_at
+       SELECT lt.provider_id,
+              -- BUG-PHASE18-02 fix: providers table has business_name, not full_name.
+              -- Real human name is on users (first_name + last_name); fall back to
+              -- providers.business_name when joined user is missing or fields blank.
+              COALESCE(
+                NULLIF(TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')), ''),
+                p.business_name
+              ) AS full_name,
+              '3' AS consec, lt.latest_at
          FROM latest_three lt
          JOIN providers p ON p.id = lt.provider_id
+         LEFT JOIN users u ON u.id = p.user_id
         WHERE lt.all_one = TRUE
         ORDER BY lt.latest_at DESC
         LIMIT 25`,
@@ -1221,12 +1230,20 @@ export async function getOperationalAlerts(): Promise<DashboardAlert[]> {
     ),
     // 4. Provider NBI expiring in next 7 days
     db.query<{ provider_id: string; full_name: string; nbi_expiry_date: Date }>(
-      `SELECT id AS provider_id, full_name, nbi_expiry_date
-         FROM providers
-        WHERE status = 'approved'
-          AND nbi_expiry_date IS NOT NULL
-          AND nbi_expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
-        ORDER BY nbi_expiry_date ASC
+      // BUG-PHASE18-02 fix: same — providers.full_name doesn't exist;
+      // join to users for first_name+last_name, fall back to business_name.
+      `SELECT p.id AS provider_id,
+              COALESCE(
+                NULLIF(TRIM(COALESCE(u.first_name,'') || ' ' || COALESCE(u.last_name,'')), ''),
+                p.business_name
+              ) AS full_name,
+              p.nbi_expiry_date
+         FROM providers p
+         LEFT JOIN users u ON u.id = p.user_id
+        WHERE p.status = 'approved'
+          AND p.nbi_expiry_date IS NOT NULL
+          AND p.nbi_expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+        ORDER BY p.nbi_expiry_date ASC
         LIMIT 25`,
     ),
     // 5. Customer with 5+ disputes in last 7 days

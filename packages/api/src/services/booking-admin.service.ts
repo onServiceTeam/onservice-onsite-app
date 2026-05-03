@@ -480,11 +480,16 @@ export async function getBookingEvidence(bookingId: string): Promise<BookingEvid
     uploaded_by: string;
     created_at: Date;
   }>(
+    // BUG-PHASE18-05 fix: booking_photos has `uploaded_at`, NOT `created_at`.
+    // The pre-fix UNION threw "column 'created_at' does not exist" on every
+    // call, so the evidence tab on /bookings/:id always returned 500. Alias
+    // booking_photos.uploaded_at AS created_at so the union shape matches and
+    // the existing downstream `r.created_at.toISOString()` still works.
     `SELECT id, image_url AS photo_url, image_type AS photo_type, uploaded_by, created_at
        FROM booking_images
       WHERE booking_id = $1
     UNION ALL
-     SELECT id, COALESCE(storage_url, storage_key) AS photo_url, photo_type, uploaded_by, created_at
+     SELECT id, COALESCE(storage_url, storage_key) AS photo_url, photo_type, uploaded_by, uploaded_at AS created_at
        FROM booking_photos
       WHERE booking_id = $1 AND deleted_at IS NULL
     ORDER BY created_at ASC`,

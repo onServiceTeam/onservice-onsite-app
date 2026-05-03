@@ -11,7 +11,14 @@ import { useEffect, useState, useRef } from 'react';
 import { io as socketIo, type Socket } from 'socket.io-client';
 import { useAuthStore } from '@/stores/auth.store';
 
-const FALLBACK_API_URL = 'http://localhost:7383';
+// BUG-PHASE18-01 fix — pre-fix this fallback was 'http://localhost:7383'
+// which is the Postgres port (since Phase 16). Socket.io would try to
+// upgrade to ws://localhost:7383/socket.io which Postgres rejected,
+// flooding the console with "WebSocket connection failed" errors on
+// every admin page. Real API runs on 7381 in dev (see api/src/server.ts
+// PORT default + .env API_PORT). When VITE_API_URL is set (production
+// build), it overrides; this is dev-only.
+const FALLBACK_API_URL = 'http://localhost:7381';
 
 function getApiUrl(): string {
   return import.meta.env.VITE_API_URL ?? FALLBACK_API_URL;

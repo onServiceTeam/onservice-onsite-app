@@ -273,6 +273,14 @@ app.get('/api/v1/config', async (_req, res) => {
 });
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/notification-templates', notificationTemplateRoutes);
+// BUG-PHASE18-04 fix — admin web (NotificationTemplatesPage) calls
+// /api/v1/admin/notification-templates following the codebase convention,
+// but this resource was originally mounted at /api/v1/notification-templates
+// without the /admin prefix. The page silently 404'd on every load and
+// showed an empty table. Adding an alias mount preserves both URLs;
+// requireAdmin() inside the route handler still gates access. Removing
+// the original mount is risky (any external caller might already use it).
+app.use('/api/v1/admin/notification-templates', notificationTemplateRoutes);
 app.use('/api/v1/messaging', messagingRoutes);
 app.use('/api/v1/addresses', addressRoutes);
 app.use('/api/v1/referrals', referralRoutes);
