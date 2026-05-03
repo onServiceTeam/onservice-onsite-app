@@ -1,5 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
+import RedisStore from 'rate-limit-redis';
+import { redis } from '../config/redis.config';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { getClientIp } from '../middleware/ip-block.middleware';
@@ -132,11 +134,30 @@ function adminAuthOrSetupToken(
   })();
 }
 
+// BUG-PHASE23-04 fix: pre-fix this used the default in-memory store,
+// which (a) reset counters on every API restart (security regression
+// vs Phase 17's Redis fix for the global limiter), and (b) gave each
+// k8s/ECS replica its own counters → effective limit = N×configured
+// where N is replica count. Use the same Redis-backed store as the
+// global limiter (rate-limit.middleware.ts), with prefix `rl:auth-routes:`
+// to keep counters separate from the global `rl:global:` and the other
+// auth path's `rl:auth:`.
+type RedisStoreOpts = ConstructorParameters<typeof RedisStore>[0];
+function buildAuthRoutesStore(): InstanceType<typeof RedisStore> {
+  const opts = {
+    prefix: 'rl:auth-routes:',
+    sendCommand: (...args: string[]): Promise<unknown> =>
+      (redis as unknown as { call: (...a: string[]) => Promise<unknown> }).call(...args),
+  } as unknown as RedisStoreOpts;
+  return new RedisStore(opts);
+}
+
 const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.RATE_LIMIT_AUTH_MAX_REQUESTS) || 10,
   standardHeaders: true,
   legacyHeaders: false,
+  store: buildAuthRoutesStore(),
   message: {
     success: false,
     error: {
