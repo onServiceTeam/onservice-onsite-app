@@ -310,6 +310,16 @@ export async function generateMonthlyVatReport(
     throw createAppError('Cannot generate VAT report for future periods', 400);
   }
 
+  // BUG-PHASE24-14 fix — pre-fix the filer identity check ran AFTER the
+  // upsert transaction committed, so when filer identity was unset the
+  // route returned 500 BUT a phantom row was left in vat_monthly_reports.
+  // The CRIT-N06 comment promised fail-closed semantics that didn't hold.
+  // Post-fix: load filer identity FIRST so the throw aborts before any DB
+  // mutation. If unset, this raises 500 with the unset-keys message and
+  // no row is written.
+  const { getBirFilerIdentity } = await import('./bir-filer-identity.service');
+  const filer = await getBirFilerIdentity();
+
   // MED-N46 + MED-N47 fix — pre-fix:
   //   1. SELECT existing row for finalized check (line 314)
   //   2. db.query INSERT ... ON CONFLICT DO UPDATE (line 348)
@@ -400,12 +410,8 @@ export async function generateMonthlyVatReport(
   }
   const report = mapReportRow(upsertedRow);
 
-  // CRIT-N06 fix: load filer identity from platform_settings before
-  // building the PDF. Throws if any required field is __UNSET__ —
-  // failing closed is the right behavior for a BIR-bound document
-  // (better to abort report generation than ship placeholders).
-  const { getBirFilerIdentity } = await import('./bir-filer-identity.service');
-  const filer = await getBirFilerIdentity();
+  // CRIT-N06 / BUG-PHASE24-14 — `filer` was loaded BEFORE the trx so the
+  // fail-closed guarantee actually holds (no phantom row when unset).
 
   // Best-effort PDF build + upload — outside any transaction so a PDF
   // failure cannot lose the report row.

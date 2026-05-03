@@ -63,13 +63,18 @@ router.get(
       // Self-audit the consent search (Bug 402 doctrine — sensitive
       // searches are themselves audit-logged).
       const { db } = await import('../models/db');
+      // BUG-PHASE24-12 fix: admin_actions.target_id is NOT NULL.
+      // When the DPO searches without a specific userId filter (broad
+      // discovery search), there is no concrete subject — fall back to
+      // the admin's own user id as a self-targeted audit row. The actual
+      // search filter is preserved in details.filters.userId.
       await db.query(
         `INSERT INTO admin_actions
            (admin_id, action_type, target_type, target_id, details, reason, full_notes)
          VALUES ($1, 'consent_search', 'user', $2, $3::jsonb, $4, $5)`,
         [
           req.user!.userId,
-          parseString(req.query.userId) ?? null,
+          parseString(req.query.userId) ?? req.user!.userId,
           JSON.stringify({
             filters: {
               userId: parseString(req.query.userId) ?? null,
@@ -182,10 +187,14 @@ router.get(
       // the full audit trail with no record of the extraction.
       const { db } = await import('../models/db');
       const rowCount = (csv.match(/\n/g) ?? []).length - 1; // subtract header
+      // BUG-PHASE24-13 fix: admin_actions.target_id is NOT NULL. The
+      // export is system-wide (no concrete entity), so use the admin's
+      // own id as a self-targeted audit row. target_type was 'system'
+      // before; widen to 'user' to match target_id semantics.
       await db.query(
         `INSERT INTO admin_actions
            (admin_id, action_type, target_type, target_id, details, reason, full_notes)
-         VALUES ($1, 'audit_log_exported', 'system', NULL, $2::jsonb, $3, $4)`,
+         VALUES ($1, 'audit_log_exported', 'user', $1, $2::jsonb, $3, $4)`,
         [
           req.user!.userId,
           JSON.stringify({

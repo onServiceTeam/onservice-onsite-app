@@ -1,0 +1,729 @@
+{
+  "summary": {
+    "files_scanned": 168,
+    "call_sites": 78,
+    "emitted_verbs": [
+      "admin_2fa_enrolled",
+      "admin_backup_code_used",
+      "admin_message_sent",
+      "admin_password_rotated",
+      "admin_role_archived",
+      "aml_review_cleared",
+      "audit_log_exported",
+      "bir_2307_batch_generated",
+      "bir_2307_regenerated",
+      "booking_cancelled",
+      "booking_force_completed",
+      "booking_reassigned",
+      "breach_logged",
+      "breach_npc_notified",
+      "breach_status_changed",
+      "business_member_removed",
+      "business_ownership_transferred",
+      "config_changed",
+      "consent_search",
+      "consent_version_published",
+      "customer",
+      "customer_credited",
+      "dispute_assigned",
+      "dispute_escalated",
+      "dispute_message_sent",
+      "dispute_reopened",
+      "dispute_resolved",
+      "dsr_more_info_requested",
+      "dsr_rejected",
+      "legacy_password_rotation_flagged",
+      "manual_escrow_release",
+      "or_cancelled",
+      "or_issued",
+      "payout_approved",
+      "payout_rejected",
+      "provider_application",
+      "provider_application_submitted",
+      "provider_approved",
+      "provider_note_added",
+      "provider_note_deleted",
+      "provider_profile_updated",
+      "provider_reactivated",
+      "provider_rejected",
+      "provider_suspended",
+      "provider_tier_changed",
+      "provider_wallet_adjusted",
+      "reconciliation",
+      "refund_issued",
+      "service_addon_created",
+      "service_addon_deleted",
+      "service_addon_updated",
+      "service_area_change_request",
+      "service_category_created",
+      "service_category_updated",
+      "service_subcategory_created",
+      "service_subcategory_deleted",
+      "service_subcategory_updated",
+      "staff_added",
+      "staff_removed",
+      "staff_role_demoted_from_dpo",
+      "staff_role_promoted_dpo",
+      "user",
+      "vat_report_finalized",
+      "vat_report_generated"
+    ],
+    "emitted_target_types": [
+      "admin_role",
+      "admin_staff",
+      "bir_2307_batch",
+      "booking",
+      "breach",
+      "business",
+      "config",
+      "consent_version",
+      "customer",
+      "dispute",
+      "dsr_request",
+      "message",
+      "notification_template",
+      "official_receipt",
+      "payout",
+      "pricing_rule",
+      "promotion",
+      "provider",
+      "provider_application",
+      "provider_note",
+      "service_addon",
+      "service_area",
+      "service_category",
+      "service_subcategory",
+      "support_ticket",
+      "system",
+      "user",
+      "vat_report"
+    ],
+    "allowed_verbs": [
+      "addon_created",
+      "addon_deleted",
+      "addon_updated",
+      "admin_2fa_disabled",
+      "admin_2fa_enrolled",
+      "admin_backup_code_used",
+      "admin_message_sent",
+      "admin_password_rotated",
+      "admin_role_archived",
+      "aml_review_cleared",
+      "booking_cancelled",
+      "booking_force_completed",
+      "booking_reassigned",
+      "breach_logged",
+      "breach_npc_notified",
+      "breach_status_changed",
+      "business_member_removed",
+      "business_ownership_transferred",
+      "category_created",
+      "category_updated",
+      "config_changed",
+      "consent_version_published",
+      "customer_credited",
+      "customer_flagged_fraud",
+      "customer_reactivated",
+      "customer_suspended",
+      "dispute_assigned",
+      "dispute_escalated",
+      "dispute_message_sent",
+      "dispute_reopened",
+      "dispute_resolved",
+      "dsr_more_info_requested",
+      "dsr_rejected",
+      "feature_flag_toggled",
+      "legacy_password_rotation_flagged",
+      "manual_escrow_release",
+      "or_cancelled",
+      "or_issued",
+      "payout_approved",
+      "payout_rejected",
+      "platform_setting_changed",
+      "provider_application_submitted",
+      "provider_approved",
+      "provider_note_added",
+      "provider_note_deleted",
+      "provider_profile_updated",
+      "provider_reactivated",
+      "provider_reinstated",
+      "provider_rejected",
+      "provider_suspended",
+      "provider_tier_changed",
+      "provider_wallet_adjusted",
+      "reconciliation_alert_acknowledged",
+      "reconciliation_run",
+      "refund_from_escrow",
+      "refund_issued",
+      "release_escrow",
+      "release_partial_escrow",
+      "service_addon_created",
+      "service_addon_deleted",
+      "service_addon_updated",
+      "service_area_change_decided",
+      "service_category_created",
+      "service_category_updated",
+      "service_subcategory_created",
+      "service_subcategory_deleted",
+      "service_subcategory_updated",
+      "staff_added",
+      "staff_removed",
+      "staff_role_demoted_from_dpo",
+      "staff_role_promoted_dpo",
+      "subcategory_created",
+      "subcategory_deleted",
+      "subcategory_updated",
+      "user_force_logout",
+      "user_role_changed",
+      "vat_report_finalized",
+      "vat_report_generated"
+    ],
+    "allowed_target_types": [
+      "admin_actions",
+      "admin_role",
+      "admin_staff",
+      "bir_2307_batch",
+      "booking",
+      "breach",
+      "business",
+      "config",
+      "consent_version",
+      "customer",
+      "dispute",
+      "dsr_request",
+      "message",
+      "notification_template",
+      "official_receipt",
+      "payout",
+      "pricing_rule",
+      "promotion",
+      "provider",
+      "provider_application",
+      "provider_document",
+      "provider_note",
+      "reconciliation",
+      "service_addon",
+      "service_area",
+      "service_area_change_request",
+      "service_category",
+      "service_subcategory",
+      "support_ticket",
+      "system",
+      "user",
+      "vat_report"
+    ],
+    "emitted_not_allowed": [
+      "audit_log_exported",
+      "bir_2307_batch_generated",
+      "bir_2307_regenerated",
+      "consent_search",
+      "customer",
+      "provider_application",
+      "reconciliation",
+      "service_area_change_request",
+      "user"
+    ],
+    "allowed_not_emitted": [
+      "addon_created",
+      "addon_deleted",
+      "addon_updated",
+      "admin_2fa_disabled",
+      "category_created",
+      "category_updated",
+      "customer_flagged_fraud",
+      "customer_reactivated",
+      "customer_suspended",
+      "feature_flag_toggled",
+      "platform_setting_changed",
+      "provider_reinstated",
+      "reconciliation_alert_acknowledged",
+      "reconciliation_run",
+      "refund_from_escrow",
+      "release_escrow",
+      "release_partial_escrow",
+      "service_area_change_decided",
+      "subcategory_created",
+      "subcategory_deleted",
+      "subcategory_updated",
+      "user_force_logout",
+      "user_role_changed"
+    ],
+    "emitted_target_not_allowed": [],
+    "allowed_target_not_emitted": [
+      "admin_actions",
+      "provider_document",
+      "reconciliation",
+      "service_area_change_request"
+    ]
+  },
+  "callSites": [
+    {
+      "file": "routes\\admin.routes.ts",
+      "line": 333,
+      "verb": "manual_escrow_release",
+      "target": "booking"
+    },
+    {
+      "file": "routes\\auth.routes.ts",
+      "line": 840,
+      "verb": "admin_2fa_enrolled",
+      "target": "user"
+    },
+    {
+      "file": "routes\\compliance-admin.routes.ts",
+      "line": 67,
+      "verb": "consent_search",
+      "target": "user"
+    },
+    {
+      "file": "routes\\compliance-admin.routes.ts",
+      "line": 186,
+      "verb": "audit_log_exported",
+      "target": "system"
+    },
+    {
+      "file": "services\\admin-2fa.service.ts",
+      "line": 123,
+      "verb": "user",
+      "target": null
+    },
+    {
+      "file": "services\\admin-2fa.service.ts",
+      "line": 192,
+      "verb": "admin_backup_code_used",
+      "target": "user"
+    },
+    {
+      "file": "services\\admin-password-rotation.service.ts",
+      "line": 165,
+      "verb": "legacy_password_rotation_flagged",
+      "target": "system"
+    },
+    {
+      "file": "services\\admin-password-rotation.service.ts",
+      "line": 253,
+      "verb": "admin_password_rotated",
+      "target": "user"
+    },
+    {
+      "file": "services\\admin.service.ts",
+      "line": 219,
+      "verb": "provider_approved",
+      "target": "provider"
+    },
+    {
+      "file": "services\\admin.service.ts",
+      "line": 254,
+      "verb": "provider_rejected",
+      "target": "provider"
+    },
+    {
+      "file": "services\\admin.service.ts",
+      "line": 306,
+      "verb": "provider_suspended",
+      "target": "provider"
+    },
+    {
+      "file": "services\\admin.service.ts",
+      "line": 324,
+      "verb": "provider_reactivated",
+      "target": "provider"
+    },
+    {
+      "file": "services\\admin.service.ts",
+      "line": 365,
+      "verb": "provider_tier_changed",
+      "target": "provider"
+    },
+    {
+      "file": "services\\bir-2307.service.ts",
+      "line": 471,
+      "verb": "bir_2307_batch_generated",
+      "target": "bir_2307_batch"
+    },
+    {
+      "file": "services\\bir-2307.service.ts",
+      "line": 491,
+      "verb": "bir_2307_regenerated",
+      "target": "bir_2307_batch"
+    },
+    {
+      "file": "services\\booking-admin.service.ts",
+      "line": 605,
+      "verb": "manual_escrow_release",
+      "target": "booking"
+    },
+    {
+      "file": "services\\booking-admin.service.ts",
+      "line": 696,
+      "verb": "refund_issued",
+      "target": "booking"
+    },
+    {
+      "file": "services\\booking-admin.service.ts",
+      "line": 791,
+      "verb": "booking_reassigned",
+      "target": "booking"
+    },
+    {
+      "file": "services\\booking-admin.service.ts",
+      "line": 890,
+      "verb": "booking_cancelled",
+      "target": "booking"
+    },
+    {
+      "file": "services\\booking-admin.service.ts",
+      "line": 984,
+      "verb": "booking_force_completed",
+      "target": "booking"
+    },
+    {
+      "file": "services\\booking-admin.service.ts",
+      "line": 1115,
+      "verb": "admin_message_sent",
+      "target": "message"
+    },
+    {
+      "file": "services\\breach-log.service.ts",
+      "line": 146,
+      "verb": "breach_logged",
+      "target": "breach"
+    },
+    {
+      "file": "services\\breach-log.service.ts",
+      "line": 224,
+      "verb": "breach_npc_notified",
+      "target": "breach"
+    },
+    {
+      "file": "services\\breach-log.service.ts",
+      "line": 269,
+      "verb": "breach_status_changed",
+      "target": "breach"
+    },
+    {
+      "file": "services\\business.service.ts",
+      "line": 396,
+      "verb": "business_member_removed",
+      "target": "business"
+    },
+    {
+      "file": "services\\business.service.ts",
+      "line": 499,
+      "verb": "business_ownership_transferred",
+      "target": "business"
+    },
+    {
+      "file": "services\\catalog.service.ts",
+      "line": 93,
+      "verb": "service_category_created",
+      "target": "service_category"
+    },
+    {
+      "file": "services\\catalog.service.ts",
+      "line": 166,
+      "verb": "service_category_updated",
+      "target": "service_category"
+    },
+    {
+      "file": "services\\catalog.service.ts",
+      "line": 224,
+      "verb": "service_subcategory_created",
+      "target": "service_subcategory"
+    },
+    {
+      "file": "services\\catalog.service.ts",
+      "line": 326,
+      "verb": "service_subcategory_updated",
+      "target": "service_subcategory"
+    },
+    {
+      "file": "services\\catalog.service.ts",
+      "line": 378,
+      "verb": "service_subcategory_deleted",
+      "target": "service_subcategory"
+    },
+    {
+      "file": "services\\catalog.service.ts",
+      "line": 438,
+      "verb": "service_addon_created",
+      "target": "service_addon"
+    },
+    {
+      "file": "services\\catalog.service.ts",
+      "line": 493,
+      "verb": "service_addon_updated",
+      "target": "service_addon"
+    },
+    {
+      "file": "services\\catalog.service.ts",
+      "line": 538,
+      "verb": "service_addon_deleted",
+      "target": "service_addon"
+    },
+    {
+      "file": "services\\compliance-admin.service.ts",
+      "line": 200,
+      "verb": "dsr_more_info_requested",
+      "target": "dsr_request"
+    },
+    {
+      "file": "services\\compliance-admin.service.ts",
+      "line": 279,
+      "verb": "dsr_rejected",
+      "target": "dsr_request"
+    },
+    {
+      "file": "services\\compliance-admin.service.ts",
+      "line": 492,
+      "verb": "consent_version_published",
+      "target": "consent_version"
+    },
+    {
+      "file": "services\\customer-admin.service.ts",
+      "line": 829,
+      "verb": "customer",
+      "target": null
+    },
+    {
+      "file": "services\\customer-admin.service.ts",
+      "line": 928,
+      "verb": "customer_credited",
+      "target": "customer"
+    },
+    {
+      "file": "services\\dispute-admin.service.ts",
+      "line": 432,
+      "verb": "dispute_assigned",
+      "target": "dispute"
+    },
+    {
+      "file": "services\\dispute-admin.service.ts",
+      "line": 505,
+      "verb": "dispute_resolved",
+      "target": "dispute"
+    },
+    {
+      "file": "services\\dispute-admin.service.ts",
+      "line": 643,
+      "verb": "dispute_escalated",
+      "target": "dispute"
+    },
+    {
+      "file": "services\\dispute-admin.service.ts",
+      "line": 716,
+      "verb": "dispute_message_sent",
+      "target": "dispute"
+    },
+    {
+      "file": "services\\dispute-admin.service.ts",
+      "line": 785,
+      "verb": "dispute_reopened",
+      "target": "dispute"
+    },
+    {
+      "file": "services\\dispute.service.ts",
+      "line": 581,
+      "verb": "dispute_resolved",
+      "target": "dispute"
+    },
+    {
+      "file": "services\\dispute.service.ts",
+      "line": 654,
+      "verb": "dispute_escalated",
+      "target": "dispute"
+    },
+    {
+      "file": "services\\dispute.service.ts",
+      "line": 683,
+      "verb": "dispute_assigned",
+      "target": "dispute"
+    },
+    {
+      "file": "services\\marketing-admin.service.ts",
+      "line": 229,
+      "verb": "config_changed",
+      "target": "config"
+    },
+    {
+      "file": "services\\notification-template.service.ts",
+      "line": 182,
+      "verb": "config_changed",
+      "target": "notification_template"
+    },
+    {
+      "file": "services\\or.service.ts",
+      "line": 492,
+      "verb": "or_issued",
+      "target": "official_receipt"
+    },
+    {
+      "file": "services\\or.service.ts",
+      "line": 621,
+      "verb": "or_cancelled",
+      "target": "official_receipt"
+    },
+    {
+      "file": "services\\payout.service.ts",
+      "line": 182,
+      "verb": "aml_review_cleared",
+      "target": "payout"
+    },
+    {
+      "file": "services\\payout.service.ts",
+      "line": 220,
+      "verb": "payout_approved",
+      "target": "payout"
+    },
+    {
+      "file": "services\\payout.service.ts",
+      "line": 305,
+      "verb": "payout_rejected",
+      "target": "payout"
+    },
+    {
+      "file": "services\\pricing.service.ts",
+      "line": 106,
+      "verb": "config_changed",
+      "target": "pricing_rule"
+    },
+    {
+      "file": "services\\pricing.service.ts",
+      "line": 210,
+      "verb": "config_changed",
+      "target": "pricing_rule"
+    },
+    {
+      "file": "services\\pricing.service.ts",
+      "line": 252,
+      "verb": "config_changed",
+      "target": "pricing_rule"
+    },
+    {
+      "file": "services\\pricing.service.ts",
+      "line": 294,
+      "verb": "config_changed",
+      "target": "pricing_rule"
+    },
+    {
+      "file": "services\\promotion.service.ts",
+      "line": 96,
+      "verb": "config_changed",
+      "target": "promotion"
+    },
+    {
+      "file": "services\\promotion.service.ts",
+      "line": 153,
+      "verb": "config_changed",
+      "target": "promotion"
+    },
+    {
+      "file": "services\\promotion.service.ts",
+      "line": 186,
+      "verb": "config_changed",
+      "target": "promotion"
+    },
+    {
+      "file": "services\\provider-admin.service.ts",
+      "line": 750,
+      "verb": "provider_note_added",
+      "target": "provider_note"
+    },
+    {
+      "file": "services\\provider-admin.service.ts",
+      "line": 860,
+      "verb": "provider_note_deleted",
+      "target": "provider_note"
+    },
+    {
+      "file": "services\\provider-admin.service.ts",
+      "line": 935,
+      "verb": "provider_profile_updated",
+      "target": "provider"
+    },
+    {
+      "file": "services\\provider-admin.service.ts",
+      "line": 1031,
+      "verb": "provider_wallet_adjusted",
+      "target": "provider"
+    },
+    {
+      "file": "services\\provider-onboarding.service.ts",
+      "line": 237,
+      "verb": "provider_application_submitted",
+      "target": "provider_application"
+    },
+    {
+      "file": "services\\provider-onboarding.service.ts",
+      "line": 313,
+      "verb": "provider_application",
+      "target": null
+    },
+    {
+      "file": "services\\reconciliation.service.ts",
+      "line": 174,
+      "verb": "reconciliation",
+      "target": null
+    },
+    {
+      "file": "services\\service-area-change.service.ts",
+      "line": 196,
+      "verb": "service_area_change_request",
+      "target": null
+    },
+    {
+      "file": "services\\service-area.service.ts",
+      "line": 161,
+      "verb": "config_changed",
+      "target": "service_area"
+    },
+    {
+      "file": "services\\staff.service.ts",
+      "line": 158,
+      "verb": "admin_role_archived",
+      "target": "admin_role"
+    },
+    {
+      "file": "services\\staff.service.ts",
+      "line": 258,
+      "verb": "staff_added",
+      "target": "admin_staff"
+    },
+    {
+      "file": "services\\staff.service.ts",
+      "line": 378,
+      "verb": "staff_removed",
+      "target": "admin_staff"
+    },
+    {
+      "file": "services\\staff.service.ts",
+      "line": 449,
+      "verb": "staff_role_promoted_dpo",
+      "target": "user"
+    },
+    {
+      "file": "services\\staff.service.ts",
+      "line": 501,
+      "verb": "staff_role_demoted_from_dpo",
+      "target": "user"
+    },
+    {
+      "file": "services\\support-ticket.service.ts",
+      "line": 208,
+      "verb": "config_changed",
+      "target": "support_ticket"
+    },
+    {
+      "file": "services\\vat-report.service.ts",
+      "line": 441,
+      "verb": "vat_report_generated",
+      "target": "vat_report"
+    },
+    {
+      "file": "services\\vat-report.service.ts",
+      "line": 540,
+      "verb": "vat_report_finalized",
+      "target": "vat_report"
+    }
+  ]
+}
