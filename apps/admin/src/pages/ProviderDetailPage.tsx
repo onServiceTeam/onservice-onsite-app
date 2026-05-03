@@ -684,10 +684,20 @@ function FinancialsTab({ providerId }: { providerId: string }): React.ReactEleme
 function ReviewsTab({ providerId }: { providerId: string }): React.ReactElement {
   const queryClient = useQueryClient();
 
+  // BUG-PHASE20-01 fix: API returns a paginated envelope
+  // {rows, total, page, pageSize}, not Review[]. Pre-fix the page typed
+  // it as Review[] and called `reviews.map()` directly — this threw
+  // "TypeError: reviews.map is not a function" the moment a user clicked
+  // the Reviews tab. Read q.data.rows instead. Other tabs that share
+  // this paginated pattern (Disputes, Jobs already correct) get the
+  // same treatment.
   const q = useQuery({
     queryKey: ['admin-provider-reviews', providerId],
     queryFn: async () => {
-      const res = await api.get<{ success: true; data: Review[] }>(
+      const res = await api.get<{
+        success: true;
+        data: { rows: Review[]; total: number; page: number; pageSize: number };
+      }>(
         `/api/v1/admin/providers/${providerId}/reviews`,
       );
       return res.data.data;
@@ -706,7 +716,8 @@ function ReviewsTab({ providerId }: { providerId: string }): React.ReactElement 
 
   if (q.isLoading) return <LoadingState label="Loading reviews…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
-  const reviews = q.data!;
+  // BUG-PHASE20-01: extract rows from paginated envelope
+  const reviews = q.data?.rows ?? [];
 
   if (reviews.length === 0) return <EmptyState title="No reviews yet" description="This provider has not received any reviews." />;
 
@@ -747,10 +758,17 @@ function ReviewsTab({ providerId }: { providerId: string }): React.ReactElement 
 // ─── Disputes Tab ─────────────────────────────────────────────────────────
 
 function DisputesTab({ providerId }: { providerId: string }): React.ReactElement {
+  // BUG-PHASE20-01 (same pattern): API returns paginated envelope, not array.
+  // The crash here is dormant when there are zero disputes (length on
+  // undefined would also crash, but the `disputes.length === 0` guard hits
+  // before .map). For non-zero, .map would throw the same TypeError.
   const q = useQuery({
     queryKey: ['admin-provider-disputes', providerId],
     queryFn: async () => {
-      const res = await api.get<{ success: true; data: Dispute[] }>(
+      const res = await api.get<{
+        success: true;
+        data: { rows: Dispute[]; total: number; page: number; pageSize: number };
+      }>(
         `/api/v1/admin/providers/${providerId}/disputes`,
       );
       return res.data.data;
@@ -759,7 +777,7 @@ function DisputesTab({ providerId }: { providerId: string }): React.ReactElement
 
   if (q.isLoading) return <LoadingState label="Loading disputes…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
-  const disputes = q.data!;
+  const disputes = q.data?.rows ?? [];
 
   if (disputes.length === 0) return <EmptyState title="No disputes" description="This provider has no disputes." />;
 
