@@ -393,10 +393,20 @@ export async function getChecklistCompletionStatus(
   const totalRequired = Number(row?.total_required ?? 0);
   const completedRequired = Number(row?.completed_required ?? 0);
   const checklistShown = Number(row?.checklist_count ?? 0) > 0;
+  // BUG-PHASE21-03 fix: pre-fix `isFullyComplete` required totalRequired > 0,
+  // so any checklist whose template has zero `is_required=TRUE` items
+  // (legitimate for some service categories — say "guidance only") was
+  // treated as permanently incomplete, blocking the provider from ever
+  // marking the job complete with the message "Complete all 0 required
+  // checklist items first (0/0 done)". The shown-but-no-required-items
+  // case is the SUCCESSFUL path: provider opened the checklist, the
+  // template has nothing they must check off, completion can proceed.
+  // The provider still needs the >=2 after-photos gate to actually
+  // mark complete (see booking.service.ts line ~549).
   return {
     totalRequired,
     completedRequired,
-    isFullyComplete: checklistShown && totalRequired > 0 && completedRequired === totalRequired,
+    isFullyComplete: checklistShown && (totalRequired === 0 || completedRequired === totalRequired),
     checklistShown,
   };
 }
