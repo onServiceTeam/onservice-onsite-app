@@ -19,6 +19,7 @@ import {
   setAvailability,
   getProviderBookings,
 } from '@/services/provider-api.service';
+import api from '@/services/api';
 import type { Booking } from '@/services/booking.service';
 import { Badge } from '@/components/ui';
 import { AlertTriangle, Bell, Calendar, Wrench, CreditCard, Inbox } from '@/components/icons';
@@ -43,6 +44,20 @@ const TIER_COLORS: Record<string, string> = {
   pro: colors.tierPro,
   elite: colors.tierElite,
 };
+
+// BUG-PHASE64-02 fix — pre-fix the provider dashboard notification
+// bell was not badged with unread count, so a provider could miss new
+// review/payout/dispute alerts entirely (their only other entry point
+// to /provider/notifications is via a notification deeplink, which by
+// definition only fires when they DON'T need to find the screen via
+// the bell). Customer side already badges the bell on home.tsx — we
+// now mirror that pattern here.
+async function getUnreadNotificationCount(): Promise<number> {
+  const res = await api.get<{ success: boolean; meta: { unread: number } }>('/api/v1/notifications', {
+    params: { page: 1, pageSize: 1 },
+  });
+  return res.data.meta?.unread ?? 0;
+}
 
 function getJobStatusColor(status: string): string {
   const map: Record<string, string> = {
@@ -73,6 +88,14 @@ export default function ProviderDashboardScreen(): React.ReactElement {
     queryFn: () => getProviderBookings('active', 1, 5),
     staleTime: 30 * 1000,
   });
+
+  // BUG-PHASE64-02 fix — see comment above getUnreadNotificationCount.
+  const unreadQuery = useQuery({
+    queryKey: ['notifUnread'],
+    queryFn: getUnreadNotificationCount,
+    staleTime: 60 * 1000,
+  });
+  const unreadCount = unreadQuery.data ?? 0;
 
   const availabilityMutation = useMutation({
     mutationFn: (isAvailable: boolean) => setAvailability(isAvailable),
@@ -145,6 +168,11 @@ export default function ProviderDashboardScreen(): React.ReactElement {
           onPress={() => router.push(Routes.PROVIDER.NOTIFICATIONS)}
         >
           <Bell size={22} color={colors.text} />
+          {unreadCount > 0 && (
+            <View style={styles.notifBadge}>
+              <Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -314,7 +342,24 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   greeting: { ...typography.h2, color: colors.text },
-  notifButton: { padding: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const, alignItems: 'center' as const },
+  notifButton: { padding: spacing.sm, minWidth: 44, minHeight: 44, position: 'relative' as const, justifyContent: 'center' as const, alignItems: 'center' as const },
+  notifBadge: {
+    position: 'absolute' as const,
+    top: 2,
+    right: 2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.error,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingHorizontal: 4,
+  },
+  notifBadgeText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: colors.white,
+  },
   notifIcon: { fontSize: 22 },
 
   availabilityCard: {

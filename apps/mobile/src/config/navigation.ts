@@ -57,7 +57,13 @@ export const Routes = {
     RATE_REVIEW: '/customer/booking/[id]/review',
     WALLET: '/customer/wallet',
     PROFILE: '/customer/profile',
-    SETTINGS: '/customer/settings',
+    // BUG-PHASE64-05 fix (CRIT-80 from 2026-05-01 audit) — pre-fix this
+    // pointed at '/customer/settings', which has no corresponding file.
+    // The profile.tsx menu row labelled "Notification Settings" used
+    // this route and so navigated to a dead screen. The actual file
+    // is notification-settings.tsx; point at it directly so the link
+    // works and matches the menu label.
+    SETTINGS: '/customer/notification-settings',
     NOTIFICATIONS: '/customer/notifications',
     PROVIDER_PROFILE: '/customer/provider/[id]',
     PROVIDER_LIST: '/customer/providers',

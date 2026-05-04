@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -107,8 +107,20 @@ type Tab = 'terms' | 'privacy';
 
 export default function TermsScreen(): React.ReactElement {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>('terms');
+  // BUG-PHASE63-01 fix — accept ?tab=privacy so login/register/checkout
+  // can deep-link to the Privacy Policy tab from their inline legal lines.
+  // Pre-fix the screen always opened on the Terms tab even if the caller
+  // wanted Privacy.
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const initialTab: Tab = params.tab === 'privacy' ? 'privacy' : 'terms';
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    const next: Tab = params.tab === 'privacy' ? 'privacy' : 'terms';
+    setActiveTab(next);
+    setExpandedIndex(null);
+  }, [params.tab]);
 
   // Bug 1170/1198 fix: pull the live cancellation policy and substitute
   // section #4's content. 5-minute staleTime — same as the server cache.

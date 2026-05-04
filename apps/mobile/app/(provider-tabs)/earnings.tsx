@@ -200,29 +200,42 @@ export default function EarningsScreen(): React.ReactElement {
       </View>
 
       {/* Phase K CRIT-K09 fix — CommissionBreakdown uses the provider's
-           ACTUAL tier-specific commission rate (was hardcoded 12%). */}
-      {wallet && wallet.availableBalance > 0 && (
-        <View style={{ marginBottom: spacing.base }}>
-          <CommissionBreakdown
-            gross={Math.round(wallet.availableBalance / (1 - tierCommissionRate - platformConfig.guaranteeFundRate))}
-            lines={[
-              {
-                label: 'Platform commission',
-                amount: Math.round(wallet.availableBalance * (tierCommissionRate / (1 - tierCommissionRate))),
-                pct: tierCommissionPct,
-                helpText: `Your tier (${providerTier}) commission rate. Earn higher tier for lower commission.`,
-              },
-              {
-                label: 'Guarantee fund',
-                amount: Math.round(wallet.availableBalance * (platformConfig.guaranteeFundRate / (1 - tierCommissionRate))),
-                pct: Math.round(platformConfig.guaranteeFundRate * 100 * 10) / 10,
-                helpText: 'Funds the platform guarantee program for completed bookings.',
-              },
-            ]}
-            net={wallet.availableBalance}
-          />
-        </View>
-      )}
+           ACTUAL tier-specific commission rate (was hardcoded 12%).
+           BUG-PHASE64-04 fix — the commission and guarantee `amount`
+           lines used (1 - commRate) as the denominator, which doesn't
+           match the gross calc (which uses 1 - commRate - guarRate)
+           and leaves a residual: the displayed lines summed to less
+           than gross - net. Now both use the same denominator so the
+           breakdown is internally consistent: gross - commission -
+           guarantee == net exactly. */}
+      {wallet && wallet.availableBalance > 0 && (() => {
+        const netRate = 1 - tierCommissionRate - platformConfig.guaranteeFundRate;
+        const gross = Math.round(wallet.availableBalance / netRate);
+        const commission = Math.round(wallet.availableBalance * (tierCommissionRate / netRate));
+        const guarantee = Math.round(wallet.availableBalance * (platformConfig.guaranteeFundRate / netRate));
+        return (
+          <View style={{ marginBottom: spacing.base }}>
+            <CommissionBreakdown
+              gross={gross}
+              lines={[
+                {
+                  label: 'Platform commission',
+                  amount: commission,
+                  pct: tierCommissionPct,
+                  helpText: `Your tier (${providerTier}) commission rate. Earn higher tier for lower commission.`,
+                },
+                {
+                  label: 'Guarantee fund',
+                  amount: guarantee,
+                  pct: Math.round(platformConfig.guaranteeFundRate * 100 * 10) / 10,
+                  helpText: 'Funds the platform guarantee program for completed bookings.',
+                },
+              ]}
+              net={wallet.availableBalance}
+            />
+          </View>
+        );
+      })()}
 
       <Text style={styles.sectionTitle}>Transaction History</Text>
     </View>

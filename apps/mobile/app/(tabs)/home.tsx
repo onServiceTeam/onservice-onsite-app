@@ -421,8 +421,22 @@ export default function HomeScreen(): React.ReactElement {
               <TouchableOpacity
                 style={styles.rebookCard}
                 onPress={() => {
-                  if (item.subcategoryId) {
-                    router.push(Routes.CUSTOMER.BOOKING_FORM);
+                  // BUG-PHASE64-01 fix — pre-fix this onPress checked
+                  // subcategoryId then pushed to BOOKING_FORM with NO
+                  // category/service context, so the form opened in
+                  // its zustand-default state showing a blank service
+                  // — and if subcategoryId was null nothing happened
+                  // at all (silent fail). Now: look up the category
+                  // by id from the cached list, set the booking-store
+                  // category, and navigate to the category screen so
+                  // the user can pick the same subcategory + addons
+                  // with fresh canonical pricing.
+                  const cat = categories.find((c) => c.id === item.categoryId);
+                  if (cat) {
+                    setCategory(cat.id, cat.name, cat.slug);
+                    router.push(`/customer/category/${cat.slug}`);
+                  } else {
+                    router.push(`/customer/booking/${item.id}`);
                   }
                 }}
                 activeOpacity={0.7}

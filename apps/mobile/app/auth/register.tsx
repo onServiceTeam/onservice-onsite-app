@@ -118,8 +118,28 @@ export default function RegisterScreen(): React.ReactElement {
           </Link>
         </View>
 
+        {/* BUG-PHASE63-01 fix — pre-fix this was a plain-text Text so
+            the user "agreed" to Terms/Privacy without any way to read
+            them. Now the two legal docs are tappable links pushing to
+            /customer/terms with the right tab pre-selected. */}
         <Text style={styles.legal}>
-          By creating an account, you agree to our Terms of Service and Privacy Policy.
+          By creating an account, you agree to our{' '}
+          <Text
+            style={styles.legalLink}
+            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'terms' } })}
+            testID="register-terms-link"
+          >
+            Terms of Service
+          </Text>
+          {' '}and{' '}
+          <Text
+            style={styles.legalLink}
+            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'privacy' } })}
+            testID="register-privacy-link"
+          >
+            Privacy Policy
+          </Text>
+          .
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -146,5 +166,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.xl,
     paddingHorizontal: spacing.base,
+  },
+  legalLink: {
+    color: colors.primary,
+    textDecorationLine: 'underline',
   },
 });

@@ -214,10 +214,28 @@ export default function CheckoutScreen(): React.ReactElement {
           </View>
         </View>
 
-        {/* Legal */}
+        {/* Legal — BUG-PHASE63-01 fix: pre-fix Terms/Privacy were plain
+            text on the screen where the user is about to PAY. Now both
+            documents are tappable links pushing to /customer/terms with
+            the right tab pre-selected. */}
         <Text style={styles.legal}>
-          By proceeding, you agree to our Terms of Service and Privacy Policy.
-          All payments are processed securely by PayMongo.
+          By proceeding, you agree to our{' '}
+          <Text
+            style={styles.legalLink}
+            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'terms' } })}
+            testID="checkout-terms-link"
+          >
+            Terms of Service
+          </Text>
+          {' '}and{' '}
+          <Text
+            style={styles.legalLink}
+            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'privacy' } })}
+            testID="checkout-privacy-link"
+          >
+            Privacy Policy
+          </Text>
+          . All payments are processed securely by PayMongo.
         </Text>
       </ScrollView>
 
@@ -346,6 +364,10 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     textAlign: 'center',
     paddingHorizontal: spacing.base,
+  },
+  legalLink: {
+    color: colors.primary,
+    textDecorationLine: 'underline',
   },
 
   bottomBar: {

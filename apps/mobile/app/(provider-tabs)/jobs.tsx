@@ -15,7 +15,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { getProviderBookings } from '@/services/provider-api.service';
 import type { Booking } from '@/services/booking.service';
 import { Badge } from '@/components/ui';
-import { AlertTriangle, Inbox, CheckCircle2, Ban } from '@/components/icons';
+import { AlertTriangle, Inbox, CheckCircle2, Ban, Filter } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 // Phase 14 R5-complete — wire StatusBadge + FilterChips + PaginationLoader
 // + PulsingDot + NbiStatusBanner (auto-hides when NBI is valid).
@@ -79,7 +79,40 @@ export default function ProviderJobsScreen(): React.ReactElement {
     staleTime: 30 * 1000,
   });
 
-  const jobs = data?.pages.flatMap((p) => p.bookings) ?? [];
+  const rawJobs = data?.pages.flatMap((p) => p.bookings) ?? [];
+
+  // BUG-PHASE64-03 fix — pre-fix the FilterModal rendered at line 185+
+  // had no trigger button anywhere on the screen, so the user could
+  // never open it (Phase 14 R5 dead-wire pattern). Even if they could
+  // open it, the captured `advancedFilters` state was set into local
+  // state and then discarded — never applied to the data. Now: a Filter
+  // icon next to the title opens the modal, and the advancedFilters
+  // are applied client-side to sort and date-restrict the list (the
+  // bookings API doesn't accept sort/period params, so this is the
+  // only honest place to do the work).
+  const jobs = (() => {
+    let list = [...rawJobs];
+    const period = advancedFilters.period?.[0];
+    if (period) {
+      const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 0;
+      if (days > 0) {
+        const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+        list = list.filter((j) => new Date(j.scheduledAt).getTime() >= cutoffMs);
+      }
+    }
+    const sort = advancedFilters.sort?.[0];
+    if (sort === 'oldest') {
+      list.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    } else if (sort === 'highest_pay') {
+      list.sort((a, b) => b.servicePrice - a.servicePrice);
+    } else if (sort === 'newest') {
+      list.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
+    }
+    return list;
+  })();
+
+  const advancedFilterCount =
+    (advancedFilters.sort?.length ?? 0) + (advancedFilters.period?.length ?? 0);
 
   const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
 
@@ -114,7 +147,23 @@ export default function ProviderJobsScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
       {/* Phase 14 R5-complete — NbiStatusBanner above the jobs list */}
       <NbiStatusBanner />
-      <Text style={styles.title}>My Jobs</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.title}>My Jobs</Text>
+        {/* BUG-PHASE64-03 fix — actual trigger for FilterModal. */}
+        <TouchableOpacity
+          style={styles.advFilterBtn}
+          onPress={() => setAdvancedFiltersVisible(true)}
+          accessibilityLabel="Sort and date filters"
+          testID="provider-jobs-filter-trigger"
+        >
+          <Filter size={18} color={colors.text} />
+          {advancedFilterCount > 0 && (
+            <View style={styles.advFilterBadge}>
+              <Text style={styles.advFilterBadgeText}>{advancedFilterCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
 
       {/* Phase 14 R5-complete — FilterChips replaces inline filter row */}
       <FilterChips
@@ -218,7 +267,34 @@ export default function ProviderJobsScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.base },
-  title: { ...typography.h1, color: colors.text, marginBottom: spacing.md },
+  titleRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: spacing.md,
+  },
+  title: { ...typography.h1, color: colors.text },
+  advFilterBtn: {
+    padding: spacing.sm,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    position: 'relative' as const,
+  },
+  advFilterBadge: {
+    position: 'absolute' as const,
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.secondary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingHorizontal: 4,
+  },
+  advFilterBadgeText: { fontSize: 10, fontWeight: '700' as const, color: colors.white },
 
   filterRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   filterChip: {
