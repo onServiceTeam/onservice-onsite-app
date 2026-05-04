@@ -94,7 +94,31 @@ export default function WalletScreen(): React.ReactElement {
   }, [walletQuery, transactionsQuery]);
 
   const wallet = walletQuery.data;
-  const transactions = transactionsQuery.data ?? [];
+  const allTransactions = transactionsQuery.data ?? [];
+  // BUG-PHASE53-02 fix — pre-fix the FilterChips set `txFilter` but
+  // the transactions array was rendered as-is. Filter chips were
+  // dead — clicking them did nothing visible. Phase 14 R5 wired
+  // the component but missed the actual filter application. Now:
+  // client-side filter on the type column. (The API doesn't accept
+  // a `type` filter param yet; client-side filter works on the
+  // first 20-row page.)
+  const transactions = React.useMemo(() => {
+    if (txFilter === 'all') return allTransactions;
+    if (txFilter === 'topup') {
+      return allTransactions.filter(
+        (t) => t.type === 'topup' || t.type === 'wallet_topup' || t.description.toLowerCase().includes('top-up'),
+      );
+    }
+    if (txFilter === 'payment') {
+      return allTransactions.filter(
+        (t) => t.type === 'payment' || t.type === 'escrow_hold',
+      );
+    }
+    if (txFilter === 'refund') {
+      return allTransactions.filter((t) => t.type === 'refund');
+    }
+    return allTransactions;
+  }, [allTransactions, txFilter]);
 
   const renderHeader = (): React.ReactElement => (
     <View>

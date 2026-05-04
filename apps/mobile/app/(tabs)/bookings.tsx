@@ -128,12 +128,30 @@ export default function BookingsScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
       <View style={styles.titleRow}>
         <Text style={styles.title}>Bookings</Text>
-        <TouchableOpacity
-          style={styles.recurringLink}
-          onPress={() => router.push(Routes.CUSTOMER.RECURRING_BOOKINGS)}
-        >
-          <Text style={styles.recurringLinkText}>🔄 Recurring</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+          {/* BUG-PHASE53-01 fix — pre-fix the FilterModal below was
+               rendered but had no button to open it. Same dead-wire
+               pattern as customer search (BUG-PHASE52-01). Now: real
+               trigger button alongside the recurring link. */}
+          <TouchableOpacity
+            style={styles.recurringLink}
+            onPress={() => setAdvancedFiltersVisible(true)}
+            accessibilityLabel="Open booking filters"
+          >
+            <Text style={styles.recurringLinkText}>
+              ⚙
+              {Object.values(advancedFilters).flat().length > 0
+                ? ` (${Object.values(advancedFilters).flat().length})`
+                : ''}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.recurringLink}
+            onPress={() => router.push(Routes.CUSTOMER.RECURRING_BOOKINGS)}
+          >
+            <Text style={styles.recurringLinkText}>🔄 Recurring</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Phase 14 Remediation #5 — Bug 911/912/913 filter chips via FilterChips */}
