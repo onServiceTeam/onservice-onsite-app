@@ -1,16 +1,16 @@
-# Phases 63–75 — Continuation deep audit pass (2026-05-05)
+# Phases 63–76 — Continuation deep audit pass (2026-05-05)
 
-13 more phases of source-level deep auditing, focused on areas the
+14 more phases of source-level deep auditing, focused on areas the
 earlier 38–62 sweep audited shallowly or skipped: auth flows, the
 five tab screens, mobile service-layer alignment, Phase 14 R5
 component wiring, the provider job detail flow, customer browse
 flows, pre-existing API type errors, customer + provider account
 management, the customer quote-request flow, provider photo
 aggregation, recurring-booking defaults, suki redeem state desync,
-customer tip max-amount gating, and admin Platform Settings reset
-confirmation.
+customer tip max-amount gating, admin Platform Settings reset
+confirmation, and the customer booking-detail photos gate.
 
-**This continuation: 21 real bugs found and fixed, 133 cumulative
+**This continuation: 22 real bugs found and fixed, 134 cumulative
 since Phase 17.**
 
 ## Phase-by-phase breakdown
@@ -31,9 +31,10 @@ since Phase 17.**
 | 73 | Customer suki-pros redeem button UI/state desync | 1 |
 | 74 | Customer tip max-amount gating | 1 |
 | 75 | Admin SystemSettings reset-to-default confirmation | 1 |
-| **Total** | | **21** |
+| 76 | Customer booking-detail photos gate (legacy-only check) | 1 |
+| **Total** | | **22** |
 
-## The 21 bugs
+## The 22 bugs
 
 ### Phase 63 — auth flows
 - **BUG-PHASE63-01** — Login + register + checkout had plain-text
@@ -177,20 +178,32 @@ since Phase 17.**
   when no reason supplied); (3) POST `/:key/reset` reads `reason`
   from req.body and passes it through.
 
+### Phase 76 — customer booking-detail photos gate
+- **BUG-PHASE76-01** — Customer `booking/[id].tsx` `hasPhotos`
+  flag (gates the "View Job Photos" button) only checked the
+  deprecated TEXT[] arrays from migration 037. Phase E CRIT-102
+  made provider completion + Phase 67-02 made provider checklist
+  upload via the canonical `/uploads/booking-photo` endpoint
+  (writes ONLY to `booking_photos`, not the legacy arrays). So a
+  customer whose provider used the new flow saw NO entry point to
+  their job photos. Same dual-source pattern as Phase 71-03 and
+  Phase 56 — now also queries `listBookingPhotos` and ORs the
+  count into `hasPhotos`.
+
 ## Verification at end of pass
 
 - **101/101** admin Vitest DOM tests pass
 - **400 / 491** mobile Jest tests pass (91 todo — same baseline)
 - **116/116** API settings-service + settings-routes Jest tests pass
 - **`npx tsc --noEmit` clean** for admin, api, and mobile packages
-- **11 commits**, all atomic, all with co-author attribution
+- **12 commits**, all atomic, all with co-author attribution
 - **Zero regressions** detected at any phase boundary
 
 ## Cumulative since Phase 17
 
-- **133 real bugs found + fixed** total (112 prior + 21 this
+- **134 real bugs found + fixed** total (112 prior + 22 this
   continuation)
-- **9 migrations** (none new in 63–75)
+- **9 migrations** (none new in 63–76)
 - All assertion totals from Phase 62 still apply
 
 ## Patterns observed
