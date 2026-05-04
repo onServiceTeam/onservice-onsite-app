@@ -23,7 +23,6 @@
  * compute "average attempts to match" + "abandon rate".
  */
 
-import type { PoolClient } from 'pg';
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
@@ -170,7 +169,7 @@ export async function acceptOffer(
   offerId: string,
   providerUserId: string,
 ): Promise<{ booking_id: string; provider_id: string }> {
-  return db.transaction(async (client: PoolClient) => {
+  return db.transaction(async (client) => {
     // Lock the offer row so concurrent accept/decline calls serialise.
     const offerRow = await client.query<OfferRow & { provider_user_id: string }>(
       `SELECT bo.*, p.user_id AS provider_user_id
@@ -233,7 +232,7 @@ export async function declineOffer(
   providerUserId: string,
   reason: string,
 ): Promise<{ booking_id: string }> {
-  return db.transaction(async (client: PoolClient) => {
+  return db.transaction(async (client) => {
     const offerRow = await client.query<OfferRow & { provider_user_id: string }>(
       `SELECT bo.*, p.user_id AS provider_user_id
          FROM booking_offers bo

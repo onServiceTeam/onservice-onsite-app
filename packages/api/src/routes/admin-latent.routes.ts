@@ -157,7 +157,7 @@ router.post(
       if (row.rows.length === 0) {
         throw createAppError('Audit log entry not found.', 404);
       }
-      const raw = row.rows[0];
+      const raw = row.rows[0]!;
 
       // Audit the reveal itself.
       await db.query(
