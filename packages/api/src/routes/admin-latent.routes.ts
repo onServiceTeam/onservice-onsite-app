@@ -114,6 +114,76 @@ router.post(
   },
 );
 
+// ─── PII reveal (super-admin only, audit-logged) ───────────────────────────
+//
+// Phase 14 D08 / Bug 81 design intent (per pii-mask.ts:11-13): super_admin
+// can request a one-row reveal of raw PII (IP, user-agent, embedded phone/
+// email in old/new_values) for a specific audit_log row. The reveal is
+// itself audit-logged with action_type='pii_reveal' so an attacker who
+// elevated to super_admin can't quietly extract PII without leaving
+// forensic evidence.
+//
+// Wired here in Phase 30b — pii_reveal verb in admin_actions CHECK since
+// migration 121 (Phase 25d) but no route ever invoked it. NPC RA 10173
+// §22 compliance: every reveal is traceable to an admin_id + timestamp.
+
+router.post(
+  '/audit-log/:auditLogId/reveal-pii',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const auditLogId = req.params.auditLogId;
+      if (typeof auditLogId !== 'string' || !auditLogId) {
+        throw createAppError('auditLogId required.', 400);
+      }
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+      if (reason.trim().length < 20) {
+        throw createAppError('Reveal reason must be at least 20 characters.', 400);
+      }
+
+      const { db } = await import('../models/db');
+
+      // Look up the audit_log row — return raw, unmasked.
+      const row = await db.query(
+        `SELECT id, user_id, action, entity_type, entity_id,
+                old_values, new_values,
+                ip_address::text AS ip_address,
+                user_agent, created_at
+           FROM audit_log
+          WHERE id = $1`,
+        [auditLogId],
+      );
+      if (row.rows.length === 0) {
+        throw createAppError('Audit log entry not found.', 404);
+      }
+      const raw = row.rows[0];
+
+      // Audit the reveal itself.
+      await db.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+         VALUES ($1, 'pii_reveal', 'system', $2, $3::jsonb, $4, $5)`,
+        [
+          req.user!.userId,
+          auditLogId,
+          JSON.stringify({
+            audit_log_id: auditLogId,
+            audit_log_action: raw.action,
+            audit_log_entity_type: raw.entity_type,
+            ip: req.ip,
+            user_agent: req.headers['user-agent'] ?? null,
+          }),
+          reason.trim().slice(0, 500),
+          reason.trim(),
+        ],
+      );
+
+      res.json({ success: true, data: raw });
+    } catch (error) { next(error); }
+  },
+);
+
 // ─── Admin TOTP backup codes regeneration ──────────────────────────────────
 
 router.post(
