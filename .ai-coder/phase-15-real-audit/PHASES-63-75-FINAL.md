@@ -1,15 +1,16 @@
-# Phases 63–74 — Continuation deep audit pass (2026-05-05)
+# Phases 63–75 — Continuation deep audit pass (2026-05-05)
 
-12 more phases of source-level deep auditing, focused on areas the
+13 more phases of source-level deep auditing, focused on areas the
 earlier 38–62 sweep audited shallowly or skipped: auth flows, the
 five tab screens, mobile service-layer alignment, Phase 14 R5
 component wiring, the provider job detail flow, customer browse
 flows, pre-existing API type errors, customer + provider account
 management, the customer quote-request flow, provider photo
 aggregation, recurring-booking defaults, suki redeem state desync,
-and customer tip max-amount gating.
+customer tip max-amount gating, and admin Platform Settings reset
+confirmation.
 
-**This continuation: 20 real bugs found and fixed, 132 cumulative
+**This continuation: 21 real bugs found and fixed, 133 cumulative
 since Phase 17.**
 
 ## Phase-by-phase breakdown
@@ -29,9 +30,10 @@ since Phase 17.**
 | 72 | Provider account-management — DSR data export download link | 1 |
 | 73 | Customer suki-pros redeem button UI/state desync | 1 |
 | 74 | Customer tip max-amount gating | 1 |
-| **Total** | | **20** |
+| 75 | Admin SystemSettings reset-to-default confirmation | 1 |
+| **Total** | | **21** |
 
-## The 20 bugs
+## The 21 bugs
 
 ### Phase 63 — auth flows
 - **BUG-PHASE63-01** — Login + register + checkout had plain-text
@@ -158,19 +160,37 @@ since Phase 17.**
   tip > maxTip too, plus an inline warning mirroring the wallet-
   insufficient hint.
 
+### Phase 75 — admin Platform Settings reset confirmation
+- **BUG-PHASE75-01** — Admin `SystemSettingsPage.tsx` "Reset to
+  default" button was a one-click destructive action with no
+  confirmation. These settings tune commission rates, escrow
+  windows, fee caps — production money knobs that propagate within
+  60s of save. A misclick on `commission_rate_elite` (e.g. currently
+  9% via admin override, default 12%) silently rolls every elite
+  provider to the default rate at their next payout, with only the
+  hardcoded reason "Reset to default" recorded in the audit log —
+  no context for ops post-mortems. Fix on three fronts: (1) admin
+  UI now opens a confirm modal showing current → default values
+  with a reason field; (2) `settings.service.ts` resetToDefault
+  accepts an optional `reason` and prefixes it with "Reset to
+  default:" in the audit row (existing test preserved as fallback
+  when no reason supplied); (3) POST `/:key/reset` reads `reason`
+  from req.body and passes it through.
+
 ## Verification at end of pass
 
 - **101/101** admin Vitest DOM tests pass
 - **400 / 491** mobile Jest tests pass (91 todo — same baseline)
+- **116/116** API settings-service + settings-routes Jest tests pass
 - **`npx tsc --noEmit` clean** for admin, api, and mobile packages
-- **10 commits**, all atomic, all with co-author attribution
+- **11 commits**, all atomic, all with co-author attribution
 - **Zero regressions** detected at any phase boundary
 
 ## Cumulative since Phase 17
 
-- **132 real bugs found + fixed** total (112 prior + 20 this
+- **133 real bugs found + fixed** total (112 prior + 21 this
   continuation)
-- **9 migrations** (none new in 63–74)
+- **9 migrations** (none new in 63–75)
 - All assertion totals from Phase 62 still apply
 
 ## Patterns observed
