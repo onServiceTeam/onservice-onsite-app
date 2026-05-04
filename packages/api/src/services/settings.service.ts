@@ -496,11 +496,16 @@ export async function bulkUpdateSettings(
       if (updRes.rows.length === 0) {
         throw createAppError(`Setting "${u.key}" not found.`, 404);
       }
+      // BUG-PHASE32-01 fix — pre-fix this INSERT mismatched the schema:
+      // it referenced column `reason` (real column is `change_reason`)
+      // AND omitted the NOT NULL `setting_id` FK. Every bulk update
+      // 500-errored. Single-key updateSetting at line 428 already uses
+      // the correct shape — bulk path was just stale.
       await client.query(
         `INSERT INTO platform_settings_audit
-           (setting_key, old_value, new_value, changed_by, reason, ip_address, user_agent)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [u.key, oldValue, u.value, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
+           (setting_id, setting_key, old_value, new_value, changed_by, change_reason, ip_address, user_agent)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [setting.id, u.key, oldValue, u.value, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
       );
       out.push(updRes.rows[0]!);
       idx += 1;
