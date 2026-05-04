@@ -121,10 +121,14 @@ interface BookingRow {
 }
 
 function formatBookingResponse(b: BookingRow): Record<string, unknown> {
+  // BUG-PHASE77-01 — also surface customer_name when the underlying
+  // query joined users on customer_id. Provider-side navigate-to-job
+  // needs this to display the destination contact's name.
   const row = b as BookingRow & {
     category_name?: string;
     subcategory_name?: string;
     provider_name?: string;
+    customer_name?: string;
   };
   return {
     id: row.id,
@@ -165,6 +169,7 @@ function formatBookingResponse(b: BookingRow): Record<string, unknown> {
     categoryName: row.category_name ?? null,
     serviceName: row.subcategory_name ?? null,
     providerName: row.provider_name ?? null,
+    customerName: row.customer_name ?? null,
   };
 }
 

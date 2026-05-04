@@ -46,9 +46,13 @@ export default function NavigateToJobScreen(): React.ReactElement {
   });
   const booking = bookingQuery.data;
 
-  const customerName = booking?.providerName /* legacy alias */
-    ?? (booking as unknown as { customerName?: string } | undefined)?.customerName
-    ?? '(customer)';
+  // BUG-PHASE77-01 fix — pre-fix this read `booking?.providerName`
+  // first ("legacy alias") which is the PROVIDER's name (themselves)
+  // since the API joins the providers table to compute it. The
+  // provider was seeing their own name labeled as the customer
+  // contact on the navigate screen. Server now returns customerName
+  // from a JOIN on users by booking.customer_id. Use it directly.
+  const customerName = booking?.customerName ?? '(customer)';
   const fullAddressParts = booking
     ? [booking.address, booking.barangay, booking.city, booking.province].filter(Boolean)
     : [];

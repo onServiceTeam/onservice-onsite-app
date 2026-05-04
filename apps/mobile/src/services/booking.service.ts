@@ -51,6 +51,11 @@ export interface Booking {
   providerName?: string;
   serviceName?: string;
   categoryName?: string;
+  // BUG-PHASE77-01 — server now returns customerName from a JOIN on
+  // users by customer_id. Provider-side screens (navigate, dashboard,
+  // calendar) display this as the destination/contact name. Customer-
+  // side screens never need it but receiving it is harmless.
+  customerName?: string;
 }
 
 // Phase 14 Dispatch 05 — Bug 175 + Bug 176.

@@ -377,16 +377,26 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
 }
 
 export async function getBookingById(bookingId: string, userId: string): Promise<BookingRow> {
+  // BUG-PHASE77-01 fix — also join the customer's user row so the
+  // formatter can return `customerName`. Provider-side
+  // /provider/job/[id]/navigate.tsx needs the customer's name to
+  // display as the destination contact; pre-fix it fell back to the
+  // provider's own name (their own row in `users` was joined as
+  // `provider_name` because the SELECT only joined providers/users
+  // for the provider side). The customer id is on bookings.customer_id
+  // — straight join to users with a different alias.
   const result = await db.query<BookingRow>(
     `SELECT b.*,
        c.name AS category_name,
        sc.name AS subcategory_name,
        CASE WHEN pu.id IS NOT NULL
          THEN CONCAT(pu.first_name, ' ', pu.last_name)
-         ELSE NULL END AS provider_name
+         ELSE NULL END AS provider_name,
+       CONCAT(cu.first_name, ' ', cu.last_name) AS customer_name
      FROM bookings b
      LEFT JOIN providers p ON b.provider_id = p.id
      LEFT JOIN users pu ON p.user_id = pu.id
+     JOIN users cu ON cu.id = b.customer_id
      LEFT JOIN service_categories c ON b.category_id = c.id
      LEFT JOIN service_subcategories sc ON b.subcategory_id = sc.id
      WHERE b.id = $1 AND (b.customer_id = $2 OR p.user_id = $2)`,
@@ -471,16 +481,21 @@ export async function listBookings(
   const total = Number(countResult.rows[0]?.count ?? 0);
 
   const dataParams = [...params, pageSize, offset];
+  // BUG-PHASE77-01 — also join the customer's user row so list
+  // responses include `customer_name`. Provider-side dashboard +
+  // jobs list need it for the customer-name column on each card.
   const result = await db.query<BookingRow>(
     `SELECT b.*,
        c.name AS category_name,
        sc.name AS subcategory_name,
        CASE WHEN pu.id IS NOT NULL
          THEN CONCAT(pu.first_name, ' ', pu.last_name)
-         ELSE NULL END AS provider_name
+         ELSE NULL END AS provider_name,
+       CONCAT(cu.first_name, ' ', cu.last_name) AS customer_name
      FROM bookings b
      LEFT JOIN providers p ON b.provider_id = p.id
      LEFT JOIN users pu ON p.user_id = pu.id
+     JOIN users cu ON cu.id = b.customer_id
      LEFT JOIN service_categories c ON b.category_id = c.id
      LEFT JOIN service_subcategories sc ON b.subcategory_id = sc.id
      ${whereClause}
