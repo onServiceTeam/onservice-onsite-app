@@ -1,12 +1,13 @@
-# Phases 63–69 — Continuation deep audit pass (2026-05-05)
+# Phases 63–70 — Continuation deep audit pass (2026-05-05)
 
-7 more phases of source-level deep auditing, focused on areas the
+8 more phases of source-level deep auditing, focused on areas the
 earlier 38–62 sweep audited shallowly or skipped: auth flows, the
 five tab screens, mobile service-layer alignment, Phase 14 R5
 component wiring, the provider job detail flow, customer browse
-flows, and pre-existing API type errors.
+flows, pre-existing API type errors, and customer account
+management.
 
-**This continuation: 12 real bugs found and fixed, 124 cumulative
+**This continuation: 13 real bugs found and fixed, 125 cumulative
 since Phase 17.**
 
 ## Phase-by-phase breakdown
@@ -20,7 +21,8 @@ since Phase 17.**
 | 67 | Provider job detail (job/[id], checklist, complete) | 3 |
 | 68 | Customer browse flows (category, configure, confirm, safety-and-support) | 0 |
 | 69 | Pre-existing API type-check errors from Phase 36 | 3 |
-| **Total** | | **12** |
+| 70 | Customer account-management — DSR data export download link | 1 |
+| **Total** | | **13** |
 
 ## The 12 bugs
 
@@ -78,19 +80,29 @@ since Phase 17.**
   the client in a narrower shape exposing only `.query`. Removed
   annotation; TS infers correctly. Two call sites, two fixes.
 
+### Phase 70 — customer account management (DSR compliance)
+- **BUG-PHASE70-01** — Customer "Account & Data" → Recent Exports
+  showed only the status pill + date. The `DataExportEntry` returns
+  a signed `fileUrl` for the user to download their export, but
+  the UI never rendered it. So users saw "completed" with no way
+  to access the file — a hard NPC RA 10173 §22 compliance gap (the
+  law guarantees the user a means to access their exported personal
+  data). Now: a "Download" link opens the signed URL via Linking
+  when status is completed, plus an "Expires …" hint.
+
 ## Verification at end of pass
 
 - **101/101** admin Vitest DOM tests pass
 - **400 / 491** mobile Jest tests pass (91 todo — same baseline)
 - **`npx tsc --noEmit` clean** for admin, api, and mobile packages
-- **3 commits**, all atomic, all with co-author attribution
+- **5 commits**, all atomic, all with co-author attribution
 - **Zero regressions** detected at any phase boundary
 
 ## Cumulative since Phase 17
 
-- **124 real bugs found + fixed** total (112 prior + 12 this
+- **125 real bugs found + fixed** total (112 prior + 13 this
   continuation)
-- **9 migrations** (none new in 63–69)
+- **9 migrations** (none new in 63–70)
 - All assertion totals from Phase 62 still apply
 
 ## Patterns observed
