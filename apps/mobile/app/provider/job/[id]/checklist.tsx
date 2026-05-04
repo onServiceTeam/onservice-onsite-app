@@ -27,6 +27,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/services/api';
+import { uploadBookingPhoto } from '@/services/booking-photo.service';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { CheckCircle2, Camera, AlertCircle, X } from '@/components/icons';
@@ -218,6 +219,7 @@ export default function JobChecklistScreen(): React.ReactElement {
   };
 
   const capturePhoto = async (item: ChecklistItem): Promise<void> => {
+    if (!id) return;
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (perm.status !== 'granted') {
@@ -231,7 +233,29 @@ export default function JobChecklistScreen(): React.ReactElement {
       if (result.canceled || result.assets.length === 0) return;
       const asset = result.assets[0];
       if (!asset) return;
+      // Optimistic local preview while we upload.
       updateItem(item.id, { photoUri: asset.uri });
+      // BUG-PHASE67-02 fix — pre-fix this only set photoUri locally,
+      // so the captured photo never reached the server. Customer's
+      // mirror checklist + the booking-photo audit trail (used by
+      // dispute mediation) saw nothing. Now we upload to the
+      // canonical /api/v1/uploads/booking-photo endpoint with
+      // photoType='checklist' so the photo persists, the customer
+      // sees it, and dispute reviewers can audit it later.
+      try {
+        const uploaded = await uploadBookingPhoto({
+          uri: asset.uri,
+          bookingId: id,
+          photoType: 'checklist',
+        });
+        // Replace optimistic file:// URI with the real https URL the
+        // server returned, so the photo survives screen re-mounts.
+        updateItem(item.id, { photoUri: uploaded.storageUrl });
+      } catch (err: unknown) {
+        // Revert local preview and surface the failure.
+        updateItem(item.id, { photoUri: item.photoUri });
+        Alert.alert('Upload failed', getErrorMessage(err, 'Could not save the photo. Please try again.'));
+      }
     } catch {
       Alert.alert('Camera unavailable', 'Could not open the camera on this device.');
     }

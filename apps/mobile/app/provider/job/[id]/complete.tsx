@@ -1,4 +1,7 @@
 import React, { useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getBookingById } from '@/services/booking.service';
+import { platformConfig } from '@/config/platform.config';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 // Phase E CRIT-102 fix — completion submit now actually persists
 // the captured photos.
@@ -78,6 +81,32 @@ export default function JobCompleteScreen(): React.ReactElement {
   // submit awaits this so the upload happens after the canvas has
   // produced the bitmap.
   const captureResolverRef = useRef<((uri: string) => void) | null>(null);
+
+  // BUG-PHASE67-03 fix — pre-fix the CommissionBreakdown at the bottom
+  // of this screen rendered with hardcoded gross=0, amount=0, net=0
+  // and a literal "12%" pct, so the provider saw a useless empty
+  // breakdown. Now we fetch the booking's servicePrice + the
+  // provider's tier and compute the real preview.
+  const bookingQuery = useQuery({
+    queryKey: ['booking', id],
+    queryFn: () => getBookingById(id ?? ''),
+    enabled: !!id,
+  });
+  const providerMeQuery = useQuery<{ tier: string }>({
+    queryKey: ['providerMe'],
+    queryFn: async () => {
+      const res = await api.get<{ data: { tier: string } }>('/api/v1/providers/me');
+      return { tier: res.data.data.tier };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const providerTier = providerMeQuery.data?.tier ?? 'new';
+  const tierRate =
+    platformConfig.commissionRates[providerTier] ?? platformConfig.commissionRates.new ?? 0.15;
+  const tierPct = Math.round(tierRate * 100);
+  const grossEarnings = bookingQuery.data?.servicePrice ?? 0;
+  const commissionAmount = Math.round(grossEarnings * tierRate);
+  const netEarnings = grossEarnings - commissionAmount;
 
   const pickPhoto = async (index: number): Promise<void> => {
     try {
@@ -309,24 +338,25 @@ export default function JobCompleteScreen(): React.ReactElement {
             <Text style={styles.primaryBtnText}>Submit Completion</Text>
           )}
         </TouchableOpacity>
-        {/* Phase 14 R5-complete — CommissionBreakdown post-complete preview.
-            Uses a placeholder amount until the screen fetches the booking;
-            the actual breakdown lives in (provider-tabs)/earnings.tsx */}
-        <View style={{ marginTop: spacing.lg }}>
-          <Text style={{ ...typography.h3, color: colors.text, marginBottom: spacing.sm }}>Earnings preview</Text>
-          <CommissionBreakdown
-            gross={0}
-            lines={[
-              {
-                label: 'Platform fee',
-                amount: 0,
-                pct: 12,
-                helpText: 'Tier-based; lower for Founding/Pro/Elite providers.',
-              },
-            ]}
-            net={0}
-          />
-        </View>
+        {/* BUG-PHASE67-03 fix — CommissionBreakdown post-complete preview
+            now uses REAL servicePrice + tier-specific commission rate. */}
+        {grossEarnings > 0 && (
+          <View style={{ marginTop: spacing.lg }}>
+            <Text style={{ ...typography.h3, color: colors.text, marginBottom: spacing.sm }}>Earnings preview</Text>
+            <CommissionBreakdown
+              gross={grossEarnings}
+              lines={[
+                {
+                  label: `Platform commission (${tierPct}%)`,
+                  amount: commissionAmount,
+                  pct: tierPct,
+                  helpText: `Your tier (${providerTier}). Earn higher tier for lower commission.`,
+                },
+              ]}
+              net={netEarnings}
+            />
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );

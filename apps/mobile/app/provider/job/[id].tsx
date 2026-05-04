@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  TextInput,
   Alert,
   ActivityIndicator,
   Linking,
@@ -102,11 +103,31 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
     },
   });
 
+  // BUG-PHASE67-01 fix — pre-fix the provider cancel mutation always
+  // sent the hardcoded reason "Provider cancelled" without ever asking
+  // the provider WHY. Customer side captures the reason via an inline
+  // form (booking/[id].tsx); now provider side does the same. The
+  // captured reason is sent through to the server (which records it on
+  // the booking and surfaces it to the customer in their booking
+  // detail). Same pattern caught in earlier audit phases (Phase 41
+  // RecurringPage, Phase 41 BusinessAccountsPage, Phase 39 admin
+  // cancel-booking). Customer-side cancellation reason is read at
+  // booking/[id].tsx:70.
+  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+
   const cancelMutation = useMutation({
-    mutationFn: () => updateBookingStatus(id, 'cancelled_by_provider', 'Provider cancelled'),
+    mutationFn: () =>
+      updateBookingStatus(
+        id,
+        'cancelled_by_provider',
+        cancelReason.trim() || 'Provider cancelled',
+      ),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['booking', id] });
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
+      setShowCancelForm(false);
+      setCancelReason('');
       if (result.warning) {
         Alert.alert('Cancelled', result.warning.message);
       } else {
@@ -145,10 +166,9 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   };
 
   const handleCancel = (): void => {
-    Alert.alert('Cancel Job', 'Are you sure you want to cancel this job?', [
-      { text: 'No', style: 'cancel' },
-      { text: 'Yes, Cancel', style: 'destructive', onPress: () => cancelMutation.mutate() },
-    ]);
+    // BUG-PHASE67-01 fix — open inline reason-capture form instead of
+    // immediately firing the mutation with a hardcoded reason.
+    setShowCancelForm(true);
   };
 
   const handleNavigate = async (): Promise<void> => {
@@ -327,13 +347,43 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
             variant="outline"
           />
         )}
-        {canCancel && (
+        {canCancel && !showCancelForm && (
           <Button
             title="Cancel Job"
             onPress={handleCancel}
             variant="ghost"
             disabled={cancelMutation.isPending || statusMutation.isPending}
           />
+        )}
+        {/* BUG-PHASE67-01 fix — inline cancel-reason form (mirrors
+            customer/booking/[id].tsx). Reason is sent to the server so
+            the customer can see why their booking was cancelled. */}
+        {canCancel && showCancelForm && (
+          <View style={styles.cancelForm}>
+            <Text style={styles.cancelFormLabel}>Reason for cancellation (optional)</Text>
+            <TextInput
+              style={styles.cancelReasonInput}
+              placeholder="Tell the customer why..."
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              numberOfLines={2}
+              value={cancelReason}
+              onChangeText={setCancelReason}
+              textAlignVertical="top"
+            />
+            <Button
+              title={cancelMutation.isPending ? 'Cancelling...' : 'Confirm Cancellation'}
+              onPress={() => cancelMutation.mutate()}
+              loading={cancelMutation.isPending}
+              disabled={cancelMutation.isPending}
+            />
+            <TouchableOpacity
+              onPress={() => { setShowCancelForm(false); setCancelReason(''); }}
+              style={styles.cancelFormDismiss}
+            >
+              <Text style={styles.cancelFormDismissText}>Never mind</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
     </View>
@@ -419,4 +469,25 @@ const styles = StyleSheet.create({
     borderTopColor: colors.divider,
     gap: spacing.sm,
   },
+
+  // BUG-PHASE67-01 fix — cancel reason form styles (mirrors customer
+  // booking/[id].tsx).
+  cancelForm: {
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
+  cancelFormLabel: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' as const },
+  cancelReasonInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    minHeight: 64,
+    color: colors.text,
+    backgroundColor: colors.backgroundSecondary,
+  },
+  cancelFormDismiss: { alignItems: 'center' as const, paddingVertical: spacing.sm },
+  cancelFormDismissText: { ...typography.bodySmall, color: colors.textTertiary },
 });
