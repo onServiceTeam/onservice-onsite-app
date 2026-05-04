@@ -1,6 +1,6 @@
-# Phases 63–77 — Continuation deep audit pass (2026-05-05)
+# Phases 63–78 — Continuation deep audit pass (2026-05-05)
 
-15 more phases of source-level deep auditing, focused on areas the
+16 more phases of source-level deep auditing, focused on areas the
 earlier 38–62 sweep audited shallowly or skipped: auth flows, the
 five tab screens, mobile service-layer alignment, Phase 14 R5
 component wiring, the provider job detail flow, customer browse
@@ -9,11 +9,13 @@ management, the customer quote-request flow, provider photo
 aggregation, recurring-booking defaults, suki redeem state desync,
 customer tip max-amount gating, admin Platform Settings reset
 confirmation, customer booking-detail photos gate, provider
-Navigate-to-Job customer-name display, and admin DispatchConsole
-cancel reason min length.
+Navigate-to-Job customer-name display, admin DispatchConsole
+cancel reason min length, and a sweep of 22 stale API tests
+across 8 suites that had drifted out of sync with code changes
+landed in Phases 26-29.
 
-**This continuation: 24 real bugs found and fixed, 136 cumulative
-since Phase 17.**
+**This continuation: 24 real bugs found and fixed + 22 stale
+tests repaired, 136 cumulative bugs since Phase 17.**
 
 ## Phase-by-phase breakdown
 
@@ -36,7 +38,8 @@ since Phase 17.**
 | 76 | Customer booking-detail photos gate (legacy-only check) | 1 |
 | 77 | Provider Navigate-to-Job customer-name display | 1 |
 | 77b | Admin DispatchConsole cancel reason min length | 1 |
-| **Total** | | **24** |
+| 78 | API test repair: 22 stale tests across 8 suites | (test fixes, not source bugs) |
+| **Total** | | **24 bugs + 22 test fixes** |
 
 ## The 24 bugs
 
@@ -218,15 +221,54 @@ since Phase 17.**
   400. Now: client matches server's 10-char floor so the dialog
   catches it with a clear toast before the round-trip.
 
+### Phase 78 — API stale-test repair (no source bugs)
+22 tests across 8 suites had drifted out of sync with source
+changes landed in Phases 26-29. Source code was correct; the
+mocks/assertions needed to be updated to reflect the new behavior.
+Source files were NOT touched — only test files updated:
+
+- `booking-dispute-admin.test.ts` (2): cancelBookingAsAdmin now
+  SELECTs service_fee before the trx (BUG-PHASE26-01) for the
+  post-commit PayMongo refund. Tests primed an extra mock.
+- `escrow-async-integration.test.ts` (10): handleCancellation
+  same service_fee SELECT. One assertion expected processRefund
+  to never be called post MED-N27, but BUG-PHASE26-01 reintroduced
+  a post-commit call (different code path). Stale assertion
+  removed; substantive MED-N27 check (final UPDATE inside trx)
+  preserved.
+- `compliance-admin.test.ts` (4): VALID_CONSENT_TYPES tightened
+  to migration-080 set. `marketing_email` → `marketing_consent`,
+  `tos_acceptance` → `terms_of_service`.
+- `catalog-business-helpers-med-n37-n38-n39-n40.test.ts` (1):
+  Phase 28-02 changed users soft-delete from `deleted_at IS NULL`
+  to `is_active = TRUE`. Pattern updated.
+- `med-n100-n101-n103-n104-n105.test.ts` (1): BUG-PHASE26-02
+  replaced `bq.is_active = TRUE` with `bq.status = 'accepted'`
+  (migration 018). Pattern updated and slice widened from 2000
+  → 3500 chars to capture the COALESCE line.
+- `med-n134-n135-n136-n137.test.ts` (1): BUG-PHASE29-01 changed
+  the existence check from `SELECT COUNT(*) FOR UPDATE` to
+  `SELECT id ... LIMIT 1 FOR UPDATE`. Mocks return rows shape;
+  assertion updated.
+- `med-n27-n43-n44-n45-n61-n65-n70-n76-n162.test.ts` (2):
+  handleCancellation regex required `db.transaction` immediately
+  after the opener; BUG-PHASE26-01's pre-trx SELECT broke that.
+  Relaxed to "somewhere in the function" while still anchoring
+  to the function decl. Line-count threshold raised 50 → 120.
+- `breach-log.service.test.ts` (1): hardcoded date
+  `2026-04-30T08:00:00Z` became >72h in the past after 2026-05-04;
+  enrichSla returned 0 and the `> 0` assertion failed. Use
+  `new Date()` so the test stays valid as wall-clock advances.
+
 ## Verification at end of pass
 
 - **101/101** admin Vitest DOM tests pass
 - **400 / 491** mobile Jest tests pass (91 todo — same baseline)
-- **2476 / 2498** API Jest tests pass (22 pre-existing failures
-  in cancelBookingAsAdmin tests — unrelated, mocks predate query
-  added in Phase 26 / Phase 18a; not introduced by this pass)
+- **2498 / 2498** API Jest tests pass (Phase 78 repaired 22 stale
+  tests across 8 suites — see commit "fix: Phase 78 — repair 22
+  stale API tests across 8 suites" for the breakdown)
 - **`npx tsc --noEmit` clean** for admin, api, and mobile packages
-- **14 commits**, all atomic, all with co-author attribution
+- **15 commits**, all atomic, all with co-author attribution
 - **Zero regressions** detected at any phase boundary
 
 ## Cumulative since Phase 17
