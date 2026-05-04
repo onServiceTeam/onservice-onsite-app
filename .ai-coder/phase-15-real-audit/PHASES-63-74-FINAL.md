@@ -1,14 +1,15 @@
-# Phases 63–71 — Continuation deep audit pass (2026-05-05)
+# Phases 63–74 — Continuation deep audit pass (2026-05-05)
 
-9 more phases of source-level deep auditing, focused on areas the
+12 more phases of source-level deep auditing, focused on areas the
 earlier 38–62 sweep audited shallowly or skipped: auth flows, the
 five tab screens, mobile service-layer alignment, Phase 14 R5
 component wiring, the provider job detail flow, customer browse
-flows, pre-existing API type errors, customer account management,
-the customer quote-request flow, provider photo aggregation, and
-recurring-booking defaults.
+flows, pre-existing API type errors, customer + provider account
+management, the customer quote-request flow, provider photo
+aggregation, recurring-booking defaults, suki redeem state desync,
+and customer tip max-amount gating.
 
-**This continuation: 17 real bugs found and fixed, 129 cumulative
+**This continuation: 20 real bugs found and fixed, 132 cumulative
 since Phase 17.**
 
 ## Phase-by-phase breakdown
@@ -25,9 +26,12 @@ since Phase 17.**
 | 70 | Customer account-management — DSR data export download link | 1 |
 | 71 | Customer job-request + provider photos | 3 |
 | 71b | Customer make-recurring default day | 1 |
-| **Total** | | **17** |
+| 72 | Provider account-management — DSR data export download link | 1 |
+| 73 | Customer suki-pros redeem button UI/state desync | 1 |
+| 74 | Customer tip max-amount gating | 1 |
+| **Total** | | **20** |
 
-## The 17 bugs
+## The 20 bugs
 
 ### Phase 63 — auth flows
 - **BUG-PHASE63-01** — Login + register + checkout had plain-text
@@ -125,19 +129,48 @@ since Phase 17.**
   in a useEffect once the booking loads, while still respecting
   any manual override.
 
+### Phase 72 — provider account-management (DSR compliance)
+- **BUG-PHASE72-01** — Provider "Account & Data" → Recent Exports
+  had the same NPC RA 10173 §22 compliance gap as BUG-PHASE70-01
+  on the customer side. The signed `fileUrl` was returned but
+  never rendered. Now: a "Download" link opens the URL via Linking
+  when status is completed, plus an "Expires …" hint so the user
+  knows the signed URL has a TTL. Both surfaces (customer +
+  provider) now NPC-compliant.
+
+### Phase 73 — suki redeem button UI/state desync
+- **BUG-PHASE73-01** — Customer `suki-pros.tsx` Redeem button
+  visual style used a hardcoded `Number(redeemInput) < 100` check
+  while the actual `disabled` prop checked `<
+  platformConfig.sukiMinRedeemPoints`. If the config min is set
+  to anything other than 100 (e.g., 200 via the platform_settings
+  admin), a user typing 150 would see the button visually enabled
+  (150 > 100) but tapping it would be a no-op (disabled prop = true
+  since 150 < 200). Now both use the same configurable threshold.
+
+### Phase 74 — customer tip max-amount gating
+- **BUG-PHASE74-01** — Customer `booking/tip.tsx` Send Tip button
+  gated on wallet balance but NOT on max tip (= servicePrice / 100%
+  cap). A user entering a custom tip larger than the service price
+  saw the button visually enabled, tapped it, then got an alert
+  "Tip Too Large". Same UI/state desync pattern as Phase 73 — the
+  disabled prop should match the validation. Now: disabled gates on
+  tip > maxTip too, plus an inline warning mirroring the wallet-
+  insufficient hint.
+
 ## Verification at end of pass
 
 - **101/101** admin Vitest DOM tests pass
 - **400 / 491** mobile Jest tests pass (91 todo — same baseline)
 - **`npx tsc --noEmit` clean** for admin, api, and mobile packages
-- **7 commits**, all atomic, all with co-author attribution
+- **10 commits**, all atomic, all with co-author attribution
 - **Zero regressions** detected at any phase boundary
 
 ## Cumulative since Phase 17
 
-- **129 real bugs found + fixed** total (112 prior + 17 this
+- **132 real bugs found + fixed** total (112 prior + 20 this
   continuation)
-- **9 migrations** (none new in 63–71)
+- **9 migrations** (none new in 63–74)
 - All assertion totals from Phase 62 still apply
 
 ## Patterns observed
