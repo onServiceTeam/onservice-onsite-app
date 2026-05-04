@@ -185,6 +185,28 @@ export default function CertificationsScreen(): React.ReactElement {
       Alert.alert('Required', 'Certification name is required.');
       return;
     }
+    // BUG-PHASE60-01 fix — pre-fix the date fields accepted any
+    // string. Server validators (provider.validators.ts) reject
+    // non-YYYY-MM-DD values with a Zod error the user can't easily
+    // map back to a field; entering "2025/01/15" would silently
+    // 4xx the whole form. Provider could also save expiry < issued
+    // (a "valid until last year" cert that the platform would then
+    // surface to customers as a verification credential).
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    const issued = issuedDate.trim();
+    const expiry = expiryDate.trim();
+    if (issued.length > 0 && !dateRe.test(issued)) {
+      Alert.alert('Invalid Issued Date', 'Use format YYYY-MM-DD (e.g. 2024-03-15).');
+      return;
+    }
+    if (expiry.length > 0 && !dateRe.test(expiry)) {
+      Alert.alert('Invalid Expiry Date', 'Use format YYYY-MM-DD (e.g. 2027-03-15).');
+      return;
+    }
+    if (issued.length > 0 && expiry.length > 0 && expiry < issued) {
+      Alert.alert('Invalid Dates', 'Expiry date must be later than the issued date.');
+      return;
+    }
     // Phase E CRIT-109 fix — if a new photo was picked, upload it
     // first to get an https URL; then send that URL through. If the
     // user is editing and didn't pick a new photo, keep the existing
