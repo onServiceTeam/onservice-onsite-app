@@ -8,6 +8,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getBookingById, uploadJobPhotos } from '@/services/booking.service';
+import { listBookingPhotos } from '@/services/booking-photo.service';
 import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -29,6 +30,23 @@ export default function ProviderPhotosScreen(): React.ReactElement {
     enabled: !!bookingId,
   });
 
+  // BUG-PHASE71-03 fix — pre-fix this screen read existingBefore +
+  // existingAfter from booking.providerBeforePhotos /
+  // providerAfterPhotos which are deprecated TEXT[] columns from
+  // migration 037. Phase E CRIT-102 made `provider/job/[id]/complete`
+  // upload "after" photos via /api/v1/uploads/booking-photo (writes
+  // ONLY to booking_photos, not the legacy arrays), so any photos
+  // captured via the completion flow were INVISIBLE on this screen.
+  // Same pattern caught in Phase 56 (customer photos.tsx). Now we
+  // also query the canonical booking_photos endpoint and union with
+  // the legacy arrays for back-compat with photos uploaded via the
+  // dual-write /bookings/:id/photos endpoint.
+  const photosQuery = useQuery({
+    queryKey: ['bookingPhotos', bookingId],
+    queryFn: () => listBookingPhotos(bookingId ?? ''),
+    enabled: !!bookingId,
+  });
+
   const uploadMutation = useMutation({
     mutationFn: async (phase: Phase) => {
       const picker = phase === 'before' ? beforePicker : afterPicker;
@@ -42,6 +60,9 @@ export default function ProviderPhotosScreen(): React.ReactElement {
       const picker = phase === 'before' ? beforePicker : afterPicker;
       picker.reset();
       void queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
+      // BUG-PHASE71-03 fix — also invalidate the canonical photos
+      // query so the new uploads appear immediately in existingPhotos.
+      void queryClient.invalidateQueries({ queryKey: ['bookingPhotos', bookingId] });
       Alert.alert('Uploaded', `${phase === 'before' ? 'Before' : 'After'} photos saved successfully.`);
     },
     onError: (err: unknown) => {
@@ -51,9 +72,16 @@ export default function ProviderPhotosScreen(): React.ReactElement {
   });
 
   const activePicker = activePhase === 'before' ? beforePicker : afterPicker;
-  const existingBefore = booking?.providerBeforePhotos ?? [];
-  const existingAfter = booking?.providerAfterPhotos ?? [];
-  const existingPhotos = activePhase === 'before' ? existingBefore : existingAfter;
+  // BUG-PHASE71-03 fix — union the legacy arrays with the canonical
+  // booking_photos rows for the active phase. Dedup by URL so photos
+  // dual-written via /bookings/:id/photos don't show twice.
+  const canonicalPhotos = (photosQuery.data ?? [])
+    .filter((p) => p.photoType === activePhase)
+    .map((p) => p.storageUrl);
+  const legacyForPhase = activePhase === 'before'
+    ? (booking?.providerBeforePhotos ?? [])
+    : (booking?.providerAfterPhotos ?? []);
+  const existingPhotos = Array.from(new Set([...canonicalPhotos, ...legacyForPhase]));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

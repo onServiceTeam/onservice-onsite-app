@@ -10,6 +10,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
+import { Routes } from '@/config/navigation';
 
 const URGENCY_OPTIONS = [
   { value: 'same_day' as const, label: 'Same Day', desc: 'Within 4 hours' },
@@ -62,7 +63,21 @@ export default function JobRequestScreen(): React.ReactElement {
   });
 
   const hasMinPhotos = imagePicker.localUris.length >= 2;
-  const isValid = description.length >= 50 && draft.categoryId && draft.address && hasMinPhotos;
+  // BUG-PHASE71-02 fix — pre-fix budgetMin > budgetMax silently submitted
+  // (server might have its own validators but client should fail fast).
+  const minNum = budgetMin ? Number(budgetMin) : NaN;
+  const maxNum = budgetMax ? Number(budgetMax) : NaN;
+  const budgetValid =
+    (!budgetMin && !budgetMax) ||
+    (Number.isFinite(minNum) && Number.isFinite(maxNum) && minNum <= maxNum) ||
+    (Number.isFinite(minNum) && !budgetMax) ||
+    (Number.isFinite(maxNum) && !budgetMin);
+  const isValid =
+    description.length >= 50 &&
+    draft.categoryId &&
+    draft.address &&
+    hasMinPhotos &&
+    budgetValid;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -188,15 +203,37 @@ export default function JobRequestScreen(): React.ReactElement {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Location</Text>
-          <View style={styles.addressCard}>
+          <Text style={styles.sectionTitle}>Location *</Text>
+          {/* BUG-PHASE71-01 fix — pre-fix this card showed "No address
+              selected" with no way to set one. Quote-based subcategory
+              flow resets the booking-store address (booking.store.ts
+              setSubcategory clears address/barangay/city/province), so
+              users landing here from /customer/category/[slug] for a
+              quote-based service had no address and the submit button
+              just silently disabled — they were stuck. Now the card is
+              tappable and routes to the address picker. */}
+          <TouchableOpacity
+            style={styles.addressCard}
+            onPress={() => router.push(Routes.CUSTOMER.ADDRESS_PICKER)}
+            activeOpacity={0.7}
+            testID="job-request-address-picker"
+          >
             <Text style={styles.addressText}>
               {draft.address
                 ? [draft.address, draft.barangay, draft.city, draft.province].filter(Boolean).join(', ')
-                : 'No address selected'}
+                : 'No address selected — tap to choose'}
+            </Text>
+            <Text style={styles.addressArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
+
+        {!budgetValid && (
+          <View style={styles.section}>
+            <Text style={[styles.hint, { color: colors.error }]}>
+              Maximum budget must be greater than or equal to minimum.
             </Text>
           </View>
-        </View>
+        )}
 
         <TouchableOpacity
           style={[styles.submitBtn, !isValid && styles.submitBtnDisabled]}
@@ -260,8 +297,9 @@ const styles = StyleSheet.create({
   budgetPrefix: { fontSize: 14, color: colors.textSecondary, marginRight: spacing.xs },
   budgetInput: { flex: 1, paddingVertical: spacing.md, fontSize: 14, color: colors.text },
   budgetDash: { fontSize: 16, color: colors.textTertiary },
-  addressCard: { backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border },
-  addressText: { fontSize: 14, color: colors.text },
+  addressCard: { backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, flexDirection: 'row' as const, alignItems: 'center' as const, gap: spacing.sm },
+  addressText: { fontSize: 14, color: colors.text, flex: 1 },
+  addressArrow: { fontSize: 20, color: colors.textTertiary },
   submitBtn: { backgroundColor: colors.text, borderRadius: borderRadius.lg, paddingVertical: spacing.base, alignItems: 'center', marginTop: spacing.sm },
   submitBtnDisabled: { opacity: 0.5 },
   submitBtnText: { fontSize: 16, fontWeight: '700', color: colors.white },
