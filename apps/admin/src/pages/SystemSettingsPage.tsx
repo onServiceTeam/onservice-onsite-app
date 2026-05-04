@@ -95,6 +95,17 @@ export default function SystemSettingsPage(): React.ReactElement {
   const [editReason, setEditReason] = useState<string>('');
   const [historyKey, setHistoryKey] = useState<string | null>(null);
   const [banner, setBanner] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  // BUG-PHASE75-01 fix — pre-fix the "Reset to default" button fired
+  // resetMutation immediately on tap. These settings tune commissions,
+  // escrow windows, fee caps — production money knobs. A misclick on
+  // commission_rate_elite (currently 9% via admin override, default
+  // 12%) silently rolls every elite provider to the default rate at
+  // their next payout. Now: clicking Reset opens a confirmation modal
+  // showing the current → default values + a reason field that maps
+  // to admin_actions.reason for the audit trail. Same pattern as the
+  // edit-value flow already uses (editReason).
+  const [pendingReset, setPendingReset] = useState<PlatformSetting | null>(null);
+  const [resetReason, setResetReason] = useState<string>('');
 
   const allQuery = useQuery<{
     categories: CategoryEntry[];
@@ -137,12 +148,16 @@ export default function SystemSettingsPage(): React.ReactElement {
   });
 
   const resetMutation = useMutation({
-    mutationFn: async (key: string) => {
-      const res = await api.post(`/api/v1/admin/settings/${key}/reset`);
+    mutationFn: async (input: { key: string; reason?: string }) => {
+      const res = await api.post(`/api/v1/admin/settings/${input.key}/reset`, {
+        reason: input.reason ?? undefined,
+      });
       return res.data.data as PlatformSetting;
     },
-    onSuccess: (_data, key) => {
-      setBanner({ kind: 'ok', text: `Reset "${key}" to default.` });
+    onSuccess: (_data, input) => {
+      setBanner({ kind: 'ok', text: `Reset "${input.key}" to default.` });
+      setPendingReset(null);
+      setResetReason('');
       void queryClient.invalidateQueries({ queryKey: ['admin-settings-all'] });
     },
     onError: (err) => {
@@ -377,7 +392,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                             <button
                               type="button"
                               disabled={s.isDefault || resetMutation.isPending}
-                              onClick={() => resetMutation.mutate(s.key)}
+                              onClick={() => { setPendingReset(s); setResetReason(''); }}
                               title="Reset to default"
                               aria-label={`Reset ${s.key} to default`}
                               className="p-1.5 text-gray-500 hover:bg-gray-100 rounded disabled:opacity-30 disabled:hover:bg-transparent"
@@ -422,6 +437,69 @@ export default function SystemSettingsPage(): React.ReactElement {
           </div>
         </section>
       </div>
+
+      {/* BUG-PHASE75-01 fix — confirm-reset modal */}
+      {pendingReset && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reset-confirm-title"
+        >
+          <div className="bg-white rounded-lg max-w-md w-full p-5">
+            <h3 id="reset-confirm-title" className="text-lg font-semibold text-gray-900 mb-1">
+              Reset to default?
+            </h3>
+            <p className="text-sm text-gray-600 mb-3">
+              This will overwrite the current value of <code className="font-mono bg-gray-100 px-1 rounded">{pendingReset.key}</code> with its built-in default. Production money knobs propagate within 60s of save.
+            </p>
+            <div className="bg-gray-50 border border-gray-200 rounded p-3 mb-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Current</span>
+                <span className="font-mono">{formatValue(pendingReset)}</span>
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-gray-500">Default</span>
+                <span className="font-mono">
+                  {formatValue({ ...pendingReset, value: pendingReset.defaultValue })}
+                </span>
+              </div>
+            </div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Reason (audited)
+            </label>
+            <input
+              type="text"
+              value={resetReason}
+              onChange={(e) => setResetReason(e.target.value)}
+              placeholder="Why are you resetting this?"
+              className="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setPendingReset(null); setResetReason(''); }}
+                disabled={resetMutation.isPending}
+                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => resetMutation.mutate({
+                  key: pendingReset.key,
+                  reason: resetReason.trim() || undefined,
+                })}
+                disabled={resetMutation.isPending}
+                className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm disabled:opacity-50"
+              >
+                {resetMutation.isPending ? 'Resetting…' : 'Reset to default'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

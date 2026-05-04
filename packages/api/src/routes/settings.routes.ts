@@ -97,9 +97,16 @@ router.get('/:key/history', async (req: AuthenticatedRequest, res: Response, nex
 });
 
 // POST /:key/reset — reset to default value (super_admin only per CRIT-N16)
+// BUG-PHASE75-01 fix — accept an optional `reason` so the audit row
+// records WHY the admin reset, matching the PUT /:key endpoint.
 router.post('/:key/reset', rbacMiddleware('super_admin'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const updated = await settingsService.resetToDefault(String(req.params.key), req.user!.userId);
+    const { reason } = (req.body ?? {}) as { reason?: string };
+    const updated = await settingsService.resetToDefault(
+      String(req.params.key),
+      req.user!.userId,
+      typeof reason === 'string' ? reason : undefined,
+    );
     res.json({ success: true, data: settingsService.formatSetting(updated) });
   } catch (err) { next(err); }
 });

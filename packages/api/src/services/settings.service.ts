@@ -521,7 +521,17 @@ export async function bulkUpdateSettings(
   return results;
 }
 
-export async function resetToDefault(key: string, changedBy: string): Promise<SettingRow> {
+// BUG-PHASE75-01 fix — pre-fix this hardcoded the reason "Reset to
+// default" and ignored any caller-supplied reason. The
+// SystemSettingsPage UI now opens a confirm modal that captures
+// WHY the admin is resetting (audited via platform_settings_audit
+// for compliance + ops post-mortem). Caller-supplied reason is
+// preferred when present; the hardcoded string is only the fallback.
+export async function resetToDefault(
+  key: string,
+  changedBy: string,
+  reason?: string,
+): Promise<SettingRow> {
   const current = await db.query<SettingRow>(
     `SELECT * FROM platform_settings WHERE key = $1`,
     [key],
@@ -529,7 +539,10 @@ export async function resetToDefault(key: string, changedBy: string): Promise<Se
   if (current.rows.length === 0) {
     throw createAppError(`Setting "${key}" not found.`, 404);
   }
-  return updateSetting(key, current.rows[0]!.default_value, changedBy, 'Reset to default');
+  const auditReason = reason && reason.trim().length > 0
+    ? `Reset to default: ${reason.trim()}`
+    : 'Reset to default';
+  return updateSetting(key, current.rows[0]!.default_value, changedBy, auditReason);
 }
 
 export async function getSettingAuditHistory(key: string, limit = 50): Promise<AuditRow[]> {
