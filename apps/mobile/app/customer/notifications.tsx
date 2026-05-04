@@ -71,10 +71,30 @@ export default function NotificationsScreen(): React.ReactElement {
     } catch {
       // Best-effort mark as read; don't block navigation
     }
+    // BUG-PHASE57-01 fix — pre-fix only `bookingId` was followed for
+    // navigation. Non-booking notifications (dispute updates, payout
+    // status, provider tier changes, suki rewards, promo codes,
+    // referral credits) had no destination — tapping them only
+    // marked them read with no further action. Now: route to the
+    // most specific destination available based on the data payload.
     const notifData = notif.data as Record<string, string> | null;
     if (notifData?.bookingId) {
       router.push(`/customer/booking/${notifData.bookingId}`);
+    } else if (notifData?.disputeId && notifData?.bookingId === undefined) {
+      // Disputes always tied to a booking server-side, but if the
+      // notification data only has disputeId, fall through to
+      // bookings tab so the customer can find it.
+      router.push('/(tabs)/bookings');
+    } else if (notifData?.providerId) {
+      router.push(`/customer/provider/${notifData.providerId}`);
+    } else if (notif.type === 'promo' || notif.type === 'referral') {
+      router.push('/customer/referral');
+    } else if (notif.type === 'review_received' || notif.type === 'job_completed') {
+      router.push('/(tabs)/bookings');
+    } else if (notif.type === 'payment_released') {
+      router.push('/(tabs)/wallet');
     }
+    // Else: no nav, just stays on notifications list (already marked read).
   };
 
   const renderItem = ({ item }: { item: Notification }): React.ReactElement => {

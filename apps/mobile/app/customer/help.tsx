@@ -137,7 +137,15 @@ export default function HelpScreen(): React.ReactElement {
           </Text>
         </View>
 
-        {FAQ_SECTIONS.map((section) => (
+        {/* BUG-PHASE57-02 fix — pre-fix this map used the constant
+             FAQ_SECTIONS instead of the `sections` memo above (line
+             102) that performs the live-policy substitution. The
+             "Can I cancel a booking?" answer was permanently stuck
+             showing "Loading current cancellation policy…" because
+             the patched data was computed and discarded. Phase 14
+             D02 Bug 1170/1198 added the patcher but missed wiring
+             it through to render. */}
+        {sections.map((section) => (
           <View key={section.title} style={styles.section}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
             {section.items.map((item, i) => {
