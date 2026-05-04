@@ -70,10 +70,24 @@ export default function ProviderNotificationsScreen(): React.ReactElement {
     } catch {
       // Best-effort
     }
+    // BUG-PHASE61-01 fix — same pattern as the customer-side fix in
+    // Phase 57 (BUG-PHASE57-01). Pre-fix only `bookingId` was
+    // followed; non-booking notifications (payout_completed,
+    // review_received, tip_received, dispute_opened, etc.) had no
+    // destination — provider was left on the notifications list
+    // wondering what happened. Now: route by data payload or
+    // notification type to job/payouts/reviews/earnings.
     const notifData = notif.data as Record<string, string> | null;
     if (notifData?.bookingId) {
       router.push(`/provider/job/${notifData.bookingId}`);
+    } else if (notif.type === 'payout_completed') {
+      router.push('/provider/payouts');
+    } else if (notif.type === 'review_received') {
+      router.push('/provider/reviews');
+    } else if (notif.type === 'tip_received' || notif.type === 'payment_received') {
+      router.push('/(provider-tabs)/earnings');
     }
+    // Else: just stays on the notifications list (already marked read).
   };
 
   const renderItem = ({ item }: { item: Notification }): React.ReactElement => {

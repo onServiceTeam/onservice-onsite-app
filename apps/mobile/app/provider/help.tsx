@@ -62,8 +62,14 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
         a: 'Your overall rating is the average of all customer reviews. Only completed bookings can be reviewed. Ratings are visible to customers when they browse providers.',
       },
       {
+        // BUG-PHASE61-02 fix — pre-fix this answer said "Currently,
+        // reviews cannot be responded to publicly" but the Reviews
+        // screen DOES support provider responses (Reply to Review →
+        // POST /reviews/:id/response, min 20 chars). The FAQ was
+        // misinforming providers and discouraging them from using a
+        // shipped feature. Now: matches the actual capability.
         q: 'Can I respond to a bad review?',
-        a: 'Currently, reviews cannot be responded to publicly. If you believe a review is unfair or fraudulent, contact support with your evidence and we will investigate.',
+        a: 'Yes. Open My Reviews from your profile, find the review, and tap "Reply to Review". Your response is public, capped at 500 characters, and posts immediately. If you believe a review is unfair or fraudulent (e.g. it violates policy, contains a fabricated claim, or is from a customer you never served), contact support with your evidence and we will investigate.',
       },
     ],
   },
