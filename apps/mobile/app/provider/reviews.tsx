@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
+  Image,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -196,6 +198,30 @@ export default function ProviderReviewsScreen(): React.ReactElement {
       </View>
       {item.comment && <Text style={styles.reviewComment}>{item.comment}</Text>}
 
+      {/* BUG-PHASE54-01 fix — pre-fix the Review interface declared
+          an `images` array and the API returned it (per
+          /reviews/provider/:id), but the screen never rendered the
+          images. Customers attaching photos to reviews (which is
+          how disputes-of-rebuttal evidence flows for damage claims
+          per Phase E CRIT-105) had their proof ignored on the
+          provider's side. Now: horizontal image strip with
+          tappable thumbnails. */}
+      {item.images && item.images.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.reviewImagesRow}
+        >
+          {item.images.map((img) => (
+            <Image
+              key={img.id}
+              source={{ uri: img.imageUrl }}
+              style={styles.reviewImage}
+            />
+          ))}
+        </ScrollView>
+      )}
+
       {item.providerResponse && (
         <View style={styles.responseBox}>
           <Text style={styles.responseLabel}>Your Response</Text>
@@ -358,6 +384,8 @@ const styles = StyleSheet.create({
   },
   reviewDate: { ...typography.caption, color: colors.textTertiary },
   reviewComment: { ...typography.body, color: colors.text, lineHeight: 22 },
+  reviewImagesRow: { marginTop: spacing.sm, flexDirection: 'row', gap: spacing.sm },
+  reviewImage: { width: 96, height: 96, borderRadius: borderRadius.md, marginRight: spacing.sm, backgroundColor: colors.border },
 
   responseBox: {
     marginTop: spacing.md,
