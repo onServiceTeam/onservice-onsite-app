@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator,
 } from 'react-native';
@@ -31,6 +31,14 @@ export default function MakeRecurringScreen(): React.ReactElement {
   const queryClient = useQueryClient();
 
   const [frequency, setFrequency] = useState<Frequency>('weekly');
+  // BUG-PHASE71-04 fix — pre-fix the preferredDay defaulted to today's
+  // day-of-week (new Date().getDay()), which is wrong: the user is
+  // making this recurring from a SPECIFIC past booking. The natural
+  // default is the day-of-week the original booking was scheduled on
+  // (so a Tuesday cleaning becomes a Tuesday recurring, not "today's"
+  // day). Initialised below in a useEffect that syncs the day to the
+  // booking once it loads, but the user can still override.
+  const [dayTouched, setDayTouched] = useState(false);
   const [preferredDay, setPreferredDay] = useState<number>(new Date().getDay());
 
   const { data: booking, isLoading, isError: bookingError, refetch } = useQuery({
@@ -39,6 +47,15 @@ export default function MakeRecurringScreen(): React.ReactElement {
     enabled: !!bookingId,
     staleTime: 5 * 60 * 1000,
   });
+
+  // BUG-PHASE71-04 fix — sync preferredDay to the original booking's
+  // scheduled weekday once the booking loads. Only runs while the user
+  // hasn't manually picked a different day.
+  useEffect(() => {
+    if (!booking?.scheduledAt || dayTouched) return;
+    const originalDay = new Date(booking.scheduledAt).getDay();
+    setPreferredDay(originalDay);
+  }, [booking?.scheduledAt, dayTouched]);
 
   const createRecurring = useMutation({
     mutationFn: async () => {
@@ -158,7 +175,7 @@ export default function MakeRecurringScreen(): React.ReactElement {
               <TouchableOpacity
                 key={day}
                 style={[styles.dayChip, preferredDay === idx && styles.dayChipActive]}
-                onPress={() => setPreferredDay(idx)}
+                onPress={() => { setPreferredDay(idx); setDayTouched(true); }}
               >
                 <Text style={[styles.dayText, preferredDay === idx && styles.dayTextActive]}>{day}</Text>
               </TouchableOpacity>
