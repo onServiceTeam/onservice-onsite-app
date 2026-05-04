@@ -191,6 +191,18 @@ export default function TipScreen(): React.ReactElement {
             Tip exceeds wallet balance — top up first.
           </Text>
         )}
+        {/* BUG-PHASE74-01 fix — pre-fix the disabled prop gated on
+            wallet balance but NOT on max tip (= servicePrice). A user
+            who entered a custom tip larger than the service price saw
+            the Send Tip button enabled, tapped it, then got the alert
+            "Tip Too Large" — same UI/state desync pattern as the suki
+            redeem fix in Phase 73. Also added a similar inline warning
+            for tip > maxTip mirroring the wallet-insufficient hint. */}
+        {tipAmount > 0 && tipAmount > maxTip && (
+          <Text style={styles.balanceWarn}>
+            Tip exceeds {formatPHP(maxTip)} (100% of service price).
+          </Text>
+        )}
       </View>
 
       <View style={styles.actions}>
@@ -198,7 +210,7 @@ export default function TipScreen(): React.ReactElement {
           title={loading ? 'Sending...' : `Send Tip${tipAmount > 0 ? ` • ${formatPHP(tipAmount)}` : ''}`}
           onPress={handleSendTip}
           loading={loading}
-          disabled={tipAmount <= 0 || loading || tipAmount > walletBalance}
+          disabled={tipAmount <= 0 || loading || tipAmount > walletBalance || tipAmount > maxTip}
         />
         <Button
           title="Maybe Later"
