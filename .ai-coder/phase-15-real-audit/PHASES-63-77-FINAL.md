@@ -1,6 +1,6 @@
-# Phases 63–76 — Continuation deep audit pass (2026-05-05)
+# Phases 63–77 — Continuation deep audit pass (2026-05-05)
 
-14 more phases of source-level deep auditing, focused on areas the
+15 more phases of source-level deep auditing, focused on areas the
 earlier 38–62 sweep audited shallowly or skipped: auth flows, the
 five tab screens, mobile service-layer alignment, Phase 14 R5
 component wiring, the provider job detail flow, customer browse
@@ -8,9 +8,11 @@ flows, pre-existing API type errors, customer + provider account
 management, the customer quote-request flow, provider photo
 aggregation, recurring-booking defaults, suki redeem state desync,
 customer tip max-amount gating, admin Platform Settings reset
-confirmation, and the customer booking-detail photos gate.
+confirmation, customer booking-detail photos gate, provider
+Navigate-to-Job customer-name display, and admin DispatchConsole
+cancel reason min length.
 
-**This continuation: 22 real bugs found and fixed, 134 cumulative
+**This continuation: 24 real bugs found and fixed, 136 cumulative
 since Phase 17.**
 
 ## Phase-by-phase breakdown
@@ -32,9 +34,11 @@ since Phase 17.**
 | 74 | Customer tip max-amount gating | 1 |
 | 75 | Admin SystemSettings reset-to-default confirmation | 1 |
 | 76 | Customer booking-detail photos gate (legacy-only check) | 1 |
-| **Total** | | **22** |
+| 77 | Provider Navigate-to-Job customer-name display | 1 |
+| 77b | Admin DispatchConsole cancel reason min length | 1 |
+| **Total** | | **24** |
 
-## The 22 bugs
+## The 24 bugs
 
 ### Phase 63 — auth flows
 - **BUG-PHASE63-01** — Login + register + checkout had plain-text
@@ -190,20 +194,46 @@ since Phase 17.**
   Phase 56 — now also queries `listBookingPhotos` and ORs the
   count into `hasPhotos`.
 
+### Phase 77 — provider Navigate-to-Job customer-name display
+- **BUG-PHASE77-01** — Provider `provider/job/[id]/navigate.tsx`
+  read `booking?.providerName` first ("legacy alias" comment) and
+  fell back to a non-existent `customerName` via type assertion.
+  But `providerName` on a /bookings/:id response is the PROVIDER's
+  own name (the API joins providers→users to compute it). So the
+  provider on Navigate-to-Job saw THEIR OWN name labeled as the
+  customer contact. Worse: the booking returned no `customerName`
+  at all because getBookingById and listBookings only joined
+  providers/users for the provider side; users by customer_id was
+  never joined. Fix: API getBookingById + listBookings JOIN users
+  cu ON cu.id = b.customer_id and select customer_name;
+  formatBookingResponse maps it; mobile Booking interface adds
+  customerName?; navigate.tsx reads booking?.customerName directly.
+
+### Phase 77b — admin DispatchConsole cancel reason min length
+- **BUG-PHASE77-02** — Admin DispatchConsole cancel-booking dialog
+  client-side validated reason ≥ 5 characters, but the server's
+  cancelBookingAsAdmin (booking-admin.service.ts:839) requires
+  ≥ 10 via `requireReason(reason, 10)`. A 6-9 char reason passed
+  the client check, hit the server, and bounced with a generic
+  400. Now: client matches server's 10-char floor so the dialog
+  catches it with a clear toast before the round-trip.
+
 ## Verification at end of pass
 
 - **101/101** admin Vitest DOM tests pass
 - **400 / 491** mobile Jest tests pass (91 todo — same baseline)
-- **116/116** API settings-service + settings-routes Jest tests pass
+- **2476 / 2498** API Jest tests pass (22 pre-existing failures
+  in cancelBookingAsAdmin tests — unrelated, mocks predate query
+  added in Phase 26 / Phase 18a; not introduced by this pass)
 - **`npx tsc --noEmit` clean** for admin, api, and mobile packages
-- **12 commits**, all atomic, all with co-author attribution
+- **14 commits**, all atomic, all with co-author attribution
 - **Zero regressions** detected at any phase boundary
 
 ## Cumulative since Phase 17
 
-- **134 real bugs found + fixed** total (112 prior + 22 this
+- **136 real bugs found + fixed** total (112 prior + 24 this
   continuation)
-- **9 migrations** (none new in 63–76)
+- **9 migrations** (none new in 63–77)
 - All assertion totals from Phase 62 still apply
 
 ## Patterns observed
