@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Alert, ActivityIndicator,
+  StyleSheet, Alert, ActivityIndicator, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -163,11 +163,36 @@ export default function AccountManagementScreen(): React.ReactElement {
               {exportQuery.data!.slice(0, 3).map((exp) => {
                 const StatusIcon = exp.status === 'completed' ? CheckCircle2 : exp.status === 'failed' ? XCircle : Hourglass;
                 const statusColor = exp.status === 'completed' ? colors.success : exp.status === 'failed' ? colors.error : colors.textSecondary;
+                // BUG-PHASE70-01 fix — pre-fix the row showed only the
+                // status pill + date. The DataExportEntry returns a
+                // signed `fileUrl` that the user is supposed to use to
+                // download the export, but the UI never surfaced it.
+                // So the user saw "completed" with no way to access
+                // the file (a hard NPC RA 10173 §22 compliance gap —
+                // the law guarantees the user a means to access their
+                // exported data). Now: a Download link opens the
+                // signed URL via Linking, plus an "Expires …" hint.
+                const isDownloadable = exp.status === 'completed' && exp.fileUrl;
                 return (
                   <View key={exp.id} style={styles.exportRow}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
                       <StatusIcon size={14} color={statusColor} />
                       <Text style={styles.exportStatus}> {exp.format.toUpperCase()}</Text>
+                      {isDownloadable && (
+                        <TouchableOpacity
+                          onPress={() => { void Linking.openURL(exp.fileUrl as string); }}
+                          accessibilityLabel="Download exported data file"
+                          testID={`export-download-${exp.id}`}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Text style={styles.exportDownloadLink}>Download</Text>
+                        </TouchableOpacity>
+                      )}
+                      {exp.status === 'completed' && exp.expiresAt && (
+                        <Text style={styles.exportExpires} numberOfLines={1}>
+                          {`Expires ${formatDate(exp.expiresAt)}`}
+                        </Text>
+                      )}
                     </View>
                     <Text style={styles.exportDate}>{formatDate(exp.createdAt)}</Text>
                   </View>
@@ -340,6 +365,19 @@ const styles = StyleSheet.create({
   },
   exportStatus: { ...typography.bodySmall, color: colors.text },
   exportDate: { ...typography.caption, color: colors.textTertiary },
+  exportDownloadLink: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: '600' as const,
+    marginLeft: spacing.sm,
+    textDecorationLine: 'underline' as const,
+  },
+  exportExpires: {
+    ...typography.caption,
+    color: colors.textTertiary,
+    marginLeft: spacing.sm,
+    flex: 1,
+  },
 
   divider: { height: 1, backgroundColor: colors.divider, marginVertical: spacing.sm },
 
