@@ -71,6 +71,31 @@ export default function DocumentsScreen(): React.ReactElement {
       Alert.alert('Required', 'Please upload all three documents to continue.');
       return;
     }
+    // BUG-PHASE62-01 fix — pre-fix the optional NBI Expiry / Gov ID
+    // Number TextInputs accepted any string and forwarded raw to
+    // /providers/apply during terms.tsx submit. Server Zod validators
+    // reject non-YYYY-MM-DD with a generic 400 the user can't easily
+    // map back to a field two screens away. Same pattern as the
+    // Provider Certifications fix in Phase 60 (BUG-PHASE60-01). Now:
+    // catch the format issue here, before the user advances.
+    const expiry = (store.nbiExpiryDate ?? '').trim();
+    if (expiry.length > 0 && !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
+      Alert.alert(
+        'Invalid Expiry Date',
+        'NBI expiry date must be in YYYY-MM-DD format (e.g. 2027-01-15) or left blank.',
+      );
+      return;
+    }
+    if (expiry.length > 0) {
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+      if (expiry < today) {
+        Alert.alert(
+          'Expired NBI',
+          'The NBI expiry date is in the past. NBI clearance must be valid (issued within 6 months).',
+        );
+        return;
+      }
+    }
     router.push(Routes.PROVIDER_ONBOARDING.SELFIE);
   };
 

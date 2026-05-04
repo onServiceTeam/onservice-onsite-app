@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 import { Button, Input } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -41,6 +42,48 @@ export default function ServiceAreaScreen(): React.ReactElement {
   const [province, setProvince] = useState(store.province);
   const [lat, setLat] = useState<number | null>(store.latitude);
   const [lng, setLng] = useState<number | null>(store.longitude);
+  // BUG-PHASE62-02 fix — pre-fix the K06 alert told the user to
+  // "Tap 'Use My Current Location'" but no such button existed on
+  // this screen. Provider got an actionable-sounding error pointing
+  // to an affordance that wasn't there. Now: real GPS button using
+  // expo-location, populates lat/lng + mirrors to a basic city/
+  // province display so the user can verify before proceeding.
+  const [locating, setLocating] = useState(false);
+  const useCurrentLocation = async (): Promise<void> => {
+    setLocating(true);
+    try {
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.status !== 'granted') {
+        Alert.alert(
+          'Permission denied',
+          'Allow location access in your device settings to use this feature.',
+        );
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setLat(loc.coords.latitude);
+      setLng(loc.coords.longitude);
+      // Best-effort reverse geocode to populate city/province text.
+      try {
+        const places = await Location.reverseGeocodeAsync({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+        const place = places[0];
+        if (place) {
+          if (!city.trim() && place.city) setCity(place.city);
+          if (!province.trim() && place.region) setProvince(place.region);
+        }
+      } catch { /* reverse geocode best-effort */ }
+      Alert.alert('Got it', 'Location captured. You can adjust the city/province fields if needed.');
+    } catch {
+      Alert.alert('Location unavailable', 'Could not get your current location on this device.');
+    } finally {
+      setLocating(false);
+    }
+  };
 
   const selectCity = (item: typeof PH_REGIONS[0]): void => {
     setCity(item.city);
@@ -129,6 +172,26 @@ export default function ServiceAreaScreen(): React.ReactElement {
         <Input label="City" placeholder="e.g. Quezon City" value={city} onChangeText={(v) => { setCity(v); setLat(null); setLng(null); }} />
         <Input label="Province" placeholder="e.g. Metro Manila" value={province} onChangeText={setProvince} />
 
+        {/* BUG-PHASE62-02 — real "Use My Current Location" button
+             matching the K06 alert message. */}
+        <TouchableOpacity
+          style={styles.locateBtn}
+          onPress={() => { void useCurrentLocation(); }}
+          disabled={locating}
+          activeOpacity={0.7}
+        >
+          {locating ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Text style={styles.locateBtnText}>📍 Use My Current Location</Text>
+          )}
+        </TouchableOpacity>
+        {lat != null && lng != null && (
+          <Text style={styles.locateHint}>
+            GPS captured: {lat.toFixed(4)}, {lng.toFixed(4)}
+          </Text>
+        )}
+
         <Text style={styles.radiusLabel}>Service Radius</Text>
         <View style={styles.radiusGrid}>
           {RADIUS_OPTIONS.map((r) => (
@@ -208,6 +271,21 @@ const styles = StyleSheet.create({
   radiusChipText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' },
   radiusChipTextActive: { color: colors.primary },
   radiusHint: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.xs },
+  locateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+    backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.md,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    marginTop: spacing.sm,
+    minHeight: 48,
+  },
+  locateBtnText: { ...typography.body, color: colors.primary, fontWeight: '700' },
+  locateHint: { ...typography.caption, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xs },
   footer: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
