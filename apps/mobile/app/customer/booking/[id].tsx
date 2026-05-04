@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { getBookingById } from '@/services/booking.service';
+import { listBookingPhotos } from '@/services/booking-photo.service';
 import { Badge, Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatBookingRef } from '@/utils/date';
@@ -61,7 +62,26 @@ export default function BookingDetailScreen(): React.ReactElement {
     staleTime: 30 * 1000,
   });
 
-  const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
+  // BUG-PHASE76-01 fix — pre-fix the `hasPhotos` flag (used to gate
+  // the "View Job Photos" button) only checked the deprecated TEXT[]
+  // arrays from migration 037. Photos uploaded via the canonical
+  // /api/v1/uploads/booking-photo endpoint (Phase E CRIT-102 — used
+  // by provider/job/[id]/complete and provider checklist) write ONLY
+  // to booking_photos, not the legacy arrays. So a customer whose
+  // provider used the new completion flow saw NO entry point to
+  // their job photos. Same dual-source pattern as the Phase 71-03
+  // provider-photos fix and Phase 56 customer photos.tsx fix.
+  const photosCountQuery = useQuery({
+    queryKey: ['bookingPhotos', id],
+    queryFn: () => listBookingPhotos(id ?? ''),
+    enabled: !!id,
+    staleTime: 60 * 1000,
+  });
+
+  const onRefresh = useCallback(() => {
+    void refetch();
+    void photosCountQuery.refetch();
+  }, [refetch, photosCountQuery]);
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
@@ -112,10 +132,13 @@ export default function BookingDetailScreen(): React.ReactElement {
   const canViewQuotes = booking.bookingType === 'quote_based' && ['requested', 'quoted'].includes(booking.status);
   const canViewChangeOrders = ['in_progress', 'completed_by_provider', 'confirmed'].includes(booking.status);
   const canFileDispute = ['completed_by_provider', 'confirmed'].includes(booking.status);
+  // BUG-PHASE76-01 — union legacy TEXT[] count + canonical
+  // booking_photos count for the gate.
   const hasPhotos =
     (booking.providerBeforePhotos?.length ?? 0) > 0 ||
     (booking.providerAfterPhotos?.length ?? 0) > 0 ||
-    (booking.jobPhotos?.length ?? 0) > 0;
+    (booking.jobPhotos?.length ?? 0) > 0 ||
+    (photosCountQuery.data?.length ?? 0) > 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
