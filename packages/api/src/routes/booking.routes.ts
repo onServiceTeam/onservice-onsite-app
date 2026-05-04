@@ -836,6 +836,91 @@ router.post(
   },
 );
 
+// ─── Phase 36b — 45s round-robin offer cycle ───────────────────────
+//
+// Three new endpoints on top of the existing /:id/match + /:id/assign
+// flow. Customer triggers POST /:id/dispatch to start the cycle;
+// providers POST /offers/:id/accept or /offers/:id/decline.
+//
+// Cron job (jobs/booking-offers-sweep.ts) fires every 5s and expires
+// stale offers, then re-kicks the cycle.
+
+router.post(
+  '/:id/dispatch',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = getParamId(req);
+      const role = req.user!.role;
+      const userId = req.user!.userId;
+      const booking = await bookingService.getBookingByIdAdmin(id);
+      const isAdmin = role === 'admin' || role === 'super_admin';
+      const isOwner = booking.customer_id === userId;
+      if (!isAdmin && !isOwner) {
+        throw createAppError('Only the booking owner or an admin can dispatch.', 403);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const offerSvc = require('../services/booking-offer.service');
+      const offer = await offerSvc.kickOfferCycle(id);
+      if (!offer) {
+        res.status(409).json({
+          success: false,
+          error: { message: 'No providers available for this booking.', statusCode: 409 },
+        });
+        return;
+      }
+      res.status(201).json({ success: true, data: offerSvc.formatOffer(offer) });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/offers/:offerId/accept',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const offerId = req.params.offerId as string | undefined;
+      if (!offerId) throw createAppError('offerId required.', 400);
+      if (req.user!.role !== 'provider') {
+        throw createAppError('Only providers can accept offers.', 403);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const offerSvc = require('../services/booking-offer.service');
+      const result = await offerSvc.acceptOffer(offerId, req.user!.userId);
+      res.json({ success: true, data: result });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/offers/:offerId/decline',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const offerId = req.params.offerId as string | undefined;
+      if (!offerId) throw createAppError('offerId required.', 400);
+      if (req.user!.role !== 'provider') {
+        throw createAppError('Only providers can decline offers.', 403);
+      }
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const offerSvc = require('../services/booking-offer.service');
+      const result = await offerSvc.declineOffer(offerId, req.user!.userId, reason);
+      // After decline, immediately try the next candidate.
+      try {
+        const next = await offerSvc.kickOfferCycle(result.booking_id);
+        res.json({
+          success: true,
+          data: { declined: true, nextOffer: next ? offerSvc.formatOffer(next) : null },
+        });
+      } catch (kickErr) {
+        // No more candidates — surface declined OK + null next.
+        res.json({ success: true, data: { declined: true, nextOffer: null } });
+      }
+    } catch (error) { next(error); }
+  },
+);
+
 router.post(
   '/:id/quotes',
   authMiddleware,

@@ -1,5 +1,6 @@
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
+import { createAppError } from '../middleware/error.middleware';
 import * as templateService from './notification-template.service';
 import * as i18n from './i18n.service';
 import { formatPHP } from '../utils/currency';
@@ -210,12 +211,84 @@ interface ExpoPushTicket {
   details?: { error?: string };
 }
 
+// Phase 36a — Quiet-hours bypass. Critical types are delivered even
+// during quiet hours so customers aren't left wondering whether their
+// payment went through or their booking was cancelled.
+const QUIET_HOURS_BYPASS_TYPES = new Set<string>([
+  'payment_received', 'payment_failed', 'refund_processed',
+  'booking_cancelled', 'booking_disputed',
+  'security_alert', 'admin_message',
+  // Provider arrival is time-sensitive — provider is at the door now.
+  'provider_arrived',
+]);
+
+/**
+ * Phase 36a — quiet-hours guard. Returns TRUE when the userId has
+ * quiet_hours_enabled AND the current time falls inside the window
+ * AND the notification type is NOT in the bypass list. Wraps midnight
+ * when start > end (e.g., 22:00..07:00).
+ *
+ * Implementation reads the user's timezone column (default
+ * 'Asia/Manila') and computes "now" in that TZ using
+ * Intl.DateTimeFormat — no external date-fns-tz dependency needed.
+ */
+async function isInQuietHours(
+  userId: string,
+  notificationType?: string,
+): Promise<boolean> {
+  if (notificationType && QUIET_HOURS_BYPASS_TYPES.has(notificationType)) {
+    return false;
+  }
+  const prefRow = await db.query<{
+    quiet_hours_enabled: boolean;
+    quiet_hours_start: string;
+    quiet_hours_end: string;
+    quiet_hours_timezone: string;
+  }>(
+    `SELECT quiet_hours_enabled, quiet_hours_start::text, quiet_hours_end::text,
+            quiet_hours_timezone
+       FROM notification_preferences WHERE user_id = $1`,
+    [userId],
+  );
+  if (prefRow.rows.length === 0 || !prefRow.rows[0]!.quiet_hours_enabled) {
+    return false;
+  }
+  const { quiet_hours_start: start, quiet_hours_end: end, quiet_hours_timezone: tz } = prefRow.rows[0]!;
+  // Compute "now" in the user's TZ as HH:MM (24h).
+  let nowHHMM: string;
+  try {
+    const fmt = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz,
+    });
+    nowHHMM = fmt.format(new Date());
+  } catch {
+    // Bad timezone string in user prefs — fail-open (don't suppress push).
+    logger.warn('quiet_hours invalid timezone — fail open', { userId, tz });
+    return false;
+  }
+  const startHHMM = start.slice(0, 5);
+  const endHHMM = end.slice(0, 5);
+  const inWindow = startHHMM <= endHHMM
+    ? (nowHHMM >= startHHMM && nowHHMM < endHHMM)         // same-day window
+    : (nowHHMM >= startHHMM || nowHHMM < endHHMM);        // wraps midnight
+  return inWindow;
+}
+
 async function deliverPushToDevice(
   userId: string,
   title: string,
   body: string,
   data?: Record<string, unknown>,
 ): Promise<void> {
+  // Phase 36a — quiet-hours suppression. The notifications row was
+  // already INSERTed by createNotification; we only skip the push
+  // wake-up. User sees the message when they next open the app.
+  const notificationType = typeof data?.type === 'string' ? data.type : undefined;
+  if (await isInQuietHours(userId, notificationType)) {
+    logger.info('Push suppressed by quiet hours', { userId, type: notificationType });
+    return;
+  }
+
   const tokenResult = await db.query<PushTokenRow>(
     `SELECT token, platform FROM push_tokens WHERE user_id = $1`,
     [userId],
@@ -463,12 +536,19 @@ interface NotificationPrefRow {
   marketing_email_enabled: boolean;
   marketing_consent_acknowledged_at: Date | null;
   marketing_consent_version: number | null;
+  // Phase 36a — quiet hours.
+  quiet_hours_enabled: boolean;
+  quiet_hours_start: string;
+  quiet_hours_end: string;
+  quiet_hours_timezone: string;
 }
 
 const PREF_COLUMNS: (keyof Omit<NotificationPrefRow, 'user_id' | 'marketing_consent_acknowledged_at' | 'marketing_consent_version'>)[] = [
   'booking_updates', 'provider_activity', 'payment_alerts', 'messages',
   'promotions', 'suki_rewards', 'reminders', 'system',
   'marketing_push_enabled', 'marketing_sms_enabled', 'marketing_email_enabled',
+  // Phase 36a
+  'quiet_hours_enabled', 'quiet_hours_start', 'quiet_hours_end', 'quiet_hours_timezone',
 ];
 
 export interface NotificationPrefs {
@@ -486,6 +566,11 @@ export interface NotificationPrefs {
   marketingEmailEnabled: boolean;
   marketingConsentAcknowledgedAt: string | null;
   marketingConsentVersion: number | null;
+  // Phase 36a additions
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;     // 'HH:MM'
+  quietHoursEnd: string;       // 'HH:MM'
+  quietHoursTimezone: string;  // IANA TZ name
 }
 
 const DEFAULT_PREFS: NotificationPrefs = {
@@ -502,6 +587,11 @@ const DEFAULT_PREFS: NotificationPrefs = {
   marketingEmailEnabled: false,
   marketingConsentAcknowledgedAt: null,
   marketingConsentVersion: null,
+  // Phase 36a defaults: opt-in (disabled by default; 22:00-07:00 PHT)
+  quietHoursEnabled: false,
+  quietHoursStart: '22:00',
+  quietHoursEnd: '07:00',
+  quietHoursTimezone: 'Asia/Manila',
 };
 
 function formatPrefs(row: NotificationPrefRow): NotificationPrefs {
@@ -519,6 +609,11 @@ function formatPrefs(row: NotificationPrefRow): NotificationPrefs {
     marketingEmailEnabled: row.marketing_email_enabled,
     marketingConsentAcknowledgedAt: row.marketing_consent_acknowledged_at?.toISOString() ?? null,
     marketingConsentVersion: row.marketing_consent_version,
+    // Phase 36a — quiet hours
+    quietHoursEnabled: row.quiet_hours_enabled,
+    quietHoursStart: row.quiet_hours_start.slice(0, 5),
+    quietHoursEnd: row.quiet_hours_end.slice(0, 5),
+    quietHoursTimezone: row.quiet_hours_timezone,
   };
 }
 
@@ -548,7 +643,30 @@ export async function updateNotificationPreferences(
     marketingPushEnabled: 'marketing_push_enabled',
     marketingSmsEnabled: 'marketing_sms_enabled',
     marketingEmailEnabled: 'marketing_email_enabled',
+    // Phase 36a — quiet hours
+    quietHoursEnabled: 'quiet_hours_enabled',
+    quietHoursStart: 'quiet_hours_start',
+    quietHoursEnd: 'quiet_hours_end',
+    quietHoursTimezone: 'quiet_hours_timezone',
   };
+
+  // Phase 36a — validate quiet-hours payload before any DB write so
+  // a malformed time string doesn't blow up Postgres.
+  const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (prefs.quietHoursStart !== undefined && !TIME_RE.test(prefs.quietHoursStart)) {
+    throw createAppError('quietHoursStart must be HH:MM (24h).', 400);
+  }
+  if (prefs.quietHoursEnd !== undefined && !TIME_RE.test(prefs.quietHoursEnd)) {
+    throw createAppError('quietHoursEnd must be HH:MM (24h).', 400);
+  }
+  if (prefs.quietHoursTimezone !== undefined) {
+    try {
+      // Probe TZ validity: Intl throws on bogus IANA name.
+      new Intl.DateTimeFormat('en', { timeZone: prefs.quietHoursTimezone });
+    } catch {
+      throw createAppError('quietHoursTimezone must be a valid IANA timezone name.', 400);
+    }
+  }
 
   const sets: string[] = [];
   const params: unknown[] = [userId];
