@@ -236,6 +236,17 @@ function StaffTab(): React.ReactElement {
   const [addUserId, setAddUserId] = useState('');
   const [addRoleId, setAddRoleId] = useState('');
   const [error, setError] = useState('');
+  // BUG-PHASE44-01 fix — pre-fix the role-change dropdown fired a
+  // PUT immediately on selection with no confirmation. For a tool
+  // that grants or revokes admin permissions, one-click changes
+  // are dangerous (an accidental click could promote someone to
+  // super_admin-equivalent). Now: dropdown stages the change and
+  // a confirm dialog is required before commit.
+  const [pendingRoleChange, setPendingRoleChange] = useState<{
+    staff: AdminStaff;
+    newRoleId: string;
+    newRoleName: string;
+  } | null>(null);
   const limit = adminConfig.defaultPageSize;
 
   const { data, isLoading, isError } = useQuery({
@@ -301,7 +312,17 @@ function StaffTab(): React.ReactElement {
         <select
           className="text-sm border border-[var(--color-border)] rounded px-2 py-1"
           value={r.role_id}
-          onChange={(e) => updateMutation.mutate({ id: r.id, roleId: e.target.value })}
+          onChange={(e) => {
+            const newRoleId = e.target.value;
+            if (newRoleId === r.role_id) return;
+            const newRoleName = (roles ?? []).find((rr) => rr.id === newRoleId)?.name ?? '(unknown)';
+            // Stage the change for confirmation rather than firing
+            // immediately (BUG-PHASE44-01).
+            setPendingRoleChange({ staff: r, newRoleId, newRoleName });
+            // Reset the visible select back so the UI doesn't show
+            // a stale optimistic selection if the dialog is cancelled.
+            e.target.value = r.role_id;
+          }}
         >
           {(roles ?? []).map((role) => (
             <option key={role.id} value={role.id}>{formatLabel(role.name)}</option>
@@ -406,6 +427,49 @@ function StaffTab(): React.ReactElement {
           pageSize={limit}
           onPageChange={setPage}
         />
+      )}
+
+      {pendingRoleChange && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1">
+              Change role
+            </h3>
+            <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+              {pendingRoleChange.staff.user_first_name} {pendingRoleChange.staff.user_last_name}
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded p-3 mb-4 text-sm text-[var(--color-text)]">
+              <p>
+                Change role from <strong>{formatLabel(pendingRoleChange.staff.role_name ?? '—')}</strong>{' '}
+                to <strong>{formatLabel(pendingRoleChange.newRoleName)}</strong>?
+              </p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-2">
+                This grants/revokes admin permissions immediately and is recorded in the audit log.
+              </p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setPendingRoleChange(null)}
+                className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  updateMutation.mutate({
+                    id: pendingRoleChange.staff.id,
+                    roleId: pendingRoleChange.newRoleId,
+                  });
+                  setPendingRoleChange(null);
+                }}
+                disabled={updateMutation.isPending}
+                className="px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              >
+                {updateMutation.isPending ? 'Updating...' : 'Confirm change'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
