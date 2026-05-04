@@ -106,7 +106,30 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
       Alert.alert('Invalid Date', 'Please use format YYYY-MM-DD.');
       return;
     }
+    // BUG-PHASE50-01 fix — pre-fix the form accepted any
+    // YYYY-MM-DD value including past dates. The futureOverrides
+    // filter hid the past-dated override from the list (so the
+    // provider couldn't see or remove it after submission), and
+    // the server might accept it silently if the date wasn't
+    // bounded server-side. Now: explicit "must be today or
+    // later" client-side guard with a clear error message.
+    const todayManila = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+    if (overrideDate.trim() < todayManila) {
+      Alert.alert(
+        'Past Date',
+        `Overrides can only be set for today or later (today in Manila is ${todayManila}).`,
+      );
+      return;
+    }
     const isCustomAvailable = overrideType === 'custom';
+    if (isCustomAvailable && (!startTime.trim() || !endTime.trim())) {
+      Alert.alert('Hours Required', 'Custom hours need both start and end time (HH:MM).');
+      return;
+    }
+    if (isCustomAvailable && startTime.trim() >= endTime.trim()) {
+      Alert.alert('Invalid Hours', 'End time must be later than start time.');
+      return;
+    }
     addMutation.mutate({
       overrideDate: overrideDate.trim(),
       isAvailable: isCustomAvailable,

@@ -67,8 +67,35 @@ export default function ScheduleScreen(): React.ReactElement {
     }
   }, [existingSchedule]);
 
+  // BUG-PHASE50-02 fix — pre-fix the Save button fired the mutation
+  // with no client-side validation of the HH:MM time strings or
+  // start < end ordering. Provider would type "8:00" (missing
+  // leading zero) or "08:00" / "07:00" (end < start) and the
+  // server would 4xx with a generic message. Now: validate up-
+  // front and surface the offending day clearly.
+  const validateSchedule = (): string | null => {
+    const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+    for (const day of schedule) {
+      if (!day.isAvailable) continue;
+      if (!timeRe.test(day.startTime)) {
+        return `${DAY_NAMES[day.dayOfWeek]}: invalid start time "${day.startTime}". Use HH:MM (e.g. 08:00).`;
+      }
+      if (!timeRe.test(day.endTime)) {
+        return `${DAY_NAMES[day.dayOfWeek]}: invalid end time "${day.endTime}". Use HH:MM (e.g. 17:00).`;
+      }
+      if (day.startTime >= day.endTime) {
+        return `${DAY_NAMES[day.dayOfWeek]}: end time must be later than start time.`;
+      }
+    }
+    return null;
+  };
+
   const saveMutation = useMutation({
-    mutationFn: () => setMySchedule(schedule),
+    mutationFn: () => {
+      const err = validateSchedule();
+      if (err) return Promise.reject(new Error(err));
+      return setMySchedule(schedule);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['providerSchedule'] });
       void queryClient.invalidateQueries({ queryKey: ['providerProfile'] });
