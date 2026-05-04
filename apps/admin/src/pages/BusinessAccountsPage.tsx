@@ -58,6 +58,13 @@ export default function BusinessAccountsPage(): React.ReactElement {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [actionError, setActionError] = useState('');
+  // BUG-PHASE41-03 fix — pre-fix the suspend POST sent a hardcoded
+  // "Admin action" reason. Suspending a business account is serious
+  // (cuts off scheduled bookings, cuts off credit-line invoicing) so
+  // the reason needs to be captured for audit + recipient
+  // notification. Now: confirm modal with required reason.
+  const [suspendTarget, setSuspendTarget] = useState<BusinessAccount | null>(null);
+  const [suspendReason, setSuspendReason] = useState('');
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
@@ -83,12 +90,14 @@ export default function BusinessAccountsPage(): React.ReactElement {
   });
 
   const suspendMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await api.post(`/api/v1/admin/business-accounts/${id}/suspend`, { reason: 'Admin action' });
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      await api.post(`/api/v1/admin/business-accounts/${id}/suspend`, { reason });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminBusinessAccounts'] });
       setActionError('');
+      setSuspendTarget(null);
+      setSuspendReason('');
     },
     onError: (e) => setActionError(getErrorMessage(e)),
   });
@@ -169,7 +178,7 @@ export default function BusinessAccountsPage(): React.ReactElement {
           )}
           {r.status === 'active' && (
             <button
-              onClick={() => suspendMutation.mutate(r.id)}
+              onClick={() => { setSuspendTarget(r); setSuspendReason(''); }}
               disabled={suspendMutation.isPending}
               className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
             >
@@ -233,6 +242,40 @@ export default function BusinessAccountsPage(): React.ReactElement {
           pageSize={pagination.pageSize}
           onPageChange={setPage}
         />
+      )}
+
+      {suspendTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1">Suspend business account</h3>
+            <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+              {suspendTarget.companyName} ({TYPE_LABELS[suspendTarget.businessType] ?? suspendTarget.businessType})
+            </p>
+            <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Suspension reason *</label>
+            <textarea
+              value={suspendReason}
+              onChange={(e) => setSuspendReason(e.target.value)}
+              rows={3}
+              placeholder="Explain why (min 10 characters) — recorded in audit log"
+              className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+            />
+            <div className="flex gap-2 justify-end mt-4">
+              <button
+                onClick={() => setSuspendTarget(null)}
+                className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => suspendMutation.mutate({ id: suspendTarget.id, reason: suspendReason })}
+                disabled={suspendMutation.isPending || suspendReason.trim().length < 10}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              >
+                {suspendMutation.isPending ? 'Suspending...' : 'Confirm suspend'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

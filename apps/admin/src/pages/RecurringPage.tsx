@@ -53,6 +53,13 @@ export default function RecurringPage(): React.ReactElement {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [actionError, setActionError] = useState('');
+  // BUG-PHASE41-02 fix — pre-fix the cancel POST sent a hardcoded
+  // reason ("Admin cancellation"). The reason ends up in the audit
+  // ledger and on customer-facing notifications, so a hardcoded
+  // string defeats the purpose. Now: a confirm modal captures the
+  // real reason from the admin (min 10 chars).
+  const [cancelTarget, setCancelTarget] = useState<RecurringBooking | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
@@ -67,12 +74,14 @@ export default function RecurringPage(): React.ReactElement {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await api.post(`/api/v1/admin/recurring/${id}/cancel`, { reason: 'Admin cancellation' });
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      await api.post(`/api/v1/admin/recurring/${id}/cancel`, { reason });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminRecurring'] });
       setActionError('');
+      setCancelTarget(null);
+      setCancelReason('');
     },
     onError: (e) => setActionError(getErrorMessage(e)),
   });
@@ -153,7 +162,7 @@ export default function RecurringPage(): React.ReactElement {
       render: (r) =>
         r.status === 'active' ? (
           <button
-            onClick={() => cancelMutation.mutate(r.id)}
+            onClick={() => { setCancelTarget(r); setCancelReason(''); }}
             disabled={cancelMutation.isPending}
             className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
           >
@@ -216,6 +225,40 @@ export default function RecurringPage(): React.ReactElement {
           pageSize={pagination.pageSize}
           onPageChange={setPage}
         />
+      )}
+
+      {cancelTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1">Cancel recurring booking</h3>
+            <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+              {cancelTarget.customerName ?? '(unknown customer)'} — {FREQUENCY_LABELS[cancelTarget.frequency] ?? cancelTarget.frequency}
+            </p>
+            <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Cancellation reason *</label>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+              placeholder="Explain why (min 10 characters) — recorded in audit log + sent to customer"
+              className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+            />
+            <div className="flex gap-2 justify-end mt-4">
+              <button
+                onClick={() => setCancelTarget(null)}
+                className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => cancelMutation.mutate({ id: cancelTarget.id, reason: cancelReason })}
+                disabled={cancelMutation.isPending || cancelReason.trim().length < 10}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              >
+                {cancelMutation.isPending ? 'Cancelling...' : 'Confirm cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

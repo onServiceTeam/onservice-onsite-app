@@ -23,6 +23,8 @@ interface Payout {
   reviewedAt: string | null;
   createdAt: string;
   completedAt: string | null;
+  // BUG-PHASE41-01 — populated by API list via LEFT JOIN providers.
+  providerBusinessName: string | null;
 }
 
 interface PaginatedResult {
@@ -102,8 +104,21 @@ export default function PayoutsPage(): React.ReactElement {
     {
       key: 'id',
       header: 'Payout',
+      // BUG-PHASE41-01 fix — pre-fix admins saw only "PA-12345678"
+      // with no indication of WHO the payout was for. providerId is
+      // a UUID (opaque). Now: clickable provider link with business
+      // name + short payout id below for reference.
       render: (r) => (
-        <span className="font-mono text-xs text-[var(--color-text)]">{r.id.slice(0, 8)}</span>
+        <div>
+          <a
+            href={`/providers/${r.providerId}`}
+            className="text-sm text-[var(--color-link)] hover:underline font-medium"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {r.providerBusinessName ?? '(unnamed provider)'}
+          </a>
+          <p className="font-mono text-[10px] text-[var(--color-text-secondary)]">PA {r.id.slice(0, 8)}</p>
+        </div>
       ),
     },
     {
@@ -126,8 +141,24 @@ export default function PayoutsPage(): React.ReactElement {
     {
       key: 'status',
       header: 'Status',
+      // BUG-PHASE41-01 fix — pre-fix the failureReason / rejectionReason
+      // were on the API payload but invisible. Operationally critical
+      // when triaging failed payouts at scale — admin had to click
+      // each row to see why. Now visible inline below the badge.
       render: (r) => (
-        <Badge label={r.status.replace(/_/g, ' ')} variant={STATUS_VARIANT[r.status] ?? 'default'} />
+        <div>
+          <Badge label={r.status.replace(/_/g, ' ')} variant={STATUS_VARIANT[r.status] ?? 'default'} />
+          {r.status === 'failed' && r.failureReason && (
+            <p className="text-[10px] text-red-600 mt-0.5 max-w-[180px] line-clamp-2" title={r.failureReason}>
+              {r.failureReason}
+            </p>
+          )}
+          {r.status === 'rejected' && r.rejectionReason && (
+            <p className="text-[10px] text-red-600 mt-0.5 max-w-[180px] line-clamp-2" title={r.rejectionReason}>
+              {r.rejectionReason}
+            </p>
+          )}
+        </div>
       ),
     },
     {

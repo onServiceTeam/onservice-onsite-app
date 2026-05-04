@@ -46,6 +46,9 @@ interface PayoutRow {
   reviewed_at: Date | null;
   created_at: Date;
   completed_at: Date | null;
+  // BUG-PHASE41-01 — populated by listPayouts via LEFT JOIN providers.
+  // null when not populated by other queries (single-row formatters).
+  provider_business_name?: string | null;
 }
 
 interface CountRow { count: string }
@@ -377,8 +380,14 @@ export async function listPayouts(
   );
 
   const offset = (filters.page - 1) * filters.pageSize;
+  // BUG-PHASE41-01 fix — JOIN providers so the admin payouts list can
+  // show "{provider business name}" alongside the opaque providerId.
+  // Pre-fix admins saw only "PA-12345678" with no indication of who.
   const dataResult = await db.query<PayoutRow>(
-    `SELECT p.* FROM payouts p ${whereClause}
+    `SELECT p.*, pr.business_name AS provider_business_name
+     FROM payouts p
+     LEFT JOIN providers pr ON pr.id = p.provider_id
+     ${whereClause}
      ORDER BY p.created_at DESC
      LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
     [...params, filters.pageSize, offset],
@@ -424,5 +433,7 @@ export function formatPayout(p: PayoutRow): Record<string, unknown> {
     reviewedAt: p.reviewed_at,
     createdAt: p.created_at,
     completedAt: p.completed_at,
+    // BUG-PHASE41-01 — passthrough when listPayouts populated it.
+    providerBusinessName: p.provider_business_name ?? null,
   };
 }
