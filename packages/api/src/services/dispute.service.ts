@@ -26,6 +26,13 @@ interface DisputeRow {
   resolved_by: string | null;
   created_at: Date;
   updated_at: Date;
+  // BUG-PHASE40-03 — populated only by listDisputes (LEFT JOIN
+  // bookings + users + providers). Other dispute queries return
+  // null/undefined for these. The admin DisputesPage list column
+  // depends on these being non-null when the booking has a customer
+  // and an assigned provider.
+  customer_name?: string | null;
+  provider_name?: string | null;
 }
 
 interface EvidenceRow {
@@ -738,8 +745,21 @@ export async function listDisputes(
   const total = Number(countResult.rows[0]?.count ?? 0);
   const offset = (filters.page - 1) * filters.pageSize;
 
+  // BUG-PHASE40-03 fix — LEFT JOIN bookings → customer + provider so
+  // the admin disputes list can show "{customer} vs. {provider}"
+  // without a follow-up GET. Pre-fix the query was just `SELECT d.*`
+  // and customerName/providerName were declared optional on the
+  // frontend Dispute interface but the API never populated them, so
+  // the fields were always undefined.
   const dataResult = await db.query<DisputeRow>(
-    `SELECT d.* FROM disputes d ${whereClause}
+    `SELECT d.*,
+       CONCAT(u.first_name, ' ', u.last_name) AS customer_name,
+       p.business_name AS provider_name
+     FROM disputes d
+     LEFT JOIN bookings b ON b.id = d.booking_id
+     LEFT JOIN users u ON u.id = b.customer_id
+     LEFT JOIN providers p ON p.id = b.provider_id
+     ${whereClause}
      ORDER BY
        CASE d.status
          WHEN 'escalated' THEN 1
@@ -854,6 +874,10 @@ export function formatDispute(d: DisputeRow): Record<string, unknown> {
     resolvedBy: d.resolved_by,
     createdAt: d.created_at,
     updatedAt: d.updated_at,
+    // BUG-PHASE40-03 — passthrough when listDisputes populated them;
+    // null/undefined for individual-row formatters.
+    customerName: d.customer_name ?? null,
+    providerName: d.provider_name ?? null,
   };
 }
 

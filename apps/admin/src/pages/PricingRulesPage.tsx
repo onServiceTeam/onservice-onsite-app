@@ -538,6 +538,12 @@ export default function PricingRulesPage(): React.ReactElement {
                 <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Multiplier</th>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Details</th>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Priority</th>
+                {/* BUG-PHASE40-02 fix — platformSurgeShare controls how
+                    surge revenue splits between platform and provider
+                    and is editable in the form, but was never visible
+                    in the table. Admin had to open each rule to see
+                    it. Money-flow setting deserves a column. */}
+                <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Platform share</th>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Status</th>
                 <th className="text-right px-4 py-3 font-semibold text-[var(--color-text)]">Actions</th>
               </tr>
@@ -578,6 +584,9 @@ export default function PricingRulesPage(): React.ReactElement {
                   </td>
                   <td className="px-4 py-3 text-[var(--color-text-secondary)]">
                     {rule.priority}
+                  </td>
+                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                    {Math.round(rule.platformSurgeShare * 100)}%
                   </td>
                   <td className="px-4 py-3">
                     <Badge

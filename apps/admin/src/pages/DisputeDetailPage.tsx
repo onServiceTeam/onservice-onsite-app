@@ -187,6 +187,17 @@ export default function DisputeDetailPage(): React.ReactElement {
 
       <DisputeHeader detail={detail} />
 
+      {/* BUG-PHASE40-04 fix — pre-fix, resolved disputes had no UI for
+           the actual resolution. resolutionType, decisionNotes,
+           refundAmount, resolvedAt were on the API payload + the
+           DisputeFullDetail interface but rendered nowhere. Admins
+           had to query the DB or audit log to see what was decided.
+           Now: a Resolution Card shows above the claim/response
+           when the dispute is resolved. */}
+      {detail.status === 'resolved' && (
+        <ResolutionCard detail={detail} />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <ClaimCard detail={detail} />
         <ResponseCard detail={detail} />
@@ -253,6 +264,66 @@ function DisputeHeader({ detail }: { detail: DisputeFullDetail }): React.ReactEl
             </p>
           </div>
         )}
+      </div>
+    </Card>
+  );
+}
+
+// ─── Resolution (visible only for resolved disputes) ─────────────────────
+
+function ResolutionCard({ detail }: { detail: DisputeFullDetail }): React.ReactElement {
+  return (
+    <Card className="p-5 border-2 border-emerald-200 bg-emerald-50/30">
+      <div className="flex items-start gap-3">
+        <Shield size={18} className="text-emerald-600 mt-0.5 shrink-0" />
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-[var(--color-text)] mb-2 flex items-center gap-2">
+            Resolution
+            {detail.resolutionType && (
+              <Badge label={detail.resolutionType.replace(/_/g, ' ')} variant="success" />
+            )}
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            <div>
+              <p className="text-xs text-[var(--color-text-secondary)]">Resolved at</p>
+              <p className="text-sm text-[var(--color-text)]">{fmtDate(detail.resolvedAt)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--color-text-secondary)]">Refund amount</p>
+              <p className="text-sm text-[var(--color-text)] font-medium">
+                {detail.refundAmount != null && detail.refundAmount > 0
+                  ? fmtCentavos(detail.refundAmount)
+                  : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--color-text-secondary)]">Resolved by</p>
+              <p className="text-sm text-[var(--color-text)] font-mono text-xs">
+                {detail.resolvedBy ? detail.resolvedBy.slice(0, 8) : '—'}
+              </p>
+            </div>
+          </div>
+          {detail.decisionNotes && (
+            <div className="border-t border-emerald-200 pt-3">
+              <p className="text-xs font-semibold text-[var(--color-text-secondary)] mb-1">
+                Decision notes (visible to user)
+              </p>
+              <p className="text-sm text-[var(--color-text)] whitespace-pre-wrap">
+                {detail.decisionNotes}
+              </p>
+            </div>
+          )}
+          {detail.internalNotes && (
+            <div className="border-t border-emerald-200 pt-3 mt-3">
+              <p className="text-xs font-semibold text-[var(--color-text-secondary)] mb-1">
+                Internal notes (admin only)
+              </p>
+              <p className="text-sm text-[var(--color-text)] whitespace-pre-wrap bg-amber-50 px-3 py-2 rounded">
+                {detail.internalNotes}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </Card>
   );
@@ -629,8 +700,13 @@ function DisputeActions({
         </div>
       </div>
 
-      {/* Resolution form (super-admin only) */}
-      {isSuperAdmin && (
+      {/* Resolution form (super-admin only, only when not already resolved) */}
+      {/* BUG-PHASE40-05 fix — pre-fix the resolve form rendered for
+           resolved disputes too, but submitting it would have failed
+           server-side (a resolved dispute can't be resolved again).
+           UI shouldn't offer an action that always errors. Same gate
+           applied to Escalate below. */}
+      {isSuperAdmin && detail.status !== 'resolved' && (
         <div className="space-y-3 pt-3 border-t border-[var(--color-border)]">
           <p className="text-sm font-medium text-[var(--color-text)]">Resolution</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -765,7 +841,8 @@ function DisputeActions({
         </div>
       )}
 
-      {/* Escalate */}
+      {/* Escalate (only when not already resolved) */}
+      {detail.status !== 'resolved' && (
       <div className="space-y-2 pt-3 border-t border-[var(--color-border)]">
         <p className="text-sm font-medium text-[var(--color-text)]">Escalate</p>
         <Textarea
@@ -790,6 +867,7 @@ function DisputeActions({
           )}
         </div>
       </div>
+      )}
 
       {/* Message */}
       <div className="space-y-2 pt-3 border-t border-[var(--color-border)]">

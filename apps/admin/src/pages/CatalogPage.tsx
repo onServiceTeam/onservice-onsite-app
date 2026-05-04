@@ -346,12 +346,34 @@ export default function CatalogPage(): React.ReactElement {
                             <p className="text-xs text-[var(--color-text-secondary)] line-clamp-1">{sub.description}</p>
                           </td>
                           <td className="px-4 py-3">
+                            {/* BUG-PHASE40-01 fix — pre-fix the Pricing
+                                column showed only basePrice. For
+                                pricingType=range services the basePrice
+                                is typically null but minPrice/maxPrice
+                                are set, so admin saw only the "range"
+                                badge with no numbers — couldn't tell
+                                the price band without opening the
+                                edit modal. Now shows ₱min – ₱max for
+                                range, ₱base/hr for hourly, "(quote on
+                                request)" for quote, and ₱base for
+                                fixed. */}
                             <Badge label={sub.pricingType} variant="outline" />
-                            {sub.basePrice != null && (
+                            {sub.pricingType === 'range' && (sub.minPrice != null || sub.maxPrice != null) ? (
+                              <span className="ml-2 text-sm font-medium text-[var(--color-text)]">
+                                {sub.minPrice != null ? formatCurrency(sub.minPrice) : '—'} – {sub.maxPrice != null ? formatCurrency(sub.maxPrice) : '—'}
+                              </span>
+                            ) : sub.pricingType === 'quote' ? (
+                              <span className="ml-2 text-sm text-[var(--color-text-secondary)]">
+                                (quote on request)
+                              </span>
+                            ) : sub.basePrice != null ? (
                               <span className="ml-2 text-sm font-medium text-[var(--color-text)]">
                                 {formatCurrency(sub.basePrice)}
+                                {sub.pricingType === 'hourly' && (
+                                  <span className="text-[var(--color-text-secondary)]">/hr</span>
+                                )}
                               </span>
-                            )}
+                            ) : null}
                           </td>
                           <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)]">
                             {sub.estimatedDurationMinutes ? `${sub.estimatedDurationMinutes} min` : '—'}

@@ -149,6 +149,29 @@ export default function DisputesPage(): React.ReactElement {
       ),
     },
     {
+      key: 'parties',
+      header: 'Parties',
+      // BUG-PHASE40-03 fix — pre-fix the list showed only dispute id
+      // and type. Admin had no idea who the dispute was between
+      // without clicking through. customerName/providerName are on
+      // the API payload (when the join populates them) and were
+      // declared as optional on the Dispute interface — now visible
+      // at a glance.
+      render: (r) => (
+        <div className="text-xs">
+          <p className="text-[var(--color-text)]">{r.customerName ?? '—'}</p>
+          <p className="text-[var(--color-text-secondary)]">vs. {r.providerName ?? '(unassigned)'}</p>
+          <Link
+            to={`/bookings/${r.bookingId}`}
+            className="font-mono text-[10px] text-[var(--color-link)] hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            BK {r.bookingId.slice(0, 8)}
+          </Link>
+        </div>
+      ),
+    },
+    {
       key: 'status',
       header: 'Status',
       render: (r) => (
