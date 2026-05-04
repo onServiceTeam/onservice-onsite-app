@@ -111,6 +111,77 @@ const FINANCIALS_BIR_OVERVIEW = {
   monthsFinalized: 0, monthlyReports: [], quarterlyBatches: [],
 };
 
+// Customer 360 profile shape — CustomerDetailPage hits
+// /admin/customers/:id and destructures profile.fullName etc. The
+// sub-tabs (bookings/payments/disputes/referrals/activity) hit
+// separate endpoints which return arrays; only the top-level GET
+// needs the object shape.
+const CUSTOMER_PROFILE = {
+  id: 'CU-0001', firstName: 'Visual', lastName: 'Baseline',
+  fullName: 'Visual Baseline', phone: '+639170000001',
+  email: 'visual@onservice.test', avatarUrl: null,
+  isVerified: true, isActive: true,
+  lastLoginAt: '2026-05-04T00:00:00.000Z',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  lifetimeBookings: 0, lifetimeSpent: 0,
+  averageRatingGiven: null, totalReviewsGiven: 0,
+  addresses: [], sukiProviders: [],
+};
+
+// Provider 360 profile shape — ProviderDetailPage hits
+// /admin/providers/:id and destructures provider fields. Same pattern
+// as customer.
+const PROVIDER_PROFILE = {
+  id: 'PV-0001', userId: 'U-0001',
+  fullName: 'Visual Provider', businessName: 'Visual Provider Co.',
+  phone: '+639180000001', email: 'provider@onservice.test',
+  avatarUrl: null, status: 'approved', tier: 'verified',
+  rating: 0, totalReviews: 0, totalJobs: 0,
+  serviceRadiusKm: 15, isAvailable: true,
+  city: 'Boracay', province: 'Aklan',
+  latitude: 11.97, longitude: 121.93,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  approvedAt: '2026-01-15T00:00:00.000Z',
+  // Sub-fields some sub-pages destructure
+  totalEarnings: 0, lifetimeRevenue: 0, walletBalance: 0,
+  pendingPayouts: 0, services: [], schedule: [], portfolio: [],
+  certifications: [], notes: [],
+};
+
+// Booking detail shape — BookingDetailPage hits /admin/bookings/:id.
+// Address is nested { full, barangay, city, province } not flat.
+// Pre-fix the flat shape made the page render ", ," because the
+// outer string was truthy but inner .full/.barangay/.city/.province
+// were all undefined (BUG-PHASE39-03).
+const BOOKING_DETAIL = {
+  id: 'BK-0001', bookingNumber: 'BK-0001',
+  customer: null, provider: null,
+  status: 'confirmed', escrowStatus: 'released',
+  servicePrice: 0, serviceFee: 0, totalAmount: 0,
+  scheduledAt: '2026-05-04T00:00:00.000Z',
+  address: null,  // explicit null so the EmptyState branch fires
+  description: '', categoryId: 'CAT-1', categoryName: 'Cleaning',
+  subcategoryId: null, subcategoryName: null,
+  paymentMethod: null, paymentIntentId: null,
+  createdAt: '2026-05-01T00:00:00.000Z',
+  updatedAt: '2026-05-04T00:00:00.000Z',
+};
+
+// Dispute detail shape — DisputeDetailPage hits /admin/disputes/:id.
+const DISPUTE_DETAIL = {
+  id: 'DSP-0001', bookingId: 'BK-0001',
+  customerId: 'CU-0001', providerId: 'PV-0001',
+  customerName: 'Visual Customer', providerName: 'Visual Provider',
+  type: 'service_quality', status: 'open',
+  description: 'Visual baseline test dispute',
+  resolution: null, resolutionNotes: null,
+  refundAmount: null, refundType: null,
+  assignedAdminId: null, escalatedAt: null,
+  createdAt: '2026-05-04T00:00:00.000Z',
+  updatedAt: '2026-05-04T00:00:00.000Z',
+  messages: [], evidence: [],
+};
+
 export const test = base.extend({
   page: async ({ page }, use) => {
     // 1. Hard-mock /auth/me so the auth-store hydrate() succeeds.
@@ -139,6 +210,39 @@ export const test = base.extend({
       }
     });
 
+    // 2a-bis. Other non-/admin endpoints called directly from pages:
+    //   /catalog/**       — CatalogPage
+    //   /disputes         — DisputesPage list
+    //   /payouts          — PayoutsPage list
+    //   /staff/**         — StaffRolesPage
+    // All return safe empty payloads. Per-test page.route still
+    // overrides for loading/empty/error states.
+    const NON_ADMIN_PATTERNS = [
+      '**/api/v1/catalog/**',
+      '**/api/v1/disputes',
+      '**/api/v1/disputes?**',
+      '**/api/v1/payouts',
+      '**/api/v1/payouts?**',
+      '**/api/v1/staff/**',
+    ];
+    for (const pattern of NON_ADMIN_PATTERNS) {
+      await page.route(pattern, (route) => {
+        if (route.request().method() !== 'GET') {
+          route.continue();
+          return;
+        }
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: [],
+            pagination: { total: 0, page: 1, pageSize: 20, totalPages: 0 },
+          }),
+        });
+      });
+    }
+
     // 2b. Default-mock every other admin-API GET. Dashboard KPI endpoint
     //    gets the object shape; everything else gets the empty paginated
     //    list shape.
@@ -164,6 +268,17 @@ export const test = base.extend({
       } else if (url.includes('/admin/financials/bir-2307/overview')
               || url.includes('/admin/bir/overview')) {
         body = { success: true, data: FINANCIALS_BIR_OVERVIEW };
+      } else if (url.match(/\/admin\/customers\/[^/]+(\?|$)/) && !url.includes('/customers/CU-0001/')) {
+        // /admin/customers/:id (no path suffix) — profile object
+        body = { success: true, data: CUSTOMER_PROFILE };
+      } else if (url.match(/\/admin\/providers\/[^/]+\/profile/)) {
+        body = { success: true, data: PROVIDER_PROFILE };
+      } else if (url.match(/\/admin\/providers\/[^/]+(\?|$)/) && !url.match(/\/providers\/[^/]+\//)) {
+        body = { success: true, data: PROVIDER_PROFILE };
+      } else if (url.match(/\/admin\/bookings\/[^/]+(\?|$)/) && !url.match(/\/bookings\/[^/]+\//)) {
+        body = { success: true, data: BOOKING_DETAIL };
+      } else if (url.match(/\/admin\/disputes\/[^/]+(\?|$)/) && !url.match(/\/disputes\/[^/]+\//)) {
+        body = { success: true, data: DISPUTE_DETAIL };
       } else if (url.match(/\/admin\/settings(\?|$)/)) {
         // /admin/settings (no path suffix) — bundle endpoint
         body = { success: true, data: SETTINGS_BUNDLE };

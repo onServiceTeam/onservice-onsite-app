@@ -117,6 +117,28 @@ export default function BookingsPage(): React.ReactElement {
       ),
     },
     {
+      key: 'escrow',
+      header: 'Escrow',
+      // BUG-PHASE39-04 fix — escrowStatus was returned by the API and
+      // declared on the Booking interface but never rendered. Admins
+      // could not spot escrow-related anomalies (e.g. "paid" booking
+      // with escrow still "pending") at the list level. Now visible.
+      render: (r) => (
+        <Badge
+          label={formatStatus(r.escrowStatus)}
+          variant={
+            r.escrowStatus === 'released' || r.escrowStatus === 'released_to_provider'
+              ? 'success'
+              : r.escrowStatus === 'frozen' || r.escrowStatus === 'disputed'
+                ? 'danger'
+                : r.escrowStatus === 'refunded' || r.escrowStatus === 'refunded_to_customer'
+                  ? 'warning'
+                  : 'info'
+          }
+        />
+      ),
+    },
+    {
       key: 'amount',
       header: 'Amount',
       render: (r) => (

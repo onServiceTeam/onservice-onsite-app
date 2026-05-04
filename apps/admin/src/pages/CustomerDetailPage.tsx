@@ -347,6 +347,17 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
             <span className="inline-flex items-center gap-1">
               <Calendar size={14} /> joined {new Date(profile.createdAt).toLocaleDateString('en-PH')}
             </span>
+            {/* BUG-PHASE39-05 fix — lastLoginAt was on the API payload
+                 and the CustomerProfile interface but never rendered in
+                 the header. Admins benefit from seeing recency at a
+                 glance (dormant accounts vs. churn risk vs. compromised
+                 inactive accounts). */}
+            <span className="inline-flex items-center gap-1">
+              <Calendar size={14} /> last login{' '}
+              {profile.lastLoginAt
+                ? new Date(profile.lastLoginAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })
+                : 'never'}
+            </span>
             {profile.averageRatingGiven != null && (
               <span className="inline-flex items-center gap-1">
                 {/* Phase L MED-L04 fix — averageRatingGiven was checked for
@@ -541,13 +552,31 @@ function BookingsTab({ customerId }: { customerId: string }): React.ReactElement
           }}
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white"
         >
+          {/* BUG-PHASE39-06 fix — pre-fix this list was missing many
+               status values that the booking pipeline produces:
+               quoted, matched, payment_pending, provider_en_route,
+               provider_arrived, completed_by_provider, payout_ready,
+               paid_out, resolved, cancelled_by_provider,
+               cancelled_by_admin. Admins couldn't filter to those.
+               Now mirrors the comprehensive list on BookingsPage. */}
           <option value="">All statuses</option>
           <option value="requested">Requested</option>
+          <option value="quoted">Quoted</option>
+          <option value="matched">Matched</option>
+          <option value="payment_pending">Payment pending</option>
           <option value="paid">Paid</option>
+          <option value="provider_en_route">En route</option>
+          <option value="provider_arrived">Arrived</option>
           <option value="in_progress">In progress</option>
+          <option value="completed_by_provider">Completed by provider</option>
           <option value="confirmed">Confirmed</option>
+          <option value="payout_ready">Payout ready</option>
+          <option value="paid_out">Paid out</option>
           <option value="disputed">Disputed</option>
+          <option value="resolved">Resolved</option>
           <option value="cancelled_by_customer">Cancelled (customer)</option>
+          <option value="cancelled_by_provider">Cancelled (provider)</option>
+          <option value="cancelled_by_admin">Cancelled (admin)</option>
         </select>
         <span className="text-xs text-[var(--color-text-secondary)]">{data.total} total</span>
       </div>

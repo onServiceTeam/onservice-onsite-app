@@ -94,6 +94,19 @@ export default function CustomersPage(): React.ReactElement {
       ),
     },
     {
+      key: 'disputes',
+      header: 'Disputes',
+      // BUG-PHASE39-01 fix — totalDisputes was queried + part of the
+      // Customer interface but never rendered. Now visible so admin can
+      // spot chronic-dispute customers (MED-N16 fraud-pattern detector
+      // surfaces these too).
+      render: (r) => (
+        <span className={r.totalDisputes > 0 ? 'text-red-600 font-medium' : 'text-[var(--color-text-secondary)]'}>
+          {r.totalDisputes ?? 0}
+        </span>
+      ),
+    },
+    {
       key: 'joined',
       header: 'Joined',
       render: (r) => (
@@ -133,9 +146,15 @@ export default function CustomersPage(): React.ReactElement {
           aria-label="Filter customers by status"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
+          {/* BUG-PHASE39-02 fix — pre-fix this list was missing
+              "suspended" and "flag_fraud" even though super_admin can
+              set those via PUT /admin/customers/:id/status. Admin
+              couldn't filter to see suspended or flagged customers. */}
           <option value="">All Statuses</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
+          <option value="suspended">Suspended</option>
+          <option value="flag_fraud">Fraud Flagged</option>
         </select>
       </div>
 

@@ -671,12 +671,20 @@ function OverviewTab({ detail }: { detail: BookingDetail }): React.ReactElement 
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3 flex items-center gap-2">
           <MapPin size={14} /> Service address
         </h3>
-        {detail.address ? (
+        {/* BUG-PHASE39-03 fix — pre-fix this rendered ", ," when the
+            address object existed but had empty/null sub-fields (or
+            when API returned an unexpected shape). Now: only render
+            the lines if they actually have content. */}
+        {detail.address && (detail.address.full || detail.address.city) ? (
           <div className="text-sm text-[var(--color-text)]">
-            <p>{detail.address.full}</p>
-            <p className="text-[var(--color-text-secondary)] mt-0.5">
-              {detail.address.barangay}, {detail.address.city}, {detail.address.province}
-            </p>
+            {detail.address.full && <p>{detail.address.full}</p>}
+            {[detail.address.barangay, detail.address.city, detail.address.province]
+              .filter(Boolean).length > 0 && (
+              <p className="text-[var(--color-text-secondary)] mt-0.5">
+                {[detail.address.barangay, detail.address.city, detail.address.province]
+                  .filter(Boolean).join(', ')}
+              </p>
+            )}
           </div>
         ) : (
           <EmptyState title="No address on file." />
