@@ -853,8 +853,15 @@ export default function DispatchConsolePage(): React.ReactElement {
               variant="destructive"
               onClick={() => {
                 if (!cancelTarget) return;
-                if (cancelReason.trim().length < 5) {
-                  toast.warning('Reason must be at least 5 characters.');
+                // BUG-PHASE77-02 fix — pre-fix client validated reason
+                // ≥ 5 chars but the server's `cancelBookingAsAdmin`
+                // (booking-admin.service.ts:839) requires ≥ 10 via
+                // `requireReason(reason, 10)`. A 6–9 char reason passed
+                // the client check, hit the server, and bounced with
+                // a generic 400. Now: client matches server's 10-char
+                // floor so the dialog catches it with a clear toast.
+                if (cancelReason.trim().length < 10) {
+                  toast.warning('Reason must be at least 10 characters.');
                   return;
                 }
                 cancelMutation.mutate({
