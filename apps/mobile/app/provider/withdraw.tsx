@@ -215,7 +215,21 @@ export default function WithdrawScreen(): React.ReactElement {
           title={withdrawMutation.isPending ? 'Processing...' : 'Request Withdrawal'}
           onPress={handleWithdraw}
           loading={withdrawMutation.isPending}
-          disabled={withdrawMutation.isPending || !method || !amount || amountCentavos < minWithdraw}
+          // BUG-PHASE46-01 fix — disabled condition pre-fix did NOT
+          // include `!account.trim()`. Provider could fill amount
+          // and method, leave account blank, hit Request Withdrawal,
+          // and only get the "Account Required" alert at click time.
+          // Inconsistent with the rest of the disabled gate (which
+          // already checks method + amount). Now: button disabled
+          // until all required fields are filled.
+          disabled={
+            withdrawMutation.isPending
+            || !method
+            || !amount
+            || amountCentavos < minWithdraw
+            || amountCentavos > availableBalance
+            || !account.trim()
+          }
         />
       </View>
     </View>
