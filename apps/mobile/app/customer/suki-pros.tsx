@@ -113,7 +113,17 @@ function MembershipCard({
               placeholderTextColor={colors.textTertiary}
             />
             <TouchableOpacity
-              style={[styles.redeemBtn, (!redeemInput || Number(redeemInput) < 100) && styles.redeemBtnDisabled]}
+              // BUG-PHASE73-01 fix — pre-fix the visual disabled style
+              // checked `Number(redeemInput) < 100` (hardcoded) while
+              // the actual disabled prop checked `<
+              // platformConfig.sukiMinRedeemPoints`. If the config min
+              // differs from 100 (e.g., 200), the button looked
+              // enabled at 150 points but did nothing on tap. Now both
+              // use the same configurable threshold.
+              style={[
+                styles.redeemBtn,
+                (!redeemInput || Number(redeemInput) < platformConfig.sukiMinRedeemPoints) && styles.redeemBtnDisabled,
+              ]}
               onPress={() => {
                 const pts = Number(redeemInput);
                 if (pts < platformConfig.sukiMinRedeemPoints || pts % platformConfig.sukiMinRedeemPoints !== 0) {
