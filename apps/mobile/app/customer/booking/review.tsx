@@ -7,11 +7,14 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createReview, type CreateReviewPayload } from '@/services/review.service';
 import { getErrorMessage } from '@/utils/errors';
+import { useImagePicker } from '@/hooks/useImagePicker';
 import { Button, Input } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Star, Lock } from '@/components/icons';
@@ -77,6 +80,16 @@ export default function ReviewScreen(): React.ReactElement {
   const [privateNote, setPrivateNote] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // BUG-PHASE56-02 fix — pre-fix the review screen had no UI to
+  // upload photos with a review even though `CreateReviewPayload`
+  // accepts `imageUrls?: string[]` and the provider Reviews screen
+  // (post BUG-PHASE54-01 fix) renders them. Customers wanting to
+  // visually praise a great job — or document a complaint via the
+  // public review path rather than a formal dispute — had no way
+  // to attach images. Now: useImagePicker (same hook the dispute
+  // flow uses) wired to the review with a max of 5 photos.
+  const imagePicker = useImagePicker({ context: 'review', maxImages: 5 });
+
   const toggleTag = (key: string): void => {
     setSelectedTags((prev) => {
       const next = new Set(prev);
@@ -101,6 +114,12 @@ export default function ReviewScreen(): React.ReactElement {
 
     setLoading(true);
     try {
+      // BUG-PHASE56-02 — upload any picked images first, then post
+      // the URLs alongside the review payload.
+      const uploadedUrls = imagePicker.localUris.length > 0
+        ? await imagePicker.uploadAll()
+        : [];
+
       const payload: CreateReviewPayload = {
         bookingId,
         rating: overallRating,
@@ -110,6 +129,7 @@ export default function ReviewScreen(): React.ReactElement {
         ...(subRatings.communicationRating > 0 && { communicationRating: subRatings.communicationRating }),
         ...(subRatings.valueRating > 0 && { valueRating: subRatings.valueRating }),
         ...(selectedTags.size > 0 && { tags: Array.from(selectedTags) }),
+        ...(uploadedUrls.length > 0 && { imageUrls: uploadedUrls }),
       };
       if (comment.trim().length >= 20) payload.comment = comment.trim();
       if (privateNote.trim().length > 0) payload.privateNote = privateNote.trim();
@@ -182,6 +202,40 @@ export default function ReviewScreen(): React.ReactElement {
             hint={comment.length > 0 ? `${comment.length} / 1000 characters` : undefined}
             error={comment.length > 0 && comment.length < 20 ? 'Must be at least 20 characters' : undefined}
           />
+        </View>
+
+        {/* BUG-PHASE56-02 — review photo attachments. */}
+        <View style={styles.photoSection}>
+          <Text style={styles.tagLabel}>Photos (optional, up to 5)</Text>
+          <View style={styles.photoGrid}>
+            {imagePicker.localUris.map((uri, i) => (
+              <View key={uri} style={styles.photoThumb}>
+                <Image source={{ uri }} style={styles.photoImage} />
+                <TouchableOpacity
+                  style={styles.removePhotoBtn}
+                  onPress={() => imagePicker.removeImage(i)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.removePhotoText}>×</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+            {imagePicker.localUris.length < 5 && (
+              <TouchableOpacity
+                style={[styles.photoThumb, styles.addPhotoBox]}
+                onPress={imagePicker.showPickerOptions}
+              >
+                <Text style={styles.addPhotoPlus}>+</Text>
+                <Text style={styles.addPhotoLabel}>Add Photo</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {imagePicker.isUploading && (
+            <View style={styles.uploadingRow}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.uploadingText}>Uploading photos…</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.tagSection}>
@@ -309,6 +363,18 @@ const styles = StyleSheet.create({
   },
   tagChipText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '500' },
   tagChipTextSelected: { color: colors.primary, fontWeight: '600' },
+
+  photoSection: { marginBottom: spacing.lg },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: spacing.sm },
+  photoThumb: { width: 80, height: 80, borderRadius: borderRadius.md, backgroundColor: colors.backgroundSecondary, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  photoImage: { width: '100%', height: '100%' },
+  removePhotoBtn: { position: 'absolute', top: -5, right: -5, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  removePhotoText: { color: colors.white, fontSize: 13, fontWeight: '700', lineHeight: 16 },
+  addPhotoBox: { borderStyle: 'dashed', borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  addPhotoPlus: { fontSize: 22, color: colors.primary },
+  addPhotoLabel: { fontSize: 10, color: colors.primary, marginTop: 1 },
+  uploadingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
+  uploadingText: { ...typography.bodySmall, color: colors.primary },
 
   privateNoteSection: { marginBottom: spacing.base },
   privateNoteHint: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.xs },

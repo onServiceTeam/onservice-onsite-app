@@ -8,8 +8,31 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
+import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle } from '@/components/icons';
+
+// BUG-PHASE56-01 fix — pre-fix the screen read photos from
+// booking.providerBeforePhotos / providerAfterPhotos / jobPhotos
+// (deprecated TEXT[] columns from migration 037). New uploads via
+// /api/v1/uploads/booking-photo go to the booking_photos table
+// (migration 079) only — they did NOT appear here. So:
+//   - Legacy POST /:id/photos uploads → visible (writes to both)
+//   - New /uploads/booking-photo uploads → INVISIBLE
+// Customers using the new completion flow (Phase E CRIT-102/103/104)
+// would never see their or the provider's after-photos. Now: query
+// the canonical /uploads/booking-photo/:bookingId endpoint and
+// supplement with legacy arrays as a fallback for older bookings.
+
+interface BookingPhotoItem {
+  id: string;
+  bookingId: string;
+  photoType: 'before' | 'during' | 'after' | 'issue' | 'checklist' | 'identity' | 'portfolio';
+  storageUrl: string;
+  uploadedBy: string;
+  uploadedByRole: 'customer' | 'provider' | 'admin';
+  uploadedAt: string;
+}
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const THUMB_SIZE = (SCREEN_WIDTH - spacing.base * 2 - spacing.sm * 2) / 3;
@@ -28,9 +51,44 @@ export default function BookingPhotosScreen(): React.ReactElement {
     enabled: !!bookingId,
   });
 
-  const beforePhotos = booking?.providerBeforePhotos ?? [];
-  const afterPhotos = booking?.providerAfterPhotos ?? [];
-  const customerPhotos = booking?.jobPhotos ?? [];
+  // BUG-PHASE56-01 — query booking_photos via the canonical endpoint.
+  const photosQuery = useQuery({
+    queryKey: ['bookingPhotos', bookingId],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: BookingPhotoItem[] }>(
+        `/api/v1/uploads/booking-photo/${bookingId}`,
+      );
+      return res.data.data;
+    },
+    enabled: !!bookingId,
+  });
+
+  // Combine legacy arrays + new booking_photos rows. Dedupe by URL so
+  // photos written via POST /:id/photos (which double-writes to both
+  // tables) don't appear twice.
+  const newPhotos = photosQuery.data ?? [];
+  const newBefore = newPhotos
+    .filter((p) => p.photoType === 'before' && p.uploadedByRole === 'provider')
+    .map((p) => p.storageUrl);
+  const newAfter = newPhotos
+    .filter((p) => p.photoType === 'after' && p.uploadedByRole === 'provider')
+    .map((p) => p.storageUrl);
+  const newCustomer = newPhotos
+    .filter((p) => p.uploadedByRole === 'customer')
+    .map((p) => p.storageUrl);
+
+  const beforePhotos = Array.from(new Set([
+    ...(booking?.providerBeforePhotos ?? []),
+    ...newBefore,
+  ]));
+  const afterPhotos = Array.from(new Set([
+    ...(booking?.providerAfterPhotos ?? []),
+    ...newAfter,
+  ]));
+  const customerPhotos = Array.from(new Set([
+    ...(booking?.jobPhotos ?? []),
+    ...newCustomer,
+  ]));
 
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: 'before', label: 'Before', count: beforePhotos.length },
