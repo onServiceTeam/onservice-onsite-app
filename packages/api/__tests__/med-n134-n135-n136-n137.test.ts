@@ -34,8 +34,12 @@ beforeEach(() => {
 
 describe('MED-N134 — joinSlotWaitlist dedup is race-safe (trx + FOR UPDATE)', () => {
   it('MED-N134 — opens db.transaction with SELECT FOR UPDATE', async () => {
-    // Existence check returns 0.
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 });
+    // BUG-PHASE78-01 test maintenance — Phase 29-01 changed the
+    // existence check from `SELECT COUNT(*) ... FOR UPDATE` (which
+    // Postgres rejects with "FOR UPDATE not allowed with aggregate
+    // functions") to `SELECT id ... LIMIT 1 FOR UPDATE`. Mock now
+    // returns empty rows (no existing waitlist row).
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     // INSERT returns the new row.
     dbQueryMock.mockResolvedValueOnce({
       rows: [{
@@ -58,11 +62,13 @@ describe('MED-N134 — joinSlotWaitlist dedup is race-safe (trx + FOR UPDATE)', 
     expect(out.id).toBe('w1');
     expect(dbTransactionMock).toHaveBeenCalledTimes(1);
     const selectCall = dbQueryMock.mock.calls[0]!;
-    expect(selectCall[0]).toMatch(/SELECT COUNT[\s\S]*?FOR UPDATE/);
+    // BUG-PHASE78-01 — pre-fix expected COUNT(*); now LIMIT 1 FOR UPDATE.
+    expect(selectCall[0]).toMatch(/SELECT id[\s\S]*?LIMIT 1 FOR UPDATE/);
   });
 
   it('MED-N134 — translates 23505 unique violation to 409 friendly error', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 });
+    // BUG-PHASE78-01 — existence check now LIMIT 1 (returns empty rows).
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     dbQueryMock.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: '23505' }));
 
     await expect(
@@ -79,7 +85,8 @@ describe('MED-N134 — joinSlotWaitlist dedup is race-safe (trx + FOR UPDATE)', 
   });
 
   it('MED-N134 — refuses join when existing waiting row exists', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ count: '1' }], rowCount: 1 });
+    // BUG-PHASE78-01 — existence check now SELECT id (returns the row id).
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ id: 'w-existing' }], rowCount: 1 });
     await expect(
       joinSlotWaitlist({
         customerId: 'c1',

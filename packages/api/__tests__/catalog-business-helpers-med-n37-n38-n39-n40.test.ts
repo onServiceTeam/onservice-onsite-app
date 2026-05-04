@@ -91,8 +91,12 @@ describe('MED-N39 — business.addMember re-activates soft-deleted members', () 
 });
 
 describe('MED-N40 — business.addMember pre-validates target user exists', () => {
-  it('SELECTs from users with deleted_at IS NULL filter before the INSERT', () => {
-    expect(BUSINESS).toMatch(/MED-N40 fix[\s\S]{0,300}SELECT 1 FROM users WHERE id = \$1 AND deleted_at IS NULL/);
+  it('SELECTs from users with is_active = TRUE filter before the INSERT', () => {
+    // BUG-PHASE78-01 test maintenance — Phase 28-02 fix changed
+    // the soft-delete signal from deleted_at IS NULL (which doesn't
+    // exist on users) to is_active = TRUE. Test pattern updated to
+    // match the new source.
+    expect(BUSINESS).toMatch(/MED-N40 fix[\s\S]{0,1000}SELECT 1 FROM users WHERE id = \$1 AND is_active = TRUE/);
   });
 
   it('throws 404 with "Target user not found" when the user is missing', () => {

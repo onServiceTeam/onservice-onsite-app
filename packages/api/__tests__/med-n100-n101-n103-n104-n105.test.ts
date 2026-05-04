@@ -165,8 +165,15 @@ describe('MED-N104 — provider_availability handles overnight schedules', () =>
 describe('MED-N105 — hasBookingConflict uses each existing booking’s actual duration', () => {
   it('MED-N105 — JOINs booking_quotes for estimated_duration_minutes', async () => {
     const fnStart = MATCHING_SVC.indexOf('export async function hasBookingConflict');
-    const fnBlock = MATCHING_SVC.slice(fnStart, fnStart + 2000);
-    expect(fnBlock).toMatch(/LEFT JOIN booking_quotes bq[\s\S]*?bq\.is_active = TRUE/);
+    // BUG-PHASE78-01 — pre-fix slice was 2000 chars but BUG-PHASE26-02's
+    // added comment block pushed the COALESCE line past that window.
+    // Widen to 3500 to capture both expected patterns reliably.
+    const fnBlock = MATCHING_SVC.slice(fnStart, fnStart + 3500);
+    // BUG-PHASE78-01 test maintenance — pre-fix this expected
+    // `bq.is_active = TRUE` but the schema-canonical filter is now
+    // `bq.status = 'accepted'` (per migration 018 which added the
+    // status column to booking_quotes; is_active was deprecated).
+    expect(fnBlock).toMatch(/LEFT JOIN booking_quotes bq[\s\S]*?bq\.status = 'accepted'/);
     expect(fnBlock).toMatch(/COALESCE\(bq\.estimated_duration_minutes/);
   });
 

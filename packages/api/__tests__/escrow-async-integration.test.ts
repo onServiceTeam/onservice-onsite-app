@@ -447,6 +447,14 @@ describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via cli
       pending_balance: '1000000',
       available_balance: '0',
     }));
+    // BUG-PHASE78-01 test maintenance — handleCancellation in
+    // escrow.service.ts:470 SELECTs service_fee BEFORE the trx so
+    // post-commit PayMongo refund knows the total. All tests in this
+    // describe block need this mock primed; queue it once per test.
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [{ service_fee: 10000 }],
+      rowCount: 1,
+    });
   });
 
   /**
@@ -519,10 +527,15 @@ describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via cli
     });
     const out = await escrowService.handleCancellation('b1', 30, false);
     expect(out.customerRefundAmount).toBe(100000);
-    // processRefund is NO LONGER called — wallet movements happen
-    // entirely inside the trx via refundFromEscrowInTransaction.
-    expect(processRefundMock).not.toHaveBeenCalled();
-    // Final UPDATE inside the captured trx calls.
+    // BUG-PHASE78-01 test maintenance — pre-MED-N27 the test asserted
+    // processRefundMock was never called. BUG-PHASE26-01 (Phase 26)
+    // reintroduced a POST-commit call to processRefund so the PayMongo
+    // refund actually returns money to the customer's bank — but the
+    // wallet movements still happen entirely inside the trx via
+    // refundFromEscrowInTransaction (which is what MED-N27 was about).
+    // What MED-N27 still guarantees: the final UPDATE bookings runs
+    // inside the captured trx calls. That's what the assertion below
+    // checks. The processRefund post-commit call is expected behavior.
     const finalUpdate = calls[calls.length - 1]!;
     expect(finalUpdate.sql).toContain('UPDATE bookings');
     expect(finalUpdate.params).toEqual(['refunded', 'b1']);

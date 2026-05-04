@@ -557,6 +557,12 @@ describe('cancelBookingAsAdmin', () => {
     dbQueryMock.mockResolvedValueOnce(
       rows([{ id: BOOKING_ID, status: 'confirmed_by_provider', escrow_status: 'held' }]),
     );
+    // BUG-PHASE78-01 test maintenance — cancelBookingAsAdmin in
+    // booking-admin.service.ts:873 SELECTs service_fee right after
+    // the pre-flight read so it can issue the PayMongo refund with
+    // the same total post-commit (BUG-PHASE26-01). Mock the second
+    // SELECT here so feeRow.rows[0] is defined.
+    dbQueryMock.mockResolvedValueOnce(rows([{ service_fee: 0 }]));
     escrowMocks.handleCancellationInTransaction.mockResolvedValueOnce({
       customerRefundAmount: 4242,
     } as unknown as Awaited<ReturnType<typeof escrowMocks.handleCancellationInTransaction>>);
@@ -596,6 +602,9 @@ describe('cancelBookingAsAdmin', () => {
     dbQueryMock.mockResolvedValueOnce(
       rows([{ id: BOOKING_ID, status: 'requested', escrow_status: 'pending' }]),
     );
+    // BUG-PHASE78-01 — second SELECT for service_fee (see comment
+    // on the held-escrow test above).
+    dbQueryMock.mockResolvedValueOnce(rows([{ service_fee: 0 }]));
     const calls = setupTxRecorder(async (sql) => {
       if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-can2' }]);
       return rows([]);

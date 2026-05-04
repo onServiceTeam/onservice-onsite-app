@@ -25,7 +25,12 @@ beforeEach(resetDbMock);
 
 describe('Bug 1366 — createBreach', () => {
   it('logs a breach + writes audit row inside one transaction', async () => {
-    const now = new Date('2026-04-30T08:00:00Z');
+    // BUG-PHASE78-01 test maintenance — pre-fix hardcoded
+    // '2026-04-30T08:00:00Z' which became >72h in the past on
+    // 2026-05-04+, so enrichSla computed sla72hRemainingHours=0 and
+    // the assertion `> 0` failed. Use `new Date()` so the test stays
+    // valid as wall-clock time advances.
+    const now = new Date();
     setTxQueryImpl(makeRouter([
       { match: /INSERT INTO breach_log/, rows: [{
         id: BREACH_ID,

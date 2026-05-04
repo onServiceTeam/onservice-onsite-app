@@ -62,11 +62,17 @@ beforeEach(() => {
 
 describe('MED-N27 — handleCancellation wraps trx-aware variant in single transaction', () => {
   it('MED-N27 — legacy handleCancellation now delegates to handleCancellationInTransaction', () => {
-    // Source-shape check: the legacy entry is a thin wrapper around
-    // db.transaction((client) => handleCancellationInTransaction(...)).
-    // Match on the function body shape rather than just any occurrence.
-    expect(ESCROW_SVC).toMatch(/export async function handleCancellation\([\s\S]{0,300}\): Promise<commissionService\.CancellationRefund> \{\s*\n\s*return db\.transaction/);
-    expect(ESCROW_SVC).toMatch(/return db\.transaction\(\(client\) =>\s*\n\s*handleCancellationInTransaction\(/);
+    // Source-shape check: the legacy entry calls
+    // db.transaction((client) => handleCancellationInTransaction(...))
+    // somewhere in its body. BUG-PHASE78-01 — pre-fix this test
+    // demanded `db.transaction` come immediately after the opener
+    // (`{\s*\n\s*return db.transaction`). BUG-PHASE26-01 (Phase 26)
+    // introduced a `db.query SELECT service_fee` BEFORE the trx so
+    // the post-commit PayMongo refund knows the total. The MED-N27
+    // intent (single trx for the wallet movements) still holds —
+    // it's just no longer the FIRST line. Relaxed to "somewhere in
+    // the function" but still anchored to the function declaration.
+    expect(ESCROW_SVC).toMatch(/export async function handleCancellation\([\s\S]*?\): Promise<commissionService\.CancellationRefund> \{[\s\S]*?const refund = await db\.transaction\(\(client\) =>\s*\n\s*handleCancellationInTransaction\(/);
   });
 
   it('MED-N27 — old multi-trx body removed (no second db.transaction(async (client) => after the wrapper)', () => {
@@ -76,11 +82,12 @@ describe('MED-N27 — handleCancellation wraps trx-aware variant in single trans
     expect(start).toBeGreaterThan(0);
     const after = ESCROW_SVC.indexOf('export ', start + 10);
     const body = ESCROW_SVC.slice(start, after);
-    // Should be small (wrapper) — pre-fix body was 100+ lines.
-    // Threshold raised from 40 → 50 in Phase L typecheck wave (extra
-    // comment lines explaining the PgClient type alias landed within
-    // the same file). Still well below pre-fix 100+ baseline.
-    expect(body.split('\n').length).toBeLessThan(50);
+    // BUG-PHASE78-01 — pre-fix capped at 50 lines; BUG-PHASE26-01
+    // added the post-commit PayMongo refund block (~50 more lines
+    // of inline doc + refund logic). Still well below the pre-fix
+    // 200+ baseline. Substantive check is the negative assertions
+    // below — verifying the removed inner workings stay removed.
+    expect(body.split('\n').length).toBeLessThan(120);
     // Should NOT contain the removed inner workings.
     expect(body).not.toMatch(/refund\.providerCompensationAmount > 0 && bk\.provider_id/);
     expect(body).not.toMatch(/refundFromEscrow\(bookingId/);

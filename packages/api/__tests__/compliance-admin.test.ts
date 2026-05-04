@@ -59,7 +59,7 @@ function makeConsentRow(overrides: Record<string, unknown> = {}): Record<string,
   return {
     id: CONSENT_ID,
     user_id: USER_ID,
-    consent_type: 'marketing_email',
+    consent_type: 'marketing_consent',
     version: 'v1',
     granted: true,
     granted_at: new Date('2026-04-01T00:00:00Z'),
@@ -107,7 +107,7 @@ describe('recordConsent', () => {
 
     const out = await svc.recordConsent({
       userId: USER_ID,
-      consentType: 'marketing_email',
+      consentType: 'marketing_consent',
       version: 'v1',
       granted: true,
       ipAddress: '203.0.113.1',
@@ -117,7 +117,7 @@ describe('recordConsent', () => {
     expect(out).toMatchObject({
       id: CONSENT_ID,
       userId: USER_ID,
-      consentType: 'marketing_email',
+      consentType: 'marketing_consent',
       granted: true,
     });
     expect(dbQueryMock).toHaveBeenCalledTimes(1);
@@ -132,7 +132,7 @@ describe('recordConsent', () => {
 
     await svc.recordConsent({
       userId: USER_ID,
-      consentType: 'marketing_email',
+      consentType: 'marketing_consent',
       version: 'v1',
       granted: false,
     });
@@ -148,7 +148,7 @@ describe('recordConsent', () => {
   it('does not call UPDATE when granted=true', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([makeConsentRow()]));
     await svc.recordConsent({
-      userId: USER_ID, consentType: 'tos_acceptance', version: 'v2', granted: true,
+      userId: USER_ID, consentType: 'terms_of_service', version: 'v2', granted: true,
     });
     expect(dbQueryMock).toHaveBeenCalledTimes(1);
     expect((dbQueryMock.mock.calls[0][0] as string)).toMatch(/INSERT/);
@@ -164,7 +164,7 @@ describe('recordConsent', () => {
 
     await expect(
       svc.recordConsent({
-        userId: USER_ID, consentType: 'marketing_email', version: 'v1', granted: false,
+        userId: USER_ID, consentType: 'marketing_consent', version: 'v1', granted: false,
       }),
     ).rejects.toThrow(/revoke boom/);
   });
@@ -211,7 +211,7 @@ describe('searchConsent', () => {
       .mockResolvedValueOnce(rows([makeConsentRow()]));
 
     const out = await svc.searchConsent({
-      userId: USER_ID, consentType: 'marketing_email', version: 'v1',
+      userId: USER_ID, consentType: 'marketing_consent', version: 'v1',
     });
     expect(out.total).toBe(5);
     expect(out.rows).toHaveLength(1);
@@ -221,7 +221,7 @@ describe('searchConsent', () => {
     expect(countSql).toMatch(/user_id = \$1/);
     expect(countSql).toMatch(/consent_type = \$2/);
     expect(countSql).toMatch(/version = \$3/);
-    expect(countParams).toEqual([USER_ID, 'marketing_email', 'v1']);
+    expect(countParams).toEqual([USER_ID, 'marketing_consent', 'v1']);
   });
 
   it('omits WHERE when no filter', async () => {
