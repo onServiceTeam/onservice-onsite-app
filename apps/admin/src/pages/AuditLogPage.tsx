@@ -93,16 +93,25 @@ export default function AuditLogPage(): React.ReactElement {
   const [entityTypeFilter, setEntityTypeFilter] = useState('');
   // 'all' | 'audit_log' | 'admin_actions' — narrows the unioned response.
   const [sourceFilter, setSourceFilter] = useState<'all' | 'audit_log' | 'admin_actions'>('all');
+  // BUG-PHASE42-02 fix — pre-fix there was no way to bound an audit
+  // query by date. Compliance audits ("show me all entries from
+  // 2026-04-01 to 2026-04-30") had to be done by paginating to the
+  // right time slice manually. The API supports `from` and `to`
+  // params; the UI now exposes them.
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
   const pageSize = adminConfig.defaultPageSize;
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['admin', 'audit-log', page, actionFilter, entityTypeFilter, sourceFilter],
+    queryKey: ['admin', 'audit-log', page, actionFilter, entityTypeFilter, sourceFilter, fromDate, toDate],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize };
       if (actionFilter) params.action = actionFilter;
       if (entityTypeFilter) params.entityType = entityTypeFilter;
       if (sourceFilter !== 'all') params.source = sourceFilter;
+      if (fromDate) params.from = fromDate;
+      if (toDate) params.to = toDate;
       const res = await api.get<AuditResponse>('/api/v1/admin/audit-log', { params });
       return res.data;
     },
@@ -158,12 +167,34 @@ export default function AuditLogPage(): React.ReactElement {
           <option value="audit_log">Request log</option>
           <option value="admin_actions">Admin operations</option>
         </select>
-        {(actionFilter || entityTypeFilter || sourceFilter !== 'all') && (
+        <div className="flex items-center gap-1.5">
+          <label className="text-xs text-[var(--color-text-secondary)]" htmlFor="audit-from">From</label>
+          <input
+            id="audit-from"
+            type="date"
+            value={fromDate}
+            onChange={(e) => { setFromDate(e.target.value); setPage(1); }}
+            aria-label="Filter audit log from date"
+            className="px-2 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+          />
+          <label className="text-xs text-[var(--color-text-secondary)]" htmlFor="audit-to">To</label>
+          <input
+            id="audit-to"
+            type="date"
+            value={toDate}
+            onChange={(e) => { setToDate(e.target.value); setPage(1); }}
+            aria-label="Filter audit log to date"
+            className="px-2 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+          />
+        </div>
+        {(actionFilter || entityTypeFilter || sourceFilter !== 'all' || fromDate || toDate) && (
           <button
             onClick={() => {
               setActionFilter('');
               setEntityTypeFilter('');
               setSourceFilter('all');
+              setFromDate('');
+              setToDate('');
               setPage(1);
             }}
             className="px-3 py-2 text-sm text-[var(--color-primary)] hover:underline"

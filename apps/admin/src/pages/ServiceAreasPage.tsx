@@ -194,6 +194,17 @@ export default function ServiceAreasPage(): React.ReactElement {
       ),
     },
     {
+      key: 'activeCustomerCount',
+      header: 'Customers',
+      // BUG-PHASE42-01 fix — pre-fix activeCustomerCount was on the
+      // ServiceArea interface and returned by the API but never
+      // rendered in the table. Demand-side metric is as critical to
+      // ops as supply-side; the page now surfaces it.
+      render: (r) => (
+        <span className="text-sm font-medium">{r.activeCustomerCount.toLocaleString()}</span>
+      ),
+    },
+    {
       key: 'totalBookings',
       header: 'Bookings',
       render: (r) => <span className="text-sm">{r.totalBookings.toLocaleString()}</span>,
