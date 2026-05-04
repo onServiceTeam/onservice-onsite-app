@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { submitQuote } from '@/services/booking.service';
+import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, borderRadius } from '@/config/theme';
@@ -48,6 +49,29 @@ export default function QuoteBuilderScreen(): React.ReactElement {
     const price = Math.round((Number(item.unitPrice) || 0) * 100);
     return sum + Math.round(qty * price);
   }, 0);
+
+  // BUG-PHASE48-02 fix — pre-fix the screen showed only the gross
+  // quote total, not the provider's net after platform commission.
+  // The provider thought they'd pocket the full quote amount and
+  // got surprised at payout time when the tier-specific commission
+  // was deducted. Same pattern as Phase E CRIT-101 fix on
+  // provider/job/[id].tsx — fetch tier, look up commission rate,
+  // render the breakdown.
+  const providerMeQuery = useQuery<{ tier: string }>({
+    queryKey: ['providerMe'],
+    queryFn: async () => {
+      const res = await api.get<{ data: { tier: string } }>('/api/v1/providers/me');
+      return { tier: res.data.data.tier };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const providerTier = providerMeQuery.data?.tier ?? 'new';
+  const commissionRate =
+    platformConfig.commissionRates[providerTier]
+    ?? platformConfig.commissionRates.new
+    ?? 0.15;
+  const commissionAmount = Math.round(totalAmount * commissionRate);
+  const netEarnings = totalAmount - commissionAmount;
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -222,10 +246,24 @@ export default function QuoteBuilderScreen(): React.ReactElement {
         </View>
 
         <View style={styles.totalBox}>
-          <Text style={styles.totalLabel}>Total Quote</Text>
+          <Text style={styles.totalLabel}>Total Quote (customer pays)</Text>
           <Text style={styles.totalValue}>
             {formatPHP(totalAmount)}
           </Text>
+          {totalAmount > 0 && (
+            <View style={styles.commissionRow}>
+              <Text style={styles.commissionLabel}>
+                − Platform commission ({Math.round(commissionRate * 100)}% — {providerTier} tier)
+              </Text>
+              <Text style={styles.commissionValue}>−{formatPHP(commissionAmount)}</Text>
+            </View>
+          )}
+          {totalAmount > 0 && (
+            <View style={styles.netRow}>
+              <Text style={styles.netLabel}>Your net earnings</Text>
+              <Text style={styles.netValue}>{formatPHP(netEarnings)}</Text>
+            </View>
+          )}
           {totalAmount > 0 && totalAmount < platformConfig.minimumQuoteAmount && (
             <Text style={styles.minWarn}>Minimum quote: {formatPHP(platformConfig.minimumQuoteAmount)}</Text>
           )}
@@ -282,10 +320,16 @@ const styles = StyleSheet.create({
   daysRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   daysInput: { width: 80, backgroundColor: colors.white, borderRadius: borderRadius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, textAlign: 'center' },
   daysLabel: { fontSize: 14, color: colors.textSecondary },
-  totalBox: { backgroundColor: colors.text, borderRadius: borderRadius.lg, padding: spacing.base, alignItems: 'center', marginBottom: spacing.base },
-  totalLabel: { fontSize: 12, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 1 },
-  totalValue: { fontSize: 28, fontWeight: '800', color: colors.white, marginTop: spacing.xs },
-  minWarn: { fontSize: 12, color: colors.warning, marginTop: spacing.xs },
+  totalBox: { backgroundColor: colors.text, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.base },
+  totalLabel: { fontSize: 12, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center' },
+  totalValue: { fontSize: 28, fontWeight: '800', color: colors.white, marginTop: spacing.xs, textAlign: 'center' },
+  commissionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)' },
+  commissionLabel: { fontSize: 12, color: colors.textTertiary, flex: 1 },
+  commissionValue: { fontSize: 13, color: colors.warning, fontWeight: '600' },
+  netRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xs },
+  netLabel: { fontSize: 13, color: colors.white, fontWeight: '700' },
+  netValue: { fontSize: 16, color: colors.success, fontWeight: '800' },
+  minWarn: { fontSize: 12, color: colors.warning, marginTop: spacing.xs, textAlign: 'center' },
   submitBtn: { backgroundColor: colors.success, borderRadius: borderRadius.lg, paddingVertical: spacing.base, alignItems: 'center' },
   submitDisabled: { opacity: 0.5 },
   submitText: { fontSize: 16, fontWeight: '700', color: colors.white },

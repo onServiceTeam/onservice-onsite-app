@@ -27,10 +27,19 @@ const FREQUENCIES = [
   { value: 'monthly', label: 'Monthly', desc: 'Automatic payout on the 1st' },
 ];
 
+// BUG-PHASE48-01 fix — pre-fix this list had a single
+// 'bank_transfer' option that did not match any value the
+// WithdrawScreen accepts (gcash|maya|bank_instapay|bank_pesonet
+// per `apps/mobile/app/provider/withdraw.tsx`). If a provider
+// chose Bank Transfer here, their auto-payout would have a
+// preferredMethod that fails server-side bank-rail routing
+// (PayMongo splits InstaPay vs PESONet by amount). Now: the two
+// rails are presented separately, matching the withdraw flow.
 const METHODS = [
   { value: 'gcash', label: 'GCash' },
   { value: 'maya', label: 'Maya' },
-  { value: 'bank_transfer', label: 'Bank Transfer' },
+  { value: 'bank_instapay', label: 'Bank Transfer (InstaPay)' },
+  { value: 'bank_pesonet', label: 'Bank Transfer (PESONet)' },
 ];
 
 export default function PayoutSettingsScreen(): React.ReactElement {
