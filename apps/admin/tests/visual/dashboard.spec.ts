@@ -6,9 +6,9 @@
 //   pnpm exec playwright test tests/visual/dashboard.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_fixtures';
 
-const ROUTE = '/dashboard';
+const ROUTE = '/';
 
 test.describe('DashboardPage', () => {
   for (const width of [1280, 1440, 1920]) {

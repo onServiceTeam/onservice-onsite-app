@@ -6,9 +6,9 @@
 //   pnpm exec playwright test tests/visual/staff-roles.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_fixtures';
 
-const ROUTE = '/staff-roles';
+const ROUTE = '/staff';
 
 test.describe('StaffRolesPage', () => {
   for (const width of [1280, 1440, 1920]) {

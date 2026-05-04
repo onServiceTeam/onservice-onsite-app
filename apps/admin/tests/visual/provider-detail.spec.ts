@@ -6,7 +6,7 @@
 //   pnpm exec playwright test tests/visual/provider-detail.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_fixtures';
 
 const ROUTE = '/providers/PV-0001';
 
