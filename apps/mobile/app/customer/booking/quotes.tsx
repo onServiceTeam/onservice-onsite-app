@@ -156,6 +156,23 @@ export default function QuotesScreen(): React.ReactElement {
     ]);
   };
 
+  // BUG-PHASE51-01 fix — pre-fix the Decline button fired the
+  // mutation immediately on tap. The provider has invested time
+  // building the quote; a one-tap decline (especially with the
+  // button right next to Accept) loses that work to an accidental
+  // touch and is irreversible — the API has no "undecline" path.
+  // Now: confirm dialog matching the Accept-side pattern.
+  const handleDecline = (quoteId: string): void => {
+    Alert.alert(
+      'Decline Quote',
+      'Are you sure you want to decline this quote? This cannot be undone — the provider will see the decision.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Decline', style: 'destructive', onPress: () => declineMutation.mutate(quoteId) },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -195,7 +212,7 @@ export default function QuotesScreen(): React.ReactElement {
                 key={quote.id}
                 quote={quote}
                 onAccept={() => handleAccept(quote.id)}
-                onDecline={() => declineMutation.mutate(quote.id)}
+                onDecline={() => handleDecline(quote.id)}
                 isPending={acceptMutation.isPending || declineMutation.isPending}
               />
             ))

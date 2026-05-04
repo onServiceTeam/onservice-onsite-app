@@ -8,6 +8,7 @@ import {
   getChangeOrders, respondToChangeOrder, payChangeOrder,
   type ChangeOrder, type ChangeOrderResponse,
 } from '@/services/booking.service';
+import { getWalletBalance } from '@/services/payment.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ClipboardList } from '@/components/icons';
@@ -24,6 +25,20 @@ export default function ChangeOrderScreen(): React.ReactElement {
     queryFn: () => getChangeOrders(bookingId ?? ''),
     enabled: !!bookingId,
   });
+
+  // BUG-PHASE51-02 fix — pre-fix the change-order pay flow forced
+  // 'wallet' as the payment method but never showed the wallet
+  // balance and didn't gate the Pay button on having enough funds.
+  // Customer would tap "Pay ₱500" with a ₱0 wallet, get an opaque
+  // server error, and end up confused. Now: balance is queried up-
+  // front and shown inline, with the Pay button disabled when the
+  // wallet can't cover the additional total.
+  const walletQuery = useQuery({
+    queryKey: ['wallet'],
+    queryFn: getWalletBalance,
+    staleTime: 60 * 1000,
+  });
+  const walletBalance = walletQuery.data?.availableBalance ?? 0;
 
   const respondMutation = useMutation({
     mutationFn: ({ orderId, approved }: { orderId: string; approved: boolean }) =>
@@ -115,6 +130,15 @@ export default function ChangeOrderScreen(): React.ReactElement {
             <Text style={styles.walletNote}>
               Additional charges are paid from your wallet balance. Top up your wallet in your profile if needed.
             </Text>
+            <Text style={styles.walletNote}>
+              Wallet balance: {formatPHP(walletBalance)}
+            </Text>
+            {pendingPayment.additionalTotal != null
+              && pendingPayment.additionalTotal > walletBalance && (
+                <Text style={[styles.walletNote, { color: colors.error, fontWeight: '600' }]}>
+                  Insufficient wallet balance — top up first.
+                </Text>
+              )}
           </View>
 
           <View style={styles.paymentFooter}>
@@ -125,7 +149,19 @@ export default function ChangeOrderScreen(): React.ReactElement {
               </View>
             ) : (
               <>
-                <TouchableOpacity style={styles.payNowBtn} onPress={() => payMutation.mutate()}>
+                <TouchableOpacity
+                  style={[
+                    styles.payNowBtn,
+                    pendingPayment.additionalTotal != null
+                      && pendingPayment.additionalTotal > walletBalance
+                      && { opacity: 0.4 },
+                  ]}
+                  onPress={() => payMutation.mutate()}
+                  disabled={
+                    pendingPayment.additionalTotal != null
+                    && pendingPayment.additionalTotal > walletBalance
+                  }
+                >
                   <Text style={styles.payNowText}>
                     {pendingPayment.additionalTotal != null
                       ? `Pay ${formatPHP(pendingPayment.additionalTotal)}`
