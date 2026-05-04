@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, RefreshControl, type DimensionValue,
+  ActivityIndicator, Alert, RefreshControl, TextInput, type DimensionValue,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -55,6 +55,14 @@ export default function RecurringDetailScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
   const [showInstances, setShowInstances] = useState(false);
+  // BUG-PHASE58-01 fix — pre-fix the cancel handler hardcoded
+  // 'Cancelled by customer' as the reason. The reason gets recorded
+  // in the audit trail and is used by ops to spot churn signals;
+  // a constant string defeats both. Same pattern as the admin
+  // RecurringPage fix in Phase 41 (BUG-PHASE41-02). Now: the cancel
+  // button opens an inline form to capture an optional reason.
+  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
 
   const { data: recurring, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['recurring', id],
@@ -128,19 +136,17 @@ export default function RecurringDetailScreen(): React.ReactElement {
   }, [resumeMutation]);
 
   const handleCancel = useCallback(() => {
-    Alert.alert(
-      'Cancel Recurring Booking?',
-      'This will permanently stop future bookings. This cannot be undone.',
-      [
-        { text: 'Keep It', style: 'cancel' },
-        {
-          text: 'Cancel Booking',
-          style: 'destructive',
-          onPress: () => cancelMutation.mutate('Cancelled by customer'),
-        },
-      ],
-    );
-  }, [cancelMutation]);
+    // BUG-PHASE58-01 — show the inline form instead of firing the
+    // mutation with a hardcoded reason.
+    setShowCancelForm(true);
+  }, []);
+
+  const handleCancelConfirm = useCallback(() => {
+    const reason = cancelReason.trim();
+    cancelMutation.mutate(reason.length > 0 ? reason : 'Cancelled by customer (no reason given)');
+    setShowCancelForm(false);
+    setCancelReason('');
+  }, [cancelReason, cancelMutation]);
 
   const handleSkipNext = useCallback(() => {
     if (!recurring?.nextScheduledDate) return;
@@ -191,8 +197,12 @@ export default function RecurringDetailScreen(): React.ReactElement {
           {recurring.subcategoryName ?? recurring.categoryName}
         </Text>
         <Text style={styles.serviceFreq}>
+          {/* BUG-PHASE58-02 fix — `DAY_NAMES[preferredDay]` returned
+              undefined for null/invalid values (legacy rows pre-
+              migration 042). Same fallback pattern as the recurring
+              list (BUG-PHASE49-01). Now: '—' fallback. */}
           {FREQ_LABELS[recurring.frequency] ?? recurring.frequency} &middot;{' '}
-          {DAY_NAMES[recurring.preferredDay]} at {recurring.preferredTime}
+          {DAY_NAMES[recurring.preferredDay] ?? '—'} at {recurring.preferredTime ?? '—'}
         </Text>
         <Text style={styles.servicePrice}>{formatPHP(recurring.servicePrice)}</Text>
       </View>
@@ -239,6 +249,45 @@ export default function RecurringDetailScreen(): React.ReactElement {
           <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={handleCancel}>
             <Text style={[styles.actionBtnText, styles.actionBtnDangerText]}>Cancel</Text>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {/* BUG-PHASE58-01 — capture-reason form for cancellation. */}
+      {showCancelForm && (
+        <View style={styles.cancelForm}>
+          <Text style={styles.cancelFormTitle}>Cancel Recurring Booking</Text>
+          <Text style={styles.cancelFormSubtitle}>
+            This permanently stops future bookings. Tell us why (optional) so we can improve.
+          </Text>
+          <TextInput
+            value={cancelReason}
+            onChangeText={setCancelReason}
+            placeholder="Reason for cancelling…"
+            placeholderTextColor={colors.textTertiary}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+            maxLength={500}
+            style={styles.cancelInput}
+          />
+          <View style={styles.cancelActions}>
+            <TouchableOpacity
+              style={[styles.actionBtn]}
+              onPress={() => { setShowCancelForm(false); setCancelReason(''); }}
+              disabled={cancelMutation.isPending}
+            >
+              <Text style={styles.actionBtnText}>Keep It</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnDanger]}
+              onPress={handleCancelConfirm}
+              disabled={cancelMutation.isPending}
+            >
+              <Text style={[styles.actionBtnText, styles.actionBtnDangerText]}>
+                {cancelMutation.isPending ? 'Cancelling…' : 'Confirm Cancel'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -384,4 +433,28 @@ const styles = StyleSheet.create({
   instanceSkipped: { color: colors.warningDark },
 
   bottomSpacer: { height: 40 },
+
+  cancelForm: {
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.base,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
+  cancelFormTitle: { ...typography.h3, color: colors.error, marginBottom: spacing.xs },
+  cancelFormSubtitle: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.md, lineHeight: 20 },
+  cancelInput: {
+    ...typography.body,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    minHeight: 80,
+    marginBottom: spacing.md,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cancelActions: { flexDirection: 'row', gap: spacing.sm },
 });

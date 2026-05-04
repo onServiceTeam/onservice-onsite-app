@@ -4,6 +4,7 @@ import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityInd
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 import { getMyCode, getMyReferrals, redeemCode } from '@/services/referral.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
@@ -52,12 +53,20 @@ export default function ReferralScreen(): React.ReactElement {
     }
   };
 
+  // BUG-PHASE58-03 fix — pre-fix the Copy button called
+  // Share.share({ message: code.code }) which opens the system
+  // share sheet, NOT the clipboard. The button was labeled "Copy"
+  // and there was a separate "Share" button right next to it that
+  // did the same thing. Now: actual clipboard write via expo-
+  // clipboard, with toast confirmation matching the user's
+  // expectation that "Copy" copies.
   const handleCopy = async (): Promise<void> => {
     if (!code?.code) return;
     try {
-      await Share.share({ message: code.code });
+      await Clipboard.setStringAsync(code.code);
+      Alert.alert('Copied', `Code "${code.code}" copied to clipboard.`);
     } catch {
-      // User cancelled
+      Alert.alert('Copy Failed', 'Could not copy to clipboard.');
     }
   };
 
