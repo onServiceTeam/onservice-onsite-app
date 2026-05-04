@@ -19,7 +19,9 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import MapView, { Marker, Circle as MapCircle, PROVIDER_DEFAULT } from 'react-native-maps';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
+import { getMyProfile } from '@/services/provider-api.service';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MapPin } from '@/components/icons';
@@ -40,6 +42,27 @@ export default function ProviderServiceAreaScreen(): React.ReactElement {
   const [radiusKm, setRadiusKm] = useState<number>(15);
   const [locating, setLocating] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // BUG-PHASE55-01 fix — pre-fix the screen loaded with hardcoded
+  // DEFAULT_LAT/DEFAULT_LNG/15km regardless of the provider's
+  // already-saved values. A provider opening Service Area to
+  // adjust their radius would see "15 km" and Boracay coords even
+  // if their actual coverage was 25 km in another barangay; an
+  // accidental Save would silently overwrite their settings.
+  // Now: load current profile values first; defaults only apply
+  // when the API returns null (first-time setup).
+  const profileQuery = useQuery({
+    queryKey: ['providerProfile'],
+    queryFn: getMyProfile,
+    staleTime: 60 * 1000,
+  });
+  React.useEffect(() => {
+    const profile = profileQuery.data;
+    if (!profile) return;
+    if (profile.latitude != null) setCenterLat(profile.latitude);
+    if (profile.longitude != null) setCenterLng(profile.longitude);
+    if (profile.serviceRadiusKm != null) setRadiusKm(profile.serviceRadiusKm);
+  }, [profileQuery.data]);
 
   const useCurrentLocation = async (): Promise<void> => {
     setLocating(true);
