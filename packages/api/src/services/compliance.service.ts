@@ -206,6 +206,23 @@ async function writeAudit(
 // Consent
 // ─────────────────────────────────────────────────────────────────
 
+// BUG-PHASE33-01 fix — pre-fix the route accepted any consent_type
+// string, deferring validation to the migration-080 CHECK constraint
+// (consent_records_type_valid). A customer hitting POST /consent with
+// a typo or stale type from older mobile-build code got a 500 with the
+// generic "unexpected error" message. Mirror the DB CHECK in the
+// service so callers get a clean 400 with an actionable list.
+// Keep this in sync with migration 080 if new types are added.
+const VALID_CONSENT_TYPES: ReadonlySet<string> = new Set([
+  'privacy_policy',
+  'terms_of_service',
+  'marketing_consent',
+  'ic_agreement',
+  'cookie_policy',
+  'data_processing',
+  'biometric_consent',
+]);
+
 export async function recordConsent(input: {
   userId: string;
   consentType: string;
@@ -220,6 +237,12 @@ export async function recordConsent(input: {
   if (typeof input.consentType !== 'string' || input.consentType.length === 0
       || input.consentType.length > 50) {
     throw createAppError('consentType is required (1-50 chars).', 400);
+  }
+  if (!VALID_CONSENT_TYPES.has(input.consentType)) {
+    throw createAppError(
+      `consentType must be one of: ${[...VALID_CONSENT_TYPES].join(', ')}.`,
+      400,
+    );
   }
   if (typeof input.version !== 'string' || input.version.length === 0
       || input.version.length > 20) {
