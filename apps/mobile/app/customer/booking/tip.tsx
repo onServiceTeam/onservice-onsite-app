@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import { sendTip } from '@/services/tip.service';
+import { getWalletBalance } from '@/services/payment.service';
 import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
@@ -28,6 +29,20 @@ export default function TipScreen(): React.ReactElement {
     queryFn: () => getBookingById(bookingId ?? ''),
     enabled: !!bookingId,
   });
+
+  // BUG-PHASE47-01 fix — pre-fix the tip screen hardcoded
+  // `paymentMethod: 'wallet'` and never showed the wallet balance.
+  // If the customer's wallet was empty (or below the tip amount),
+  // the API call failed AFTER the user clicked "Send Tip" with a
+  // generic "Insufficient balance" error. Now: balance is queried
+  // up-front, displayed inline below the preset chips, and the
+  // submit button gates on tip ≤ wallet balance.
+  const walletQuery = useQuery({
+    queryKey: ['wallet'],
+    queryFn: getWalletBalance,
+    staleTime: 60 * 1000,
+  });
+  const walletBalance = walletQuery.data?.availableBalance ?? 0;
 
   const servicePrice = booking?.servicePrice ?? 0;
 
@@ -70,6 +85,13 @@ export default function TipScreen(): React.ReactElement {
     }
     if (tipAmount > maxTip) {
       Alert.alert('Tip Too Large', `Maximum tip is ${formatPHP(maxTip)} (100% of service price).`);
+      return;
+    }
+    if (tipAmount > walletBalance) {
+      Alert.alert(
+        'Insufficient Wallet Balance',
+        `Your wallet has ${formatPHP(walletBalance)}. Top up first or pick a smaller tip.`,
+      );
       return;
     }
     tipMutation.mutate(tipAmount);
@@ -159,6 +181,16 @@ export default function TipScreen(): React.ReactElement {
         {tipAmount > 0 && (
           <Text style={styles.tipPreview}>Tip amount: {formatPHP(tipAmount)}</Text>
         )}
+
+        {/* BUG-PHASE47-01 — wallet balance + insufficient warning. */}
+        <Text style={styles.balanceHint}>
+          Wallet balance: {formatPHP(walletBalance)}
+        </Text>
+        {tipAmount > 0 && tipAmount > walletBalance && (
+          <Text style={styles.balanceWarn}>
+            Tip exceeds wallet balance — top up first.
+          </Text>
+        )}
       </View>
 
       <View style={styles.actions}>
@@ -166,7 +198,7 @@ export default function TipScreen(): React.ReactElement {
           title={loading ? 'Sending...' : `Send Tip${tipAmount > 0 ? ` • ${formatPHP(tipAmount)}` : ''}`}
           onPress={handleSendTip}
           loading={loading}
-          disabled={tipAmount <= 0 || loading}
+          disabled={tipAmount <= 0 || loading || tipAmount > walletBalance}
         />
         <Button
           title="Maybe Later"
@@ -225,6 +257,8 @@ const styles = StyleSheet.create({
   customInput: { ...typography.h2, color: colors.text, flex: 1 },
 
   tipPreview: { ...typography.h3, color: colors.primary, marginTop: spacing.sm },
+  balanceHint: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
+  balanceWarn: { ...typography.caption, color: colors.error, marginTop: spacing.xs, fontWeight: '600' },
 
   actions: { gap: spacing.xs },
 });

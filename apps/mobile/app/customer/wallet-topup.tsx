@@ -170,12 +170,26 @@ export default function WalletTopUpScreen(): React.ReactElement {
             </View>
           ) : (
             <TouchableOpacity
-              style={[styles.topUpBtn, !isValid && styles.topUpBtnDisabled]}
+              style={[
+                styles.topUpBtn,
+                (!isValid || activeAmount > platformConfig.maxTopUp) && styles.topUpBtnDisabled,
+              ]}
               onPress={() => topUpMutation.mutate()}
               disabled={!isValid || activeAmount > platformConfig.maxTopUp}
             >
+              {/* BUG-PHASE47-02 fix — pre-fix the button label said
+                  "Add ₱X to Wallet" even when the amount exceeded
+                  maxTopUp, looking tappable but actually disabled.
+                  Confusing — the user couldn't tell why the button
+                  did nothing. Now: the over-max state has its own
+                  label so the disabled-looking button matches its
+                  disabled-state copy. */}
               <Text style={styles.topUpBtnText}>
-                {isValid ? `Add ${formatPHP(activeAmount)} to Wallet` : 'Select an Amount'}
+                {!isValid
+                  ? 'Select an Amount'
+                  : activeAmount > platformConfig.maxTopUp
+                    ? `Maximum ${formatPHP(platformConfig.maxTopUp)} per top-up`
+                    : `Add ${formatPHP(activeAmount)} to Wallet`}
               </Text>
             </TouchableOpacity>
           )}
