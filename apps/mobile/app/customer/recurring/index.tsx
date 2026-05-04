@@ -79,7 +79,13 @@ export default function RecurringListScreen(): React.ReactElement {
 
         <View style={styles.cardDetails}>
           <Text style={styles.detail}>
-            {FREQ_LABELS[item.frequency] ?? item.frequency} &middot; {DAY_NAMES[item.preferredDay]} at {item.preferredTime}
+            {/* BUG-PHASE49-01 fix — pre-fix `DAY_NAMES[item.preferredDay]`
+                returned undefined for null/undefined or out-of-range
+                values (e.g. legacy rows with NULL preferred_day_of_week
+                pre-migration 042). The undefined rendered as nothing,
+                making the line read "Weekly · at 09:00" with an empty
+                spot. Now: explicit '—' fallback. */}
+            {FREQ_LABELS[item.frequency] ?? item.frequency} &middot; {DAY_NAMES[item.preferredDay] ?? '—'} at {item.preferredTime ?? '—'}
           </Text>
           <Text style={styles.detail}>
             📍 {item.city} &middot; {formatPHP(item.servicePrice)}
