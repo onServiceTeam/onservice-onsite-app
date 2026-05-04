@@ -189,6 +189,29 @@ export default function SearchScreen(): React.ReactElement {
           returnKeyType="search"
           autoFocus
         />
+        {/* BUG-PHASE52-01 fix — pre-fix the FilterModal was rendered
+             below but had NO button to open it. Phase 14 R5-complete
+             imported and rendered the component to satisfy the
+             "wired into 3+ screens" rule, but `setFilterModalVisible(true)`
+             was never called from anywhere — the filter UI was
+             dead. Now: a real filter trigger button next to the
+             search input. Filter values still don't affect API
+             results yet (the /catalog/search endpoint doesn't
+             accept category/rating filters); the visible-filter
+             count is shown so admin testers can verify the modal
+             round-trip without changing search behavior. */}
+        <TouchableOpacity
+          onPress={() => setFilterModalVisible(true)}
+          style={styles.filterButton}
+          accessibilityLabel="Open search filters"
+        >
+          <Text style={styles.filterButtonText}>
+            ⚙
+            {Object.values(activeFilters).flat().length > 0
+              ? ` (${Object.values(activeFilters).flat().length})`
+              : ''}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {isLoading && (
@@ -281,6 +304,18 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 2,
     color: colors.text,
   },
+  filterButton: {
+    marginLeft: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.md,
+  },
+  filterButtonText: { fontSize: 18, color: colors.primary, fontWeight: '700' },
 
   list: { padding: spacing.base, paddingBottom: 80 },
   sectionTitle: {
