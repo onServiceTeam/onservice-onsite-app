@@ -86,6 +86,14 @@ export default function SupportTicketsPage(): React.ReactElement {
   const [isInternalNote, setIsInternalNote] = useState(false);
   const [error, setError] = useState('');
   const [assignAgentId, setAssignAgentId] = useState('');
+  // BUG-PHASE43-01 fix — pre-fix the status-change select fired the
+  // mutation immediately, with no resolutionNotes. Transitioning a
+  // ticket to 'resolved' or 'closed' without a note leaves an empty
+  // audit trail and provides nothing useful for trend analysis or
+  // recipient comms. Now: when target status is resolved/closed,
+  // open a confirm dialog asking for resolution notes.
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [resolutionNotes, setResolutionNotes] = useState('');
   const limit = adminConfig.defaultPageSize;
 
   function handleSelectTicket(ticket: Ticket): void {
@@ -249,7 +257,18 @@ export default function SupportTicketsPage(): React.ReactElement {
                   value=""
                   disabled={updateStatusMutation.isPending}
                   onChange={(e) => {
-                    if (e.target.value) updateStatusMutation.mutate({ id: ticket.id, status: e.target.value });
+                    const target = e.target.value;
+                    if (!target) return;
+                    // For resolved/closed transitions, capture
+                    // resolution notes via the confirm dialog (BUG-
+                    // PHASE43-01). For other transitions, fire the
+                    // mutation directly.
+                    if (target === 'resolved' || target === 'closed') {
+                      setPendingStatus(target);
+                      setResolutionNotes('');
+                    } else {
+                      updateStatusMutation.mutate({ id: ticket.id, status: target });
+                    }
                   }}
                 >
                   <option value="">{updateStatusMutation.isPending ? 'Updating...' : 'Change Status'}</option>
@@ -321,6 +340,49 @@ export default function SupportTicketsPage(): React.ReactElement {
               <p className="text-sm text-[var(--color-text-secondary)]">No messages yet.</p>
             )}
           </div>
+          )}
+
+          {pendingStatus && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6">
+                <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1">
+                  Mark ticket as {formatLabel(pendingStatus)}
+                </h3>
+                <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+                  {ticket.ticket_number}: {ticket.subject}
+                </p>
+                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">
+                  Resolution notes *
+                </label>
+                <textarea
+                  value={resolutionNotes}
+                  onChange={(e) => setResolutionNotes(e.target.value)}
+                  rows={4}
+                  placeholder="Explain how this ticket was resolved (min 10 characters) — recorded in audit trail."
+                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                />
+                <div className="flex gap-2 justify-end mt-4">
+                  <button
+                    onClick={() => { setPendingStatus(null); setResolutionNotes(''); }}
+                    className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (pendingStatus) {
+                        updateStatusMutation.mutate({ id: ticket.id, status: pendingStatus, resolutionNotes });
+                        setPendingStatus(null);
+                      }
+                    }}
+                    disabled={updateStatusMutation.isPending || resolutionNotes.trim().length < 10}
+                    className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                  >
+                    {updateStatusMutation.isPending ? 'Updating...' : `Mark as ${formatLabel(pendingStatus)}`}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {ticket.status !== 'closed' && (
