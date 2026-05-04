@@ -1,13 +1,14 @@
-# Phases 63–70 — Continuation deep audit pass (2026-05-05)
+# Phases 63–71 — Continuation deep audit pass (2026-05-05)
 
-8 more phases of source-level deep auditing, focused on areas the
+9 more phases of source-level deep auditing, focused on areas the
 earlier 38–62 sweep audited shallowly or skipped: auth flows, the
 five tab screens, mobile service-layer alignment, Phase 14 R5
 component wiring, the provider job detail flow, customer browse
-flows, pre-existing API type errors, and customer account
-management.
+flows, pre-existing API type errors, customer account management,
+the customer quote-request flow, provider photo aggregation, and
+recurring-booking defaults.
 
-**This continuation: 13 real bugs found and fixed, 125 cumulative
+**This continuation: 17 real bugs found and fixed, 129 cumulative
 since Phase 17.**
 
 ## Phase-by-phase breakdown
@@ -22,9 +23,11 @@ since Phase 17.**
 | 68 | Customer browse flows (category, configure, confirm, safety-and-support) | 0 |
 | 69 | Pre-existing API type-check errors from Phase 36 | 3 |
 | 70 | Customer account-management — DSR data export download link | 1 |
-| **Total** | | **13** |
+| 71 | Customer job-request + provider photos | 3 |
+| 71b | Customer make-recurring default day | 1 |
+| **Total** | | **17** |
 
-## The 12 bugs
+## The 17 bugs
 
 ### Phase 63 — auth flows
 - **BUG-PHASE63-01** — Login + register + checkout had plain-text
@@ -90,19 +93,51 @@ since Phase 17.**
   data). Now: a "Download" link opens the signed URL via Linking
   when status is completed, plus an "Expires …" hint.
 
+### Phase 71 — quote flow + provider photos
+- **BUG-PHASE71-01** — Customer `booking/job-request.tsx` Location
+  showed "No address selected" with no UI to actually pick one.
+  The quote-based subcategory flow resets the booking-store address
+  (per `setSubcategory`), so a customer landing here from
+  `/customer/category/[slug]` for a quote-based service had no
+  address and the submit button silently disabled — they were stuck.
+  Now the address card is tappable and routes to the address picker.
+- **BUG-PHASE71-02** — Customer `job-request.tsx` accepted
+  `budgetMin > budgetMax` silently. Now: client-side check + inline
+  error message; submit disabled until min ≤ max (or both blank).
+- **BUG-PHASE71-03** — Provider `job/[id]/photos.tsx` read
+  `existingBefore` / `existingAfter` from the deprecated TEXT[]
+  columns from migration 037. Phase E CRIT-102 made
+  `provider/job/[id]/complete` upload "after" photos via the
+  canonical `/uploads/booking-photo` endpoint (writes ONLY to
+  `booking_photos`, not the legacy arrays), so completion-flow
+  photos were INVISIBLE on this screen. Now also queries the
+  `booking_photos` endpoint and unions+dedupes with the legacy
+  arrays — same dual-source pattern as the Phase 56 customer fix.
+
+### Phase 71b — make-recurring default day
+- **BUG-PHASE71-04** — Customer `booking/make-recurring.tsx`
+  defaulted `preferredDay` to `new Date().getDay()` (today's
+  weekday). The user is making a SPECIFIC past booking recurring,
+  so the natural default is the day-of-week the original booking
+  was scheduled on (Tuesday cleaning → Tuesday recurring, not
+  whatever weekday the user happens to view the screen on). Now
+  syncs `preferredDay` to the original booking's scheduled weekday
+  in a useEffect once the booking loads, while still respecting
+  any manual override.
+
 ## Verification at end of pass
 
 - **101/101** admin Vitest DOM tests pass
 - **400 / 491** mobile Jest tests pass (91 todo — same baseline)
 - **`npx tsc --noEmit` clean** for admin, api, and mobile packages
-- **5 commits**, all atomic, all with co-author attribution
+- **7 commits**, all atomic, all with co-author attribution
 - **Zero regressions** detected at any phase boundary
 
 ## Cumulative since Phase 17
 
-- **125 real bugs found + fixed** total (112 prior + 13 this
+- **129 real bugs found + fixed** total (112 prior + 17 this
   continuation)
-- **9 migrations** (none new in 63–70)
+- **9 migrations** (none new in 63–71)
 - All assertion totals from Phase 62 still apply
 
 ## Patterns observed
