@@ -231,7 +231,12 @@ export default function ProvidersPage(): React.ReactElement {
           aria-label="Filter providers by tier"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
+          {/* BUG-PHASE38-03 fix — pre-fix this list was missing
+              "founding" even though TIER_BADGE handles it (Phase 14
+              D02 Part 3). Founding-batch providers couldn't be
+              filtered. */}
           <option value="">All Tiers</option>
+          <option value="founding">Founding</option>
           <option value="new">New</option>
           <option value="verified">Verified</option>
           <option value="pro">Pro</option>
@@ -290,6 +295,8 @@ export default function ProvidersPage(): React.ReactElement {
                   onChange={(e) => setActionTier(e.target.value)}
                   className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                 >
+                  {/* BUG-PHASE38-03 fix — same as filter above. */}
+                  <option value="founding">Founding</option>
                   <option value="new">New</option>
                   <option value="verified">Verified</option>
                   <option value="pro">Pro</option>

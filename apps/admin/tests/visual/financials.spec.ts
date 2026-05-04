@@ -80,6 +80,29 @@ test.describe('FinancialsPage', () => {
           maxDiffPixelRatio: 0.01,
         });
       });
+
+      // Phase 38c — explicit per-tab captures so visual-diff catches
+      // regressions on the Escrow / Payouts / Guarantee Fund /
+      // Reconciliation / BIR Reports / Receipts tabs (the original
+      // "default render" only captured the Overview tab). Only at 1280
+      // to keep the baseline set manageable.
+      if (width === 1280) {
+        for (const tab of ['Escrow', 'Payouts', 'Guarantee Fund', 'Reconciliation', 'BIR Reports', 'Receipts']) {
+          test(`tab: ${tab}`, async ({ page }) => {
+            await page.goto(ROUTE);
+            // Tabs are role="tab" inside an inline-flex tab strip
+            // (see TABS map in FinancialsPage). Using getByRole with
+            // role 'tab' avoids collision with the same label in the
+            // sidebar (e.g. /payouts route).
+            await page.getByRole('tab', { name: tab }).click();
+            await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
+            await expect(page).toHaveScreenshot(
+              `financials-tab-${tab.toLowerCase().replace(/ /g, '-')}-${width}.png`,
+              { fullPage: true, maxDiffPixelRatio: 0.01 },
+            );
+          });
+        }
+      }
     });
   }
 });

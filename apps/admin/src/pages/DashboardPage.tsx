@@ -39,6 +39,7 @@ import {
   MapPin,
   RefreshCw,
   ChevronRight,
+  BarChart3,
 } from '@/components/icons';
 
 type DateRange = 'today' | '7d' | '30d' | '90d' | 'ytd';
@@ -271,17 +272,30 @@ export default function DashboardPage(): React.ReactElement {
             <CardTitle>Revenue Trend (30d)</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartContainer height={240}>
-              <LineChart data={revenueTrend.data ?? []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                <XAxis dataKey="date" tickFormatter={(d: string) => new Date(d).getDate().toString()} />
-                <YAxis tickFormatter={(v: number) => `₱${(v / 100000).toFixed(0)}K`} />
-                <ChartTooltip formatter={(v) => formatCurrency(Number(v))} />
-                <ChartLegend />
-                <Line type="monotone" dataKey="gmv" name="GMV" stroke={CHART_COLORS.secondary} strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="revenue" name="Platform Revenue" stroke={CHART_COLORS.success} strokeWidth={2} dot={false} />
-              </LineChart>
-            </ChartContainer>
+            {/* BUG-PHASE38-01 fix — pre-fix this rendered an empty
+                240px rectangle when the API returned no data points
+                (fresh launch, low traffic, mocked dev env). Looked
+                like the chart was broken. Post-fix: explicit empty
+                state with friendly text. */}
+            {(revenueTrend.data ?? []).length === 0 ? (
+              <div className="h-[240px] flex flex-col items-center justify-center text-center">
+                <BarChart3 size={28} className="text-slate-400 mb-2" />
+                <p className="text-sm text-[var(--color-text-secondary)]">No revenue data yet</p>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1">Data will appear once bookings start completing.</p>
+              </div>
+            ) : (
+              <ChartContainer height={240}>
+                <LineChart data={revenueTrend.data ?? []}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                  <XAxis dataKey="date" tickFormatter={(d: string) => new Date(d).getDate().toString()} />
+                  <YAxis tickFormatter={(v: number) => `₱${(v / 100000).toFixed(0)}K`} />
+                  <ChartTooltip formatter={(v) => formatCurrency(Number(v))} />
+                  <ChartLegend />
+                  <Line type="monotone" dataKey="gmv" name="GMV" stroke={CHART_COLORS.secondary} strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="revenue" name="Platform Revenue" stroke={CHART_COLORS.success} strokeWidth={2} dot={false} />
+                </LineChart>
+              </ChartContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -290,15 +304,24 @@ export default function DashboardPage(): React.ReactElement {
             <CardTitle>Booking Volume (7d)</CardTitle>
           </CardHeader>
           <CardContent>
-            <ChartContainer height={240}>
-              <BarChart data={bookingVolume.data ?? []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                <XAxis dataKey="category" />
-                <YAxis allowDecimals={false} />
-                <ChartTooltip />
-                <Bar dataKey="count" fill={CHART_COLORS.secondary} />
-              </BarChart>
-            </ChartContainer>
+            {/* BUG-PHASE38-01 fix — same empty-state guard as Revenue Trend. */}
+            {(bookingVolume.data ?? []).length === 0 ? (
+              <div className="h-[240px] flex flex-col items-center justify-center text-center">
+                <ClipboardList size={28} className="text-slate-400 mb-2" />
+                <p className="text-sm text-[var(--color-text-secondary)]">No bookings yet</p>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1">Volume by category will appear here.</p>
+              </div>
+            ) : (
+              <ChartContainer height={240}>
+                <BarChart data={bookingVolume.data ?? []}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                  <XAxis dataKey="category" />
+                  <YAxis allowDecimals={false} />
+                  <ChartTooltip />
+                  <Bar dataKey="count" fill={CHART_COLORS.secondary} />
+                </BarChart>
+              </ChartContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -417,11 +440,21 @@ export default function DashboardPage(): React.ReactElement {
           description="Commission + fees"
           valueColor="text-emerald-600"
         />
+        {/* BUG-PHASE38-02 fix — pre-fix this triggered the
+            "Replenishment recommended" warning even when the fund was
+            simply unconfigured (amount=0, runway=0). The warning made
+            sense for an UNDER-funded production deployment but was
+            noise on a fresh install. Now: warning only fires when the
+            fund is non-zero AND runway < 3 months. */}
         <WalletCard
           title="Guarantee Fund"
           amount={k.guaranteeFund}
-          description={`${k.guaranteeFundRunwayMonths} months runway`}
-          warning={k.guaranteeFundRunwayMonths < 3}
+          description={
+            k.guaranteeFund > 0
+              ? `${k.guaranteeFundRunwayMonths} months runway`
+              : 'Not yet funded'
+          }
+          warning={k.guaranteeFund > 0 && k.guaranteeFundRunwayMonths < 3}
         />
       </div>
 
