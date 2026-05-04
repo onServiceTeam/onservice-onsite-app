@@ -12,7 +12,9 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
+import { getBookingById } from '@/services/booking.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import {
   ArrowLeft,
@@ -21,25 +23,48 @@ import {
   CheckCircle2,
 } from '@/components/icons';
 
-interface JobLocation {
-  customerName: string;
-  address: string;
-}
-
-const FALLBACK_JOB: JobLocation = {
-  customerName: 'Maria Santos',
-  address: '123 Sample St, Quezon City',
-};
+// BUG-PHASE59-02 fix — pre-fix this screen ALWAYS used a hardcoded
+// fallback ("Maria Santos, 123 Sample St, Quezon City") regardless
+// of the actual booking. The `id` param was never read to fetch
+// the real customer + address. Provider tapping "Open in Google
+// Maps" got directions to a placeholder address — they could
+// drive to the wrong place entirely. The "Mark Arrived" button
+// DID hit the right /:id/arrived endpoint, so the booking would
+// transition correctly even though the provider was elsewhere.
+// Now: useQuery fetches the booking and the screen uses the real
+// fields (with a clear loading + error state).
 
 export default function NavigateToJobScreen(): React.ReactElement {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [marking, setMarking] = useState(false);
 
-  const job = FALLBACK_JOB;
-  const encodedAddress = encodeURIComponent(job.address);
-  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
-  const wazeUrl = `https://waze.com/ul?q=${encodedAddress}&navigate=yes`;
+  const bookingQuery = useQuery({
+    queryKey: ['booking', id],
+    queryFn: () => getBookingById(id ?? ''),
+    enabled: !!id,
+  });
+  const booking = bookingQuery.data;
+
+  const customerName = booking?.providerName /* legacy alias */
+    ?? (booking as unknown as { customerName?: string } | undefined)?.customerName
+    ?? '(customer)';
+  const fullAddressParts = booking
+    ? [booking.address, booking.barangay, booking.city, booking.province].filter(Boolean)
+    : [];
+  const fullAddress = fullAddressParts.join(', ');
+  const encodedAddress = encodeURIComponent(fullAddress);
+  // Prefer GPS coords when available — more accurate than address text.
+  const hasCoords = booking?.latitude != null && booking?.longitude != null;
+  const coordParam = hasCoords
+    ? `${booking!.latitude},${booking!.longitude}`
+    : encodedAddress;
+  const googleMapsUrl = hasCoords
+    ? `https://www.google.com/maps/dir/?api=1&destination=${coordParam}`
+    : `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
+  const wazeUrl = hasCoords
+    ? `https://waze.com/ul?ll=${coordParam}&navigate=yes`
+    : `https://waze.com/ul?q=${encodedAddress}&navigate=yes`;
 
   const openExternal = async (url: string, label: string): Promise<void> => {
     try {
@@ -87,15 +112,27 @@ export default function NavigateToJobScreen(): React.ReactElement {
         contentContainerStyle={styles.bodyContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.addressCard}>
-          <View style={styles.addressIconWrap}>
-            <MapPin size={22} color={colors.primary} />
+        {bookingQuery.isLoading && (
+          <ActivityIndicator size="small" color={colors.primary} style={{ marginBottom: spacing.base }} />
+        )}
+        {bookingQuery.isError && (
+          <View style={[styles.addressCard, { backgroundColor: colors.errorLight, borderColor: colors.error }]}>
+            <Text style={{ color: colors.error, ...typography.bodySmall }}>
+              Could not load this job. Please go back and try again.
+            </Text>
           </View>
-          <View style={styles.addressInfo}>
-            <Text style={styles.customerName}>{job.customerName}</Text>
-            <Text style={styles.addressText}>{job.address}</Text>
+        )}
+        {!bookingQuery.isLoading && !bookingQuery.isError && (
+          <View style={styles.addressCard}>
+            <View style={styles.addressIconWrap}>
+              <MapPin size={22} color={colors.primary} />
+            </View>
+            <View style={styles.addressInfo}>
+              <Text style={styles.customerName}>{customerName}</Text>
+              <Text style={styles.addressText}>{fullAddress || '(no address on file)'}</Text>
+            </View>
           </View>
-        </View>
+        )}
 
         <Text style={styles.sectionTitle}>Open in maps app</Text>
 
@@ -117,10 +154,12 @@ export default function NavigateToJobScreen(): React.ReactElement {
           <Text style={styles.mapBtnText}>Open in Waze</Text>
         </TouchableOpacity>
 
-        <View style={styles.etaCard}>
-          <Text style={styles.etaLabel}>Estimated arrival</Text>
-          <Text style={styles.etaValue}>ETA: ~25 min</Text>
-        </View>
+        {/* BUG-PHASE59-02 — pre-fix this card showed a hardcoded
+             "ETA: ~25 min" regardless of real distance. The
+             external maps app provides real ETA. Removing the
+             fake card prevents misleading the provider; can be
+             added back once we wire a real distance/duration
+             query (Google Distance Matrix or Mapbox Directions). */}
       </ScrollView>
 
       <View style={styles.footer}>

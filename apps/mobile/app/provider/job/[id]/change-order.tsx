@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createChangeOrder } from '@/services/booking.service';
 import { useImagePicker } from '@/hooks/useImagePicker';
+import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Info } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
@@ -41,6 +42,27 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
 
   const amountCentavos = Math.round((Number(amount) || 0) * 100);
   const isValid = description.length >= 10 && amountCentavos >= platformConfig.minimumChangeOrderAmount;
+
+  // BUG-PHASE59-01 fix — pre-fix the screen showed only the gross
+  // additional amount with no preview of the provider's net after
+  // platform commission. Same gap pattern fixed for QuoteBuilder
+  // in Phase 48 (BUG-PHASE48-02). Provider thought they'd pocket
+  // the full additional charge and got surprised at payout time.
+  const providerMeQuery = useQuery<{ tier: string }>({
+    queryKey: ['providerMe'],
+    queryFn: async () => {
+      const res = await api.get<{ data: { tier: string } }>('/api/v1/providers/me');
+      return { tier: res.data.data.tier };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const providerTier = providerMeQuery.data?.tier ?? 'new';
+  const commissionRate =
+    platformConfig.commissionRates[providerTier]
+    ?? platformConfig.commissionRates.new
+    ?? 0.15;
+  const commissionAmount = Math.round(amountCentavos * commissionRate);
+  const netEarnings = amountCentavos - commissionAmount;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -91,8 +113,25 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
               placeholderTextColor={colors.textTertiary}
             />
           </View>
-          {amountCentavos > 0 && amountCentavos < 100 && (
-            <Text style={styles.minWarn}>Minimum amount: {formatPHP(100)}</Text>
+          {amountCentavos > 0 && amountCentavos < platformConfig.minimumChangeOrderAmount && (
+            <Text style={styles.minWarn}>
+              Minimum amount: {formatPHP(platformConfig.minimumChangeOrderAmount)}
+            </Text>
+          )}
+          {/* BUG-PHASE59-01 — commission preview. */}
+          {amountCentavos > 0 && (
+            <View style={styles.commissionBox}>
+              <View style={styles.commissionRow}>
+                <Text style={styles.commissionLabel}>
+                  − Platform commission ({Math.round(commissionRate * 100)}% — {providerTier} tier)
+                </Text>
+                <Text style={styles.commissionValue}>−{formatPHP(commissionAmount)}</Text>
+              </View>
+              <View style={[styles.commissionRow, styles.netRow]}>
+                <Text style={styles.netLabel}>Your net earnings</Text>
+                <Text style={styles.netValue}>{formatPHP(netEarnings)}</Text>
+              </View>
+            </View>
           )}
         </View>
 
@@ -176,6 +215,13 @@ const styles = StyleSheet.create({
   prefix: { fontSize: 18, fontWeight: '600', color: colors.textSecondary, marginRight: spacing.xs + 2 },
   amountInput: { flex: 1, paddingVertical: spacing.md + 2, fontSize: 24, fontWeight: '700', color: colors.text },
   minWarn: { fontSize: 12, color: colors.error, marginTop: spacing.xs },
+  commissionBox: { backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.md, padding: spacing.md, marginTop: spacing.sm, borderWidth: 1, borderColor: colors.border },
+  commissionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  commissionLabel: { fontSize: 12, color: colors.textSecondary, flex: 1 },
+  commissionValue: { fontSize: 13, color: colors.warning, fontWeight: '600' },
+  netRow: { paddingTop: spacing.sm, marginTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  netLabel: { fontSize: 13, color: colors.text, fontWeight: '700' },
+  netValue: { fontSize: 16, color: colors.success, fontWeight: '800' },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm + 2 },
   photoThumb: { width: 80, height: 80, borderRadius: borderRadius.md, backgroundColor: colors.backgroundSecondary, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   photoImage: { width: '100%', height: '100%', borderRadius: borderRadius.md - 1 },
