@@ -192,6 +192,24 @@ export default function BookingDetailScreen(): React.ReactElement {
               <Text style={[styles.receiptValue, { color: colors.success }]}>-{formatPHP(booking.sukiDiscount)}</Text>
             </View>
           )}
+          {/* BUG-PHASE45-01 fix — pre-fix the receipt hid surge pricing.
+              When a booking is created during rush hours / holiday /
+              peak hours, surgeMultiplier > 1 and surgeAmount > 0 are
+              recorded on the booking, but the receipt showed only
+              "Service Price + Platform Fee = Total" with no indication
+              that surge was applied. Customers who paid more during a
+              surge had no transparent breakdown. Now: when surge >0
+              renders an extra line "Surge (×N.NN)" with the amount. */}
+          {(booking.surgeAmount ?? 0) > 0 && (
+            <View style={styles.receiptRow}>
+              <Text style={[styles.receiptLabel, { color: colors.warning }]}>
+                Surge {booking.surgeMultiplier ? `(×${booking.surgeMultiplier.toFixed(2)})` : ''}
+              </Text>
+              <Text style={[styles.receiptValue, { color: colors.warning }]}>
+                +{formatPHP(booking.surgeAmount)}
+              </Text>
+            </View>
+          )}
           <View style={styles.receiptRow}>
             <Text style={styles.receiptLabel}>Platform Fee</Text>
             <Text style={styles.receiptValue}>{formatPHP(booking.serviceFee)}</Text>
