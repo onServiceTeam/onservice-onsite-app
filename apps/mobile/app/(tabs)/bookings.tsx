@@ -232,6 +232,23 @@ export default function BookingsScreen(): React.ReactElement {
                   ? 'Your booking history will appear here.'
                   : `No ${filter} bookings found.`}
               </Text>
+              {/* BUG-PHASE170-01 fix — pre-fix the empty state had no
+                  action button. A new customer with zero bookings saw
+                  "No bookings yet" with no path forward — they had to
+                  navigate back to (tabs)/home to find the categories
+                  and start booking. Now: a "Browse Services" CTA on
+                  the all-filter empty state takes them home. The
+                  filter-specific empty states (e.g., "No active
+                  bookings found") don't get the CTA — those are
+                  about a sub-filter, not the genuine no-history case. */}
+              {filter === 'all' && (
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={() => router.push(Routes.TABS.HOME)}
+                >
+                  <Text style={styles.retryText}>Browse Services</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
         />
