@@ -46,55 +46,6 @@ interface ChecklistSection {
   items: ChecklistItem[];
 }
 
-function makeItem(id: string, label: string): ChecklistItem {
-  return { id, label, done: false, completedAt: null, photoUri: null };
-}
-
-const INITIAL_SECTIONS: ChecklistSection[] = [
-  {
-    id: 'living',
-    title: 'Living Room',
-    items: [
-      makeItem('living-vacuum', 'Vacuum floor'),
-      makeItem('living-surfaces', 'Wipe surfaces'),
-      makeItem('living-shelves', 'Dust shelves'),
-      makeItem('living-trash', 'Empty trash'),
-    ],
-  },
-  {
-    id: 'kitchen',
-    title: 'Kitchen',
-    items: [
-      makeItem('kitchen-counters', 'Wipe counters'),
-      makeItem('kitchen-stove', 'Clean stove'),
-      makeItem('kitchen-sink', 'Clean sink'),
-      makeItem('kitchen-mop', 'Mop floor'),
-      makeItem('kitchen-trash', 'Take out trash'),
-    ],
-  },
-  {
-    id: 'bathroom',
-    title: 'Bathroom',
-    items: [
-      makeItem('bath-toilet', 'Scrub toilet'),
-      makeItem('bath-tub', 'Clean tub'),
-      makeItem('bath-mirror', 'Wipe mirror'),
-      makeItem('bath-mop', 'Mop floor'),
-      makeItem('bath-restock', 'Restock supplies'),
-    ],
-  },
-  {
-    id: 'bedrooms',
-    title: 'Bedrooms',
-    items: [
-      makeItem('bed-make', 'Make bed'),
-      makeItem('bed-vacuum', 'Vacuum'),
-      makeItem('bed-dust', 'Dust surfaces'),
-      makeItem('bed-trash', 'Empty trash'),
-    ],
-  },
-];
-
 interface FlatRow {
   type: 'header' | 'item';
   sectionId: string;
