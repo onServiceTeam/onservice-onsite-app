@@ -21,7 +21,13 @@ import { Sparkle, CheckCircle2, Star, Crown, AlertTriangle } from '@/components/
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
+// BUG-PHASE94-01 — founding tier added so a founding-batch provider
+// viewing their tier progression sees a distinct badge color + icon
+// rather than a raw fallback. Crown reused intentionally — founding
+// is the highest-rate tier outside elite (10% vs elite's 9%) and the
+// invite-only/parallel positioning warrants premium iconography.
 const TIER_COLORS: Record<string, string> = {
+  founding: colors.tierFounding,
   new: colors.tierNew,
   verified: colors.tierVerified,
   pro: colors.tierPro,
@@ -29,6 +35,7 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 const TIER_ICONS: Record<string, IconComponent> = {
+  founding: Crown,
   new: Sparkle,
   verified: CheckCircle2,
   pro: Star,

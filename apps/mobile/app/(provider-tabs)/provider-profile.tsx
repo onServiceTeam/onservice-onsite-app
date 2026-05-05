@@ -31,7 +31,11 @@ import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 import { Routes } from '@/config/navigation';
+// BUG-PHASE94-01 — founding tier added; badge falls back to raw
+// uppercase string ("FOUNDING") which is fine for this screen, but
+// the color must match the rest of the app.
 const TIER_COLORS: Record<string, string> = {
+  founding: colors.tierFounding,
   new: colors.tierNew,
   verified: colors.tierVerified,
   pro: colors.tierPro,

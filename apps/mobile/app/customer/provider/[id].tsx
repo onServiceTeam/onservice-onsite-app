@@ -24,7 +24,10 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Star, AlertTriangle, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
+// BUG-PHASE94-01 — founding tier added so customers viewing a
+// founding-batch provider see the right badge color + label.
 const TIER_COLORS: Record<string, string> = {
+  founding: colors.tierFounding,
   new: colors.tierNew,
   verified: colors.tierVerified,
   pro: colors.tierPro,
@@ -34,6 +37,7 @@ const TIER_COLORS: Record<string, string> = {
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const TIER_LABELS: Record<string, string> = {
+  founding: 'Founding Provider',
   new: 'New Provider',
   verified: 'Verified',
   pro: 'Pro Provider',

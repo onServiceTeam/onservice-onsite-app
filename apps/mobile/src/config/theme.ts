@@ -36,6 +36,13 @@ export const colors = {
   backgroundSecondary: '#F9FAFB',
   surface: '#FFFFFF',
 
+  // BUG-PHASE94-01 — `founding` is the invite-only launch-batch tier
+  // (10% commission). It existed in platformConfig.commissionRates and
+  // packages/api TIER_LADDER but was never added to the mobile theme,
+  // so all five screens that render the tier badge fell through to
+  // colors.textTertiary (gray) and the raw lowercase string. Distinct
+  // teal so it doesn't collide with elite/pro/verified.
+  tierFounding: '#0E7C7B',
   tierNew: '#9CA3AF',
   tierVerified: '#3B82F6',
   tierPro: '#8B5CF6',

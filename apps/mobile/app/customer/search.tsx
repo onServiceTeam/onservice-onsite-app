@@ -41,7 +41,10 @@ interface SearchResponse {
 
 type SearchItem = { type: 'service'; data: Subcategory } | { type: 'provider'; data: ProviderResult };
 
+// BUG-PHASE94-01 — founding tier added so search results show the
+// proper label instead of the raw lowercase string.
 const TIER_LABELS: Record<string, string> = {
+  founding: 'Founding',
   new: 'New',
   verified: 'Verified',
   pro: 'Pro',

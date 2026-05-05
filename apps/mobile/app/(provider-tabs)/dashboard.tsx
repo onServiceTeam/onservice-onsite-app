@@ -31,7 +31,11 @@ import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 import { Routes } from '@/config/navigation';
+// BUG-PHASE94-01 — founding tier added so the badge shows the
+// proper label + color instead of falling back to raw "founding"
+// + grey textTertiary.
 const TIER_LABELS: Record<string, string> = {
+  founding: 'Founding',
   new: 'New Provider',
   verified: 'Verified',
   pro: 'Pro',
@@ -39,6 +43,7 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 const TIER_COLORS: Record<string, string> = {
+  founding: colors.tierFounding,
   new: colors.tierNew,
   verified: colors.tierVerified,
   pro: colors.tierPro,
