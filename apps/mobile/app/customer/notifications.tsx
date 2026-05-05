@@ -202,6 +202,12 @@ export default function NotificationsScreen(): React.ReactElement {
             <View style={styles.empty}>
               <View style={styles.emptyIconWrap}><Bell size={48} color={colors.textTertiary} /></View>
               <Text style={styles.emptyText}>No notifications yet</Text>
+              {/* BUG-PHASE178-02 fix — pre-fix the empty state was bare.
+                  Same UX-gap family as Phase 169-177. Now: a one-line
+                  hint that explains what arrives here. */}
+              <Text style={styles.emptyHint}>
+                Booking updates, provider arrivals, quotes, and promos will appear here.
+              </Text>
             </View>
           }
         />
@@ -258,4 +264,13 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: 80 },
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
   emptyText: { ...typography.body, color: colors.textSecondary },
+  // BUG-PHASE178-02 fix — helper text under the notifications empty state.
+  emptyHint: {
+    ...typography.bodySmall,
+    color: colors.textTertiary,
+    textAlign: 'center' as const,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    lineHeight: 20,
+  },
 });
