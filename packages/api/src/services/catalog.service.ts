@@ -391,6 +391,14 @@ export async function deleteSubcategory(
   adminUserId: string,
   reason?: string,
 ): Promise<void> {
+  // BUG-PHASE167-01 fix — pre-fix reason had no cap. The reason
+  // column gets a 500-char slice but full_notes (TEXT, unbounded)
+  // gets the entire string. Cap reason at 2000 to prevent abuse
+  // via unbounded full_notes. Same defense-in-depth pattern as
+  // Phase 152-166.
+  if (reason !== undefined && typeof reason === 'string' && reason.length > 2000) {
+    throw createAppError('reason must be ≤ 2000 characters.', 400);
+  }
   await db.transaction(async (client) => {
     const before = await client.query<SubcategoryMutationRow>(
       `SELECT * FROM service_subcategories WHERE id = $1`,
@@ -552,6 +560,10 @@ export async function deleteAddon(
   adminUserId: string,
   reason?: string,
 ): Promise<void> {
+  // BUG-PHASE167-01 fix — same reason cap as deleteSubcategory.
+  if (reason !== undefined && typeof reason === 'string' && reason.length > 2000) {
+    throw createAppError('reason must be ≤ 2000 characters.', 400);
+  }
   // Phase 14 Dispatch 06 — Bug 237. Pre-D06 the route did UPDATE
   // service_addons SET is_active = FALSE (soft deactivate, preserving
   // booking_addons FK integrity) with NO audit. The behavior here keeps
