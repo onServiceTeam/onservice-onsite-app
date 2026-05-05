@@ -1,6 +1,6 @@
-# Phases 85–163 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–164 — Continuation deep audit pass (2026-05-05+)
 
-Seventy-nine phases continuing the screen-by-screen audit started in
+Eighty phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1963,6 +1963,26 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **53**
 (35 bug fixes + 1 escalation + 17 closeout-doc updates).
+
+---
+
+## Phase 164 (2026-05-06, part 17) — provider note delete reason cap
+
+**164 — provider-admin deleteProviderNote reason cap (1 site)**
+  Column is TEXT (deleted_reason; migration 076). Cap at 1000.
+
+**Cumulative server-cap sweep total (Phases 152-164):** 13 phases,
+13 bugs, **58+ server-side input sites** capped.
+
+### Final test counts after Phase 164
+
+API: 225/225 suites, 2720/2720 tests
+Mobile: 129/129 suites, 569/569 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **55**
+(36 bug fixes + 1 escalation + 18 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
