@@ -96,6 +96,22 @@ export default function CatalogPage(): React.ReactElement {
     onError: (err) => setError(getErrorMessage(err)),
   });
 
+  // BUG-PHASE93-01 fix — pre-fix prices were converted with
+  // `Number(x) * 100` and sent raw. JS floating-point makes
+  // `500.55 * 100 === 50055.00000000001`. The server's
+  // service_subcategories.base_price column is INTEGER (centavos,
+  // per migration 003), so Postgres rejects the non-integer
+  // parameter with "invalid input syntax for type integer". Admins
+  // entering a price that wasn't a multiple of ₱0.50 saw an opaque
+  // server error and had to retry. Math.round bakes off the float
+  // rounding error to the nearest centavo before submit.
+  const toCentavos = (raw: string): number | null => {
+    if (!raw) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    return Math.round(n * 100);
+  };
+
   const subcategoryMutation = useMutation({
     mutationFn: async () => {
       const body = {
@@ -103,9 +119,9 @@ export default function CatalogPage(): React.ReactElement {
         name,
         description,
         pricingType,
-        basePrice: basePrice ? Number(basePrice) * 100 : null,
-        minPrice: minPrice ? Number(minPrice) * 100 : null,
-        maxPrice: maxPrice ? Number(maxPrice) * 100 : null,
+        basePrice: toCentavos(basePrice),
+        minPrice: toCentavos(minPrice),
+        maxPrice: toCentavos(maxPrice),
         estimatedDurationMinutes: estimatedDuration ? Number(estimatedDuration) : null,
         displayOrder: Number(displayOrder),
       };
