@@ -4,7 +4,7 @@ import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityInd
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { createChangeOrder } from '@/services/booking.service';
+import { createChangeOrder, getBookingById } from '@/services/booking.service';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -40,8 +40,31 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
     },
   });
 
+  // BUG-PHASE91-01 fix — pre-fix the form had no client-side knowledge
+  // of the 50% relative cap that booking.service.createChangeOrder
+  // enforces (Phase 14 D05 Bug 1219). A provider entering 60% of the
+  // original service price would pass the disabled-button gate, hit
+  // Submit, and get a 400 with the friendly Zod-shaped error from the
+  // server — but only AFTER waiting through the photo upload. The
+  // bottom note also misrepresented the rule: there is no admin
+  // override path; the API rejects amounts >50% outright. Now the
+  // form fetches the booking, shows the cap, blocks the button, and
+  // the note text matches server behavior.
+  const bookingQuery = useQuery({
+    queryKey: ['booking', bookingId],
+    queryFn: () => getBookingById(bookingId ?? ''),
+    enabled: !!bookingId,
+    staleTime: 60 * 1000,
+  });
+  const servicePrice = bookingQuery.data?.servicePrice ?? 0;
+  const fiftyPercentCap = Math.floor(servicePrice * 0.5);
+
   const amountCentavos = Math.round((Number(amount) || 0) * 100);
-  const isValid = description.length >= 10 && amountCentavos >= platformConfig.minimumChangeOrderAmount;
+  const exceedsCap = fiftyPercentCap > 0 && amountCentavos > fiftyPercentCap;
+  const isValid =
+    description.length >= 10
+    && amountCentavos >= platformConfig.minimumChangeOrderAmount
+    && !exceedsCap;
 
   // BUG-PHASE59-01 fix — pre-fix the screen showed only the gross
   // additional amount with no preview of the provider's net after
@@ -118,6 +141,15 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
               Minimum amount: {formatPHP(platformConfig.minimumChangeOrderAmount)}
             </Text>
           )}
+          {/* BUG-PHASE91-01 — show the 50% cap inline so the provider
+               sees the limit before they tap Submit. */}
+          {fiftyPercentCap > 0 && (
+            <Text style={[styles.minWarn, exceedsCap && { color: colors.error, fontWeight: '600' as const }]}>
+              {exceedsCap
+                ? `Exceeds maximum of ${formatPHP(fiftyPercentCap)} (50% of original service price ${formatPHP(servicePrice)}).`
+                : `Maximum: ${formatPHP(fiftyPercentCap)} (50% of original ${formatPHP(servicePrice)}).`}
+            </Text>
+          )}
           {/* BUG-PHASE59-01 — commission preview. */}
           {amountCentavos > 0 && (
             <View style={styles.commissionBox}>
@@ -169,9 +201,13 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
           )}
         </View>
 
+        {/* BUG-PHASE91-01 — pre-fix this note said "exceeding 50% may
+             require admin approval." There is no admin-approval path —
+             booking.service.createChangeOrder rejects amounts >50% with
+             HTTP 400. Updated to reflect actual server behavior. */}
         <View style={styles.noteBox}>
           <Text style={styles.noteText}>
-            Note: Change orders exceeding 50% of the original job cost may require admin approval.
+            Note: Change orders are capped at 50% of the original service price. Larger amounts must be discussed and rebooked separately.
           </Text>
         </View>
 
