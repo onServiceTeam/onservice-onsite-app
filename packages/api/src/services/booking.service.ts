@@ -617,7 +617,17 @@ export async function transitionBookingStatus(
     }
 
     if (newStatus === 'cancelled_by_provider' || newStatus === 'cancelled_by_admin') {
-      const dateStr = updated.scheduled_at.toISOString().split('T')[0]!;
+      // BUG-PHASE117-01 fix — pre-fix this used the UTC date of
+      // scheduled_at via .toISOString().split('T')[0]. But
+      // slot_waitlist.preferred_date is a Manila YYYY-MM-DD (the date
+      // the customer asked for in their local context), so an early-
+      // morning Manila booking cancellation (e.g. 06:00 Manila May 5
+      // = 22:00 UTC May 4) sent waitlist notifications to customers
+      // waitlisted for May 4 instead of May 5 — the wrong day.
+      // Convert the cancelled booking's scheduled_at to the Manila
+      // day so the lookup matches the waitlist's storage convention.
+      // Same Manila-tz pattern as Phase 105/113/115/116.
+      const dateStr = updated.scheduled_at.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
       slotWaitlistService.processSlotAvailability(
         updated.category_id,
         updated.city,
