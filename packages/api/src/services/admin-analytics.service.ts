@@ -507,10 +507,29 @@ interface QualityScoreRow {
 export async function computeProviderQualityScores(
   periodDays = 90,
 ): Promise<number> {
-  const periodStart = new Date();
-  periodStart.setDate(periodStart.getDate() - periodDays);
-  const periodStartStr = periodStart.toISOString().split('T')[0]!;
-  const periodEndStr = new Date().toISOString().split('T')[0]!;
+  // BUG-PHASE185-01 fix — pre-fix this used `new Date()` +
+  // `.toISOString().split('T')[0]` which returns the UTC date, but the
+  // SQL below interprets the date string AT TIME ZONE 'Asia/Manila'.
+  // For the 8-hour window 16:00-23:59 UTC (= 00:00-07:59 Manila next
+  // day), the JS date was still "yesterday Manila", so the period
+  // boundary was off by one Manila day. Same UTC-vs-Manila pattern as
+  // Phase 119-124 + Phase 132-140. Now: Manila-anchored date strings
+  // via en-CA locale formatting at the Manila TZ.
+  const nowManila = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  const periodEndStr = nowManila;
+  // Compute "N days ago in Manila" by parsing today-Manila as a
+  // calendar date (no time component) and subtracting N days; the
+  // result is again a Manila calendar date.
+  const [endY, endM, endD] = nowManila.split('-').map(Number) as [number, number, number];
+  const startUtc = new Date(Date.UTC(endY, endM - 1, endD));
+  startUtc.setUTCDate(startUtc.getUTCDate() - periodDays);
+  const startY = startUtc.getUTCFullYear();
+  const startM = String(startUtc.getUTCMonth() + 1).padStart(2, '0');
+  const startD = String(startUtc.getUTCDate()).padStart(2, '0');
+  const periodStartStr = `${startY}-${startM}-${startD}`;
 
   // MED-N05 fix: also pull average response-time-to-quote from
   // booking_quotes for the responseScore component (was hardcoded
