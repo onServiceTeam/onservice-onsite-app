@@ -15,6 +15,26 @@ function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
+// BUG-PHASE163-01 fix — pre-fix catalog services had no length
+// validation on name/description/iconUrl. service_categories.name
+// is VARCHAR(100) (DB cap → cryptic SQL error if exceeded);
+// description + icon_url are TEXT (unbounded by Postgres).
+// Same defense-in-depth pattern as Phase 152-162.
+const CATALOG_NAME_MAX = 100;
+const CATALOG_DESCRIPTION_MAX = 2000;
+const CATALOG_ICON_URL_MAX = 500;
+
+function validateCatalogText(value: unknown, field: string, max: number, optional = true): void {
+  if (value === undefined || value === null || value === '') {
+    if (!optional) throw createAppError(`${field} is required.`, 400);
+    return;
+  }
+  if (typeof value !== 'string') throw createAppError(`${field} must be a string.`, 400);
+  if (value.length > max) {
+    throw createAppError(`${field} must be ≤ ${max} characters.`, 400);
+  }
+}
+
 export interface CategoryMutationRow {
   id: string;
   name: string;
@@ -66,6 +86,10 @@ export async function createCategory(
   adminUserId: string,
 ): Promise<CategoryMutationRow> {
   if (!input.name.trim()) throw createAppError('Name is required.', 400);
+  // BUG-PHASE163-01 fix — explicit length validation.
+  validateCatalogText(input.name, 'name', CATALOG_NAME_MAX, false);
+  validateCatalogText(input.description, 'description', CATALOG_DESCRIPTION_MAX);
+  validateCatalogText(input.iconUrl, 'iconUrl', CATALOG_ICON_URL_MAX);
   const slug = slugify(input.name);
 
   return db.transaction(async (client) => {
@@ -118,6 +142,10 @@ export async function updateCategory(
   },
   adminUserId: string,
 ): Promise<CategoryMutationRow> {
+  // BUG-PHASE163-01 fix — explicit length validation on PATCH path.
+  validateCatalogText(patch.name, 'name', CATALOG_NAME_MAX);
+  validateCatalogText(patch.description, 'description', CATALOG_DESCRIPTION_MAX);
+  validateCatalogText(patch.iconUrl, 'iconUrl', CATALOG_ICON_URL_MAX);
   const sets: string[] = [];
   const values: unknown[] = [];
   const auditPatch: Record<string, unknown> = {};
@@ -196,6 +224,9 @@ export async function createSubcategory(
 ): Promise<SubcategoryMutationRow> {
   if (!input.name.trim()) throw createAppError('Name is required.', 400);
   if (!input.categoryId) throw createAppError('Category ID is required.', 400);
+  // BUG-PHASE163-01 fix — explicit length validation.
+  validateCatalogText(input.name, 'name', CATALOG_NAME_MAX, false);
+  validateCatalogText(input.description, 'description', CATALOG_DESCRIPTION_MAX);
   const slug = slugify(input.name);
 
   return db.transaction(async (client) => {
@@ -258,6 +289,9 @@ export async function updateSubcategory(
   },
   adminUserId: string,
 ): Promise<SubcategoryMutationRow> {
+  // BUG-PHASE163-01 fix — explicit length validation on PATCH path.
+  validateCatalogText(patch.name, 'name', CATALOG_NAME_MAX);
+  validateCatalogText(patch.description, 'description', CATALOG_DESCRIPTION_MAX);
   const sets: string[] = [];
   const values: unknown[] = [];
   const auditPatch: Record<string, unknown> = {};
@@ -406,6 +440,9 @@ export async function createAddon(
   },
   adminUserId: string,
 ): Promise<AddonMutationRow> {
+  // BUG-PHASE163-01 fix — explicit length validation.
+  validateCatalogText(input.name, 'name', CATALOG_NAME_MAX, false);
+  validateCatalogText(input.description, 'description', CATALOG_DESCRIPTION_MAX);
   // MED-M09 fix — apply the admin-tunable cap from platform_settings
   // (validator only enforces the hard backstop). Tuned cap is the
   // narrower of the two; service-layer rejection here keeps the
@@ -467,6 +504,9 @@ export async function updateAddon(
   },
   adminUserId: string,
 ): Promise<AddonMutationRow> {
+  // BUG-PHASE163-01 fix — explicit length validation on PATCH path.
+  validateCatalogText(patch.name, 'name', CATALOG_NAME_MAX);
+  validateCatalogText(patch.description, 'description', CATALOG_DESCRIPTION_MAX);
   const sets: string[] = [];
   const values: unknown[] = [];
   const auditPatch: Record<string, unknown> = {};
