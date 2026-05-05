@@ -1,6 +1,6 @@
-# Phases 85–171 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–172 — Continuation deep audit pass (2026-05-05+)
 
-Eighty-seven phases continuing the screen-by-screen audit started in
+Eighty-eight phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -2097,6 +2097,32 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **66**
 (43 bug fixes + 1 escalation + 22 closeout-doc updates).
+
+---
+
+## Phase 172 (2026-05-06, part 22) — third consecutive UX-gap fix
+
+**172 — provider Payout History screen had no Withdraw CTA (1 site)**
+  Provider opening Payout History to check their last payout had
+  to navigate back to (provider-tabs)/earnings to request a new
+  withdrawal. Same UX-gap family as Phase 169 (home active bookings
+  hidden) and Phase 170 (bookings empty CTA).
+  
+  Fix: "Withdraw" CTA button in the Payout History header.
+
+Phases 169 + 170 + 172 form a small streak of screen-level UX-gap
+fixes — the user's "missing things the screen is supposed to do"
+pattern.
+
+### Final test counts after Phase 172
+
+API: 228/228 suites, 2728/2728 tests
+Mobile: 134/134 suites, 583/583 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **68**
+(44 bug fixes + 1 escalation + 23 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
