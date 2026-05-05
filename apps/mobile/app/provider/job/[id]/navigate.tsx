@@ -241,21 +241,6 @@ const styles = StyleSheet.create({
   },
   wazeBtn: { backgroundColor: colors.info },
   mapBtnText: { ...typography.button, color: colors.white },
-  etaCard: {
-    backgroundColor: colors.successLight,
-    borderRadius: borderRadius.md,
-    padding: spacing.base,
-    alignItems: 'center',
-    marginTop: spacing.md,
-  },
-  etaLabel: {
-    ...typography.caption,
-    color: colors.successDark,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  etaValue: { ...typography.h3, color: colors.successDark },
   footer: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
