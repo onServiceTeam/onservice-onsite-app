@@ -39,6 +39,43 @@ router.get(
   },
 );
 
+// BUG-PHASE153-01 fix — promotion routes manually parsed req.body
+// without server-side length validation. Promotions surface on the
+// customer home banner + provider dashboard; an admin (or compromised
+// admin token) could submit a 100,000-char subtitle that the TEXT
+// column accepts but every customer's home screen tries to render.
+// Plus ctaLink is a URL stored as VARCHAR(500); without validation
+// you'd get a raw SQL constraint error instead of a friendly 400.
+//
+// Caps mirror the column types from migration 044_promotions.sql:
+//   title VARCHAR(200), subtitle TEXT, image_url TEXT, badge VARCHAR(30),
+//   cta_text VARCHAR(50), cta_link VARCHAR(500),
+//   target_audience VARCHAR(30) CHECK IN ('all','new_customers','returning','providers')
+// For TEXT columns (subtitle, image_url) we add explicit caps because
+// Postgres has no DB-side limit for TEXT.
+//
+// Same defense-in-depth pattern as Phase 152 (portfolio + cert caps).
+const PROMO_TITLE_MAX = 200;
+const PROMO_SUBTITLE_MAX = 1000;
+const PROMO_IMAGE_URL_MAX = 500;
+const PROMO_BADGE_MAX = 30;
+const PROMO_CTA_TEXT_MAX = 50;
+const PROMO_CTA_LINK_MAX = 500;
+const PROMO_TARGET_AUDIENCES = new Set([
+  'all', 'new_customers', 'returning', 'providers',
+]);
+
+function validatePromoText(value: unknown, field: string, max: number, optional = true): void {
+  if (value === undefined || value === null) {
+    if (!optional) throw createAppError(`${field} is required.`, 400);
+    return;
+  }
+  if (typeof value !== 'string') throw createAppError(`${field} must be a string.`, 400);
+  if (value.length > max) {
+    throw createAppError(`${field} must be ≤ ${max} characters.`, 400);
+  }
+}
+
 router.post(
   '/',
   authMiddleware,
@@ -51,6 +88,23 @@ router.post(
         startDate?: string; endDate?: string; displayOrder?: number;
       };
       if (!title || typeof title !== 'string') throw createAppError('title is required.', 400);
+      // BUG-PHASE153-01 fix — explicit length validation matches the
+      // column types from migration 044_promotions.sql.
+      validatePromoText(title, 'title', PROMO_TITLE_MAX, false);
+      validatePromoText(subtitle, 'subtitle', PROMO_SUBTITLE_MAX);
+      validatePromoText(imageUrl, 'imageUrl', PROMO_IMAGE_URL_MAX);
+      validatePromoText(badge, 'badge', PROMO_BADGE_MAX);
+      validatePromoText(ctaText, 'ctaText', PROMO_CTA_TEXT_MAX);
+      validatePromoText(ctaLink, 'ctaLink', PROMO_CTA_LINK_MAX);
+      if (targetAudience !== undefined && !PROMO_TARGET_AUDIENCES.has(targetAudience)) {
+        throw createAppError(
+          `targetAudience must be one of: ${[...PROMO_TARGET_AUDIENCES].join(', ')}.`,
+          400,
+        );
+      }
+      if (displayOrder !== undefined && (typeof displayOrder !== 'number' || !Number.isInteger(displayOrder))) {
+        throw createAppError('displayOrder must be an integer.', 400);
+      }
       const promo = await promotionService.createPromotion({
         title, subtitle, imageUrl, badge, ctaText, ctaLink,
         targetAudience, startDate, endDate, displayOrder,
@@ -70,9 +124,25 @@ router.put(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] as string;
+      const body = req.body as Record<string, unknown>;
+      // BUG-PHASE153-01 fix — same caps on the PUT path. Each field
+      // is optional on update; the validator just enforces shape and
+      // length for any field that IS supplied.
+      validatePromoText(body['title'], 'title', PROMO_TITLE_MAX);
+      validatePromoText(body['subtitle'], 'subtitle', PROMO_SUBTITLE_MAX);
+      validatePromoText(body['imageUrl'], 'imageUrl', PROMO_IMAGE_URL_MAX);
+      validatePromoText(body['badge'], 'badge', PROMO_BADGE_MAX);
+      validatePromoText(body['ctaText'], 'ctaText', PROMO_CTA_TEXT_MAX);
+      validatePromoText(body['ctaLink'], 'ctaLink', PROMO_CTA_LINK_MAX);
+      if (body['targetAudience'] !== undefined && (typeof body['targetAudience'] !== 'string' || !PROMO_TARGET_AUDIENCES.has(body['targetAudience'] as string))) {
+        throw createAppError(
+          `targetAudience must be one of: ${[...PROMO_TARGET_AUDIENCES].join(', ')}.`,
+          400,
+        );
+      }
       // MED-N151 fix — pass actor for audit row.
       const promo = await promotionService.updatePromotion(id, {
-        ...(req.body as Record<string, unknown>),
+        ...body,
         updatedByAdminId: req.user!.userId,
       });
       res.json({ success: true, data: promotionService.formatPromotion(promo) });
