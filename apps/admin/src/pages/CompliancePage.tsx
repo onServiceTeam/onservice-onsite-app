@@ -618,7 +618,13 @@ function AuditTab(): React.ReactElement {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+      // BUG-PHASE112-01 fix — pre-fix used toISOString().slice(0, 10),
+      // which is the UTC date. A compliance officer downloading this
+      // CSV at 00:30 Manila Thursday got a file named with the
+      // Wednesday UTC date — searching by filename for Thursday's
+      // export came up empty. Manila day matches the dashboard
+      // calendar the officer is filtering by.
+      a.download = `audit-log-${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

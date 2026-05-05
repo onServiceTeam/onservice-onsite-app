@@ -52,14 +52,22 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'receipts', label: 'Receipts' },
 ];
 
+// BUG-PHASE112-01 fix — pre-fix these helpers used
+// toISOString().slice(0, 10), which is the UTC date. For an admin in
+// Manila opening this page at 00:30 Manila Thursday (= 16:30 UTC
+// Wednesday), the default `to` was Wednesday — Thursday's data was
+// off-screen until the operator manually pulled the date one day
+// forward. Same Manila-tz fix as Phases 105, 109, 111. We extract
+// Manila day directly via toLocaleDateString('en-CA', tz: Asia/Manila),
+// which produces the same YYYY-MM-DD shape used by the date input.
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 }
 
 function daysAgoIso(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 }
 
 function formatDateTime(iso: string | null | undefined): string {
