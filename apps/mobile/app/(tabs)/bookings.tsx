@@ -100,7 +100,32 @@ export default function BookingsScreen(): React.ReactElement {
     staleTime: 60 * 1000,
   });
 
-  const bookings = data?.pages.flatMap((p) => p.bookings) ?? [];
+  const rawBookings = data?.pages.flatMap((p) => p.bookings) ?? [];
+
+  // BUG-PHASE84-01 fix — pre-fix the FilterModal at line 215+ stored
+  // advancedFilters in state and showed the count badge, but the
+  // bookings list was rendered unfiltered. Same dead-wire pattern
+  // as Phase 64-03 for provider jobs. Now the filters are applied
+  // client-side (the bookings API doesn't accept sort/period params,
+  // so client-side is the only honest place to do the work).
+  const bookings = (() => {
+    let list = [...rawBookings];
+    const period = advancedFilters.period?.[0];
+    if (period) {
+      const days = period === '30d' ? 30 : period === '90d' ? 90 : period === 'year' ? 365 : 0;
+      if (days > 0) {
+        const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+        list = list.filter((b) => new Date(b.scheduledAt).getTime() >= cutoffMs);
+      }
+    }
+    const sort = advancedFilters.sort?.[0];
+    if (sort === 'oldest') {
+      list.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    } else if (sort === 'newest') {
+      list.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
+    }
+    return list;
+  })();
 
   const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
 
