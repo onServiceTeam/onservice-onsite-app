@@ -1,6 +1,6 @@
-# Phases 85–140 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–144 — Continuation deep audit pass (2026-05-05, part 2)
 
-Fifty-six phases continuing the screen-by-screen audit started in
+Sixty phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1521,6 +1521,68 @@ the API.
 
 All three packages tsc-clean throughout. No regressions.
 
+---
+
+## Phases 141–144 (2026-05-05, part 5) — non-TZ admin/mobile sweep
+
+After the 132-140 Postgres timestamptz sweep closed the date-bound
+filter bug class, attention shifted to two other audit angles:
+client/server validation mismatches in admin pages, and missing
+mobile screens for declared API endpoints.
+
+- **141 — pricing-rule holidayDate rendered as long timestamp**
+  Found while deep-auditing PricingRulesPage.tsx (683 lines, not
+  previously deep-audited). pricing.service.ts:formatPricingRule
+  did `String(r.holiday_date).split('T')[0]` to convert the DATE
+  column for the front-end. Pg-node's default DATE parser returns
+  a JS Date object, and `String(date)` calls `Date.prototype.toString()`
+  which returns runtime-local human format like
+  "Fri Dec 25 2026 00:00:00 GMT+0800 (Singapore Standard Time)".
+  Splitting that on 'T' splits inside the timezone label
+  ("Standard **T**ime"), returning garbage. The admin Pricing Rules
+  table cell rendered the long human string instead of "2026-12-25".
+  Fix: normalize via `new Date(...).toISOString()` which emits a
+  real ISO-8601 'T'.
+
+- **142 — BookingDetailPage force-complete client gate (10) was
+  looser than server (20)**
+  Same client/server validation-mismatch pattern as Phase 77-02
+  (cancel was 5/10). Super-admin actions panel gated all five
+  mutations behind a single `reasonOk = >= 10` check. That works
+  for 4 of the 5 actions. But forceCompleteBooking server requires
+  20 chars. So a 10-19 char reason passed client, hit server, got
+  generic 400. Added separate `reasonOkForce = >= 20` gate plus
+  branching label hint that surfaces the higher bar.
+
+- **143 — DisputeDetailPage reopen client gate (10) was looser
+  than server (20)**
+  Same shape as 142 — a different super-admin action with the
+  same broken gate. After Phase 142 + 143, all client/server
+  reason-length gates in the admin app match.
+
+- **144 — E04 escalation: provider has no in-app way to respond
+  to disputes**
+  Mobile blind spot. The dispute lifecycle has 3 endpoints:
+  customer files (mobile screen exists), provider responds (mobile
+  screen MISSING), admin resolves (admin screen exists). With no
+  provider response screen, every dispute auto-resolves in the
+  customer's favor after 48 hours regardless of merit. Three options
+  documented at .ai-coder/escalations/E04-... ; recommendation is
+  Option A (build the screen, ~4-6h scope).
+
+  Same blind-spot pattern as Phase 121 (provider monthly summary
+  route had no UI — caught because the API existed but no consumer).
+
+### Test count progression in this segment
+
+- After Phase 140: API 2655, Admin 135
+- After Phase 141: API 2660 (+5)
+- After Phase 142: Admin 140 (+5)
+- After Phase 143: Admin 144 (+4)
+- After Phase 144: no test (escalation only)
+
+Final: API 2660, Mobile 541, Admin 144 — all green, all tsc-clean.
+
 ## What's still genuinely outstanding
 
 Updated from PHASES-63-84-FINAL.md:
@@ -1529,8 +1591,12 @@ Updated from PHASES-63-84-FINAL.md:
    409s on every purchase due to state-machine regression in 86a2417.
    Awaiting Ken's call between three documented fix options
    (recommendation: revert).
-2. F#3 + F#4 baseline capture — F#4 done; F#3 blocked on simulator
-3. F#10 attorney-reviewed disclaimer wording
-4. 12 D14 operational items
+2. **NEW ESCALATION:** E04 — provider has no in-app way to respond
+   to disputes; every dispute auto-resolves against provider after
+   48h. Awaiting Ken's call between three documented fix options
+   (recommendation: Option A — build the screen, ~4-6h).
+3. F#3 + F#4 baseline capture — F#4 done; F#3 blocked on simulator
+4. F#10 attorney-reviewed disclaimer wording
+5. 12 D14 operational items
 
 Plus the v1.1+ candidates documented in earlier closeouts.
