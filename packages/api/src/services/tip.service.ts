@@ -85,60 +85,66 @@ export async function sendTip(
     );
   }
 
+  // BUG-PHASE122-01 fix — pre-fix this transaction body had three
+  // `if (method === 'wallet')` branches plus a
+  // `method === 'wallet' ? 'completed' : 'pending'` ternary, all
+  // dead after the MED-N153 gate above narrowed `method` to literal
+  // 'wallet' for v1.0. The 'pending' branch in particular could
+  // never run — every tip ships as 'completed'. Same dead-branch
+  // pattern as Phases 103/107/110. Removing the dead conditionals
+  // makes the wallet flow read straight-through and prevents a
+  // future maintainer from re-enabling non-wallet paths by lifting
+  // the MED-N153 gate without re-auditing the inside-of-trx logic
+  // (which would silently regress the bug MED-N153 caught).
   return db.transaction(async (client) => {
-    if (method === 'wallet') {
-      const wallet = await walletService.getUserWallet(customerId, 'customer');
-      if (Number(wallet.available_balance) < data.amount) {
-        throw createAppError('Insufficient wallet balance for tip.', 400);
-      }
-      await client.query(
-        `UPDATE wallets SET available_balance = available_balance - $1, updated_at = NOW()
-         WHERE id = $2 AND available_balance >= $1`,
-        [data.amount, wallet.id],
-      );
-      await client.query(
-        `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-         VALUES ($1, $2, 'payment', $3, (SELECT available_balance FROM wallets WHERE id = $1), 'Tip sent')`,
-        [wallet.id, data.bookingId, -data.amount],
-      );
+    const wallet = await walletService.getUserWallet(customerId, 'customer');
+    if (Number(wallet.available_balance) < data.amount) {
+      throw createAppError('Insufficient wallet balance for tip.', 400);
     }
+    await client.query(
+      `UPDATE wallets SET available_balance = available_balance - $1, updated_at = NOW()
+       WHERE id = $2 AND available_balance >= $1`,
+      [data.amount, wallet.id],
+    );
+    await client.query(
+      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+       VALUES ($1, $2, 'payment', $3, (SELECT available_balance FROM wallets WHERE id = $1), 'Tip sent')`,
+      [wallet.id, data.bookingId, -data.amount],
+    );
 
     const result = await client.query<TipRow>(
       `INSERT INTO tips (booking_id, customer_id, provider_id, amount, payment_method, status, message)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [data.bookingId, customerId, bk.provider_id, data.amount, method,
-        method === 'wallet' ? 'completed' : 'pending', data.message ?? null],
+       VALUES ($1, $2, $3, $4, 'wallet', 'completed', $5) RETURNING *`,
+      [data.bookingId, customerId, bk.provider_id, data.amount, data.message ?? null],
     );
     const tip = result.rows[0]!;
 
-    if (method === 'wallet') {
-      interface ProviderUserRow { user_id: string }
-      const providerUser = await client.query<ProviderUserRow>(
-        `SELECT user_id FROM providers WHERE id = $1`,
-        [bk.provider_id],
+    interface ProviderUserRow { user_id: string }
+    const providerUser = await client.query<ProviderUserRow>(
+      `SELECT user_id FROM providers WHERE id = $1`,
+      [bk.provider_id],
+    );
+    if (providerUser.rows[0]) {
+      const provWallet = await walletService.getUserWallet(providerUser.rows[0].user_id, 'provider');
+      await client.query(
+        `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+        [data.amount, provWallet.id],
       );
-      if (providerUser.rows[0]) {
-        const provWallet = await walletService.getUserWallet(providerUser.rows[0].user_id, 'provider');
-        await client.query(
-          `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-          [data.amount, provWallet.id],
-        );
-        await client.query(
-          `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description, reference_id)
-           VALUES ($1, $2, 'payment', $3, (SELECT available_balance FROM wallets WHERE id = $1), 'Tip received', $4)`,
-          [provWallet.id, data.bookingId, data.amount, tip.id],
-        );
+      await client.query(
+        `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description, reference_id)
+         VALUES ($1, $2, 'payment', $3, (SELECT available_balance FROM wallets WHERE id = $1), 'Tip received', $4)`,
+        [provWallet.id, data.bookingId, data.amount, tip.id],
+      );
 
-        await client.query(
-          `INSERT INTO notifications (user_id, type, title, body, data)
-           VALUES ($1, 'payment', 'Tip Received!', $2, $3)`,
-          [
-            providerUser.rows[0].user_id,
-            `You received a tip of ${formatPHP(data.amount)}${data.message ? `: "${data.message}"` : ''}`,
-            JSON.stringify({ tipId: tip.id, bookingId: data.bookingId, amount: data.amount }),
-          ],
-        );
-      }
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, body, data)
+         VALUES ($1, 'payment', 'Tip Received!', $2, $3)`,
+        [
+          providerUser.rows[0].user_id,
+          `You received a tip of ${formatPHP(data.amount)}${data.message ? `: "${data.message}"` : ''}`,
+          JSON.stringify({ tipId: tip.id, bookingId: data.bookingId, amount: data.amount }),
+        ],
+      );
     }
 
     logger.info('Tip sent', { tipId: tip.id, bookingId: data.bookingId, amount: data.amount });
