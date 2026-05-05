@@ -142,15 +142,32 @@ export async function getEarningsSummary(
   jobsThisWeek: number;
   jobsThisMonth: number;
 }> {
+  // BUG-PHASE123-01 fix — pre-fix the today/week/month boundaries
+  // used CURRENT_DATE / DATE_TRUNC(..., CURRENT_DATE), which Postgres
+  // computes in the session timezone (UTC by default in our pool).
+  // For Manila providers, this meant their "Earned Today" / "Jobs
+  // This Week" stats were anchored to UTC midnight — 16:00 UTC =
+  // 00:00 Manila next day, so during the 16:00-23:59 UTC window
+  // (= 00:00-07:59 Manila next day), Manila wall-clock "today" was
+  // already on a new day but Postgres still saw the previous date.
+  // Result: 8 hours every day where the provider's dashboard said
+  // "Earned Today: 0" while they had already done a Manila-morning
+  // job. Same Manila-tz family as Phases 105/113/118/119/120.
+  //
+  // Manila day boundary as a UTC instant:
+  //   (now() AT TIME ZONE 'Asia/Manila')::date AT TIME ZONE 'Asia/Manila'
+  // For weekly/monthly truncations, take the Manila wall-clock
+  // first, truncate, then convert back to a UTC instant via the
+  // outer AT TIME ZONE.
   const result = await db.query<EarningsSummaryRow>(
     `SELECT
-       COALESCE(SUM(CASE WHEN b.confirmed_at >= CURRENT_DATE THEN wt.amount ELSE 0 END), 0)::text AS earned_today,
-       COALESCE(SUM(CASE WHEN b.confirmed_at >= DATE_TRUNC('week', CURRENT_DATE) THEN wt.amount ELSE 0 END), 0)::text AS earned_this_week,
-       COALESCE(SUM(CASE WHEN b.confirmed_at >= DATE_TRUNC('month', CURRENT_DATE) THEN wt.amount ELSE 0 END), 0)::text AS earned_this_month,
+       COALESCE(SUM(CASE WHEN b.confirmed_at >= (now() AT TIME ZONE 'Asia/Manila')::date AT TIME ZONE 'Asia/Manila' THEN wt.amount ELSE 0 END), 0)::text AS earned_today,
+       COALESCE(SUM(CASE WHEN b.confirmed_at >= DATE_TRUNC('week', now() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila' THEN wt.amount ELSE 0 END), 0)::text AS earned_this_week,
+       COALESCE(SUM(CASE WHEN b.confirmed_at >= DATE_TRUNC('month', now() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila' THEN wt.amount ELSE 0 END), 0)::text AS earned_this_month,
        '0'::text AS pending_escrow,
-       COUNT(CASE WHEN b.confirmed_at >= CURRENT_DATE THEN 1 END)::text AS total_jobs_today,
-       COUNT(CASE WHEN b.confirmed_at >= DATE_TRUNC('week', CURRENT_DATE) THEN 1 END)::text AS total_jobs_week,
-       COUNT(CASE WHEN b.confirmed_at >= DATE_TRUNC('month', CURRENT_DATE) THEN 1 END)::text AS total_jobs_month
+       COUNT(CASE WHEN b.confirmed_at >= (now() AT TIME ZONE 'Asia/Manila')::date AT TIME ZONE 'Asia/Manila' THEN 1 END)::text AS total_jobs_today,
+       COUNT(CASE WHEN b.confirmed_at >= DATE_TRUNC('week', now() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila' THEN 1 END)::text AS total_jobs_week,
+       COUNT(CASE WHEN b.confirmed_at >= DATE_TRUNC('month', now() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila' THEN 1 END)::text AS total_jobs_month
      FROM wallet_transactions wt
      INNER JOIN wallets w ON wt.wallet_id = w.id
      INNER JOIN bookings b ON wt.booking_id = b.id

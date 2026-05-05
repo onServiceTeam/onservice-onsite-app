@@ -51,15 +51,21 @@ export async function collectMetrics(): Promise<MetricSnapshot> {
     const completedList = COMPLETED_BOOKING_STATUSES.map((s) => `'${s}'`).join(',');
     const cancelledList = CANCELLED_BOOKING_STATUSES.map((s) => `'${s}'`).join(',');
 
+    // BUG-PHASE123-01 fix — pre-fix completedToday / cancelledToday /
+    // paymentsToday / revenueToday all used CURRENT_DATE, which is
+    // session-TZ (UTC in our pool) → 8-hour drift between Manila wall-
+    // clock "today" and Postgres's interpretation. Same Manila-tz fix
+    // pattern as admin.service.ts and provider-tools.service.ts in
+    // this same phase.
     const [active, completed, cancelled, disputes, providers, payments] = await Promise.all([
       db.query<{ count: string }>(
         `SELECT COUNT(*)::text as count FROM bookings WHERE status IN (${activeList})`,
       ),
       db.query<{ count: string }>(
-        `SELECT COUNT(*)::text as count FROM bookings WHERE status IN (${completedList}) AND updated_at >= CURRENT_DATE`,
+        `SELECT COUNT(*)::text as count FROM bookings WHERE status IN (${completedList}) AND updated_at >= (now() AT TIME ZONE 'Asia/Manila')::date AT TIME ZONE 'Asia/Manila'`,
       ),
       db.query<{ count: string }>(
-        `SELECT COUNT(*)::text as count FROM bookings WHERE status IN (${cancelledList}) AND updated_at >= CURRENT_DATE`,
+        `SELECT COUNT(*)::text as count FROM bookings WHERE status IN (${cancelledList}) AND updated_at >= (now() AT TIME ZONE 'Asia/Manila')::date AT TIME ZONE 'Asia/Manila'`,
       ),
       db.query<{ count: string }>(
         `SELECT COUNT(*)::text as count FROM disputes WHERE status IN ('open','under_review','escalated')`,
@@ -69,7 +75,7 @@ export async function collectMetrics(): Promise<MetricSnapshot> {
       ),
       db.query<{ count: string; total: string }>(
         `SELECT COUNT(*)::text as count, COALESCE(SUM(amount), 0)::text as total
-         FROM wallet_transactions WHERE type = 'commission' AND created_at >= CURRENT_DATE`,
+         FROM wallet_transactions WHERE type = 'commission' AND created_at >= (now() AT TIME ZONE 'Asia/Manila')::date AT TIME ZONE 'Asia/Manila'`,
       ),
     ]);
 

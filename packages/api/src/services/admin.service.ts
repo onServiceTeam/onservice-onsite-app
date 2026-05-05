@@ -87,22 +87,33 @@ interface AdminActionRow {
 interface CountRow { count: string }
 
 export async function getDashboardKpis(): Promise<Record<string, unknown>> {
+  // BUG-PHASE123-01 fix — pre-fix today_revenue / new_signups_today /
+  // bookings_today used CURRENT_DATE, which Postgres computes in the
+  // session timezone (UTC by default in our pool). For Manila admins,
+  // that meant the dashboard's "today" KPIs were anchored to UTC
+  // midnight — 16:00 UTC = 00:00 Manila next day, so during the
+  // 16:00-23:59 UTC window (= 00:00-07:59 Manila next day) the
+  // dashboard showed the previous day's data while the admin's wall
+  // clock said "today." Same Manila-tz family as Phases 105/113/118/
+  // 119/120/121. Anchored each "since today midnight Manila" boundary
+  // to the UTC instant of Manila midnight via
+  // `(now() AT TIME ZONE 'Asia/Manila')::date AT TIME ZONE 'Asia/Manila'`.
   const [kpis, recentBookings, alertCounts] = await Promise.all([
     db.query<KpiRow>(`
       SELECT
         COALESCE((SELECT SUM(amount) FROM wallet_transactions
-          WHERE type IN ('commission', 'service_fee') AND created_at >= CURRENT_DATE), 0)::text AS today_revenue,
+          WHERE type IN ('commission', 'service_fee') AND created_at >= (now() AT TIME ZONE 'Asia/Manila')::date AT TIME ZONE 'Asia/Manila'), 0)::text AS today_revenue,
         (SELECT COUNT(*) FROM bookings WHERE status NOT IN (
           'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin', 'paid_out', 'confirmed', 'resolved'
         ))::text AS active_bookings,
         (SELECT COUNT(*) FROM disputes WHERE status IN ('open', 'under_review', 'escalated'))::text AS pending_disputes,
-        (SELECT COUNT(*) FROM users WHERE created_at >= CURRENT_DATE)::text AS new_signups_today,
+        (SELECT COUNT(*) FROM users WHERE created_at >= (now() AT TIME ZONE 'Asia/Manila')::date AT TIME ZONE 'Asia/Manila')::text AS new_signups_today,
         (SELECT COUNT(*) FROM providers WHERE status = 'pending')::text AS pending_provider_approvals,
         COALESCE((SELECT pending_balance FROM wallets WHERE type = 'platform_escrow' AND user_id IS NULL), 0)::text AS platform_escrow_balance,
         COALESCE((SELECT available_balance FROM wallets WHERE type = 'platform_revenue' AND user_id IS NULL), 0)::text AS platform_revenue_balance,
         COALESCE((SELECT available_balance FROM wallets WHERE type = 'guarantee_fund' AND user_id IS NULL), 0)::text AS guarantee_fund_balance
     `),
-    db.query<{ count: string }>(`SELECT COUNT(*)::text as count FROM bookings WHERE created_at >= CURRENT_DATE`),
+    db.query<{ count: string }>(`SELECT COUNT(*)::text as count FROM bookings WHERE created_at >= (now() AT TIME ZONE 'Asia/Manila')::date AT TIME ZONE 'Asia/Manila'`),
     db.query<{ escalated: string; stale: string }>(`
       SELECT
         (SELECT COUNT(*) FROM disputes WHERE status = 'escalated')::text AS escalated,
