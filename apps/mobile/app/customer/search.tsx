@@ -188,6 +188,8 @@ export default function SearchScreen(): React.ReactElement {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
+        {/* BUG-PHASE166-01 fix — pre-fix this had no maxLength.
+            Server caps at 100 (Phase 166-01). Match the cap. */}
         <TextInput
           style={styles.searchInput}
           value={query}
@@ -196,6 +198,7 @@ export default function SearchScreen(): React.ReactElement {
           placeholder="Search services or providers..."
           placeholderTextColor={colors.textTertiary}
           returnKeyType="search"
+          maxLength={100}
           autoFocus
         />
         {/* BUG-PHASE52-01 fix — pre-fix the FilterModal was rendered

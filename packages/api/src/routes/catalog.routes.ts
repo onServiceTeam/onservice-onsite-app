@@ -111,6 +111,19 @@ router.get(
         });
         return;
       }
+      // BUG-PHASE166-01 fix — pre-fix /search had no upper bound on
+      // query length. The endpoint is PUBLIC (no auth) and runs an
+      // ILIKE on three columns + a provider join. A 100,000-char
+      // query wastes server cycles and bandwidth. Cap at 100 (real
+      // human searches are short; long queries are likely abuse).
+      // Same defense-in-depth pattern as Phase 152-165.
+      if (query.length > 100) {
+        res.status(400).json({
+          success: false,
+          error: { message: 'Search query must be ≤ 100 characters.', statusCode: 400 },
+        });
+        return;
+      }
 
       const limit = Math.min(Number(req.query.limit) || 20, 50);
       const [serviceResults, providerResults] = await Promise.all([
