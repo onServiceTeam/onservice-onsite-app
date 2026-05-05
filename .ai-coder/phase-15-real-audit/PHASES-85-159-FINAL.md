@@ -1,6 +1,6 @@
-# Phases 85–158 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–159 — Continuation deep audit pass (2026-05-05+)
 
-Seventy-four phases continuing the screen-by-screen audit started in
+Seventy-five phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1828,6 +1828,37 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **42**
 (30 bug fixes + 1 escalation + 11 closeout-doc updates).
+
+---
+
+## Phase 159 (2026-05-06, part 12) — admin decide reason max caps
+
+One more entry in the server-cap sweep.
+
+**159 — admin decision services had min(30) but no max on reason (2 sites)**
+  Two admin "decide" services validated reason >= 30 chars but
+  had no max cap:
+    - provider-onboarding.service.ts adminDecide
+      (column: admin_decision_reason TEXT)
+    - service-area-change.service.ts decide
+      (column: decision_reason TEXT)
+  Both are super_admin gated, but defense-in-depth still applies.
+  Cap at 5000 chars.
+
+**Cumulative server-cap sweep total (Phases 152-159):** 8 phases,
+8 bugs, **39 server-side input sites** capped. Combined with the
+mobile maxLength sweep (Phases 145-150, 18 sites), every text-input
+contract on the platform has cap discipline at every layer.
+
+### Final test counts after Phase 159
+
+API: 220/220 suites, 2707/2707 tests
+Mobile: 129/129 suites, 569/569 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **44**
+(31 bug fixes + 1 escalation + 12 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
