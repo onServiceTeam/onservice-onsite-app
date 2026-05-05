@@ -51,10 +51,24 @@ export default function MakeRecurringScreen(): React.ReactElement {
   // BUG-PHASE71-04 fix — sync preferredDay to the original booking's
   // scheduled weekday once the booking loads. Only runs while the user
   // hasn't manually picked a different day.
+  //
+  // BUG-PHASE109-01 fix — pre-fix this called `.getDay()` on the Date
+  // object, which returns the DEVICE-LOCAL weekday. For a booking
+  // scheduled at, say, 1:30 AM Thursday Manila (= 17:30 UTC Wednesday),
+  // a customer's device set to UTC-12 would interpret the timestamp as
+  // 05:30 UTC-12 Wednesday, so getDay() returned 3 (Wed) instead of
+  // 4 (Thu). The recurring booking then defaulted to repeating on
+  // Wednesdays — the wrong day. Same Manila-tz pattern as Phase 105's
+  // calendar fix. Now we extract the Manila weekday explicitly so the
+  // default matches the day the customer actually booked.
   useEffect(() => {
     if (!booking?.scheduledAt || dayTouched) return;
-    const originalDay = new Date(booking.scheduledAt).getDay();
-    setPreferredDay(originalDay);
+    const manilaWeekday = new Date(booking.scheduledAt).toLocaleDateString('en-US', {
+      timeZone: 'Asia/Manila',
+      weekday: 'short',
+    });
+    const dayIndex = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(manilaWeekday);
+    if (dayIndex >= 0) setPreferredDay(dayIndex);
   }, [booking?.scheduledAt, dayTouched]);
 
   const createRecurring = useMutation({
