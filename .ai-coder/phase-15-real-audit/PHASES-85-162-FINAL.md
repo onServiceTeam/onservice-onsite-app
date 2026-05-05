@@ -1,6 +1,6 @@
-# Phases 85–161 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–162 — Continuation deep audit pass (2026-05-05+)
 
-Seventy-seven phases continuing the screen-by-screen audit started in
+Seventy-eight phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1911,6 +1911,30 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **49**
 (33 bug fixes + 1 escalation + 15 closeout-doc updates).
+
+---
+
+## Phase 162 (2026-05-06, part 15) — business reason caps
+
+**162 — business removeMember + transferOwnership reason caps (2 sites)**
+  Two business-account services accepted unbounded `reason`. Both
+  customer-facing (business owner/manager invokes), with role checks
+  already in place but no length validation. Cap at 1000 chars.
+
+**Cumulative server-cap sweep total (Phases 152-162):** 11 phases,
+11 bugs, **45 server-side input sites** capped. Combined with the
+mobile maxLength sweep (Phases 145-150, 18 sites), every text-input
+contract on the platform has cap discipline at every layer.
+
+### Final test counts after Phase 162
+
+API: 223/223 suites, 2714/2714 tests
+Mobile: 129/129 suites, 569/569 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **51**
+(34 bug fixes + 1 escalation + 16 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
