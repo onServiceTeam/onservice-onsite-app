@@ -458,7 +458,18 @@ export async function getRecurringInstances(
  * Called by background job scheduler daily.
  */
 export async function processRecurringBookings(): Promise<number> {
-  const today = new Date().toISOString().split('T')[0]!;
+  // BUG-PHASE113-01 fix — pre-fix `today` was the UTC date. The
+  // recurring cron compares it to `next_booking_date`, which is
+  // populated from a Manila YYYY-MM-DD (instances are scheduled at
+  // `${next_booking_date}T${preferred_time}+08:00`, see scheduledAt
+  // below). For an early-morning Manila booking (e.g. 06:00 on the
+  // 5th = 22:00 UTC on the 4th), the cron had to wait until UTC
+  // ticked over to the 5th — by which point Manila was already 8 AM
+  // and the customer was 2 hours past their preferred time without
+  // a confirmation. Same Manila-tz pattern as Phase 105 (calendar)
+  // and Phase 109 (make-recurring). Anchor the comparison to the
+  // Manila day so the cron fires at the correct local boundary.
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 
   // MED-N115 fix — pre-fix the cron created bookings for ALL active
   // recurring rows whose next_booking_date <= today, with NO check
