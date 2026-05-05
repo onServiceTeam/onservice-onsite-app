@@ -1,6 +1,6 @@
-# Phases 85–127 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–136 — Continuation deep audit pass (2026-05-05, part 2)
 
-Forty-three phases continuing the screen-by-screen audit started in
+Fifty-two phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1329,13 +1329,155 @@ The same bug families keep surfacing. Phase 85–93 added:
     most of these at once, but is a behavioral change that affects
     everything; explicit Manila math is safer per call site.
 
+---
+
+## Phases 128–136 (2026-05-05, part 3) — addendum
+
+Nine more phases. Same audit recipe applied to: dead-code clusters,
+validators with TZ-naive refines, hardcoded city literals, and a
+deep sweep of every Postgres timestamp comparison passing through a
+YYYY-MM-DD bound. Every phase produced exactly one real bug or one
+verified dead-code removal — no padding.
+
+### Bugs found and fixed in 128–136
+
+- **128 — mobile pricing cluster (4 files, 274 lines, 0 consumers)**
+  Symmetric to Phase 126 (which removed 32 dead navigation routes).
+  pricing.store.ts had zero consumers across 84 screens; its three
+  only-used-by-the-store services (pricing, rebooking, slot-waitlist)
+  were all dead too. The matching backend routes stay alive — they
+  may be admin-consumed and are the v1.1 re-introduction surface.
+  Same dead-code family as Phases 103/107/110/122/126.
+
+- **129 — availabilityOverrideSchema "not in past" check used UTC-today**
+  A provider on a Manila device opening the form during the 8-hour
+  window between 00:00 Manila and 08:00 Manila could submit
+  yesterday's Manila date and pass the validator (because UTC was
+  still on yesterday). Same Manila TZ correction shape as Phases
+  109/113/117/119/122/123/124. 7 boundary tests added.
+
+- **130 — BIR calendar + financial-admin year defaults used UTC**
+  Two compliance-adjacent admin views: BIR form calendar (1601-EQ,
+  2550M, 1701Q, 1701) and the BIR reports overview default year.
+  The calendar showed "overdue" 16 hours too early on every due-date
+  (08:00 Manila on day-of, instead of 23:59). The default year
+  fallback returned last year for 8 hours every Jan 1. Two bugs in
+  one phase, same fix shape.
+
+- **131 — booking-offer.service hardcoded "Boracay" in push notification**
+  notifyProviderNewJob received a string literal `'Boracay'` as the
+  city argument with a TODO comment "we'd pull from booking.city
+  but offer service stays slim". For v1.0 (Boracay-only) this was
+  technically correct most of the time, but admin-created test
+  bookings or any v1.1 city expansion would have shown providers
+  the wrong city. Three-line fix: add `city` to the SELECT, add to
+  the interface, replace the literal with `bk.city`.
+
+### Phases 132–136 — Postgres date-bound TZ sweep (5 phases, 5 bugs, 14 sites)
+
+Phase 132 surfaced a third Manila-vs-UTC bug class beyond the JS
+"`new Date()` for date math" pattern (Phases 109/113/etc) and the
+Postgres `(now() AT TIME ZONE 'Asia/Manila')::date` pattern (Phase
+123/124): comparing a `timestamptz` column against a YYYY-MM-DD
+literal or `$N::date` cast. Postgres interprets such comparisons in
+the session TZ (UTC), so admin filters like `from='2026-05-01' /
+to='2026-05-31'` actually compared against 08:00 Manila boundaries.
+On the to-side, `<= '2026-05-31'` was particularly bad: it excluded
+16 hours of the to-day every query. Five surfaces hit:
+
+- **132 — marketing analytics + campaign filters (4 sites)**
+  listCampaigns + getMarketingOverview both had from/to filters with
+  `started_at >= $N` / `started_at <= $N`. Admin's "May 2026"
+  campaign report missed 00:00-08:00 Manila on May 1 AND
+  08:00-23:59 Manila on May 31 (16 hours).
+
+- **133 — audit-log filters (2 sites)**
+  GET /api/v1/admin/audit-log + /audit-log/export.csv both had the
+  same shape. For a regulatory-purpose compliance audit log this is
+  the worst kind of bug: data was missing but the UI looked complete.
+  DPO running a "May 2026" audit was silently dropping 16 hours of
+  May 31 entries every time.
+
+- **134 — provider monthly earnings (3 sites)**
+  Three queries in getMonthlyEarnings (jobs, tips, payouts) all cast
+  to `::date` without TZ. Provider's "May 2026" earnings statement
+  was systematically mis-windowed by +8 hours: jobs confirmed at
+  02:00 Manila on May 1 were excluded from May, jobs at 02:00 Manila
+  on Jun 1 were wrongly included. Money-path adjacency.
+
+- **135 — business-invoice period filter (1 site)**
+  The JS-side correctly resolved the billing month from Manila wall-
+  clock (Phase 118 fix), but the SQL filter in the period_bookings
+  CTE then re-introduced the UTC bias on the same dates. Half-fixed
+  bug — Phase 118 fixed the month resolution, Phase 135 fixed the
+  remaining SQL filter on it.
+
+- **136 — admin dashboard "today"/"ytd" boundaries (4 sites)**
+  Different shape than 132–135: not a date literal but
+  `DATE_TRUNC('day', NOW())` / `DATE_TRUNC('year', NOW())` truncating
+  at session TZ. During the 8-hour window each Manila day between
+  00:00 Manila and 08:00 Manila, "today" actually meant
+  "yesterday-Manila" — an admin opening the dashboard at 06:00 AM
+  saw "today's revenue" that included yesterday's 16:00-23:59 Manila
+  revenue and excluded the night's 00:00-06:00 Manila revenue.
+  Phase 124 fixed only the NBI-expiry filter; Phase 136 closes the
+  larger dashboard gap. Helper SQL constants
+  `MANILA_DAY_START_SQL` and `MANILA_YEAR_START_SQL` introduced.
+
+### Pattern #20 — three Manila-vs-UTC fix shapes for Postgres
+
+The 132–136 sweep adds a fourth canonical fix shape to pattern #19,
+specifically for Postgres `timestamptz` comparisons:
+
+```sql
+-- Old (UTC-anchored):
+col >= 'YYYY-MM-DD'                            -- UTC midnight
+col <= 'YYYY-MM-DD'                            -- UTC midnight + excludes whole day
+col >= $N::date                                 -- UTC midnight (session TZ)
+DATE_TRUNC('day', NOW())                       -- UTC midnight today
+DATE_TRUNC('year', NOW())                      -- UTC midnight Jan 1
+
+-- New (Manila-anchored, half-open):
+col >= ($N::date AT TIME ZONE 'Asia/Manila')                      -- Manila midnight inclusive
+col <  (($N::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila') -- Manila midnight next-day exclusive
+DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila'
+DATE_TRUNC('year', NOW() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila'
+```
+
+The `<` half-open replacement for `<=` is critical: `<= 'YYYY-MM-DD'`
+matches only midnight of the to-day, excluding 23h59m of it. The
+fix shape uses `<` against next-day-midnight to include the whole
+to-day Manila.
+
+Going forward, `grep -nE '_at\s*(>=|<=)\s*\$' src/` and `grep
+"DATE_TRUNC.*NOW\(\)"` are the two queries that surface remaining
+instances of this bug class.
+
+### Test count progression in this segment
+
+- After Phase 127: API 2590, mobile 535, admin 135
+- After Phase 128: mobile 541 (+6, was 535)
+- After Phase 129: API 2597 (+7)
+- After Phase 130: API 2604 (+7)
+- After Phase 131: API 2609 (+5)
+- After Phase 132: API 2615 (+6)
+- After Phase 133: API 2621 (+6)
+- After Phase 134: API 2625 (+4)
+- After Phase 135: API 2629 (+4)
+- After Phase 136: API 2636 (+7)
+
+All three packages tsc-clean throughout. No regressions. 9 phases,
+9 atomic commits (45862ac → e756f66), 9 real bugs / dead-code
+removals.
+
 ## What's still genuinely outstanding
 
 Updated from PHASES-63-84-FINAL.md:
 
-1. **NEW LAUNCH BLOCKER:** E03 — customer fixed-price checkout 409s on
-   every purchase due to state-machine regression in 86a2417. Awaiting
-   Ken's call between three documented fix options (recommendation: revert).
+1. **LAUNCH BLOCKER (still):** E03 — customer fixed-price checkout
+   409s on every purchase due to state-machine regression in 86a2417.
+   Awaiting Ken's call between three documented fix options
+   (recommendation: revert).
 2. F#3 + F#4 baseline capture — F#4 done; F#3 blocked on simulator
 3. F#10 attorney-reviewed disclaimer wording
 4. 12 D14 operational items
