@@ -64,7 +64,13 @@ describe('MED-N33 — receipt number uses full booking UUID, not 8-char prefix',
   });
 
   it('the YYYYMM prefix is preserved (regression guard)', () => {
-    expect(SVC).toMatch(/RCP-\$\{receiptDate\.getFullYear\(\)\}\$\{String\(receiptDate\.getMonth\(\) \+ 1\)\.padStart\(2, '0'\)\}/);
+    // BUG-PHASE120-01 — pre-fix the YYYYMM was extracted via
+    // device-local getFullYear/getMonth. Now Manila-anchored via
+    // toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }) +
+    // string slice. Both shapes preserve the RCP-YYYYMM-<uuid>
+    // human-readable format.
+    expect(SVC).toMatch(/RCP-\$\{manilaDateStr\.slice\(0, 4\)\}\$\{manilaDateStr\.slice\(5, 7\)\}/);
+    expect(SVC).toMatch(/manilaDateStr = receiptDate\.toLocaleDateString\('en-CA', \{ timeZone: 'Asia\/Manila' \}\)/);
   });
 });
 

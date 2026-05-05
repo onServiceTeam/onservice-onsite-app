@@ -518,8 +518,20 @@ export async function generateReceipt(
   // real for a launching marketplace. Two providers with similarly-
   // prefixed booking UUIDs would have produced the same receipt
   // number. Format remains human-readable: RCP-YYYYMM-<full-uuid>.
+  //
+  // BUG-PHASE120-01 fix — pre-fix the YYYYMM was extracted via
+  // device-local getFullYear/getMonth. Server runs UTC, so a
+  // receipt generated at 01:00 Manila June 1 (= 17:00 UTC May 31)
+  // got numbered "RCP-202605-..." instead of "RCP-202606-...".
+  // BIR receipts tie to monthly filing periods; this would have
+  // caused a receipt dated June 1 Manila to be filed under May,
+  // which is the kind of audit-trail inconsistency that fails an
+  // NPC/BIR review. Anchor to Manila via toLocaleDateString and
+  // parse the YYYY-MM out of the en-CA shape.
   const receiptDate = new Date();
-  const receiptNumber = `RCP-${receiptDate.getFullYear()}${String(receiptDate.getMonth() + 1).padStart(2, '0')}-${bookingId.toUpperCase()}`;
+  const manilaDateStr = receiptDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  // manilaDateStr is "YYYY-MM-DD"; receipt number wants "YYYYMM".
+  const receiptNumber = `RCP-${manilaDateStr.slice(0, 4)}${manilaDateStr.slice(5, 7)}-${bookingId.toUpperCase()}`;
 
   const fullAddress = [bk.address, bk.barangay, bk.city, bk.province].filter(Boolean).join(', ');
   const serviceName = [bk.category_name, bk.subcategory_name].filter(Boolean).join(' — ');

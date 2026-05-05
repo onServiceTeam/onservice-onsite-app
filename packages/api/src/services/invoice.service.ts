@@ -65,8 +65,17 @@ interface AccountWithBookingsRow {
 interface CountRow { count: string }
 
 function generateInvoiceNumber(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
+  // BUG-PHASE120-01 fix — pre-fix used device-local
+  // date.getFullYear() / getMonth(). Server runs UTC, so a cron run
+  // at 17:00 UTC May 31 (= 01:00 Manila June 1) produced invoices
+  // numbered "INV-202605-XXX" while the Manila wall-clock said
+  // June 1 — operator + auditor expected "INV-202606-XXX". BIR
+  // monthly filing periods are anchored to Manila days, so the
+  // off-by-one numbering would have triggered audit-trail mismatch
+  // at filing time. Anchor YYYYMM to Manila via toLocaleDateString.
+  const manilaDateStr = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  const year = manilaDateStr.slice(0, 4);
+  const month = manilaDateStr.slice(5, 7);
   // MED-N116 fix — replace Math.random with crypto.randomBytes. Pre-fix
   // Math.random is Predictable PRNG; sequential invoice numbers across
   // many issuances could collide and aid enumeration. Post-fix uses
@@ -110,10 +119,28 @@ function getDueDate(invoiceDate: Date, paymentTerms: string): Date {
  * and tolerant of individual failure.
  */
 export async function generateMonthlyInvoices(): Promise<number> {
+  // BUG-PHASE120-01 fix — pre-fix the cron computed "last month"
+  // via device-local now.getFullYear() + now.getMonth(). Server
+  // runs UTC, so when an operator triggered (or the scheduler fired)
+  // shortly past midnight Manila on the 1st of a new month — when
+  // UTC was still on the previous day — the server saw the prior
+  // month and billed TWO MONTHS EARLIER instead of the just-ended
+  // month. Concrete: at 16:00 UTC May 31 (= 00:00 Manila June 1)
+  // the operator expects "bill May" but the server saw
+  // now.getMonth() = 4 (May UTC) → lastMonth = April → bill April
+  // again. Anchor to Manila so "last month" matches what an admin
+  // running this at midnight Manila June 1 thinks they are billing.
   const now = new Date();
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const manilaTodayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  // manilaTodayStr is "YYYY-MM-DD". Build a UTC-midnight Date for
+  // the Manila day so getUTCMonth/getUTCFullYear give the Manila
+  // calendar month (UTC+0 of "Manila day" still falls in the same
+  // calendar month as the Manila wall-clock since Manila is +08:00
+  // and we're using midnight-of-day, not midnight-of-night).
+  const manilaToday = new Date(`${manilaTodayStr}T00:00:00Z`);
+  const lastMonth = new Date(Date.UTC(manilaToday.getUTCFullYear(), manilaToday.getUTCMonth() - 1, 1));
   const periodStart = lastMonth.toISOString().split('T')[0]!;
-  const periodEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0]!;
+  const periodEnd = new Date(Date.UTC(manilaToday.getUTCFullYear(), manilaToday.getUTCMonth(), 0)).toISOString().split('T')[0]!;
 
   // Query 1: per-account aggregate. Returns ONLY accounts that
   //   (a) are active,
