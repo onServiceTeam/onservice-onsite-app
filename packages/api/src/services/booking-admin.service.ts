@@ -160,11 +160,24 @@ const FORCE_COMPLETE_ALLOWED = new Set<string>([
   'completed_by_provider',
 ]);
 
+// BUG-PHASE168-01 fix — pre-fix requireReason had a min check but
+// no max. The helper feeds reason into admin_actions.full_notes
+// (TEXT, unbounded) across multiple booking-admin actions
+// (manualReleaseEscrow, refundFromEscrow, reassignBookingProvider,
+// cancelBookingAsAdmin, forceCompleteBooking). Same defense-in-depth
+// pattern as Phase 152-167. Cap at 5000 (covers force-complete's
+// 20-char min plus enough room for detailed rationale; smaller
+// would clip legitimate dispute-defense narratives).
+const REASON_MAX_LENGTH = 5000;
+
 function requireReason(reason: string, minLength: number): string {
   const trimmed = (reason ?? '').trim();
   if (!trimmed) throw createAppError('reason is required.', 400);
   if (trimmed.length < minLength) {
     throw createAppError(`reason must be at least ${minLength} characters.`, 400);
+  }
+  if (trimmed.length > REASON_MAX_LENGTH) {
+    throw createAppError(`reason must be ≤ ${REASON_MAX_LENGTH} characters.`, 400);
   }
   return trimmed;
 }
