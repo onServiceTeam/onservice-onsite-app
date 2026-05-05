@@ -172,11 +172,23 @@ export default function PayoutsScreen(): React.ReactElement {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* BUG-PHASE172-01 fix — pre-fix the Payout History screen had
+          no link to the Withdraw screen. Provider had to navigate
+          back to the Earnings tab to request a new withdrawal.
+          Now: a Request Withdrawal button in the header for direct
+          access. Same UX-gap family as Phase 169-170. */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Payout History</Text>
+        <TouchableOpacity
+          style={styles.headerCta}
+          onPress={() => router.push('/provider/withdraw')}
+          accessibilityLabel="Request a new withdrawal"
+        >
+          <Text style={styles.headerCtaText}>Withdraw</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Phase E CRIT-112 fix — EarningsChart + CommissionBreakdown
@@ -265,7 +277,17 @@ const styles = StyleSheet.create({
   },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
-  title: { ...typography.h3, color: colors.text },
+  title: { ...typography.h3, color: colors.text, flex: 1 },
+  // BUG-PHASE172-01 fix — Request Withdrawal CTA in header.
+  headerCta: {
+    backgroundColor: colors.secondary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+  },
+  headerCtaText: { color: colors.white, fontWeight: '600', fontSize: 14 },
 
   list: { padding: spacing.base, paddingBottom: 80 },
   card: {
