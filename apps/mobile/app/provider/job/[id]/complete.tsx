@@ -213,9 +213,16 @@ export default function JobCompleteScreen(): React.ReactElement {
       // Phase E CRIT-102 fix — transition the booking via the real
       // canonical PATCH /:id/status endpoint. The transition handler
       // in booking.service.ts enforces minimumTimeOnSiteMinutes etc.
+      // BUG-PHASE151-01 fix — pre-fix sent `notes` which the
+      // updateBookingStatusSchema didn't declare, so Zod silently
+      // stripped it. The provider's completion notes have been
+      // theatrical since the feature was built. Now: rename to
+      // `completionNotes` (matches the validator field added in the
+      // same phase + bookings.completion_notes column added by
+      // migration 126_phase151).
       await api.patch(`/api/v1/bookings/${id}/status`, {
         status: 'completed_by_provider',
-        notes: notes.trim() || undefined,
+        completionNotes: notes.trim() || undefined,
       });
 
       Alert.alert('Submitted', 'Job marked as complete.');

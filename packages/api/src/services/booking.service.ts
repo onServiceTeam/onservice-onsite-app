@@ -513,6 +513,11 @@ export async function transitionBookingStatus(
   role: string,
   newStatus: BookingStatus,
   cancellationReason?: string,
+  // BUG-PHASE151-01 fix — provider completion notes. Persisted to
+  // bookings.completion_notes (migration 126). Only meaningful when
+  // newStatus='completed_by_provider'; ignored for other transitions
+  // since the column has no semantics for non-completion states.
+  completionNotes?: string,
 ): Promise<BookingRow> {
   return db.transaction(async (client) => {
     const lockResult = await client.query<BookingRow>(
@@ -575,6 +580,12 @@ export async function transitionBookingStatus(
 
     if (newStatus === 'completed_by_provider') {
       updates.push(`completed_at = NOW()`);
+      // BUG-PHASE151-01 fix — persist completion_notes if supplied.
+      if (completionNotes && completionNotes.trim().length > 0) {
+        updates.push(`completion_notes = $${paramIdx}`);
+        params.push(completionNotes.trim());
+        paramIdx++;
+      }
     } else if (newStatus === 'confirmed') {
       updates.push(`confirmed_at = NOW()`);
     } else if (newStatus.startsWith('cancelled_')) {

@@ -496,6 +496,10 @@ router.patch(
         req.user!.role,
         newStatus,
         req.body.cancellationReason,
+        // BUG-PHASE151-01 fix — pass completionNotes so provider-side
+        // completion notes from the mobile complete screen actually
+        // land on bookings.completion_notes.
+        req.body.completionNotes,
       );
 
       if (newStatus === 'confirmed' && oldEscrowStatus === 'held') {

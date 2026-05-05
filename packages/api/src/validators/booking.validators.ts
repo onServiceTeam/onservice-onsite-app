@@ -59,6 +59,17 @@ export const updateBookingStatusSchema = z.object({
     'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin',
   ]),
   cancellationReason: z.string().max(500).optional(),
+  // BUG-PHASE151-01 fix — pre-fix the mobile completion screen's
+  // "Notes" textarea sent `notes` in the PATCH body but the validator
+  // didn't declare it, so Zod silently stripped it (same MED-N85
+  // class as Phase 127 device-fingerprint). The service didn't have
+  // a notes parameter either, so providers' completion notes have
+  // been theatrical since the feature was built. Now declared as
+  // `completionNotes` (the canonical name on the bookings.completion_notes
+  // column added by migration 126_phase151_bookings_completion_notes.sql)
+  // — clients send `completionNotes` (the mobile screen's `notes` was
+  // also renamed to match) and the service writes it to the column.
+  completionNotes: z.string().max(2000).optional(),
   latitude: z.number().min(4.5, 'Must be within Philippines').max(21.5, 'Must be within Philippines').optional(),
   longitude: z.number().min(116, 'Must be within Philippines').max(127.5, 'Must be within Philippines').optional(),
 });
