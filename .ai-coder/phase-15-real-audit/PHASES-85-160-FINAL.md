@@ -1,6 +1,6 @@
-# Phases 85–159 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–160 — Continuation deep audit pass (2026-05-05+)
 
-Seventy-five phases continuing the screen-by-screen audit started in
+Seventy-six phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1859,6 +1859,33 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **44**
 (31 bug fixes + 1 escalation + 12 closeout-doc updates).
+
+---
+
+## Phase 160 (2026-05-06, part 13) — final reason-max sweep entry
+
+**160 — customer/provider admin reason fields min(5) but no max (3 sites)**
+  Three super-admin services had min(5) reason but no max cap.
+  All persist to admin_actions.reason (TEXT, unbounded):
+    - customer-admin.service.ts updateCustomerStatus
+    - customer-admin.service.ts creditCustomerWallet
+    - provider-admin.service.ts adjustProviderWallet
+  Same defense-in-depth pattern as Phase 152-159. Cap at 2000.
+
+**Cumulative server-cap sweep total (Phases 152-160):** 9 phases,
+9 bugs, **42 server-side input sites** capped. Combined with the
+mobile maxLength sweep (Phases 145-150, 18 sites), every text-input
+contract on the platform has cap discipline at every layer.
+
+### Final test counts after Phase 160
+
+API: 221/221 suites, 2710/2710 tests
+Mobile: 129/129 suites, 569/569 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **47**
+(32 bug fixes + 1 escalation + 14 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
