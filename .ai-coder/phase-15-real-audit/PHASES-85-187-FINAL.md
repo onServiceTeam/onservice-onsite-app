@@ -2298,20 +2298,28 @@ UX-gap streak now **10 phases** (Phases 169 + 170 + 172 + 173 + 174
   — off by one Manila day. Same Manila-TZ pattern. Now: format the
   date in Asia/Manila via Intl.DateTimeFormat en-CA.
 
-Phases 185 + 186 are the **Manila-TZ sweep resuming** — same shape
-as Phase 119-124 + Phase 132-140. Two more UTC-vs-Manila boundary
-bugs found by sweeping `.toISOString().split('T')[0]` patterns
-that were never anchored to Manila.
+**187 — provider monthly-summary breakdown date used UTC**
+  computeMonthlySummary recorded each booking's confirmed/completed
+  date via dateValue.toISOString().split('T')[0]. For early-Manila-
+  morning confirmations, the provider saw the breakdown row's date
+  one day earlier than the wall-clock date the customer confirmed
+  at. Same Manila-TZ pattern. Now: format dateValue in Asia/Manila
+  via Intl.DateTimeFormat en-CA.
 
-### Final test counts after Phase 186
+Phases 185 + 186 + 187 are the **Manila-TZ sweep resuming** — same
+shape as Phase 119-124 + Phase 132-140. Three more UTC-vs-Manila
+boundary bugs found by sweeping `.toISOString().split('T')[0]`
+patterns that were never anchored to Manila.
 
-API: 233/233 suites, 2745/2745 tests
-Mobile: 142/142 suites, 608/608 tests + 91 todo
+### Final test counts after Phase 187
+
+API: 234/234 suites, 2748/2748 tests
+Mobile: 143/143 suites, 611/611 tests + 91 todo
 Admin: 42/42 suites, 144/144 tests + 3 todo
 Tsc clean across all 3 packages.
 
-Total commits since Phase 127 closeout (f9e8d95): **86**
-(58 bug fixes + 1 escalation + 27 closeout-doc updates).
+Total commits since Phase 127 closeout (f9e8d95): **88**
+(59 bug fixes + 1 escalation + 28 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
