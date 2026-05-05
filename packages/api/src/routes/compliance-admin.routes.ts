@@ -28,6 +28,24 @@ function parseString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+// BUG-PHASE180-01 fix — pre-fix the DSR action routes (request-info,
+// reject, escalate, npcReference) read req.body.* strings without any
+// length cap; the service then did `.slice(0, 500)` for excerpts and
+// stored the full string in admin_notes / JSON details. A 100k-char
+// abuse string would be silently truncated to 500 in the user-facing
+// notification while bloating admin_notes / payload JSON.
+// Now: explicit DSR_TEXT_MAX cap at the route boundary. Same shape as
+// Phase 152-168 server-cap sweep + Phase 179 (decline reason).
+const DSR_TEXT_MAX = 5000;
+function validateDsrText(value: string, fieldLabel: string): void {
+  if (value.length > DSR_TEXT_MAX) {
+    throw createAppError(
+      `${fieldLabel} cannot exceed ${DSR_TEXT_MAX} characters.`,
+      400,
+    );
+  }
+}
+
 function parseInt32(value: unknown): number | undefined {
   if (value === undefined) return undefined;
   const n = Number(value);
@@ -280,6 +298,7 @@ router.post(
       requireAdmin(req);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const infoNeeded = typeof body.infoNeeded === 'string' ? body.infoNeeded : '';
+      validateDsrText(infoNeeded, 'infoNeeded');
       const data = await complianceAdmin.requestDsrMoreInfo({
         dsrId: req.params.id as string,
         adminUserId: req.user!.userId,
@@ -298,6 +317,7 @@ router.post(
       requireSuperAdmin(req);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const reason = typeof body.reason === 'string' ? body.reason : '';
+      validateDsrText(reason, 'reason');
       const data = await complianceAdmin.rejectDsr({
         dsrId: req.params.id as string,
         adminUserId: req.user!.userId,
@@ -316,6 +336,13 @@ router.post(
       requireSuperAdmin(req);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const npcReference = typeof body.npcReference === 'string' ? body.npcReference : '';
+      // npcReference is just an external case ID — keep it short.
+      if (npcReference.length > 200) {
+        throw createAppError(
+          'npcReference cannot exceed 200 characters.',
+          400,
+        );
+      }
       const data = await complianceAdmin.escalateDsrToNpc({
         dsrId: req.params.id as string,
         adminUserId: req.user!.userId,
