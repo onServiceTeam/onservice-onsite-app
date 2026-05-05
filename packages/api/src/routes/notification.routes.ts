@@ -60,6 +60,22 @@ router.post(
       if (typeof token !== 'string' || !token) {
         throw createAppError('Push token is required.', 400);
       }
+      // BUG-PHASE157-01 fix — pre-fix push_tokens.token had no
+      // length cap. Column is TEXT (migration 016) so Postgres
+      // accepts any length. Real push tokens are well-bounded:
+      //   APNs:  64 hex chars
+      //   FCM:   ~150-200 chars
+      //   Expo:  ~50-80 chars (ExponentPushToken[...])
+      // Cap at 256 — generous enough for any realistic provider,
+      // tight enough to reject obvious junk. Same defense-in-depth
+      // pattern as Phase 152-156.
+      const PUSH_TOKEN_MAX = 256;
+      if (token.length > PUSH_TOKEN_MAX) {
+        throw createAppError(
+          `Push token must be ≤ ${PUSH_TOKEN_MAX} characters.`,
+          400,
+        );
+      }
       if (typeof platform !== 'string' || !['ios', 'android', 'web'].includes(platform)) {
         throw createAppError('Platform must be ios, android, or web.', 400);
       }
