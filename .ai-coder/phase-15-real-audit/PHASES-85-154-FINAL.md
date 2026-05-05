@@ -1,6 +1,6 @@
-# Phases 85–151 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–154 — Continuation deep audit pass (2026-05-05+)
 
-Sixty-seven phases continuing the screen-by-screen audit started in
+Seventy phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1709,6 +1709,57 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **31**
 (23 bug fixes + 1 escalation + 7 closeout-doc updates).
+
+---
+
+## Phases 152–154 (2026-05-06, part 9) — server-side input cap sweep
+
+After the mobile maxLength sweep (Phase 145-150) closed the
+unbounded-input bug class on the client side, three more phases
+closed it on the server side — defense-in-depth pattern matching
+MED-N97 (file:// URI rejection):
+
+- **152 — provider portfolio + certification routes (5 sites)**
+  POST/PATCH /me/portfolio caption + categoryId, plus POST/PATCH
+  /me/certifications name/issuingBody/certificateNumber. All
+  customer-facing surfaces (public provider profile); unbounded
+  values were both UX hazard and sneak-injection vector.
+
+- **153 — promotion routes (12 sites across POST + PUT)**
+  6 fields × 2 routes — title, subtitle, imageUrl, badge, ctaText,
+  ctaLink, plus targetAudience enum check + displayOrder integer
+  check. Promotions surface on the customer home banner and
+  provider dashboard; admin-supplied content needed length caps
+  for both UX safety and Postgres-error-friendliness (raw SQL
+  constraint errors → friendly 400s).
+
+- **154 — checklist notes + support resolutionNotes (2 sites)**
+  Two more TEXT-column inputs with no caps. Checklist notes
+  surface in admin BookingDetail dispute review; resolutionNotes
+  surface in customer ticket history.
+
+**Combined Phase 152-154 sweep:** 3 phases, 3 bugs, 19 input sites
+fixed. Same fix shape across all of them — explicit length checks
+in the route or service handler that throw a friendly 400 when
+oversized. Pattern #22 (server-side caps as defense-in-depth)
+formally established.
+
+After Phase 145-150 (client-side) + Phase 152-154 (server-side),
+both sides of every text-input contract on the platform now
+match. A misbehaving client gets a friendly 400; a well-behaved
+client gets a maxLength prop that stops them at the cap; the
+column itself is also bounded where the type allows. Three
+defenses in depth.
+
+### Final test counts after Phase 154
+
+API: 215/215 suites, 2688/2688 tests
+Mobile: 129/129 suites, 569/569 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **35**
+(26 bug fixes + 1 escalation + 8 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
