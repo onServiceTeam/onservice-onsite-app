@@ -977,6 +977,11 @@ export async function adjustProviderWallet(
   const trimmedReason = reason?.trim();
   if (!trimmedReason) throw createAppError('reason is required.', 400);
   if (trimmedReason.length < 5) throw createAppError('reason must be at least 5 characters.', 400);
+  // BUG-PHASE160-01 fix — pre-fix had min(5) but no max. Same
+  // defense-in-depth pattern as Phase 152-159. Cap at 2000.
+  if (trimmedReason.length > 2000) {
+    throw createAppError('reason must be ≤ 2000 characters.', 400);
+  }
 
   return db.transaction(async (client) => {
     const walletResult = await client.query<{
