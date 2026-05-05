@@ -52,7 +52,6 @@ export default function PortfolioScreen(): React.ReactElement {
 
   const [mode, setMode] = useState<ModalMode>(null);
   const [editItem, setEditItem] = useState<PortfolioItem | null>(null);
-  const [imageUrl, setImageUrl] = useState('');
   const [caption, setCaption] = useState('');
   // Phase E CRIT-108 fix — local file URI from picker, before upload.
   const [pendingLocalUri, setPendingLocalUri] = useState<string | null>(null);
@@ -104,7 +103,6 @@ export default function PortfolioScreen(): React.ReactElement {
   const resetForm = useCallback((): void => {
     setMode(null);
     setEditItem(null);
-    setImageUrl('');
     setCaption('');
     setPendingLocalUri(null);
   }, []);
@@ -112,7 +110,6 @@ export default function PortfolioScreen(): React.ReactElement {
   const handleAdd = useCallback((): void => {
     setMode('add');
     setEditItem(null);
-    setImageUrl('');
     setCaption('');
     setPendingLocalUri(null);
   }, []);
