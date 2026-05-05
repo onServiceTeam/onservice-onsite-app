@@ -245,6 +245,16 @@ export default function SearchScreen(): React.ReactElement {
           <Text style={styles.emptyIcon}>🔍</Text>
           <Text style={styles.emptyTitle}>No results for &quot;{searchTerm}&quot;</Text>
           <Text style={styles.emptySubtitle}>Try a different keyword or browse categories.</Text>
+          {/* BUG-PHASE176-01 fix — pre-fix the hint said "or browse
+              categories" but there was no actual link to browse —
+              just text. Same UX-gap family as Phase 169/170/172/173/
+              174/175. Now: a Browse Categories CTA routes to home. */}
+          <TouchableOpacity
+            style={styles.emptyCta}
+            onPress={() => router.push(Routes.TABS.HOME)}
+          >
+            <Text style={styles.emptyCtaText}>Browse Categories</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -392,4 +402,15 @@ const styles = StyleSheet.create({
   emptyIconWrap: { marginBottom: spacing.base, alignItems: 'center' as const },
   emptyTitle: { ...typography.h3, color: colors.text, textAlign: 'center', marginBottom: spacing.sm },
   emptySubtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  // BUG-PHASE176-01 fix styles for the Browse Categories CTA.
+  emptyCta: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+  },
+  emptyCtaText: { color: colors.white, fontWeight: '600', fontSize: 14 },
 });
