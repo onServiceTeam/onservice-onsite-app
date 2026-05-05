@@ -1,6 +1,6 @@
-# Phases 85–144 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–148 — Continuation deep audit pass (2026-05-05, part 2)
 
-Sixty phases continuing the screen-by-screen audit started in
+Sixty-four phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1582,6 +1582,53 @@ mobile screens for declared API endpoints.
 - After Phase 144: no test (escalation only)
 
 Final: API 2660, Mobile 541, Admin 144 — all green, all tsc-clean.
+
+---
+
+## Phases 145–148 (2026-05-05, part 6) — mobile maxLength sweep
+
+Four more phases sweeping every customer-facing mobile text input
+that hits a server `.max(N)` validator. Pattern: input had no
+maxLength, hint sometimes implied a cap that wasn't enforced, user
+could type past the cap, server returned generic 400 at submit.
+
+- **145 — review comment + privateNote (2 sites)**
+  Hint said "X / 1000 characters" but no maxLength. Server caps
+  at 1000 (review.validators.ts:19,24).
+
+- **146 — booking notes + 2 cancel-reason inputs (3 sites)**
+  Booking form Notes had no maxLength (server max 2000).
+  Customer + provider cancel-reason TextInputs had no maxLength
+  (server cancellationReason.max(500)).
+
+- **147 — register + profile First/Last Name (4 sites)**
+  Both screens had identical First Name + Last Name input pairs
+  with no maxLength. Server caps at max(100) per field
+  (auth.validators.ts:76-77).
+
+- **148 — addresses screen 5-field form**
+  fullAddress, barangay, city, province, notes — all five
+  TextInputs missing maxLength. Server caps respectively at
+  500/100/100/100/500 (address.validators.ts:13-22).
+
+**Combined Phase 145-148 sweep:** 4 phases, 4 bugs, 14 input sites
+fixed. After this segment, every customer-facing form input on
+mobile that hits a server-side `.max(N)` validator has matching
+client-side maxLength. The unbounded-input bug class is closed
+across the customer-side mobile app.
+
+### Test count progression
+
+- After Phase 144: API 2660, Mobile 541, Admin 144
+- After Phase 145: Mobile 545 (+4)
+- After Phase 146: Mobile 551 (+6)
+- After Phase 147: Mobile 557 (+6)
+- After Phase 148: Mobile 563 (+6)
+
+Final: API 2660, Mobile 563, Admin 144 — all green, all tsc-clean.
+
+Total commits since Phase 127 closeout (f9e8d95): **26**
+(20 bug fixes + 1 escalation + 5 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
