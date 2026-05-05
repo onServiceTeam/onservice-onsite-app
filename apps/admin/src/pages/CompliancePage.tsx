@@ -8,6 +8,7 @@
  */
 
 import React, { useMemo, useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
@@ -745,12 +746,22 @@ function AuditTab(): React.ReactElement {
   );
 }
 
-// ─── Tax Documents tab (stub) ──────────────────────────────────────────────
+// ─── Tax Documents tab ─────────────────────────────────────────────────────
+//
+// BUG-PHASE98-01 fix — pre-fix this tab rendered a developer-marker
+// placeholder paragraph + dummy year/type pickers + an "unwired"
+// empty state. The /api/v1/admin/bir/* endpoints DO exist (mounted
+// in server.ts:46 from bir-admin.routes.ts) and the FinancialsPage
+// > BIR Reports tab actually wires them (VAT 2550M, 2307 quarterly
+// batches, reconciliation, overview). The TaxTab here was a
+// duplicate stub left over from Phase 11 that leaked a placeholder
+// string into the admin UI.
+//
+// Now: redirect admins to the canonical surface in Financials. No
+// duplicate stub, no fake form.
 
 function TaxTab(): React.ReactElement {
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [type, setType] = useState('all');
-
+  const navigate = useNavigate();
   return (
     <Card>
       <CardHeader>
@@ -760,31 +771,13 @@ function TaxTab(): React.ReactElement {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-[var(--color-text-secondary)]">
-          TODO: pulls from <code>/api/v1/admin/bir/exports</code> (Phase 08). Filter by year and type.
+          Tax documents (VAT 2550M, 2307 quarterly batches, BIR reconciliation,
+          and the BIR overview) are managed from the Financials page so they
+          live next to the underlying escrow / payout / commission ledgers.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
-            <Label htmlFor="tax-year">Year</Label>
-            <Input id="tax-year" type="number" value={year} onChange={(e) => setYear(Number(e.target.value) || year)} />
-          </div>
-          <div>
-            <Label htmlFor="tax-type">Type</Label>
-            <Select value={type} onValueChange={setType}>
-              <SelectTrigger id="tax-type"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="or">Official Receipts</SelectItem>
-                <SelectItem value="2307">Form 2307</SelectItem>
-                <SelectItem value="2550m">Form 2550M</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <EmptyState
-          title="Not yet wired"
-          description="This view will list previously generated tax documents from the BIR exports endpoint."
-          icon={<FileText size={28} className="text-slate-400" />}
-        />
+        <Button onClick={() => navigate('/financials')}>
+          Open Financials → BIR Reports
+        </Button>
       </CardContent>
     </Card>
   );
