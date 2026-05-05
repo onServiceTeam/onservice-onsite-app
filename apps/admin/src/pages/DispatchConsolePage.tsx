@@ -145,8 +145,21 @@ interface BookingGpsUpdatePayload {
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const MANILA: [number, number] = [14.5995, 120.9842];
-const DEFAULT_ZOOM = 11;
+// BUG-PHASE97-01 fix — pre-fix the dispatch map was centered on
+// Metro Manila at zoom 11. The platform's launch market is Boracay
+// (Aklan); mobile customer/booking/tracker.tsx + provider/job/
+// active.tsx + provider/service-area.tsx all default to the Boracay
+// coords used below per Phase D CRIT-77. Admins opening the
+// dispatch console at launch saw an empty Manila map and had to
+// manually pan every shift. Now the default matches the rest of
+// the platform; zoom is tighter because Boracay is a 7km island
+// where the wider Manila zoom would render mostly empty water.
+//
+// Once the launch expands beyond Boracay, replace this with the
+// active service-area's center (admin/service-areas API exposes
+// centerLat/centerLng + status).
+const DEFAULT_MAP_CENTER: [number, number] = [11.9685, 121.9162];
+const DEFAULT_ZOOM = 13;
 
 const STATUS_COLORS: Record<string, string> = {
   pending: '#f59e0b',
@@ -538,7 +551,7 @@ export default function DispatchConsolePage(): React.ReactElement {
         ) : (
         <MapContainer
           key={mapKey}
-          center={MANILA}
+          center={DEFAULT_MAP_CENTER}
           zoom={DEFAULT_ZOOM}
           scrollWheelZoom
           style={{ height: '100%', width: '100%' }}
