@@ -1,6 +1,6 @@
-# Phases 85–136 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–140 — Continuation deep audit pass (2026-05-05, part 2)
 
-Fifty-two phases continuing the screen-by-screen audit started in
+Fifty-six phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1469,6 +1469,57 @@ instances of this bug class.
 All three packages tsc-clean throughout. No regressions. 9 phases,
 9 atomic commits (45862ac → e756f66), 9 real bugs / dead-code
 removals.
+
+---
+
+## Phases 137–140 (2026-05-05, part 4) — TZ sweep continuation
+
+Four more phases extending the Phase 132–136 sweep to every
+remaining Postgres date-bound site that wasn't already Manila-
+anchored. Same fix-shape, more surfaces:
+
+- **137 — admin revenue-trend bucket labels (4 sites in 1 query)**
+  getRevenueTrend daily series boundaries + per-day GMV/revenue
+  bucket labels all used bare DATE_TRUNC, so each trend point
+  labeled "2026-05-01" actually spanned 08:00 Manila May 1 →
+  08:00 Manila May 2 (a 24-hour window shifted +8 hours from the
+  real Manila day). Phase 136 fixed the single-number KPI cards;
+  Phase 137 closes the trend-line bucket labeling.
+
+- **138 — admin cohort analysis month buckets (6 sites)**
+  Retention + revenue cohorts both used DATE_TRUNC('month', ...) at
+  session TZ. A user signing up at 03:00 Manila on May 1 was
+  bucketed into the April cohort instead of May. Every 1st-of-month
+  between 00:00 and 08:00 Manila had 8 hours of signups attributed
+  to the wrong cohort, biasing every retention curve.
+
+- **139 — financial-admin dashboard 8-site sweep**
+  EIGHT date-bound query sites across 6 functions (getOverview,
+  getRevenueByCategory, getCommissionTrend, getRefundsTrend,
+  getPayoutsBreakdown, getTopProviders) plus today_completed
+  cells in getPayoutsTab plus OR-search issued_at. All 8 sites
+  cast `$N::date` without TZ anchor — every financial dashboard
+  tab misreported by the same +8h shift, with 16-hour to-day
+  blind spots like the marketing/audit-log bug.
+
+- **140 — provider quality scoring 90-day window (2 sites)**
+  Lower-severity rolling-window analytics. Manila-anchored for
+  consistency.
+
+Combined Phase 132–140 sweep: **9 phases, 9 bugs, 38 query sites
+fixed**, all sharing one root cause and one fix shape. The
+Postgres `timestamptz`-vs-date-literal bug class is now closed in
+the API.
+
+### Test count progression in this segment
+
+- After Phase 136: API 2636
+- After Phase 137: API 2641 (+5)
+- After Phase 138: API 2646 (+5)
+- After Phase 139: API 2652 (+6)
+- After Phase 140: API 2655 (+3)
+
+All three packages tsc-clean throughout. No regressions.
 
 ## What's still genuinely outstanding
 
