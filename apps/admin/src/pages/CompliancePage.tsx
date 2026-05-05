@@ -784,6 +784,15 @@ function TaxTab(): React.ReactElement {
 }
 
 // ─── Regulatory Reports tab (stub) ─────────────────────────────────────────
+//
+// BUG-PHASE99-01 fix — pre-fix the Generate button toasted a
+// stale-by-the-time-anyone-clicks-it ETA promise pointing at a
+// long-shipped phase. Operators saw a date-stamped commitment to
+// a feature already past its quoted milestone. Per LAUNCH-
+// LIMITATIONS this report is a v1.1+ feature and not blocking the
+// v1.0 launch. Updated copy directs operators to the existing v1.0
+// surfaces (Audit Log + Financials → BIR Reports) rather than baking
+// in another date that will rot again.
 
 function ReportsTab(): React.ReactElement {
   return (
@@ -794,9 +803,17 @@ function ReportsTab(): React.ReactElement {
       <CardContent className="space-y-4">
         <p className="text-sm text-[var(--color-text-secondary)]">
           One-click compliance posture reports for NPC, BIR, DTI, and SEC reviewers.
-          Implementation tracked separately; this is the placeholder UI.
+          This view is reserved for v1.1+ — for the v1.0 launch the underlying
+          data is already exportable from the Audit Log and Financials → BIR
+          Reports tabs.
         </p>
-        <Button onClick={() => { toast.info('Regulatory posture report not yet implemented — ETA Phase 14.'); }}>
+        <Button
+          onClick={() => {
+            toast.info(
+              'Regulatory posture report is a v1.1+ feature. Pull the underlying data from Audit Log + Financials → BIR Reports for now.',
+            );
+          }}
+        >
           Generate compliance posture report
         </Button>
       </CardContent>
