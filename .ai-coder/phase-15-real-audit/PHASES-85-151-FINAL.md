@@ -1,6 +1,6 @@
-# Phases 85–150 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–151 — Continuation deep audit pass (2026-05-05+)
 
-Sixty-six phases continuing the screen-by-screen audit started in
+Sixty-seven phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1659,6 +1659,56 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **29**
 (22 bug fixes + 1 escalation + 6 closeout-doc updates).
+
+---
+
+## Phase 151 (2026-05-06, part 8) — completion notes silent-strip end-to-end fix
+
+One more silent-strip fix in the same MED-N85 family as Phase 127.
+
+**151 — provider job-completion notes were silently dropped end-to-end (5 layers)**
+
+The mobile provider job-completion screen had a "Notes (optional)"
+textarea that submitted as `notes` in the PATCH /bookings/:id/status
+body. Five layers all conspired to make the notes theatrical:
+
+  Mobile: sends `notes`
+  ↓
+  Validator: updateBookingStatusSchema didn't declare `notes`
+    → Zod stripped it (default-strip behavior)
+  ↓
+  Service: transitionBookingStatus(... cancellationReason)
+    → no notes parameter
+  ↓
+  bookings.completion_notes column: didn't exist
+  ↓
+  Provider notes: theatrical, never persisted
+
+Provider completion notes are the canonical in-app dispute-defense
+audit trail ("customer was satisfied, signed in person, see attached
+photos"). Without persistence, providers had no defense when a
+customer filed a frivolous dispute later. Launch-relevant given E04
+(provider can't respond to disputes) is still pending Ken's call.
+
+Fix landed in 5 layers in one commit:
+  1. Migration 126 — `bookings.completion_notes TEXT` (nullable;
+     no backfill needed; safe ADD COLUMN per CLAUDE.md hard-stop rules)
+  2. Validator — declares `completionNotes: z.string().max(2000).optional()`
+  3. Service — accepts + persists when newStatus = 'completed_by_provider'
+  4. Route — forwards req.body.completionNotes to the service
+  5. Mobile — renames `notes` → `completionNotes` in the PATCH body
+
+Same multi-layer fix shape as Phase 127 (device-fingerprint binding).
+
+### Final test counts after Phase 151
+
+API: 212/212 suites, 2668/2668 tests
+Mobile: 129/129 suites, 569/569 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **31**
+(23 bug fixes + 1 escalation + 7 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
