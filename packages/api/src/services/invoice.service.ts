@@ -308,7 +308,20 @@ export async function generateMonthlyInvoices(): Promise<number> {
         tItemInvoiceIds.push(invoiceId);
         tItemBookingIds.push(booking.id);
         tItemDescriptions.push(`${booking.category_name ?? 'Service'} - ${booking.description ?? ''}`.trim());
-        tItemServiceDates.push(scheduledAt.toISOString().split('T')[0]!);
+        // BUG-PHASE186-01 fix — pre-fix scheduledAt.toISOString() returns
+        // the UTC date of the scheduled timestamp. For early-Manila-
+        // morning bookings (00:00-07:59 Manila = 16:00-23:59 UTC the
+        // day before), the UTC date is yesterday-Manila. The customer
+        // who booked "May 4 02:00 AM" saw the invoice line read service
+        // date 2026-05-03, off by one. Same Manila-TZ pattern as Phase
+        // 117/119/120/185. Now: format the date in Asia/Manila so the
+        // service_date column matches the customer's calendar day.
+        tItemServiceDates.push(
+          new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Manila',
+            year: 'numeric', month: '2-digit', day: '2-digit',
+          }).format(scheduledAt),
+        );
         tItemUnitPrices.push(unitPrice);
         tItemDiscounts.push(itemDiscount);
         tItemAmounts.push(amount);
