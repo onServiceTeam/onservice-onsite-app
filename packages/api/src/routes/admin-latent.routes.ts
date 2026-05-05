@@ -30,6 +30,21 @@ function requireSuperAdmin(req: AuthenticatedRequest): void {
   }
 }
 
+// BUG-PHASE181-01 fix — pre-fix the decide-application + decide-area-
+// change routes accepted unbounded reason strings. The verbs flow into
+// admin_actions audit rows + provider/customer notifications. A 100k-
+// char abuse string would bloat audit storage. Same server-cap shape
+// as Phase 152-168 + Phase 179 + Phase 180.
+const DECIDE_REASON_MAX = 5000;
+function validateDecideReason(value: string): void {
+  if (value.length > DECIDE_REASON_MAX) {
+    throw createAppError(
+      `reason cannot exceed ${DECIDE_REASON_MAX} characters.`,
+      400,
+    );
+  }
+}
+
 // ─── Provider applications ─────────────────────────────────────────────────
 
 router.get(
@@ -58,6 +73,7 @@ router.post(
       const body = (req.body ?? {}) as Record<string, unknown>;
       const decision = body.decision;
       const reason = typeof body.reason === 'string' ? body.reason : '';
+      validateDecideReason(reason);
       if (decision !== 'approved' && decision !== 'rejected' && decision !== 'sent_back') {
         throw createAppError('decision must be approved | rejected | sent_back.', 400);
       }
@@ -100,6 +116,7 @@ router.post(
       const body = (req.body ?? {}) as Record<string, unknown>;
       const decision = body.decision;
       const reason = typeof body.reason === 'string' ? body.reason : '';
+      validateDecideReason(reason);
       if (decision !== 'approved' && decision !== 'rejected') {
         throw createAppError('decision must be approved | rejected.', 400);
       }
