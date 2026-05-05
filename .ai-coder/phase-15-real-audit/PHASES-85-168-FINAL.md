@@ -1,6 +1,6 @@
-# Phases 85–166 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–168 — Continuation deep audit pass (2026-05-05+)
 
-Eighty-two phases continuing the screen-by-screen audit started in
+Eighty-four phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -2011,6 +2011,36 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **58**
 (38 bug fixes + 1 escalation + 19 closeout-doc updates).
+
+---
+
+## Phases 167–168 (2026-05-06, part 19) — full_notes cap entries
+
+**167 — catalog deleteSubcategory + deleteAddon reason cap (2 sites)**
+  Both services slice reason at 500 for admin_actions.reason but
+  pass the full string to admin_actions.full_notes (TEXT, unbounded).
+  Cap reason at 2000.
+
+**168 — booking-admin requireReason helper had no max cap (1 helper, 5 callers)**
+  One-line fix in the requireReason helper caps all 5 booking-admin
+  actions at once: manualReleaseEscrow, refundFromEscrow,
+  reassignBookingProvider, cancelBookingAsAdmin, forceCompleteBooking.
+  Cap at 5000 (covers force-complete's 20-char min + room for
+  dispute-defense narratives).
+
+**Cumulative server-cap sweep total (Phases 152-168):** 17 phases,
+17 bugs, **65+ server-side input sites** capped (with the helper
+fix in 168 covering 5 callers via 1 site).
+
+### Final test counts after Phase 168
+
+API: 228/228 suites, 2728/2728 tests
+Mobile: 130/130 suites, 572/572 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **61**
+(40 bug fixes + 1 escalation + 20 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
