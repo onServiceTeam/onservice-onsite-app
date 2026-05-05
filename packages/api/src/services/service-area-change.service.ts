@@ -116,6 +116,12 @@ export async function decide(input: {
   if (input.reason.trim().length < 30) {
     throw createAppError('Decision reason must be at least 30 characters.', 400);
   }
+  // BUG-PHASE159-01 fix — pre-fix had a min(30) but no max. Column
+  // is TEXT — unbounded by Postgres. Same defense-in-depth pattern
+  // as Phase 152-158. Cap at 5000 (free-form decision rationale).
+  if (input.reason.trim().length > 5000) {
+    throw createAppError('Decision reason must be ≤ 5000 characters.', 400);
+  }
   if (input.decision !== 'approved' && input.decision !== 'rejected') {
     throw createAppError('Decision must be approved or rejected.', 400);
   }
