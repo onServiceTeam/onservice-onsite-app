@@ -1,6 +1,6 @@
-# Phases 85–164 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–166 — Continuation deep audit pass (2026-05-05+)
 
-Eighty phases continuing the screen-by-screen audit started in
+Eighty-two phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1983,6 +1983,34 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **55**
 (36 bug fixes + 1 escalation + 18 closeout-doc updates).
+
+---
+
+## Phases 165–166 (2026-05-06, part 18) — final mobile + public-search caps
+
+**165 — account-management deletion reason maxLength on customer + provider (2 sites)**
+  Mobile inputs let users type unbounded text → 400 from server
+  at submit. Server caps at 1000 (Phase 156). Mobile match.
+
+**166 — public /catalog/search had no upper bound (2 sites — server + mobile)**
+  PUBLIC endpoint (no auth). ILIKE on three columns + provider join
+  was wasteful with a 100,000-char query. Cap at 100 (real human
+  searches). Mobile match: maxLength={100} on search input.
+
+**Cumulative server-cap sweep total (Phases 152-166):** 15 phases,
+15 bugs, **62+ server-side input sites** capped. Combined with the
+mobile maxLength sweep (Phases 145-150 + 165-166, 22 sites), every
+text-input contract on the platform has cap discipline at every layer.
+
+### Final test counts after Phase 166
+
+API: 226/226 suites, 2723/2723 tests
+Mobile: 130/130 suites, 572/572 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **58**
+(38 bug fixes + 1 escalation + 19 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
