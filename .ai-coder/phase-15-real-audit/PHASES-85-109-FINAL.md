@@ -1,10 +1,11 @@
-# Phases 85–102 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–109 — Continuation deep audit pass (2026-05-05, part 2)
 
-Eighteen phases continuing the screen-by-screen audit started in Phases
-17–84. Same recipe: read full source, identify gaps, fix narrowly, verify
-with tsc + jest, commit atomically with co-author attribution. Phase 87
-surfaced a launch-blocker regression that needs Ken's call — escalation
-file `.ai-coder/escalations/E03-customer-checkout-state-machine-2026-05-05.md`.
+Twenty-five phases continuing the screen-by-screen audit started in
+Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
+verify with tsc + jest, commit atomically with co-author attribution.
+Phase 87 surfaced a launch-blocker regression that needs Ken's call —
+escalation file
+`.ai-coder/escalations/E03-customer-checkout-state-machine-2026-05-05.md`.
 
 ## Real bugs found and fixed
 
@@ -455,6 +456,190 @@ ef54240 fix: Phase 90 — payment-failed countdown ignored booking creation time
 9429b00 fix: Phase 85 — customer recurring screens missing enriched fields — 1 real bug found + fixed
 ```
 
+Phases 103-109 commits:
+```
+472f474 fix: Phase 109 — make-recurring defaulted to wrong day on non-Manila device — 1 real bug fixed
+6aec7d4 fix: Phase 108 — audit log empty-state told compliance officers no entries existed when their date filter just had zero hits — 1 real bug fixed
+0f3e6bc fix: Phase 107 — provider portfolio carried dead imageUrl state from a feature replacement — 1 real bug fixed
+0fc60ae fix: Phase 106 — live GPS streaming was half-built with a misleading customer promise — 1 real bug fixed + launch limitation documented
+1adb77c fix: Phase 105 — provider calendar dropped early-morning jobs at month start and leaked next-month jobs at month end — 1 real bug fixed
+eda4072 fix: Phase 104 — confirm screen told users to "complete your payment" but offered no button to do so — 1 real bug fixed
+1ef3adf fix: Phase 103 — provider checklist had ~48 lines of dead code that re-introduced the pre-fix bug if anyone touched it — 1 real bug fixed
+```
+
+### BUG-PHASE103-01 — Provider checklist carried 48 lines of dead code that re-introduced the pre-fix bug
+
+**Files:** `apps/mobile/app/provider/job/[id]/checklist.tsx`,
+`apps/mobile/__tests__/bug-phase103-01-checklist-dead-initial-sections.test.ts`
+
+`provider/job/[id]/checklist.tsx` still carried `INITIAL_SECTIONS` (53
+lines) plus a `makeItem` helper at the top, despite the screen having
+been migrated in Phase E CRIT-105 to fetch from
+`/api/v1/jobs/:id/checklist`. `useState` was already initialized to
+`[]` — nothing read `INITIAL_SECTIONS` — but the dead constant still
+spelled out the exact "Living Room → Kitchen → Bedroom → Bathroom"
+hardcoded list the CRIT-105 comment block calls out as the original
+bug (a plumber saw cleaning items instead of the plumbing checklist
+tied to category_id).
+
+**Fix:** delete `makeItem` helper + `INITIAL_SECTIONS` array. Server
+data is now the only source of truth at runtime AND in source.
+
+**Test:** 6 source-shape assertions confirm `INITIAL_SECTIONS` gone,
+`makeItem` gone, hardcoded section titles + item labels gone,
+`useState` still initializes to `[]`, and the
+`/api/v1/jobs/:id/checklist` fetch path still wired.
+
+### BUG-PHASE104-01 — Confirm screen told users to "complete payment" with no button to do so
+
+**Files:** `apps/mobile/app/customer/booking/confirm.tsx`,
+`apps/mobile/__tests__/bug-phase104-01-confirm-payment-pending-cta.test.ts`
+
+`booking/confirm.tsx` had a UX gap when a booking landed there in
+`payment_pending` (typically: PayMongo checkout failed, was cancelled,
+or the user backed out of GCash/Maya). Subtitle said "Complete your
+payment to confirm this booking." but no Complete Payment CTA was
+rendered. The only forward path was tap "View Booking" → then find
+Complete Payment on `/customer/booking/[id]` (which Phase 86 added).
+Two taps where one should do, on the screen that explicitly told the
+user to pay.
+
+**Fix:** when booking is loaded and `!isPaid`, render a direct
+"Complete Payment" CTA at the top of the actions stack that routes to
+`/customer/booking/pay?bookingId={id}`. View Booking drops to outline
+variant when unpaid so Complete Payment reads as the primary action;
+when paid, View Booking stays primary as before.
+
+**Test:** 5 source-shape assertions confirm Complete Payment button
+rendered conditionally on `!isPaid`, routes to the pay screen, View
+Booking switches to outline when unpaid, `isPaid` still derived from
+the same status/escrowStatus check, existing subtitle copy preserved.
+
+### BUG-PHASE105-01 — Provider calendar dropped early-morning month-start jobs and leaked next-month jobs
+
+**Files:** `apps/mobile/app/provider/calendar.tsx`,
+`apps/mobile/__tests__/bug-phase105-01-calendar-manila-timezone.test.ts`
+
+Two month-boundary timezone defects in `provider/calendar.tsx`:
+
+1. `getMonthRange` built `from`/`to` with `T00:00:00Z` and
+   `T23:59:59Z` — UTC-anchored. Manila (UTC+8) day 1 starts at 16:00
+   UTC of the previous day, so jobs scheduled 00:00–07:59 Manila on
+   the 1st of the month were 16:00–23:59 UTC of the previous day and
+   fell OUTSIDE the from-anchor. A 6 AM appointment on May 1 was
+   simply invisible to the provider's calendar. Conversely, jobs at
+   00:00 Manila on the 1st of the next month (16:00 UTC of the last
+   day) WERE inside the to-anchor and bled into the current view.
+2. `toDateKey` used `d.getFullYear/Month/Date()`, which return
+   device-local values. On a non-Manila device (QA/staging on UTC, a
+   Filipino traveling abroad), jobs near midnight Manila landed on
+   the wrong calendar cell — off by one day.
+
+**Fix:** anchor `from`/`to` to `+08:00` Manila offset, and bin
+scheduledAt timestamps via
+`toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })`.
+
+**Test:** 4 source-shape assertions confirm `+08:00` anchors present,
+`Z` anchors gone, `toDateKey` uses Manila tz, device-local
+getFullYear/getMonth path gone.
+
+### BUG-PHASE106-01 — Live GPS streaming half-built feature with misleading customer promise
+
+**Files:** `apps/mobile/app/customer/safety-and-support.tsx`,
+`apps/mobile/src/lib/i18n.ts`, `LAUNCH-LIMITATIONS.md`,
+`apps/mobile/__tests__/bug-phase106-01-gps-streaming-half-built.test.ts`
+
+The customer-facing `safety-and-support.tsx` promised "See your
+provider's location on the map while they're on the way to you" but
+no provider-side code ever emits the `booking:${id}:location` socket
+event the customer tracker subscribes to. `provider/job/active.tsx`
+captures location ONCE at "I've Arrived" — there's no
+`watchPositionAsync` loop, no en-route streaming.
+
+**Fix:** three pieces.
+
+1. `safety-and-support.tsx` copy softened to "Live status updates",
+   describing what actually works: push notifications + on-screen
+   status pill changes (paid → provider_en_route → provider_arrived
+   → in_progress via the existing `:status` socket event) +
+   booking-address map.
+2. Dead i18n key `provider.gps.broadcasting` removed from
+   `apps/mobile/src/lib/i18n.ts` — never consumed.
+3. `LAUNCH-LIMITATIONS.md` section 32 documenting the gap so
+   operators have a script when customers ask "why isn't the
+   provider's pin moving?". v1.1 plan: `watchPositionAsync` in
+   `active.tsx` + server endpoint that re-broadcasts to the existing
+   `booking:${id}:location` channel. Customer-side subscription left
+   in place so v1.1 only needs to land the producer side.
+
+**Test:** 5 source-shape assertions confirm misleading copy gone,
+"Live status updates" framing in place, dead i18n key gone,
+LAUNCH-LIMITATIONS section 32 present, customer-side socket
+subscription preserved (regression guard for v1.1).
+
+### BUG-PHASE107-01 — Provider portfolio carried dead `imageUrl` state from Phase E CRIT-108 feature replacement
+
+**Files:** `apps/mobile/app/provider/portfolio.tsx`,
+`apps/mobile/__tests__/bug-phase107-01-portfolio-dead-imageurl-state.test.ts`
+
+`provider/portfolio.tsx` still had `imageUrl` + `setImageUrl` useState
+from the pre-fix paste-URL UX, even though Phase E CRIT-108 replaced
+that flow with a picker + `uploadImages` multipart pipeline. The
+state was only ever cleared (in `resetForm` and `handleAdd`) — never
+read by any JSX. Same shape as Phase 103's INITIAL_SECTIONS — leftover
+from a feature replacement.
+
+**Fix:** remove the useState declaration, remove both `setImageUrl('')`
+call sites in `resetForm` + `handleAdd`.
+
+**Test:** 4 source-shape assertions confirm useState gone,
+setImageUrl call sites gone, actual `pendingLocalUri` picker state
+still in place, picker → upload → mutate pipeline still wired.
+
+### BUG-PHASE108-01 — Audit log empty-state told compliance officers no entries existed when their date filter just had zero hits
+
+**Files:** `apps/admin/src/pages/AuditLogPage.tsx`,
+`apps/admin/src/pages/__tests__/bug-phase108-01-audit-log-empty-state-filter-aware.test.ts`
+
+Admin AuditLogPage empty state checked only
+`actionFilter || entityTypeFilter` to decide between "Try adjusting
+your filters" and "Audit entries will appear as system actions
+occur." The page also exposes `sourceFilter`, `fromDate`, and `toDate`
+filters. When a compliance officer narrowed by date range or source
+stream and got zero hits, the empty state claimed NO entries exist
+anywhere in the system — the opposite of the truth, the kind of
+false-negative that buries compliance investigations.
+
+**Fix:** the empty-state condition mirrors the same filter-aware
+condition the page already uses to show the "Clear Filters" button.
+
+**Test:** 3 source-shape assertions confirm new condition references
+all five filters in expected order, pre-fix narrow check gone, both
+call sites use the same condition.
+
+### BUG-PHASE109-01 — Make-recurring defaulted to wrong day on non-Manila device
+
+**Files:** `apps/mobile/app/customer/booking/make-recurring.tsx`,
+`apps/mobile/__tests__/bug-phase109-01-make-recurring-tz-default-day.test.ts`
+
+Make-recurring's preferred-day default ran
+`new Date(booking.scheduledAt).getDay()`, which returns the
+device-local weekday rather than Manila's. For a booking scheduled
+at 1:30 AM Thursday Manila (= 17:30 UTC Wednesday), a customer on
+a UTC-12 device interpreted the timestamp as 05:30 UTC-12 Wednesday —
+`getDay()` returned 3 (Wed). The screen defaulted the recurring
+schedule to Wednesdays, off by one. Same Manila-tz pattern as Phase
+105's calendar fix.
+
+**Fix:** extract the weekday in Manila timezone via
+`toLocaleDateString('en-US', { timeZone: 'Asia/Manila', weekday: 'short' })`,
+then map `'Sun'`/`'Mon'`/.../`'Sat'` to the index used by the chip
+row. Guard with `if (dayIndex >= 0)` against locale-string mismatch.
+
+**Test:** 5 source-shape assertions confirm pre-fix `.getDay()` gone,
+manila weekday extracted via Asia/Manila, mapped via Sun..Sat array,
+guarded against -1, dayTouched gate preserved.
+
 ## Patterns observed (carry-over from Phases 63–84)
 
 The same bug families keep surfacing. Phase 85–93 added:
@@ -501,6 +686,36 @@ The same bug families keep surfacing. Phase 85–93 added:
     referenced review-pending as the polling landing screen, but the
     screen had zero polling logic. The comment created a false sense
     of completeness during code review. (Phase 95.)
+17. **Dead state from feature replacement** — when Phase E CRIT-108
+    replaced the paste-URL UX with a picker pipeline, the old
+    `imageUrl` useState wasn't deleted. Same shape as Phase 103's
+    INITIAL_SECTIONS — leftover code that does nothing today but
+    could mislead a future maintainer into wiring it back into a
+    flow that already shipped past it. (Phases 103, 107.)
+18. **Status-machine state reached without a CTA on the landing
+    screen** — booking lands on `/customer/booking/confirm` in
+    `payment_pending` after a cancelled PayMongo flow. The screen
+    tells the user to "complete payment" but offers no button to do
+    so. The state-machine and the screen's button matrix have to
+    agree, the dispatch only fixed one side. (Phase 104.)
+19. **UTC-anchored date ranges + device-local day binning for a
+    Manila-only platform** — `getMonthRange` used `Z` anchors and
+    `toDateKey` used `getFullYear/Month/Date`. Both produced wrong
+    results at month boundaries / midnight Manila for non-Manila
+    devices. Same pattern hit `make-recurring`'s default day.
+    (Phases 105, 109.)
+20. **Half-built feature with the customer-facing promise still in
+    place** — live provider GPS streaming was wired on the customer
+    side (subscription, marker render) but never had a producer; the
+    safety screen still promised it. Either build the missing side
+    or soften the claim — never ship a specific promise the app
+    can't keep. (Phase 106.)
+21. **Empty-state messaging filter-blind** — admin audit log empty
+    state checked only 2 of 5 filter inputs to decide between "no
+    data" and "filters too narrow". A compliance officer narrowing
+    by date got told no entries existed at all. The "Clear Filters"
+    button condition was correct but the empty-state condition
+    drifted from it. (Phase 108.)
 
 ## What's still genuinely outstanding
 
