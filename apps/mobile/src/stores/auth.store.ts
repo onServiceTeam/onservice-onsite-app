@@ -9,6 +9,18 @@ import {
   storeUser,
   clearStoredUser,
 } from '@/services/secure-storage';
+// BUG-PHASE127-01 fix — wire device-fingerprint.service into the
+// auth flow. Pre-fix the service existed (with secure-storage
+// migration via CRIT-K01) but had ZERO consumers — so the MED-N85
+// refresh-token binding feature on the API side was always falling
+// through to the no-bind path because mobile never sent
+// deviceFingerprint with /auth/send-otp or /auth/verify-otp. (Even
+// if it had, the auth.validators.ts schemas were stripping the
+// field — fixed in the same phase.) Now mobile generates the
+// fingerprint at sign-in and sends it; the API binds the issued
+// refresh_tokens.device_fingerprint, and a future stolen-token
+// refresh attempt from a different fingerprint can be detected.
+import { getDeviceFingerprint } from '@/services/device-fingerprint.service';
 
 // Phase D CRIT-88 fix — User.role no longer omits 'super_admin' (and
 // 'dpo' from E01). Pre-fix: a super_admin signing into the mobile
@@ -68,12 +80,29 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
   },
 
   requestOtp: async (phone: string) => {
-    await api.post('/api/v1/auth/send-otp', { phone });
+    // BUG-PHASE127-01 fix — wire device fingerprint. Best-effort:
+    // if the fingerprint generation fails (e.g. expo-application
+    // unavailable in some test/dev environments), fall through to
+    // sending without it — the API treats deviceFingerprint as
+    // optional and skips the binding when absent.
+    let deviceFingerprint: string | undefined;
+    try {
+      deviceFingerprint = await getDeviceFingerprint();
+    } catch {
+      deviceFingerprint = undefined;
+    }
+    await api.post('/api/v1/auth/send-otp', { phone, deviceFingerprint });
     set({ otpRequestId: phone });
   },
 
   verifyOtp: async (phone: string, code: string) => {
-    const res = await api.post('/api/v1/auth/verify-otp', { phone, code });
+    let deviceFingerprint: string | undefined;
+    try {
+      deviceFingerprint = await getDeviceFingerprint();
+    } catch {
+      deviceFingerprint = undefined;
+    }
+    const res = await api.post('/api/v1/auth/verify-otp', { phone, code, deviceFingerprint });
     // Phase K MED-K02 fix — validate the response shape before
     // trusting it. Pre-fix the destructure assumed `res.data.data`
     // contained accessToken / refreshToken / user / isNewUser; if

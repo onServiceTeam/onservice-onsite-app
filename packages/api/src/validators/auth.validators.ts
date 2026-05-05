@@ -2,10 +2,31 @@ import { z } from 'zod';
 
 const PH_PHONE_REGEX = /^\+63\d{10}$/;
 
+// BUG-PHASE127-01 fix — pre-fix sendOtpSchema and verifyOtpSchema
+// only declared {phone} / {phone, code}. Zod's default behavior on
+// .parse() is to STRIP unknown keys from the output. So when the
+// mobile client sent {phone, deviceFingerprint} to /auth/send-otp
+// (or {phone, code, deviceFingerprint} to /auth/verify-otp), the
+// validator stripped deviceFingerprint before the route handler
+// could read it — even though auth.routes.ts at L225 + L274 + L285
+// + L288 read req.body.deviceFingerprint expecting it to be there.
+// Result: the MED-N85 refresh-token binding feature was silently
+// disabled — the API always saw deviceFingerprint=undefined and
+// fell through to the no-bind path. Stolen refresh tokens could
+// not be detected.
+//
+// Fix: declare deviceFingerprint as an optional bounded string on
+// both schemas. Length bounds match the refreshTokenSchema below
+// (which already had it correctly). Once the mobile client wires
+// getDeviceFingerprint() into its requestOtp/verifyOtp calls
+// (separate change), the binding feature becomes functional.
+const DEVICE_FINGERPRINT_FIELD = z.string().min(8).max(256).optional();
+
 export const sendOtpSchema = z.object({
   phone: z
     .string()
     .regex(PH_PHONE_REGEX, 'Phone must be in +63 9XX XXX XXXX format'),
+  deviceFingerprint: DEVICE_FINGERPRINT_FIELD,
 });
 
 export const verifyOtpSchema = z.object({
@@ -16,6 +37,7 @@ export const verifyOtpSchema = z.object({
     .string()
     .length(6, 'Verification code must be 6 digits')
     .regex(/^\d+$/, 'Code must contain only digits'),
+  deviceFingerprint: DEVICE_FINGERPRINT_FIELD,
 });
 
 export const refreshTokenSchema = z.object({
