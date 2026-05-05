@@ -17,6 +17,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
+import { getBookingById } from '@/services/booking.service';
 import {
   createConversation,
   getConversations,
@@ -84,6 +85,20 @@ export default function ProviderChatScreen(): React.ReactElement {
     enabled: !!conversationId,
     staleTime: 10 * 1000,
   });
+
+  // BUG-PHASE79-01 fix — pre-fix the chat header read "Chat with
+  // Customer" / "Customer is typing..." with no name. The provider
+  // had no idea who the message was from while looking at the
+  // screen — they had to swipe back to the job details to find out.
+  // Phase 77 added customerName to the booking response; query the
+  // booking here to surface the real name in the header.
+  const bookingQuery = useQuery({
+    queryKey: ['booking', bookingId],
+    queryFn: () => getBookingById(bookingId),
+    enabled: !!bookingId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const customerName = bookingQuery.data?.customerName ?? 'Customer';
 
   useEffect(() => {
     if (messagesQuery.data) {
@@ -285,8 +300,8 @@ export default function ProviderChatScreen(): React.ReactElement {
           <Text style={styles.backIconText}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>Chat with Customer</Text>
-          {typingUser && <Text style={styles.typingText}>Customer is typing...</Text>}
+          <Text style={styles.headerTitle}>{customerName}</Text>
+          {typingUser && <Text style={styles.typingText}>{customerName} is typing...</Text>}
         </View>
       </View>
 
