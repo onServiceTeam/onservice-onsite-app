@@ -250,6 +250,16 @@ export default function SukiProsScreen(): React.ReactElement {
               <Text style={styles.emptyDesc}>
                 Complete bookings with the same provider to start building Suki loyalty and earn points!
               </Text>
+              {/* BUG-PHASE174-01 fix — pre-fix this empty state had no
+                  CTA. Same UX-gap family as Phase 169/170/172/173.
+                  The Suki feature requires booking with the same
+                  provider repeatedly — start by booking. */}
+              <TouchableOpacity
+                style={styles.emptyCta}
+                onPress={() => router.push('/(tabs)/home')}
+              >
+                <Text style={styles.emptyCtaText}>Browse Services</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <>
@@ -321,6 +331,17 @@ const styles = StyleSheet.create({
   emptyBox: { alignItems: 'center', paddingVertical: 40 },
   emptyEmoji: { fontSize: 48, marginBottom: spacing.md },
   emptyEmojiWrap: { marginBottom: spacing.md, alignItems: 'center' as const },
+  // BUG-PHASE174-01 fix styles for the Browse Services CTA.
+  emptyCta: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+  },
+  emptyCtaText: { color: colors.white, fontWeight: '600', fontSize: 14 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 6 },
   emptyDesc: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 280 },
 });
