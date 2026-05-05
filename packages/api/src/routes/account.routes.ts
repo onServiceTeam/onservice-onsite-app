@@ -41,12 +41,26 @@ router.get(
 
 // --- Account Deletion (30-day cooling period per DPA) ---
 
+// BUG-PHASE156-01 fix — pre-fix the deletion `reason` had no
+// server cap. Column is TEXT (account_deletion_requests.reason —
+// migration 025_data_management.sql), so Postgres accepted any
+// length. Same defense-in-depth pattern as Phase 152-155.
+const ACCOUNT_DELETION_REASON_MAX = 1000;
+
 router.post(
   '/deletion',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const reason = typeof req.body.reason === 'string' ? req.body.reason.trim() : undefined;
+      // BUG-PHASE156-01 fix — reject unbounded reason strings.
+      if (reason !== undefined && reason.length > ACCOUNT_DELETION_REASON_MAX) {
+        const { createAppError } = await import('../middleware/error.middleware');
+        throw createAppError(
+          `reason must be ≤ ${ACCOUNT_DELETION_REASON_MAX} characters.`,
+          400,
+        );
+      }
       const request = await dataManagementService.requestAccountDeletion(
         req.user!.userId,
         reason,
