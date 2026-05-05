@@ -621,7 +621,17 @@ function CreatePromoDialog({
         body.usageLimitTotal = Number(input.usageLimitTotal);
       }
       if (input.validUntil) {
-        body.validUntil = `${input.validUntil}T23:59:59Z`;
+        // BUG-PHASE115-01 fix — pre-fix used UTC midnight ("...Z").
+        // For a Manila admin entering "Valid until 2026-05-31", the
+        // suffix made the promo expire at 2026-05-31T23:59:59 UTC =
+        // 2026-06-01T07:59:59+08:00 Manila — effectively giving the
+        // promo 8 extra hours of validity into the morning of the
+        // following Manila day. Customers booking before 8 AM on
+        // June 1 could still apply a "May only" promo. Anchoring to
+        // +08:00 makes "valid until day X" mean what the admin
+        // typed: midnight-end-of-day Manila. Same Manila-tz pattern
+        // as Phase 105 (calendar) and Phase 113 (recurring cron).
+        body.validUntil = `${input.validUntil}T23:59:59+08:00`;
       }
       const res = await api.post<{ success: boolean; data: PromoCode }>(
         '/api/v1/admin/marketing/promos',
@@ -777,7 +787,8 @@ function EditPromoDialog({
         minimumOrderCentavos: Number(form.minimumOrderCentavos || 0),
       };
       body.usageLimitTotal = form.usageLimitTotal ? Number(form.usageLimitTotal) : null;
-      body.validUntil = form.validUntil ? `${form.validUntil}T23:59:59Z` : null;
+      // BUG-PHASE115-01 fix — same Manila-anchor as the create dialog.
+      body.validUntil = form.validUntil ? `${form.validUntil}T23:59:59+08:00` : null;
       const res = await api.patch<{ success: boolean; data: PromoCode }>(
         `/api/v1/admin/marketing/promos/${promo.id}`,
         body,
