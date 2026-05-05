@@ -70,8 +70,16 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
 }
 
+// BUG-PHASE111-01 fix — pre-fix this called toISOString().slice(0,10),
+// which returns the UTC date. For an admin in Manila publishing late
+// at night (e.g., 00:30 Manila Thursday = 16:30 UTC Wednesday), the
+// effectiveDate defaulted to 'Wednesday' even though the admin saw
+// the screen on 'Thursday'. The effectiveDate is a legally relevant
+// field — it determines when a consent version is in force for the
+// active-users count. Now we extract Manila day via toLocaleDateString
+// with `en-CA` (which produces the same YYYY-MM-DD shape).
 function todayLocalIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 }
 
 export default function ConsentVersionsPage(): React.ReactElement {
