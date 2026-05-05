@@ -701,8 +701,20 @@ export async function getMonthlySummary(
     totalNet += net;
     const dateRow = r as unknown as { confirmed_at: Date | null; completed_at?: Date | null };
     const dateValue = dateRow.confirmed_at ?? dateRow.completed_at ?? new Date();
+    // BUG-PHASE187-01 fix — pre-fix dateValue.toISOString() returned the
+    // UTC date, which for early-Manila-morning confirmations (00:00-
+    // 07:59 Manila = 16:00-23:59 UTC the day before) was yesterday-
+    // Manila. The provider saw the breakdown row's date as one day
+    // earlier than the wall-clock date the customer confirmed at.
+    // Same Manila-TZ pattern as Phase 117/119/120/185/186. Now: format
+    // the date in Asia/Manila so the breakdown matches the provider's
+    // calendar.
+    const manilaDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(dateValue);
     return {
-      date: dateValue.toISOString().split('T')[0]!,
+      date: manilaDate,
       bookingId: r.booking_id,
       description: r.description,
       grossAmount: gross,
