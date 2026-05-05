@@ -45,6 +45,18 @@ interface RecurringBookingRow {
   cancellation_reason: string | null;
   created_at: Date;
   updated_at: Date;
+  // BUG-PHASE85-01 — joined display fields for the customer recurring
+  // list/detail screens. Pre-fix the screens read `categoryName`,
+  // `subcategoryName`, `providerName`, `nextScheduledDate`,
+  // `totalCompleted`, and `totalSkipped` — none of which the bare
+  // `SELECT *` query returned. The list rendered the title row
+  // empty, the "Next:" date never appeared, and counters showed
+  // "undefined". The enriched query below populates these.
+  category_name?: string | null;
+  subcategory_name?: string | null;
+  provider_name?: string | null;
+  total_completed?: number;
+  total_skipped?: number;
 }
 
 interface RecurringInstanceRow {
@@ -165,12 +177,44 @@ export async function createRecurringBooking(
   return result.rows[0]!;
 }
 
+// BUG-PHASE85-01 — shared SELECT list that JOINs the names + completed
+// + skipped counts the customer screens render. Used by both the
+// detail-by-id query and the list query so the two endpoints can't
+// drift back to the bare `SELECT *` shape.
+const RECURRING_SELECT_WITH_JOINS = `
+  SELECT rb.*,
+         sc.name AS category_name,
+         ssc.name AS subcategory_name,
+         CASE
+           WHEN p.id IS NOT NULL THEN TRIM(BOTH FROM CONCAT(u.first_name, ' ', u.last_name))
+           ELSE NULL
+         END AS provider_name,
+         (
+           SELECT COUNT(*)::int
+             FROM recurring_instances ri
+             JOIN bookings b ON b.id = ri.booking_id
+            WHERE ri.recurring_booking_id = rb.id
+              AND b.status = 'completed'
+         ) AS total_completed,
+         (
+           SELECT COUNT(*)::int
+             FROM recurring_instances ri
+            WHERE ri.recurring_booking_id = rb.id
+              AND ri.status = 'skipped'
+         ) AS total_skipped
+    FROM recurring_bookings rb
+    LEFT JOIN service_categories sc ON sc.id = rb.category_id
+    LEFT JOIN service_subcategories ssc ON ssc.id = rb.subcategory_id
+    LEFT JOIN providers p ON p.id = rb.provider_id
+    LEFT JOIN users u ON u.id = p.user_id
+`;
+
 export async function getRecurringBooking(
   recurringId: string,
   userId: string,
 ): Promise<RecurringBookingRow> {
   const result = await db.query<RecurringBookingRow>(
-    `SELECT * FROM recurring_bookings WHERE id = $1 AND customer_id = $2`,
+    `${RECURRING_SELECT_WITH_JOINS} WHERE rb.id = $1 AND rb.customer_id = $2`,
     [recurringId, userId],
   );
 
@@ -190,9 +234,9 @@ export async function getCustomerRecurringBookings(
 
   const [dataResult, countResult] = await Promise.all([
     db.query<RecurringBookingRow>(
-      `SELECT * FROM recurring_bookings
-       WHERE customer_id = $1
-       ORDER BY status ASC, next_booking_date ASC
+      `${RECURRING_SELECT_WITH_JOINS}
+       WHERE rb.customer_id = $1
+       ORDER BY rb.status ASC, rb.next_booking_date ASC
        LIMIT $2 OFFSET $3`,
       [customerId, pageSize, offset],
     ),
@@ -586,6 +630,11 @@ export function formatRecurringBooking(rb: RecurringBookingRow): Record<string, 
     totalAmount: rb.total_amount,
     status: rb.status,
     nextBookingDate: rb.next_booking_date,
+    // BUG-PHASE85-01 — alias kept so the customer recurring list/
+    // detail screens (which read `nextScheduledDate`) work without a
+    // mobile-side rewrite. `nextBookingDate` is preserved for any
+    // existing callers/tests already on the canonical name.
+    nextScheduledDate: rb.next_booking_date,
     lastBookingDate: rb.last_booking_date,
     skipDates: rb.skip_dates,
     autoCharge: rb.auto_charge,
@@ -602,6 +651,19 @@ export function formatRecurringBooking(rb: RecurringBookingRow): Record<string, 
     cancellationReason: rb.cancellation_reason,
     createdAt: rb.created_at,
     updatedAt: rb.updated_at,
+    // BUG-PHASE85-01 — joined display fields for the customer
+    // recurring screens. `categoryName`/`subcategoryName` populate
+    // the title row; `providerName` shows whoever was matched (null
+    // when none yet); `totalCompleted`/`totalSkipped` drive the
+    // counters on the detail screen. `cancelReason` is a frontend
+    // alias for `cancellationReason` so the legacy field name still
+    // lights up the cancellation row.
+    categoryName: rb.category_name ?? null,
+    subcategoryName: rb.subcategory_name ?? null,
+    providerName: rb.provider_name && rb.provider_name.length > 0 ? rb.provider_name : null,
+    totalCompleted: typeof rb.total_completed === 'number' ? rb.total_completed : 0,
+    totalSkipped: typeof rb.total_skipped === 'number' ? rb.total_skipped : 0,
+    cancelReason: rb.cancellation_reason,
   };
 }
 
