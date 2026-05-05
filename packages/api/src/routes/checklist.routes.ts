@@ -58,6 +58,18 @@ router.patch(
       const photoId = typeof body.photoId === 'string' && body.photoId.length > 0
         ? body.photoId
         : null;
+      // BUG-PHASE154-01 fix — pre-fix notes had no server cap.
+      // Same defense-in-depth pattern as Phase 152/153. Provider-side
+      // checklist notes appear in admin BookingDetail dispute review;
+      // an unbounded value is a UX hazard. Cap matches the typical
+      // 1000-char convention used elsewhere in the codebase.
+      const NOTES_MAX = 1000;
+      if (body.notes !== undefined && body.notes !== null && typeof body.notes !== 'string') {
+        throw createAppError('notes must be a string.', 400);
+      }
+      if (typeof body.notes === 'string' && body.notes.length > NOTES_MAX) {
+        throw createAppError(`notes must be ≤ ${NOTES_MAX} characters.`, 400);
+      }
       const notes = typeof body.notes === 'string' ? body.notes : null;
 
       const data = await checklistService.toggleChecklistItem(

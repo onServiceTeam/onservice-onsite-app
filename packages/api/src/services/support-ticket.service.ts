@@ -269,6 +269,19 @@ export async function updateTicketStatus(
   if (!VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
     throw createAppError(`Invalid ticket status: ${status}`, 400);
   }
+  // BUG-PHASE154-01 fix — pre-fix resolution_notes had no server cap.
+  // Same defense-in-depth pattern as Phase 152/153. resolution_notes
+  // is admin-supplied at status='resolved' transition; an unbounded
+  // value would persist to the TEXT column and surface in admin
+  // ticket detail (and customer-facing ticket history). Cap at
+  // 5000 to mirror the description cap on the same table — both
+  // are TEXT and similarly free-form.
+  if (resolutionNotes !== undefined && typeof resolutionNotes !== 'string') {
+    throw createAppError('resolutionNotes must be a string.', 400);
+  }
+  if (typeof resolutionNotes === 'string' && resolutionNotes.length > 5000) {
+    throw createAppError('resolutionNotes must be 5000 characters or fewer.', 400);
+  }
   const extras: string[] = ['status = $2', 'updated_at = NOW()'];
   const values: unknown[] = [ticketId, status];
   let idx = 3;
