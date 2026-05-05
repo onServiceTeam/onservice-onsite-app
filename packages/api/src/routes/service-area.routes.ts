@@ -110,6 +110,35 @@ router.get(
   },
 );
 
+// BUG-PHASE155-01 fix — service-area waitlist is PUBLIC (no auth)
+// and was missing length validation on every field. The route is
+// already rate-limited (waitlistRateLimit), but a determined attacker
+// could still submit a 100,000-char fullName once per the rate-limit
+// window. The columns are VARCHAR-typed (full_name 200, phone 20,
+// email 255, city/province/barangay 100) so Postgres would reject
+// the INSERT with a raw constraint error → cryptic 500. Add explicit
+// caps so the user gets a friendly 400 and the server doesn't waste
+// cycles on the SQL.
+//
+// Same defense-in-depth pattern as Phase 152/153/154.
+const WAITLIST_FULL_NAME_MAX = 200;
+const WAITLIST_PHONE_MAX = 20;
+const WAITLIST_EMAIL_MAX = 255;
+const WAITLIST_CITY_MAX = 100;
+const WAITLIST_PROVINCE_MAX = 100;
+const WAITLIST_BARANGAY_MAX = 100;
+
+function validateWaitlistField(value: unknown, field: string, max: number, optional = false): void {
+  if (value === undefined || value === null || value === '') {
+    if (!optional) throw createAppError(`${field} is required.`, 400);
+    return;
+  }
+  if (typeof value !== 'string') throw createAppError(`${field} must be a string.`, 400);
+  if (value.length > max) {
+    throw createAppError(`${field} must be ≤ ${max} characters.`, 400);
+  }
+}
+
 router.post(
   '/waitlist',
   waitlistRateLimit, // MED-N163
@@ -126,9 +155,14 @@ router.post(
         longitude?: number;
       };
 
-      if (!fullName || !phone || !city || !province) {
-        throw createAppError('fullName, phone, city, and province are required.', 400);
-      }
+      // BUG-PHASE155-01 fix — explicit length validation matching
+      // the column types from migration 022_service_areas.sql.
+      validateWaitlistField(fullName, 'fullName', WAITLIST_FULL_NAME_MAX);
+      validateWaitlistField(phone, 'phone', WAITLIST_PHONE_MAX);
+      validateWaitlistField(city, 'city', WAITLIST_CITY_MAX);
+      validateWaitlistField(province, 'province', WAITLIST_PROVINCE_MAX);
+      validateWaitlistField(email, 'email', WAITLIST_EMAIL_MAX, true);
+      validateWaitlistField(barangay, 'barangay', WAITLIST_BARANGAY_MAX, true);
 
       const phoneRegex = /^(\+?63|0)9\d{9}$/;
       if (!phoneRegex.test(phone.replace(/[\s.-]/g, ''))) {
