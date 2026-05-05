@@ -1,6 +1,6 @@
-# Phases 85–172 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–174 — Continuation deep audit pass (2026-05-05+)
 
-Eighty-eight phases continuing the screen-by-screen audit started in
+Ninety phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -2123,6 +2123,33 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **68**
 (44 bug fixes + 1 escalation + 23 closeout-doc updates).
+
+---
+
+## Phases 173–174 (2026-05-06, part 23) — UX-gap streak continues
+
+**173 — customer recurring index empty state had no CTA**
+  Empty state hint said "After completing a booking, you can set
+  it to repeat automatically" but no link. Browse Services CTA added.
+
+**174 — customer suki-pros empty state had no CTA**
+  Empty state hint said "Complete bookings with the same provider"
+  but no link. Browse Services CTA added.
+
+Phases 169 + 170 + 172 + 173 + 174 form a **5-phase UX-gap streak**.
+The "missing things the screen is supposed to do" pattern called
+out by the user is now systematically being closed across customer-
+facing screens.
+
+### Final test counts after Phase 174
+
+API: 228/228 suites, 2728/2728 tests
+Mobile: 136/136 suites, 587/587 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **71**
+(46 bug fixes + 1 escalation + 24 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
