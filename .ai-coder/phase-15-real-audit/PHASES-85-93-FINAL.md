@@ -1,6 +1,6 @@
-# Phases 85–88 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–93 — Continuation deep audit pass (2026-05-05, part 2)
 
-Four phases continuing the screen-by-screen audit started in Phases
+Nine phases continuing the screen-by-screen audit started in Phases
 17–84. Same recipe: read full source, identify gaps, fix narrowly, verify
 with tsc + jest, commit atomically with co-author attribution. Phase 87
 surfaced a launch-blocker regression that needs Ken's call — escalation
@@ -103,6 +103,106 @@ no unintended external-protocol launch.
 **Test:** 4 source-shape assertions covering import, both branches, and
 absence of the pre-fix unconditional `router.push`.
 
+### BUG-PHASE89-01 — Provider FAQ commission rates outdated
+
+**Files:** `apps/mobile/app/provider/help.tsx`,
+`apps/mobile/__tests__/bug-phase89-01-provider-faq-commission.test.ts`
+
+The provider Help & Support FAQ described commission as ranges per tier
+("8-15%", "10-12%", "8-10%") and omitted the Verified tier entirely.
+Actual `platformConfig.commissionRates` are flat per tier:
+founding=10%, new=15%, verified=13%, pro=11%, elite=9%. Providers
+reading the FAQ expected rates to drift downward within a tier — they
+don't, only crossing tiers changes the rate.
+
+**Fix:** rewrote the answer to match the live config — flat rate per
+tier, all five tiers (including founding as invite-only and verified),
+with actual eligibility criteria.
+
+**Test:** 4 source-shape assertions: pre-fix range strings absent,
+"flat percent per tier" phrasing present, all 5 tiers + their actual
+rates appear, founding flagged as invite-only.
+
+### BUG-PHASE90-01 — Payment-failed countdown ignored booking creation time
+
+**Files:** `apps/mobile/app/customer/booking/payment-failed.tsx`,
+`apps/mobile/__tests__/bug-phase90-01-payment-failed-countdown.test.ts`
+
+The countdown initialised secondsLeft to HOLD_SECONDS (72h) every time
+the screen mounted. A booking created 5h earlier that hit
+payment-failed at the retry step showed "72:00:00" remaining even
+though the server-side `expireUnmatchedBookings` worker would cancel
+it at created_at + 72h — leaving only ~67h.
+
+**Fix:** useQuery `getBookingById` and re-seed secondsLeft from
+`(createdAt + 72h - now())` clamped at 0. Pre-load fallback to
+HOLD_SECONDS preserved.
+
+**Test:** 4 source-shape assertions covering useQuery+getBookingById
+imports, query keying/gating, the re-seed math, and the fallback.
+
+### BUG-PHASE91-01 — Provider change-order form ignored server's 50% cap
+
+**Files:** `apps/mobile/app/provider/job/[id]/change-order.tsx`,
+`apps/mobile/__tests__/bug-phase91-01-change-order-50pct-cap.test.ts`
+
+The form had no client-side knowledge of the 50% relative cap that
+`booking.service.createChangeOrder` enforces (Phase 14 D05 Bug 1219).
+The bottom note said "exceeding 50% may require admin approval." There
+is no admin-override path — the API rejects amounts >50% outright.
+Provider would enter 60%, wait through photo upload, then see a 400.
+
+**Fix:** useQuery `getBookingById`; compute `fiftyPercentCap`; render
+inline cap line under the amount input (red when exceeded); fold
+`exceedsCap` into `isValid` so Submit blocks. Bottom-note copy
+rewritten to match server behavior.
+
+**Test:** 6 source-shape assertions covering the booking fetch, cap
+derivation, isValid gate, removal of the misleading note, new copy,
+red styling.
+
+### BUG-PHASE92-01 — Provider payout account format mismatch
+
+**Files:** `apps/mobile/app/provider/withdraw.tsx`,
+`apps/mobile/app/provider/payout-settings.tsx`,
+`apps/mobile/__tests__/bug-phase92-01-payout-account-normalization.test.ts`
+
+The mobile screens showed placeholder "09XX XXX XXXX" but the server's
+`payout.service.validateDestinationAccount` enforces strict regexes
+that reject spaces (gcash/maya: `/^09\d{9}$/`, bank: `/^\d{8,16}$/`).
+A provider copying the placeholder ("0917 555 1234") submitted, hit
+HTTP 400, was confused.
+
+**Fix:** Both screens add `normalizeAccount(raw)` that strips
+non-digits via `replace(/\D+/g, '')` and submit the normalized value.
+payout-settings.tsx also tightens the required-field gate from
+`!account.trim()` to `normalizedAccount.length === 0`.
+
+**Test:** 5 source-shape assertions: each screen defines normalizeAccount,
+both submit normalized (not raw .trim()), payout-settings gate uses
+normalized length.
+
+### BUG-PHASE93-01 — Admin CatalogPage price float precision
+
+**Files:** `apps/admin/src/pages/CatalogPage.tsx`,
+`apps/admin/src/pages/__tests__/bug-phase93-01-catalog-price-rounding.test.ts`
+
+Subcategory create/edit converted prices with `Number(x) * 100` and
+sent the result raw. JS floating-point produces values like
+`500.55 * 100 === 50055.00000000001`. service_subcategories.base_price
+is INTEGER centavos (migration 003), so Postgres rejects the
+non-integer parameter with "invalid input syntax for type integer".
+Admins entering any price not on a 0.50 boundary saw an opaque error.
+
+**Fix:** Extract `toCentavos(raw): number | null` that rounds to the
+nearest centavo via `Math.round(n * 100)`. Returns null for
+empty/non-finite input so quote-based subcategories submit cleanly.
+All three price fields (basePrice, minPrice, maxPrice) route through it.
+
+**Test:** 4 source-shape assertions: pre-fix raw `* 100` lines gone,
+toCentavos exists with Math.round, empty/non-finite handling, all 3
+price fields use the helper.
+
 ## Phase 87 — Escalation E03 (no code change yet)
 
 Phase 87's audit surfaced a critical regression: the customer fixed-price
@@ -126,26 +226,36 @@ specific issue pending Ken's call; continued auditing other screens.
 
 ## Verification
 
-| Phase | Mobile jest | API jest | tsc |
-|-------|-------------|----------|-----|
-| 85    | 400/400     | 2505/2505 (incl. 7 new) | clean |
-| 86    | 408/408 (incl. 8 new) | 2505/2505 | clean |
-| 87    | n/a (no code change — escalation only) | n/a | n/a |
-| 88    | 412/412 (incl. 4 new) | 2505/2505 | clean |
+| Phase | Mobile jest | API jest | Admin vitest | tsc |
+|-------|-------------|----------|--------------|-----|
+| 85    | 400/400     | 2505/2505 (incl. 7 new) | n/a | clean |
+| 86    | 408/408 (incl. 8 new) | 2505/2505 | n/a | clean |
+| 87    | n/a (escalation only) | n/a | n/a | n/a |
+| 88    | 412/412 (incl. 4 new) | 2505/2505 | n/a | clean |
+| 89    | 416/416 (incl. 4 new) | 2505/2505 | n/a | clean |
+| 90    | 420/420 (incl. 4 new) | 2505/2505 | n/a | clean |
+| 91    | 426/426 (incl. 6 new) | 2505/2505 | n/a | clean |
+| 92    | 431/431 (incl. 5 new) | 2505/2505 | n/a | clean |
+| 93    | 431/431 | 2505/2505 | 105/105 (incl. 4 new) | clean |
 
 ## Cumulative since Phase 17
 
 - Phases 17–62: 112 bugs
 - Phases 63–84: 30 bugs + 22 stale tests
-- Phases 85, 86, 88: 3 bugs
+- Phases 85, 86, 88, 89, 90, 91, 92, 93: 8 bugs
 - Phase 87: 1 escalation (E03 — launch blocker)
 
-**Total: 145 real bugs surfaced and fixed since Phase 17 deep-audit pass
+**Total: 150 real bugs surfaced and fixed since Phase 17 deep-audit pass
 began. Plus 1 escalated launch-blocker regression awaiting Ken.**
 
 ## Commits
 
 ```
+20bc9e8 fix: Phase 93 — admin CatalogPage price conversion lost float precision — 1 real bug fixed
+5c2267a fix: Phase 92 — provider payout account formatting mismatch — 1 real bug fixed
+140725b fix: Phase 91 — provider change-order form ignored server's 50% cap — 1 real bug fixed
+ef54240 fix: Phase 90 — payment-failed countdown ignored booking creation time — 1 real bug fixed
+7c9420e fix: Phase 89 — provider FAQ commission answer outdated — 1 real bug fixed
 7e00fa0 fix: Phase 88 — promo carousel ctaLink silently fails on external URLs — 1 real bug fixed
 845a9a0 escalation: E03 — customer fixed-price checkout broken by state-machine regression
 6643ecc fix: Phase 86 — quote-accepted bookings stuck on payment_pending — 1 real bug found + fixed
@@ -154,7 +264,7 @@ began. Plus 1 escalated launch-blocker regression awaiting Ken.**
 
 ## Patterns observed (carry-over from Phases 63–84)
 
-The same bug families keep surfacing. Phase 85–88 added:
+The same bug families keep surfacing. Phase 85–93 added:
 
 7. **Server response missing UI-required fields** — backend ships the
    `SELECT *` shape, frontend has been quietly evolving its consumed
@@ -175,6 +285,21 @@ The same bug families keep surfacing. Phase 85–88 added:
     `cta_link` is admin-managed free text that can be either an internal
     path or an external URL, but the consumer code assumed one transport.
     (Phase 88.)
+11. **FAQ / docs drifted from the actual config** — provider help text
+    described commission as ranges per tier when the live config has
+    been flat-per-tier for a while. The hard-coded numbers also
+    omitted entire tiers. (Phase 89.)
+12. **Time-based countdown anchored on screen mount instead of server
+    state** — payment-failed restarted its 72h timer every render
+    rather than reading the booking's createdAt. (Phase 90.)
+13. **Server-only constraint not surfaced in client UI** — change-order
+    50% cap was enforced only on the server; client had no idea it
+    existed. The pre-submit experience misled the provider. (Phase 91.)
+14. **Server contract stricter than the client placeholder/format** —
+    payout account regex rejects spaces but the placeholder showed
+    "09XX XXX XXXX" with spaces; admin catalog price float arithmetic
+    produced non-integer centavos that the INTEGER column rejected.
+    (Phase 92, 93.)
 
 ## What's still genuinely outstanding
 
