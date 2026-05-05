@@ -45,21 +45,26 @@ clicking Confirm Cancel.
 **Source decision:** Phase 14 Dispatch 10 — Bug 272.B. Documented in
 [D10-closeout.md](.ai-coder/dispatches/D10-closeout.md).
 
-## 3. Customer DSR — no track-requests view in mobile — RESOLVED 2026-05-02
+## 3. Customer DSR — no track-requests view in mobile — RESOLVED 2026-05-02 / 2026-05-05
 
 **Where:** [apps/mobile/app/customer/data-rights.tsx](apps/mobile/app/customer/data-rights.tsx)
 
-**Status:** RESOLVED — backend endpoint added 2026-05-02 (mobile UI
-list-view follow-up still pending).
+**Status:** RESOLVED — backend endpoint + mobile UI both shipped.
 
-**Resolution:** `GET /api/v1/compliance/my-requests` now returns the
-caller's DSR history (most recent first, capped at 200). Implemented
-in `compliance.service.listMyDsrs` + new route in
+**Resolution (backend, 2026-05-02):** `GET /api/v1/compliance/my-requests`
+returns the caller's DSR history (most recent first, capped at 200).
+Implemented in `compliance.service.listMyDsrs` + new route in
 `compliance.routes.ts`. Filtered by `user_id` at the service layer so
 a malicious caller can't enumerate other users' requests.
 
-**Follow-up:** wire a list view in `data-rights.tsx` consuming the new
-endpoint.
+**Resolution (mobile UI, verified 2026-05-05 in Phase 101 audit):**
+`data-rights.tsx` consumes the endpoint via a `useQuery<DsrRecord[]>`
+keyed `['my-dsr-requests']` calling `listMyDsrs(50)`. The UI has
+loading / error / empty / populated states, displays request type,
+submitted date, 15-day SLA due date, and a status pill colored by
+final state (completed=green, rejected=red, in-progress=primary).
+Re-fetches automatically after a new submission via
+`myRequestsQuery.refetch()` in `submitMutation.onSuccess`.
 
 ## 4. DSR submission — no rate limiting — RESOLVED 2026-05-02
 
