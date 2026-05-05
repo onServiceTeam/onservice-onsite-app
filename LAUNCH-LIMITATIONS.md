@@ -920,3 +920,46 @@ decision document, A/B testing is **pulled for v1.0**:
   ticket. The infrastructure is there, the wiring is not.
 
 **Source:** Phase 14 Dispatch 13 + spec PART-3 §"Dispatch 13" line 15, 216-226.
+
+## 32. Live provider GPS streaming pulled for v1.0 (Phase 106 audit, 2026-05-05)
+
+**Where:**
+- [apps/mobile/app/customer/booking/tracker.tsx](apps/mobile/app/customer/booking/tracker.tsx)
+  subscribes to `booking:${id}:location` socket events and renders a
+  `<Marker>` for `providerLocation` when received.
+- [apps/mobile/app/provider/job/active.tsx](apps/mobile/app/provider/job/active.tsx)
+  has a one-shot `getCurrentLocation()` call when the provider taps
+  "I've Arrived", but no `Location.watchPositionAsync` loop or socket
+  emit while the booking is `provider_en_route`.
+
+The customer-side wire is in place (subscription, marker render). The
+producer is not — no provider-side code emits the `booking:${id}:location`
+event during travel. Earlier marketing copy in
+`customer/safety-and-support.tsx` claimed "See your provider's location
+on the map while they're on the way to you," which is the kind of
+specific promise we cannot keep.
+
+**Resolution at v1.0:**
+- `safety-and-support.tsx` copy softened to "Live status updates" —
+  describes what actually works (push notifications + status pill
+  changes via the existing `booking:${id}:status` socket event +
+  refetchInterval). The booking address is still shown on a map so
+  customers can confirm the location.
+- Dead i18n key `provider.gps.broadcasting` removed from
+  `apps/mobile/src/lib/i18n.ts` — no consumer.
+- Customer-side socket subscription left in place. It listens for an
+  event that never fires today; harmless, and means v1.1 only needs
+  to land the producer side.
+
+**v1.1+ scope:**
+1. Add `Location.watchPositionAsync({ accuracy: Balanced, timeInterval: 15000, distanceInterval: 50 })` in `provider/job/active.tsx`, gated by `booking.status === 'provider_en_route'`. Cleanup on unmount + status change.
+2. Add a server endpoint (or socket message) that accepts `{ bookingId, lat, lng }` from authenticated provider, validates ownership of the active booking, and re-broadcasts to `booking:${bookingId}:location`. Same socket-room pattern as the existing `:status` channel.
+3. Battery + privacy review: GPS streaming is a privacy-sensitive feature. Confirm consent copy + opt-out exist before turning on.
+4. Boracay-specific: most jobs are <15 min walking distance; the value of live GPS over status pills is moderate. Validate with first 50 launch bookings whether providers + customers actually want this before building it.
+
+**Operator obligation:**
+- If a customer asks "why isn't the provider's pin moving?" — direct
+  them to status updates (provider_en_route → provider_arrived →
+  in_progress). Do not promise live GPS.
+
+**Source:** Phase 106 audit (2026-05-05).

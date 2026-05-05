@@ -43,7 +43,6 @@ const EN: Record<string, string> = {
   'provider.nbi.expired_body': 'You will not be matched to new jobs until renewed.',
   'provider.nbi.expiring_soon': 'NBI clearance expires in {days} days',
   'provider.nbi.update_now': 'Update now',
-  'provider.gps.broadcasting': 'Sharing your location with the customer while you travel.',
   'provider.job.start_travel': "I'm on the way",
   'provider.job.arrived': "I've arrived",
   'provider.job.start_job': 'Start job',

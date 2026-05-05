@@ -67,8 +67,8 @@ const SAFETY_ITEMS: Array<{ icon: IconComponent; iconColor: string; title: strin
   {
     icon: MapPin,
     iconColor: colors.primary,
-    title: 'Real-time tracking',
-    desc: "See your provider's location on the map while they're on the way to you.",
+    title: 'Live status updates',
+    desc: "Get push notifications and on-screen status changes as your provider accepts the job, heads out, and arrives. The booking-tracker screen also shows the service address on a map so you can confirm the location.",
   },
   {
     icon: MessageSquare,
