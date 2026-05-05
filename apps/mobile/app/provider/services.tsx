@@ -129,6 +129,19 @@ export default function ManageServicesScreen(): React.ReactElement {
             <View style={styles.emptyIconWrap}><Wrench size={48} color={colors.textTertiary} /></View>
             <Text style={styles.emptyText}>No services added yet</Text>
             <Text style={styles.emptyHint}>Add services you can offer to customers</Text>
+            {/* BUG-PHASE183-01 fix — pre-fix the empty state had no
+                embedded CTA. The "+ Add Service" button rendered AFTER
+                the empty state in the same ScrollView, but a provider
+                landing here didn't see a clear next step inside the
+                empty state itself. Same UX-gap family as Phase 169-178. */}
+            {!showAdd && (
+              <TouchableOpacity
+                style={styles.emptyCta}
+                onPress={() => setShowAdd(true)}
+              >
+                <Text style={styles.emptyCtaText}>Add Your First Service</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           services.map((svc) => (
@@ -268,6 +281,17 @@ const styles = StyleSheet.create({
   emptyIconWrap: { marginBottom: spacing.base, alignItems: 'center' as const },
   emptyText: { ...typography.body, color: colors.text, fontWeight: '600' },
   emptyHint: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
+  // BUG-PHASE183-01 fix styles for the inline "Add Your First Service" CTA.
+  emptyCta: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+  },
+  emptyCtaText: { color: colors.white, fontWeight: '600', fontSize: 14 },
 
   serviceCard: {
     flexDirection: 'row',
