@@ -68,13 +68,23 @@ export default function WithdrawScreen(): React.ReactElement {
     staleTime: 60 * 1000,
   });
 
+  // BUG-PHASE92-01 fix — pre-fix the form sent `account.trim()` raw.
+  // The server's payout.service validateDestinationAccount enforces
+  // /^09\d{9}$/ for gcash/maya (no spaces, no dashes) and /^\d{8,16}$/
+  // for bank rails (digits only). The placeholder "09XX XXX XXXX"
+  // encouraged providers to enter spaces — and "0917 555 1234" 4xx'd
+  // with the friendly Zod-shaped error. Normalize by stripping every
+  // non-digit before submit so the format the placeholder shows
+  // round-trips successfully.
+  const normalizeAccount = (raw: string): string => raw.replace(/\D+/g, '');
+
   const withdrawMutation = useMutation({
     mutationFn: async () => {
       const amountCentavos = Math.round(parseFloat(amount) * 100);
       const res = await api.post('/api/v1/wallet/withdraw', {
         amount: amountCentavos,
         method,
-        destinationAccount: account.trim(),
+        destinationAccount: normalizeAccount(account),
       });
       return res.data;
     },

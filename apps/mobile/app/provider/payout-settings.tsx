@@ -85,13 +85,20 @@ export default function PayoutSettingsScreen(): React.ReactElement {
     },
   });
 
+  // BUG-PHASE92-01 fix — strip every non-digit so a "09XX XXX XXXX"
+  // entry round-trips through the server's strict /^09\d{9}$/ regex
+  // (payout.service.validateDestinationAccount). Same normalization
+  // as withdraw.tsx — both screens write to the same row.
+  const normalizeAccount = (raw: string): string => raw.replace(/\D+/g, '');
+
   const handleSave = useCallback(() => {
     const thresholdCentavos = Math.round(Number(threshold) * 100);
     if (isNaN(thresholdCentavos) || thresholdCentavos < platformConfig.minimumPayoutThreshold) {
       Alert.alert('Invalid Threshold', `Minimum payout threshold is ${formatPHP(platformConfig.minimumPayoutThreshold)}`);
       return;
     }
-    if (frequency !== 'manual' && !account.trim()) {
+    const normalizedAccount = normalizeAccount(account);
+    if (frequency !== 'manual' && normalizedAccount.length === 0) {
       Alert.alert('Account Required', 'Please enter your payout account number.');
       return;
     }
@@ -99,7 +106,7 @@ export default function PayoutSettingsScreen(): React.ReactElement {
       frequency,
       minThreshold: thresholdCentavos,
       preferredMethod: method,
-      destinationAccount: account.trim() || null,
+      destinationAccount: normalizedAccount || null,
     });
   }, [frequency, method, threshold, account, updateMutation]);
 
