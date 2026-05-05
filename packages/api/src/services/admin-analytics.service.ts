@@ -533,7 +533,7 @@ export async function computeProviderQualityScores(
          COUNT(*) AS qcount
          FROM booking_quotes bq
          JOIN bookings b ON b.id = bq.booking_id
-        WHERE bq.created_at >= $1::date
+        WHERE bq.created_at >= ($1::date AT TIME ZONE 'Asia/Manila')
         GROUP BY bq.provider_id
      )
      SELECT
@@ -551,7 +551,7 @@ export async function computeProviderQualityScores(
        COALESCE(qr.qcount, 0)::text AS quote_count
      FROM providers p
      LEFT JOIN bookings b ON b.provider_id = p.id
-       AND b.created_at >= $1::date
+       AND b.created_at >= ($1::date AT TIME ZONE 'Asia/Manila')
      LEFT JOIN quote_response qr ON qr.provider_id = p.id
      WHERE p.status = 'approved'
      GROUP BY p.id, p.rating, qr.avg_minutes, qr.qcount`,
