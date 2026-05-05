@@ -526,8 +526,15 @@ describe('exportAuditLogCsv', () => {
     expect(sql).toMatch(/al\.user_id = \$1/);
     expect(sql).toMatch(/al\.action ILIKE \$2/);
     expect(sql).toMatch(/al\.entity_type = \$3/);
-    expect(sql).toMatch(/al\.created_at >= \$4/);
-    expect(sql).toMatch(/al\.created_at <= \$5/);
+    // BUG-PHASE133-01 — pre-fix asserted the broken `>= $4` / `<= $5`
+    // pattern that interpreted YYYY-MM-DD as UTC midnight, missing
+    // the 00:00-08:00 Manila slice on from-day and excluding 16
+    // hours (08:00-23:59 Manila) on the to-day. Now Manila-anchored
+    // half-open interval.
+    expect(sql).toMatch(/al\.created_at >= \(\$4::date AT TIME ZONE 'Asia\/Manila'\)/);
+    expect(sql).toMatch(
+      /al\.created_at < \(\(\$5::date \+ INTERVAL '1 day'\) AT TIME ZONE 'Asia\/Manila'\)/,
+    );
     expect(params).toEqual([USER_ID, '%login%', 'user', '2026-01-01', '2026-12-31']);
   });
 

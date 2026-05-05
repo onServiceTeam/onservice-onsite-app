@@ -811,13 +811,17 @@ function buildExportWhere(filter: ExportAuditFilter): { whereSql: string; params
     params.push(filter.entityType);
     where.push(`al.entity_type = $${params.length}`);
   }
+  // BUG-PHASE133-01 fix (CSV export) — same Manila-anchored half-open
+  // interval as the audit-log listing route. Both surfaces share the
+  // same admin-page filter (AuditLogPage.tsx sends the same
+  // YYYY-MM-DD `from`/`to` query params to both endpoints).
   if (filter.from) {
     params.push(filter.from);
-    where.push(`al.created_at >= $${params.length}`);
+    where.push(`al.created_at >= ($${params.length}::date AT TIME ZONE 'Asia/Manila')`);
   }
   if (filter.to) {
     params.push(filter.to);
-    where.push(`al.created_at <= $${params.length}`);
+    where.push(`al.created_at < (($${params.length}::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`);
   }
 
   return {

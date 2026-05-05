@@ -1603,12 +1603,23 @@ router.get(
         filters.push(`combined.entity_type = $${paramIdx++}`);
         params.push(req.query.entityType);
       }
+      // BUG-PHASE133-01 fix — pre-fix passed YYYY-MM-DD strings
+      // directly to a timestamptz comparison, so Pg interpreted them
+      // as UTC midnight (= 08:00 Manila). Same shape as the marketing
+      // bug fixed in Phase 132. The to-side `<= $N` was especially
+      // bad here: an admin filtering "to: 2026-05-31" would EXCLUDE
+      // 16 hours of audit-log entries from 08:00-23:59 Manila on
+      // May 31. Now the bounds are anchored to Manila wall-clock
+      // dates: `>= manila_midnight(date)` (inclusive) and
+      // `< manila_midnight(date + 1day)` (half-open, includes whole
+      // to-day Manila). Same Manila TZ correction shape as Phases
+      // 109/113/117/119/122/123/124/129/130/132.
       if (req.query.from && typeof req.query.from === 'string') {
-        filters.push(`combined.created_at >= $${paramIdx++}`);
+        filters.push(`combined.created_at >= ($${paramIdx++}::date AT TIME ZONE 'Asia/Manila')`);
         params.push(req.query.from);
       }
       if (req.query.to && typeof req.query.to === 'string') {
-        filters.push(`combined.created_at <= $${paramIdx++}`);
+        filters.push(`combined.created_at < (($${paramIdx++}::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`);
         params.push(req.query.to);
       }
       if (req.query.source && typeof req.query.source === 'string') {
