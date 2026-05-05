@@ -115,7 +115,13 @@ export const Routes = {
     JOB_DETAIL: '/provider/job/[id]',
     JOB_COMPLETE: '/provider/job/[id]/complete',
     QUOTE_BUILDER: '/provider/job/[id]/quote',
-    ACTIVE_JOB: '/provider/job/[id]/active',
+    // BUG-PHASE82-01 fix — pre-fix the path was '/provider/job/[id]/active'
+    // but the actual file is /provider/job/active.tsx (a literal route,
+    // not a sub-route under [id]). The screen reads bookingId from a
+    // query param, so callers should use the literal path with ?bookingId=...
+    // No current consumers, but the wrong path is a landmine for any
+    // future caller that uses this constant.
+    ACTIVE_JOB: '/provider/job/active',
     WALLET: '/provider/wallet',
     EARNINGS: '/provider/earnings',
     EARNINGS_GOALS: '/provider/earnings/goals',
