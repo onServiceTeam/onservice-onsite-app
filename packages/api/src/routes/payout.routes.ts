@@ -2,7 +2,7 @@ import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { rbacMiddleware } from '../middleware/rbac.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
-import { requestPayoutSchema, rejectPayoutSchema } from '../validators/payout.validators';
+import { requestPayoutSchema, rejectPayoutSchema, completePayoutSchema } from '../validators/payout.validators';
 import * as payoutService from '../services/payout.service';
 import { createAppError } from '../middleware/error.middleware';
 import { db } from '../models/db';
@@ -155,6 +155,11 @@ router.put(
 router.put(
   '/:id/complete',
   authMiddleware,
+  // BUG-PHASE188-01 fix — pre-fix this route had no validator, so
+  // req.body.paymongoTransferId was unbounded and untyped. Same
+  // server-cap shape as Phase 152-168 + Phase 179-181. The Zod
+  // schema enforces optional string with max 100 chars.
+  validationMiddleware(completePayoutSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       // MED-N159 fix — super_admin only.
