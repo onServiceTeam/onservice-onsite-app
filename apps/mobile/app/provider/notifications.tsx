@@ -78,7 +78,20 @@ export default function ProviderNotificationsScreen(): React.ReactElement {
     // wondering what happened. Now: route by data payload or
     // notification type to job/payouts/reviews/earnings.
     const notifData = notif.data as Record<string, string> | null;
-    if (notifData?.bookingId) {
+    // BUG-PHASE100-01 fix — same chat-routing fix as the customer
+    // side. Chat-related notifications (new_message, chat_last_message,
+    // chat_started) include bookingId, but routing them to the job
+    // detail dumped the provider on the wrong screen and forced them
+    // to tap "Chat with Customer" before reading the message that
+    // just buzzed. Short-circuit to /provider/chat/[bookingId].
+    if (
+      (notif.type === 'new_message'
+        || notif.type === 'chat_last_message'
+        || notif.type === 'chat_started')
+      && notifData?.bookingId
+    ) {
+      router.push(`/provider/chat/${notifData.bookingId}`);
+    } else if (notifData?.bookingId) {
       router.push(`/provider/job/${notifData.bookingId}`);
     } else if (notif.type === 'payout_completed') {
       router.push('/provider/payouts');

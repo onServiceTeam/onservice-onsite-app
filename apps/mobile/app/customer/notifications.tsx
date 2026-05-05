@@ -78,7 +78,21 @@ export default function NotificationsScreen(): React.ReactElement {
     // marked them read with no further action. Now: route to the
     // most specific destination available based on the data payload.
     const notifData = notif.data as Record<string, string> | null;
-    if (notifData?.bookingId) {
+    // BUG-PHASE100-01 fix — chat-related notifications (new_message,
+    // chat_last_message, chat_started) include `bookingId` in their
+    // data payload, but routing them to /customer/booking/[id] dumped
+    // the customer on the booking detail and forced them to tap
+    // "Chat with Provider" again to actually read the message that
+    // just buzzed their phone. Two taps where one should do. Now
+    // these types short-circuit to the chat thread directly.
+    if (
+      (notif.type === 'new_message'
+        || notif.type === 'chat_last_message'
+        || notif.type === 'chat_started')
+      && notifData?.bookingId
+    ) {
+      router.push(`/customer/chat/${notifData.bookingId}`);
+    } else if (notifData?.bookingId) {
       router.push(`/customer/booking/${notifData.bookingId}`);
     } else if (notifData?.disputeId && notifData?.bookingId === undefined) {
       // Disputes always tied to a booking server-side, but if the
