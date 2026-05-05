@@ -108,7 +108,13 @@ export default function SearchScreen(): React.ReactElement {
   };
 
   const handleSelectProvider = (provider: ProviderResult): void => {
-    router.push(`/customer/provider/${provider.userId}`);
+    // BUG-PHASE83-01 fix — pre-fix pushed `/customer/provider/${userId}`
+    // but the provider profile screen calls GET /api/v1/providers/:id
+    // which queries `WHERE providers.id = $1` (the providers table PK,
+    // NOT the users.id). Tapping a search-result provider always 404'd.
+    // home.tsx Suki Pros card uses `provider.providerId` correctly;
+    // search.tsx now matches that pattern by using `provider.id`.
+    router.push(`/customer/provider/${provider.id}`);
   };
 
   const renderItem = ({ item }: { item: SearchItem }): React.ReactElement => {
