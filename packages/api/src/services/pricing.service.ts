@@ -512,11 +512,22 @@ export async function calculatePricing(
 export async function getUpcomingHolidays(
   days = 90,
 ): Promise<Array<{ id: string; name: string; date: string; multiplier: number }>> {
+  // BUG-PHASE124-01 fix — pre-fix used CURRENT_DATE, which is the
+  // session-TZ today (UTC by default in our pool). For Manila users
+  // querying upcoming holidays during the 16:00–23:59 UTC window
+  // (= 00:00–07:59 Manila next day), CURRENT_DATE was still
+  // yesterday-Manila. So a holiday on today-Manila was correctly
+  // listed (since it's >= yesterday-Manila), but a holiday on
+  // yesterday-Manila was ALSO listed as "upcoming" because Postgres
+  // still thought yesterday-Manila == today. Result: stale "upcoming
+  // holiday" entries for ~8 hours after each holiday actually
+  // passed. Same Manila-tz family as Phase 123. Use Manila day on
+  // both ends of the BETWEEN.
   const result = await db.query<PricingRuleRow>(
     `SELECT * FROM pricing_rules
      WHERE type = 'holiday' AND is_active = TRUE
-       AND holiday_date >= CURRENT_DATE
-       AND holiday_date <= CURRENT_DATE + INTERVAL '1 day' * $1
+       AND holiday_date >= (now() AT TIME ZONE 'Asia/Manila')::date
+       AND holiday_date <= (now() AT TIME ZONE 'Asia/Manila')::date + INTERVAL '1 day' * $1
      ORDER BY holiday_date ASC`,
     [days],
   );

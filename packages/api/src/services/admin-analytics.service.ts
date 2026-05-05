@@ -1242,7 +1242,11 @@ export async function getOperationalAlerts(): Promise<DashboardAlert[]> {
          LEFT JOIN users u ON u.id = p.user_id
         WHERE p.status = 'approved'
           AND p.nbi_expiry_date IS NOT NULL
-          AND p.nbi_expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+          -- BUG-PHASE124-01 fix — Manila day (compliance-relevant: an
+          -- NBI clearance expiring today Manila should appear in the
+          -- "expiring soon" alert from Manila midnight, not 8 hours
+          -- later when UTC catches up).
+          AND p.nbi_expiry_date BETWEEN (now() AT TIME ZONE 'Asia/Manila')::date AND (now() AT TIME ZONE 'Asia/Manila')::date + INTERVAL '7 days'
         ORDER BY p.nbi_expiry_date ASC
         LIMIT 25`,
     ),
