@@ -326,12 +326,17 @@ export default function BookingDetailScreen(): React.ReactElement {
         {canCancel && showCancelForm && (
           <View style={styles.cancelForm}>
             <Text style={styles.cancelFormLabel}>Reason for cancellation (optional)</Text>
+            {/* BUG-PHASE146-01 fix — pre-fix this input had no
+                maxLength. Server's updateBookingStatusSchema caps
+                cancellationReason at 500 (booking.validators.ts:61).
+                Same fix shape as Phase 145 (review). */}
             <TextInput
               style={styles.cancelReasonInput}
               placeholder="Tell us why..."
               placeholderTextColor={colors.textTertiary}
               multiline
               numberOfLines={2}
+              maxLength={500}
               value={cancelReason}
               onChangeText={setCancelReason}
               textAlignVertical="top"

@@ -374,12 +374,18 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
         {canCancel && showCancelForm && (
           <View style={styles.cancelForm}>
             <Text style={styles.cancelFormLabel}>Reason for cancellation (optional)</Text>
+            {/* BUG-PHASE146-01 fix — pre-fix this input had no
+                maxLength. Server's updateBookingStatusSchema caps
+                cancellationReason at 500 (booking.validators.ts:61).
+                Same fix shape as the customer-side cancel reason
+                (also fixed in Phase 146). */}
             <TextInput
               style={styles.cancelReasonInput}
               placeholder="Tell the customer why..."
               placeholderTextColor={colors.textTertiary}
               multiline
               numberOfLines={2}
+              maxLength={500}
               value={cancelReason}
               onChangeText={setCancelReason}
               textAlignVertical="top"

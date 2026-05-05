@@ -156,6 +156,12 @@ export default function BookingFormScreen(): React.ReactElement {
         </View>
 
         {/* Notes */}
+        {/* BUG-PHASE146-01 fix — pre-fix this input had no maxLength
+            cap. The server's createBookingSchema enforces
+            description.max(2000) (booking.validators.ts:23). A customer
+            typing > 2000 chars would pass form, hit checkout, hit
+            server, get a generic 400. Same fix shape as Phase 145
+            (review comment + privateNote). */}
         <View style={styles.section}>
           <Input
             label="Additional Notes (optional)"
@@ -164,6 +170,7 @@ export default function BookingFormScreen(): React.ReactElement {
             onChangeText={setNotes}
             multiline
             numberOfLines={3}
+            maxLength={2000}
             style={styles.notesInput}
           />
         </View>
