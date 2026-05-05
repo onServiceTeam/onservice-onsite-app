@@ -645,30 +645,43 @@ export async function getMonthlySummary(
        -- confirmed are still reported. The COALESCE-based date
        -- filter below handles either confirmed_at OR completed_at
        -- so neither status is silently excluded.
+       --
+       -- BUG-PHASE134-01 fix — pre-fix used a bare ::date cast without
+       -- AT TIME ZONE Asia/Manila, so the cast happened at the
+       -- session TZ (UTC), giving UTC midnight = 08:00 Manila. For
+       -- a provider monthly earnings window like May 2026, the bound
+       -- shifted +8 hours: a job confirmed at 02:00 Manila on May 1
+       -- was excluded from May, and a job confirmed at 02:00 Manila
+       -- on Jun 1 was wrongly INCLUDED in May. Money-path adjacency
+       -- and provider monthly statements were systematically
+       -- mis-windowed. Same Manila-anchored half-open interval as
+       -- Phases 132/133.
        AND b.status IN ('confirmed', 'payout_ready', 'paid_out', 'completed_by_provider')
-       AND COALESCE(b.confirmed_at, b.completed_at) >= $2::date
-       AND COALESCE(b.confirmed_at, b.completed_at) < ($3::date + INTERVAL '1 day')
+       AND COALESCE(b.confirmed_at, b.completed_at) >= ($2::date AT TIME ZONE 'Asia/Manila')
+       AND COALESCE(b.confirmed_at, b.completed_at) < (($3::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
      ORDER BY COALESCE(b.confirmed_at, b.completed_at) ASC`,
     [providerId, startDate, endDateStr],
   );
 
   const tipsResult = await db.query<{ total_tips: string }>(
+    // BUG-PHASE134-01 fix (2nd site, tips) — same Manila-anchored idiom.
     `SELECT COALESCE(SUM(t.amount), 0)::text AS total_tips
      FROM tips t
      INNER JOIN bookings b ON t.booking_id = b.id
      WHERE b.provider_id = $1
-       AND t.created_at >= $2::date
-       AND t.created_at < ($3::date + INTERVAL '1 day')`,
+       AND t.created_at >= ($2::date AT TIME ZONE 'Asia/Manila')
+       AND t.created_at < (($3::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`,
     [providerId, startDate, endDateStr],
   );
 
   const payoutsResult = await db.query<{ total_payouts: string }>(
+    // BUG-PHASE134-01 fix (3rd site, payouts) — same Manila-anchored idiom.
     `SELECT COALESCE(SUM(amount), 0)::text AS total_payouts
      FROM payouts
      WHERE provider_id = $1
        AND status = 'completed'
-       AND completed_at >= $2::date
-       AND completed_at < ($3::date + INTERVAL '1 day')`,
+       AND completed_at >= ($2::date AT TIME ZONE 'Asia/Manila')
+       AND completed_at < (($3::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`,
     [providerId, startDate, endDateStr],
   );
 

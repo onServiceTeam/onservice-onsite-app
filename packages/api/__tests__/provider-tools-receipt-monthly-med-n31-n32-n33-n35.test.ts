@@ -82,9 +82,18 @@ describe('MED-N35 — getMonthlySummary includes completed_by_provider + COALESC
     expect(block).not.toBeNull();
   });
 
-  it('date filter uses COALESCE(b.confirmed_at, b.completed_at)', () => {
-    expect(SVC).toMatch(/COALESCE\(b\.confirmed_at, b\.completed_at\) >= \$2::date/);
-    expect(SVC).toMatch(/COALESCE\(b\.confirmed_at, b\.completed_at\) < \(\$3::date \+ INTERVAL '1 day'\)/);
+  it('date filter uses COALESCE(b.confirmed_at, b.completed_at) — Manila-anchored half-open interval (BUG-PHASE134-01)', () => {
+    // BUG-PHASE134-01 — pre-fix asserted the broken `::date` shape
+    // without `AT TIME ZONE 'Asia/Manila'`, which compared at UTC
+    // midnight = 08:00 Manila, shifting the monthly window by +8
+    // hours and dropping/including the wrong jobs at month boundaries.
+    // Now Manila-anchored.
+    expect(SVC).toMatch(
+      /COALESCE\(b\.confirmed_at, b\.completed_at\) >= \(\$2::date AT TIME ZONE 'Asia\/Manila'\)/,
+    );
+    expect(SVC).toMatch(
+      /COALESCE\(b\.confirmed_at, b\.completed_at\) < \(\(\$3::date \+ INTERVAL '1 day'\) AT TIME ZONE 'Asia\/Manila'\)/,
+    );
   });
 
   it('ORDER BY also uses COALESCE so completed-but-not-confirmed rows sort with their peers', () => {
