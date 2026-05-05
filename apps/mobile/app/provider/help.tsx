@@ -4,6 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking } from 'r
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { platformConfig } from '@/config/platform.config';
 import { Wrench, Mail, Phone } from '@/components/icons';
 
 interface FAQItem {
@@ -189,8 +190,11 @@ export default function ProviderHelpScreen(): React.ReactElement {
           </TouchableOpacity>
         </View>
 
+        {/* BUG-PHASE102-01 fix — match platformConfig.appVersion so
+             this footer never disagrees with (tabs)/profile.tsx or
+             the (provider-tabs) profile screen. */}
         <View style={styles.versionInfo}>
-          <Text style={styles.versionText}>onService v1.0.0</Text>
+          <Text style={styles.versionText}>onService v{platformConfig.appVersion}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

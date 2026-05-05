@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Mail, Phone } from '@/components/icons';
 import { fetchCancellationPolicy, policyToHelpAnswer } from '@/utils/cancellation-policy';
+import { platformConfig } from '@/config/platform.config';
 
 interface FAQItem {
   q: string;
@@ -198,8 +199,15 @@ export default function HelpScreen(): React.ReactElement {
           </TouchableOpacity>
         </View>
 
+        {/* BUG-PHASE102-01 fix — pre-fix this row hardcoded a
+             version string that disagreed with (tabs)/profile.tsx,
+             which displayed the real platformConfig.appVersion. Two
+             different version strings inside the same app made it
+             impossible to tell which build a user was actually
+             running. Source-of-truth is platformConfig (which mirrors
+             package.json); the help footer now reads from it. */}
         <View style={styles.versionInfo}>
-          <Text style={styles.versionText}>onService v1.0.0</Text>
+          <Text style={styles.versionText}>onService v{platformConfig.appVersion}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
