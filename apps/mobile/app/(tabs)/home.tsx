@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Pressable,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -308,7 +309,23 @@ export default function HomeScreen(): React.ReactElement {
               <TouchableOpacity
                 style={styles.promoCard}
                 onPress={() => {
-                  if (item.ctaLink) router.push(item.ctaLink);
+                  // BUG-PHASE88-01 fix — pre-fix the ctaLink (admin-managed,
+                  // VARCHAR(500) with no format constraint per migration 044)
+                  // was passed straight to expo-router's router.push(). For
+                  // an internal route like '/customer/category/cleaning' that
+                  // works; for an external URL like 'https://onservice.ph/promo'
+                  // expo-router fails silently and the customer's tap does
+                  // nothing. Ops set ctaLink to either form. Now: route by
+                  // shape — internal paths via router, external https/http
+                  // via Linking.openURL.
+                  const link = item.ctaLink;
+                  if (!link) return;
+                  if (link.startsWith('/')) {
+                    router.push(link);
+                  } else if (/^https?:\/\//i.test(link)) {
+                    void Linking.openURL(link);
+                  }
+                  // Anything else (mailto:, tel:, malformed) is ignored.
                 }}
                 activeOpacity={0.85}
               >
