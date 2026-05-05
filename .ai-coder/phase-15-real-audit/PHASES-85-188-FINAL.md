@@ -2321,6 +2321,31 @@ Tsc clean across all 3 packages.
 Total commits since Phase 127 closeout (f9e8d95): **88**
 (59 bug fixes + 1 escalation + 28 closeout-doc updates).
 
+## Phase 188 (2026-05-06, part 27) — server-cap sweep extends to validator-missing routes
+
+**188 — complete-payout route had no Zod validator**
+  PUT /api/v1/payouts/:id/complete read req.body.paymongoTransferId
+  without bounds or type-check, then passed it straight to
+  completePayout() which wrote it into paymongo_transfer_id. A
+  malicious super_admin (or a misconfigured PayMongo callback) could
+  bloat the column with megabytes of garbage; a non-string would also
+  slip through. Now: completePayoutSchema with paymongoTransferId as
+  z.string().max(100).optional() wired via validationMiddleware.
+
+Same server-cap shape as Phase 152-168 + Phase 179-181. Detection
+pattern: `req.body.X` reads on routes WITHOUT a validationMiddleware
+attached.
+
+### Final test counts after Phase 188
+
+API: 235/235 suites, 2753/2753 tests
+Mobile: 143/143 suites, 611/611 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **90**
+(60 bug fixes + 1 escalation + 29 closeout-doc updates).
+
 ## What's still genuinely outstanding
 
 Updated from PHASES-63-84-FINAL.md:
