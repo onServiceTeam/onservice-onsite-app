@@ -167,9 +167,17 @@ export async function generateMonthlyInvoices(): Promise<number> {
        INNER JOIN business_members bm ON bm.business_account_id = e.id
        INNER JOIN bookings b ON b.customer_id = bm.user_id
        LEFT JOIN service_categories sc ON b.category_id = sc.id
+       -- BUG-PHASE135-01 fix — scheduled_at is timestamptz; comparing
+       -- against $N::date casts at session TZ (UTC), giving UTC midnight
+       -- = 08:00 Manila. The JS-side periodStart/periodEnd are already
+       -- Manila-anchored (line 134 above), but the SQL ::date cast was
+       -- silently shifting the comparison by +8 hours. A booking
+       -- scheduled at 02:00 Manila on the period-start day was excluded
+       -- from that month's business invoice. Same fix-shape as Phases
+       -- 132/133/134 — anchor the date cast to Asia/Manila TZ.
        WHERE b.status IN ('confirmed', 'payout_ready', 'paid_out')
-         AND b.scheduled_at >= $1::date
-         AND b.scheduled_at < ($2::date + INTERVAL '1 day')
+         AND b.scheduled_at >= ($1::date AT TIME ZONE 'Asia/Manila')
+         AND b.scheduled_at < (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
      )
      SELECT e.id, e.company_name, e.owner_user_id, e.payment_terms,
             e.volume_discount_rate,
