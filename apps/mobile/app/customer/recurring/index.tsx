@@ -11,6 +11,7 @@ import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle } from '@/components/icons';
+import { Routes } from '@/config/navigation';
 
 interface RecurringBooking {
   id: string;
@@ -140,6 +141,18 @@ export default function RecurringListScreen(): React.ReactElement {
           <Text style={styles.emptySubtitle}>
             After completing a booking, you can set it to repeat automatically.
           </Text>
+          {/* BUG-PHASE173-01 fix — pre-fix this empty state had no CTA.
+              A customer with no recurring bookings (also probably no
+              one-off bookings yet either) had no path forward — the
+              hint says "After completing a booking..." but doesn't
+              link them to where they'd start one. Same UX-gap family
+              as Phase 169-170-172. */}
+          <TouchableOpacity
+            style={styles.emptyCta}
+            onPress={() => router.push(Routes.TABS.HOME)}
+          >
+            <Text style={styles.emptyCtaText}>Browse Services</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -215,4 +228,15 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
   emptyTitle: { ...typography.h3, color: colors.text, textAlign: 'center', marginBottom: spacing.sm },
   emptySubtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  // BUG-PHASE173-01 fix styles for the Browse Services CTA.
+  emptyCta: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+  },
+  emptyCtaText: { color: colors.white, fontWeight: '600', fontSize: 14 },
 });
