@@ -205,9 +205,25 @@ export default function WalletScreen(): React.ReactElement {
             transactionsQuery.isLoading ? (
               <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
             ) : (
+              /* BUG-PHASE177-01 fix — pre-fix the empty state always
+                 said "No transactions yet" even when the user had
+                 transactions of other types and just switched to a
+                 filter that returned zero. Misleading. Now: the
+                 message reflects whether the underlying list is
+                 actually empty or just the active filter is empty.
+                 Same UX-gap family as Phase 169-176. */
               <View style={styles.empty}>
                 <View style={styles.emptyIconWrap}><CreditCard size={48} color={colors.textSecondary} /></View>
-                <Text style={styles.emptyText}>No transactions yet</Text>
+                <Text style={styles.emptyText}>
+                  {allTransactions.length === 0
+                    ? 'No transactions yet'
+                    : `No ${txFilter === 'topup' ? 'top-ups' : txFilter === 'payment' ? 'payments' : txFilter === 'refund' ? 'refunds' : 'transactions'} in this view`}
+                </Text>
+                {allTransactions.length === 0 && (
+                  <Text style={styles.emptyHint}>
+                    Top up your wallet or pay for a booking to see history here.
+                  </Text>
+                )}
               </View>
             )
           }
@@ -264,6 +280,15 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
   emptyIconWrap: { marginBottom: spacing.base },
   emptyText: { ...typography.body, color: colors.textSecondary },
+  // BUG-PHASE177-01 fix — helper text under the wallet empty state.
+  emptyHint: {
+    ...typography.bodySmall,
+    color: colors.textTertiary,
+    textAlign: 'center' as const,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    lineHeight: 20,
+  },
   retryButton: { marginTop: spacing.base },
   retryText: { ...typography.body, color: colors.primary, fontWeight: '600' },
 });
