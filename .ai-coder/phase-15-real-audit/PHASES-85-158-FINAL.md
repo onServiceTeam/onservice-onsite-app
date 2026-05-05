@@ -1,6 +1,6 @@
-# Phases 85–156 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–158 — Continuation deep audit pass (2026-05-05+)
 
-Seventy-two phases continuing the screen-by-screen audit started in
+Seventy-four phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1793,6 +1793,41 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **39**
 (28 bug fixes + 1 escalation + 10 closeout-doc updates).
+
+---
+
+## Phases 157–158 (2026-05-06, part 11) — final server cap entries
+
+Two more server-side cap fixes finishing the sweep:
+
+- **157 — push token cap (1 site)**
+  POST /api/v1/notifications/push-token accepted unbounded `token`.
+  push_tokens.token is TEXT — Postgres has no DB-side cap. Real
+  push tokens are well-bounded (APNs 64, FCM 150-200, Expo 50-80).
+  Cap: 256.
+
+- **158 — DPA breach-log routes (3 sites)**
+  Three TEXT columns missing caps on DPO-only routes:
+    scope                — POST / (cap 2000)
+    npc_reference        — POST /:id/notify-npc (cap 100)
+    remediation_summary  — PATCH /:id/status (cap 5000)
+  DPO-only access reduces attack surface but doesn't eliminate it
+  (compromised token, accidental paste, internal vector).
+
+**Final cumulative server-cap sweep (Phases 152-158):** 7 phases,
+7 bugs, **37 server-side input sites** capped. Combined with the
+mobile maxLength sweep (Phases 145-150, 18 sites), every text-input
+contract on the platform now has cap discipline at every layer.
+
+### Final test counts after Phase 158
+
+API: 219/219 suites, 2703/2703 tests
+Mobile: 129/129 suites, 569/569 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **42**
+(30 bug fixes + 1 escalation + 11 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
