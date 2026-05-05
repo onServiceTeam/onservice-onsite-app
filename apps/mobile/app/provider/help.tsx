@@ -41,8 +41,17 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
         a: 'Payment is released to your wallet after the customer confirms job completion. From there, you can withdraw to GCash, Maya, or your bank account.',
       },
       {
+        // BUG-PHASE89-01 fix — pre-fix this answer described commission
+        // as ranges per tier (e.g. "Pro pays X to Y percent"). The actual
+        // rates in platformConfig.commissionRates are flat per tier (no
+        // within-tier variability) and the FAQ also omitted the verified
+        // tier entirely. Pre-fix providers reading this would expect their
+        // commission to drop within a tier as their rating climbed — it
+        // doesn't, only crossing into the next tier changes the rate.
+        // Updated to match the live config: flat rates per tier, all
+        // five tiers listed, plus a note that founding is invite-only.
         q: 'What is the platform commission?',
-        a: 'Commission ranges from 8-15% depending on your tier. New providers start at 12-15%. As you complete more jobs and maintain high ratings, your commission decreases. Pro tier (25+ jobs, 4.5+ rating) pays 10-12%, and Elite tier (100+ jobs, 4.7+ rating) pays 8-10%.',
+        a: 'Commission is a flat percent per tier — it does not move within a tier, only when you cross into the next one. New providers pay 15%. Verified (5+ jobs, 4.0+ rating) pays 13%. Pro (25+ jobs, 4.5+ rating, no open disputes) pays 11%. Elite (100+ jobs, 4.7+ rating, TESDA-certified, no open disputes) pays 9%. Founding-batch providers — invite-only — pay 10%.',
       },
       {
         q: 'How do withdrawals work?',
