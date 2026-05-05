@@ -1,6 +1,6 @@
-# Phases 85–93 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–95 — Continuation deep audit pass (2026-05-05, part 2)
 
-Nine phases continuing the screen-by-screen audit started in Phases
+Eleven phases continuing the screen-by-screen audit started in Phases
 17–84. Same recipe: read full source, identify gaps, fix narrowly, verify
 with tsc + jest, commit atomically with co-author attribution. Phase 87
 surfaced a launch-blocker regression that needs Ken's call — escalation
@@ -203,6 +203,54 @@ All three price fields (basePrice, minPrice, maxPrice) route through it.
 toCentavos exists with Math.round, empty/non-finite handling, all 3
 price fields use the helper.
 
+### BUG-PHASE94-01 — Founding tier missing from every mobile TIER_* map
+
+**Files:** `apps/mobile/src/config/theme.ts`, four screens
++ `apps/mobile/__tests__/bug-phase94-01-founding-tier-everywhere.test.ts`
+
+The founding tier (10% commission, invite-only launch batch — DECISION-003)
+existed in `platformConfig.commissionRates` and `packages/api` TIER_LADDER,
+but was MISSING from every mobile screen's TIER_COLORS / TIER_LABELS /
+TIER_ICONS map. Five consumers fell through to `colors.textTertiary` (grey)
++ raw lowercase "founding" string.
+
+**Fix:** New `tierFounding` token (#0E7C7B). Added to all 5 consumers:
+provider dashboard, provider profile tab, customer provider detail,
+customer search, provider tier-progression (also gets the Crown icon —
+reused intentionally, founding is the parallel premium tier outside the
+standard ladder).
+
+**Test:** 6 source-shape assertions covering theme token + all 5 consumers'
+maps.
+
+### BUG-PHASE95-01 — Review-pending screen never polled for approval
+
+**Files:** `apps/mobile/app/provider-onboarding/review-pending.tsx`,
+`apps/mobile/__tests__/bug-phase95-01-review-pending-poll.test.ts`
+
+The screen rendered a static "in progress" timeline and never polled.
+Provider-onboarding/terms.tsx submit comment claimed this screen
+"polls /provider/me for status and the customer/provider tab routing
+follows the canonical role from the auth store" — but the screen had
+no useQuery, no useEffect, no polling. After admin approved an
+application the backend flipped `users.role` to 'provider' but the
+mobile auth store stayed on 'customer' until the provider manually
+re-logged in (or restarted the app).
+
+**Fix:**
+- useQuery `getMyProfile` on a 15s `refetchInterval`. The
+  404-pre-approval window is swallowed and treated as 'pending'.
+- When status flips to 'approved', useEffect fetches `/api/v1/auth/me`,
+  pushes the refreshed User into the auth store via `setUser`, then
+  `router.replace` to provider tabs/dashboard. Auth store role flip is
+  driven by the canonical backend value, never set client-side.
+- `status === 'rejected'` suppresses the four-step timeline (which was
+  misleading after a hard reject) and renders an inline rejection
+  notice with support-contact copy.
+
+**Test:** 6 source-shape assertions covering poll setup, 404 fallback,
+auth refresh, dashboard replace, rejected branch, copy.
+
 ## Phase 87 — Escalation E03 (no code change yet)
 
 Phase 87's audit surfaced a critical regression: the customer fixed-price
@@ -237,20 +285,24 @@ specific issue pending Ken's call; continued auditing other screens.
 | 91    | 426/426 (incl. 6 new) | 2505/2505 | n/a | clean |
 | 92    | 431/431 (incl. 5 new) | 2505/2505 | n/a | clean |
 | 93    | 431/431 | 2505/2505 | 105/105 (incl. 4 new) | clean |
+| 94    | 437/437 (incl. 6 new) | 2505/2505 | 105/105 | clean |
+| 95    | 443/443 (incl. 6 new) | 2505/2505 | 105/105 | clean |
 
 ## Cumulative since Phase 17
 
 - Phases 17–62: 112 bugs
 - Phases 63–84: 30 bugs + 22 stale tests
-- Phases 85, 86, 88, 89, 90, 91, 92, 93: 8 bugs
+- Phases 85, 86, 88, 89, 90, 91, 92, 93, 94, 95: 10 bugs
 - Phase 87: 1 escalation (E03 — launch blocker)
 
-**Total: 150 real bugs surfaced and fixed since Phase 17 deep-audit pass
+**Total: 152 real bugs surfaced and fixed since Phase 17 deep-audit pass
 began. Plus 1 escalated launch-blocker regression awaiting Ken.**
 
 ## Commits
 
 ```
+5fefad9 fix: Phase 95 — review-pending screen never polled for approval — 1 real bug fixed
+18e3744 fix: Phase 94 — founding tier missing from every mobile TIER_* map — 1 real bug fixed
 20bc9e8 fix: Phase 93 — admin CatalogPage price conversion lost float precision — 1 real bug fixed
 5c2267a fix: Phase 92 — provider payout account formatting mismatch — 1 real bug fixed
 140725b fix: Phase 91 — provider change-order form ignored server's 50% cap — 1 real bug fixed
@@ -300,6 +352,14 @@ The same bug families keep surfacing. Phase 85–93 added:
     "09XX XXX XXXX" with spaces; admin catalog price float arithmetic
     produced non-integer centavos that the INTEGER column rejected.
     (Phase 92, 93.)
+15. **Theme/config additions not propagated to every consumer** — the
+    founding tier was added to platformConfig + API TIER_LADDER but
+    five separate mobile TIER_* maps still fell through to the default
+    branch. (Phase 94.)
+16. **"Will poll for status" comment that doesn't poll** — terms.tsx
+    referenced review-pending as the polling landing screen, but the
+    screen had zero polling logic. The comment created a false sense
+    of completeness during code review. (Phase 95.)
 
 ## What's still genuinely outstanding
 
