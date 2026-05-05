@@ -94,20 +94,49 @@ interface CreateRecurringParams {
   longitude?: number;
 }
 
+// BUG-PHASE118-01 fix — pre-fix this function did weekday/month math
+// using server-local TZ via setHours(0,0,0,0) + getDay/getDate.
+// With the API container running on UTC (no `TZ=Asia/Manila` set in
+// docker-compose), the function's "today" was UTC's today — which
+// can be one calendar day BEHIND Manila between 16:00 and 23:59 UTC
+// (= 00:00–07:59 Manila of the next day).
+//
+// Concrete bug: customer creates a "weekly Thursday" recurring at
+// 01:00 Manila Thursday (= 17:00 UTC Wednesday). Server thinks
+// today = Wed, computes next-Thursday = +1 day = today UTC = today
+// Manila — schedules the FIRST instance for the SAME Manila day
+// the customer is already in. The customer expected "next Thursday"
+// to mean a week from today (since today is already Thursday). Same
+// off-by-one applies to bi-weekly and monthly.
+//
+// Same Manila-tz pattern as Phase 113/117. Fix: anchor the math to
+// the Manila calendar day. Build `result` as UTC midnight of the
+// Manila day (so result.toISOString().split('T')[0] in callers
+// returns the Manila YYYY-MM-DD they expect), and use UTC methods
+// throughout — Manila is +08:00 with no DST, so UTC arithmetic on
+// a Manila-anchored UTC-midnight Date is equivalent to Manila
+// arithmetic.
 function calculateNextDate(frequency: string, preferredDay: number, fromDate?: Date): Date {
-  const now = fromDate ?? new Date();
-  const result = new Date(now);
-  result.setHours(0, 0, 0, 0);
+  const ref = fromDate ?? new Date();
+  // Get the Manila calendar day for `ref` as YYYY-MM-DD.
+  const manilaDateStr = ref.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  // UTC-midnight of the Manila day. result.toISOString() yields
+  // `${manilaDateStr}T00:00:00.000Z`; callers' .split('T')[0] gives
+  // them the Manila YYYY-MM-DD without further conversion.
+  const result = new Date(`${manilaDateStr}T00:00:00Z`);
+  const manilaDay = result.getUTCDay(); // weekday of the Manila day
 
   if (frequency === 'weekly') {
-    result.setDate(result.getDate() + ((7 + preferredDay - result.getDay()) % 7 || 7));
+    const offset = ((7 + preferredDay - manilaDay) % 7) || 7;
+    result.setUTCDate(result.getUTCDate() + offset);
   } else if (frequency === 'bi_weekly') {
-    result.setDate(result.getDate() + ((7 + preferredDay - result.getDay()) % 7 || 7) + 7);
+    const offset = ((7 + preferredDay - manilaDay) % 7) || 7;
+    result.setUTCDate(result.getUTCDate() + offset + 7);
   } else if (frequency === 'monthly') {
-    result.setDate(1);
-    result.setMonth(result.getMonth() + 1);
-    while (result.getDay() !== preferredDay) {
-      result.setDate(result.getDate() + 1);
+    result.setUTCDate(1);
+    result.setUTCMonth(result.getUTCMonth() + 1);
+    while (result.getUTCDay() !== preferredDay) {
+      result.setUTCDate(result.getUTCDate() + 1);
     }
   }
 
