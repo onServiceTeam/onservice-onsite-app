@@ -2260,6 +2260,59 @@ Tsc clean across all 3 packages.
 Total commits since Phase 127 closeout (f9e8d95): **80**
 (53 bug fixes + 1 escalation + 26 closeout-doc updates).
 
+## Phases 182–186 (2026-05-06, part 26) — UX-gap streak + Manila-TZ sweep round 2
+
+**182 — recurring detail history empty had no hint**
+  Customer recurring/[id].tsx "View History" toggle empty state
+  ("No instances yet.") was bare. Now: hint "Past bookings will
+  appear here once they are completed."
+
+**183 — provider services empty had no embedded CTA**
+  Empty state on provider/services.tsx had a hint but the "+ Add
+  Service" button rendered AFTER the empty state. Now: an "Add Your
+  First Service" CTA inline.
+
+**184 — customer category empty was a dead-end**
+  customer/category/[id].tsx empty state ("No services available in
+  this category.") had no path forward — only the back button. Now:
+  hint about providers coming online + "Browse Other Categories" CTA.
+
+UX-gap streak now **10 phases** (Phases 169 + 170 + 172 + 173 + 174
++ 175 + 176 + 177 + 178 + 182-184).
+
+**185 — provider quality-score period boundary off by 1 Manila day**
+  computeProviderQualityScores used new Date().toISOString().split(
+  'T')[0] for the period start/end, which returns the UTC date. The
+  SQL filter then `AT TIME ZONE 'Asia/Manila'` interpreted that date
+  string as Manila midnight. For the 8-hour window 16:00-23:59 UTC
+  (= 00:00-07:59 Manila next day), the JS-side date was still
+  yesterday-Manila, so the period boundary was off by one Manila
+  day. Same pattern as Phase 119-124. Now: Intl.DateTimeFormat
+  en-CA + timeZone Asia/Manila for the date strings.
+
+**186 — invoice service_date used UTC-anchored date**
+  Invoice items recorded service_date via scheduledAt.toISOString().
+  split('T')[0]. For early-Manila-morning bookings (00:00-07:59
+  Manila = 16:00-23:59 UTC the day before), the customer who booked
+  "May 4 02:00 AM" saw the invoice line read service_date 2026-05-03
+  — off by one Manila day. Same Manila-TZ pattern. Now: format the
+  date in Asia/Manila via Intl.DateTimeFormat en-CA.
+
+Phases 185 + 186 are the **Manila-TZ sweep resuming** — same shape
+as Phase 119-124 + Phase 132-140. Two more UTC-vs-Manila boundary
+bugs found by sweeping `.toISOString().split('T')[0]` patterns
+that were never anchored to Manila.
+
+### Final test counts after Phase 186
+
+API: 233/233 suites, 2745/2745 tests
+Mobile: 142/142 suites, 608/608 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **86**
+(58 bug fixes + 1 escalation + 27 closeout-doc updates).
+
 ## What's still genuinely outstanding
 
 Updated from PHASES-63-84-FINAL.md:
