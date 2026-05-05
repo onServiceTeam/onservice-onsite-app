@@ -1,6 +1,6 @@
-# Phases 85–95 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–102 — Continuation deep audit pass (2026-05-05, part 2)
 
-Eleven phases continuing the screen-by-screen audit started in Phases
+Eighteen phases continuing the screen-by-screen audit started in Phases
 17–84. Same recipe: read full source, identify gaps, fix narrowly, verify
 with tsc + jest, commit atomically with co-author attribution. Phase 87
 surfaced a launch-blocker regression that needs Ken's call — escalation
@@ -251,6 +251,131 @@ re-logged in (or restarted the app).
 **Test:** 6 source-shape assertions covering poll setup, 404 fallback,
 auth refresh, dashboard replace, rejected branch, copy.
 
+### BUG-PHASE96-01 — Data export 'expired' status indistinguishable from pending
+
+**Files:** `apps/mobile/app/customer/account-management.tsx`,
+`apps/mobile/app/provider/account-management.tsx`,
+`apps/mobile/__tests__/bug-phase96-01-data-export-expired-status.test.ts`
+
+Both account-management screens branched StatusIcon / statusColor only
+on 'completed' and 'failed'; everything else fell through to Hourglass
++ grey textSecondary. The 'expired' status (set by the data-management
+cron after the 30-day retention window) rendered identical to
+'pending' / 'processing' — users returning later saw what looked like
+"still being prepared" with no download link.
+
+**Fix:** both screens branch 'expired' explicitly to XCircle in
+textTertiary + render an inline "Expired — request again" hint.
+
+**Test:** 6 source-shape assertions covering both screens.
+
+### BUG-PHASE97-01 — Admin DispatchConsole map centered on wrong city
+
+**Files:** `apps/admin/src/pages/DispatchConsolePage.tsx`,
+`apps/admin/src/pages/__tests__/bug-phase97-01-dispatch-map-center.test.ts`
+
+The dispatch map opened on Metro Manila at zoom 11 while the launch
+market is Boracay (Aklan). Mobile `customer/booking/tracker.tsx`,
+`provider/job/active.tsx`, and `provider/service-area.tsx` already
+defaulted to Boracay coords per Phase D CRIT-77. Admin Dispatch
+Console didn't get the same memo — ops opened the console at launch,
+saw an empty Manila map, and panned to Boracay every shift.
+
+**Fix:** `MANILA` constant renamed to `DEFAULT_MAP_CENTER` set to
+Boracay (11.9685, 121.9162); `DEFAULT_ZOOM` tightened from 11 to 13
+(Boracay is a 7km island).
+
+**Test:** 4 source-shape assertions covering both constants + the
+MapContainer center prop.
+
+### BUG-PHASE98-01 — Admin CompliancePage TaxTab leaked a "TODO:" marker
+
+**Files:** `apps/admin/src/pages/CompliancePage.tsx`,
+`apps/admin/src/pages/__tests__/bug-phase98-01-compliance-tax-tab.test.ts`
+
+The Tax Documents tab rendered a literal "TODO: pulls from
+/api/v1/admin/bir/exports (Phase 08)" paragraph + dummy year/type
+Select pickers + a "Not yet wired" EmptyState. The /api/v1/admin/bir/*
+endpoints DO exist and the FinancialsPage > BIR Reports tab actually
+wires them (VAT 2550M, 2307 quarterly batches, reconciliation,
+overview). The TaxTab here was a duplicate stub left over from
+Phase 11.
+
+**Fix:** stub body replaced with a directive pointing admins to
+Financials > BIR Reports via `useNavigate`. No "TODO:", no fake
+form, no "Not yet wired" EmptyState.
+
+**Test:** 4 source-shape assertions.
+
+### BUG-PHASE99-01 — Admin Regulatory Reports tab made a stale ETA promise
+
+**Files:** `apps/admin/src/pages/CompliancePage.tsx`,
+`apps/admin/src/pages/__tests__/bug-phase99-01-regulatory-reports-eta.test.ts`
+
+The Regulatory Reports tab's Generate button toasted "Regulatory
+posture report not yet implemented — ETA Phase 14." Phase 14 (and
+its D14 dispatches) shipped weeks before this audit; the ETA was
+stale. Operators saw a date-stamped commitment to a feature that
+was already past its quoted milestone.
+
+**Fix:** copy refreshed. No baked-in ETA. Operators are now told
+the report is v1.1+ and pointed at the existing v1.0 escape
+hatches (Audit Log + Financials → BIR Reports).
+
+**Test:** 3 source-shape assertions.
+
+### BUG-PHASE100-01 — Chat notifications dumped users on booking detail
+
+**Files:** `apps/mobile/app/customer/notifications.tsx`,
+`apps/mobile/app/provider/notifications.tsx`,
+`apps/mobile/__tests__/bug-phase100-01-chat-notification-routing.test.ts`
+
+Chat-related notifications (`new_message`, `chat_last_message`,
+`chat_started`) include `bookingId` in their data payload. On both
+customer and provider sides the notification tap handler checked
+`notifData?.bookingId` first and routed everyone to the booking/job
+detail screen. To actually read the message that just buzzed, the
+user had to tap "Chat with Provider" / "Chat with Customer" once
+more — two taps where one should do, on the highest-frequency
+notification type.
+
+**Fix:** both screens add a chat-type short-circuit BEFORE the
+generic bookingId branch. When `notif.type` matches a chat type
+AND bookingId is present, route directly to the chat thread.
+
+**Test:** 4 source-shape assertions covering both screens, including
+source-order check that the chat shortcut precedes the generic
+bookingId branch.
+
+### Phase 101 — LAUNCH-LIMITATIONS #3 doc verified RESOLVED
+
+`LAUNCH-LIMITATIONS.md` claimed the customer DSR track-requests
+list view was a "Follow-up: wire a list view in data-rights.tsx
+consuming the new endpoint." The wiring is already in place —
+`useQuery<DsrRecord[]>` calling `listMyDsrs(50)`, full
+loading/error/empty/populated states, status pills, auto-refetch
+on submit. Updated section 3 to reflect reality.
+
+No production code change.
+
+### BUG-PHASE102-01 — Help screens disagreed with the rest of the app on version
+
+**Files:** `apps/mobile/app/customer/help.tsx`,
+`apps/mobile/app/provider/help.tsx`,
+`apps/mobile/__tests__/bug-phase102-01-help-version-mismatch.test.ts`
+
+Customer and provider help screens both rendered a hardcoded
+"onService v1.0.0" footer while `(tabs)/profile.tsx` displayed the
+real `platformConfig.appVersion` ('0.1.0'). Same app, two different
+version strings depending on which screen the user was on.
+
+**Fix:** both help footers now render
+`onService v{platformConfig.appVersion}` so the displayed version
+stays in lock-step with `package.json` (which `platform.config.ts`
+mirrors).
+
+**Test:** 5 source-shape assertions.
+
 ## Phase 87 — Escalation E03 (no code change yet)
 
 Phase 87's audit surfaced a critical regression: the customer fixed-price
@@ -287,20 +412,36 @@ specific issue pending Ken's call; continued auditing other screens.
 | 93    | 431/431 | 2505/2505 | 105/105 (incl. 4 new) | clean |
 | 94    | 437/437 (incl. 6 new) | 2505/2505 | 105/105 | clean |
 | 95    | 443/443 (incl. 6 new) | 2505/2505 | 105/105 | clean |
+| 96    | 449/449 (incl. 6 new) | 2505/2505 | 105/105 | clean |
+| 97    | 449/449 | 2505/2505 | 109/109 (incl. 4 new) | clean |
+| 98    | 449/449 | 2505/2505 | 113/113 (incl. 4 new) | clean |
+| 99    | 449/449 | 2505/2505 | 116/116 (incl. 3 new) | clean |
+| 100   | 453/453 (incl. 4 new) | 2505/2505 | 116/116 | clean |
+| 101   | n/a (doc-only verification) | n/a | n/a | n/a |
+| 102   | 458/458 (incl. 5 new) | 2505/2505 | 116/116 | clean |
 
 ## Cumulative since Phase 17
 
 - Phases 17–62: 112 bugs
 - Phases 63–84: 30 bugs + 22 stale tests
-- Phases 85, 86, 88, 89, 90, 91, 92, 93, 94, 95: 10 bugs
+- Phases 85, 86, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 102: 16 bugs
 - Phase 87: 1 escalation (E03 — launch blocker)
+- Phase 101: 1 doc-only LAUNCH-LIMITATIONS reconciliation
 
-**Total: 152 real bugs surfaced and fixed since Phase 17 deep-audit pass
-began. Plus 1 escalated launch-blocker regression awaiting Ken.**
+**Total: 158 real bugs surfaced and fixed since Phase 17 deep-audit pass
+began. Plus 1 escalated launch-blocker regression awaiting Ken and 1
+doc-only verification.**
 
 ## Commits
 
 ```
+56bb33e fix: Phase 102 — help screens disagreed with the rest of the app on version — 1 real bug fixed
+90fb546 docs: Phase 101 — LAUNCH-LIMITATIONS #3 mobile UI follow-up verified done
+e1a5386 fix: Phase 100 — chat notifications dumped users on booking detail — 1 real bug fixed
+4520931 fix: Phase 99 — admin Regulatory Reports tab made stale ETA promise — 1 real bug fixed
+96032c0 fix: Phase 98 — admin CompliancePage TaxTab leaked a TODO marker — 1 real bug fixed
+61a102d fix: Phase 97 — admin DispatchConsole map centered on wrong city — 1 real bug fixed
+a154350 fix: Phase 96 — data export 'expired' status indistinguishable from pending — 1 real bug fixed
 5fefad9 fix: Phase 95 — review-pending screen never polled for approval — 1 real bug fixed
 18e3744 fix: Phase 94 — founding tier missing from every mobile TIER_* map — 1 real bug fixed
 20bc9e8 fix: Phase 93 — admin CatalogPage price conversion lost float precision — 1 real bug fixed
