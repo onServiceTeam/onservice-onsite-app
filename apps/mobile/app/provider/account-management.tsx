@@ -287,12 +287,16 @@ export default function AccountManagementScreen(): React.ReactElement {
               {showDeleteForm ? (
                 <View style={styles.deleteForm}>
                   <Text style={styles.deleteFormLabel}>Reason for leaving (optional)</Text>
+                  {/* BUG-PHASE165-01 fix — pre-fix this input had no
+                      maxLength. Server caps at 1000 (Phase 156-01).
+                      Same fix shape as Phase 145-150. */}
                   <TextInput
                     style={styles.reasonInput}
                     placeholder="Tell us why you're leaving..."
                     placeholderTextColor={colors.textTertiary}
                     multiline
                     numberOfLines={3}
+                    maxLength={1000}
                     value={reason}
                     onChangeText={setReason}
                     textAlignVertical="top"
