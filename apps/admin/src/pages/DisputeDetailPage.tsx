@@ -919,20 +919,26 @@ function DisputeActions({
       </div>
 
       {/* Reopen (super-admin only) */}
+      {/* BUG-PHASE143-01 fix — pre-fix client validated reopenReason
+          ≥ 10 chars, but server's reopenDispute (dispute-admin.service.ts:756
+          → requireText(reason, 'reason', 20)) requires 20. Same
+          client/server validation-mismatch pattern as Phase 142
+          (force-complete) and Phase 77-02 (cancel). Now: 20-char floor
+          on both placeholder hint and disabled gate. */}
       {isSuperAdmin && (
         <div className="space-y-2 pt-3 border-t border-[var(--color-border)]">
           <p className="text-sm font-medium text-[var(--color-text)]">Reopen</p>
           <Textarea
             value={reopenReason}
             onChange={(e) => setReopenReason(e.target.value)}
-            placeholder="Why is this being reopened? (min 10 characters)"
+            placeholder="Why is this being reopened? (min 20 characters — describe the new evidence or reason)"
             rows={2}
           />
           <div className="flex items-center gap-2 flex-wrap">
             <Button
               size="sm"
               variant="destructive"
-              disabled={reopenReason.trim().length < 10 || reopenMut.isPending}
+              disabled={reopenReason.trim().length < 20 || reopenMut.isPending}
               onClick={() => reopenMut.mutate({ reason: reopenReason })}
             >
               <RefreshCw size={14} /> Reopen
