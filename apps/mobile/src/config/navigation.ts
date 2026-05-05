@@ -42,11 +42,9 @@ export const Routes = {
     HOME: '/customer/home',
     SEARCH: '/customer/search',
     CATEGORY: '/customer/category/[id]',
-    SUBCATEGORY: '/customer/subcategory/[id]',
     BOOKING_FORM: '/customer/booking/form',
     CHECKOUT: '/customer/booking/checkout',
     BOOKING_CONFIRM: '/customer/booking/confirm',
-    BOOKING_TRACKER: '/customer/booking/[id]/tracker',
     BOOKING_HISTORY: '/customer/bookings',
     BOOKING_DETAIL: '/customer/booking/[id]',
     BOOKING_CONFIGURE: '/customer/booking/configure',
@@ -54,7 +52,6 @@ export const Routes = {
     BOOKING_QUOTES: '/customer/booking/quotes',
     BOOKING_MAKE_RECURRING: '/customer/booking/make-recurring',
     CHAT: '/customer/chat/[bookingId]',
-    RATE_REVIEW: '/customer/booking/[id]/review',
     // BUG-PHASE81-01 fix (same dead-route pattern as CRIT-80) — pre-fix
     // this pointed at '/customer/wallet' which has no corresponding
     // file. The (tabs)/wallet.tsx "+ Top Up" button uses this route
@@ -62,7 +59,6 @@ export const Routes = {
     // wallet-topup.tsx; point at it directly so the link works and
     // matches the button label.
     WALLET: '/customer/wallet-topup',
-    PROFILE: '/customer/profile',
     // BUG-PHASE64-05 fix (CRIT-80 from 2026-05-01 audit) — pre-fix this
     // pointed at '/customer/settings', which has no corresponding file.
     // The profile.tsx menu row labelled "Notification Settings" used
@@ -72,46 +68,36 @@ export const Routes = {
     SETTINGS: '/customer/notification-settings',
     NOTIFICATIONS: '/customer/notifications',
     PROVIDER_PROFILE: '/customer/provider/[id]',
-    PROVIDER_LIST: '/customer/providers',
     RECURRING_BOOKINGS: '/customer/recurring',
-    RECURRING_SETUP: '/customer/recurring/setup',
     RECURRING_DETAIL: '/customer/recurring/[id]',
-    BUSINESS_ACCOUNTS: '/customer/business',
-    BUSINESS_DETAIL: '/customer/business/[id]',
-    BUSINESS_CREATE: '/customer/business/create',
-    BUSINESS_MEMBERS: '/customer/business/[id]/members',
-    BUSINESS_CONTRACTS: '/customer/business/[id]/contracts',
-    BUSINESS_INVOICES: '/customer/business/[id]/invoices',
-    BUSINESS_INVOICE_DETAIL: '/customer/business/[id]/invoices/[invoiceId]',
-    SERVICE_AREAS: '/customer/service-areas',
-    SERVICE_AREA_DETAIL: '/customer/service-areas/[slug]',
-    WAITLIST: '/customer/service-areas/waitlist',
-    REBOOKING: '/customer/booking/[id]/rebook',
-    SLOT_WAITLIST: '/customer/slot-waitlist',
-    DATA_PRIVACY: '/customer/data-privacy',
-    DATA_EXPORT: '/customer/data-export',
-    ACCOUNT_DELETION: '/customer/account-deletion',
-    SECURITY_SETTINGS: '/customer/security',
-    DEVICE_MANAGEMENT: '/customer/security/devices',
-    ACCESSIBILITY_SETTINGS: '/customer/settings/accessibility',
     SAFETY: '/customer/safety-and-support',
     SUKI_PROS: '/customer/suki-pros',
     ADDRESS_PICKER: '/customer/address-picker',
     ADDRESSES: '/customer/addresses',
-    ADD_ADDRESS: '/customer/add-address',
-    ADD_PAYMENT: '/customer/add-payment',
     PAYMENT_METHODS: '/customer/payment-methods',
     REFERRAL: '/customer/referral',
-    PROMOTIONS: '/customer/promotions',
     HELP: '/customer/help',
     TERMS: '/customer/terms',
-    SUPPORT: '/customer/support',
     ACCOUNT_MANAGEMENT: '/customer/account-management',
-    EMAIL_VERIFICATION: '/customer/email-verification',
+    // BUG-PHASE126-01 — pre-fix this block had 24 entries pointing at
+    // screens that don't exist on disk and have no consumers anywhere
+    // in the app (verified 2026-05-05 via grep across apps/mobile/app
+    // + apps/mobile/src for both `Routes.CUSTOMER.X` form and raw
+    // `'/customer/...'` literals — zero hits). The file's own header
+    // claims "single source of truth"; entries that 404 contradict
+    // that contract and would crash any future caller that wired
+    // them. Removed:
+    //   SUBCATEGORY, BOOKING_TRACKER, RATE_REVIEW, PROFILE,
+    //   PROVIDER_LIST, RECURRING_SETUP, BUSINESS_*  (8 entries),
+    //   SERVICE_AREAS, SERVICE_AREA_DETAIL, WAITLIST, REBOOKING,
+    //   SLOT_WAITLIST, DATA_PRIVACY, DATA_EXPORT, ACCOUNT_DELETION,
+    //   SECURITY_SETTINGS, DEVICE_MANAGEMENT, ACCESSIBILITY_SETTINGS,
+    //   ADD_ADDRESS, ADD_PAYMENT, PROMOTIONS, SUPPORT, EMAIL_VERIFICATION.
+    // If a v1.1+ feature genuinely needs one of these, add the
+    // route entry back AT THE SAME TIME as the screen .tsx file.
   },
 
   PROVIDER: {
-    HOME: '/provider/home',
     JOB_DETAIL: '/provider/job/[id]',
     JOB_COMPLETE: '/provider/job/[id]/complete',
     QUOTE_BUILDER: '/provider/job/[id]/quote',
@@ -122,15 +108,7 @@ export const Routes = {
     // No current consumers, but the wrong path is a landmine for any
     // future caller that uses this constant.
     ACTIVE_JOB: '/provider/job/active',
-    WALLET: '/provider/wallet',
-    EARNINGS: '/provider/earnings',
-    EARNINGS_GOALS: '/provider/earnings/goals',
-    DEMAND_INSIGHTS: '/provider/demand-insights',
-    MONTHLY_SUMMARY: '/provider/monthly-summary',
-    RECEIPT: '/provider/receipt/[bookingId]',
-    MATERIALS_LIST: '/provider/job/[id]/materials',
     SCHEDULE: '/provider/schedule',
-    PROFILE: '/provider/profile',
     SETTINGS: '/provider/settings',
     REVIEWS: '/provider/reviews',
     // BUG-PHASE81-02 fix — pre-fix the path was '/provider/service-areas'
@@ -152,6 +130,14 @@ export const Routes = {
     TIER_PROGRESSION: '/provider/tier-progression',
     WITHDRAW: '/provider/withdraw',
     ACCOUNT_MANAGEMENT: '/provider/account-management',
+    // BUG-PHASE126-01 — pre-fix this block had 8 entries pointing at
+    // non-existent screens with no consumers anywhere in the app.
+    // Removed (verified 2026-05-05): HOME, WALLET, EARNINGS,
+    // EARNINGS_GOALS, DEMAND_INSIGHTS, MONTHLY_SUMMARY, RECEIPT,
+    // MATERIALS_LIST, PROFILE.
+    // Note: provider's earnings tab lives at PROVIDER_TABS.EARNINGS
+    // (/(provider-tabs)/earnings); provider-profile is
+    // PROVIDER_TABS.PROVIDER_PROFILE — both tabs, not standalone screens.
   },
 
   PROVIDER_ONBOARDING: {
