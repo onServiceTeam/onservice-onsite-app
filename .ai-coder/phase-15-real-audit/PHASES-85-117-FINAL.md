@@ -1,11 +1,20 @@
-# Phases 85–109 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–117 — Continuation deep audit pass (2026-05-05, part 2)
 
-Twenty-five phases continuing the screen-by-screen audit started in
+Thirty-three phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
 escalation file
 `.ai-coder/escalations/E03-customer-checkout-state-machine-2026-05-05.md`.
+
+Phases 105 + 109 + 111 + 112 + 113 + 114 + 115 + 116 + 117 form a
+dedicated TZ sweep: nine separate UTC-leakage points hit different
+surfaces (mobile calendar, admin financials/audit-log/marketing/consent,
+API recurring/invoice/booking/waitlist). They share one root pattern —
+code anchored to UTC midnight when Manila day was meant — and the
+same fix shape:
+toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }) for date
+strings, T...+08:00 for ISO instants. Documented as pattern #19 below.
 
 ## Real bugs found and fixed
 
@@ -467,6 +476,18 @@ eda4072 fix: Phase 104 — confirm screen told users to "complete your payment" 
 1ef3adf fix: Phase 103 — provider checklist had ~48 lines of dead code that re-introduced the pre-fix bug if anyone touched it — 1 real bug fixed
 ```
 
+Phases 110-117 commits (TZ sweep + dead-code follow-on):
+```
+f7e0fcf fix: Phase 117 — slot waitlist notified the wrong day's customers when a Manila booking was cancelled before 8 AM — 1 real bug fixed
+b8f026e fix: Phase 116 — consent version effective date stamp leaked UTC, gave 8-hour gap of wrong consent applied — 1 real bug fixed
+02d655b fix: Phase 115 — promo codes were valid 8 hours longer than the admin set because validUntil was stamped UTC — 1 real bug fixed
+05c8a1b fix: Phase 114 — API CSV export filename + invoice-overdue cron leaked UTC date — 1 real bug fixed (2 surfaces)
+27808fc fix: Phase 113 — recurring cron compared next_booking_date to UTC, delaying early-morning Manila bookings up to 16 hours — 1 real bug fixed
+67d386f fix: Phase 112 — admin financials and compliance CSV filename leaked UTC date for Manila admins — 1 real bug fixed (2 surfaces)
+989a53e fix: Phase 111 — admin consent-versions effective-date defaulted to UTC, not Manila — 1 real bug fixed
+032d6d1 fix: Phase 110 — provider navigate screen carried dead ETA styles after Phase 59-02 fix removed the misleading card — 1 real bug fixed
+```
+
 ### BUG-PHASE103-01 — Provider checklist carried 48 lines of dead code that re-introduced the pre-fix bug
 
 **Files:** `apps/mobile/app/provider/job/[id]/checklist.tsx`,
@@ -617,6 +638,176 @@ condition the page already uses to show the "Clear Filters" button.
 all five filters in expected order, pre-fix narrow check gone, both
 call sites use the same condition.
 
+### BUG-PHASE110-01 — Provider navigate screen carried dead ETA styles after Phase 59-02 fix removed the misleading card
+
+**Files:** `apps/mobile/app/provider/job/[id]/navigate.tsx`,
+`apps/mobile/__tests__/bug-phase110-01-navigate-dead-eta-styles.test.ts`
+
+`provider/job/[id]/navigate.tsx` had three dead styles (`etaCard`,
+`etaLabel`, `etaValue`) sitting in StyleSheet.create after Phase 59-02
+ripped out the hardcoded "ETA: ~25 min" card. The fix-comment at
+line ~161 already calls out that the fake card was removed — but the
+styles backing it were left behind.
+
+Same dead-code pattern as Phase 103 (INITIAL_SECTIONS) and Phase
+107 (imageUrl useState). Risk: a future maintainer wiring an ETA
+back in could grab the dead style names and re-introduce the
+pre-fix card before the real Google Distance Matrix / Mapbox
+Directions query is wired.
+
+**Fix:** delete `etaCard` + `etaLabel` + `etaValue` from styles. The
+`colors.successDark` reference (only consumed by these three dead
+styles) drops with them.
+
+**Test:** 5 source-shape assertions confirm all three dead styles
+gone, the colors.successDark reference gone, and the Google Maps
++ Waze buttons still wired.
+
+### BUG-PHASE111-01 — Admin consent-versions effective-date defaulted to UTC, not Manila
+
+**Files:** `apps/admin/src/pages/ConsentVersionsPage.tsx`,
+`apps/admin/src/pages/__tests__/bug-phase111-01-consent-versions-tz-default-date.test.ts`
+
+`ConsentVersionsPage.tsx`'s `todayLocalIso()` helper used
+`new Date().toISOString().slice(0, 10)` — UTC date. For a DPO admin
+in Manila publishing late at night (00:30 Manila Thursday = 16:30
+UTC Wednesday), the effectiveDate field defaulted to "Wednesday"
+while the admin saw the page on "Thursday". A one-day shift on a
+legally relevant field (effectiveDate determines when a consent
+version is in force for the active-users count and audit trail).
+
+**Fix:** replace `toISOString().slice(0, 10)` with
+`toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })`.
+
+**Test:** 4 source-shape assertions confirm new tz-aware call,
+pre-fix UTC pattern gone, function name preserved, two call sites
+(initial state + closePublishDialog reset) preserved.
+
+### BUG-PHASE112-01 — Admin financials and compliance CSV filename leaked UTC date
+
+**Files:** `apps/admin/src/pages/FinancialsPage.tsx`,
+`apps/admin/src/pages/CompliancePage.tsx`,
+`apps/admin/src/pages/__tests__/bug-phase112-01-utc-leakage-financials-compliance.test.ts`
+
+Two more UTC leakage points in admin:
+1. `FinancialsPage.tsx` `todayIso()` and `daysAgoIso()` defaulted the
+   from/to date-range pickers to UTC. For an admin in Manila opening
+   the page at 00:30 Manila Thursday, the default `to` was Wednesday —
+   Thursday's revenue was off-screen.
+2. `CompliancePage.tsx` audit-log CSV export filename used UTC.
+   Compliance officers downloading at 00:30 Manila Thursday got a
+   file named with Wednesday UTC date.
+
+**Fix:** all three call sites use
+`toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })`.
+
+**Test:** 5 source-shape assertions across both files.
+
+### BUG-PHASE113-01 — Recurring cron compared next_booking_date to UTC, delaying early-morning Manila bookings up to 16 hours
+
+**Files:** `packages/api/src/services/recurring.service.ts`,
+`packages/api/__tests__/bug-phase113-01-recurring-cron-manila-day.test.ts`
+
+`processRecurringBookings()` set `today = new Date().toISOString().split('T')[0]!`
+(UTC), then compared to `rb.next_booking_date <= $1` where
+next_booking_date is populated from a Manila YYYY-MM-DD. For a
+recurring 06:00 Manila booking on the 5th (= 22:00 UTC on the 4th),
+the cron had to wait until UTC ticked over to the 5th — which is
+08:00 Manila — so the booking was created TWO HOURS after its
+preferred time, with the auto-charge attempt firing late.
+
+**Fix:** anchor `today` to Manila day via
+`toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })`.
+
+**Test:** 4 source-shape assertions confirm new tz-aware today,
+pre-fix UTC line gone, scheduledAt +08:00 construction preserved,
+active-status / customer-is-active filters preserved.
+
+### BUG-PHASE114-01 — API CSV export filename + invoice-overdue cron leaked UTC date
+
+**Files:** `packages/api/src/routes/compliance-admin.routes.ts`,
+`packages/api/src/services/invoice.service.ts`,
+`packages/api/__tests__/bug-phase114-01-utc-leakage-compliance-invoice.test.ts`
+
+Two more UTC leakage points server-side:
+1. `compliance-admin.routes.ts` audit-log CSV export's
+   Content-Disposition filename used UTC. Pairs with Phase 112's
+   browser-side filename fix — both paths needed Manila day for
+   consistency.
+2. `invoice.service.ts` `checkOverdueInvoices` cron compared UTC
+   `today` to `due_date` (Manila YYYY-MM-DD). Invoices due "today
+   Manila" got marked overdue 8 hours late.
+
+**Fix:** both call sites use
+`toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })`.
+
+**Test:** 6 source-shape assertions across both files.
+
+### BUG-PHASE115-01 — Promo codes were valid 8 hours longer than the admin set because validUntil was stamped UTC
+
+**Files:** `apps/admin/src/pages/MarketingPage.tsx`,
+`apps/admin/src/pages/__tests__/bug-phase115-01-promo-valid-until-manila.test.ts`
+
+`MarketingPage.tsx`'s CreatePromoDialog and EditPromoDialog stamped
+`validUntil` with `T23:59:59Z` (UTC). For a Manila admin entering
+"Valid until 2026-05-31", the suffix made the promo expire at
+2026-05-31T23:59:59 UTC = 2026-06-01T07:59:59+08:00 Manila — 8 extra
+hours of validity into the morning of the following Manila day.
+Customers booking before 8 AM on June 1 could still apply a "May
+only" promo. Durable bug — value persisted to the API.
+
+**Fix:** both call sites use `T23:59:59+08:00` Manila offset.
+
+**Test:** 3 source-shape assertions confirm both call sites use
++08:00, neither uses Z, body.validUntil wiring preserved.
+
+### BUG-PHASE116-01 — Consent version effective date stamp leaked UTC, gave 8-hour gap of wrong consent applied
+
+**Files:** `apps/admin/src/pages/ConsentVersionsPage.tsx`,
+`apps/admin/src/pages/__tests__/bug-phase116-01-consent-effective-at-manila.test.ts`
+
+`ConsentVersionsPage.tsx`'s publish dialog stamped the picked
+effectiveDate with `T00:00:00Z` (UTC midnight). For a Manila DPO
+selecting "Effective Wednesday May 5", the persisted value was
+2026-05-05T00:00:00 UTC = 2026-05-05T08:00:00+08:00 Manila — so
+customers booking between 00:00 and 08:00 Manila on May 5 were still
+bound by the OLD consent version. NPC RA 10173-relevant: an 8-hour
+window of "wrong consent applied" is not acceptable.
+
+Pairs with Phase 111 (the picker DEFAULT was already fixed; this
+fixes the SUBMIT path so the day is preserved end-to-end).
+
+**Fix:** stamp with `T00:00:00+08:00` instead of `Z`.
+
+**Test:** 4 source-shape assertions confirm new offset, pre-fix
+UTC stamp gone, fallback "now()" preserved, publishMutation wiring
+preserved.
+
+### BUG-PHASE117-01 — Slot waitlist notified the wrong day's customers when a Manila booking was cancelled before 8 AM
+
+**Files:** `packages/api/src/services/booking.service.ts`,
+`packages/api/__tests__/bug-phase117-01-slot-waitlist-manila-date.test.ts`
+
+`booking.service.ts` `updateStatus` used the UTC date of `scheduled_at`
+when notifying slot waitlist after a cancellation:
+
+  `const dateStr = updated.scheduled_at.toISOString().split('T')[0]!;`
+
+But `slot_waitlist.preferred_date` is a Manila YYYY-MM-DD — the date
+the customer asked for in their local context. When an early-morning
+Manila booking was cancelled (06:00 Manila May 5 = 22:00 UTC May 4),
+the lookup searched for "2026-05-04" instead of "2026-05-05".
+Customers waitlisted for May 4 got notifications for a slot that
+opened up on May 5 — wrong day, while the actual May 5 waitlist sat
+unnotified.
+
+**Fix:** convert `scheduled_at` via
+`toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })`.
+
+**Test:** 4 source-shape assertions confirm new tz-aware dateStr,
+pre-fix UTC line gone, processSlotAvailability call wiring preserved,
+cancellation gate (provider/admin) preserved.
+
 ### BUG-PHASE109-01 — Make-recurring defaulted to wrong day on non-Manila device
 
 **Files:** `apps/mobile/app/customer/booking/make-recurring.tsx`,
@@ -716,6 +907,30 @@ The same bug families keep surfacing. Phase 85–93 added:
     by date got told no entries existed at all. The "Clear Filters"
     button condition was correct but the empty-state condition
     drifted from it. (Phase 108.)
+
+19. **UTC anchor for a Manila-only platform — pervasive cross-package**
+    — between Phases 105 and 117, NINE separate UTC-leakage points
+    surfaced: mobile calendar (105), make-recurring default day (109),
+    admin consent default + submit dates (111, 116), admin financials
+    + audit-log CSV (112), API recurring cron (113), API CSV export
+    + invoice overdue cron (114), admin promo validUntil (115),
+    booking-cancellation slot waitlist lookup (117). All shared the
+    same root pattern: `new Date()` evaluated to UTC, then either
+    `.toISOString().slice/split` for date strings or `T...Z` ISO
+    suffix for instants. Manila is +08:00, so every leak shifted
+    boundaries by 8 hours — and since Manila day rolls over BEFORE
+    UTC day, the Manila-day-AFTER-UTC window is when the bug bites.
+    Every fix uses one of two shapes:
+      - `toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })`
+        → produces YYYY-MM-DD in Manila TZ, drop-in for places
+        that previously called `.toISOString().slice(0, 10)` or
+        `.toISOString().split('T')[0]`.
+      - `T...+08:00` instead of `T...Z` → produces a Manila-anchored
+        ISO instant, drop-in for places building ISO strings from a
+        date input.
+    Going forward, audit any `new Date()` near a date string for
+    this pattern. The Manila launch market means UTC anchoring is
+    almost always wrong.
 
 ## What's still genuinely outstanding
 
