@@ -78,6 +78,37 @@ async function loadTierBonus(): Promise<Record<string, number>> {
 const MAX_MATCH_ATTEMPTS = 10;
 const EARTH_RADIUS_KM = 6371;
 
+// BUG-PHASE119-01 fix — Manila-aware extraction of day-of-week and
+// HH:MM:SS from a UTC-stored scheduledAt instant. Pre-fix this was
+// `scheduledAt.getDay()` + `scheduledAt.toTimeString().slice(0, 8)`,
+// both of which return server-local-TZ values. The API container
+// runs UTC (no `TZ=Asia/Manila` set in docker-compose), so a 06:00
+// Manila Thursday booking (= 22:00 UTC Wednesday) was matched
+// against `provider_availability.day_of_week = 3` (Wed) at
+// `time = '22:00:00'` — finding providers who work Wed evening
+// instead of providers who work Thu morning. The customer either
+// got matched to the wrong provider or got no match at all,
+// depending on which providers happened to be available at the
+// off-by-eight-hours wall-clock the server queried.
+const MANILA_WEEKDAY_INDEX: Record<string, number> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+};
+function manilaDayOfWeek(scheduledAt: Date): number {
+  const weekday = scheduledAt.toLocaleDateString('en-US', {
+    timeZone: 'Asia/Manila',
+    weekday: 'short',
+  });
+  return MANILA_WEEKDAY_INDEX[weekday] ?? 0;
+}
+function manilaTimeString(scheduledAt: Date): string {
+  // en-GB returns "HH:MM:SS" in 24h shape, drop-in replacement for
+  // the `.toTimeString().slice(0, 8)` pre-fix pattern.
+  return scheduledAt.toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Manila',
+    hour12: false,
+  });
+}
+
 function haversineDistanceSQL(): string {
   return `(
     ${EARTH_RADIUS_KM} * acos(
@@ -97,8 +128,9 @@ export async function findMatchingProviders(
   customerLng: number,
   scheduledAt: Date,
 ): Promise<ScoredProvider[]> {
-  const dayOfWeek = scheduledAt.getDay();
-  const timeStr = scheduledAt.toTimeString().slice(0, 8);
+  // BUG-PHASE119-01 fix — Manila-anchored.
+  const dayOfWeek = manilaDayOfWeek(scheduledAt);
+  const timeStr = manilaTimeString(scheduledAt);
 
   const distanceExpr = haversineDistanceSQL();
 
@@ -202,8 +234,9 @@ export async function findMatchingProvidersSimple(
   scheduledAt: Date,
 ): Promise<ScoredProvider[]> {
   const distanceExpr = haversineDistanceSQL();
-  const dayOfWeek = scheduledAt.getDay();
-  const timeStr = scheduledAt.toTimeString().slice(0, 8);
+  // BUG-PHASE119-01 fix — Manila-anchored. Same fix as findMatchingProviders.
+  const dayOfWeek = manilaDayOfWeek(scheduledAt);
+  const timeStr = manilaTimeString(scheduledAt);
 
   const result = await db.query<MatchableProvider>(
     `SELECT DISTINCT ON (p.id)
