@@ -1,6 +1,6 @@
-# Phases 85–121 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–124 — Continuation deep audit pass (2026-05-05, part 2)
 
-Thirty-seven phases continuing the screen-by-screen audit started in
+Forty phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -8,11 +8,12 @@ escalation file
 `.ai-coder/escalations/E03-customer-checkout-state-machine-2026-05-05.md`.
 
 Phases 105 + 109 + 111 + 112 + 113 + 114 + 115 + 116 + 117 + 118 +
-119 + 120 + 121 form a dedicated TZ sweep — THIRTEEN separate
-UTC-leakage points hit different surfaces (mobile calendar, admin
-financials/audit-log/marketing/consent, API recurring/invoice/
-booking/waitlist/matching/receipt/monthly-summary). Two highest-stakes
-items in the second half of the sweep:
+119 + 120 + 121 + 123 + 124 form a dedicated TZ sweep — SIXTEEN
+distinct UTC-leakage points hit different surfaces (mobile calendar,
+admin financials/audit-log/marketing/consent, API recurring/invoice/
+booking/waitlist/matching/receipt/monthly-summary, plus all the
+Postgres `CURRENT_DATE` references in dashboard / metrics / pricing /
+NBI alerts). Three highest-stakes items:
 
 - **Phase 119** (CRITICAL): provider matching used
   `scheduledAt.getDay()` + `.toTimeString()` — server-local UTC.
@@ -25,12 +26,22 @@ items in the second half of the sweep:
   mis-numbering by one calendar month around midnight Manila. BIR
   receipts tie to monthly filing periods; numbering drift =
   audit-trail mismatch at filing time.
+- **Phase 123** (cross-cutting SQL): provider + admin "today" stats
+  used Postgres `CURRENT_DATE`, which is session-TZ (UTC in our
+  pool) — so for 8 hours every day (16:00–23:59 UTC) every
+  dashboard's "today" total was actually yesterday Manila. Fixed
+  in 13 query boundaries across 3 services in one phase.
 
-All thirteen share one root pattern (code anchored to UTC when
-Manila was meant) and one of two fix shapes:
+All sixteen share one root pattern (code anchored to UTC when
+Manila was meant) and one of three fix shapes:
 toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }) for date
 strings, T...+08:00 (or Manila-anchored UTC arithmetic) for ISO
-instants. Documented as pattern #19 below.
+instants in JS, and `(now() AT TIME ZONE 'Asia/Manila')::date AT
+TIME ZONE 'Asia/Manila'` for Postgres day-boundary comparisons.
+Documented as pattern #19 below.
+
+Phase 122 is a non-TZ dead-code cleanup of `tip.service.ts`
+(matches the 103/107/110 family).
 
 ## Real bugs found and fixed
 
@@ -512,6 +523,13 @@ bc30ea8 fix: Phase 120 — receipt + invoice number + monthly billing all leaked
 1f2bbb2 fix: Phase 118 — recurring next-date math used server-local UTC instead of Manila, scheduling early-Manila-morning customers' first instance for the wrong week — 1 real bug fixed
 ```
 
+Phases 122-124 commits (dead-code + Postgres CURRENT_DATE sweep):
+```
+0db20d4 fix: Phase 124 — pricing holidays + NBI expiry alert leaked UTC, listing yesterday-Manila events as "upcoming" — 1 real bug fixed (2 surfaces)
+1fe4491 fix: Phase 123 — provider + admin "today" SQL stats leaked UTC for 8 hours every Manila day — 1 real bug fixed (3 surfaces, 13 query boundaries)
+7b96eb7 fix: Phase 122 — tip.service carried dead `method === 'wallet'` branches after MED-N153 hardened to wallet-only — 1 real bug fixed
+```
+
 ### BUG-PHASE103-01 — Provider checklist carried 48 lines of dead code that re-introduced the pre-fix bug
 
 **Files:** `apps/mobile/app/provider/job/[id]/checklist.tsx`,
@@ -807,6 +825,89 @@ fixes the SUBMIT path so the day is preserved end-to-end).
 UTC stamp gone, fallback "now()" preserved, publishMutation wiring
 preserved.
 
+### BUG-PHASE122-01 — tip.service carried dead method-check branches after MED-N153 hardened to wallet-only
+
+**Files:** `packages/api/src/services/tip.service.ts`,
+`packages/api/__tests__/bug-phase122-01-tip-service-dead-branches.test.ts`
+
+`tip.service.ts` `sendTip()` had three nested
+`if (method === 'wallet')` blocks plus a
+`method === 'wallet' ? 'completed' : 'pending'` ternary inside the
+transaction body — all dead after MED-N153 added a
+`if (method !== 'wallet') throw` gate at the top of the function.
+Once that gate runs, `method` is the literal string 'wallet'; every
+conditional below it always took the wallet branch and the
+'pending' status string was unreachable.
+
+Same dead-branch pattern as Phases 103 (provider checklist
+INITIAL_SECTIONS), 107 (portfolio imageUrl useState), 110
+(navigate.tsx ETA styles). Risk: a future maintainer re-enabling
+non-wallet methods by lifting the MED-N153 gate without re-auditing
+the inside-of-trx logic would silently regress MED-N153.
+
+**Fix:** collapse the dead branches into straight-through wallet
+logic. The tips INSERT now hardcodes `payment_method='wallet'` and
+`status='completed'` in the SQL itself.
+
+**Test:** 5 source-shape assertions confirm the dead conditions
+are gone, the SQL hardcodes the v1.0 invariant, the MED-N153 gate
++ provider notification are preserved.
+
+### BUG-PHASE123-01 — Provider + admin "today" SQL stats leaked UTC for 8 hours every Manila day
+
+**Files:** `packages/api/src/services/provider-tools.service.ts`,
+`packages/api/src/services/admin.service.ts`,
+`packages/api/src/services/metrics.service.ts`,
+`packages/api/__tests__/bug-phase123-01-current-date-manila.test.ts`
+
+Postgres `CURRENT_DATE` / `DATE_TRUNC(..., CURRENT_DATE)`
+returns/anchors to the session timezone, which is UTC in our pool.
+Three services anchored "today" / "this week" / "this month"
+boundaries to CURRENT_DATE, so during the 16:00–23:59 UTC window
+(= 00:00–07:59 Manila next day) the dashboards showed yesterday-
+Manila totals while the user's wall clock said "today":
+
+1. `provider-tools.service.ts` getEarningsSummary — provider's
+   "Earned Today" / "Earned This Week" / "Earned This Month" +
+   matching job counts.
+2. `admin.service.ts` getDashboardKpis — "Today's Revenue" + "New
+   Signups Today" + "Bookings Today."
+3. `metrics.service.ts` — internal "Completed Today" / "Cancelled
+   Today" / "Payments Today" / "Revenue Today" (Prometheus +
+   admin overlays).
+
+13 query boundaries across 3 services fixed in one phase.
+
+**Fix:** anchor each "since today midnight Manila" boundary to
+`(now() AT TIME ZONE 'Asia/Manila')::date AT TIME ZONE 'Asia/Manila'`
+— the UTC instant of Manila midnight. Week/month boundaries use
+`DATE_TRUNC('week', now() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila'`.
+
+**Test:** 7 source-shape assertions across all three services.
+
+### BUG-PHASE124-01 — Pricing holidays + NBI expiry alert leaked UTC, listing yesterday-Manila events as "upcoming"
+
+**Files:** `packages/api/src/services/pricing.service.ts`,
+`packages/api/src/services/admin-analytics.service.ts`,
+`packages/api/__tests__/bug-phase124-01-pricing-nbi-current-date-manila.test.ts`
+
+Follow-on to Phase 123 cleaning up the last two CURRENT_DATE
+leakage points:
+
+1. `pricing.service.ts` getUpcomingHolidays — listed yesterday-Manila
+   holidays as "upcoming" for ~8 hours after they actually passed.
+2. `admin-analytics.service.ts` NBI expiry alert — the `BETWEEN
+   CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'` shifted by
+   8 hours; expiring-soon alert delayed by Manila/UTC drift.
+
+**Fix:** replace `CURRENT_DATE` with
+`(now() AT TIME ZONE 'Asia/Manila')::date` on both bounds.
+
+**Test:** 4 source-shape assertions across both files.
+
+This completes the API-side CURRENT_DATE cleanup. Total Manila-tz
+family across the audit: 16 distinct UTC-leakage points fixed.
+
 ### BUG-PHASE118-01 — Recurring next-date math used server-local UTC, scheduling early-Manila-morning customers' first instance for the wrong week
 
 **Files:** `packages/api/src/services/recurring.service.ts`,
@@ -1042,7 +1143,7 @@ The same bug families keep surfacing. Phase 85–93 added:
     drifted from it. (Phase 108.)
 
 19. **UTC anchor for a Manila-only platform — pervasive cross-package**
-    — between Phases 105 and 121, THIRTEEN separate UTC-leakage
+    — between Phases 105 and 124, SIXTEEN separate UTC-leakage
     points surfaced: mobile calendar (105), make-recurring default
     day (109), admin consent default + submit dates (111, 116),
     admin financials + audit-log CSV (112), API recurring cron (113),
@@ -1050,7 +1151,9 @@ The same bug families keep surfacing. Phase 85–93 added:
     validUntil (115), booking-cancellation slot waitlist lookup (117),
     recurring next-date math (118), CRITICAL provider matching
     weekday + time (119), receipt + invoice numbering + monthly
-    billing (120), provider monthly-summary endpoint defaults (121).
+    billing (120), provider monthly-summary endpoint defaults (121),
+    provider + admin "today" SQL stats (123, 13 query boundaries
+    in one phase), pricing holidays + NBI expiry SQL (124).
 
     All thirteen shared the same root pattern: `new Date()` evaluated
     to UTC, then either `.toISOString().slice/split` for date
