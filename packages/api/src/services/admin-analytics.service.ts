@@ -220,8 +220,15 @@ export async function getCohortAnalysis(
       period_offset: string;
       active_users: string;
     }>(
+      // BUG-PHASE138-01 fix — pre-fix DATE_TRUNC('month', created_at)
+      // truncated at session TZ (UTC). A user signing up at 03:00
+      // Manila on May 1 (= 19:00 UTC Apr 30) was assigned to the
+      // April cohort instead of May. Same per-row bucketing bug-class
+      // as Phase 137; same cohort-boundary mis-attribution on every
+      // 1st-of-month between 00:00 Manila and 08:00 Manila. Manila-
+      // anchor every DATE_TRUNC('month', col) used for bucketing.
       `WITH cohort_users AS (
-         SELECT id, DATE_TRUNC('month', created_at)::date AS cohort_month
+         SELECT id, (DATE_TRUNC('month', created_at AT TIME ZONE 'Asia/Manila'))::date AS cohort_month
          FROM users WHERE role = 'customer'
            AND created_at >= NOW() - INTERVAL '1 month' * $1
        ),
@@ -233,13 +240,13 @@ export async function getCohortAnalysis(
        activity AS (
          SELECT
            cu.cohort_month,
-           EXTRACT(MONTH FROM AGE(DATE_TRUNC('month', b.created_at), cu.cohort_month))::int AS period_offset,
+           EXTRACT(MONTH FROM AGE((DATE_TRUNC('month', b.created_at AT TIME ZONE 'Asia/Manila'))::date, cu.cohort_month))::int AS period_offset,
            COUNT(DISTINCT cu.id) AS active_users
          FROM cohort_users cu
          INNER JOIN bookings b ON b.customer_id = cu.id
            AND b.status NOT IN ('cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin')
-           AND DATE_TRUNC('month', b.created_at) >= cu.cohort_month
-         GROUP BY cu.cohort_month, EXTRACT(MONTH FROM AGE(DATE_TRUNC('month', b.created_at), cu.cohort_month))
+           AND (DATE_TRUNC('month', b.created_at AT TIME ZONE 'Asia/Manila'))::date >= cu.cohort_month
+         GROUP BY cu.cohort_month, EXTRACT(MONTH FROM AGE((DATE_TRUNC('month', b.created_at AT TIME ZONE 'Asia/Manila'))::date, cu.cohort_month))
        )
        SELECT
          cs.cohort_month::text AS cohort,
@@ -285,8 +292,11 @@ export async function getCohortAnalysis(
     period_offset: string;
     total_revenue: string;
   }>(
+    // BUG-PHASE138-01 fix (2nd cohort query — revenue) — same
+    // Manila-anchored DATE_TRUNC('month') idiom as the retention
+    // cohort above.
     `WITH cohort_users AS (
-       SELECT id, DATE_TRUNC('month', created_at)::date AS cohort_month
+       SELECT id, (DATE_TRUNC('month', created_at AT TIME ZONE 'Asia/Manila'))::date AS cohort_month
        FROM users WHERE role = 'customer'
          AND created_at >= NOW() - INTERVAL '1 month' * $1
      ),
@@ -298,13 +308,13 @@ export async function getCohortAnalysis(
      revenue AS (
        SELECT
          cu.cohort_month,
-         EXTRACT(MONTH FROM AGE(DATE_TRUNC('month', b.created_at), cu.cohort_month))::int AS period_offset,
+         EXTRACT(MONTH FROM AGE((DATE_TRUNC('month', b.created_at AT TIME ZONE 'Asia/Manila'))::date, cu.cohort_month))::int AS period_offset,
          COALESCE(SUM(b.total_amount), 0) AS total_revenue
        FROM cohort_users cu
        INNER JOIN bookings b ON b.customer_id = cu.id
          AND b.status IN ('confirmed', 'payout_ready', 'paid_out')
-         AND DATE_TRUNC('month', b.created_at) >= cu.cohort_month
-       GROUP BY cu.cohort_month, EXTRACT(MONTH FROM AGE(DATE_TRUNC('month', b.created_at), cu.cohort_month))
+         AND (DATE_TRUNC('month', b.created_at AT TIME ZONE 'Asia/Manila'))::date >= cu.cohort_month
+       GROUP BY cu.cohort_month, EXTRACT(MONTH FROM AGE((DATE_TRUNC('month', b.created_at AT TIME ZONE 'Asia/Manila'))::date, cu.cohort_month))
      )
      SELECT
        cs.cohort_month::text AS cohort,
