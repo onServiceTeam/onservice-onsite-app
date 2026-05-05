@@ -1,6 +1,6 @@
-# Phases 85–124 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–127 — Continuation deep audit pass (2026-05-05, part 2)
 
-Forty phases continuing the screen-by-screen audit started in
+Forty-three phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -42,6 +42,20 @@ Documented as pattern #19 below.
 
 Phase 122 is a non-TZ dead-code cleanup of `tip.service.ts`
 (matches the 103/107/110 family).
+
+Phase 125 wires review-creation notifications + fixes wrong-key
+notification icon maps on both customer and provider mobile
+(3 layers — API emit, customer icon map, provider icon map +
+routing).
+
+Phase 126 cleans up 32 dead route entries in mobile navigation.ts
+that pointed at non-existent screens with no consumers anywhere.
+The largest dead-code cleanup of the audit.
+
+Phase 127 wires the MED-N85 device-fingerprint refresh-token
+binding end-to-end. Validator schemas were stripping the field
+before the route handler could read it; mobile auth.store never
+sent the field. Both ends fixed in one phase.
 
 ## Real bugs found and fixed
 
@@ -530,6 +544,13 @@ Phases 122-124 commits (dead-code + Postgres CURRENT_DATE sweep):
 7b96eb7 fix: Phase 122 — tip.service carried dead `method === 'wallet'` branches after MED-N153 hardened to wallet-only — 1 real bug fixed
 ```
 
+Phases 125-127 commits (notification end-to-end + dead routes + security wire):
+```
+7ff4687 fix: Phase 127 — MED-N85 device-fingerprint refresh-token binding was disabled by validator strip + missing client wiring — 1 real bug fixed (3 layers)
+16ba16d fix: Phase 126 — mobile navigation.ts had 32 dead route entries pointing at non-existent screens — 1 real bug fixed (32 entries cleaned)
+a78a5cc fix: Phase 125 — review notification end-to-end was broken in 3 layers — 1 real bug fixed (3 surfaces, 3 layers)
+```
+
 ### BUG-PHASE103-01 — Provider checklist carried 48 lines of dead code that re-introduced the pre-fix bug
 
 **Files:** `apps/mobile/app/provider/job/[id]/checklist.tsx`,
@@ -824,6 +845,124 @@ fixes the SUBMIT path so the day is preserved end-to-end).
 **Test:** 4 source-shape assertions confirm new offset, pre-fix
 UTC stamp gone, fallback "now()" preserved, publishMutation wiring
 preserved.
+
+### BUG-PHASE125-01 — Review notification end-to-end was broken in 3 layers (API never emitted, customer + provider icon maps wrong-keyed)
+
+**Files:** `packages/api/src/services/review.service.ts`,
+`apps/mobile/app/customer/notifications.tsx`,
+`apps/mobile/app/provider/notifications.tsx`,
+`packages/api/__tests__/bug-phase125-01-review-notification-icon-keys.test.ts`
+
+Three layered defects compounded into "provider has no idea a review
+was left, and even if they did the notification would render with the
+wrong icon and not route anywhere":
+
+1. API: `review.service.createReview` never emitted any notification,
+   even though `notification.service.ts` declared `rating_received`
+   in its NotificationType union and customer/provider mobile
+   `notifications.tsx` expected to render + route on it.
+2. Customer mobile: icon map keyed on `review_received` (a string
+   the API never emits) — fell through to Bell. Routing branch
+   with the same key — dead. Several other types (chat_started,
+   new_message, customer_cancelled, recurring_auto_charge_*,
+   new_quote, etc.) weren't in the icon map at all.
+3. Provider mobile: icon map keyed on EIGHT types the API never
+   emits (`new_booking`, `booking_assigned`, `payment_received`,
+   `dispute_opened`, `review_received`, `payout_completed`,
+   `tip_received`). EVERY provider notification fell back to Bell.
+
+**Fix:**
+- review.service emits `rating_received` after the trx commits
+  (best-effort — failure does NOT roll back the review).
+- Customer icon map: replace `review_received` with `rating_received`,
+  expand to cover chat / cancellation / recurring auto-charge /
+  quote types.
+- Provider icon map: replace 8 wrong keys with actual API-emitted
+  types (new_job_available, job_completed, payment_released,
+  dispute_update, rating_received, tier_upgrade, nbi_expiring,
+  provider_approved, provider_suspended, customer_cancelled,
+  new_message, change_order_expired, recurring_auto_charge_*).
+  Routing updated to match. Added tier_upgrade →
+  /provider/tier-progression and nbi_expiring →
+  /provider/account-management routing.
+
+**Test:** 15 source-shape assertions across all 3 layers.
+
+### BUG-PHASE126-01 — Mobile navigation.ts had 32 dead route entries pointing at non-existent screens
+
+**Files:** `apps/mobile/src/config/navigation.ts`,
+`packages/api/__tests__/routes-registry-bug-1185.test.ts` (updated),
+`apps/mobile/__tests__/bug-phase126-01-navigation-dead-routes-removed.test.ts`
+
+`apps/mobile/src/config/navigation.ts` had 32 route entries
+pointing at screens that don't exist on disk and have NO consumers
+anywhere in the app. The file's own header claims to be "single
+source of truth for mobile route paths"; entries that 404
+contradict that contract — documentation debt that misleads new
+contributors AND landmines for future code that wires them.
+
+Verification before deletion: each entry checked for `.tsx` file
+(none existed), grep'd as `Routes.X.KEY` and as raw string literal
+(zero hits in non-config files).
+
+CUSTOMER block (24 dead removed): SUBCATEGORY, BOOKING_TRACKER,
+RATE_REVIEW, PROFILE, PROVIDER_LIST, RECURRING_SETUP,
+BUSINESS_ACCOUNTS / DETAIL / CREATE / MEMBERS / CONTRACTS /
+INVOICES / INVOICE_DETAIL, SERVICE_AREAS, SERVICE_AREA_DETAIL,
+WAITLIST, REBOOKING, SLOT_WAITLIST, DATA_PRIVACY, DATA_EXPORT,
+ACCOUNT_DELETION, SECURITY_SETTINGS, DEVICE_MANAGEMENT,
+ACCESSIBILITY_SETTINGS, ADD_ADDRESS, ADD_PAYMENT, PROMOTIONS,
+SUPPORT, EMAIL_VERIFICATION.
+
+PROVIDER block (8 dead removed): HOME, WALLET, EARNINGS,
+EARNINGS_GOALS, DEMAND_INSIGHTS, MONTHLY_SUMMARY, RECEIPT,
+MATERIALS_LIST, PROFILE.
+
+**Test:** 43 source-shape assertions confirm every removed key is
+gone + 6 regression guards confirming live routes are preserved.
+The Phase-14 `routes-registry-bug-1185.test.ts` "substitutes
+multiple params" assertion was updated to use a synthetic
+multi-param template (the previous BUSINESS_INVOICE_DETAIL key
+was one of the 32 removed).
+
+### BUG-PHASE127-01 — MED-N85 device-fingerprint refresh-token binding was completely disabled by validator strip + missing client wiring
+
+**Files:** `packages/api/src/validators/auth.validators.ts`,
+`apps/mobile/src/stores/auth.store.ts`,
+`packages/api/__tests__/bug-phase127-01-device-fingerprint-binding-end-to-end.test.ts`
+
+The MED-N85 device-fingerprint binding feature (detect stolen
+refresh tokens by comparing the issuance fingerprint to the
+refresh-attempt fingerprint) was on paper only. Two compounding
+defects:
+
+1. `sendOtpSchema` and `verifyOtpSchema` only declared {phone}
+   and {phone, code}. Zod's default behavior on .parse() is to
+   STRIP unknown keys. So when the mobile client sent
+   {phone, code, deviceFingerprint}, the validator stripped it
+   before the route handler at auth.routes.ts (which DID read
+   `req.body.deviceFingerprint`) could see it.
+2. The mobile auth.store never sent the fingerprint anyway —
+   `device-fingerprint.service.getDeviceFingerprint()` had ZERO
+   production consumers. The CRIT-K01 test only verified the
+   secure-storage migration shape.
+
+Net pre-fix: stolen refresh tokens could not be detected;
+`req.body.deviceFingerprint` was always undefined; the no-bind
+fall-through path always ran.
+
+**Fix:**
+- `auth.validators.ts`: factored `DEVICE_FINGERPRINT_FIELD` as a
+  shared optional bounded string (8-256 chars, matching the
+  pre-existing refreshTokenSchema bounds) and added it to both
+  sendOtpSchema and verifyOtpSchema.
+- `auth.store.ts`: imports getDeviceFingerprint and calls it in
+  requestOtp + verifyOtp via try/catch fallback (so a fingerprint
+  generation failure doesn't block sign-in). Both helpers pass
+  the fingerprint to the API.
+
+**Test:** 10 source-shape assertions across 3 files (validators,
+auth.store, route reads as regression guard).
 
 ### BUG-PHASE122-01 — tip.service carried dead method-check branches after MED-N153 hardened to wallet-only
 
