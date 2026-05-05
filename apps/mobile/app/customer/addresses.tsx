@@ -228,6 +228,11 @@ export default function AddressesScreen(): React.ReactElement {
             })}
           </View>
 
+          {/* BUG-PHASE148-01 fix — pre-fix all five address fields
+              had no maxLength. Server's createAddressSchema caps:
+                fullAddress.max(500), barangay/city/province.max(100),
+                notes.max(500) (address.validators.ts:13-22).
+              Same Phase 145/146/147 maxLength-sweep fix family. */}
           <Text style={styles.formLabel}>Full Address *</Text>
           <TextInput
             style={styles.input}
@@ -236,6 +241,7 @@ export default function AddressesScreen(): React.ReactElement {
             value={fullAddress}
             onChangeText={setFullAddress}
             multiline
+            maxLength={500}
           />
 
           <Text style={styles.formLabel}>Barangay *</Text>
@@ -245,6 +251,7 @@ export default function AddressesScreen(): React.ReactElement {
             placeholderTextColor={colors.textTertiary}
             value={barangay}
             onChangeText={setBarangay}
+            maxLength={100}
           />
 
           <Text style={styles.formLabel}>City / Municipality *</Text>
@@ -254,6 +261,7 @@ export default function AddressesScreen(): React.ReactElement {
             placeholderTextColor={colors.textTertiary}
             value={city}
             onChangeText={setCity}
+            maxLength={100}
           />
 
           <Text style={styles.formLabel}>Province *</Text>
@@ -263,6 +271,7 @@ export default function AddressesScreen(): React.ReactElement {
             placeholderTextColor={colors.textTertiary}
             value={province}
             onChangeText={setProvince}
+            maxLength={100}
           />
 
           <Text style={styles.formLabel}>Notes (optional)</Text>
@@ -273,6 +282,7 @@ export default function AddressesScreen(): React.ReactElement {
             value={notes}
             onChangeText={setNotes}
             multiline
+            maxLength={500}
           />
 
           <TouchableOpacity
