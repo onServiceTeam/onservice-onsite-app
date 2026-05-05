@@ -225,6 +225,28 @@ export default function ProviderJobsScreen(): React.ReactElement {
                       ? 'No completed jobs yet'
                       : 'No cancelled jobs'}
                 </Text>
+                {/* BUG-PHASE175-01 fix — pre-fix the empty state on the
+                    provider Jobs tab had no helper text. The dashboard
+                    explains "Go online to start receiving jobs" / "New
+                    job requests will appear here" but the Jobs tab
+                    didn't echo that, leaving providers wondering why
+                    they had no jobs. Same UX-gap family as Phase
+                    169/170/172/173/174. */}
+                {filter === 'active' && (
+                  <Text style={styles.emptyHint}>
+                    Make sure you&apos;re online (toggle on the Dashboard) and have services configured. New job requests will appear here.
+                  </Text>
+                )}
+                {filter === 'completed' && (
+                  <Text style={styles.emptyHint}>
+                    Completed jobs will show here after the customer confirms or after the auto-confirm window passes.
+                  </Text>
+                )}
+                {filter === 'cancelled' && (
+                  <Text style={styles.emptyHint}>
+                    Cancelled jobs will appear here.
+                  </Text>
+                )}
               </View>
             )
           }
@@ -336,6 +358,15 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
   emptyIconImg: { marginBottom: spacing.base },
   emptyText: { ...typography.body, color: colors.textSecondary },
+  // BUG-PHASE175-01 fix — helper text under the empty-state title.
+  emptyHint: {
+    ...typography.bodySmall,
+    color: colors.textTertiary,
+    textAlign: 'center' as const,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    lineHeight: 20,
+  },
   retryButton: { marginTop: spacing.base },
   retryText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
 });
