@@ -161,8 +161,27 @@ export default function AccountManagementScreen(): React.ReactElement {
             <View style={styles.exportHistory}>
               <Text style={styles.exportHistoryTitle}>Recent Exports</Text>
               {exportQuery.data!.slice(0, 3).map((exp) => {
-                const StatusIcon = exp.status === 'completed' ? CheckCircle2 : exp.status === 'failed' ? XCircle : Hourglass;
-                const statusColor = exp.status === 'completed' ? colors.success : exp.status === 'failed' ? colors.error : colors.textSecondary;
+                // BUG-PHASE96-01 fix — 'expired' fell through to the
+                // Hourglass icon + grey colors.textSecondary which is
+                // also the 'pending' / 'processing' visual. A user
+                // who came back after the 30-day window saw what
+                // looked like "still being prepared" with no
+                // download link, which is wrong: status='expired'
+                // means the signed URL has been deleted and the user
+                // must request a new export. Branch out the expired
+                // case explicitly — XCircle in textTertiary so it's
+                // visually distinct from both "completed" (green
+                // check) and "failed" (red X).
+                const StatusIcon =
+                  exp.status === 'completed' ? CheckCircle2
+                  : exp.status === 'failed' ? XCircle
+                  : exp.status === 'expired' ? XCircle
+                  : Hourglass;
+                const statusColor =
+                  exp.status === 'completed' ? colors.success
+                  : exp.status === 'failed' ? colors.error
+                  : exp.status === 'expired' ? colors.textTertiary
+                  : colors.textSecondary;
                 // BUG-PHASE70-01 fix — pre-fix the row showed only the
                 // status pill + date. The DataExportEntry returns a
                 // signed `fileUrl` that the user is supposed to use to
@@ -191,6 +210,14 @@ export default function AccountManagementScreen(): React.ReactElement {
                       {exp.status === 'completed' && exp.expiresAt && (
                         <Text style={styles.exportExpires} numberOfLines={1}>
                           {`Expires ${formatDate(exp.expiresAt)}`}
+                        </Text>
+                      )}
+                      {/* BUG-PHASE96-01 — explicit "Expired" hint so
+                           the user knows the file is gone forever and
+                           a new export is needed. */}
+                      {exp.status === 'expired' && (
+                        <Text style={styles.exportExpires} numberOfLines={1}>
+                          Expired — request again
                         </Text>
                       )}
                     </View>

@@ -169,8 +169,26 @@ export default function AccountManagementScreen(): React.ReactElement {
             <View style={styles.exportHistory}>
               <Text style={styles.exportHistoryTitle}>Recent Exports</Text>
               {exportQuery.data!.slice(0, 3).map((exp) => {
-                const StatusIcon = exp.status === 'completed' ? CheckCircle2 : exp.status === 'failed' ? XCircle : Hourglass;
-                const statusColor = exp.status === 'completed' ? colors.success : exp.status === 'failed' ? colors.error : colors.textSecondary;
+                // BUG-PHASE96-01 fix — same provider/customer parity
+                // pattern as the BUG-PHASE70-01 / 72-01 fixes. The
+                // 'expired' status fell through to the Hourglass +
+                // grey colors.textSecondary visual which is the same
+                // as 'pending' / 'processing' — a provider returning
+                // after the 30-day window saw what looked like
+                // "still being prepared" with no download link.
+                // Branch out the expired case explicitly + render an
+                // "Expired — request again" hint so the provider
+                // knows the file is gone forever.
+                const StatusIcon =
+                  exp.status === 'completed' ? CheckCircle2
+                  : exp.status === 'failed' ? XCircle
+                  : exp.status === 'expired' ? XCircle
+                  : Hourglass;
+                const statusColor =
+                  exp.status === 'completed' ? colors.success
+                  : exp.status === 'failed' ? colors.error
+                  : exp.status === 'expired' ? colors.textTertiary
+                  : colors.textSecondary;
                 // BUG-PHASE72-01 fix — same NPC RA 10173 §22 gap as
                 // BUG-PHASE70-01 on the customer side. The DataExportEntry
                 // returns a signed `fileUrl` that the user is supposed to
@@ -199,6 +217,12 @@ export default function AccountManagementScreen(): React.ReactElement {
                       {exp.status === 'completed' && exp.expiresAt && (
                         <Text style={styles.exportExpires} numberOfLines={1}>
                           {`Expires ${formatDate(exp.expiresAt)}`}
+                        </Text>
+                      )}
+                      {/* BUG-PHASE96-01 — explicit "Expired" hint. */}
+                      {exp.status === 'expired' && (
+                        <Text style={styles.exportExpires} numberOfLines={1}>
+                          Expired — request again
                         </Text>
                       )}
                     </View>
