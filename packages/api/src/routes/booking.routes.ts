@@ -911,7 +911,22 @@ router.post(
       if (req.user!.role !== 'provider') {
         throw createAppError('Only providers can decline offers.', 403);
       }
-      const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+      // BUG-PHASE179-01 fix — pre-fix the reason was passed straight
+      // through to the service which then did reason.slice(0, 500),
+      // silently truncating a 10000-char abuse string instead of
+      // rejecting it. Same server-cap shape as Phase 152-168. Cap
+      // matches the actual decline_reason column write
+      // (reason.slice(0, 500) in declineOffer service) so we reject
+      // before the silent-truncation happens.
+      const DECLINE_REASON_MAX = 500;
+      const reasonRaw = typeof req.body?.reason === 'string' ? req.body.reason : '';
+      if (reasonRaw.length > DECLINE_REASON_MAX) {
+        throw createAppError(
+          `Decline reason cannot exceed ${DECLINE_REASON_MAX} characters.`,
+          400,
+        );
+      }
+      const reason = reasonRaw;
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const offerSvc = require('../services/booking-offer.service');
       const result = await offerSvc.declineOffer(offerId, req.user!.userId, reason);
