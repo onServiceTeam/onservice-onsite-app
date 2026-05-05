@@ -497,13 +497,18 @@ describe('getMarketingOverview', () => {
     expect(out.aggregateRoiPercent).toBe(0);
   });
 
-  it('respects from/to date filter', async () => {
+  it('respects from/to date filter (BUG-PHASE132-01: Manila-anchored half-open interval)', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([]));
     await svc.getMarketingOverview('2026-01-01', '2026-12-31');
     const sql = dbQueryMock.mock.calls[0][0] as string;
     const params = dbQueryMock.mock.calls[0][1] as unknown[];
-    expect(sql).toMatch(/started_at >= \$1/);
-    expect(sql).toMatch(/started_at <= \$2/);
+    // BUG-PHASE132-01 — pre-fix this asserted the broken raw `>= $1` /
+    // `<= $2` pattern that interpreted YYYY-MM-DD as UTC midnight,
+    // missing the 00:00-08:00 Manila slice on the from-day and the
+    // 08:00-23:59 Manila slice (16 hours!) on the to-day. Post-fix
+    // both bounds are anchored to Manila wall-clock dates.
+    expect(sql).toMatch(/started_at >= \(\$1::date AT TIME ZONE 'Asia\/Manila'\)/);
+    expect(sql).toMatch(/started_at < \(\(\$2::date \+ INTERVAL '1 day'\) AT TIME ZONE 'Asia\/Manila'\)/);
     expect(params).toEqual(['2026-01-01', '2026-12-31']);
   });
 

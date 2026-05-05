@@ -543,15 +543,26 @@ export async function listCampaigns(
     params.push(filter.channel);
     where.push(`channel = $${params.length}`);
   }
+  // BUG-PHASE132-01 fix — pre-fix passed YYYY-MM-DD strings directly to
+  // a timestamptz comparison, which Pg interprets as UTC midnight (=
+  // 08:00 Manila). For Manila admins this meant `from='2026-05-01'`
+  // missed the 00:00-08:00 Manila slice of May 1, and `to='2026-05-31'`
+  // EXCLUDED everything after 08:00 Manila on May 31 — 16 hours of
+  // missing data on the to-side. Now both bounds are anchored to
+  // Manila wall-clock dates: `>= manila_midnight(date)` and
+  // `< manila_midnight(date + 1day)` (half-open interval includes
+  // the entire to-day Manila). Same Manila TZ correction shape as
+  // Phases 109/113/117/119/122/123/124/129/130 — Manila is the
+  // canonical TZ for the launch market.
   if (filter?.from !== undefined) {
     validateDateString(filter.from, 'from');
     params.push(filter.from);
-    where.push(`started_at >= $${params.length}`);
+    where.push(`started_at >= ($${params.length}::date AT TIME ZONE 'Asia/Manila')`);
   }
   if (filter?.to !== undefined) {
     validateDateString(filter.to, 'to');
     params.push(filter.to);
-    where.push(`started_at <= $${params.length}`);
+    where.push(`started_at < (($${params.length}::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`);
   }
   const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
@@ -745,15 +756,17 @@ export async function getMarketingOverview(
 ): Promise<MarketingOverview> {
   const where: string[] = [];
   const params: unknown[] = [];
+  // BUG-PHASE132-01 fix (2nd site) — same Manila TZ idiom as listCampaigns.
+  // Half-open Manila-anchored interval includes the entire to-day Manila.
   if (from !== undefined) {
     validateDateString(from, 'from');
     params.push(from);
-    where.push(`started_at >= $${params.length}`);
+    where.push(`started_at >= ($${params.length}::date AT TIME ZONE 'Asia/Manila')`);
   }
   if (to !== undefined) {
     validateDateString(to, 'to');
     params.push(to);
-    where.push(`started_at <= $${params.length}`);
+    where.push(`started_at < (($${params.length}::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`);
   }
   const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
