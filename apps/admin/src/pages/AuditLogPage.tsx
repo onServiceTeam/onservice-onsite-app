@@ -218,7 +218,17 @@ export default function AuditLogPage(): React.ReactElement {
           <ClipboardList size={40} className="mx-auto mb-3 text-slate-400" />
           <p className="font-medium text-[var(--color-text)]">No audit entries found</p>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            {actionFilter || entityTypeFilter ? 'Try adjusting your filters.' : 'Audit entries will appear as system actions occur.'}
+            {/* BUG-PHASE108-01 fix — pre-fix this checked only
+                actionFilter || entityTypeFilter, so when a compliance
+                officer narrowed by date or source and got zero hits,
+                the message claimed "Audit entries will appear as
+                system actions occur" — implying NO entries exist
+                anywhere in the system, the opposite of the reality.
+                Now checks the full filter set, matching the same
+                condition used to show the Clear Filters button above. */}
+            {(actionFilter || entityTypeFilter || sourceFilter !== 'all' || fromDate || toDate)
+              ? 'Try adjusting your filters.'
+              : 'Audit entries will appear as system actions occur.'}
           </p>
         </div>
       ) : (
