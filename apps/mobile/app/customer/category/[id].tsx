@@ -111,6 +111,19 @@ export default function SubcategoryListScreen(): React.ReactElement {
           !isLoading ? (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>No services available in this category.</Text>
+              {/* BUG-PHASE184-01 fix — pre-fix the empty state was a
+                  dead-end. A customer landing here on a freshly-onboarded
+                  market with no subcategories had no path forward. Same
+                  UX-gap family as Phase 169-178. */}
+              <Text style={styles.emptyHint}>
+                Check back soon — providers in this category may be coming online.
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyCta}
+                onPress={() => router.push(Routes.TABS.HOME)}
+              >
+                <Text style={styles.emptyCtaText}>Browse Other Categories</Text>
+              </TouchableOpacity>
             </View>
           ) : null
         }
@@ -153,4 +166,23 @@ const styles = StyleSheet.create({
   errorText: { ...typography.body, color: colors.error, textAlign: 'center' },
   empty: { padding: spacing.xl, alignItems: 'center' },
   emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  // BUG-PHASE184-01 fix styles for the "Browse Other Categories" CTA.
+  emptyHint: {
+    ...typography.bodySmall,
+    color: colors.textTertiary,
+    textAlign: 'center' as const,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    lineHeight: 20,
+  },
+  emptyCta: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+  },
+  emptyCtaText: { color: colors.white, fontWeight: '600', fontSize: 14 },
 });
