@@ -1,20 +1,36 @@
-# Phases 85–117 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–121 — Continuation deep audit pass (2026-05-05, part 2)
 
-Thirty-three phases continuing the screen-by-screen audit started in
+Thirty-seven phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
 escalation file
 `.ai-coder/escalations/E03-customer-checkout-state-machine-2026-05-05.md`.
 
-Phases 105 + 109 + 111 + 112 + 113 + 114 + 115 + 116 + 117 form a
-dedicated TZ sweep: nine separate UTC-leakage points hit different
-surfaces (mobile calendar, admin financials/audit-log/marketing/consent,
-API recurring/invoice/booking/waitlist). They share one root pattern —
-code anchored to UTC midnight when Manila day was meant — and the
-same fix shape:
+Phases 105 + 109 + 111 + 112 + 113 + 114 + 115 + 116 + 117 + 118 +
+119 + 120 + 121 form a dedicated TZ sweep — THIRTEEN separate
+UTC-leakage points hit different surfaces (mobile calendar, admin
+financials/audit-log/marketing/consent, API recurring/invoice/
+booking/waitlist/matching/receipt/monthly-summary). Two highest-stakes
+items in the second half of the sweep:
+
+- **Phase 119** (CRITICAL): provider matching used
+  `scheduledAt.getDay()` + `.toTimeString()` — server-local UTC.
+  Every match attempt for every booking ran through this code;
+  06:00 Manila Thursday bookings matched against "Wednesday at
+  22:00" providers — broken matching end-to-end for early-morning
+  Manila bookings.
+- **Phase 120** (BIR-relevant): receipt + invoice numbers + monthly
+  billing all used `getFullYear()` + `getMonth()` for the YYYYMM,
+  mis-numbering by one calendar month around midnight Manila. BIR
+  receipts tie to monthly filing periods; numbering drift =
+  audit-trail mismatch at filing time.
+
+All thirteen share one root pattern (code anchored to UTC when
+Manila was meant) and one of two fix shapes:
 toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }) for date
-strings, T...+08:00 for ISO instants. Documented as pattern #19 below.
+strings, T...+08:00 (or Manila-anchored UTC arithmetic) for ISO
+instants. Documented as pattern #19 below.
 
 ## Real bugs found and fixed
 
@@ -488,6 +504,14 @@ b8f026e fix: Phase 116 — consent version effective date stamp leaked UTC, gave
 032d6d1 fix: Phase 110 — provider navigate screen carried dead ETA styles after Phase 59-02 fix removed the misleading card — 1 real bug fixed
 ```
 
+Phases 118-121 commits (TZ sweep continued — server-side):
+```
+ce3dc91 fix: Phase 121 — provider monthly-summary endpoint defaulted to UTC year/month, not Manila — 1 real bug fixed
+bc30ea8 fix: Phase 120 — receipt + invoice number + monthly billing all leaked UTC YYYYMM, mis-numbering by month around midnight Manila — 1 real bug fixed (3 surfaces, BIR-relevant)
+8e415c2 fix: Phase 119 — CRITICAL provider matching used UTC weekday + time, so 06 AM Manila bookings matched against 22:00 Wednesday providers — 1 real bug fixed (2 surfaces)
+1f2bbb2 fix: Phase 118 — recurring next-date math used server-local UTC instead of Manila, scheduling early-Manila-morning customers' first instance for the wrong week — 1 real bug fixed
+```
+
 ### BUG-PHASE103-01 — Provider checklist carried 48 lines of dead code that re-introduced the pre-fix bug
 
 **Files:** `apps/mobile/app/provider/job/[id]/checklist.tsx`,
@@ -783,6 +807,115 @@ fixes the SUBMIT path so the day is preserved end-to-end).
 UTC stamp gone, fallback "now()" preserved, publishMutation wiring
 preserved.
 
+### BUG-PHASE118-01 — Recurring next-date math used server-local UTC, scheduling early-Manila-morning customers' first instance for the wrong week
+
+**Files:** `packages/api/src/services/recurring.service.ts`,
+`packages/api/__tests__/bug-phase118-01-calculate-next-date-manila.test.ts`
+
+`calculateNextDate()` did weekday/month math via
+`setHours(0,0,0,0) + getDay/getDate/setDate/setMonth/getMonth` — all
+device-local. Server runs UTC, so for a customer creating a "weekly
+Thursday" recurring at 01:00 Manila Thursday (= 17:00 UTC Wednesday),
+server computed "next Thursday" = today UTC + 1 day = today Manila —
+scheduling the FIRST instance for the SAME Manila day they were
+already in. Customer expected next Thursday to mean a week from
+today (since today is already Thursday). Same off-by-one applied to
+bi_weekly (one week early) and monthly (could land in current month
+instead of next).
+
+**Fix:** anchor math to Manila calendar day. `result` built as
+UTC-midnight of the Manila day, then UTC methods used throughout.
+Manila is +08:00 with no DST, so UTC arithmetic on a Manila-anchored
+UTC-midnight Date is equivalent to Manila arithmetic.
+
+**Test:** 7 source-shape assertions confirm pre-fix setHours +
+device-local methods gone, manilaDateStr extracted via Asia/Manila,
+result anchored to UTC-midnight of the Manila day, weekly + bi_weekly
++ monthly all use setUTCxxx + getUTCxxx variants, fromDate parameter
+preserved.
+
+### BUG-PHASE119-01 — CRITICAL provider matching used UTC weekday + time, so 06 AM Manila bookings matched against 22:00 Wednesday providers
+
+**Files:** `packages/api/src/services/matching.service.ts`,
+`packages/api/__tests__/bug-phase119-01-matching-manila-day-time.test.ts`
+
+`findMatchingProviders` and `findMatchingProvidersSimple` extracted
+day-of-week and time-of-day via `scheduledAt.getDay()` and
+`scheduledAt.toTimeString().slice(0, 8)` — both server-local. For a
+06:00 Manila Thursday booking (= 22:00 UTC Wednesday), `getDay()`
+returned 3 (Wed) instead of 4 (Thu), and the time string returned
+"22:00:00" instead of "06:00:00". The matching SQL filter:
+
+  provider_availability.day_of_week = $dayOfWeek
+  AND start_time <= $timeStr AND end_time >= $timeStr
+
+So the query went looking for providers available "Wednesday at
+22:00." Providers actually working Thursday morning got filtered
+OUT; providers running unusual late-Wed-night schedules got
+included. Customer either matched to wrong provider or got "no
+providers available"; matching providers got no offers.
+
+This is the highest blast radius bug in the sweep — every match
+attempt for every booking ran through this code.
+
+**Fix:** introduce `manilaDayOfWeek` + `manilaTimeString` helpers
+using toLocaleDateString('en-US', { timeZone: 'Asia/Manila',
+weekday: 'short' }) → Sun..Sat → 0..6 map, and toLocaleTimeString
+('en-GB', { timeZone: 'Asia/Manila', hour12: false }) → "HH:MM:SS".
+Both matchers call them.
+
+**Test:** 7 source-shape assertions confirm both helpers present,
+weekday-index map matches SQL shape, both matchers route through
+helpers (not raw scheduledAt.getDay/toTimeString), pre-fix code
+gone, overnight-schedule SQL (MED-N104) preserved.
+
+### BUG-PHASE120-01 — Receipt + invoice number + monthly billing all leaked UTC YYYYMM (BIR-relevant)
+
+**Files:** `packages/api/src/services/provider-tools.service.ts`,
+`packages/api/src/services/invoice.service.ts`,
+`packages/api/__tests__/provider-tools-receipt-monthly-med-n31-n32-n33-n35.test.ts` (updated),
+`packages/api/__tests__/bug-phase120-01-receipt-invoice-numbering-manila.test.ts`
+
+Three BIR-relevant numbering / monthly-period surfaces all used
+device-local YYYYMM extraction:
+
+1. provider-tools receiptNumber generator: `RCP-${getFullYear}${getMonth+1}-...`
+   issued at 01:00 Manila June 1 → "RCP-202605-..." instead of
+   "RCP-202606-...".
+2. invoice generateInvoiceNumber: same shape, `INV-${getFullYear}${getMonth+1}-...`.
+3. invoice generateMonthlyInvoices "last month" calc: at 16:00 UTC
+   May 31 (= 00:00 Manila June 1), server saw `getMonth() = 4` (May
+   UTC) → "lastMonth = April" — billed April twice, missed May
+   entirely.
+
+BIR receipts and invoices file by Manila monthly period; numbering
+drift = audit-trail mismatch.
+
+**Fix:** anchor YYYYMM to Manila via toLocaleDateString('en-CA',
+{ timeZone: 'Asia/Manila' }) + string slice. For "last month" calc,
+build UTC-midnight from Manila day and use Date.UTC + getUTC methods.
+
+**Test:** 9 source-shape assertions across all three surfaces.
+
+### BUG-PHASE121-01 — Provider monthly-summary endpoint defaulted to UTC year/month
+
+**Files:** `packages/api/src/routes/provider.routes.ts`,
+`packages/api/__tests__/med-n59-n98-n169-fixes.test.ts` (updated),
+`packages/api/__tests__/bug-phase121-01-provider-monthly-summary-manila.test.ts`
+
+GET `/providers/me/monthly-summary` defaulted year/month to
+device-local UTC via `now.getFullYear()` and `now.getMonth() + 1`.
+Provider opening "this month" at 01:00 Manila June 1 saw May's
+summary instead of June. The MED-N98 upper bound (`now.getFullYear()
++ 1`) had the same off-by-one in late-Dec / early-Jan windows.
+
+**Fix:** anchor year + month to Manila via toLocaleDateString
+slice → manilaYear / manilaMonth. Default + upper bound both use
+the Manila-anchored values.
+
+**Test:** 7 source-shape assertions. MED-N98 sanity floor
+preserved.
+
 ### BUG-PHASE117-01 — Slot waitlist notified the wrong day's customers when a Manila booking was cancelled before 8 AM
 
 **Files:** `packages/api/src/services/booking.service.ts`,
@@ -909,28 +1042,50 @@ The same bug families keep surfacing. Phase 85–93 added:
     drifted from it. (Phase 108.)
 
 19. **UTC anchor for a Manila-only platform — pervasive cross-package**
-    — between Phases 105 and 117, NINE separate UTC-leakage points
-    surfaced: mobile calendar (105), make-recurring default day (109),
-    admin consent default + submit dates (111, 116), admin financials
-    + audit-log CSV (112), API recurring cron (113), API CSV export
-    + invoice overdue cron (114), admin promo validUntil (115),
-    booking-cancellation slot waitlist lookup (117). All shared the
-    same root pattern: `new Date()` evaluated to UTC, then either
-    `.toISOString().slice/split` for date strings or `T...Z` ISO
-    suffix for instants. Manila is +08:00, so every leak shifted
-    boundaries by 8 hours — and since Manila day rolls over BEFORE
-    UTC day, the Manila-day-AFTER-UTC window is when the bug bites.
-    Every fix uses one of two shapes:
+    — between Phases 105 and 121, THIRTEEN separate UTC-leakage
+    points surfaced: mobile calendar (105), make-recurring default
+    day (109), admin consent default + submit dates (111, 116),
+    admin financials + audit-log CSV (112), API recurring cron (113),
+    API CSV export + invoice overdue cron (114), admin promo
+    validUntil (115), booking-cancellation slot waitlist lookup (117),
+    recurring next-date math (118), CRITICAL provider matching
+    weekday + time (119), receipt + invoice numbering + monthly
+    billing (120), provider monthly-summary endpoint defaults (121).
+
+    All thirteen shared the same root pattern: `new Date()` evaluated
+    to UTC, then either `.toISOString().slice/split` for date
+    strings, `getDay/getMonth/getDate/getFullYear/getHours` for
+    component extraction, `setHours(0,0,0,0)` for "midnight today,"
+    or `T...Z` ISO suffix for instants. Manila is +08:00, so every
+    leak shifted boundaries by 8 hours. Since Manila day rolls over
+    BEFORE UTC day, the Manila-day-AFTER-UTC window is when the
+    bug bites — between 16:00 UTC and midnight UTC of any given
+    day, Manila has rolled over but UTC hasn't.
+
+    Every fix uses one of three shapes:
       - `toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })`
-        → produces YYYY-MM-DD in Manila TZ, drop-in for places
-        that previously called `.toISOString().slice(0, 10)` or
+        → produces YYYY-MM-DD in Manila TZ, drop-in for places that
+        previously called `.toISOString().slice(0, 10)` or
         `.toISOString().split('T')[0]`.
       - `T...+08:00` instead of `T...Z` → produces a Manila-anchored
         ISO instant, drop-in for places building ISO strings from a
         date input.
-    Going forward, audit any `new Date()` near a date string for
-    this pattern. The Manila launch market means UTC anchoring is
-    almost always wrong.
+      - `new Date(`${manilaDay}T00:00:00Z`)` + `getUTC*` arithmetic
+        → equivalent to Manila arithmetic since Manila is +08:00
+        with no DST. Used by Phases 118 and 120 for month-rollover
+        calc.
+
+    Phase 119 was the highest blast radius (every match attempt
+    for every booking ran through the broken code). Phase 120 was
+    the highest stakes for compliance (BIR receipts and invoices
+    are filed monthly and audited).
+
+    Going forward, audit any `new Date()` near a date string OR
+    near a `getDay/getMonth/getFullYear` for this pattern. The
+    Manila launch market means UTC anchoring is almost always wrong.
+    Setting `TZ=Asia/Manila` in the API container env would fix
+    most of these at once, but is a behavioral change that affects
+    everything; explicit Manila math is safer per call site.
 
 ## What's still genuinely outstanding
 
