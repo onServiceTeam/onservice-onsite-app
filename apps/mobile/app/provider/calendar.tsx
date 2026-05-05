@@ -31,16 +31,40 @@ const STATUS_COLORS: Record<string, string> = {
   quoted: colors.secondary,
 };
 
+// BUG-PHASE105-01 fix — pre-fix the from/to range was anchored to UTC
+// (2026-05-01T00:00:00Z … 2026-05-31T23:59:59Z) and toDateKey binned
+// jobs by the DEVICE timezone via getFullYear/getMonth/getDate. For
+// the platform's launch market (Boracay / Asia/Manila, UTC+8) this
+// caused TWO month-boundary defects:
+//   1. Jobs scheduled 00:00–07:59 Manila on the 1st of the month were
+//      16:00–23:59 UTC the previous day, so they fell OUTSIDE the
+//      from-anchored UTC window — provider's calendar silently dropped
+//      them. A 6 AM appointment on the 1st would be invisible.
+//   2. Jobs scheduled 00:00–07:59 Manila on the 1st of the FOLLOWING
+//      month appeared in the current month (because their UTC instant
+//      is ~16:00 UTC of the last day still inside the to-anchor).
+// And on a device set to a non-Manila timezone (a Filipino traveling
+// abroad, or a QA/staging device on UTC), `d.getDate()` returned the
+// device-local day — jobs near midnight Manila landed on the wrong
+// calendar cell.
+//
+// Fix: anchor the from/to range to Manila offset (+08:00) so the UTC
+// window the API queries genuinely covers the Manila calendar month
+// edge-to-edge, and bin job timestamps via Asia/Manila to keep the
+// per-cell grouping stable regardless of device timezone.
 function getMonthRange(year: number, month: number): { from: string; to: string } {
   const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
   const lastDay = new Date(year, month + 1, 0).getDate();
   const to = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-  return { from: from + 'T00:00:00Z', to: to + 'T23:59:59Z' };
+  return { from: from + 'T00:00:00+08:00', to: to + 'T23:59:59+08:00' };
 }
 
 function toDateKey(dt: Date | string): string {
   const d = typeof dt === 'string' ? new Date(dt) : dt;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // toLocaleDateString('en-CA', { timeZone }) produces YYYY-MM-DD in
+  // the named timezone — same shape as the pre-fix function but with
+  // Manila as the canonical "what day is it" answer.
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 }
 
 export default function ProviderCalendarScreen(): React.ReactElement {
