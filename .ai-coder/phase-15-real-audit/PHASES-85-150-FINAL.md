@@ -1,6 +1,6 @@
-# Phases 85–148 — Continuation deep audit pass (2026-05-05, part 2)
+# Phases 85–150 — Continuation deep audit pass (2026-05-05, part 2)
 
-Sixty-four phases continuing the screen-by-screen audit started in
+Sixty-six phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1629,6 +1629,36 @@ Final: API 2660, Mobile 563, Admin 144 — all green, all tsc-clean.
 
 Total commits since Phase 127 closeout (f9e8d95): **26**
 (20 bug fixes + 1 escalation + 5 closeout-doc updates).
+
+---
+
+## Phases 149–150 (2026-05-05, part 7) — provider mobile maxLength sweep complete
+
+Two more phases finishing the maxLength sweep on the provider side:
+
+- **149 — provider-onboarding inputs (3 sites)**
+  businessName (server max 200), City + Province (each max 100).
+  Server: providerApplicationSchema (provider.validators.ts:23-30).
+
+- **150 — provider availability overrideReason (1 site)**
+  Final unbounded input on the provider side. Server cap max(500)
+  per availabilityOverrideSchema (provider.validators.ts:76).
+
+**Combined Phase 145-150 sweep total:** 6 phases, 6 bugs, 18 input
+sites fixed across both customer and provider mobile flows. Every
+mobile text input that hits a server `.max(N)` validator now has
+matching client-side maxLength. The unbounded-input bug class is
+now closed across the entire mobile app.
+
+### Final test counts
+
+API: 211/211 suites, 2660/2660 tests
+Mobile: 129/129 suites, 569/569 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **29**
+(22 bug fixes + 1 escalation + 6 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
