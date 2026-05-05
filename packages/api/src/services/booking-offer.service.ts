@@ -56,12 +56,15 @@ interface BookingOfferContext {
   longitude: string | null;
   status: string;
   service_price: number;
+  // BUG-PHASE131-01 fix — city now sourced from the booking row,
+  // not hardcoded as "Boracay" in the notification call below.
+  city: string;
 }
 
 async function loadBookingForOffer(bookingId: string): Promise<BookingOfferContext> {
   const r = await db.query<BookingOfferContext>(
     `SELECT id, category_id, subcategory_id, customer_id,
-            scheduled_at, latitude, longitude, status, service_price
+            scheduled_at, latitude, longitude, status, service_price, city
        FROM bookings WHERE id = $1`, [bookingId]);
   if (r.rows.length === 0) throw createAppError('Booking not found.', 404);
   return r.rows[0]!;
@@ -137,12 +140,19 @@ export async function kickOfferCycle(bookingId: string): Promise<OfferRow | null
   // Notify the provider. Best-effort; we don't fail the offer if push
   // is suppressed or fails.
   try {
+    // BUG-PHASE131-01 fix — pre-fix this hardcoded 'Boracay' regardless
+    // of the actual booking city. For v1.0 (Boracay-only launch) this
+    // happened to be correct most of the time, but admin-created test
+    // bookings or future v1.1 markets would have shown providers a
+    // wrong city in the push notification ("New job in Boracay" when
+    // the job is actually in Caticlan). Now sourced from the booking
+    // row directly — same field that drives the matching service area.
     await notificationService.notifyProviderNewJob(
       next.userId,
       bookingId,
       'New job available',
       bk.service_price,
-      'Boracay',  // city — we'd pull from booking.city but offer service stays slim
+      bk.city,
     );
   } catch (err) {
     logger.warn('notifyProviderNewJob failed in kickOfferCycle', {
