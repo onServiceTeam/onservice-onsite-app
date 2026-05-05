@@ -1,6 +1,6 @@
-# Phases 63–78 — Continuation deep audit pass (2026-05-05)
+# Phases 63–84 — Continuation deep audit pass (2026-05-05)
 
-16 more phases of source-level deep auditing, focused on areas the
+22 more phases of source-level deep auditing, focused on areas the
 earlier 38–62 sweep audited shallowly or skipped: auth flows, the
 five tab screens, mobile service-layer alignment, Phase 14 R5
 component wiring, the provider job detail flow, customer browse
@@ -10,12 +10,16 @@ aggregation, recurring-booking defaults, suki redeem state desync,
 customer tip max-amount gating, admin Platform Settings reset
 confirmation, customer booking-detail photos gate, provider
 Navigate-to-Job customer-name display, admin DispatchConsole
-cancel reason min length, and a sweep of 22 stale API tests
-across 8 suites that had drifted out of sync with code changes
-landed in Phases 26-29.
+cancel reason min length, a sweep of 22 stale API tests across
+8 suites that had drifted out of sync with code changes landed in
+Phases 26-29, chat header customer/provider name, provider job
+detail customer section, customer wallet "Top Up" dead route,
+provider service-area route path mismatch, provider ACTIVE_JOB
+route path mismatch, customer search wrong provider id, and
+customer bookings tab silent advanced filters.
 
-**This continuation: 24 real bugs found and fixed + 22 stale
-tests repaired, 136 cumulative bugs since Phase 17.**
+**This continuation: 30 real bugs found and fixed + 22 stale
+tests repaired, 142 cumulative bugs since Phase 17.**
 
 ## Phase-by-phase breakdown
 
@@ -39,9 +43,16 @@ tests repaired, 136 cumulative bugs since Phase 17.**
 | 77 | Provider Navigate-to-Job customer-name display | 1 |
 | 77b | Admin DispatchConsole cancel reason min length | 1 |
 | 78 | API test repair: 22 stale tests across 8 suites | (test fixes, not source bugs) |
-| **Total** | | **24 bugs + 22 test fixes** |
+| 79 | Chat header customer/provider name (cust + prov) | 2 |
+| 80 | Provider job detail customer section | 1 |
+| 81 | Customer wallet "Top Up" dead route | 1 |
+| 81b | Provider service-area route path mismatch | 1 |
+| 82 | Provider ACTIVE_JOB route path mismatch | 1 |
+| 83 | Customer search wrong provider id in nav | 1 |
+| 84 | Customer bookings tab silent advanced filters | 1 |
+| **Total** | | **30 bugs + 22 test fixes** |
 
-## The 24 bugs
+## The 30 bugs
 
 ### Phase 63 — auth flows
 - **BUG-PHASE63-01** — Login + register + checkout had plain-text
@@ -260,6 +271,70 @@ Source files were NOT touched — only test files updated:
   enrichSla returned 0 and the `> 0` assertion failed. Use
   `new Date()` so the test stays valid as wall-clock advances.
 
+### Phase 79 — chat header customer/provider name
+- **BUG-PHASE79-01** — Provider chat/[id].tsx header read "Chat
+  with Customer" / "Customer is typing..." with no name. The
+  provider had no idea who they were messaging while on the
+  screen. Phase 77 added customerName to the booking response;
+  now we query the booking and surface the real name.
+- **BUG-PHASE79-02** — Customer chat/[id].tsx header read just
+  "Chat" / "Provider is typing..." — same gap on customer side.
+  Fixed by querying the booking and using providerName (already
+  returned by the API).
+
+### Phase 80 — provider job detail customer section
+- **BUG-PHASE80-01** — Provider /provider/job/[id].tsx had no
+  Customer section. Provider could see Service, Schedule,
+  Location, Earnings — but had to swipe back to a different
+  screen (or open chat) to remember WHO the booking was for.
+  Phase 77 added customerName; surfaced as a top-of-mind
+  section above Schedule.
+
+### Phase 81 — customer wallet "Top Up" dead route
+- **BUG-PHASE81-01** — `Routes.CUSTOMER.WALLET` pointed at
+  '/customer/wallet' but no such file exists. The (tabs)/wallet.tsx
+  "+ Top Up" button used this route, so tapping it navigated to
+  a dead screen with no error feedback (expo-router silently 404s
+  on missing routes). Same dead-route pattern as BUG-PHASE64-05
+  (CRIT-80) for SETTINGS. Repointed to '/customer/wallet-topup'.
+
+### Phase 81b — provider service-area route path mismatch
+- **BUG-PHASE81-02** — `Routes.PROVIDER.SERVICE_AREAS` pointed
+  at '/provider/service-areas' (plural) but the actual file is
+  service-area.tsx (singular). No current consumers, but the
+  wrong path is a landmine for future code. Renamed key to
+  SERVICE_AREA and corrected the path.
+
+### Phase 82 — provider ACTIVE_JOB route path mismatch
+- **BUG-PHASE82-01** — `Routes.PROVIDER.ACTIVE_JOB` pointed at
+  '/provider/job/[id]/active' but the actual file is
+  /provider/job/active.tsx (a literal route, not a sub-route
+  under [id]). The screen reads bookingId from a query param.
+  No current consumers; corrected to '/provider/job/active' so
+  any future caller works.
+
+### Phase 83 — customer search wrong provider id in nav
+- **BUG-PHASE83-01** — Customer search.tsx handleSelectProvider
+  pushed `/customer/provider/${provider.userId}` to navigate to
+  a provider's profile. But /customer/provider/[id] calls
+  GET /api/v1/providers/:id, which queries
+  `WHERE providers.id = $1` (the providers PK), NOT users.id.
+  So tapping a search-result provider card always 404'd. Other
+  consumers (home Suki Pros, booking detail, notifications) all
+  use the providers PK correctly; search now matches by using
+  `provider.id` (also returned by the catalog/search endpoint).
+
+### Phase 84 — customer bookings tab silent advanced filters
+- **BUG-PHASE84-01** — Customer (tabs)/bookings.tsx had a
+  FilterModal trigger button (Phase 53-01 fix) and the captured
+  advancedFilters drove a count-badge on the trigger. But the
+  bookings list itself was rendered unfiltered — opening the
+  modal, picking sort/period, and tapping Apply only updated the
+  badge. Same dead-wire pattern as Phase 64-03 for provider jobs.
+  Filters now applied client-side: period (last 30/90 days, this
+  year) trims by scheduledAt; sort (newest/oldest first) re-sorts
+  by scheduledAt.
+
 ## Verification at end of pass
 
 - **101/101** admin Vitest DOM tests pass
@@ -268,14 +343,14 @@ Source files were NOT touched — only test files updated:
   tests across 8 suites — see commit "fix: Phase 78 — repair 22
   stale API tests across 8 suites" for the breakdown)
 - **`npx tsc --noEmit` clean** for admin, api, and mobile packages
-- **15 commits**, all atomic, all with co-author attribution
+- **22 commits**, all atomic, all with co-author attribution
 - **Zero regressions** detected at any phase boundary
 
 ## Cumulative since Phase 17
 
-- **136 real bugs found + fixed** total (112 prior + 24 this
+- **142 real bugs found + fixed** total (112 prior + 30 this
   continuation)
-- **9 migrations** (none new in 63–77)
+- **9 migrations** (none new in 63–84)
 - All assertion totals from Phase 62 still apply
 
 ## Patterns observed
