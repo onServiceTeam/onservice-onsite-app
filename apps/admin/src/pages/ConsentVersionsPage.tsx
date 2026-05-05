@@ -376,8 +376,21 @@ export default function ConsentVersionsPage(): React.ReactElement {
                 publishMutation.mutate({
                   consentType: consentType.trim(),
                   version: versionStr.trim(),
+                  // BUG-PHASE116-01 fix — pre-fix the picked date was
+                  // stamped with `T00:00:00Z` (UTC midnight). Admin
+                  // selecting "Effective Wednesday May 5" actually
+                  // made the consent version come into force at
+                  // 2026-05-05T00:00:00 UTC = 2026-05-05T08:00:00
+                  // Manila — so customers booking between 00:00 and
+                  // 08:00 Manila on May 5 were still bound by the
+                  // OLD consent version. For a material consent
+                  // change with legal implications (NPC RA 10173),
+                  // an 8-hour window of "wrong consent applied" is
+                  // not OK. Anchor to +08:00 so the in-force moment
+                  // matches the Manila day the admin picked. Same
+                  // Manila-tz pattern as Phase 105/113/115.
                   effectiveAt: effectiveDate.length > 0
-                    ? new Date(effectiveDate + 'T00:00:00Z').toISOString()
+                    ? new Date(effectiveDate + 'T00:00:00+08:00').toISOString()
                     : new Date().toISOString(),
                   changeSummary: changeSummary.trim(),
                   material,
