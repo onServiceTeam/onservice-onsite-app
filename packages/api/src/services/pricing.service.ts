@@ -549,7 +549,17 @@ export function formatPricingRule(r: PricingRuleRow): Record<string, unknown> {
     type: r.type,
     multiplier: Number(r.multiplier),
     rushHoursThreshold: r.rush_hours_threshold,
-    holidayDate: r.holiday_date ? String(r.holiday_date).split('T')[0] : null,
+    // BUG-PHASE141-01 fix — pre-fix did `String(r.holiday_date).split('T')[0]`
+    // which is broken when r.holiday_date is a Date object (pg-node's
+    // default DATE parser returns Date instances). `String(date)` calls
+    // Date.toString() which returns "Fri Dec 25 2026 00:00:00 GMT+0000 ..."
+    // (no 'T'), so the split returned the WHOLE human string. The
+    // admin Pricing Rules page rendered "Fri Dec 25 2026 ..." instead
+    // of "2026-12-25" for every holiday rule. Fix: normalize via
+    // `new Date(...).toISOString()` which always emits ISO-8601 with 'T'
+    // — works for both Date instances and pre-formatted YYYY-MM-DD
+    // strings.
+    holidayDate: r.holiday_date ? new Date(r.holiday_date).toISOString().split('T')[0] ?? null : null,
     peakStartTime: r.peak_start_time,
     peakEndTime: r.peak_end_time,
     peakDaysOfWeek: r.peak_days_of_week,
