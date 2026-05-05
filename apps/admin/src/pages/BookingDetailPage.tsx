@@ -382,7 +382,18 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
 
   if (!isSuperAdmin) return null;
 
+  // BUG-PHASE142-01 fix — pre-fix `reasonOk = reason.trim().length >= 10`
+  // was used to gate ALL five super-admin actions (release / refund /
+  // reassign / cancel / force-complete). But the server's force-complete
+  // validator (booking-admin.service.ts:984 → requireReason(reason, 20))
+  // requires 20 chars. So an admin typing a 10-19 char reason on the
+  // force-complete dialog passed the client check, hit the server, and
+  // got a generic 400 with no clear message of "you need 20 chars".
+  // Same pattern as BUG-PHASE77-02 (cancel was 5/10 client/server).
+  // Now: separate gate for force-complete that matches the server's
+  // 20-char floor.
   const reasonOk = reason.trim().length >= 10;
+  const reasonOkForce = reason.trim().length >= 20;
   const refundAmtCentavos = (() => {
     const n = parseFloat(amountPesos);
     return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
@@ -510,12 +521,18 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
 
           <div>
             <label className="text-xs text-[var(--color-text-secondary)]">
-              Reason (min 10 characters) — recorded in admin_actions ledger
+              {open === 'force_complete'
+                ? 'Reason (min 20 characters — force-complete is a heavy action; describe the customer-confirmation gap clearly)'
+                : 'Reason (min 10 characters) — recorded in admin_actions ledger'}
             </label>
             <Textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Why is this action being taken?"
+              placeholder={
+                open === 'force_complete'
+                  ? 'e.g., Customer unreachable for 4 days; provider photo evidence verified by support agent — auto-confirming.'
+                  : 'Why is this action being taken?'
+              }
               rows={3}
             />
           </div>
@@ -574,7 +591,7 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
             {open === 'force_complete' && (
               <Button
                 size="sm"
-                disabled={!reasonOk || forceMut.isPending}
+                disabled={!reasonOkForce || forceMut.isPending}
                 onClick={() => forceMut.mutate({ reason })}
               >
                 Confirm force-complete
