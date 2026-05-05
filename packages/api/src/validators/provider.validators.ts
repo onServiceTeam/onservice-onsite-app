@@ -86,11 +86,20 @@ export const availabilityOverrideSchema = z.object({
   .refine((data) => {
     // Don't accept overrides for dates in the past — they're useless
     // and a sign of client bug or stale form data.
-    const [y, m, d] = data.overrideDate.split('-').map(Number);
-    const date = new Date(Date.UTC(y!, m! - 1, d!));
-    const today = new Date();
-    const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-    return date >= todayUtc;
+    //
+    // BUG-PHASE129-01 fix — pre-fix this used `new Date().getUTC*()`
+    // which produces UTC-today, NOT Manila-today. In the 8-hour window
+    // each day between 00:00 Manila (= 16:00 UTC of the previous day)
+    // and 08:00 Manila (= 00:00 UTC), Manila and UTC differ by one
+    // calendar day. A provider opening the form at 03:00 Manila on
+    // day N and submitting `overrideDate: N-1` (yesterday in Manila)
+    // would compare N-1 >= N-1 (UTC's still-yesterday) → pass — but
+    // the date is genuinely yesterday in the launch market. Manila
+    // is the canonical TZ for the platform; the same Phase 109/113
+    // Manila-anchored date-string idiom applies. Lexicographic compare
+    // works because YYYY-MM-DD is fixed-width zero-padded.
+    const todayManilaStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+    return data.overrideDate >= todayManilaStr;
   }, { message: 'overrideDate cannot be in the past', path: ['overrideDate'] });
 
 export const setScheduleSchema = z.object({
