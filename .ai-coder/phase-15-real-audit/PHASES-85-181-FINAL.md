@@ -2197,6 +2197,69 @@ Tsc clean across all 3 packages.
 Total commits since Phase 127 closeout (f9e8d95): **75**
 (49 bug fixes + 1 escalation + 25 closeout-doc updates).
 
+## Phases 178–181 (2026-05-06, part 25) — UX-gap streak extends + server-cap sweep resumes
+
+**178 — provider+customer notifications empty states had no helper text**
+  Both notifications screens (`provider/notifications.tsx`,
+  `customer/notifications.tsx`) had a bare "No notifications yet"
+  empty state with no helper text — users landing here didn't know
+  what kinds of notifications would arrive. Now both have a one-line
+  hint:
+  - provider: "Job offers, payment releases, reviews, and tier
+    updates will appear here."
+  - customer: "Booking updates, provider arrivals, quotes, and
+    promos will appear here."
+  Two separate fix-comment IDs (BUG-PHASE178-01 / 02) since the two
+  screens are distinct files; one shared regression test file covers
+  both.
+
+**179 — decline-offer reason silently truncated to 500 chars**
+  Pre-fix POST /api/v1/bookings/offers/:offerId/decline accepted
+  any-length reason and the service did `.slice(0, 500)` before
+  persisting to decline_reason. A 10000-char abuse string was
+  silently truncated; client got 200 OK with no signal. Now: explicit
+  DECLINE_REASON_MAX = 500 cap at the route boundary returns 400
+  with a helpful message.
+
+**180 — DSR action routes silently truncated overlong text (3 sites)**
+  Three DSR action routes in compliance-admin.routes.ts accepted
+  unbounded text:
+  - POST /dsr/:id/request-info (infoNeeded)
+  - POST /dsr/:id/reject (reason)
+  - POST /dsr/:id/escalate (npcReference)
+  The service then did `.slice(0, 500)` for the user-facing
+  notification while storing the full string in admin_notes / JSON
+  details. A 100k-char abuse string would balloon admin_notes while
+  the DSR subject saw a 500-char excerpt. Now: validateDsrText helper
+  caps infoNeeded + reason at 5000; npcReference capped at 200 (it's
+  just an external case ID).
+
+**181 — admin-latent decide routes accepted unbounded reason (2 sites)**
+  POST /admin/provider-applications/:userId/decide and POST /admin/
+  service-area-changes/:changeId/decide both accepted unbounded
+  reason strings that flow into admin_actions audit rows + user
+  notifications. Now: validateDecideReason helper caps reason at
+  5000.
+
+Phases 179 + 180 + 181 are the **server-cap sweep resuming** — same
+shape as Phase 152-168. Six route-level caps added across three files,
+4 helper functions added. Detection pattern: `req.body.X` reads of
+text fields that flow into the database without an explicit length
+gate at the route boundary.
+
+UX-gap streak now **9 phases** (Phases 169 + 170 + 172 + 173 + 174 +
+175 + 176 + 177 + 178), with Phase 178 contributing 2 separate fixes.
+
+### Final test counts after Phase 181
+
+API: 231/231 suites, 2740/2740 tests
+Mobile: 139/139 suites, 597/597 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **80**
+(53 bug fixes + 1 escalation + 26 closeout-doc updates).
+
 ## What's still genuinely outstanding
 
 Updated from PHASES-63-84-FINAL.md:
