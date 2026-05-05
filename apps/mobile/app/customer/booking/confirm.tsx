@@ -126,6 +126,21 @@ export default function BookingConfirmScreen(): React.ReactElement {
       </View>
 
       <View style={styles.actions}>
+        {/* BUG-PHASE104-01 fix — pre-fix: when the booking landed here
+            in payment_pending (because the PayMongo checkout failed,
+            was cancelled, or the user backed out of GCash/Maya), the
+            screen TOLD the user to "Complete your payment to confirm
+            this booking" but offered no button to do so. They had to
+            tap "View Booking" and then find "Complete Payment" on the
+            booking detail screen — two taps where one should do. Now
+            we surface the direct CTA when status is payment_pending. */}
+        {bookingId && booking && !isPaid && (
+          <Button
+            title="Complete Payment"
+            onPress={() => router.replace(`/customer/booking/pay?bookingId=${bookingId}`)}
+            style={styles.primaryAction}
+          />
+        )}
         <Button
           title="View Booking"
           onPress={() => {
@@ -136,6 +151,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
             }
           }}
           style={styles.primaryAction}
+          variant={booking && !isPaid ? 'outline' : undefined}
         />
         <Button
           title="Back to Home"
