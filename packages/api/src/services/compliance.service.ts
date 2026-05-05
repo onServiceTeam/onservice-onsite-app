@@ -367,6 +367,15 @@ export async function createDsr(input: {
       400,
     );
   }
+  // BUG-PHASE161-01 fix — pre-fix userMessage had no length cap.
+  // Column is TEXT (data_subject_requests.user_message; migration 057)
+  // — unbounded by Postgres. Same defense-in-depth pattern as Phase
+  // 152-160. Cap at 5000 chars (free-form message to DPO).
+  if (input.userMessage !== undefined && input.userMessage !== null
+      && typeof input.userMessage === 'string'
+      && input.userMessage.length > 5000) {
+    throw createAppError('userMessage must be ≤ 5000 characters.', 400);
+  }
 
   const result = await db.query<DsrRow>(
     `INSERT INTO data_subject_requests
