@@ -23,21 +23,62 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import {
   ClipboardList, CheckCircle2, PartyPopper, Coins, Scale,
-  Star, Banknote, Gift, Bell, AlertTriangle,
+  Star, Banknote, Gift, Bell, AlertTriangle, MessageSquare, Ban,
+  Award, Shield, Crown,
 } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
+// BUG-PHASE125-01 fix — pre-fix every key in this map (`new_booking`,
+// `booking_assigned`, `payment_received`, `dispute_opened`,
+// `review_received`, `payout_completed`, `tip_received`) was a stale
+// guess that never matched any type emitted by
+// packages/api/src/services/notification.service.ts. ALL provider
+// notifications fell back to the Bell icon. Replaced with the actual
+// API-emitted types the provider receives:
+//   - new_job_available — from booking-offer.service.kickOfferCycle
+//   - booking_confirmed — from notifyBookingStatusChange (paid)
+//   - job_completed — same (completed_by_provider)
+//   - payment_released — same (confirmed)
+//   - dispute_update — from dispute.service / notifyBookingStatusChange
+//   - rating_received — from review.service.createReview (BUG-PHASE125-01)
+//   - tier_upgrade / provider_tier_changed — admin actions
+//   - nbi_expiring — admin alert
+//   - provider_approved / provider_rejected / provider_suspended /
+//     provider_reactivated — admin onboarding decisions
+//   - customer_cancelled / booking_cancelled — counter-party cancels
+//   - new_message / chat_started / chat_last_message — messaging
+//   - change_order_expired — auto-expiry worker
+//   - recurring_auto_charge_succeeded / failed / suspended — E02 cron
+//   - payment — used by tip.service for "Tip Received!" pushes
 const NOTIFICATION_ICONS: Record<string, IconComponent> = {
-  new_booking: ClipboardList,
-  booking_assigned: CheckCircle2,
+  new_job_available: ClipboardList,
   booking_confirmed: PartyPopper,
-  payment_received: Coins,
-  dispute_opened: Scale,
-  review_received: Star,
-  payout_completed: Banknote,
-  tip_received: Gift,
+  job_completed: CheckCircle2,
+  payment_released: Coins,
+  // tip.service emits type='payment' for tip received notifications —
+  // use the gift icon so they read clearly even though they share the
+  // same row 'type' as escrow releases.
+  payment: Gift,
+  dispute_update: Scale,
+  rating_received: Star,
+  tier_upgrade: Award,
+  provider_tier_changed: Award,
+  nbi_expiring: AlertTriangle,
+  provider_approved: Shield,
+  provider_rejected: Ban,
+  provider_suspended: Ban,
+  provider_reactivated: Shield,
+  customer_cancelled: Ban,
+  booking_cancelled: Ban,
+  new_message: MessageSquare,
+  chat_started: MessageSquare,
+  chat_last_message: MessageSquare,
+  change_order_expired: AlertTriangle,
+  recurring_auto_charge_succeeded: CheckCircle2,
+  recurring_auto_charge_failed: AlertTriangle,
+  recurring_auto_charge_suspended: AlertTriangle,
 };
 
 export default function ProviderNotificationsScreen(): React.ReactElement {
@@ -93,12 +134,23 @@ export default function ProviderNotificationsScreen(): React.ReactElement {
       router.push(`/provider/chat/${notifData.bookingId}`);
     } else if (notifData?.bookingId) {
       router.push(`/provider/job/${notifData.bookingId}`);
-    } else if (notif.type === 'payout_completed') {
-      router.push('/provider/payouts');
-    } else if (notif.type === 'review_received') {
+    } else if (notif.type === 'rating_received') {
+      // BUG-PHASE125-01 fix — pre-fix this branch keyed on
+      // `review_received` which the API never emits, so the route
+      // was dead.
       router.push('/provider/reviews');
-    } else if (notif.type === 'tip_received' || notif.type === 'payment_received') {
+    } else if (notif.type === 'payment' || notif.type === 'payment_released') {
+      // BUG-PHASE125-01 fix — pre-fix branched on `tip_received`
+      // and `payment_received` which the API never emits. tip.service
+      // writes notifications with type='payment'; payment_released
+      // is the canonical escrow release type per
+      // notification.service's statusToType map. Both land on
+      // earnings so the provider can see the credit.
       router.push('/(provider-tabs)/earnings');
+    } else if (notif.type === 'tier_upgrade' || notif.type === 'provider_tier_changed') {
+      router.push('/provider/tier-progression');
+    } else if (notif.type === 'nbi_expiring') {
+      router.push('/provider/account-management');
     }
     // Else: just stays on the notifications list (already marked read).
   };

@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import * as notificationService from './notification.service';
 
 interface ReviewRow {
   id: string;
@@ -159,6 +160,45 @@ export async function createReview(
     await updateProviderAggregateRating(client, bk.provider_id!);
 
     logger.info('Review created', { reviewId: review.id, bookingId, rating: data.rating, flagged });
+    return review;
+  }).then(async (review) => {
+    // BUG-PHASE125-01 fix — pre-fix createReview never notified the
+    // provider when a customer left a review. The notification.service
+    // already declared `rating_received` in its type union (line 49)
+    // but no service actually emitted it. Provider learned about new
+    // reviews only by manually opening the Reviews screen — and since
+    // mobile/app/provider/notifications.tsx tries to route taps on
+    // `rating_received` notifications to /provider/reviews, that
+    // routing was dead too.
+    //
+    // Now: emit `rating_received` after the review row commits. Best-
+    // effort — a notification failure must not roll back the review
+    // (the .then() is OUTSIDE the transaction). The provider's user_id
+    // is looked up from providers.user_id keyed on bk.provider_id.
+    try {
+      const providerUser = await db.query<{ user_id: string }>(
+        `SELECT user_id FROM providers WHERE id = $1`,
+        [bk.provider_id!],
+      );
+      const providerUserId = providerUser.rows[0]?.user_id;
+      if (providerUserId) {
+        const stars = '★'.repeat(data.rating) + '☆'.repeat(5 - data.rating);
+        await notificationService.createNotification({
+          userId: providerUserId,
+          type: 'rating_received',
+          title: `New ${data.rating}-star review`,
+          body: data.comment && data.comment.trim().length > 0
+            ? `${stars}: "${data.comment.slice(0, 120)}${data.comment.length > 120 ? '…' : ''}"`
+            : `${stars} — Tap to read in your Reviews tab.`,
+          data: { reviewId: review.id, bookingId, rating: data.rating },
+        });
+      }
+    } catch (notifyErr) {
+      logger.error('rating_received notification failed (non-fatal)', {
+        reviewId: review.id, bookingId,
+        error: notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+      });
+    }
     return review;
   });
 }

@@ -23,12 +23,20 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import {
   CheckCircle2, User, Car, MapPin, PartyPopper, Coins, Scale,
-  Star, Gift, Bell, AlertTriangle,
+  Star, Gift, Bell, AlertTriangle, MessageSquare, Ban,
 } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
+// BUG-PHASE125-01 fix — pre-fix this map used `review_received` for
+// the Star icon, but the API enum (notification.service.ts L49)
+// emits `rating_received`. Mismatch → fell through to the Bell
+// fallback. Same fix applied below in the routing logic (was also
+// `review_received` and never matched). Other keys here are correct
+// against notification.service's emitted set (booking_confirmed,
+// provider_*, job_completed, payment_released, dispute_update —
+// emitted via notifyBookingStatusChange's statusToType map).
 const NOTIFICATION_ICONS: Record<string, IconComponent> = {
   booking_confirmed: CheckCircle2,
   provider_assigned: User,
@@ -37,8 +45,27 @@ const NOTIFICATION_ICONS: Record<string, IconComponent> = {
   job_completed: PartyPopper,
   payment_released: Coins,
   dispute_update: Scale,
-  review_received: Star,
+  rating_received: Star,
   promo: Gift,
+  // Chat notifications use a chat-bubble icon so the user can
+  // visually distinguish them from booking lifecycle events.
+  new_message: MessageSquare,
+  chat_started: MessageSquare,
+  chat_last_message: MessageSquare,
+  // Cancellation lifecycle from notifyBookingStatusChange's
+  // statusToType map. Pre-fix all three rendered with the Bell
+  // fallback even though we have a proper Ban icon for cancellation.
+  customer_cancelled: Ban,
+  provider_cancelled: Ban,
+  booking_cancelled: Ban,
+  // Auto-charge outcomes (recurring path).
+  recurring_auto_charge_succeeded: CheckCircle2,
+  recurring_auto_charge_failed: AlertTriangle,
+  recurring_auto_charge_suspended: AlertTriangle,
+  // Quote lifecycle.
+  new_quote: Coins,
+  quote_accepted: CheckCircle2,
+  quote_expired: AlertTriangle,
 };
 
 export default function NotificationsScreen(): React.ReactElement {
@@ -103,7 +130,7 @@ export default function NotificationsScreen(): React.ReactElement {
       router.push(`/customer/provider/${notifData.providerId}`);
     } else if (notif.type === 'promo' || notif.type === 'referral') {
       router.push('/customer/referral');
-    } else if (notif.type === 'review_received' || notif.type === 'job_completed') {
+    } else if (notif.type === 'rating_received' || notif.type === 'job_completed') {
       router.push('/(tabs)/bookings');
     } else if (notif.type === 'payment_released') {
       router.push('/(tabs)/wallet');
