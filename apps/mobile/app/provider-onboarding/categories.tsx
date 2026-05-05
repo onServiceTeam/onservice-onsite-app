@@ -95,6 +95,9 @@ export default function CategoriesScreen(): React.ReactElement {
       <Text style={styles.title}>Your Services</Text>
       <Text style={styles.subtitle}>Enter your business name and select the services you offer.</Text>
 
+      {/* BUG-PHASE149-01 fix — pre-fix businessName input had no
+          maxLength. Server's providerApplicationSchema caps at
+          max(200) (provider.validators.ts:24). */}
       <View style={styles.nameInput}>
         <Input
           label="Business / Professional Name"
@@ -102,6 +105,7 @@ export default function CategoriesScreen(): React.ReactElement {
           value={name}
           onChangeText={setName}
           autoCapitalize="words"
+          maxLength={200}
         />
       </View>
 

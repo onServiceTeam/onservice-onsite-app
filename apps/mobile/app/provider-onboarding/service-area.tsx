@@ -169,8 +169,12 @@ export default function ServiceAreaScreen(): React.ReactElement {
           ))}
         </View>
 
-        <Input label="City" placeholder="e.g. Quezon City" value={city} onChangeText={(v) => { setCity(v); setLat(null); setLng(null); }} />
-        <Input label="Province" placeholder="e.g. Metro Manila" value={province} onChangeText={setProvince} />
+        {/* BUG-PHASE149-01 fix — pre-fix City + Province inputs had
+            no maxLength. Server's providerApplicationSchema caps both
+            at max(100) (provider.validators.ts:29-30). Same fix shape
+            as Phase 148 (customer addresses). */}
+        <Input label="City" placeholder="e.g. Quezon City" value={city} onChangeText={(v) => { setCity(v); setLat(null); setLng(null); }} maxLength={100} />
+        <Input label="Province" placeholder="e.g. Metro Manila" value={province} onChangeText={setProvince} maxLength={100} />
 
         {/* BUG-PHASE62-02 — real "Use My Current Location" button
              matching the K06 alert message. */}
