@@ -127,7 +127,12 @@ export const Routes = {
     PROFILE: '/provider/profile',
     SETTINGS: '/provider/settings',
     REVIEWS: '/provider/reviews',
-    SERVICE_AREAS: '/provider/service-areas',
+    // BUG-PHASE81-02 fix — pre-fix the path was '/provider/service-areas'
+    // (plural) but the actual file is service-area.tsx (singular). No
+    // current consumers, but leaving the wrong path is a landmine for
+    // future code that calls Routes.PROVIDER.SERVICE_AREAS expecting
+    // it to work. Renamed key to SERVICE_AREA to match the file.
+    SERVICE_AREA: '/provider/service-area',
     NOTIFICATIONS: '/provider/notifications',
     SERVICES: '/provider/services',
     CALENDAR: '/provider/calendar',
