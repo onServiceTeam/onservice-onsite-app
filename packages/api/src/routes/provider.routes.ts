@@ -297,6 +297,17 @@ router.get(
   },
 );
 
+// BUG-PHASE152-01 fix — portfolio caption + categoryId had no
+// server-side length cap. A misbehaving provider could submit a
+// 100,000-char caption that the table accepts and the public
+// portfolio view then displays to every customer browsing the
+// provider's profile. Same defense-in-depth gap as MED-N97
+// (file:// URIs) — needs an explicit reject. 500-char cap matches
+// the cap pattern used elsewhere (cancellation reason, address
+// notes). categoryId capped at 64 (UUID is 36; allow some slack).
+const PORTFOLIO_CAPTION_MAX = 500;
+const PORTFOLIO_CATEGORY_ID_MAX = 64;
+
 router.post(
   '/me/portfolio',
   authMiddleware,
@@ -318,6 +329,13 @@ router.post(
           'Invalid imageUrl. Portfolio images must be uploaded via /api/v1/uploads first; raw file:// URIs are not accepted.',
           400,
         );
+      }
+      // BUG-PHASE152-01 fix — cap caption + categoryId.
+      if (caption !== undefined && (typeof caption !== 'string' || caption.length > PORTFOLIO_CAPTION_MAX)) {
+        throw createAppError(`caption must be a string ≤ ${PORTFOLIO_CAPTION_MAX} characters.`, 400);
+      }
+      if (categoryId !== undefined && (typeof categoryId !== 'string' || categoryId.length > PORTFOLIO_CATEGORY_ID_MAX)) {
+        throw createAppError(`categoryId must be a string ≤ ${PORTFOLIO_CATEGORY_ID_MAX} characters.`, 400);
       }
       // MED-N97 fix: cap portfolio at 50 items per provider so a
       // misbehaving client can't fill the table with junk.
@@ -342,6 +360,10 @@ router.patch(
       const provider = await providerService.getProviderByUserId(req.user!.userId);
       const itemId = req.params['itemId'] as string;
       const { caption, displayOrder } = req.body as { caption?: string; displayOrder?: number };
+      // BUG-PHASE152-01 fix — same caption cap on the patch path.
+      if (caption !== undefined && (typeof caption !== 'string' || caption.length > PORTFOLIO_CAPTION_MAX)) {
+        throw createAppError(`caption must be a string ≤ ${PORTFOLIO_CAPTION_MAX} characters.`, 400);
+      }
       const item = await providerService.updatePortfolioItem(provider.id, itemId, { caption, displayOrder });
       res.json({ success: true, data: providerService.formatPortfolioItem(item) });
     } catch (error) {
@@ -383,6 +405,22 @@ router.get(
   },
 );
 
+// BUG-PHASE152-01 fix — certification fields had no server cap.
+// Customer-facing portfolio surfaces these strings; an unbounded
+// `name` or `issuingBody` is a sneak-injection vector and a UX hazard.
+// Caps mirror typical Phil. cert label lengths with slack.
+const CERT_NAME_MAX = 200;
+const CERT_ISSUING_BODY_MAX = 200;
+const CERT_NUMBER_MAX = 100;
+
+function validateCertText(value: string | undefined, field: string, max: number): void {
+  if (value === undefined) return;
+  if (typeof value !== 'string') throw createAppError(`${field} must be a string.`, 400);
+  if (value.length > max) {
+    throw createAppError(`${field} must be ≤ ${max} characters.`, 400);
+  }
+}
+
 router.post(
   '/me/certifications',
   authMiddleware,
@@ -395,6 +433,10 @@ router.post(
         certificateUrl?: string; issuedDate?: string; expiryDate?: string;
       };
       if (!name || typeof name !== 'string') throw createAppError('Certification name is required.', 400);
+      // BUG-PHASE152-01 fix — server-side length validation.
+      validateCertText(name, 'name', CERT_NAME_MAX);
+      validateCertText(issuingBody, 'issuingBody', CERT_ISSUING_BODY_MAX);
+      validateCertText(certificateNumber, 'certificateNumber', CERT_NUMBER_MAX);
       const cert = await providerService.addCertification(provider.id, {
         name, issuingBody, certificateNumber, certificateUrl, issuedDate, expiryDate,
       });
@@ -417,6 +459,10 @@ router.patch(
         name?: string; issuingBody?: string; certificateNumber?: string;
         certificateUrl?: string; issuedDate?: string; expiryDate?: string;
       };
+      // BUG-PHASE152-01 fix — server-side length validation on PATCH too.
+      validateCertText(name, 'name', CERT_NAME_MAX);
+      validateCertText(issuingBody, 'issuingBody', CERT_ISSUING_BODY_MAX);
+      validateCertText(certificateNumber, 'certificateNumber', CERT_NUMBER_MAX);
       const cert = await providerService.updateCertification(provider.id, certId, {
         name, issuingBody, certificateNumber, certificateUrl, issuedDate, expiryDate,
       });
