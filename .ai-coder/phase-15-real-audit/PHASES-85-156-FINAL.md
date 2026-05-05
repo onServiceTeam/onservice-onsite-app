@@ -1,6 +1,6 @@
-# Phases 85–154 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–156 — Continuation deep audit pass (2026-05-05+)
 
-Seventy phases continuing the screen-by-screen audit started in
+Seventy-two phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1760,6 +1760,39 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **35**
 (26 bug fixes + 1 escalation + 8 closeout-doc updates).
+
+---
+
+## Phases 155–156 (2026-05-06, part 10) — server cap sweep extended
+
+Two more server-side cap fixes extending the Phase 152-154 sweep:
+
+- **155 — public waitlist endpoint (6 sites)**
+  POST /api/v1/service-areas/waitlist is PUBLIC (no auth — anyone
+  on the internet can hit it). Rate-limited but had no length
+  validation on its 6 fields. Highest-priority of the sweep
+  because of the public-attacker exposure. Caps mirror migration
+  022_service_areas.sql VARCHAR types.
+
+- **156 — account deletion reason (1 site)**
+  POST /api/v1/account/deletion accepted unbounded `reason`.
+  Column is TEXT (unbounded by Postgres). Capped at 1000 chars.
+
+**Cumulative server-cap sweep (Phases 152-156):** 5 phases, 5 bugs,
+**33 server-side input sites** capped. Combined with the mobile
+maxLength sweep (Phases 145-150, 18 sites), every text-input
+contract on the platform now has matching cap discipline at every
+layer (mobile → server → DB).
+
+### Final test counts after Phase 156
+
+API: 217/217 suites, 2695/2695 tests
+Mobile: 129/129 suites, 569/569 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **39**
+(28 bug fixes + 1 escalation + 10 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
