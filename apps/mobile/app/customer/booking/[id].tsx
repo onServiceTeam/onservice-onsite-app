@@ -129,6 +129,12 @@ export default function BookingDetailScreen(): React.ReactElement {
   const isActive = ACTIVE_STATUSES.has(booking.status);
   const needsConfirmation = booking.status === NEEDS_CONFIRMATION;
   const canCancel = CANCELLABLE_STATUSES.has(booking.status);
+  // BUG-PHASE86-01 — payment_pending bookings (post-quote-accept or
+  // any other path that lands here) need a "Complete Payment" entry
+  // point. Pre-fix the booking detail showed only Cancel + Chat for
+  // this state — there was no way for the customer to actually pay
+  // for the quote they had just accepted.
+  const needsPayment = booking.status === 'payment_pending';
   const canViewQuotes = booking.bookingType === 'quote_based' && ['requested', 'quoted'].includes(booking.status);
   const canViewChangeOrders = ['in_progress', 'completed_by_provider', 'confirmed'].includes(booking.status);
   const canFileDispute = ['completed_by_provider', 'confirmed'].includes(booking.status);
@@ -266,6 +272,13 @@ export default function BookingDetailScreen(): React.ReactElement {
           <Button
             title="View Quotes"
             onPress={() => router.push(`/customer/booking/quotes?bookingId=${id}`)}
+          />
+        )}
+        {/* BUG-PHASE86-01 — wire the new pay-existing-booking screen. */}
+        {needsPayment && (
+          <Button
+            title="Complete Payment"
+            onPress={() => router.push(`/customer/booking/pay?bookingId=${id}`)}
           />
         )}
         {isActive && (

@@ -127,8 +127,12 @@ export default function QuotesScreen(): React.ReactElement {
     mutationFn: (quoteId: string) => acceptQuote(bookingId ?? '', quoteId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['bookingQuotes', bookingId] });
-      Alert.alert('Success', 'Quote accepted! Proceed to payment.', [
-        { text: 'OK', onPress: () => router.replace(`/customer/booking/${bookingId}`) },
+      // BUG-PHASE86-01 — pre-fix this routed to /customer/booking/[id]
+      // but that screen had no payment action for status='payment_
+      // pending', so the customer was stuck. Now route directly to
+      // the new pay-existing-booking screen.
+      Alert.alert('Quote Accepted', 'Now choose a payment method to confirm the booking.', [
+        { text: 'OK', onPress: () => router.replace(`/customer/booking/pay?bookingId=${bookingId}`) },
       ]);
     },
     onError: (err: unknown) => {
