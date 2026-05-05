@@ -357,6 +357,12 @@ export async function removeMember(
   targetUserId: string,
   reason?: string,
 ): Promise<void> {
+  // BUG-PHASE162-01 fix — pre-fix reason had no length cap. Column
+  // is TEXT (deleted_reason from migration 076; unbounded by Postgres).
+  // Same defense-in-depth pattern as Phase 152-161. Cap at 1000.
+  if (reason !== undefined && typeof reason === 'string' && reason.length > 1000) {
+    throw createAppError('reason must be ≤ 1000 characters.', 400);
+  }
   // Phase 14 Dispatch 06 — Bug 105. Pre-D06 this was a hard DELETE with
   // NO admin_actions audit. Now: soft delete (deleted_at/deleted_by/
   // deleted_reason from migration 076) + admin_actions audit in ONE
@@ -447,6 +453,11 @@ export async function transferOwnership(
 ): Promise<void> {
   if (newOwnerUserId === requesterId) {
     throw createAppError('Cannot transfer ownership to yourself.', 400);
+  }
+  // BUG-PHASE162-01 fix — pre-fix reason had no length cap. Same
+  // defense-in-depth pattern as Phase 152-161. Cap at 1000.
+  if (reason !== undefined && typeof reason === 'string' && reason.length > 1000) {
+    throw createAppError('reason must be ≤ 1000 characters.', 400);
   }
 
   await db.transaction(async (client) => {
