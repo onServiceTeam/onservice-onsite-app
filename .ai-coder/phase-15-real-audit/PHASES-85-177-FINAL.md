@@ -2151,6 +2151,52 @@ Tsc clean across all 3 packages.
 Total commits since Phase 127 closeout (f9e8d95): **71**
 (46 bug fixes + 1 escalation + 24 closeout-doc updates).
 
+## Phases 175–177 (2026-05-06, part 24) — UX-gap streak extends to 8
+
+**175 — provider Jobs tab empty state had no helper text**
+  Empty state on `(provider-tabs)/jobs.tsx` was just an icon + bare
+  "No active jobs" / "No completed jobs yet" / "No cancelled jobs"
+  text. The Dashboard explains "Go online to start receiving jobs"
+  but the Jobs tab itself didn't echo that — providers landing here
+  directly were left wondering why they had no jobs. Now: filter-
+  conditional helper hint under each empty state.
+
+  - active: "Make sure you're online (toggle on the Dashboard) and
+    have services configured. New job requests will appear here."
+  - completed: "Completed jobs will show here after the customer
+    confirms or after the auto-confirm window passes."
+  - cancelled: "Cancelled jobs will appear here."
+
+**176 — customer search empty state had no Browse CTA**
+  Hint said "Try a different keyword or browse categories" — but
+  "browse categories" was just text, no link. A customer who
+  searched and got zero results had to back out manually. Now:
+  Browse Categories CTA routes to `/(tabs)/home`.
+
+**177 — wallet empty state was filter-blind**
+  Empty state always said "No transactions yet" regardless of
+  whether the user genuinely had no history or just selected a
+  filter (Top-ups / Payments / Refunds) that returned zero from
+  the in-memory list. Misleading: a user with 5 payments switching
+  to "Top-ups" saw "No transactions yet" — looked like the whole
+  wallet was empty. Now: filter-aware text — distinguishes truly-
+  empty ("No transactions yet" + "Top up your wallet or pay for a
+  booking..." hint) from filter-empty ("No top-ups in this view" /
+  "No payments in this view" / "No refunds in this view").
+
+Phases 169 + 170 + 172 + 173 + 174 + 175 + 176 + 177 form an
+**8-phase UX-gap streak**.
+
+### Final test counts after Phase 177
+
+API: 228/228 suites, 2728/2728 tests
+Mobile: 139/139 suites, 597/597 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **75**
+(49 bug fixes + 1 escalation + 25 closeout-doc updates).
+
 ## What's still genuinely outstanding
 
 Updated from PHASES-63-84-FINAL.md:
