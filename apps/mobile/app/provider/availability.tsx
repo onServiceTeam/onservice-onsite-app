@@ -265,12 +265,17 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
               </View>
             )}
 
+            {/* BUG-PHASE150-01 fix — pre-fix overrideReason had no
+                maxLength. Server's availabilityOverrideSchema caps
+                reason at max(500) (provider.validators.ts:76).
+                Same fix shape as Phase 145-149. */}
             <TextInput
               style={styles.input}
               value={overrideReason}
               onChangeText={setOverrideReason}
               placeholder="Reason (optional, e.g. Vacation, Family event)"
               placeholderTextColor={colors.textTertiary}
+              maxLength={500}
             />
 
             <View style={styles.formActions}>
