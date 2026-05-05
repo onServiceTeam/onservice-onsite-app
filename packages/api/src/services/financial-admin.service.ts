@@ -250,6 +250,14 @@ export async function getFinancialOverview(
 ): Promise<FinancialOverview> {
   assertDateRange(from, to);
 
+  // BUG-PHASE139-01 fix — pre-fix every from/to bound in this file
+  // (8 query sites: getOverview, getRevenueByCategory, getCommissionTrend,
+  //  getRefundsTrend, getPayoutsBreakdown, getTopProviders +
+  //  getPayoutsTab today + getOrSearch issued_at) cast `$N::date`
+  // without `AT TIME ZONE 'Asia/Manila'`, so the bound was UTC
+  // midnight = 08:00 Manila of the input date. Same Manila-anchored
+  // half-open interval idiom as Phases 132-138 — the financial-admin
+  // dashboard now reports the same numbers a Manila-side audit would.
   const [bookingsRes, txnRes] = await Promise.all([
     db.query<OverviewBookingRow>(
       `SELECT
@@ -258,8 +266,8 @@ export async function getFinancialOverview(
          FROM bookings
         WHERE status IN ${COMPLETED_STATUSES_SQL}
           AND completed_at IS NOT NULL
-          AND completed_at >= ($1::date)
-          AND completed_at <  ($2::date + INTERVAL '1 day')`,
+          AND completed_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
+          AND completed_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`,
       [from, to],
     ),
     db.query<OverviewTxnRow>(
@@ -267,8 +275,8 @@ export async function getFinancialOverview(
          COALESCE(SUM(CASE WHEN type IN ('commission', 'service_fee') THEN ABS(amount) ELSE 0 END), 0)::text AS revenue,
          COALESCE(SUM(CASE WHEN type = 'refund' THEN ABS(amount) ELSE 0 END), 0)::text                       AS refunds
          FROM wallet_transactions
-        WHERE created_at >= ($1::date)
-          AND created_at <  ($2::date + INTERVAL '1 day')`,
+        WHERE created_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
+          AND created_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`,
       [from, to],
     ),
   ]);
@@ -318,8 +326,8 @@ export async function getRevenueByCategory(
        LEFT JOIN service_categories sc ON sc.id = b.category_id
       WHERE b.status IN ${COMPLETED_STATUSES_SQL}
         AND b.completed_at IS NOT NULL
-        AND b.completed_at >= ($1::date)
-        AND b.completed_at <  ($2::date + INTERVAL '1 day')
+        AND b.completed_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
+        AND b.completed_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
       GROUP BY b.category_id, sc.name
       ORDER BY revenue DESC`,
     [from, to],
@@ -360,8 +368,8 @@ export async function getRevenueByCity(
        FROM bookings
       WHERE status IN ${COMPLETED_STATUSES_SQL}
         AND completed_at IS NOT NULL
-        AND completed_at >= ($1::date)
-        AND completed_at <  ($2::date + INTERVAL '1 day')
+        AND completed_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
+        AND completed_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
       GROUP BY NULLIF(TRIM(city), '')
       ORDER BY revenue DESC
       LIMIT $3`,
@@ -404,8 +412,8 @@ export async function getRevenueByTier(
        JOIN providers p ON p.id = b.provider_id
       WHERE b.status IN ${COMPLETED_STATUSES_SQL}
         AND b.completed_at IS NOT NULL
-        AND b.completed_at >= ($1::date)
-        AND b.completed_at <  ($2::date + INTERVAL '1 day')
+        AND b.completed_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
+        AND b.completed_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
       GROUP BY p.tier
       ORDER BY revenue DESC`,
     [from, to],
@@ -460,8 +468,8 @@ export async function getRevenueByPaymentMethod(
          FROM bookings
         WHERE status IN ${COMPLETED_STATUSES_SQL}
           AND completed_at IS NOT NULL
-          AND completed_at >= ($1::date)
-          AND completed_at <  ($2::date + INTERVAL '1 day')
+          AND completed_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
+          AND completed_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
         GROUP BY NULLIF(TRIM(payment_method), '')
         ORDER BY revenue DESC`,
       [from, to],
@@ -669,8 +677,8 @@ export async function getPayoutsSummary(): Promise<PayoutsSummary> {
       `SELECT
          COUNT(*) FILTER (WHERE status = 'processing')::text                                  AS pending_count,
          COALESCE(SUM(amount) FILTER (WHERE status = 'processing'), 0)::text                  AS pending_total,
-         COUNT(*) FILTER (WHERE status = 'completed' AND completed_at::date = NOW()::date)::text   AS today_completed_count,
-         COALESCE(SUM(amount) FILTER (WHERE status = 'completed' AND completed_at::date = NOW()::date), 0)::text AS today_completed_total,
+         COUNT(*) FILTER (WHERE status = 'completed' AND (completed_at AT TIME ZONE 'Asia/Manila')::date = (NOW() AT TIME ZONE 'Asia/Manila')::date)::text   AS today_completed_count,
+         COALESCE(SUM(amount) FILTER (WHERE status = 'completed' AND (completed_at AT TIME ZONE 'Asia/Manila')::date = (NOW() AT TIME ZONE 'Asia/Manila')::date), 0)::text AS today_completed_total,
          COUNT(*) FILTER (WHERE status = 'failed')::text                                      AS failed_count
          FROM payouts`,
     ),
@@ -1056,7 +1064,7 @@ export async function searchReceipts(query: {
   }
   if (query.from && query.to) {
     conditions.push(
-      `o.issued_at >= ($${idx}::date) AND o.issued_at < ($${idx + 1}::date + INTERVAL '1 day')`,
+      `o.issued_at >= (($${idx}::date) AT TIME ZONE 'Asia/Manila') AND o.issued_at < (($${idx + 1}::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`,
     );
     params.push(query.from, query.to);
     idx += 2;
