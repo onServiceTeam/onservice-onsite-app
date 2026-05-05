@@ -939,10 +939,23 @@ export function isDashboardRange(v: unknown): v is DashboardRange {
   return typeof v === 'string' && (VALID_RANGES as ReadonlyArray<string>).includes(v);
 }
 
+// BUG-PHASE136-01 fix — pre-fix used `DATE_TRUNC('day', NOW())` /
+// `DATE_TRUNC('year', NOW())` which truncate at the session TZ (UTC).
+// On a UTC server with Manila admins, "today" started at UTC midnight
+// = 08:00 Manila and "ytd" started at UTC midnight Jan 1 = 08:00
+// Manila Jan 1. During the 8-hour window each day between 00:00
+// Manila and 08:00 Manila, "today" actually meant "yesterday-Manila"
+// and the count restarted from there. Same Manila-anchor idiom as
+// Phases 132/133/134/135 — wrap NOW() in `AT TIME ZONE 'Asia/Manila'`,
+// truncate, then re-anchor. Returns timestamptz expressions usable
+// directly in `created_at >= ...` comparisons.
+const MANILA_DAY_START_SQL = "DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila'";
+const MANILA_YEAR_START_SQL = "DATE_TRUNC('year', NOW() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila'";
+
 function rangeStartSql(range: DashboardRange): string {
   switch (range) {
-    case 'today': return "DATE_TRUNC('day', NOW())";
-    case 'ytd':   return "DATE_TRUNC('year', NOW())";
+    case 'today': return MANILA_DAY_START_SQL;
+    case 'ytd':   return MANILA_YEAR_START_SQL;
     case '7d':    return "NOW() - INTERVAL '7 days'";
     case '30d':   return "NOW() - INTERVAL '30 days'";
     case '90d':   return "NOW() - INTERVAL '90 days'";
@@ -952,7 +965,12 @@ function rangeStartSql(range: DashboardRange): string {
 function previousRangeSql(range: DashboardRange): { start: string; end: string } {
   switch (range) {
     case 'today':
-      return { start: "DATE_TRUNC('day', NOW() - INTERVAL '1 day')", end: "DATE_TRUNC('day', NOW())" };
+      // BUG-PHASE136-01 — yesterday-start = Manila-day-start - 1 day
+      // (still anchored to Manila day boundaries).
+      return {
+        start: `${MANILA_DAY_START_SQL} - INTERVAL '1 day'`,
+        end: MANILA_DAY_START_SQL,
+      };
     case '7d':
       return { start: "NOW() - INTERVAL '14 days'", end: "NOW() - INTERVAL '7 days'" };
     case '30d':
@@ -960,7 +978,11 @@ function previousRangeSql(range: DashboardRange): { start: string; end: string }
     case '90d':
       return { start: "NOW() - INTERVAL '180 days'", end: "NOW() - INTERVAL '90 days'" };
     case 'ytd':
-      return { start: "DATE_TRUNC('year', NOW() - INTERVAL '1 year')", end: "(NOW() - INTERVAL '1 year')" };
+      // BUG-PHASE136-01 — same Manila-anchor for prior-year-start.
+      return {
+        start: `DATE_TRUNC('year', (NOW() - INTERVAL '1 year') AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila'`,
+        end: '(NOW() - INTERVAL \'1 year\')',
+      };
   }
 }
 
@@ -1010,7 +1032,7 @@ export async function getDashboardKpis(range: DashboardRange): Promise<Dashboard
          (SELECT COUNT(*) FROM disputes WHERE status IN ('open','under_review','escalated'))::text AS pending_disputes,
          (SELECT COUNT(*) FROM users WHERE created_at >= ${startSql})::text AS new_signups,
          (SELECT COUNT(*) FROM providers WHERE status = 'pending')::text AS pending_approvals,
-         (SELECT COUNT(*) FROM bookings WHERE created_at >= DATE_TRUNC('day', NOW()))::text AS today_bookings,
+         (SELECT COUNT(*) FROM bookings WHERE created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila')::text AS today_bookings,
          (SELECT COUNT(*) FROM disputes WHERE status = 'escalated')::text AS escalated_disputes,
          (SELECT COUNT(*) FROM disputes WHERE status = 'open' AND created_at < NOW() - INTERVAL '48 hours')::text AS stale_disputes`,
     ),
@@ -1409,7 +1431,7 @@ export async function getCitiesPerformance(): Promise<CityPerformance[]> {
                 FROM bookings b
                 JOIN provider_service_areas psa ON psa.provider_id = b.provider_id
                WHERE psa.service_area_id = sa.id
-                 AND b.created_at >= DATE_TRUNC('day', NOW())
+                 AND b.created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila'
             ), 0)::text AS today_bookings
        FROM service_areas sa
       WHERE sa.status IN ('active', 'soft_launch', 'recruiting', 'planned')
