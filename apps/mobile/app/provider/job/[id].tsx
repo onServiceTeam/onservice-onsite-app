@@ -245,6 +245,19 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           {booking.description && <Text style={styles.serviceDesc}>{booking.description}</Text>}
         </View>
 
+        {/* BUG-PHASE80-01 fix — pre-fix the provider job detail
+            screen had no Customer section. Provider had to remember
+            who they were serving from a different screen (or open
+            chat) to know. Phase 77 added customerName to the
+            booking response; surface it here as a top-of-mind
+            section so the provider sees who the booking is for. */}
+        {booking.customerName && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Customer</Text>
+            <Text style={styles.detailText}>{booking.customerName}</Text>
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Schedule</Text>
           <Text style={styles.detailText}>{formatDateTime(booking.scheduledAt)}</Text>
