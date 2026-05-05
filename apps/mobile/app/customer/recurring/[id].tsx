@@ -303,7 +303,15 @@ export default function RecurringDetailScreen(): React.ReactElement {
       {showInstances && instances && (
         <View style={styles.instancesSection}>
           {instances.length === 0 && (
-            <Text style={styles.noInstances}>No instances yet.</Text>
+            <>
+              <Text style={styles.noInstances}>No instances yet.</Text>
+              {/* BUG-PHASE182-01 fix — pre-fix the empty history state was
+                  bare. Same UX-gap family as Phase 169-178. Now: a one-
+                  line hint explaining what arrives here. */}
+              <Text style={styles.noInstancesHint}>
+                Past bookings will appear here once they are completed.
+              </Text>
+            </>
           )}
           {instances.map((inst) => (
             <View key={inst.id} style={styles.instanceRow}>
@@ -420,6 +428,15 @@ const styles = StyleSheet.create({
     padding: spacing.base,
   },
   noInstances: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  // BUG-PHASE182-01 fix — helper text under the empty history state.
+  noInstancesHint: {
+    ...typography.bodySmall,
+    color: colors.textTertiary,
+    textAlign: 'center' as const,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    lineHeight: 20,
+  },
   instanceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
