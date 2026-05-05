@@ -1,6 +1,6 @@
-# Phases 85–162 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–163 — Continuation deep audit pass (2026-05-05+)
 
-Seventy-eight phases continuing the screen-by-screen audit started in
+Seventy-nine phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -1935,6 +1935,34 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **51**
 (34 bug fixes + 1 escalation + 16 closeout-doc updates).
+
+---
+
+## Phase 163 (2026-05-06, part 16) — catalog server caps
+
+**163 — catalog services had no server-side length validation (12+ sites)**
+  Six catalog mutations (categories, subcategories, addons —
+  create + update each) had no length validation on name/
+  description/iconUrl. Mixed columns: name VARCHAR(100) (DB cap →
+  raw SQL error), description + icon_url TEXT (unbounded).
+  Service-level validation gives friendly 400 errors and protects
+  unbounded TEXT.
+  Caps: name 100, description 2000, iconUrl 500.
+
+**Cumulative server-cap sweep total (Phases 152-163):** 12 phases,
+12 bugs, **57+ server-side input sites** capped. Combined with the
+mobile maxLength sweep (Phases 145-150, 18 sites), every text-input
+contract on the platform has cap discipline at every layer.
+
+### Final test counts after Phase 163
+
+API: 224/224 suites, 2718/2718 tests
+Mobile: 129/129 suites, 569/569 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **53**
+(35 bug fixes + 1 escalation + 17 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
