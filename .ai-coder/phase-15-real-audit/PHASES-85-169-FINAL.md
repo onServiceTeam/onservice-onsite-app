@@ -1,6 +1,6 @@
-# Phases 85–168 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–169 — Continuation deep audit pass (2026-05-05+)
 
-Eighty-four phases continuing the screen-by-screen audit started in
+Eighty-five phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -2041,6 +2041,36 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **61**
 (40 bug fixes + 1 escalation + 20 closeout-doc updates).
+
+---
+
+## Phase 169 (2026-05-06, part 20) — first non-cap UX-gap fix in the recent run
+
+After 17 phases of cap-sweep work (152-168), Phase 169 is a return
+to the screen-level audit work that started this whole sequence:
+
+**169 — customer home Active Booking card hid 2nd+ bookings (1 site)**
+  apps/mobile/app/(tabs)/home.tsx Active Booking section was
+  hardcoded singular ("Active Booking") and `slice(0, 1)`-capped —
+  only ever showed the FIRST active booking. If a customer had 2+
+  active bookings (paid booking with provider en route AND a matched
+  booking waiting), the second was invisible from home.
+  
+  Fix: show up to 3 active bookings, section title pluralizes,
+  "See all >" link when count > 3.
+
+  Real UX gap, not a server-side bug. Same kind of "missing things
+  the screen is supposed to do" the user explicitly called out.
+
+### Final test counts after Phase 169
+
+API: 228/228 suites, 2728/2728 tests
+Mobile: 131/131 suites, 577/577 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **63**
+(41 bug fixes + 1 escalation + 21 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
