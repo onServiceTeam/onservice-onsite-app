@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
+import { getBookingById } from '@/services/booking.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertCircle } from '@/components/icons';
 
@@ -12,9 +14,17 @@ import { Routes } from '@/config/navigation';
 // is platformConfig.unmatchedBookingExpiryHours (default 72 hours,
 // admin-tunable). The mismatch made customers panic when their
 // "15 min" timer hit 0 even though the booking was still recoverable.
-// Server is the source of truth; expose 72h here for now and TODO:
-// fetch from /api/v1/config when that endpoint widens to include it.
-const HOLD_SECONDS = 72 * 60 * 60; // 72 hours — matches server.
+// Server is the source of truth; expose 72h here.
+//
+// BUG-PHASE90-01 fix — pre-fix the countdown started fresh at 72h
+// every time the screen mounted, regardless of how long the booking
+// had already been pending. A booking created 5h ago that hit
+// payment-failed at the retry step would still show "72:00" instead
+// of ~67h. Now the screen fetches the booking and seeds secondsLeft
+// from `createdAt + 72h - now()` so the displayed countdown matches
+// the actual server-side expiry deadline.
+const HOLD_HOURS = 72;
+const HOLD_SECONDS = HOLD_HOURS * 60 * 60; // 72 hours — matches server.
 
 function formatCountdown(totalSeconds: number): string {
   // Phase D CRIT-89 fix — formatter now shows H:MM:SS for long
@@ -33,6 +43,26 @@ export default function PaymentFailedScreen(): React.ReactElement {
   const router = useRouter();
   const { reason, bookingId } = useLocalSearchParams<{ reason?: string; bookingId?: string }>();
   const [secondsLeft, setSecondsLeft] = useState(HOLD_SECONDS);
+
+  // BUG-PHASE90-01 — fetch the booking so the countdown can anchor
+  // on the actual creation time rather than always restarting at 72h.
+  const bookingQuery = useQuery({
+    queryKey: ['booking', bookingId],
+    queryFn: () => getBookingById(bookingId ?? ''),
+    enabled: !!bookingId,
+    staleTime: 60 * 1000,
+  });
+
+  // Re-seed the countdown once the booking loads. The mount-time
+  // default (HOLD_SECONDS) is preserved as a fallback if the fetch
+  // fails or hasn't returned yet.
+  useEffect(() => {
+    const created = bookingQuery.data?.createdAt;
+    if (!created) return;
+    const expiryMs = new Date(created).getTime() + HOLD_HOURS * 60 * 60 * 1000;
+    const remainingSec = Math.max(0, Math.floor((expiryMs - Date.now()) / 1000));
+    setSecondsLeft(remainingSec);
+  }, [bookingQuery.data?.createdAt]);
 
   useEffect(() => {
     if (!bookingId) return;
