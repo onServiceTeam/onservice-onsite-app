@@ -210,11 +210,16 @@ export default function WithdrawScreen(): React.ReactElement {
             <Text style={styles.sectionTitle}>
               {method.startsWith('bank_') ? 'Bank Account Number' : 'Phone Number'}
             </Text>
+            {/* BUG-PHASE171-01 fix — pre-fix this Input had no
+                maxLength. Server's withdrawalSchema caps
+                destinationAccount at 255 (wallet.validators.ts:16).
+                Match the cap. Same fix shape as Phase 145-150. */}
             <Input
               placeholder={method.startsWith('bank_') ? 'Account number' : '09XX XXX XXXX'}
               value={account}
               onChangeText={setAccount}
               keyboardType={method.startsWith('bank_') ? 'default' : 'phone-pad'}
+              maxLength={255}
             />
           </>
         )}
