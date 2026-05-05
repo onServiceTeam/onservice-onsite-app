@@ -1085,16 +1085,25 @@ export async function getDashboardKpis(range: DashboardRange): Promise<Dashboard
 
 export async function getRevenueTrend(days: number): Promise<RevenueTrendPoint[]> {
   const n = clampDays(days, 1, 365);
+  // BUG-PHASE137-01 fix — pre-fix the series + bucketing both used
+  // bare DATE_TRUNC('day', NOW()) / DATE_TRUNC('day', created_at)
+  // which truncate at session TZ (UTC). A bucket labeled "2026-05-01"
+  // collected wallet_transactions from UTC midnight May 1 to UTC
+  // midnight May 2 = 08:00 Manila May 1 to 08:00 Manila May 2 — a
+  // 24-hour window shifted +8 hours from the real Manila day. Every
+  // trend point on the admin dashboard was systematically misaligned
+  // with the Manila wall-clock day. Same fix-class as Phase 136 but
+  // applied to bucket labels in addition to filter bounds.
   const rows = await db.query<{ date: string; gmv: string; revenue: string }>(
     `WITH series AS (
        SELECT generate_series(
-         DATE_TRUNC('day', NOW()) - (($1::int - 1) || ' days')::interval,
-         DATE_TRUNC('day', NOW()),
+         (DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila') - (($1::int - 1) || ' days')::interval,
+         (DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila'),
          INTERVAL '1 day'
        )::date AS day
      ),
      gmv AS (
-       SELECT DATE_TRUNC('day', created_at)::date AS day,
+       SELECT (DATE_TRUNC('day', created_at AT TIME ZONE 'Asia/Manila'))::date AS day,
               COALESCE(SUM(amount), 0)::bigint AS amount
          FROM wallet_transactions
         WHERE type = 'payment'
@@ -1102,7 +1111,7 @@ export async function getRevenueTrend(days: number): Promise<RevenueTrendPoint[]
         GROUP BY 1
      ),
      rev AS (
-       SELECT DATE_TRUNC('day', created_at)::date AS day,
+       SELECT (DATE_TRUNC('day', created_at AT TIME ZONE 'Asia/Manila'))::date AS day,
               COALESCE(SUM(amount), 0)::bigint AS amount
          FROM wallet_transactions
         WHERE type IN ('commission', 'service_fee')
