@@ -191,6 +191,12 @@ export default function ReviewScreen(): React.ReactElement {
         )}
 
         <View style={styles.commentSection}>
+          {/* BUG-PHASE145-01 fix — pre-fix the hint said "X / 1000
+              characters" but no maxLength was enforced; a customer
+              typing 1500 chars would see no error, hit Submit, and
+              get a generic 400 from the server's max(1000) validator
+              (review.validators.ts:19). Added maxLength so the input
+              hard-stops at 1000 — the hint now matches reality. */}
           <Input
             label="Written Review (optional)"
             placeholder="Share your experience... (min 20 characters)"
@@ -198,6 +204,7 @@ export default function ReviewScreen(): React.ReactElement {
             onChangeText={setComment}
             multiline
             numberOfLines={4}
+            maxLength={1000}
             style={styles.commentInput}
             hint={comment.length > 0 ? `${comment.length} / 1000 characters` : undefined}
             error={comment.length > 0 && comment.length < 20 ? 'Must be at least 20 characters' : undefined}
@@ -263,6 +270,9 @@ export default function ReviewScreen(): React.ReactElement {
         </View>
 
         <View style={styles.privateNoteSection}>
+          {/* BUG-PHASE145-01 fix (2nd site) — same maxLength enforcement
+              as the public-comment field; server cap is 1000
+              (review.validators.ts:24). */}
           <Input
             label="Private Note to onService (optional)"
             placeholder="Share confidential feedback with us only — not shown publicly"
@@ -270,6 +280,7 @@ export default function ReviewScreen(): React.ReactElement {
             onChangeText={setPrivateNote}
             multiline
             numberOfLines={3}
+            maxLength={1000}
             style={styles.commentInput}
             hint={privateNote.length > 0 ? `${privateNote.length} / 1000 characters` : undefined}
           />
