@@ -72,6 +72,9 @@ export default function RegisterScreen(): React.ReactElement {
           </Text>
         </View>
 
+        {/* BUG-PHASE147-01 fix — pre-fix First/Last Name inputs had
+            no maxLength. Server's auth.validators.ts:76-77 caps both
+            at max(100). Same fix shape as Phase 145/146. */}
         <View style={styles.form}>
           <Input
             label="First Name"
@@ -79,6 +82,7 @@ export default function RegisterScreen(): React.ReactElement {
             value={firstName}
             onChangeText={(t) => { setFirstName(t); setErrors((e) => ({ ...e, firstName: undefined })); }}
             autoCapitalize="words"
+            maxLength={100}
             error={errors.firstName}
           />
           <Input
@@ -87,6 +91,7 @@ export default function RegisterScreen(): React.ReactElement {
             value={lastName}
             onChangeText={(t) => { setLastName(t); setErrors((e) => ({ ...e, lastName: undefined })); }}
             autoCapitalize="words"
+            maxLength={100}
             error={errors.lastName}
           />
           {/* Phase 14 R5-complete — PhoneInput component */}

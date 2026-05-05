@@ -120,18 +120,24 @@ export default function ProfileScreen(): React.ReactElement {
           size={64}
         />
         {editing ? (
+          /* BUG-PHASE147-01 fix — pre-fix First/Last Name inputs
+             had no maxLength. Server caps both at max(100)
+             (auth.validators.ts:76-77). Same fix shape as Phase
+             145/146. */
           <View style={styles.editForm}>
             <Input
               label="First Name"
               value={firstName}
               onChangeText={setFirstName}
               autoCapitalize="words"
+              maxLength={100}
             />
             <Input
               label="Last Name"
               value={lastName}
               onChangeText={setLastName}
               autoCapitalize="words"
+              maxLength={100}
             />
             {/* Phase 14 R5-complete — PhoneInput (read-only display via value prop;
                 actual phone change requires OTP re-verification — separate flow). */}
