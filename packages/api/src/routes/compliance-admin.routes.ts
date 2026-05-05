@@ -208,7 +208,15 @@ router.get(
         ],
       );
 
-      const dateStr = new Date().toISOString().slice(0, 10);
+      // BUG-PHASE114-01 fix — pre-fix the CSV filename used the UTC
+      // date. Compliance officers running the export at 00:30 Manila
+      // Thursday got a file named with the Wednesday UTC date, so a
+      // Downloads-folder search by Thursday's date came up empty.
+      // Same Manila-tz pattern as Phase 112 (admin CompliancePage
+      // browser-side download) — the server-driven Content-Disposition
+      // header needs the same fix so the Manila admin and the
+      // browser-fallback path stay consistent.
+      const dateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="audit-log-${dateStr}.csv"`);
       res.send(csv);

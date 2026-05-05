@@ -443,7 +443,15 @@ export async function markInvoicePaid(
 }
 
 export async function checkOverdueInvoices(): Promise<number> {
-  const today = new Date().toISOString().split('T')[0]!;
+  // BUG-PHASE114-01 fix — pre-fix used UTC. due_date is stored as a
+  // YYYY-MM-DD interpreted in Manila context (the rest of the platform
+  // anchors invoice cadence to Manila business days). With UTC `today`,
+  // an invoice due "today Manila" got marked overdue 8 hours late
+  // (UTC midnight is 08:00 Manila; the cron between 16:00 UTC and
+  // 23:59 UTC of any day was still on the previous UTC date while
+  // Manila had already rolled over). Same Manila-tz pattern as Phase
+  // 113 (recurring cron).
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 
   // MED-N118 fix — pre-fix the UPDATE returned the overdue invoices,
   // then a per-invoice SELECT looked up owner_user_id (1 round-trip
