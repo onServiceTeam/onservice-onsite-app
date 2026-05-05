@@ -891,10 +891,22 @@ interface BatchRow {
  * tables are guarded.
  */
 export async function getBirReportsOverview(year?: number): Promise<BirReportsOverview> {
+  // BUG-PHASE130-02 fix — pre-fix the default-year fallback used
+  // `new Date().getUTCFullYear()`. In the 8-hour window each Jan 1
+  // between 00:00 Manila (= 16:00 UTC Dec 31) and 08:00 Manila
+  // (= 00:00 UTC Jan 1), Manila is in the new year while UTC is
+  // still in the old year. An admin viewing this dashboard during
+  // those 8 hours on Jan 1 would default to last year's reports,
+  // not the current Manila year. Same Manila-anchored idiom as
+  // Phases 109/113/117/119/122/123/124/129/130-01.
   const targetYear =
     year && Number.isInteger(year) && year >= 2000 && year <= 2999
       ? year
-      : new Date().getUTCFullYear();
+      : Number(
+          new Date()
+            .toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })
+            .slice(0, 4),
+        );
 
   const [vatExists, batchExists] = await Promise.all([
     tableExists('vat_monthly_reports'),

@@ -936,7 +936,17 @@ function isoDate(d: Date): string {
 }
 
 function statusFor(due: Date, now: Date): BirFormStatus {
-  const diffMs = due.getTime() - now.getTime();
+  // BUG-PHASE130-01 fix — pre-fix `due` was constructed with
+  // `Date.UTC(year, m, day)` which produces UTC midnight = 08:00 Manila
+  // of that calendar day. The status compared "now > due" right at
+  // 08:00 AM Manila on the due date and showed 'overdue' for the rest
+  // of the day — but BIR forms are due "by close of business" Manila
+  // and remain on time until end-of-Manila-day. Window of incorrect
+  // 'overdue' display: 16 hours every due-date (08:00 → 23:59 Manila).
+  // Treat `due` as end-of-Manila-day (= UTC midnight + 16h).
+  // Same Manila-anchored idiom as Phases 109/113/117/119/122/123/124/129.
+  const dueEndOfManilaDay = due.getTime() + 16 * 60 * 60 * 1000;
+  const diffMs = dueEndOfManilaDay - now.getTime();
   const diffDays = diffMs / (24 * 60 * 60 * 1000);
   if (diffMs < 0) return 'overdue';
   if (diffDays <= 7) return 'due_soon';
