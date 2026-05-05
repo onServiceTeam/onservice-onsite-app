@@ -248,8 +248,24 @@ export default function HomeScreen(): React.ReactElement {
       )}
       {activeBookings.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Active Booking</Text>
-          {activeBookings.slice(0, 1).map((booking) => (
+          {/* BUG-PHASE169-01 fix — pre-fix this section ALWAYS sliced
+              to (0, 1), showing only the first active booking. If a
+              customer had 2+ active bookings (e.g., a paid booking
+              with provider en route AND a matched booking waiting),
+              the second was invisible from home. The title was also
+              hardcoded singular ("Active Booking"). Now: show up to
+              the first 3 with "See all >" link when there are more. */}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>
+              {activeBookings.length === 1 ? 'Active Booking' : 'Active Bookings'}
+            </Text>
+            {activeBookings.length > 3 && (
+              <TouchableOpacity onPress={() => router.push(Routes.TABS.BOOKINGS)}>
+                <Text style={styles.seeAllLink}>See all &gt;</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {activeBookings.slice(0, 3).map((booking) => (
             <TouchableOpacity
               key={booking.id}
               style={styles.activeCard}
