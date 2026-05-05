@@ -1,6 +1,6 @@
-# Phases 85–169 — Continuation deep audit pass (2026-05-05+)
+# Phases 85–171 — Continuation deep audit pass (2026-05-05+)
 
-Eighty-five phases continuing the screen-by-screen audit started in
+Eighty-seven phases continuing the screen-by-screen audit started in
 Phases 17–84. Same recipe: read full source, identify gaps, fix narrowly,
 verify with tsc + jest, commit atomically with co-author attribution.
 Phase 87 surfaced a launch-blocker regression that needs Ken's call —
@@ -2071,6 +2071,32 @@ Tsc clean across all 3 packages.
 
 Total commits since Phase 127 closeout (f9e8d95): **63**
 (41 bug fixes + 1 escalation + 21 closeout-doc updates).
+
+---
+
+## Phases 170–171 (2026-05-06, part 21) — UX-gap + last maxLength
+
+Continuing the return to screen-level audit work:
+
+**170 — customer bookings tab empty state had no CTA**
+  Empty state showed "No bookings yet" with no path forward — a
+  new customer would have to navigate back to (tabs)/home to find
+  the categories. Now: "Browse Services" CTA on the all-filter
+  empty state. Same UX-gap family as Phase 169.
+
+**171 — provider withdraw account Input missing maxLength={255}**
+  Server's withdrawalSchema caps destinationAccount at 255. Mobile
+  Input had no maxLength. Same fix shape as Phase 145-150 sweep.
+
+### Final test counts after Phase 171
+
+API: 228/228 suites, 2728/2728 tests
+Mobile: 133/133 suites, 581/581 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **66**
+(43 bug fixes + 1 escalation + 22 closeout-doc updates).
 
 ## What's still genuinely outstanding
 
