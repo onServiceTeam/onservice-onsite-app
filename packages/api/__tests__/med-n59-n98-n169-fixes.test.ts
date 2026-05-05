@@ -35,7 +35,11 @@ describe('Phase N MED-N98 — monthly-summary year clamp allows next year', () =
     );
   });
   it('N98 — new safeYear allows up to current year + 1', () => {
-    expect(PROVIDER_ROUTES).toMatch(/requestedYear <= now\.getFullYear\(\) \+ 1/);
+    // BUG-PHASE121-01 — pre-fix this used `now.getFullYear()` which
+    // is server-local UTC. Anchored to Manila now (manilaYear). The
+    // upper bound is still "current year + 1" — just the right
+    // year for an admin in Manila.
+    expect(PROVIDER_ROUTES).toMatch(/requestedYear <= manilaYear \+ 1/);
   });
   it('N98 — sanitizes non-finite year input back to current year', () => {
     expect(PROVIDER_ROUTES).toMatch(/Number\.isFinite\(requestedYear\)/);

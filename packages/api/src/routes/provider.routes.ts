@@ -779,7 +779,19 @@ router.get(
     try {
       requireProvider(req);
       const provider = await providerService.getProviderByUserId(req.user!.userId);
+      // BUG-PHASE121-01 fix — pre-fix the default + upper bound used
+      // device-local now.getFullYear() / now.getMonth(). Server runs
+      // UTC, so a provider opening "this month" at 01:00 Manila June
+      // 1 (= 17:00 UTC May 31) defaulted to safeMonth=5 (May UTC)
+      // instead of 6 (June Manila). Same Manila-tz pattern as Phases
+      // 105/113/115/116/117/118/119/120. Anchor to Manila year/month
+      // so the default matches the calendar month the provider is
+      // currently looking at on their wall clock.
       const now = new Date();
+      const manilaYM = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+      // manilaYM is "YYYY-MM-DD"; pull year + month components.
+      const manilaYear = Number(manilaYM.slice(0, 4));
+      const manilaMonth = Number(manilaYM.slice(5, 7));
       // MED-N98 fix — pre-fix the year clamp `Math.min(now.getFullYear(), …)`
       // forced any year query (including the legitimately current year)
       // to be at most the current calendar year. Once we cross into
@@ -791,13 +803,13 @@ router.get(
       // bound of "current year + 1" so tooling can still preview the
       // next BIR year. Bad input still safely defaults to current year.
       const requestedYear = Number(req.query.year);
-      const safeYear = Number.isFinite(requestedYear) && requestedYear >= 2024 && requestedYear <= now.getFullYear() + 1
+      const safeYear = Number.isFinite(requestedYear) && requestedYear >= 2024 && requestedYear <= manilaYear + 1
         ? Math.floor(requestedYear)
-        : now.getFullYear();
+        : manilaYear;
       const requestedMonth = Number(req.query.month);
       const safeMonth = Number.isFinite(requestedMonth) && requestedMonth >= 1 && requestedMonth <= 12
         ? Math.floor(requestedMonth)
-        : now.getMonth() + 1;
+        : manilaMonth;
 
       const summary = await providerToolsService.getMonthlySummary(provider.id, safeYear, safeMonth);
       res.json({ success: true, data: summary });
