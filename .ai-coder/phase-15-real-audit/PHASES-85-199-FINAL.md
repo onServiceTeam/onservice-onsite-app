@@ -2476,6 +2476,48 @@ fake-passing since the checklist screen shipped. The escalation
 documents the full backend build needed; the band-aid stops the
 UI from lying immediately.
 
+## Phases 196–199 (2026-05-06, part 31) — backend-vs-UI capability + form-cap sweep
+
+**196 — tip screen ignored platform tip cap**
+  /api/v1/tips/limits exists (Phase 14 D05/Bug 417 returning the
+  configurable platform-wide tip_max_amount_cents) but the mobile
+  tip screen never called it. maxTip used servicePrice only; a
+  customer entering a tip ≤ servicePrice but > the platform cap got
+  a 400 only AFTER tapping Send. Now: maxTip = min(servicePrice,
+  platformTipMax), error/warning messages distinguish which cap is
+  binding.
+
+**197 — provider portfolio + certifications form fields uncapped**
+  - portfolio.tsx caption TextInput: maxLength missing (Phase 152
+    capped server at 500)
+  - certifications.tsx Certification Name (200), Issuing Body (200),
+    Certificate Number (100): all uncapped client-side
+  Same maxLength-sweep family as Phase 145/194/195.
+
+**198 — provider onboarding documents fields uncapped**
+  - nbiExpiryDate: was unbounded; should be 10 (YYYY-MM-DD)
+  - governmentIdNumber: was unbounded; Zod max(64)
+  Same fix-shape as 197.
+
+**199 — payout-preferences route had no Zod validator (3 sites)**
+  PUT /api/v1/wallet/payout-preferences read req.body.* directly
+  through to providers.payout_destination_account (VARCHAR(255)).
+  A 1000-char post returned 5xx string-data-right-truncation.
+  Now: new updatePayoutPreferencesSchema in wallet.validators.ts
+  + validationMiddleware on the route + matching maxLength=255 on
+  the mobile Account Number field.
+  Same defense-in-depth pattern as Phase 188 (complete-payout).
+
+### Final test counts after Phase 199
+
+API: 240/240 suites, 2774/2774 tests
+Mobile: 149/149 suites, 640/640 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **107**
+(72 bug fixes + 2 escalations + 33 closeout-doc updates).
+
 ## What's still genuinely outstanding
 
 Updated from PHASES-63-84-FINAL.md:
