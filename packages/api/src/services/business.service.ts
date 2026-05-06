@@ -97,6 +97,38 @@ interface CreateContractParams {
 export async function createBusinessAccount(
   params: CreateBusinessParams,
 ): Promise<BusinessAccountRow> {
+  // BUG-PHASE192-01 fix — pre-fix the route had no Zod validator and
+  // the service had no length validation. company_name VARCHAR(200),
+  // contact_person VARCHAR(200), contact_email VARCHAR(255),
+  // registration_number VARCHAR(100), tax_id VARCHAR(50),
+  // contact_phone VARCHAR(20) would Postgres-5xx on overlong;
+  // billing_address TEXT, notes TEXT are unbounded. Same defense-in-
+  // depth pattern as Phase 152-168 + 179-181 + 188-191.
+  if (params.companyName.length > 200) {
+    throw createAppError('companyName must be ≤ 200 characters.', 400);
+  }
+  if (params.contactPerson.length > 200) {
+    throw createAppError('contactPerson must be ≤ 200 characters.', 400);
+  }
+  if (params.contactEmail.length > 255) {
+    throw createAppError('contactEmail must be ≤ 255 characters.', 400);
+  }
+  if (params.registrationNumber !== undefined && params.registrationNumber.length > 100) {
+    throw createAppError('registrationNumber must be ≤ 100 characters.', 400);
+  }
+  if (params.taxId !== undefined && params.taxId.length > 50) {
+    throw createAppError('taxId must be ≤ 50 characters.', 400);
+  }
+  if (params.contactPhone.length > 20) {
+    throw createAppError('contactPhone must be ≤ 20 characters.', 400);
+  }
+  if (params.billingAddress.length > 1000) {
+    throw createAppError('billingAddress must be ≤ 1000 characters.', 400);
+  }
+  if (params.notes !== undefined && params.notes.length > 5000) {
+    throw createAppError('notes must be ≤ 5000 characters.', 400);
+  }
+
   // MED-N38 fix: pre-fix ran two separate top-level db.query calls.
   // If the second (business_members owner row) failed (FK violation
   // on user_id, etc.), the business_accounts row was already
