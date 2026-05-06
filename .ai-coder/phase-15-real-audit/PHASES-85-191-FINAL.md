@@ -2346,6 +2346,43 @@ Tsc clean across all 3 packages.
 Total commits since Phase 127 closeout (f9e8d95): **90**
 (60 bug fixes + 1 escalation + 29 closeout-doc updates).
 
+## Phases 189–191 (2026-05-06, part 28) — server-cap sweep finishing pass
+
+**189 — admin updateProviderProfile had no text caps**
+  PATCH /admin/providers/:id/profile accepted unbounded businessName
+  + description. businessName column is VARCHAR(200) (Postgres would
+  5xx on overlong) and description is TEXT (unbounded). Now: explicit
+  caps in the service — businessName ≤ 200, description ≤ 5000.
+
+**190 — recurring booking cancel reason was uncapped**
+  cancelRecurringBooking accepted optional reason and passed it
+  straight to recurring_bookings.cancellation_reason (TEXT). The
+  route had no Zod validator. Now: 500-char cap (mirrors booking
+  cancellationReason).
+
+**191 — dispute-admin requireText helper had no max cap**
+  Used by adminResolveDispute (decisionNotes), sendDisputeMessage
+  (message), adminEscalateDispute (reason). All flow into TEXT
+  columns (admin_actions.full_notes, dispute_messages.message,
+  disputes.escalation_reason). Now: REQUIRE_TEXT_MAX = 5000 cap
+  (matches Phase 168 booking-admin requireReason cap).
+
+These three close the remaining holes in the server-cap sweep that
+started at Phase 152. The pattern is now exhausted across the api/
+src/{routes,services} surface — every external-input text field
+either has a Zod validator at the route boundary or an explicit
+length cap in the service helper.
+
+### Final test counts after Phase 191
+
+API: 238/238 suites, 2761/2761 tests
+Mobile: 143/143 suites, 611/611 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **94**
+(63 bug fixes + 1 escalation + 30 closeout-doc updates).
+
 ## What's still genuinely outstanding
 
 Updated from PHASES-63-84-FINAL.md:
