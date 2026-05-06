@@ -155,6 +155,13 @@ export default function DocumentsScreen(): React.ReactElement {
         })}
 
         {/* Phase K MED-K07 fix — optional NBI expiry + ID number. */}
+        {/* BUG-PHASE198-01 fix — pre-fix neither input had maxLength.
+            Server caps:
+            - nbiExpiryDate: ISO date string (10 chars: YYYY-MM-DD)
+            - governmentIdNumber: max(64) (provider.validators.ts:38)
+            A provider typing past those caps got a 400 with no
+            field-level guidance. Same Phase 145/194/195/197
+            maxLength-sweep family. */}
         <Text style={styles.fieldLabel}>NBI Expiry Date (optional)</Text>
         <Text style={styles.fieldHint}>Format: YYYY-MM-DD. Helps us warn you before it lapses.</Text>
         <TextInput
@@ -165,6 +172,7 @@ export default function DocumentsScreen(): React.ReactElement {
           placeholderTextColor={colors.textTertiary}
           autoCapitalize="none"
           keyboardType="numbers-and-punctuation"
+          maxLength={10}
         />
         <Text style={styles.fieldLabel}>Government ID Number (optional)</Text>
         <Text style={styles.fieldHint}>Speeds up admin review. Stored alongside the ID image.</Text>
@@ -175,6 +183,7 @@ export default function DocumentsScreen(): React.ReactElement {
           placeholder="e.g. 1234-5678-9012"
           placeholderTextColor={colors.textTertiary}
           autoCapitalize="characters"
+          maxLength={64}
         />
       </ScrollView>
 
