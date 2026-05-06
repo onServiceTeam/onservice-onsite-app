@@ -151,12 +151,18 @@ export default function QuoteBuilderScreen(): React.ReactElement {
                 )}
               </View>
 
+              {/* BUG-PHASE195-01 fix — pre-fix line-item description
+                  + unit had no maxLength. Server-side
+                  submitQuoteSchema caps description at 500 and unit
+                  at 30 (booking.validators.ts:84-87). Same UX fix-
+                  shape as Phase 145/194 — input must match server. */}
               <TextInput
                 style={styles.input}
                 value={item.description}
                 onChangeText={(v) => updateItem(item.id, 'description', v)}
                 placeholder="Item description"
                 placeholderTextColor={colors.textTertiary}
+                maxLength={500}
               />
 
               <View style={styles.typeRow}>
@@ -191,6 +197,7 @@ export default function QuoteBuilderScreen(): React.ReactElement {
                     onChangeText={(v) => updateItem(item.id, 'unit', v)}
                     placeholder="unit"
                     placeholderTextColor={colors.textTertiary}
+                    maxLength={30}
                   />
                 </View>
                 <View style={styles.fieldMedium}>

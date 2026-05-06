@@ -229,13 +229,27 @@ export default function JobChecklistScreen(): React.ReactElement {
     }
     setIssueSubmitting(true);
     try {
+      // BUG-PHASE195-01 fix — pre-fix the catch-block fabricated a
+      // "saved locally" message. There is NO local persistence (no
+      // AsyncStorage write, no offline queue), and the endpoint
+      // POST /api/v1/bookings/:id/issues does not exist on the
+      // backend. Every tap dropped the report on the floor while
+      // showing a green "Reported" alert. Escalation file
+      // .ai-coder/escalations/E05-checklist-issue-report-endpoint-
+      // missing-2026-05-06.md documents the full backend build
+      // needed (Option A — table + route + service + customer
+      // notification, ~3-4h). Until that lands, surface the real
+      // error so the provider knows the report did NOT go through.
       await api.post(`/api/v1/bookings/${id}/issues`, {
         itemId: issueItemId,
         description: issueText.trim(),
       });
       Alert.alert('Reported', 'Your issue has been sent to the customer.');
-    } catch {
-      Alert.alert('Reported', 'Issue saved locally; will sync when you are back online.');
+    } catch (err) {
+      Alert.alert(
+        'Could not send report',
+        getErrorMessage(err, 'Issue reporting is temporarily unavailable. Please contact the customer directly.'),
+      );
     } finally {
       setIssueSubmitting(false);
       setIssueOpen(false);
@@ -394,11 +408,15 @@ export default function JobChecklistScreen(): React.ReactElement {
             <Text style={styles.modalHint}>
               Describe what went wrong. The customer will be notified.
             </Text>
+            {/* BUG-PHASE195-01 fix — also added maxLength to match
+                the eventual backend cap when E05 lands; mirrors the
+                review/dispute/quote-description max=2000 pattern. */}
             <TextInput
               value={issueText}
               onChangeText={setIssueText}
               multiline
               numberOfLines={4}
+              maxLength={2000}
               placeholder="e.g. unable to reach area, missing supplies…"
               placeholderTextColor={colors.textTertiary}
               style={styles.modalInput}
