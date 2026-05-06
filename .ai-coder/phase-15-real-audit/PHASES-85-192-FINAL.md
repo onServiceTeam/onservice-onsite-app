@@ -2383,6 +2383,33 @@ Tsc clean across all 3 packages.
 Total commits since Phase 127 closeout (f9e8d95): **94**
 (63 bug fixes + 1 escalation + 30 closeout-doc updates).
 
+## Phase 192 (2026-05-06, part 29) — server-cap sweep extends to B2B onboarding
+
+**192 — createBusinessAccount had no text caps (8 fields)**
+  Pre-fix POST /business-accounts had no Zod validator and the
+  service had no length validation on 8 text fields:
+  - companyName, contactPerson (VARCHAR(200))
+  - contactEmail (VARCHAR(255))
+  - registrationNumber (VARCHAR(100))
+  - taxId (VARCHAR(50))
+  - contactPhone (VARCHAR(20))
+  - billingAddress, notes (TEXT — unbounded)
+
+  Now: explicit caps in the service matching column widths plus
+  sensible TEXT-field caps (billingAddress 1000, notes 5000). The
+  earlier "server-cap sweep is exhausted" claim from Phase 191 was
+  premature — business.service.ts had this hole still.
+
+### Final test counts after Phase 192
+
+API: 239/239 suites, 2770/2770 tests
+Mobile: 143/143 suites, 611/611 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **96**
+(64 bug fixes + 1 escalation + 31 closeout-doc updates).
+
 ## What's still genuinely outstanding
 
 Updated from PHASES-63-84-FINAL.md:
