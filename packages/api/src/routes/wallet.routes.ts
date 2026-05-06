@@ -1,7 +1,7 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
-import { withdrawalSchema } from '../validators/wallet.validators';
+import { withdrawalSchema, updatePayoutPreferencesSchema } from '../validators/wallet.validators';
 import * as walletService from '../services/wallet.service';
 import * as paymentService from '../services/payment.service';
 import * as payoutService from '../services/payout.service';
@@ -248,6 +248,12 @@ router.get(
 router.put(
   '/payout-preferences',
   authMiddleware,
+  // BUG-PHASE199-01 fix — pre-fix this route had no Zod validator.
+  // destinationAccount was passed through to a VARCHAR(255) column;
+  // a 1000-char post returned 5xx string-data-right-truncation. Now
+  // updatePayoutPreferencesSchema gates type + length at the route
+  // boundary. Same shape as Phase 188 complete-payout fix.
+  validationMiddleware(updatePayoutPreferencesSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       if (req.user!.role !== 'provider') {
@@ -256,15 +262,10 @@ router.put(
 
       const { frequency, minThreshold, preferredMethod, destinationAccount } = req.body;
 
-      const validFrequencies = ['manual', 'daily', 'weekly', 'biweekly', 'monthly'];
-      if (frequency && !validFrequencies.includes(frequency)) {
-        throw createAppError('Invalid payout frequency.', 400);
-      }
-      const validMethods = ['gcash', 'maya', 'bank_transfer'];
-      if (preferredMethod && !validMethods.includes(preferredMethod)) {
-        throw createAppError('Invalid payout method.', 400);
-      }
-      if (minThreshold !== undefined && (typeof minThreshold !== 'number' || minThreshold < platformConfig.minimumPayoutThreshold)) {
+      // Zod already validated frequency / preferredMethod enums and
+      // destinationAccount length. Below remains as a domain-rule
+      // check (minimum threshold must clear the platform floor).
+      if (minThreshold !== undefined && minThreshold < platformConfig.minimumPayoutThreshold) {
         throw createAppError(`Minimum threshold must be at least ${formatPHP(platformConfig.minimumPayoutThreshold)}.`, 400);
       }
 

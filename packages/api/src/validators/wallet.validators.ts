@@ -15,3 +15,17 @@ export const withdrawalSchema = z.object({
   method: z.enum(['gcash', 'maya', 'bank_instapay', 'bank_pesonet']),
   destinationAccount: z.string().min(1, 'Destination account is required').max(255),
 });
+
+// BUG-PHASE199-01 fix — pre-fix PUT /wallet/payout-preferences had
+// no Zod validator. The route read req.body.destinationAccount and
+// passed it through to providers.payout_destination_account
+// (VARCHAR(255), per migration 002). A provider posting a 1000-char
+// string got a 5xx string-data-right-truncation error rather than a
+// clean 400. Same defense-in-depth pattern as Phase 188 (complete-
+// payout schema).
+export const updatePayoutPreferencesSchema = z.object({
+  frequency: z.enum(['manual', 'daily', 'weekly', 'biweekly', 'monthly']).optional(),
+  minThreshold: z.number().int().min(0).optional(),
+  preferredMethod: z.enum(['gcash', 'maya', 'bank_transfer']).optional(),
+  destinationAccount: z.string().max(255).optional(),
+});

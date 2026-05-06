@@ -181,12 +181,18 @@ export default function PayoutSettingsScreen(): React.ReactElement {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account Number</Text>
+        {/* BUG-PHASE199-01 fix — pre-fix the Account Number TextInput
+            had no maxLength. Server-side payout_destination_account
+            column is VARCHAR(255), and the route now caps at 255 via
+            updatePayoutPreferencesSchema. Same maxLength-sweep family
+            as Phase 145/194/195/197/198. */}
         <TextInput
           style={styles.input}
           value={account}
           onChangeText={(v) => { setAccount(v); setDirty(true); }}
           placeholder={method === 'gcash' ? '09XX XXX XXXX' : method === 'maya' ? '09XX XXX XXXX' : 'Account number'}
           keyboardType="default"
+          maxLength={255}
         />
       </View>
 
