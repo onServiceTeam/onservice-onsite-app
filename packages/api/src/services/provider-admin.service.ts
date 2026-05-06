@@ -896,11 +896,26 @@ export async function updateProviderProfile(
   if (patch.businessName !== undefined) {
     if (!patch.businessName.trim()) throw createAppError('businessName cannot be empty.', 400);
     const v = patch.businessName.trim();
+    // BUG-PHASE189-01 fix — pre-fix businessName had no max-length cap.
+    // Column is VARCHAR(200) (migration 002), so Postgres would reject
+    // an overlong string with a 5xx string-data-right-truncation error
+    // rather than a clean 400. Same defense-in-depth pattern as Phase
+    // 152-168 + 179-181 + 188.
+    if (v.length > 200) {
+      throw createAppError('businessName must be ≤ 200 characters.', 400);
+    }
     values.push(v);
     sets.push(`business_name = $${values.length}`);
     auditPatch.businessName = v;
   }
   if (patch.description !== undefined) {
+    // BUG-PHASE189-01 fix — pre-fix description had no max-length cap.
+    // Column is TEXT (migration 002) — unbounded by Postgres. Cap at
+    // 5000 (free-form provider description; matches the dispute /
+    // wallet-adjustment cap shape).
+    if (patch.description.length > 5000) {
+      throw createAppError('description must be ≤ 5000 characters.', 400);
+    }
     values.push(patch.description);
     sets.push(`description = $${values.length}`);
     auditPatch.description = patch.description;
