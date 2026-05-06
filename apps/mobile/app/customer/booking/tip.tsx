@@ -23,6 +23,15 @@ export default function TipScreen(): React.ReactElement {
   const [selectedPercent, setSelectedPercent] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState('');
   const [showCustom, setShowCustom] = useState(false);
+  // BUG-PHASE193-01 fix — pre-fix the tip screen had no message input,
+  // but the API (POST /api/v1/tips) accepts an optional `message` (Zod
+  // capped at 500 chars; tip.validators.ts), the backend stores it on
+  // tips.message, and the provider receives it in the "Tip Received"
+  // notification body. The customer had no way to say "thanks for the
+  // great service!" — exactly the missing-UX pattern called out by
+  // the user ("what is the screen supposed to do... is something
+  // missing"). Now: optional message input below custom amount.
+  const [message, setMessage] = useState('');
 
   const { data: booking, isLoading: bookingLoading, isError: bookingError, refetch } = useQuery({
     queryKey: ['booking', bookingId],
@@ -63,6 +72,8 @@ export default function TipScreen(): React.ReactElement {
       bookingId: bookingId ?? '',
       amount,
       paymentMethod: 'wallet',
+      // BUG-PHASE193-01 fix — pass message through to API.
+      message: message.trim() || undefined,
     }),
     onSuccess: () => {
       Alert.alert('Thank you!', 'Your tip has been sent to the provider.', [
@@ -182,6 +193,28 @@ export default function TipScreen(): React.ReactElement {
           <Text style={styles.tipPreview}>Tip amount: {formatPHP(tipAmount)}</Text>
         )}
 
+        {/* BUG-PHASE193-01 fix — optional message input. The API
+            already accepts and forwards this to the provider's
+            notification body. Capped at 500 chars (matches the
+            tip.validators.ts max). */}
+        <View style={styles.messageWrap}>
+          <Text style={styles.messageLabel}>Add a message (optional)</Text>
+          <TextInput
+            style={styles.messageInput}
+            value={message}
+            onChangeText={setMessage}
+            placeholder="Thanks for the great service!"
+            placeholderTextColor={colors.textTertiary}
+            multiline
+            maxLength={500}
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
+          {message.length > 0 && (
+            <Text style={styles.messageCount}>{message.length}/500</Text>
+          )}
+        </View>
+
         {/* BUG-PHASE47-01 — wallet balance + insufficient warning. */}
         <Text style={styles.balanceHint}>
           Wallet balance: {formatPHP(walletBalance)}
@@ -271,6 +304,23 @@ const styles = StyleSheet.create({
   tipPreview: { ...typography.h3, color: colors.primary, marginTop: spacing.sm },
   balanceHint: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
   balanceWarn: { ...typography.caption, color: colors.error, marginTop: spacing.xs, fontWeight: '600' },
+
+  // BUG-PHASE193-01 fix styles for the optional message input.
+  messageWrap: { width: '100%', marginTop: spacing.lg },
+  messageLabel: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.xs },
+  messageInput: {
+    ...typography.body,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    color: colors.text,
+    minHeight: 80,
+    textAlignVertical: 'top' as const,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  messageCount: { ...typography.caption, color: colors.textTertiary, textAlign: 'right' as const, marginTop: spacing.xs },
 
   actions: { gap: spacing.xs },
 });
