@@ -2410,6 +2410,72 @@ Tsc clean across all 3 packages.
 Total commits since Phase 127 closeout (f9e8d95): **96**
 (64 bug fixes + 1 escalation + 31 closeout-doc updates).
 
+## Phases 193–195 (2026-05-06, part 30) — missing-functionality + lying-error sweep
+
+The user's instruction was explicit: "what's the screen supposed to
+have on it and actually do should be thought about, reasoned through,
+checked if that's all there and working. is something missing.
+what's missing?" These three phases are the first round applying
+that lens to deeper audit candidates.
+
+**193 — tip screen missing optional message input (real missing-feature)**
+  The tip screen UI had no message field, but the FULL stack already
+  supported one:
+  - POST /api/v1/tips Zod validator: message: z.string().max(500).optional()
+  - tips.message column persists the value
+  - Provider's "Tip Received" notification body uses the message
+  Customer had no way to say "thanks for the great service!" — exactly
+  the missing-UX pattern the user called out. Now: optional message
+  input below tip preview, capped at 500, with live char counter.
+
+**194 — provider complete-job notes had no maxLength (UX desync)**
+  Server-side completionNotes Zod validator caps at 2000 (Phase 151),
+  but the TextInput on the complete screen had no maxLength. Provider
+  typing 2500 chars hit Submit, got generic 400 with no field guidance.
+  Now: maxLength={2000} + char counter.
+
+**195 — checklist Report Issue button was UI theater (LAUNCH-BLOCKER discovery)**
+  The provider checklist screen lets the provider tap "Report Issue"
+  on any item, type a description, and tap "Send Report". The handler
+  posts to POST /api/v1/bookings/:id/issues which DOES NOT EXIST on
+  the backend (no route, no service, no migration, no table). The
+  catch-block fabricated "Issue saved locally; will sync when you are
+  back online" — there is NO local persistence either (no AsyncStorage
+  write, no offline queue). Every issue report has been silently
+  dropped while the UI shows green "Reported" success.
+  Customer-visible impact:
+  - Customers never receive the reports despite the modal text
+    saying "the customer will be notified"
+  - Disputes are weakened — providers reporting "unable to reach
+    area" or "missing supplies" mid-job have no audit trail
+  - Provider trust is broken — they trust the platform recorded it
+  Documented in `.ai-coder/escalations/E05-checklist-issue-report-
+  endpoint-missing-2026-05-06.md` with three fix options
+  (recommendation: Option A — build the endpoint, ~3-4h).
+  Until A lands, this commit applied Option C (band-aid honesty patch):
+  catch-block now surfaces the real error via getErrorMessage()
+  instead of fabricating "saved locally", and the alert title
+  changed from green "Reported" to honest "Could not send report".
+  Also rolled into Phase 195: provider quote line-item TextInputs
+  (description + unit) were uncapped despite submitQuoteSchema
+  capping description at 500 and unit at 30 — fixed.
+
+### Final test counts after Phase 195
+
+API: 239/239 suites, 2770/2770 tests
+Mobile: 146/146 suites, 626/626 tests + 91 todo
+Admin: 42/42 suites, 144/144 tests + 3 todo
+Tsc clean across all 3 packages.
+
+Total commits since Phase 127 closeout (f9e8d95): **101**
+(67 bug fixes + 2 escalations + 32 closeout-doc updates).
+
+Phase 195's discovery (E05) is the most significant find of this
+audit run — a customer-and-provider-facing feature that has been
+fake-passing since the checklist screen shipped. The escalation
+documents the full backend build needed; the band-aid stops the
+UI from lying immediately.
+
 ## What's still genuinely outstanding
 
 Updated from PHASES-63-84-FINAL.md:
@@ -2422,6 +2488,13 @@ Updated from PHASES-63-84-FINAL.md:
    to disputes; every dispute auto-resolves against provider after
    48h. Awaiting Ken's call between three documented fix options
    (recommendation: Option A — build the screen, ~4-6h).
+2b. **NEW ESCALATION:** E05 — provider checklist "Report Issue"
+   button posts to a non-existent endpoint; UI fabricates a fake
+   "saved locally" success while customer never receives the report.
+   Awaiting Ken's call between three options (recommendation:
+   Option A — build the backend endpoint + table, ~3-4h). Phase 195
+   landed an Option C band-aid (honest error messaging) so the UI no
+   longer lies while the real fix is pending.
 3. F#3 + F#4 baseline capture — F#4 done; F#3 blocked on simulator
 4. F#10 attorney-reviewed disclaimer wording
 5. 12 D14 operational items
