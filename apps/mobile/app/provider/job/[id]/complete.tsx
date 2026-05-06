@@ -319,16 +319,27 @@ export default function JobCompleteScreen(): React.ReactElement {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notes (optional)</Text>
+          {/* BUG-PHASE194-01 fix — pre-fix the Notes TextInput had no
+              maxLength. The server-side completionNotes Zod validator
+              caps at 2000 (booking.validators.ts post-Phase 151). A
+              provider typing 2500 chars hit submit and got a generic
+              400 with no field-level guidance. Same pattern as Phase
+              145's review-screen fix. Now: maxLength={2000} +
+              char counter so the input matches server reality. */}
           <TextInput
             value={notes}
             onChangeText={setNotes}
             multiline
             numberOfLines={4}
+            maxLength={2000}
             placeholder="Anything the customer should know…"
             placeholderTextColor={colors.textTertiary}
             style={styles.notesInput}
             textAlignVertical="top"
           />
+          {notes.length > 0 && (
+            <Text style={styles.notesCount}>{notes.length}/2000</Text>
+          )}
         </View>
       </ScrollView>
 
@@ -451,6 +462,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     ...typography.body,
   },
+  // BUG-PHASE194-01 fix — char counter under notes input.
+  notesCount: { ...typography.caption, color: colors.textTertiary, textAlign: 'right' as const, marginTop: spacing.xs },
   footer: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
