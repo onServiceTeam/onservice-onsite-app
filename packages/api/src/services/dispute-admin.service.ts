@@ -168,12 +168,26 @@ function providerPattern(
   return 'OK';
 }
 
+// BUG-PHASE191-01 fix — pre-fix requireText had a min check but no
+// max. Used by adminResolveDispute (decisionNotes), sendDisputeMessage
+// (message), adminEscalateDispute (reason). All flow into TEXT
+// columns (admin_actions.full_notes, dispute_messages.message,
+// disputes.escalation_reason) that are unbounded by Postgres. Same
+// defense-in-depth pattern as Phase 168 (requireReason). Cap at 5000
+// to match the booking-admin requireReason cap.
+const REQUIRE_TEXT_MAX = 5000;
 function requireText(value: string, field: string, minLength: number): string {
   const trimmed = (value ?? '').trim();
   if (!trimmed) throw createAppError(`${field} is required.`, 400);
   if (trimmed.length < minLength) {
     throw createAppError(
       `${field} must be at least ${minLength} characters.`,
+      400,
+    );
+  }
+  if (trimmed.length > REQUIRE_TEXT_MAX) {
+    throw createAppError(
+      `${field} must be ≤ ${REQUIRE_TEXT_MAX} characters.`,
       400,
     );
   }
