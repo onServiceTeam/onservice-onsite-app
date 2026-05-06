@@ -334,6 +334,17 @@ export async function cancelRecurringBooking(
   userId: string,
   reason?: string,
 ): Promise<RecurringBookingRow> {
+  // BUG-PHASE190-01 fix — pre-fix the optional `reason` was passed
+  // straight to recurring_bookings.cancellation_reason which is TEXT
+  // (migration 020) — unbounded by Postgres. The route had no Zod
+  // validator. Same defense-in-depth pattern as Phase 152-168 + 179-
+  // 181 + 188-189. Mirror the booking cancellationReason cap (500
+  // chars from booking.validators.ts) so customer cancellation flows
+  // are consistent.
+  if (reason !== undefined && reason.length > 500) {
+    throw createAppError('cancellation reason cannot exceed 500 characters.', 400);
+  }
+
   const result = await db.query<RecurringBookingRow>(
     `UPDATE recurring_bookings
      SET status = 'cancelled', cancelled_at = NOW(), cancellation_reason = $3, updated_at = NOW()
