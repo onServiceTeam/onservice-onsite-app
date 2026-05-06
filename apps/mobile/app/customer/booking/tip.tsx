@@ -7,6 +7,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import { sendTip } from '@/services/tip.service';
 import { getWalletBalance } from '@/services/payment.service';
+import api from '@/services/api';
 import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
@@ -53,6 +54,28 @@ export default function TipScreen(): React.ReactElement {
   });
   const walletBalance = walletQuery.data?.availableBalance ?? 0;
 
+  // BUG-PHASE196-01 fix — pre-fix the tip screen used servicePrice as
+  // the maxTip but ignored the platform-wide tip_max_amount_cents
+  // setting. The backend's sendTipSchema caps at TIP_HARD_CAP_CENTAVOS
+  // (a separate platform-settings value); a customer entering a tip
+  // ≤ servicePrice but > the platform cap got a 400 "Tip amount
+  // exceeds platform sanity cap" only AFTER tapping Send. Same UX
+  // desync as Phase 145/194 — the UI must match server reality.
+  // /api/v1/tips/limits returns { minCents, maxCents }. Now: maxTip is
+  // min(servicePrice, platformTipMax) so the input + button gate
+  // before the API is even hit.
+  const tipLimitsQuery = useQuery({
+    queryKey: ['tip-limits'],
+    queryFn: async () => {
+      const res = await api.get<{ data: { minCents: number; maxCents: number } }>(
+        '/api/v1/tips/limits',
+      );
+      return res.data.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const platformTipMax = tipLimitsQuery.data?.maxCents ?? 500_000;
+
   const servicePrice = booking?.servicePrice ?? 0;
 
   const tipAmount = ((): number => {
@@ -65,7 +88,8 @@ export default function TipScreen(): React.ReactElement {
     return selectedPercent ? Math.round(servicePrice * (selectedPercent / 100)) : 0;
   })();
 
-  const maxTip = servicePrice;
+  // BUG-PHASE196-01 fix — maxTip is min(servicePrice, platformTipMax).
+  const maxTip = Math.min(servicePrice, platformTipMax);
 
   const tipMutation = useMutation({
     mutationFn: (amount: number) => sendTip({
@@ -95,7 +119,11 @@ export default function TipScreen(): React.ReactElement {
       return;
     }
     if (tipAmount > maxTip) {
-      Alert.alert('Tip Too Large', `Maximum tip is ${formatPHP(maxTip)} (100% of service price).`);
+      // BUG-PHASE196-01 fix — message reflects which cap is binding.
+      const reason = platformTipMax < servicePrice
+        ? `platform cap of ${formatPHP(maxTip)}`
+        : `${formatPHP(maxTip)} (100% of service price)`;
+      Alert.alert('Tip Too Large', `Maximum tip is ${reason}.`);
       return;
     }
     if (tipAmount > walletBalance) {
@@ -233,7 +261,9 @@ export default function TipScreen(): React.ReactElement {
             for tip > maxTip mirroring the wallet-insufficient hint. */}
         {tipAmount > 0 && tipAmount > maxTip && (
           <Text style={styles.balanceWarn}>
-            Tip exceeds {formatPHP(maxTip)} (100% of service price).
+            {platformTipMax < servicePrice
+              ? `Tip exceeds platform cap of ${formatPHP(maxTip)}.`
+              : `Tip exceeds ${formatPHP(maxTip)} (100% of service price).`}
           </Text>
         )}
       </View>
