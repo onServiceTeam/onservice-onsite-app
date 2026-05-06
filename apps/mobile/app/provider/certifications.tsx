@@ -291,12 +291,19 @@ export default function CertificationsScreen(): React.ReactElement {
       {mode && (
         <View style={styles.formCard}>
           <Text style={styles.formTitle}>{mode === 'add' ? 'Add Certification' : 'Edit Certification'}</Text>
+          {/* BUG-PHASE197-02 fix — pre-fix all three text inputs had
+              no maxLength. Phase 152 set CERT_NAME_MAX=200,
+              CERT_ISSUING_BODY_MAX=200, CERT_NUMBER_MAX=100 at the
+              route. A provider typing past those caps got a 400 with
+              no field-level guidance. Same Phase 145/194/195/197-01
+              maxLength-sweep fix family. */}
           <TextInput
             style={styles.input}
             value={name}
             onChangeText={setName}
             placeholder="Certification Name *"
             placeholderTextColor={colors.textTertiary}
+            maxLength={200}
           />
           <TextInput
             style={styles.input}
@@ -304,6 +311,7 @@ export default function CertificationsScreen(): React.ReactElement {
             onChangeText={setIssuingBody}
             placeholder="Issuing Body (e.g. TESDA)"
             placeholderTextColor={colors.textTertiary}
+            maxLength={200}
           />
           <TextInput
             style={styles.input}
@@ -311,6 +319,7 @@ export default function CertificationsScreen(): React.ReactElement {
             onChangeText={setCertNumber}
             placeholder="Certificate Number"
             placeholderTextColor={colors.textTertiary}
+            maxLength={100}
           />
           {/* Phase E CRIT-109 fix — picker preview replaces the
                paste-URL TextInput. If editing and a previous URL

@@ -259,6 +259,11 @@ export default function PortfolioScreen(): React.ReactElement {
               )}
             </>
           )}
+          {/* BUG-PHASE197-01 fix — pre-fix the caption TextInput had
+              no maxLength. Phase 152 set PORTFOLIO_CAPTION_MAX = 500
+              at the route. A provider typing 600 chars hit Save and
+              got a 400 with no field-level guidance. Same Phase 145/
+              194/195 maxLength-sweep fix family. */}
           <TextInput
             style={styles.input}
             value={caption}
@@ -266,6 +271,7 @@ export default function PortfolioScreen(): React.ReactElement {
             placeholder="Caption (optional)"
             placeholderTextColor={colors.textTertiary}
             editable={!isPending}
+            maxLength={500}
           />
           <View style={styles.formActions}>
             <Button title="Cancel" onPress={resetForm} variant="ghost" />
