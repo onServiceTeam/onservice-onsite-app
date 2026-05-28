@@ -584,7 +584,6 @@ export async function transitionBookingStatus(
       if (completionNotes && completionNotes.trim().length > 0) {
         updates.push(`completion_notes = $${paramIdx}`);
         params.push(completionNotes.trim());
-        paramIdx++;
       }
     } else if (newStatus === 'confirmed') {
       updates.push(`confirmed_at = NOW()`);
@@ -1276,7 +1275,7 @@ export async function expireApprovedChangeOrders(): Promise<number> {
   // value rather than blocking the worker.
   let windowHours = 24;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const settingsService = require('./settings.service');
     if (typeof settingsService.getSettingNumber === 'function') {
       const fetched = await settingsService.getSettingNumber('change_order_approval_expiry_hours');
@@ -1308,7 +1307,7 @@ export async function expireApprovedChangeOrders(): Promise<number> {
     // 'approved' forever.
     for (const row of expired.rows) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const notif = require('./notification.service');
         const customerLookup = await db.query<{ customer_id: string; provider_user_id: string | null }>(
           `SELECT b.customer_id, p.user_id AS provider_user_id

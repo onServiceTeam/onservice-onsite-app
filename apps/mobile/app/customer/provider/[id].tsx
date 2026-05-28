@@ -22,8 +22,6 @@ import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Star, AlertTriangle, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText } from '@/components/icons';
-
-import { Routes } from '@/config/navigation';
 // BUG-PHASE94-01 — founding tier added so customers viewing a
 // founding-batch provider see the right badge color + label.
 const TIER_COLORS: Record<string, string> = {

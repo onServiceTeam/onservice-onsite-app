@@ -26,7 +26,7 @@ test.describe('BookingDetailPage', () => {
       test('loading state', async ({ page }) => {
         // Stall every admin API call so skeleton renders.
         await page.route('**/api/v1/admin/**', (route) => {
-          setTimeout(() => route.continue(), 5000);
+          void route;
         });
         await page.goto(ROUTE);
         // Operator wires the right test-id selector when the screen's

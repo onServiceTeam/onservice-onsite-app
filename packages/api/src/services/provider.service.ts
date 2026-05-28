@@ -43,12 +43,6 @@ interface AvailabilityRow {
   created_at: Date;
 }
 
-interface SubcategoryNameRow {
-  id: string;
-  name: string;
-  category_id: string;
-}
-
 export async function getProviderByUserId(userId: string): Promise<ProviderRow> {
   const result = await db.query<ProviderRow>(
     `SELECT * FROM providers WHERE user_id = $1`,

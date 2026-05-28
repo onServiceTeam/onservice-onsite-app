@@ -65,7 +65,7 @@ describe('MED-N38 — business.createBusinessAccount is transactional', () => {
   });
 
   it('no top-level db.query inside createBusinessAccount any more', () => {
-    const block = BUSINESS.match(/export async function createBusinessAccount[\s\S]*?return result\.rows\[0\]!;[\s\S]{0,30}\}\);/);
+    const block = BUSINESS.match(/export async function createBusinessAccount[\s\S]*?return result\.rows\[0\]!;[\s\S]{0,30}}\);/);
     expect(block).not.toBeNull();
     expect(block![0]).not.toMatch(/await db\.query/);
   });
@@ -73,7 +73,7 @@ describe('MED-N38 — business.createBusinessAccount is transactional', () => {
 
 describe('MED-N39 — business.addMember re-activates soft-deleted members', () => {
   it('uses ON CONFLICT DO UPDATE (NOT DO NOTHING) to re-activate', () => {
-    const block = BUSINESS.match(/MED-N39 fix[\s\S]{0,1500}RETURNING \*\`/);
+    const block = BUSINESS.match(/MED-N39 fix[\s\S]{0,1500}RETURNING \*`/);
     expect(block).not.toBeNull();
     expect(block![0]).toMatch(/ON CONFLICT \(business_account_id, user_id\) DO UPDATE/);
     expect(block![0]).not.toMatch(/ON CONFLICT \(business_account_id, user_id\) DO NOTHING/);

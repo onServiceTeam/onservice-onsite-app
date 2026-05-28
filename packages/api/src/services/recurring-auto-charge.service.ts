@@ -27,9 +27,6 @@ import * as settingsService from './settings.service';
 const PAYMONGO_BASE = 'https://api.paymongo.com/v1';
 const DEFAULT_MAX_CONSECUTIVE_FAILURES = 3;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type PgClient = { query: (text: string, params?: unknown[]) => Promise<any> };
-
 export interface AutoChargeContext {
   recurringBookingId: string;
   bookingId: string;
@@ -263,7 +260,6 @@ export async function attemptAutoCharge(
   } catch {
     // No wallet — proceed with PayMongo-only.
     walletId = null;
-    walletAvailable = 0;
   }
 
   const walletPortion = Math.min(walletAvailable, ctx.amountCentavos);
@@ -271,7 +267,7 @@ export async function attemptAutoCharge(
 
   let paymongoPaymentId: string | null = null;
   let failureReason: string | null = null;
-  let succeeded = false;
+  let succeeded: boolean;
 
   if (paymongoPortion > 0) {
     // Charge PayMongo for the remainder.

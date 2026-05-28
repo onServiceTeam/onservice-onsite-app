@@ -18,7 +18,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { getBookingById } from '@/services/booking.service';
 import { listBookingPhotos } from '@/services/booking-photo.service';
-import { Badge, Button } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatBookingRef } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
@@ -38,14 +38,6 @@ const CANCELLABLE_STATUSES = new Set([
   'requested', 'quoted', 'matched', 'payment_pending', 'paid', 'provider_en_route',
 ]);
 const NEEDS_CONFIRMATION = 'completed_by_provider';
-
-function getStatusColor(status: string): string {
-  if (ACTIVE_STATUSES.has(status)) return colors.statusInProgress;
-  if (COMPLETED_STATUSES.has(status)) return colors.statusCompleted;
-  if (status.startsWith('cancelled')) return colors.statusCancelled;
-  if (status === 'disputed') return colors.statusDisputed;
-  return colors.statusPending;
-}
 
 export default function BookingDetailScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();

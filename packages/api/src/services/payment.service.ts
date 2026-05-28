@@ -264,7 +264,7 @@ export async function processRefund(
   // refund call. paymongo_payment_id column populated from the
   // payment.paid webhook (post-mig-114 + webhook fix). Fall back to
   // metadata.reference_id for in-flight rows before the column lands.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const paymongoPaymentId: string | null =
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (intent as any).paymongo_payment_id ??

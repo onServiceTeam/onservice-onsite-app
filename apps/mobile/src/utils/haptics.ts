@@ -11,7 +11,7 @@ import { Platform } from 'react-native';
 // or during very-early app boot). Fallback: if the store isn't
 // available, haptics fire as before.
 //
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+
 type AccessibilityStoreModule = {
   useAccessibilityStore: { getState: () => { reduceMotionEnabled: boolean } };
 };

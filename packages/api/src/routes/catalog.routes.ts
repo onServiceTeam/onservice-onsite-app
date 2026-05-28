@@ -230,22 +230,6 @@ router.get(
   },
 );
 
-interface CategoryRow {
-  id: string; name: string; slug: string; description: string;
-  icon_url: string | null; display_order: number; is_active: boolean;
-}
-
-interface SubcategoryRow {
-  id: string; category_id: string; name: string; slug: string; description: string;
-  pricing_type: string; base_price: number | null; min_price: number | null;
-  max_price: number | null; estimated_duration_minutes: number | null;
-  display_order: number; is_active: boolean;
-}
-
-function slugify(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
-
 router.post(
   '/admin/categories',
   authMiddleware,

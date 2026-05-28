@@ -128,12 +128,7 @@ describe('CRIT-N13 — settings.updateSetting wraps update + audit in transactio
     dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
       // The real db.transaction wrapper rolls back on throw. We mirror
       // that by re-throwing to the caller.
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return await (cb as any)({ query: clientQuery });
-      } catch (err) {
-        throw err;
-      }
+      return await (cb as (client: { query: typeof clientQuery }) => Promise<unknown>)({ query: clientQuery });
     });
 
     await expect(

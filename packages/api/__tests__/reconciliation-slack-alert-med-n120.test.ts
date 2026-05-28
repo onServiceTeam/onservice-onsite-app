@@ -117,7 +117,7 @@ describe('MED-N120 — slack-alert.service contract', () => {
 
 describe('MED-N120 — sendSlackAlert behavior smoke (env unset path)', () => {
   // Test the live function with the env unset to confirm no-op.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const { sendSlackAlert } = require('../src/services/slack-alert.service');
 
   it('returns undefined and does not throw when webhook URL is unset', async () => {

@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'r
 import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth.store';
-import { Button, Input } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { validatePHPhone, normalizePHPhone } from '@/utils/phone';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography } from '@/config/theme';

@@ -16,7 +16,6 @@ import * as matchingService from '../services/matching.service';
 import * as notificationService from '../services/notification.service';
 import * as escrowService from '../services/escrow.service';
 import * as orService from '../services/or.service';
-import * as walletService from '../services/wallet.service';
 import * as referralService from '../services/referral.service';
 import * as sukiService from '../services/suki.service';
 import { BookingStatus, canTransition } from '../types/booking.types';
@@ -733,8 +732,8 @@ router.post(
             },
           });
         } catch (logErr) {
+          void logErr;
           // Logging failure must NOT block the booking flow.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (req as unknown as { log?: (m: string) => void }).log?.(
             'logSecurityEvent failed for customer_self_assigned_provider',
           );
@@ -937,7 +936,7 @@ router.post(
           success: true,
           data: { declined: true, nextOffer: next ? offerSvc.formatOffer(next) : null },
         });
-      } catch (kickErr) {
+      } catch {
         // No more candidates — surface declined OK + null next.
         res.json({ success: true, data: { declined: true, nextOffer: null } });
       }

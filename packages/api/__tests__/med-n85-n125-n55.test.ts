@@ -111,7 +111,7 @@ describe('MED-N85 — refresh token device fingerprint binding', () => {
     expect(out.accessToken).toBeTruthy();
 
     // The mock for logSecurityEvent must have been called.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+
     const { logSecurityEvent } = require('../src/services/security.service');
     expect(logSecurityEvent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -124,7 +124,7 @@ describe('MED-N85 — refresh token device fingerprint binding', () => {
 
   it('MED-N85 — fingerprint mismatch IN STRICT MODE rejects the refresh', async () => {
     // Flip strict mode on for this test only.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+
     const settings = require('../src/services/settings.service');
     settings.getSettingBoolean.mockResolvedValueOnce(true);
 

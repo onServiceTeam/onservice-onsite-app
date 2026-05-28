@@ -6,6 +6,17 @@ import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import prettierConfig from 'eslint-config-prettier';
 
 export default [
+  {
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/.expo/**',
+      '**/coverage/**',
+      '.ai-coder/**',
+      'apps/admin/test-results/**',
+    ],
+  },
   js.configs.recommended,
   prettierConfig,
   {
@@ -60,9 +71,14 @@ export default [
         atob: 'readonly',
         globalThis: 'readonly',
         Blob: 'readonly',
+        BodyInit: 'readonly',
         File: 'readonly',
         URLSearchParams: 'readonly',
+        crypto: 'readonly',
+        global: 'readonly',
+        NodeJS: 'readonly',
         __DEV__: 'readonly',
+        HTMLSelectElement: 'readonly',
       },
     },
     plugins: {
@@ -85,6 +101,50 @@ export default [
       }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'react/react-in-jsx-scope': 'off',
+    },
+  },
+  {
+    files: ['**/*.js', '**/*.cjs', '**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        Buffer: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        exports: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        jest: 'readonly',
+      },
+    },
+  },
+  {
+    files: ['**/__mocks__/**/*.js'],
+    rules: {
+      'no-unused-vars': 'off',
+    },
+  },
+  {
+    files: ['**/vitest.setup.ts', '**/jest.setup.ts'],
+    languageOptions: {
+      globals: {
+        React: 'readonly',
+        require: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+    },
+  },
+  {
+    files: ['packages/api/scripts/**/*.ts', 'scripts/**/*.cjs'],
+    rules: {
+      'no-console': 'off',
     },
   },
   {
@@ -119,6 +179,10 @@ export default [
         jest: 'readonly',
       },
     },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+    },
   },
   {
     // k6 load-test scripts: provide k6 runtime globals (__ENV, __VU, __ITER).
@@ -130,8 +194,5 @@ export default [
         __ITER: 'readonly',
       },
     },
-  },
-  {
-    ignores: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.expo/**', '**/coverage/**'],
   },
 ];

@@ -70,7 +70,7 @@ describe('MED-N160 — rbacMiddleware behavioral contract (defense in depth)', (
   // Smoke-test the rbacMiddleware itself to confirm the gate it
   // applies actually blocks non-super_admin requests. This guards
   // against future regressions in the middleware itself.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const { rbacMiddleware } = require('../src/middleware/rbac.middleware');
 
   it('rbacMiddleware(\'super_admin\') rejects junior admin (403)', () => {

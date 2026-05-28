@@ -22,7 +22,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 let Screen: React.ComponentType<unknown> | null = null;
 let mountError: string | null = null;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const mod = require('../../app/customer/provider/[id]');
   Screen = (mod.default ?? mod) as React.ComponentType<unknown>;
 } catch (err) {

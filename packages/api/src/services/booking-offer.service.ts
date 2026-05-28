@@ -28,7 +28,6 @@ import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
 import * as matchingService from './matching.service';
 import * as notificationService from './notification.service';
-import { formatPHP } from '../utils/currency';
 
 const OFFER_TIMEOUT_SECONDS = 45;
 const MAX_OFFER_ATTEMPTS = 10;

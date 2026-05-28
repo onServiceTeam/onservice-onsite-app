@@ -154,7 +154,7 @@ describe('MED-N109 — appVersion read from package.json (not hardcoded)', () =>
     );
     expect(SETTINGS_SVC).toMatch(/function getAppVersion\(\)/);
     expect(SETTINGS_SVC).toMatch(/process\.env\.APP_VERSION/);
-    expect(SETTINGS_SVC).toMatch(/require\('\.\.\/\.\.\/package\.json'\)/);
+    expect(SETTINGS_SVC).toMatch(/import apiPackageJson from '\.\.\/\.\.\/package\.json'/);
   });
 
   it('MED-N109 — getClientConfig calls getAppVersion(), not the hardcoded literal', () => {

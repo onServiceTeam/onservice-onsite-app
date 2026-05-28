@@ -44,7 +44,7 @@ export function useSocketRoom(
       socket.emit('room:leave', { room: roomName });
     };
     // events identity changes per render; consumers should memoize.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [roomName, isAuthenticated]);
 
   return { isConnected: !!getSocket()?.connected };

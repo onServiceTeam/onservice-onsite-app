@@ -16,8 +16,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { updateBookingStatus } from '@/services/provider-api.service';
+import { useMutation } from '@tanstack/react-query';
 import { getSocket } from '@/services/socket.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -36,7 +35,6 @@ interface NewJobEvent {
 
 export default function NewJobModal(): React.ReactElement | null {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const [job, setJob] = useState<NewJobEvent | null>(null);
   const [timeLeft, setTimeLeft] = useState(COUNTDOWN_SECONDS);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);

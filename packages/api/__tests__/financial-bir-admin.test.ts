@@ -1587,7 +1587,7 @@ describe('escrow → orService.issueOR hook', () => {
     jest.doMock('../src/services/or.service', () => ({
       issueOR: opts.issueORImpl,
     }));
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+
     return require('../src/services/escrow.service') as typeof import('../src/services/escrow.service');
   }
 

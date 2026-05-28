@@ -178,9 +178,9 @@ describe('MED-N26 — releasePartialEscrow conservation guard', () => {
 });
 
 describe('MED-N25/N26 — source-level signature checks', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const { readFileSync } = require('fs');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const { resolve } = require('path');
   const SVC = readFileSync(
     resolve(__dirname, '../src/services/escrow.service.ts'),

@@ -17,7 +17,7 @@
 
 import React from 'react';
 import { render } from '@testing-library/react';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { i18n } from '@/lib/i18n';
 import NbiStatusBanner from '@/components/provider/NbiStatusBanner';
 import EarningsChart from '@/components/provider/EarningsChart';

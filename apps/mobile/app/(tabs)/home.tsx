@@ -30,7 +30,6 @@ import { Badge } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
 import { Routes } from '@/config/navigation';
 import {

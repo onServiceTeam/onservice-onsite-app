@@ -32,23 +32,6 @@ describe('BUG-PHASE130-01 — BIR calendar uses Manila end-of-day for overdue', 
     global.Date = realDate;
   });
 
-  function freezeAt(instant: Date) {
-    const Frozen = class extends realDate {
-      constructor(...args: ConstructorParameters<typeof realDate>) {
-        if (args.length === 0) {
-          super(instant.getTime());
-        } else {
-          // @ts-expect-error variadic forwarding
-          super(...args);
-        }
-      }
-      static now() {
-        return instant.getTime();
-      }
-    } as unknown as DateConstructor;
-    global.Date = Frozen;
-  }
-
   it('1601-EQ April 10 due-date is NOT overdue at 09:00 Manila on Apr 10 (= 01:00 UTC Apr 10)', () => {
     // Pre-fix: due = 2026-04-10T00:00Z = 08:00 Manila Apr 10. At 09:00
     // Manila (= 01:00 UTC), now > due → 'overdue'. Wrong. Form is

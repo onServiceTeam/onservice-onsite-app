@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import type { Booking } from '@/services/booking.service';
-import { Badge } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -34,29 +33,6 @@ const FILTERS: { label: string; value: StatusFilter }[] = [
   { label: 'Completed', value: 'completed' },
   { label: 'Cancelled', value: 'cancelled' },
 ];
-
-function getStatusColor(status: string): string {
-  const map: Record<string, string> = {
-    requested: colors.statusPending,
-    quoted: colors.statusPending,
-    matched: colors.statusConfirmed,
-    payment_pending: colors.statusPending,
-    paid: colors.statusConfirmed,
-    provider_en_route: colors.statusInProgress,
-    provider_arrived: colors.statusInProgress,
-    in_progress: colors.statusInProgress,
-    completed_by_provider: colors.statusCompleted,
-    confirmed: colors.statusCompleted,
-    payout_ready: colors.statusCompleted,
-    paid_out: colors.statusCompleted,
-    disputed: colors.statusDisputed,
-    resolved: colors.statusCompleted,
-    cancelled_by_customer: colors.statusCancelled,
-    cancelled_by_provider: colors.statusCancelled,
-    cancelled_by_admin: colors.statusCancelled,
-  };
-  return map[status] ?? colors.textTertiary;
-}
 
 async function fetchBookings({ pageParam = 1, queryKey }: { pageParam?: number; queryKey: string[] }): Promise<{ bookings: Booking[]; meta: { page: number; pageSize: number; total: number; totalPages: number } }> {
   const statusFilter = queryKey[1];

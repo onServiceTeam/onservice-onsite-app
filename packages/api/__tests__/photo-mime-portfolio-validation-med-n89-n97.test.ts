@@ -54,12 +54,12 @@ describe('MED-N89 — booking photo MIME type plumbed through, not hardcoded', (
   it('INSERT into booking_photos uses the resolved per-photo mime, not a hardcoded literal', () => {
     // Find the booking_photos INSERT block and verify the mime_type
     // bind is `resolvedMime`, not the previous hardcoded 'image/jpeg'.
-    const insert = BOOKING_ROUTES.match(/INSERT INTO booking_photos[\s\S]*?\]\,\s*\)\;/);
+     const insert = BOOKING_ROUTES.match(/INSERT INTO booking_photos[\s\S]*?],\s*\);/);
     expect(insert).not.toBeNull();
     expect(insert![0]).toMatch(/resolvedMime/);
     // The pre-fix hardcoded literal must NOT appear inside the bind
     // params for the booking_photos INSERT block.
-    expect(insert![0]).not.toMatch(/'image\/jpeg',\s*\]\,\s*\)\;/);
+     expect(insert![0]).not.toMatch(/'image\/jpeg',\s*],\s*\);/);
   });
 });
 

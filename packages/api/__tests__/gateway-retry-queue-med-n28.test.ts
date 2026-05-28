@@ -36,7 +36,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import * as gatewayRetryService from '../src/services/gateway-retry.service';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+
 const escrowService = require('../src/services/escrow.service') as {
   refundFromEscrow: jest.Mock;
   releaseEscrow: jest.Mock;
@@ -242,9 +242,9 @@ describe('MED-N28 — listFailedPermanent for admin compliance dashboard', () =>
 });
 
 describe('MED-N28 — dispute-admin.service wires enqueueRetry into 3 catch blocks', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const { readFileSync } = require('fs');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const { resolve } = require('path');
   const SVC = readFileSync(
     resolve(__dirname, '../src/services/dispute-admin.service.ts'),
@@ -269,9 +269,9 @@ describe('MED-N28 — dispute-admin.service wires enqueueRetry into 3 catch bloc
 });
 
 describe('MED-N28 — workers.ts wires the gateway-retry job into the scheduler', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const { readFileSync } = require('fs');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const { resolve } = require('path');
   const WORKERS = readFileSync(
     resolve(__dirname, '../src/jobs/workers.ts'),

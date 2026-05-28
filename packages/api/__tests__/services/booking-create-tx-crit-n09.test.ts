@@ -5,7 +5,6 @@
 
 const dbQueryMock = jest.fn();
 const dbTransactionMock = jest.fn();
-
 jest.mock('../../src/models/db', () => ({
   db: {
     query: (...args: unknown[]) => dbQueryMock(...args),
@@ -103,8 +102,7 @@ describe('CRIT-N09 — createBooking + booking_addons run inside one transaction
         }
         return { rows: [], rowCount: 0 };
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (cb as any)({ query: clientQuery });
+      return (cb as (client: { query: typeof clientQuery }) => Promise<unknown>)({ query: clientQuery });
     });
 
     const booking = await createBooking({
@@ -160,12 +158,7 @@ describe('CRIT-N09 — createBooking + booking_addons run inside one transaction
         return { rows: [], rowCount: 0 };
       });
       // The real db.transaction rolls back on throw.
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return await (cb as any)({ query: clientQuery });
-      } catch (err) {
-        throw err;
-      }
+      return await (cb as (client: { query: typeof clientQuery }) => Promise<unknown>)({ query: clientQuery });
     });
 
     await expect(createBooking({
@@ -214,8 +207,7 @@ describe('CRIT-N09 — createBooking + booking_addons run inside one transaction
         }
         return { rows: [], rowCount: 0 };
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (cb as any)({ query: clientQuery });
+      return (cb as (client: { query: typeof clientQuery }) => Promise<unknown>)({ query: clientQuery });
     });
 
     const booking = await createBooking({

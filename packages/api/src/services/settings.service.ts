@@ -10,6 +10,7 @@ import { db } from '../models/db';
 import { redis } from '../config/redis.config';
 import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
+import apiPackageJson from '../../package.json';
 
 const CACHE_PREFIX = 'settings:';
 const CACHE_ALL_KEY = 'settings:__all__';
@@ -704,8 +705,7 @@ function getAppVersion(): string {
     return cachedAppVersion;
   }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pkg = require('../../package.json') as { version?: string };
+    const pkg = apiPackageJson as { version?: string };
     if (pkg && typeof pkg.version === 'string' && pkg.version.trim()) {
       cachedAppVersion = pkg.version.trim();
       return cachedAppVersion;

@@ -14,6 +14,7 @@ import * as adminAnalyticsService from '../services/admin-analytics.service';
 import * as disputeService from '../services/dispute.service';
 import * as gatewayRetryService from '../services/gateway-retry.service';
 import * as bookingService from '../services/booking.service';
+import * as bookingOfferService from '../services/booking-offer.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -471,6 +472,9 @@ const schedulerWorker = new Worker(
         // 'expired' after the configured window.
         results.changeOrdersExpired = await bookingService.expireApprovedChangeOrders();
         break;
+      case 'booking-offers-sweep':
+        results.bookingOffers = await bookingOfferService.sweepExpiredOffers();
+        break;
       case 'all': {
         results.confirmed = await autoConfirmBookings();
         results.expired = await expireStaleQuotes();
@@ -598,7 +602,13 @@ export async function initScheduledJobs(): Promise<void> {
     removeOnFail: 30,
   });
 
-  logger.info('Scheduled jobs initialized: auto-confirm/expire-quotes/no-show/dispute-escalate every 5 min (all), NBI check daily midnight PHT, bypass detection weekly Sunday midnight PHT, recurring bookings daily 6AM PHT, invoice generation 1st of month midnight PHT, overdue check daily midnight PHT, slot waitlist expiry daily 1AM PHT, data export processing every 10 min, account deletion processing daily 2AM PHT, suspicious IP detection every 5 min, security cleanup monthly 3AM PHT, quality score compute weekly 4AM PHT Monday, dispute escalation every 6 hours');
+  await schedulerQueue.add('booking-offers-sweep', {}, {
+    repeat: { every: 5000 },
+    removeOnComplete: 30,
+    removeOnFail: 30,
+  });
+
+  logger.info('Scheduled jobs initialized: auto-confirm/expire-quotes/no-show/dispute-escalate every 5 min (all), booking offer sweep every 5 seconds, NBI check daily midnight PHT, bypass detection weekly Sunday midnight PHT, recurring bookings daily 6AM PHT, invoice generation 1st of month midnight PHT, overdue check daily midnight PHT, slot waitlist expiry daily 1AM PHT, data export processing every 10 min, account deletion processing daily 2AM PHT, suspicious IP detection every 5 min, security cleanup monthly 3AM PHT, quality score compute weekly 4AM PHT Monday, dispute escalation every 6 hours');
 }
 
 export { schedulerWorker };

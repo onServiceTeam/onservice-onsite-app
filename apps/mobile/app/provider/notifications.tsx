@@ -23,8 +23,8 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import {
   ClipboardList, CheckCircle2, PartyPopper, Coins, Scale,
-  Star, Banknote, Gift, Bell, AlertTriangle, MessageSquare, Ban,
-  Award, Shield, Crown,
+  Star, Gift, Bell, AlertTriangle, MessageSquare, Ban,
+  Award, Shield,
 } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };

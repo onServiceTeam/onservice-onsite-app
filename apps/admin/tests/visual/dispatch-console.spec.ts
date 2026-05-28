@@ -7,16 +7,38 @@
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
 import { test, expect } from './_fixtures';
+import type { Page } from '@playwright/test';
 
 const ROUTE = '/dispatch';
 
+async function stabilizeLeaflet(page: Page): Promise<void> {
+  await page.route(/https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/, (route) => {
+    void route.abort();
+  });
+}
+
+async function hideExternalMapTiles(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: `
+      .leaflet-container { background: #d7eef7 !important; }
+      .leaflet-tile-pane,
+      .leaflet-control-attribution { visibility: hidden !important; }
+    `,
+  });
+}
+
 test.describe('DispatchConsolePage', () => {
+  test.beforeEach(async ({ page }) => {
+    await stabilizeLeaflet(page);
+  });
+
   for (const width of [1280, 1440, 1920]) {
     test.describe(`@${width}`, () => {
       test.use({ viewport: { width, height: 800 } });
 
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
+        await hideExternalMapTiles(page);
         await expect(page).toHaveScreenshot(`dispatch-console-default-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -26,9 +48,10 @@ test.describe('DispatchConsolePage', () => {
       test('loading state', async ({ page }) => {
         // Stall every admin API call so skeleton renders.
         await page.route('**/api/v1/admin/**', (route) => {
-          setTimeout(() => route.continue(), 5000);
+          void route;
         });
         await page.goto(ROUTE);
+        await hideExternalMapTiles(page);
         // Operator wires the right test-id selector when the screen's
         // skeleton mounts. Default to a forgiving locator that should
         // match the canonical Skeleton component.
@@ -55,6 +78,7 @@ test.describe('DispatchConsolePage', () => {
           }
         });
         await page.goto(ROUTE);
+        await hideExternalMapTiles(page);
         await expect(page).toHaveScreenshot(`dispatch-console-empty-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -75,6 +99,7 @@ test.describe('DispatchConsolePage', () => {
           }
         });
         await page.goto(ROUTE);
+        await hideExternalMapTiles(page);
         await expect(page).toHaveScreenshot(`dispatch-console-error-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,

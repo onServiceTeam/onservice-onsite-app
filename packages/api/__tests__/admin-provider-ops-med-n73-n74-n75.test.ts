@@ -174,9 +174,9 @@ describe('MED-N73 — suspendProvider flags in-flight bookings', () => {
 });
 
 describe('MED-N73 — escrow.service refuses to release when the booking flag is set', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const { readFileSync } = require('fs');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const { resolve } = require('path');
   const ESCROW = readFileSync(
     resolve(__dirname, '../src/services/escrow.service.ts'),

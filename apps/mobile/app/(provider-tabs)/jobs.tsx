@@ -14,7 +14,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { getProviderBookings } from '@/services/provider-api.service';
 import type { Booking } from '@/services/booking.service';
-import { Badge } from '@/components/ui';
 import { AlertTriangle, Inbox, CheckCircle2, Ban, Filter } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 // Phase 14 R5-complete — wire StatusBadge + FilterChips + PaginationLoader
@@ -33,23 +32,6 @@ const STATUS_FILTERS = [
   { key: 'completed', label: 'Completed' },
   { key: 'cancelled', label: 'Cancelled' },
 ] as const;
-
-function getStatusColor(status: string): string {
-  const map: Record<string, string> = {
-    requested: colors.statusPending,
-    quoted: colors.statusPending,
-    matched: colors.statusConfirmed,
-    paid: colors.statusConfirmed,
-    provider_en_route: colors.statusInProgress,
-    provider_arrived: colors.statusInProgress,
-    in_progress: colors.statusInProgress,
-    completed_by_provider: colors.statusCompleted,
-    confirmed: colors.statusCompleted,
-    payout_ready: colors.statusCompleted,
-    paid_out: colors.statusCompleted,
-  };
-  return map[status] ?? colors.statusCancelled;
-}
 
 export default function ProviderJobsScreen(): React.ReactElement {
   const router = useRouter();

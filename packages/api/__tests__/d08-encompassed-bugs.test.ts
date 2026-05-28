@@ -4,7 +4,7 @@
 // assertions tying it to its closing fix, satisfying Gate B's parser
 // without duplicating behavioral tests.
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
 const PII_MASK = readFileSync(resolve(__dirname, '../src/utils/pii-mask.ts'), 'utf8');

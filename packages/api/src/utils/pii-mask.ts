@@ -86,13 +86,6 @@ export function maskPiiInString(s: string): string {
     });
 }
 
-const PII_KEYS = new Set([
-  'ip_address', 'ipAddress', 'ip',
-  'user_agent', 'userAgent', 'ua',
-  'phone', 'phoneNumber', 'phone_number',
-  'email', 'emailAddress', 'email_address',
-]);
-
 type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 
 export function maskPiiInObject<T extends Json>(obj: T): T {

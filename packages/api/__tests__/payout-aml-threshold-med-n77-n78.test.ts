@@ -276,9 +276,9 @@ describe('MED-N77 — clearAmlReview transitions aml_review_pending → pending'
 });
 
 describe('MED-N77 — payout.routes.ts /:id/clear-aml-review gated by super_admin', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const { readFileSync } = require('fs');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
   const { resolve } = require('path');
   const ROUTES = readFileSync(
     resolve(__dirname, '../src/routes/payout.routes.ts'),

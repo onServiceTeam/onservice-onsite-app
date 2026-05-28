@@ -22,7 +22,9 @@ jest.mock('../src/utils/logger', () => ({
 
 import { promoteToDpo, demoteFromDpo, listDpos } from '../src/services/staff.service';
 import { requireDpoRole, requireSuperAdminRole } from '../src/middleware/require-dpo.middleware';
+import type { AuthenticatedRequest, AuthPayload } from '../src/middleware/auth.middleware';
 import { roleIsAllowed } from '../../api/scripts/bootstrap-admin';
+import type { Response } from 'express';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
@@ -103,12 +105,11 @@ describe('E01 — admin login flow accepts dpo', () => {
 });
 
 describe('E01 — requireDpoRole middleware admits dpo and super_admin only', () => {
-  function callMiddleware(role: string): { error: Error | null } {
+  function callMiddleware(role: AuthPayload['role']): { error: Error | null } {
     let captured: Error | null = null;
     requireDpoRole(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { user: { userId: 'u1', role: role as any, iat: 0, exp: 0 } } as any,
-      {} as any,
+      { user: { userId: 'u1', role, iat: 0, exp: 0 } } as AuthenticatedRequest,
+      {} as Response,
       (err?: unknown) => {
         if (err instanceof Error) captured = err;
       },
@@ -141,9 +142,8 @@ describe('E01 — requireDpoRole middleware admits dpo and super_admin only', ()
   it('E01 — requireSuperAdminRole still excludes dpo (segregation)', () => {
     let captured: Error | null = null;
     requireSuperAdminRole(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { user: { userId: 'u1', role: 'dpo' as any, iat: 0, exp: 0 } } as any,
-      {} as any,
+      { user: { userId: 'u1', role: 'dpo', iat: 0, exp: 0 } } as AuthenticatedRequest,
+      {} as Response,
       (err?: unknown) => {
         if (err instanceof Error) captured = err;
       },

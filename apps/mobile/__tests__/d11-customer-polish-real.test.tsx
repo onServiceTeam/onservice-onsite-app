@@ -236,7 +236,6 @@ describe('Bookings + Payment — components', () => {
     expect(confirmed).toBe(true);
 
     // Re-mount + tap cancel.
-    confirmed = false;
     rerender(
       <ConfirmModal
         visible

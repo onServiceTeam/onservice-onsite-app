@@ -33,7 +33,7 @@ describe('BUG-PHASE122-01 — tip.service dead method-check branches removed', (
     // The MED-N153 gate at the TOP keeps `if (method !== 'wallet')`
     // but inside the transaction every nested `if (method === 'wallet')`
     // was redundant. Make sure none survives.
-    const trxBody = TIP.match(/return db\.transaction\(async \(client\) => \{[\s\S]+?\n  \}\);/);
+    const trxBody = TIP.match(/return db\.transaction\(async \(client\) => \{[\s\S]+?\n {2}\}\);/);
     expect(trxBody).not.toBeNull();
     expect(trxBody?.[0]).not.toMatch(/if \(method === 'wallet'\)/);
   });

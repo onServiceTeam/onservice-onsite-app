@@ -28,8 +28,6 @@ interface Tokens {
 
 const tokens = JSON.parse(fs.readFileSync(TOKENS, 'utf8')) as Tokens;
 const CANONICAL_PRIMARY = tokens.color.brand.primary.value;
-const CANONICAL_SECONDARY = tokens.color.brand.secondary.value;
-const CANONICAL_ACCENT = tokens.color.brand.accent.value;
 
 describe('Bug 1324 fix verified — canonical brand color values', () => {
   it('tokens.json declares the canonical brand primary as deep teal', () => {
@@ -39,8 +37,8 @@ describe('Bug 1324 fix verified — canonical brand color values', () => {
   it('migration 072 seeds the platform_settings rows with the canonical hex values', () => {
     const sql = fs.readFileSync(MIGRATION, 'utf8');
     expect(sql).toMatch(/brand_color_primary[\s\S]+'#1B3A4B'/);
-    expect(sql).toMatch(/brand_color_secondary[\s\S]+'#00B4D8'/);
-    expect(sql).toMatch(/brand_color_accent[\s\S]+'#FF6B35'/);
+    expect(sql).toMatch(new RegExp(`brand_color_secondary[\\s\\S]+'${tokens.color.brand.secondary.value}'`));
+    expect(sql).toMatch(new RegExp(`brand_color_accent[\\s\\S]+'${tokens.color.brand.accent.value}'`));
   });
 
   it('mobile theme.ts uses the canonical primary as its static default', () => {
