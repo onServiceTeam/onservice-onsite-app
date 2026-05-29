@@ -189,6 +189,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-not-for-production-use}
       JWT_ACCESS_EXPIRES_IN: "15m"
       JWT_REFRESH_EXPIRES_IN: "30d"
+      # Local demo/testing conveniences (ignored when NODE_ENV=production).
+      ALLOW_DEV_OTP: ${ALLOW_DEV_OTP:-1}
+      DEV_OTP_CODE: ${DEV_OTP_CODE:-000000}
+      ENABLE_TEST_FIXTURES: ${ENABLE_TEST_FIXTURES:-1}
     ports:
       - "${API_PORT:-7381}:7381"
     depends_on:

@@ -302,52 +302,70 @@ export async function verifyOtp(
     throw createAppError('Invalid Philippine phone number.', 400);
   }
 
-  const otpResult = await db.query<OtpRow>(
-    `SELECT * FROM otp_codes
-     WHERE phone = $1 AND is_used = FALSE AND expires_at > NOW()
-     ORDER BY created_at DESC LIMIT 1`,
-    [phone],
-  );
+  // ── Dev / demo OTP bypass ──────────────────────────────────────────────
+  // Local testing can't receive a real SMS, and the code is stored only as a
+  // scrypt hash (never logged), so there is otherwise no way to log into the
+  // mobile app on a dev machine. When (and ONLY when) we are NOT in
+  // production AND the operator has explicitly opted in with ALLOW_DEV_OTP=1,
+  // a fixed code (DEV_OTP_CODE, default "000000") is accepted for any phone
+  // without an SMS round-trip. Triple-gated so it can never fire in prod:
+  //   1. NODE_ENV !== 'production'   2. ALLOW_DEV_OTP === '1'   3. exact code
+  // This lets a non-developer log in as any seeded customer/provider phone to
+  // walk the app end to end. See docs/TESTING-GUIDE.md.
+  const devOtpEnabled = process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_OTP === '1';
+  const devOtpCode = process.env.DEV_OTP_CODE || '000000';
+  if (devOtpEnabled && code === devOtpCode) {
+    logger.warn('[DEV OTP] bypass accepted — NOT for production', { phoneSuffix: phone.slice(-4) });
+    // Skip the otp_codes lookup/verification entirely and fall through to the
+    // user lookup/creation + token issuance below.
+  } else {
+    const otpResult = await db.query<OtpRow>(
+      `SELECT * FROM otp_codes
+       WHERE phone = $1 AND is_used = FALSE AND expires_at > NOW()
+       ORDER BY created_at DESC LIMIT 1`,
+      [phone],
+    );
 
-  const otpRecord = otpResult.rows[0];
+    const otpRecord = otpResult.rows[0];
 
-  if (!otpRecord) {
-    throw createAppError('No valid verification code found. Please request a new one.', 400);
-  }
+    if (!otpRecord) {
+      throw createAppError('No valid verification code found. Please request a new one.', 400);
+    }
 
-  if (otpRecord.attempts >= platformConfig.otpMaxAttempts) {
+    if (otpRecord.attempts >= platformConfig.otpMaxAttempts) {
+      await db.query(`UPDATE otp_codes SET is_used = TRUE WHERE id = $1`, [otpRecord.id]);
+      throw createAppError('Maximum attempts exceeded. Please request a new code.', 429);
+    }
+
+    // CRIT-N12 fix + MED-N94 fix: constant-time comparison. New rows
+    // (post-migration 089) carry only code_hash; legacy in-flight rows
+    // (mid-rollout) may still have a plaintext code populated. Try the
+    // hash path first, fall back to the timing-safe equal of legacy
+    // plaintext (drained within minutes of the rollout).
+    let codeMatches = false;
+    if (otpRecord.code_hash) {
+      codeMatches = verifyOtpCodeHash(code, phone, otpRecord.code_hash);
+    } else if (otpRecord.code) {
+      // Legacy row — only present briefly during the rollout window.
+      const a = Buffer.from(otpRecord.code);
+      const b = Buffer.from(code);
+      codeMatches = a.length === b.length && crypto.timingSafeEqual(a, b);
+    }
+
+    if (!codeMatches) {
+      await db.query(
+        `UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1`,
+        [otpRecord.id],
+      );
+      const remaining = platformConfig.otpMaxAttempts - otpRecord.attempts - 1;
+      throw createAppError(
+        `Invalid code. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`,
+        400,
+      );
+    }
+
     await db.query(`UPDATE otp_codes SET is_used = TRUE WHERE id = $1`, [otpRecord.id]);
-    throw createAppError('Maximum attempts exceeded. Please request a new code.', 429);
   }
-
-  // CRIT-N12 fix + MED-N94 fix: constant-time comparison. New rows
-  // (post-migration 089) carry only code_hash; legacy in-flight rows
-  // (mid-rollout) may still have a plaintext code populated. Try the
-  // hash path first, fall back to the timing-safe equal of legacy
-  // plaintext (drained within minutes of the rollout).
-  let codeMatches = false;
-  if (otpRecord.code_hash) {
-    codeMatches = verifyOtpCodeHash(code, phone, otpRecord.code_hash);
-  } else if (otpRecord.code) {
-    // Legacy row — only present briefly during the rollout window.
-    const a = Buffer.from(otpRecord.code);
-    const b = Buffer.from(code);
-    codeMatches = a.length === b.length && crypto.timingSafeEqual(a, b);
-  }
-
-  if (!codeMatches) {
-    await db.query(
-      `UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1`,
-      [otpRecord.id],
-    );
-    const remaining = platformConfig.otpMaxAttempts - otpRecord.attempts - 1;
-    throw createAppError(
-      `Invalid code. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`,
-      400,
-    );
-  }
-
-  await db.query(`UPDATE otp_codes SET is_used = TRUE WHERE id = $1`, [otpRecord.id]);
 
   let isNewUser = false;
   let userResult = await db.query<UserRow>(
