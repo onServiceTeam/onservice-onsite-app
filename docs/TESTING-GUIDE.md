@@ -17,35 +17,39 @@ against it.
 ## 0. One-time setup
 
 You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) and
-[Node.js 24+](https://nodejs.org) installed. On Windows, also install
-**Git Bash** or **WSL** (the startup script is written for a Unix shell).
+[Node.js 24+](https://nodejs.org) installed, and Docker Desktop must be
+**running**. Nothing else — Windows PowerShell is built in.
 
-From the project folder, copy the example environment file once:
+Then install the project's dependencies once, from the project folder:
 ```
-cp .env.example .env
+npm install
 ```
 
 ---
 
 ## 1. Start the backend (the brain)
 
-**Mac / Linux / WSL / Git Bash:**
+Open a terminal in the project folder.
+
+**Windows (PowerShell):**
+```
+./scripts/dev/up.ps1
+```
+
+**Mac / Linux:**
 ```
 bash scripts/dev/up.sh
 ```
+
 This starts the database and the server, applies the database structure, and
-loads demo data (sample users, services, and bookings). When it finishes it
-prints the addresses. The server runs at `http://localhost:7381`.
+loads demo data (sample users, Cebu services, providers, and bookings). When
+it finishes it prints the addresses. The server runs at `http://localhost:7381`.
 
-To stop it later: `bash scripts/dev/down.sh`.
-
-**If the script won't run on Windows**, run these three commands from the
-project folder instead:
-```
-docker compose -f infra/docker/docker-compose.dev.yml --env-file infra/docker/.env.docker up -d --build
-npm run migrate:up --workspace=packages/api
-npm run seed --workspace=packages/api
-```
+- **Stop it later:** `./scripts/dev/down.ps1` (Windows) or `bash scripts/dev/down.sh`.
+- **Reset the demo data** (gives the demo accounts/catalog back, safe to
+  repeat): `./scripts/dev/reset-demo.ps1`.
+- **Full wipe and fresh start:** `./scripts/dev/down.ps1 -Volumes`, then
+  `./scripts/dev/up.ps1` again.
 
 > The demo OTP login (Step 3) and the test fixtures are turned ON by default
 > in this local setup. They are physically impossible to turn on in
@@ -186,14 +190,13 @@ compliance/DPO, financials).
 
 ## 8. What's still rough for testing (honest list)
 
-- **No single "start everything" button.** You run three things: the backend,
-  the admin site, and the mobile app, in three terminals.
+- **You run three things in three terminals:** the backend (Step 1), the admin
+  site (Step 4), and the mobile app (Step 5). The backend is one command; the
+  other two are one command each.
 - **The admin 2FA step** needs an authenticator app once. There's no skip.
 - **The mobile app is easiest to demo on the web preview (`w`) or an
   emulator.** A real phone needs the network-address step in Step 5.
-- **Some flows depend on having providers who quote.** The demo data seeds five
-  providers; if you create brand-new services with no providers, a booking can
-  sit with no one to take it. The admin "Dispatch" console can assign manually.
-
-If you want, I can add a one-command Windows startup and a one-tap demo-reset
-so this is even simpler.
+- **The 5 demo providers are in Metro Cebu** (the launch market). Book a Cebu
+  address and auto-dispatch will offer the job to a matching provider. If you
+  book far outside Cebu, no demo provider will match — use the admin
+  "Dispatch" console to assign one manually, or book in Cebu.
