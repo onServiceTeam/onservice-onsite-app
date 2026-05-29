@@ -1,5 +1,6 @@
 import React, { useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -68,6 +69,17 @@ function formatStatus(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const STATUS_OPTIONS = new Set(['planned', 'recruiting', 'soft_launch', 'active', 'paused', 'retired']);
+
+function parsePage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function parseStatus(value: string | null): string {
+  return value && STATUS_OPTIONS.has(value) ? value : '';
+}
+
 const EMPTY_FORM: CreateAreaForm = {
   name: '', city: '', province: '', region: '',
   centerLat: '', centerLng: '', radiusKm: String(adminConfig.defaultServiceAreaRadiusKm),
@@ -75,13 +87,15 @@ const EMPTY_FORM: CreateAreaForm = {
 };
 
 export default function ServiceAreasPage(): React.ReactElement {
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parsePage(searchParams.get('page'));
+  const statusFilter = parseStatus(searchParams.get('status'));
+  const search = searchParams.get('search')?.trim() ?? '';
+  const [searchInput, setSearchInput] = useState(search);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [form, setForm] = useState<CreateAreaForm>({ ...EMPTY_FORM });
   const [actionError, setActionError] = useState('');
+  const [formError, setFormError] = useState('');
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
@@ -106,14 +120,14 @@ export default function ServiceAreasPage(): React.ReactElement {
   const createMutation = useMutation({
     mutationFn: async (formData: CreateAreaForm) => {
       await api.post('/api/v1/admin/service-areas', {
-        name: formData.name,
-        city: formData.city,
-        province: formData.province,
-        region: formData.region,
+        name: formData.name.trim(),
+        city: formData.city.trim(),
+        province: formData.province.trim(),
+        region: formData.region.trim(),
         centerLat: Number(formData.centerLat),
         centerLng: Number(formData.centerLng),
-        radiusKm: Number(formData.radiusKm) || adminConfig.defaultServiceAreaRadiusKm,
-        minProvidersToLaunch: Number(formData.minProvidersToLaunch) || adminConfig.defaultMinProvidersToLaunch,
+        radiusKm: Number(formData.radiusKm),
+        minProvidersToLaunch: Number(formData.minProvidersToLaunch),
         launchDate: formData.launchDate || undefined,
       });
     },
@@ -123,6 +137,7 @@ export default function ServiceAreasPage(): React.ReactElement {
       setShowCreateForm(false);
       setForm({ ...EMPTY_FORM });
       setActionError('');
+      setFormError('');
     },
     onError: (e) => setActionError(getErrorMessage(e)),
   });
@@ -153,14 +168,71 @@ export default function ServiceAreasPage(): React.ReactElement {
 
   const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
-    setSearch(searchInput);
-    setPage(1);
+    const trimmed = searchInput.trim();
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (trimmed) params.set('search', trimmed);
+      else params.delete('search');
+      return params;
+    });
   };
+
+  function setPage(nextPage: number): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextPage <= 1) params.delete('page');
+      else params.set('page', String(nextPage));
+      return params;
+    });
+  }
+
+  function setStatusFilter(nextStatus: string): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (nextStatus) params.set('status', nextStatus);
+      else params.delete('status');
+      return params;
+    });
+  }
+
+  function validateCreateForm(formData: CreateAreaForm): string | null {
+    if (!formData.name.trim() || !formData.city.trim() || !formData.province.trim() || !formData.region.trim()) {
+      return 'Area name, city, province, and region are required.';
+    }
+    const lat = Number(formData.centerLat);
+    const lng = Number(formData.centerLng);
+    const radius = Number(formData.radiusKm);
+    const minProviders = Number(formData.minProvidersToLaunch);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) return 'Center latitude must be between -90 and 90.';
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) return 'Center longitude must be between -180 and 180.';
+    if (!Number.isFinite(radius) || radius < 1 || radius > 50) return 'Radius must be between 1 and 50 km.';
+    if (!Number.isInteger(minProviders) || minProviders < 1 || minProviders > 50) return 'Minimum providers to launch must be an integer from 1 to 50.';
+    return null;
+  }
 
   const handleCreateSubmit = (e: FormEvent): void => {
     e.preventDefault();
+    const validationError = validateCreateForm(form);
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+    if (!window.confirm(`Create service area "${form.name.trim()}"?`)) return;
+    setFormError('');
     createMutation.mutate(form);
   };
+
+  function activateArea(area: ServiceArea): void {
+    if (!window.confirm(`Activate service area "${area.name}"?`)) return;
+    activateMutation.mutate(area.id);
+  }
+
+  function pauseArea(area: ServiceArea): void {
+    if (!window.confirm(`Pause service area "${area.name}"?`)) return;
+    pauseMutation.mutate(area.id);
+  }
 
   const columns: Column<ServiceArea>[] = [
     {
@@ -236,7 +308,9 @@ export default function ServiceAreasPage(): React.ReactElement {
         <div className="flex gap-2">
           {['planned', 'recruiting', 'soft_launch'].includes(r.status) && (
             <button
-              onClick={() => activateMutation.mutate(r.id)}
+              type="button"
+              aria-label={`Activate service area ${r.name}`}
+              onClick={() => activateArea(r)}
               disabled={activateMutation.isPending}
               className="text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
             >
@@ -245,7 +319,9 @@ export default function ServiceAreasPage(): React.ReactElement {
           )}
           {r.status === 'active' && (
             <button
-              onClick={() => pauseMutation.mutate(r.id)}
+              type="button"
+              aria-label={`Pause service area ${r.name}`}
+              onClick={() => pauseArea(r)}
               disabled={pauseMutation.isPending}
               className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
             >
@@ -266,6 +342,7 @@ export default function ServiceAreasPage(): React.ReactElement {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-[var(--color-text)]">Service Areas</h1>
         <button
+          type="button"
           onClick={() => setShowCreateForm(!showCreateForm)}
           className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)]"
         >
@@ -275,7 +352,7 @@ export default function ServiceAreasPage(): React.ReactElement {
 
       {isStatsError && <p className="text-sm text-red-600 mb-2">Failed to load area statistics.</p>}
       {stats && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
             <p className="text-sm text-[var(--color-text-secondary)]">Total Areas</p>
             <p className="text-2xl font-bold text-[var(--color-text)]">{stats.totalAreas}</p>
@@ -296,58 +373,59 @@ export default function ServiceAreasPage(): React.ReactElement {
       )}
 
       {showCreateForm && (
-        <form onSubmit={handleCreateSubmit} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
+        <form onSubmit={handleCreateSubmit} noValidate className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
           <h2 className="text-lg font-semibold text-[var(--color-text)]">New Service Area</h2>
+          {formError && <p role="alert" className="text-sm text-[var(--color-error)]">{formError}</p>}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">Area Name</label>
-              <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+              <label htmlFor="area-name" className="block text-sm font-medium text-[var(--color-text)] mb-1">Area Name</label>
+              <input id="area-name" type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="e.g., Cagayan de Oro Metro"
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">City / Municipality</label>
-              <input type="text" required value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })}
+              <label htmlFor="area-city" className="block text-sm font-medium text-[var(--color-text)] mb-1">City / Municipality</label>
+              <input id="area-city" type="text" required value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })}
                 placeholder="e.g., Cagayan de Oro City"
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">Province</label>
-              <input type="text" required value={form.province} onChange={(e) => setForm({ ...form, province: e.target.value })}
+              <label htmlFor="area-province" className="block text-sm font-medium text-[var(--color-text)] mb-1">Province</label>
+              <input id="area-province" type="text" required value={form.province} onChange={(e) => setForm({ ...form, province: e.target.value })}
                 placeholder="e.g., Misamis Oriental"
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">Region</label>
-              <input type="text" required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })}
+              <label htmlFor="area-region" className="block text-sm font-medium text-[var(--color-text)] mb-1">Region</label>
+              <input id="area-region" type="text" required value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })}
                 placeholder="e.g., Region X - Northern Mindanao"
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">Center Latitude</label>
-              <input type="number" step="any" required value={form.centerLat} onChange={(e) => setForm({ ...form, centerLat: e.target.value })}
+              <label htmlFor="area-lat" className="block text-sm font-medium text-[var(--color-text)] mb-1">Center Latitude</label>
+              <input id="area-lat" type="number" step="any" required value={form.centerLat} onChange={(e) => setForm({ ...form, centerLat: e.target.value })}
                 placeholder="e.g., 8.4542"
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">Center Longitude</label>
-              <input type="number" step="any" required value={form.centerLng} onChange={(e) => setForm({ ...form, centerLng: e.target.value })}
+              <label htmlFor="area-lng" className="block text-sm font-medium text-[var(--color-text)] mb-1">Center Longitude</label>
+              <input id="area-lng" type="number" step="any" required value={form.centerLng} onChange={(e) => setForm({ ...form, centerLng: e.target.value })}
                 placeholder="e.g., 124.6319"
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">Radius (km)</label>
-              <input type="number" min="1" max="50" value={form.radiusKm} onChange={(e) => setForm({ ...form, radiusKm: e.target.value })}
+              <label htmlFor="area-radius" className="block text-sm font-medium text-[var(--color-text)] mb-1">Radius (km)</label>
+              <input id="area-radius" type="number" min="1" max="50" value={form.radiusKm} onChange={(e) => setForm({ ...form, radiusKm: e.target.value })}
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">Min Providers to Launch</label>
-              <input type="number" min="1" value={form.minProvidersToLaunch} onChange={(e) => setForm({ ...form, minProvidersToLaunch: e.target.value })}
+              <label htmlFor="area-min-providers" className="block text-sm font-medium text-[var(--color-text)] mb-1">Min Providers to Launch</label>
+              <input id="area-min-providers" type="number" min="1" max="50" value={form.minProvidersToLaunch} onChange={(e) => setForm({ ...form, minProvidersToLaunch: e.target.value })}
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[var(--color-text)] mb-1">Target Launch Date</label>
-              <input type="date" value={form.launchDate} onChange={(e) => setForm({ ...form, launchDate: e.target.value })}
+              <label htmlFor="area-launch-date" className="block text-sm font-medium text-[var(--color-text)] mb-1">Target Launch Date</label>
+              <input id="area-launch-date" type="date" value={form.launchDate} onChange={(e) => setForm({ ...form, launchDate: e.target.value })}
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
             </div>
           </div>
@@ -370,6 +448,7 @@ export default function ServiceAreasPage(): React.ReactElement {
       <div className="flex flex-wrap items-center gap-4">
         <form onSubmit={handleSearch} className="flex gap-2">
           <input
+            id="service-area-search"
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -385,7 +464,7 @@ export default function ServiceAreasPage(): React.ReactElement {
 
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => setStatusFilter(e.target.value)}
           aria-label="Filter service areas by status"
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]"
         >
@@ -399,8 +478,8 @@ export default function ServiceAreasPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p className="text-sm text-red-600 mb-4">Failed to load service areas. Please try again.</p>}
-      {actionError && <p className="text-sm text-red-600 mb-4">{actionError}</p>}
+      {isError && <p role="alert" className="text-sm text-red-600 mb-4">Failed to load service areas. Please try again.</p>}
+      {actionError && <p role="alert" className="text-sm text-red-600 mb-4">{actionError}</p>}
 
       <DataTable columns={columns} data={areas} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No service areas found." />
 

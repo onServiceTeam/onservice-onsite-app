@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -31,11 +32,28 @@ const CHANNEL_VARIANT: Record<string, 'info' | 'success' | 'warning' | 'default'
   in_app: 'default',
 };
 
+const TYPE_OPTIONS = new Set(['booking_update', 'payment', 'dispute_update', 'tier_upgrade', 'payout', 'referral', 'suki', 'promo', 'system']);
+const CHANNEL_OPTIONS = new Set(['all', 'push', 'sms', 'email', 'in_app']);
+
+function parsePage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function parseType(value: string | null): string {
+  return value && TYPE_OPTIONS.has(value) ? value : '';
+}
+
+function parseChannel(value: string | null): string {
+  return value && CHANNEL_OPTIONS.has(value) ? value : '';
+}
+
 export default function NotificationTemplatesPage(): React.ReactElement {
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [typeFilter, setTypeFilter] = useState('');
-  const [channelFilter, setChannelFilter] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parsePage(searchParams.get('page'));
+  const typeFilter = parseType(searchParams.get('type'));
+  const channelFilter = parseChannel(searchParams.get('channel'));
 
   const [editing, setEditing] = useState<Template | null>(null);
   const [creating, setCreating] = useState(false);
@@ -62,9 +80,9 @@ export default function NotificationTemplatesPage(): React.ReactElement {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const body = {
-        slug: formSlug,
-        titleTemplate: formTitle,
-        bodyTemplate: formBody,
+        slug: formSlug.trim(),
+        titleTemplate: formTitle.trim(),
+        bodyTemplate: formBody.trim(),
         type: formType,
         channel: formChannel,
         isActive: formActive,
@@ -134,6 +152,51 @@ export default function NotificationTemplatesPage(): React.ReactElement {
     setFormError('');
   }
 
+  function setPage(nextPage: number): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextPage <= 1) params.delete('page');
+      else params.set('page', String(nextPage));
+      return params;
+    });
+  }
+
+  function setTypeFilter(nextType: string): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (nextType) params.set('type', nextType);
+      else params.delete('type');
+      return params;
+    });
+  }
+
+  function setChannelFilter(nextChannel: string): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (nextChannel) params.set('channel', nextChannel);
+      else params.delete('channel');
+      return params;
+    });
+  }
+
+  function submitSave(): void {
+    if (!formSlug.trim() || !formTitle.trim() || !formBody.trim()) {
+      setFormError('Slug, title template, and body template are required.');
+      return;
+    }
+    const action = editing ? 'Update' : 'Create';
+    if (!window.confirm(`${action} notification template "${formSlug.trim()}"?`)) return;
+    saveMutation.mutate();
+  }
+
+  function toggleTemplate(template: Template): void {
+    const nextActive = !template.isActive;
+    if (!window.confirm(`${nextActive ? 'Activate' : 'Deactivate'} template "${template.slug}"?`)) return;
+    toggleMutation.mutate({ id: template.id, isActive: nextActive });
+  }
+
   const columns: Column<Template>[] = [
     {
       key: 'slug',
@@ -168,7 +231,8 @@ export default function NotificationTemplatesPage(): React.ReactElement {
       header: 'Active',
       render: (r) => (
         <button
-          onClick={(e) => { e.stopPropagation(); toggleMutation.mutate({ id: r.id, isActive: !r.isActive }); }}
+          type="button"
+          onClick={(e) => { e.stopPropagation(); toggleTemplate(r); }}
           aria-label={`Toggle template ${r.slug} ${r.isActive ? 'inactive' : 'active'}`}
           aria-pressed={r.isActive}
           className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${r.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
@@ -182,11 +246,11 @@ export default function NotificationTemplatesPage(): React.ReactElement {
       header: 'Variables',
       render: (r) => (
         <div className="flex flex-wrap gap-1">
-          {r.variables.slice(0, 3).map(v => (
+          {(r.variables ?? []).slice(0, 3).map(v => (
             <span key={v} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded font-mono">{`{{${v}}}`}</span>
           ))}
-          {r.variables.length > 3 && (
-            <span className="text-[10px] text-slate-400">+{r.variables.length - 3}</span>
+          {(r.variables ?? []).length > 3 && (
+            <span className="text-[10px] text-slate-400">+{(r.variables ?? []).length - 3}</span>
           )}
         </div>
       ),
@@ -197,15 +261,19 @@ export default function NotificationTemplatesPage(): React.ReactElement {
       render: (r) => (
         <div className="flex items-center gap-1">
           <button
+            type="button"
+            aria-label={`Edit template ${r.slug}`}
             onClick={(e) => { e.stopPropagation(); openEdit(r); }}
             className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
           >
             Edit
           </button>
           <button
+            type="button"
+            aria-label={`Delete template ${r.slug}`}
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Delete template "${r.slug}"?`)) deleteMutation.mutate(r.id);
+              if (window.confirm(`Delete template "${r.slug}"?`)) deleteMutation.mutate(r.id);
             }}
             className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
           >
@@ -226,6 +294,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
           </p>
         </div>
         <button
+          type="button"
           onClick={openCreate}
           className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-lg hover:opacity-90 transition-opacity"
         >
@@ -236,7 +305,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
       <div className="flex items-center gap-3 mb-4">
         <select
           value={typeFilter}
-          onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+          onChange={(e) => setTypeFilter(e.target.value)}
           aria-label="Filter templates by type"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
@@ -253,7 +322,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
         </select>
         <select
           value={channelFilter}
-          onChange={(e) => { setChannelFilter(e.target.value); setPage(1); }}
+          onChange={(e) => setChannelFilter(e.target.value)}
           aria-label="Filter templates by channel"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
@@ -266,8 +335,8 @@ export default function NotificationTemplatesPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p className="text-sm text-red-600 mb-4">Failed to load templates. Please try again.</p>}
-      {actionError && <p className="text-sm text-red-600 mb-4">{actionError}</p>}
+      {isError && <p role="alert" className="text-sm text-red-600 mb-4">Failed to load templates. Please try again.</p>}
+      {actionError && <p role="alert" className="text-sm text-red-600 mb-4">{actionError}</p>}
 
       <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No templates found." />
 
@@ -277,21 +346,27 @@ export default function NotificationTemplatesPage(): React.ReactElement {
 
       {(editing || creating) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-xl p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="template-dialog-title"
+            className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-xl p-6 max-h-[90vh] overflow-y-auto"
+          >
+            <h3 id="template-dialog-title" className="text-lg font-semibold text-[var(--color-text)] mb-4">
               {editing ? 'Edit Template' : 'New Template'}
             </h3>
 
             {formError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {formError}
               </div>
             )}
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Slug *</label>
+                <label htmlFor="template-slug" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Slug *</label>
                 <input
+                  id="template-slug"
                   type="text"
                   value={formSlug}
                   onChange={(e) => setFormSlug(e.target.value)}
@@ -302,8 +377,9 @@ export default function NotificationTemplatesPage(): React.ReactElement {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Type</label>
+                  <label htmlFor="template-type" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Type</label>
                   <select
+                    id="template-type"
                     value={formType}
                     onChange={(e) => setFormType(e.target.value)}
                     className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
@@ -320,8 +396,9 @@ export default function NotificationTemplatesPage(): React.ReactElement {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Channel</label>
+                  <label htmlFor="template-channel" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Channel</label>
                   <select
+                    id="template-channel"
                     value={formChannel}
                     onChange={(e) => setFormChannel(e.target.value)}
                     className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
@@ -336,8 +413,9 @@ export default function NotificationTemplatesPage(): React.ReactElement {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Title Template *</label>
+                <label htmlFor="template-title" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Title Template *</label>
                 <input
+                  id="template-title"
                   type="text"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
@@ -347,8 +425,9 @@ export default function NotificationTemplatesPage(): React.ReactElement {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Body Template *</label>
+                <label htmlFor="template-body" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Body Template *</label>
                 <textarea
+                  id="template-body"
                   value={formBody}
                   onChange={(e) => setFormBody(e.target.value)}
                   rows={4}
@@ -376,13 +455,15 @@ export default function NotificationTemplatesPage(): React.ReactElement {
 
             <div className="flex gap-2 justify-end mt-6">
               <button
+                type="button"
                 onClick={closeModal}
                 className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={() => saveMutation.mutate()}
+                type="button"
+                onClick={submitSave}
                 disabled={saveMutation.isPending || !formSlug.trim() || !formTitle.trim() || !formBody.trim()}
                 className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
               >

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -18,6 +19,11 @@ const ALL_TABS: { id: TabId; label: string; flag?: keyof ReturnType<typeof useFe
   { id: 'quality', label: 'Quality Scores' },
   { id: 'commission', label: 'Commission' },
 ];
+
+function parsePositiveInt(value: string | null, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 // ─── A/B Tests Tab ──────────────────────────────────────────────────
 
@@ -51,7 +57,11 @@ function AbTestsTab(): React.ReactElement {
   });
 
   const createMut = useMutation({
-    mutationFn: (body: typeof form) => api.post('/api/v1/admin/analytics/ab-tests', body),
+    mutationFn: (body: typeof form) => api.post('/api/v1/admin/analytics/ab-tests', {
+      ...body,
+      name: body.name.trim(),
+      description: body.description.trim(),
+    }),
     onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['admin', 'ab-tests'] }); setShowCreate(false); setForm({ name: '', description: '', targetMetric: 'conversion_rate', trafficSplit: 0.5 }); },
   });
 
@@ -77,14 +87,34 @@ function AbTestsTab(): React.ReactElement {
   });
 
   if (isLoading) return <p className="text-sm text-slate-500">Loading...</p>;
-  if (isError) return <p className="text-sm text-red-600">Failed to load A/B tests. Please try again.</p>;
+  if (isError) return <p role="alert" className="text-sm text-red-600">Failed to load A/B tests. Please try again.</p>;
+
+  function createTest(): void {
+    const name = form.name.trim();
+    if (!name) {
+      setActionError('Test name is required.');
+      return;
+    }
+    if (!Number.isFinite(form.trafficSplit) || form.trafficSplit < 0.1 || form.trafficSplit > 0.9) {
+      setActionError('Traffic split must be between 0.1 and 0.9.');
+      return;
+    }
+    if (!window.confirm(`Create A/B test "${name}"?`)) return;
+    setActionError('');
+    createMut.mutate({ ...form, name });
+  }
+
+  function updateStatus(test: AbTest, status: string): void {
+    if (!window.confirm(`${status === 'active' ? 'Start or resume' : status === 'paused' ? 'Pause' : 'End'} A/B test "${test.name}"?`)) return;
+    statusMut.mutate({ testId: test.id, status });
+  }
 
   return (
     <div className="space-y-4">
-      {actionError && <p className="text-sm text-red-600 mb-2">{actionError}</p>}
+      {actionError && <p role="alert" className="text-sm text-red-600 mb-2">{actionError}</p>}
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">A/B Tests ({data?.pagination.total ?? 0})</h3>
-        <button onClick={() => setShowCreate(!showCreate)} className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded-md hover:opacity-90">
+        <button type="button" onClick={() => setShowCreate(!showCreate)} className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded-md hover:opacity-90">
           {showCreate ? 'Cancel' : '+ New Test'}
         </button>
       </div>
@@ -114,10 +144,10 @@ function AbTestsTab(): React.ReactElement {
               <Input id="ab-test-split" type="number" step="0.05" min="0.1" max="0.9" className="w-32" value={form.trafficSplit} onChange={(e) => setForm({ ...form, trafficSplit: Number(e.target.value) })} />
             </div>
           </div>
-          <button onClick={() => createMut.mutate(form)} disabled={!form.name || createMut.isPending} className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
+          <button type="button" onClick={createTest} disabled={!form.name.trim() || createMut.isPending} className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
             {createMut.isPending ? 'Creating...' : 'Create Test'}
           </button>
-          {createMut.isError && <p className="text-red-600 text-xs">{getErrorMessage(createMut.error)}</p>}
+          {createMut.isError && <p role="alert" className="text-red-600 text-xs">{getErrorMessage(createMut.error)}</p>}
         </div>
       )}
 
@@ -141,10 +171,10 @@ function AbTestsTab(): React.ReactElement {
                 <td className="px-3 py-2 text-slate-600">{Math.round(test.trafficSplit * 100)}%</td>
                 <td className="px-3 py-2">
                   <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                    {test.status === 'draft' && <button onClick={() => statusMut.mutate({ testId: test.id, status: 'active' })} className="px-2 py-1 text-xs bg-green-500 text-white rounded">Start</button>}
-                    {test.status === 'active' && <button onClick={() => statusMut.mutate({ testId: test.id, status: 'paused' })} className="px-2 py-1 text-xs bg-yellow-500 text-white rounded">Pause</button>}
-                    {test.status === 'active' && <button onClick={() => statusMut.mutate({ testId: test.id, status: 'completed' })} className="px-2 py-1 text-xs bg-blue-500 text-white rounded">End</button>}
-                    {test.status === 'paused' && <button onClick={() => statusMut.mutate({ testId: test.id, status: 'active' })} className="px-2 py-1 text-xs bg-green-500 text-white rounded">Resume</button>}
+                    {test.status === 'draft' && <button type="button" onClick={() => updateStatus(test, 'active')} className="px-2 py-1 text-xs bg-green-500 text-white rounded">Start</button>}
+                    {test.status === 'active' && <button type="button" onClick={() => updateStatus(test, 'paused')} className="px-2 py-1 text-xs bg-yellow-500 text-white rounded">Pause</button>}
+                    {test.status === 'active' && <button type="button" onClick={() => updateStatus(test, 'completed')} className="px-2 py-1 text-xs bg-blue-500 text-white rounded">End</button>}
+                    {test.status === 'paused' && <button type="button" onClick={() => updateStatus(test, 'active')} className="px-2 py-1 text-xs bg-green-500 text-white rounded">Resume</button>}
                   </div>
                 </td>
               </tr>
@@ -153,7 +183,7 @@ function AbTestsTab(): React.ReactElement {
         </table>
       </div>
 
-      {isResultsError && selectedTestId && <p className="text-sm text-red-600">Failed to load test results.</p>}
+      {isResultsError && selectedTestId && <p role="alert" className="text-sm text-red-600">Failed to load test results.</p>}
 
       {resultsData && selectedTestId && (
         <div className="bg-white border rounded-lg p-4 space-y-3">
@@ -189,8 +219,25 @@ interface CohortRow {
 }
 
 function CohortTab(): React.ReactElement {
-  const [months, setMonths] = useState(6);
-  const [metric, setMetric] = useState<'retention' | 'revenue'>('retention');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const months = [3, 6, 9, 12].includes(parsePositiveInt(searchParams.get('months'), 6)) ? parsePositiveInt(searchParams.get('months'), 6) : 6;
+  const metric = searchParams.get('metric') === 'revenue' ? 'revenue' : 'retention';
+
+  function setCohortMetric(nextMetric: 'retention' | 'revenue'): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('metric', nextMetric);
+      return params;
+    });
+  }
+
+  function setCohortMonths(nextMonths: number): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('months', String(nextMonths));
+      return params;
+    });
+  }
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin', 'cohorts', months, metric],
@@ -203,16 +250,16 @@ function CohortTab(): React.ReactElement {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <select className="px-3 py-1.5 border rounded text-sm" value={metric} onChange={(e) => setMetric(e.target.value as 'retention' | 'revenue')}>
+        <select aria-label="Cohort metric" className="px-3 py-1.5 border rounded text-sm" value={metric} onChange={(e) => setCohortMetric(e.target.value as 'retention' | 'revenue')}>
           <option value="retention">Retention</option>
           <option value="revenue">Revenue</option>
         </select>
-        <select className="px-3 py-1.5 border rounded text-sm" value={months} onChange={(e) => setMonths(Number(e.target.value))}>
+        <select aria-label="Cohort month range" className="px-3 py-1.5 border rounded text-sm" value={months} onChange={(e) => setCohortMonths(Number(e.target.value))}>
           {[3, 6, 9, 12].map((m) => <option key={m} value={m}>{m} months</option>)}
         </select>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-600">Failed to load cohort data. Please try again.</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load cohort data. Please try again.</p> : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">
             <thead>
@@ -264,8 +311,28 @@ interface ChurnCustomer {
 }
 
 function ChurnTab(): React.ReactElement {
-  const [riskLevel, setRiskLevel] = useState('');
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const riskLevel = ['critical', 'high', 'medium', 'low'].includes(searchParams.get('risk') ?? '') ? searchParams.get('risk') ?? '' : '';
+  const page = parsePositiveInt(searchParams.get('churnPage'), 1);
+
+  function setRiskLevel(nextRiskLevel: string): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('churnPage');
+      if (nextRiskLevel) params.set('risk', nextRiskLevel);
+      else params.delete('risk');
+      return params;
+    });
+  }
+
+  function setPage(nextPage: number): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextPage <= 1) params.delete('churnPage');
+      else params.set('churnPage', String(nextPage));
+      return params;
+    });
+  }
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin', 'churn', riskLevel, page],
@@ -287,7 +354,7 @@ function ChurnTab(): React.ReactElement {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <select className="px-3 py-1.5 border rounded text-sm" value={riskLevel} onChange={(e) => { setRiskLevel(e.target.value); setPage(1); }}>
+        <select aria-label="Filter churn risk level" className="px-3 py-1.5 border rounded text-sm" value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)}>
           <option value="">All Risk Levels</option>
           <option value="critical">Critical</option>
           <option value="high">High</option>
@@ -297,7 +364,7 @@ function ChurnTab(): React.ReactElement {
         <span className="text-sm text-slate-500">{data?.pagination.total ?? 0} customers</span>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-600">Failed to load churn data. Please try again.</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load churn data. Please try again.</p> : (
         <>
           <table className="w-full text-sm">
             <thead className="bg-slate-50">
@@ -327,9 +394,9 @@ function ChurnTab(): React.ReactElement {
           </table>
           {(data?.pagination.totalPages ?? 0) > 1 && (
             <div className="flex justify-center gap-2">
-              <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1 text-sm border rounded disabled:opacity-30">Prev</button>
+              <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1 text-sm border rounded disabled:opacity-30">Prev</button>
               <span className="px-3 py-1 text-sm">{page} / {data?.pagination.totalPages}</span>
-              <button disabled={page >= (data?.pagination.totalPages ?? 1)} onClick={() => setPage(page + 1)} className="px-3 py-1 text-sm border rounded disabled:opacity-30">Next</button>
+              <button type="button" disabled={page >= (data?.pagination.totalPages ?? 1)} onClick={() => setPage(page + 1)} className="px-3 py-1 text-sm border rounded disabled:opacity-30">Next</button>
             </div>
           )}
         </>
@@ -357,7 +424,9 @@ interface QualityScore {
 
 function QualityTab(): React.ReactElement {
   const queryClient = useQueryClient();
-  const [sortBy, setSortBy] = useState('overall');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sortParam = searchParams.get('qualitySort');
+  const sortBy = ['overall', 'rating', 'completion', 'timeliness'].includes(sortParam ?? '') ? sortParam ?? 'overall' : 'overall';
   const [actionError, setActionError] = useState('');
 
   const { data, isLoading, isError } = useQuery({
@@ -374,6 +443,19 @@ function QualityTab(): React.ReactElement {
     onError: (e) => setActionError(`Failed to recompute scores: ${getErrorMessage(e)}`),
   });
 
+  function setSortBy(nextSortBy: string): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('qualitySort', nextSortBy);
+      return params;
+    });
+  }
+
+  function recomputeScores(): void {
+    if (!window.confirm('Recompute provider quality scores for the last 90 days?')) return;
+    computeMut.mutate();
+  }
+
   const scoreColor = (score: number): string => {
     if (score >= 80) return 'text-green-600';
     if (score >= 60) return 'text-yellow-600';
@@ -382,23 +464,23 @@ function QualityTab(): React.ReactElement {
 
   return (
     <div className="space-y-4">
-      {actionError && <p className="text-sm text-red-600 mb-2">{actionError}</p>}
+      {actionError && <p role="alert" className="text-sm text-red-600 mb-2">{actionError}</p>}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-500">{data?.pagination.total ?? 0} scored providers</span>
-          <select className="px-3 py-1.5 border rounded text-sm" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <select aria-label="Sort provider quality scores" className="px-3 py-1.5 border rounded text-sm" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
             <option value="overall">Sort by Overall</option>
             <option value="rating">Sort by Rating</option>
             <option value="completion">Sort by Completion</option>
             <option value="timeliness">Sort by Timeliness</option>
           </select>
         </div>
-        <button onClick={() => computeMut.mutate()} disabled={computeMut.isPending} className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
+        <button type="button" onClick={recomputeScores} disabled={computeMut.isPending} className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
           {computeMut.isPending ? 'Computing...' : 'Recompute Scores'}
         </button>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-600">Failed to load quality scores. Please try again.</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load quality scores. Please try again.</p> : (
         <table className="w-full text-sm">
           <thead className="bg-slate-50">
             <tr>
@@ -458,7 +540,7 @@ function CommissionTab(): React.ReactElement {
 
   return (
     <div className="space-y-4">
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p className="text-sm text-red-600">Failed to load commission data. Please try again.</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load commission data. Please try again.</p> : (
         <div className="grid gap-4">
           {data?.map((s) => {
             const delta = s.suggestedRate - s.currentRate;
@@ -495,15 +577,24 @@ function CommissionTab(): React.ReactElement {
 
 export default function AnalyticsPage(): React.ReactElement {
   const flags = useFeatureFlags();
+  const [searchParams, setSearchParams] = useSearchParams();
   // Filter out feature-flagged tabs that are off; default opens to the
   // first visible tab so a deep-link to ab-tests gracefully falls through.
   const TABS = useMemo(
     () => ALL_TABS.filter((t) => !t.flag || flags[t.flag]),
     [flags],
   );
-  const [activeTab, setActiveTab] = useState<TabId>(
-    () => (TABS[0]?.id ?? 'cohorts') as TabId,
-  );
+  const activeTab = TABS.some((tab) => tab.id === searchParams.get('tab'))
+    ? searchParams.get('tab') as TabId
+    : (TABS[0]?.id ?? 'cohorts') as TabId;
+
+  function selectTab(tabId: TabId): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', tabId);
+      return params;
+    });
+  }
 
   return (
     <div>
@@ -511,11 +602,14 @@ export default function AnalyticsPage(): React.ReactElement {
         <h2 className="text-xl font-bold">Analytics</h2>
       </div>
 
-      <div className="flex gap-1 border-b mb-6">
+      <div role="tablist" aria-label="Analytics sections" className="flex gap-1 border-b mb-6">
         {TABS.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => selectTab(tab.id)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.id
                 ? 'border-[var(--color-primary)] text-[var(--color-primary)]'

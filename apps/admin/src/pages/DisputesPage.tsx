@@ -1,6 +1,6 @@
-import React, { useState, type FormEvent } from 'react';
+import React, { useEffect, useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -54,11 +54,12 @@ function formatType(t: string): string {
 
 export default function DisputesPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [tierFilter, setTierFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') ?? '');
+  const [tierFilter, setTierFilter] = useState(() => searchParams.get('tier') ?? '');
+  const [searchInput, setSearchInput] = useState(() => searchParams.get('search') ?? '');
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
 
   const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
   const [resolutionType, setResolutionType] = useState('');
@@ -71,6 +72,24 @@ export default function DisputesPage(): React.ReactElement {
   useAdminSocketEvent<{ id: string }>('dispute:filed', () => {
     void queryClient.invalidateQueries({ queryKey: ['adminDisputes'] });
   });
+
+  useEffect(() => {
+    const nextSearch = searchParams.get('search') ?? '';
+    setSearch(nextSearch);
+    setSearchInput(nextSearch);
+    setStatusFilter(searchParams.get('status') ?? '');
+    setTierFilter(searchParams.get('tier') ?? '');
+    setPage(1);
+  }, [searchParams]);
+
+  const updateUrlFilters = (next: { search?: string; status?: string; tier?: string }): void => {
+    const params = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(next)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    setSearchParams(params, { replace: true });
+  };
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['adminDisputes', page, statusFilter, tierFilter, search],
@@ -129,8 +148,10 @@ export default function DisputesPage(): React.ReactElement {
 
   const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
-    setSearch(searchInput);
+    const nextSearch = searchInput.trim();
+    setSearch(nextSearch);
     setPage(1);
+    updateUrlFilters({ search: nextSearch });
   };
 
   const columns: Column<Dispute>[] = [
@@ -138,7 +159,7 @@ export default function DisputesPage(): React.ReactElement {
       key: 'id',
       header: 'Dispute',
       render: (r) => (
-        <Link to={`/disputes/${r.id}`} className="font-mono text-xs text-[var(--color-link)] hover:underline">{r.id.slice(0, 8)}</Link>
+        <Link to={`/disputes/${r.id}`} className="font-mono text-xs text-[var(--color-primary)] hover:underline">{r.id.slice(0, 8)}</Link>
       ),
     },
     {
@@ -163,7 +184,7 @@ export default function DisputesPage(): React.ReactElement {
           <p className="text-[var(--color-text-secondary)]">vs. {r.providerName ?? '(unassigned)'}</p>
           <Link
             to={`/bookings/${r.bookingId}`}
-            className="font-mono text-[10px] text-[var(--color-link)] hover:underline"
+            className="font-mono text-[10px] text-[var(--color-primary)] hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
             BK {r.bookingId.slice(0, 8)}
@@ -212,6 +233,7 @@ export default function DisputesPage(): React.ReactElement {
             <>
               <button
                 onClick={(e) => { e.stopPropagation(); openResolve(r); }}
+                aria-label={`Resolve dispute ${r.id}`}
                 className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
               >
                 Resolve
@@ -219,6 +241,7 @@ export default function DisputesPage(): React.ReactElement {
               {r.tier < 3 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); openEscalate(r); }}
+                  aria-label={`Escalate dispute ${r.id}`}
                   className="px-2 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors"
                 >
                   Escalate
@@ -256,7 +279,7 @@ export default function DisputesPage(): React.ReactElement {
         </form>
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); updateUrlFilters({ status: e.target.value }); }}
           aria-label="Filter disputes by status"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
@@ -268,7 +291,7 @@ export default function DisputesPage(): React.ReactElement {
         </select>
         <select
           value={tierFilter}
-          onChange={(e) => { setTierFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setTierFilter(e.target.value); setPage(1); updateUrlFilters({ tier: e.target.value }); }}
           aria-label="Filter disputes by tier"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
@@ -289,8 +312,13 @@ export default function DisputesPage(): React.ReactElement {
 
       {selectedDispute && actionType && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1 capitalize">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dispute-action-title"
+            className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+          >
+            <h3 id="dispute-action-title" className="text-lg font-semibold text-[var(--color-text)] mb-1 capitalize">
               {actionType === 'resolve' ? 'Resolve Dispute' : 'Escalate Dispute'}
             </h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
@@ -308,7 +336,7 @@ export default function DisputesPage(): React.ReactElement {
             </div>
 
             {actionError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {actionError}
               </div>
             )}
@@ -316,8 +344,9 @@ export default function DisputesPage(): React.ReactElement {
             {actionType === 'resolve' && (
               <>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Resolution Type</label>
+                  <label htmlFor="dispute-resolution-type" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Resolution Type</label>
                   <select
+                    id="dispute-resolution-type"
                     value={resolutionType}
                     onChange={(e) => setResolutionType(e.target.value)}
                     className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
@@ -335,8 +364,9 @@ export default function DisputesPage(): React.ReactElement {
 
                 {(resolutionType === 'partial_refund' || resolutionType === 'split_decision') && (
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Refund Percentage</label>
+                    <label htmlFor="dispute-refund-percent" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Refund Percentage</label>
                     <input
+                      id="dispute-refund-percent"
                       type="number"
                       min="1"
                       max="100"
@@ -355,6 +385,7 @@ export default function DisputesPage(): React.ReactElement {
                 {actionType === 'resolve' ? 'Decision Notes *' : 'Escalation Reason *'}
               </label>
               <textarea
+                aria-label={actionType === 'resolve' ? 'Decision notes' : 'Escalation reason'}
                 value={decisionNotes}
                 onChange={(e) => setDecisionNotes(e.target.value)}
                 rows={3}
@@ -365,8 +396,9 @@ export default function DisputesPage(): React.ReactElement {
 
             {actionType === 'resolve' && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Internal Notes (optional)</label>
+                <label htmlFor="dispute-internal-notes" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Internal Notes (optional)</label>
                 <textarea
+                  id="dispute-internal-notes"
                   value={internalNotes}
                   onChange={(e) => setInternalNotes(e.target.value)}
                   rows={2}
@@ -384,7 +416,11 @@ export default function DisputesPage(): React.ReactElement {
                 Cancel
               </button>
               <button
-                onClick={() => resolveMutation.mutate()}
+                onClick={() => {
+                  if (window.confirm(actionType === 'resolve' ? 'Resolve this dispute and apply the selected outcome?' : 'Escalate this dispute?')) {
+                    resolveMutation.mutate();
+                  }
+                }}
                 disabled={
                   resolveMutation.isPending ||
                   !decisionNotes.trim() ||
@@ -393,7 +429,7 @@ export default function DisputesPage(): React.ReactElement {
                   (actionType === 'resolve' && !resolutionType) ||
                   (actionType === 'resolve' && (resolutionType === 'partial_refund' || resolutionType === 'split_decision') && (!refundPercent || Number(refundPercent) < 1 || Number(refundPercent) > 100))
                 }
-                className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
               >
                 {resolveMutation.isPending ? 'Processing...' : actionType === 'resolve' ? 'Resolve' : 'Escalate'}
               </button>

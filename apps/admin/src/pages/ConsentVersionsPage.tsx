@@ -10,6 +10,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
@@ -66,6 +67,12 @@ interface ConsentVersionsResponse {
   data: { summaries: ConsentVersionSummary[]; published: PublishedConsentVersion[] };
 }
 
+type ConsentTab = 'current' | 'history';
+
+function parseTab(value: string | null): ConsentTab {
+  return value === 'history' ? 'history' : 'current';
+}
+
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
 }
@@ -84,8 +91,9 @@ function todayLocalIso(): string {
 
 export default function ConsentVersionsPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [tab, setTab] = useState<'current' | 'history'>('current');
+  const tab = parseTab(searchParams.get('tab'));
   const [publishOpen, setPublishOpen] = useState(false);
   const [consentType, setConsentType] = useState('');
   const [versionStr, setVersionStr] = useState('');
@@ -97,6 +105,14 @@ export default function ConsentVersionsPage(): React.ReactElement {
   // purpose, expands data sharing). Acknowledgement copy in the dialog
   // explains the consequence.
   const [material, setMaterial] = useState(false);
+
+  function setTab(value: ConsentTab): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', value);
+      return params;
+    });
+  }
 
   const versionsQuery = useQuery({
     queryKey: ['adminConsentVersions'],
@@ -149,8 +165,28 @@ export default function ConsentVersionsPage(): React.ReactElement {
 
   const publishDisabled = consentType.trim().length === 0
     || versionStr.trim().length === 0
+    || effectiveDate.trim().length === 0
     || changeSummary.trim().length < 30
     || publishMutation.isPending;
+
+  function publishVersion(): void {
+    const trimmedConsentType = consentType.trim();
+    const trimmedVersion = versionStr.trim();
+    const trimmedSummary = changeSummary.trim();
+    if (publishDisabled) return;
+    const prompt = material
+      ? `Publish material consent version ${trimmedConsentType} ${trimmedVersion} and force re-consent for prior grants?`
+      : `Publish consent version ${trimmedConsentType} ${trimmedVersion}?`;
+    if (!window.confirm(prompt)) return;
+    publishMutation.mutate({
+      consentType: trimmedConsentType,
+      version: trimmedVersion,
+      // Anchor the legal effective day to Manila midnight, not UTC midnight.
+      effectiveAt: effectiveDate.trim() ? new Date(effectiveDate + 'T00:00:00+08:00').toISOString() : new Date().toISOString(),
+      changeSummary: trimmedSummary,
+      material,
+    });
+  }
 
   const summaryColumns: Column<ConsentVersionSummary>[] = [
     {
@@ -372,30 +408,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
               Cancel
             </Button>
             <Button
-              onClick={() => {
-                publishMutation.mutate({
-                  consentType: consentType.trim(),
-                  version: versionStr.trim(),
-                  // BUG-PHASE116-01 fix — pre-fix the picked date was
-                  // stamped with `T00:00:00Z` (UTC midnight). Admin
-                  // selecting "Effective Wednesday May 5" actually
-                  // made the consent version come into force at
-                  // 2026-05-05T00:00:00 UTC = 2026-05-05T08:00:00
-                  // Manila — so customers booking between 00:00 and
-                  // 08:00 Manila on May 5 were still bound by the
-                  // OLD consent version. For a material consent
-                  // change with legal implications (NPC RA 10173),
-                  // an 8-hour window of "wrong consent applied" is
-                  // not OK. Anchor to +08:00 so the in-force moment
-                  // matches the Manila day the admin picked. Same
-                  // Manila-tz pattern as Phase 105/113/115.
-                  effectiveAt: effectiveDate.length > 0
-                    ? new Date(effectiveDate + 'T00:00:00+08:00').toISOString()
-                    : new Date().toISOString(),
-                  changeSummary: changeSummary.trim(),
-                  material,
-                });
-              }}
+              onClick={publishVersion}
               disabled={publishDisabled}
             >
               {publishMutation.isPending ? 'Publishing…' : 'Publish version'}

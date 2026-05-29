@@ -14,6 +14,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import {
@@ -88,8 +89,8 @@ function metaFor(category: string): { label: string; Icon: React.ComponentType<{
 
 export default function SystemSettingsPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [editReason, setEditReason] = useState<string>('');
@@ -121,7 +122,10 @@ export default function SystemSettingsPage(): React.ReactElement {
   const categories = allQuery.data?.categories ?? [];
   const groupedSettings = allQuery.data?.settings ?? {};
 
-  const currentCategory = activeCategory ?? categories[0]?.category ?? null;
+  const requestedCategory = searchParams.get('category');
+  const currentCategory = categories.some((entry) => entry.category === requestedCategory)
+    ? requestedCategory
+    : categories[0]?.category ?? null;
   const currentSettings = useMemo(
     () => (currentCategory ? groupedSettings[currentCategory] ?? [] : []),
     [currentCategory, groupedSettings],
@@ -201,9 +205,47 @@ export default function SystemSettingsPage(): React.ReactElement {
     setEditReason('');
   }
 
-  function saveEdit(): void {
+  function selectCategory(category: string): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('category', category);
+      return params;
+    });
+    setHistoryKey(null);
+    cancelEdit();
+    setBanner(null);
+  }
+
+  function validateSettingValue(setting: PlatformSetting, value: string): string | null {
+    if (!value) return 'Enter a value before saving.';
+    if (setting.allowedValues && !setting.allowedValues.includes(value)) {
+      return `Choose one of: ${setting.allowedValues.join(', ')}.`;
+    }
+    if (setting.valueType === 'number' || setting.valueType === 'integer' || setting.minValue !== null || setting.maxValue !== null) {
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) return 'Enter a valid number.';
+      if (setting.valueType === 'integer' && !Number.isInteger(numericValue)) return 'Enter a whole number.';
+      if (setting.minValue !== null && numericValue < setting.minValue) return `Value must be at least ${setting.minValue}.`;
+      if (setting.maxValue !== null && numericValue > setting.maxValue) return `Value must be at most ${setting.maxValue}.`;
+    }
+    return null;
+  }
+
+  function saveEdit(setting: PlatformSetting): void {
     if (!editingKey) return;
-    updateMutation.mutate({ key: editingKey, value: editValue, reason: editReason || undefined });
+    const value = editValue.trim();
+    const reason = editReason.trim();
+    const validationError = validateSettingValue(setting, value);
+    if (validationError) {
+      setBanner({ kind: 'err', text: validationError });
+      return;
+    }
+    if (reason.length < 10) {
+      setBanner({ kind: 'err', text: 'Enter an audit reason with at least 10 characters.' });
+      return;
+    }
+    if (!window.confirm(`Save ${setting.key} as ${value}?`)) return;
+    updateMutation.mutate({ key: editingKey, value, reason });
   }
 
   function formatValue(s: PlatformSetting): string {
@@ -223,7 +265,7 @@ export default function SystemSettingsPage(): React.ReactElement {
   if (allQuery.isError) {
     return (
       <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700">
+        <div role="alert" className="bg-red-50 border border-red-200 rounded p-4 text-red-700">
           Failed to load platform settings: {getErrorMessage(allQuery.error)}
         </div>
       </div>
@@ -244,7 +286,10 @@ export default function SystemSettingsPage(): React.ReactElement {
         </div>
         <button
           type="button"
-          onClick={() => cacheFlushMutation.mutate()}
+          onClick={() => {
+            if (!window.confirm('Flush the settings cache now?')) return;
+            cacheFlushMutation.mutate();
+          }}
           disabled={cacheFlushMutation.isPending}
           className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded border border-gray-300 disabled:opacity-50"
         >
@@ -260,6 +305,7 @@ export default function SystemSettingsPage(): React.ReactElement {
               ? 'bg-green-50 border-green-200 text-green-700'
               : 'bg-red-50 border-red-200 text-red-700'
           }`}
+          role={banner.kind === 'err' ? 'alert' : 'status'}
         >
           {banner.kind === 'ok' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
           <span>{banner.text}</span>
@@ -278,7 +324,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                 <li key={c.category}>
                   <button
                     type="button"
-                    onClick={() => { setActiveCategory(c.category); setHistoryKey(null); }}
+                    onClick={() => selectCategory(c.category)}
                     className={`w-full flex items-center gap-2 px-3 py-2 rounded text-sm transition ${
                       active
                         ? 'bg-blue-50 text-blue-700 font-medium border border-blue-200'
@@ -331,7 +377,9 @@ export default function SystemSettingsPage(): React.ReactElement {
                         {isEditing ? (
                           <div className="flex flex-col items-end gap-2">
                             <div className="flex items-center gap-2">
+                              <label htmlFor={`setting-value-${s.key}`} className="sr-only">Value for {s.key}</label>
                               <input
+                                id={`setting-value-${s.key}`}
                                 type="text"
                                 value={editValue}
                                 onChange={(e) => setEditValue(e.target.value)}
@@ -340,7 +388,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                               />
                               <button
                                 type="button"
-                                onClick={saveEdit}
+                                onClick={() => saveEdit(s)}
                                 disabled={updateMutation.isPending}
                                 className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm disabled:opacity-50"
                               >
@@ -356,10 +404,12 @@ export default function SystemSettingsPage(): React.ReactElement {
                               </button>
                             </div>
                             <input
+                              id={`setting-reason-${s.key}`}
                               type="text"
                               value={editReason}
                               onChange={(e) => setEditReason(e.target.value)}
-                              placeholder="Change reason (optional, audited)"
+                              placeholder="Change reason (required, audited)"
+                              aria-label={`Audit reason for ${s.key}`}
                               className="w-72 px-2 py-1 border border-gray-200 rounded text-xs"
                             />
                           </div>
@@ -420,7 +470,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                                   {' → '}
                                   <span className="font-mono">{h.new_value}</span>
                                   <span className="text-gray-400">
-                                    {' · '}{new Date(h.created_at).toLocaleString()}
+                                    {' · '}{new Date(h.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}
                                     {' · '}{h.change_reason ?? 'no reason'}
                                   </span>
                                 </li>
@@ -465,10 +515,11 @@ export default function SystemSettingsPage(): React.ReactElement {
                 </span>
               </div>
             </div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label htmlFor="reset-reason" className="block text-xs font-medium text-gray-700 mb-1">
               Reason (audited)
             </label>
             <input
+              id="reset-reason"
               type="text"
               value={resetReason}
               onChange={(e) => setResetReason(e.target.value)}
@@ -487,11 +538,16 @@ export default function SystemSettingsPage(): React.ReactElement {
               </button>
               <button
                 type="button"
-                onClick={() => resetMutation.mutate({
-                  key: pendingReset.key,
-                  reason: resetReason.trim() || undefined,
-                })}
-                disabled={resetMutation.isPending}
+                onClick={() => {
+                  const reason = resetReason.trim();
+                  if (reason.length < 10) {
+                    setBanner({ kind: 'err', text: 'Enter a reset reason with at least 10 characters.' });
+                    return;
+                  }
+                  if (!window.confirm(`Reset ${pendingReset.key} to its default value?`)) return;
+                  resetMutation.mutate({ key: pendingReset.key, reason });
+                }}
+                disabled={resetMutation.isPending || resetReason.trim().length < 10}
                 className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm disabled:opacity-50"
               >
                 {resetMutation.isPending ? 'Resetting…' : 'Reset to default'}

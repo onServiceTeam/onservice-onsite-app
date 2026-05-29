@@ -1,5 +1,6 @@
 import React, { useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -42,12 +43,24 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' |
   failed: 'danger',
 };
 
+const STATUS_OPTIONS = new Set(['pending', 'approved', 'processing', 'completed', 'rejected', 'failed']);
+
+function parsePage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function parseStatus(value: string | null): string {
+  return value && STATUS_OPTIONS.has(value) ? value : '';
+}
+
 export default function PayoutsPage(): React.ReactElement {
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parsePage(searchParams.get('page'));
+  const statusFilter = parseStatus(searchParams.get('status'));
+  const search = searchParams.get('providerId')?.trim() ?? '';
+  const [searchInput, setSearchInput] = useState(search);
 
   const [selectedPayout, setSelectedPayout] = useState<Payout | null>(null);
   const [actionType, setActionType] = useState<'approve' | 'reject' | 'complete' | null>(null);
@@ -72,10 +85,10 @@ export default function PayoutsPage(): React.ReactElement {
       if (actionType === 'approve') {
         await api.put(`/api/v1/payouts/${selectedPayout.id}/approve`);
       } else if (actionType === 'reject') {
-        await api.put(`/api/v1/payouts/${selectedPayout.id}/reject`, { reason: rejectReason });
+        await api.put(`/api/v1/payouts/${selectedPayout.id}/reject`, { reason: rejectReason.trim() });
       } else if (actionType === 'complete') {
         await api.put(`/api/v1/payouts/${selectedPayout.id}/complete`, {
-          paymongoTransferId: transferId || undefined,
+          paymongoTransferId: transferId.trim() || undefined,
         });
       }
     },
@@ -94,10 +107,57 @@ export default function PayoutsPage(): React.ReactElement {
     setActionError('');
   }
 
+  function setPage(nextPage: number): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextPage <= 1) params.delete('page');
+      else params.set('page', String(nextPage));
+      return params;
+    });
+  }
+
+  function setStatusFilter(nextStatus: string): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (nextStatus) params.set('status', nextStatus);
+      else params.delete('status');
+      return params;
+    });
+  }
+
+  function openAction(payout: Payout, nextActionType: 'approve' | 'reject' | 'complete'): void {
+    setSelectedPayout(payout);
+    setActionType(nextActionType);
+    setRejectReason('');
+    setTransferId('');
+    setActionError('');
+  }
+
+  function submitAction(): void {
+    if (!selectedPayout || !actionType) return;
+    if (actionType === 'reject' && rejectReason.trim().length < 10) {
+      setActionError('Rejection reason must be at least 10 characters.');
+      return;
+    }
+    const providerName = selectedPayout.providerBusinessName ?? 'this provider';
+    const confirmed = window.confirm(
+      `${actionType === 'complete' ? 'Mark' : actionType.charAt(0).toUpperCase() + actionType.slice(1)} payout ${selectedPayout.id.slice(0, 8)} for ${providerName}?`,
+    );
+    if (!confirmed) return;
+    mutation.mutate();
+  }
+
   const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
-    setSearch(searchInput);
-    setPage(1);
+    const trimmed = searchInput.trim();
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (trimmed) params.set('providerId', trimmed);
+      else params.delete('providerId');
+      return params;
+    });
   };
 
   const columns: Column<Payout>[] = [
@@ -110,13 +170,13 @@ export default function PayoutsPage(): React.ReactElement {
       // name + short payout id below for reference.
       render: (r) => (
         <div>
-          <a
-            href={`/providers/${r.providerId}`}
-            className="text-sm text-[var(--color-link)] hover:underline font-medium"
+          <Link
+            to={`/providers/${r.providerId}`}
+            className="text-sm text-[var(--color-primary)] hover:underline font-medium"
             onClick={(e) => e.stopPropagation()}
           >
             {r.providerBusinessName ?? '(unnamed provider)'}
-          </a>
+          </Link>
           <p className="font-mono text-[10px] text-[var(--color-text-secondary)]">PA {r.id.slice(0, 8)}</p>
         </div>
       ),
@@ -178,13 +238,17 @@ export default function PayoutsPage(): React.ReactElement {
           {r.status === 'pending' && (
             <>
               <button
-                onClick={(e) => { e.stopPropagation(); setSelectedPayout(r); setActionType('approve'); }}
+                type="button"
+                aria-label={`Approve payout ${r.id}`}
+                onClick={(e) => { e.stopPropagation(); openAction(r, 'approve'); }}
                 className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
               >
                 Approve
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); setSelectedPayout(r); setActionType('reject'); }}
+                type="button"
+                aria-label={`Reject payout ${r.id}`}
+                onClick={(e) => { e.stopPropagation(); openAction(r, 'reject'); }}
                 className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
               >
                 Reject
@@ -193,7 +257,9 @@ export default function PayoutsPage(): React.ReactElement {
           )}
           {r.status === 'approved' && (
             <button
-              onClick={(e) => { e.stopPropagation(); setSelectedPayout(r); setActionType('complete'); }}
+              type="button"
+              aria-label={`Complete payout ${r.id}`}
+              onClick={(e) => { e.stopPropagation(); openAction(r, 'complete'); }}
               className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
             >
               Complete
@@ -215,7 +281,9 @@ export default function PayoutsPage(): React.ReactElement {
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <form onSubmit={handleSearch} className="flex gap-2">
+          <label htmlFor="payout-provider-filter" className="sr-only">Filter by provider ID</label>
           <input
+            id="payout-provider-filter"
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -227,8 +295,9 @@ export default function PayoutsPage(): React.ReactElement {
           </button>
         </form>
         <select
+          aria-label="Filter payouts by status"
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Statuses</option>
@@ -255,9 +324,16 @@ export default function PayoutsPage(): React.ReactElement {
 
       {selectedPayout && actionType && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-lg p-6">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payout-action-title"
+            className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-lg p-6"
+          >
             <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1 capitalize">
+              <span id="payout-action-title">
               {actionType} Payout
+              </span>
             </h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
               {formatCurrency(selectedPayout.amount)} via {selectedPayout.method.toUpperCase()} → {selectedPayout.destinationAccount}
@@ -265,15 +341,16 @@ export default function PayoutsPage(): React.ReactElement {
             </p>
 
             {actionError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {actionError}
               </div>
             )}
 
             {actionType === 'reject' && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Rejection Reason *</label>
+                <label htmlFor="payout-reject-reason" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Rejection Reason *</label>
                 <textarea
+                  id="payout-reject-reason"
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
                   rows={3}
@@ -285,8 +362,9 @@ export default function PayoutsPage(): React.ReactElement {
 
             {actionType === 'complete' && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">PayMongo Transfer ID (optional)</label>
+                <label htmlFor="payout-transfer-id" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">PayMongo Transfer ID (optional)</label>
                 <input
+                  id="payout-transfer-id"
                   type="text"
                   value={transferId}
                   onChange={(e) => setTransferId(e.target.value)}
@@ -298,13 +376,15 @@ export default function PayoutsPage(): React.ReactElement {
 
             <div className="flex gap-2 justify-end">
               <button
+                type="button"
                 onClick={closeModal}
                 className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={() => mutation.mutate()}
+                type="button"
+                onClick={submitAction}
                 disabled={mutation.isPending || (actionType === 'reject' && rejectReason.trim().length < 10)}
                 className={`px-4 py-2 text-sm text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
                   actionType === 'reject' ? 'bg-red-600' : actionType === 'approve' ? 'bg-emerald-600' : 'bg-[var(--color-primary)]'

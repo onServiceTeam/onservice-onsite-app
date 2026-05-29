@@ -1,5 +1,6 @@
 import React, { useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -46,6 +47,15 @@ function PermissionBadge({ perm }: { perm: string }): React.ReactElement {
       {scope}.{action}
     </span>
   );
+}
+
+function parsePage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function parseTab(value: string | null): TabId {
+  return value === 'roles' ? 'roles' : 'staff';
 }
 
 // ─── Roles Tab ──────────────────────────────────────────────────────
@@ -122,11 +132,20 @@ function RolesTab(): React.ReactElement {
 
   function handleSubmit(e: FormEvent): void {
     e.preventDefault();
-    if (!formName.trim()) return;
+    if (!formName.trim()) {
+      setError('Enter a role name.');
+      return;
+    }
+    if (formPerms.length === 0) {
+      setError('Select at least one permission.');
+      return;
+    }
     const payload = { name: formName.trim(), description: formDesc.trim(), permissions: formPerms };
     if (editing) {
+      if (!window.confirm(`Update role ${formatLabel(editing.name)} and its permissions?`)) return;
       updateMutation.mutate({ id: editing.id, ...payload });
     } else {
+      if (!window.confirm(`Create role ${formatLabel(payload.name)} with ${payload.permissions.length} permissions?`)) return;
       createMutation.mutate(payload);
     }
   }
@@ -139,6 +158,7 @@ function RolesTab(): React.ReactElement {
         <h2 className="text-lg font-semibold">Roles</h2>
         {!showForm && (
           <button
+            type="button"
             className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg"
             onClick={() => { setCreating(true); setEditing(null); }}
           >
@@ -148,21 +168,28 @@ function RolesTab(): React.ReactElement {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white border border-[var(--color-border)] rounded-lg p-4 space-y-3">
+        <form noValidate onSubmit={handleSubmit} className="bg-white border border-[var(--color-border)] rounded-lg p-4 space-y-3">
           <div className="flex gap-3">
-            <input
-              className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm"
-              placeholder="Role name"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              required
-            />
-            <input
-              className="flex-1 border border-[var(--color-border)] rounded px-3 py-2 text-sm"
-              placeholder="Description"
-              value={formDesc}
-              onChange={(e) => setFormDesc(e.target.value)}
-            />
+            <div className="flex-1">
+              <label htmlFor="role-name" className="sr-only">Role name</label>
+              <input
+                id="role-name"
+                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm"
+                placeholder="Role name"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+              />
+            </div>
+            <div className="flex-1">
+              <label htmlFor="role-description" className="sr-only">Role description</label>
+              <input
+                id="role-description"
+                className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm"
+                placeholder="Description"
+                value={formDesc}
+                onChange={(e) => setFormDesc(e.target.value)}
+              />
+            </div>
           </div>
           <div>
             <p className="text-sm font-medium text-[var(--color-text)] mb-2">Permissions</p>
@@ -175,7 +202,7 @@ function RolesTab(): React.ReactElement {
               ))}
             </div>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button type="submit" className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg">
               {editing ? 'Update' : 'Create'}
@@ -188,7 +215,7 @@ function RolesTab(): React.ReactElement {
       )}
 
       {isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Loading...</p>}
-      {(isRolesError || isPermsError) && <p className="text-sm text-red-600">Failed to load roles. Please try again.</p>}
+      {(isRolesError || isPermsError) && <p role="alert" className="text-sm text-red-600">Failed to load roles. Please try again.</p>}
 
       <div className="grid gap-3">
         {(roles ?? []).map((role) => (
@@ -201,14 +228,15 @@ function RolesTab(): React.ReactElement {
               </div>
               <div className="flex gap-2">
                 {role.name !== 'super_admin' && (
-                  <button className="text-sm text-[var(--color-primary)] hover:underline" onClick={() => startEdit(role)}>
+                  <button type="button" className="text-sm text-[var(--color-primary)] hover:underline" onClick={() => startEdit(role)}>
                     Edit
                   </button>
                 )}
                 {getStaffCount(role) === 0 && role.name !== 'super_admin' && (
                   <button
+                    type="button"
                     className="text-sm text-red-600 hover:underline"
-                    onClick={() => { if (confirm(`Delete role "${role.name}"?`)) deleteMutation.mutate(role.id); }}
+                    onClick={() => { if (window.confirm(`Delete role "${role.name}"?`)) deleteMutation.mutate(role.id); }}
                   >
                     Delete
                   </button>
@@ -222,16 +250,15 @@ function RolesTab(): React.ReactElement {
         ))}
       </div>
 
-      {!showForm && error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
+      {!showForm && error && <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
     </div>
   );
 }
 
 // ─── Staff Tab ──────────────────────────────────────────────────────
 
-function StaffTab(): React.ReactElement {
+function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: number) => void }): React.ReactElement {
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
   const [showAdd, setShowAdd] = useState(false);
   const [addUserId, setAddUserId] = useState('');
   const [addRoleId, setAddRoleId] = useState('');
@@ -293,6 +320,23 @@ function StaffTab(): React.ReactElement {
     onError: (e) => setError(getErrorMessage(e)),
   });
 
+  function handleAddStaff(e: FormEvent): void {
+    e.preventDefault();
+    const userId = addUserId.trim();
+    const roleId = addRoleId.trim();
+    const roleName = (roles ?? []).find((role) => role.id === roleId)?.name ?? 'selected role';
+    if (!userId) {
+      setError('Enter a user ID.');
+      return;
+    }
+    if (!roleId) {
+      setError('Select a role.');
+      return;
+    }
+    if (!window.confirm(`Add user ${userId} as ${formatLabel(roleName)}?`)) return;
+    addMutation.mutate({ userId, roleId });
+  }
+
   const columns: Column<AdminStaff>[] = [
     {
       key: 'name',
@@ -310,6 +354,7 @@ function StaffTab(): React.ReactElement {
       header: 'Role',
       render: (r) => (
         <select
+          aria-label={`Change role for ${r.user_first_name ?? 'staff member'} ${r.user_last_name ?? ''}`.trim()}
           className="text-sm border border-[var(--color-border)] rounded px-2 py-1"
           value={r.role_id}
           onChange={(e) => {
@@ -350,14 +395,19 @@ function StaffTab(): React.ReactElement {
       render: (r) => (
         <div className="flex gap-2">
           <button
+            type="button"
             className="text-sm text-[var(--color-primary)] hover:underline"
-            onClick={() => updateMutation.mutate({ id: r.id, isActive: !r.is_active })}
+            onClick={() => {
+              if (!window.confirm(`${r.is_active ? 'Deactivate' : 'Activate'} this staff member?`)) return;
+              updateMutation.mutate({ id: r.id, isActive: !r.is_active });
+            }}
           >
             {r.is_active ? 'Deactivate' : 'Activate'}
           </button>
           <button
+            type="button"
             className="text-sm text-red-600 hover:underline"
-            onClick={() => { if (confirm('Remove this staff member?')) removeMutation.mutate(r.id); }}
+            onClick={() => { if (window.confirm('Remove this staff member?')) removeMutation.mutate(r.id); }}
           >
             Remove
           </button>
@@ -371,6 +421,7 @@ function StaffTab(): React.ReactElement {
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">Staff Members</h2>
         <button
+          type="button"
           className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg"
           onClick={() => setShowAdd(!showAdd)}
         >
@@ -380,26 +431,27 @@ function StaffTab(): React.ReactElement {
 
       {showAdd && (
         <form
+          noValidate
           className="bg-white border border-[var(--color-border)] rounded-lg p-4 flex gap-3 items-end"
-          onSubmit={(e) => { e.preventDefault(); addMutation.mutate({ userId: addUserId, roleId: addRoleId }); }}
+          onSubmit={handleAddStaff}
         >
           <div className="flex-1">
-            <label className="text-xs text-[var(--color-text-secondary)]">User ID</label>
+            <label htmlFor="staff-user-id" className="text-xs text-[var(--color-text-secondary)]">User ID</label>
             <input
+              id="staff-user-id"
               className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm mt-1"
               placeholder="Enter user ID"
               value={addUserId}
               onChange={(e) => setAddUserId(e.target.value)}
-              required
             />
           </div>
           <div className="flex-1">
-            <label className="text-xs text-[var(--color-text-secondary)]">Role</label>
+            <label htmlFor="staff-role-id" className="text-xs text-[var(--color-text-secondary)]">Role</label>
             <select
+              id="staff-role-id"
               className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm mt-1"
               value={addRoleId}
               onChange={(e) => setAddRoleId(e.target.value)}
-              required
             >
               <option value="">Select role</option>
               {(roles ?? []).map((role) => (
@@ -413,9 +465,9 @@ function StaffTab(): React.ReactElement {
         </form>
       )}
 
-      {isError && <p className="text-sm text-red-600">Failed to load staff members. Please try again.</p>}
-      {isRolesError && <p className="text-sm text-red-600">Failed to load roles for assignment. Please refresh.</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {isError && <p role="alert" className="text-sm text-red-600">Failed to load staff members. Please try again.</p>}
+      {isRolesError && <p role="alert" className="text-sm text-red-600">Failed to load roles for assignment. Please refresh.</p>}
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
       <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No staff members." />
 
@@ -425,14 +477,14 @@ function StaffTab(): React.ReactElement {
           totalPages={Math.ceil((data.meta?.total ?? 0) / limit)}
           total={data.meta?.total ?? 0}
           pageSize={limit}
-          onPageChange={setPage}
+          onPageChange={onPageChange}
         />
       )}
 
       {pendingRoleChange && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1">
+          <div role="dialog" aria-modal="true" aria-labelledby="staff-role-change-title" className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6">
+            <h3 id="staff-role-change-title" className="text-lg font-semibold text-[var(--color-text)] mb-1">
               Change role
             </h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
@@ -449,12 +501,14 @@ function StaffTab(): React.ReactElement {
             </div>
             <div className="flex gap-2 justify-end">
               <button
+                type="button"
                 onClick={() => setPendingRoleChange(null)}
                 className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={() => {
                   updateMutation.mutate({
                     id: pendingRoleChange.staff.id,
@@ -478,7 +532,29 @@ function StaffTab(): React.ReactElement {
 // ─── Page ───────────────────────────────────────────────────────────
 
 export default function StaffRolesPage(): React.ReactElement {
-  const [tab, setTab] = useState<TabId>('staff');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = parseTab(searchParams.get('tab'));
+  const page = parsePage(searchParams.get('page'));
+
+  function selectTab(nextTab: TabId): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (nextTab === 'staff') params.delete('tab');
+      else params.set('tab', nextTab);
+      return params;
+    });
+  }
+
+  function setStaffPage(nextPage: number): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('tab');
+      if (nextPage <= 1) params.delete('page');
+      else params.set('page', String(nextPage));
+      return params;
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -487,8 +563,9 @@ export default function StaffRolesPage(): React.ReactElement {
       <div className="flex gap-1 border-b border-[var(--color-border)]">
         {([['staff', 'Staff'], ['roles', 'Roles & Permissions']] as [TabId, string][]).map(([id, label]) => (
           <button
+            type="button"
             key={id}
-            onClick={() => setTab(id)}
+            onClick={() => selectTab(id)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab === id
                 ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
@@ -500,7 +577,7 @@ export default function StaffRolesPage(): React.ReactElement {
         ))}
       </div>
 
-      {tab === 'staff' && <StaffTab />}
+      {tab === 'staff' && <StaffTab page={page} onPageChange={setStaffPage} />}
       {tab === 'roles' && <RolesTab />}
     </div>
   );

@@ -1,5 +1,6 @@
 import React, { useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -75,12 +76,22 @@ function formatLabel(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function parsePage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function parseOption(value: string | null, allowed: readonly string[]): string {
+  return value && allowed.includes(value) ? value : '';
+}
+
 export default function SupportTicketsPage(): React.ReactElement {
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parsePage(searchParams.get('page'));
+  const statusFilter = parseOption(searchParams.get('status'), STATUSES);
+  const typeFilter = parseOption(searchParams.get('type'), TICKET_TYPES);
+  const priorityFilter = parseOption(searchParams.get('priority'), PRIORITIES);
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
   const [isInternalNote, setIsInternalNote] = useState(false);
@@ -95,6 +106,25 @@ export default function SupportTicketsPage(): React.ReactElement {
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
   const limit = adminConfig.defaultPageSize;
+
+  function setPage(nextPage: number): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextPage <= 1) params.delete('page');
+      else params.set('page', String(nextPage));
+      return params;
+    });
+  }
+
+  function setFilter(key: 'status' | 'type' | 'priority', value: string): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (value) params.set(key, value);
+      else params.delete(key);
+      return params;
+    });
+  }
 
   function handleSelectTicket(ticket: Ticket): void {
     setSelected(ticket);
@@ -135,7 +165,10 @@ export default function SupportTicketsPage(): React.ReactElement {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status, resolutionNotes }: { id: string; status: string; resolutionNotes?: string }) => {
-      await api.patch(`/api/v1/support-tickets/${id}/status`, { status, resolutionNotes });
+      await api.patch(`/api/v1/support-tickets/${id}/status`, {
+        status,
+        ...(resolutionNotes ? { resolutionNotes: resolutionNotes.trim() } : {}),
+      });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminSupportTickets'] });
@@ -219,6 +252,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       header: '',
       render: (r) => (
         <button
+          type="button"
           className="text-sm text-[var(--color-primary)] hover:underline"
           onClick={() => handleSelectTicket(r)}
         >
@@ -233,12 +267,12 @@ export default function SupportTicketsPage(): React.ReactElement {
     const isDetailLoading = detailQuery.isLoading;
     return (
       <div className="space-y-4">
-        <button className="text-sm text-[var(--color-primary)] hover:underline" onClick={handleBack}>
+        <button type="button" className="text-sm text-[var(--color-primary)] hover:underline" onClick={handleBack}>
           ← Back to Tickets
         </button>
 
-        {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
-        {detailQuery.isError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">Failed to load ticket details.</p>}
+        {error && <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
+        {detailQuery.isError && <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">Failed to load ticket details.</p>}
 
         <div className="bg-white rounded-lg border border-[var(--color-border)] p-6">
           <div className="flex items-start justify-between mb-4">
@@ -255,6 +289,7 @@ export default function SupportTicketsPage(): React.ReactElement {
                 <select
                   className="text-sm border border-[var(--color-border)] rounded px-2 py-1 disabled:opacity-50"
                   value=""
+                  aria-label="Change support ticket status"
                   disabled={updateStatusMutation.isPending}
                   onChange={(e) => {
                     const target = e.target.value;
@@ -267,6 +302,7 @@ export default function SupportTicketsPage(): React.ReactElement {
                       setPendingStatus(target);
                       setResolutionNotes('');
                     } else {
+                      if (!window.confirm(`Change ${ticket.ticket_number} status to ${formatLabel(target)}?`)) return;
                       updateStatusMutation.mutate({ id: ticket.id, status: target });
                     }
                   }}
@@ -291,16 +327,24 @@ export default function SupportTicketsPage(): React.ReactElement {
           {/* Assign agent */}
           {ticket.status !== 'closed' && (
             <div className="flex gap-2 items-center mb-4">
+              <label htmlFor="ticket-agent-id" className="sr-only">Agent user ID to assign</label>
               <input
+                id="ticket-agent-id"
                 className="border border-[var(--color-border)] rounded px-2 py-1 text-sm flex-1"
                 placeholder="Agent user ID to assign"
+                aria-label="Agent user ID to assign"
                 value={assignAgentId}
                 onChange={(e) => setAssignAgentId(e.target.value)}
               />
               <button
+                type="button"
                 className="px-3 py-1 bg-[var(--color-primary)] text-white text-sm rounded disabled:opacity-50"
                 disabled={!assignAgentId.trim() || assignMutation.isPending}
-                onClick={() => assignMutation.mutate({ id: ticket.id, agentId: assignAgentId.trim() })}
+                onClick={() => {
+                  const agentId = assignAgentId.trim();
+                  if (!window.confirm(`Assign ${ticket.ticket_number} to agent ${agentId}?`)) return;
+                  assignMutation.mutate({ id: ticket.id, agentId });
+                }}
               >
                 {assignMutation.isPending ? 'Assigning...' : 'Assign'}
               </button>
@@ -344,17 +388,18 @@ export default function SupportTicketsPage(): React.ReactElement {
 
           {pendingStatus && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6">
-                <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1">
+              <div role="dialog" aria-modal="true" aria-labelledby="ticket-resolution-title" className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6">
+                <h3 id="ticket-resolution-title" className="text-lg font-semibold text-[var(--color-text)] mb-1">
                   Mark ticket as {formatLabel(pendingStatus)}
                 </h3>
                 <p className="text-sm text-[var(--color-text-secondary)] mb-4">
                   {ticket.ticket_number}: {ticket.subject}
                 </p>
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">
+                <label htmlFor="ticket-resolution-notes" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">
                   Resolution notes *
                 </label>
                 <textarea
+                  id="ticket-resolution-notes"
                   value={resolutionNotes}
                   onChange={(e) => setResolutionNotes(e.target.value)}
                   rows={4}
@@ -363,15 +408,19 @@ export default function SupportTicketsPage(): React.ReactElement {
                 />
                 <div className="flex gap-2 justify-end mt-4">
                   <button
+                    type="button"
                     onClick={() => { setPendingStatus(null); setResolutionNotes(''); }}
                     className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       if (pendingStatus) {
-                        updateStatusMutation.mutate({ id: ticket.id, status: pendingStatus, resolutionNotes });
+                        const notes = resolutionNotes.trim();
+                        if (!window.confirm(`Mark ${ticket.ticket_number} as ${formatLabel(pendingStatus)}?`)) return;
+                        updateStatusMutation.mutate({ id: ticket.id, status: pendingStatus, resolutionNotes: notes });
                         setPendingStatus(null);
                       }
                     }}
@@ -387,17 +436,20 @@ export default function SupportTicketsPage(): React.ReactElement {
 
           {ticket.status !== 'closed' && (
             <form onSubmit={handleReply} className="border-t border-[var(--color-border)] pt-4">
+              <label htmlFor="ticket-reply-message" className="sr-only">Reply message</label>
               <textarea
+                id="ticket-reply-message"
                 className="w-full border border-[var(--color-border)] rounded-lg p-3 text-sm resize-none"
                 rows={3}
                 maxLength={5000}
                 placeholder="Type a reply..."
                 value={replyMessage}
                 onChange={(e) => setReplyMessage(e.target.value)}
+                aria-label="Reply message"
               />
               <div className="flex items-center justify-between mt-2">
-                <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-                  <input type="checkbox" checked={isInternalNote} onChange={(e) => setIsInternalNote(e.target.checked)} />
+                <label htmlFor="ticket-internal-note" className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+                  <input id="ticket-internal-note" type="checkbox" checked={isInternalNote} onChange={(e) => setIsInternalNote(e.target.checked)} />
                   Internal note (not visible to user)
                 </label>
                 <button
@@ -422,7 +474,8 @@ export default function SupportTicketsPage(): React.ReactElement {
       <div className="flex gap-3 items-center flex-wrap">
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => setFilter('status', e.target.value)}
+          aria-label="Filter support tickets by status"
           className="text-sm border border-[var(--color-border)] rounded-lg px-3 py-2"
         >
           <option value="">All Statuses</option>
@@ -430,7 +483,8 @@ export default function SupportTicketsPage(): React.ReactElement {
         </select>
         <select
           value={typeFilter}
-          onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+          onChange={(e) => setFilter('type', e.target.value)}
+          aria-label="Filter support tickets by type"
           className="text-sm border border-[var(--color-border)] rounded-lg px-3 py-2"
         >
           <option value="">All Types</option>
@@ -438,7 +492,8 @@ export default function SupportTicketsPage(): React.ReactElement {
         </select>
         <select
           value={priorityFilter}
-          onChange={(e) => { setPriorityFilter(e.target.value); setPage(1); }}
+          onChange={(e) => setFilter('priority', e.target.value)}
+          aria-label="Filter support tickets by priority"
           className="text-sm border border-[var(--color-border)] rounded-lg px-3 py-2"
         >
           <option value="">All Priorities</option>
@@ -446,7 +501,7 @@ export default function SupportTicketsPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p className="text-red-600 text-sm">Failed to load tickets.</p>}
+      {isError && <p role="alert" className="text-red-600 text-sm">Failed to load tickets.</p>}
 
       <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No support tickets found." />
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { adminConfig } from '@/config/admin.config';
@@ -87,21 +88,71 @@ const ROLE_COLORS: Record<string, string> = {
   provider: 'bg-green-100 text-green-700',
 };
 
+type SourceFilter = 'all' | 'audit_log' | 'admin_actions';
+
+function parsePage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function parseSource(value: string | null): SourceFilter {
+  return value === 'audit_log' || value === 'admin_actions' ? value : 'all';
+}
+
 export default function AuditLogPage(): React.ReactElement {
-  const [page, setPage] = useState(1);
-  const [actionFilter, setActionFilter] = useState('');
-  const [entityTypeFilter, setEntityTypeFilter] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parsePage(searchParams.get('page'));
+  const actionFilter = searchParams.get('action')?.trim() ?? '';
+  const entityTypeFilter = searchParams.get('entityType')?.trim() ?? '';
   // 'all' | 'audit_log' | 'admin_actions' — narrows the unioned response.
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'audit_log' | 'admin_actions'>('all');
+  const sourceFilter = parseSource(searchParams.get('source'));
   // BUG-PHASE42-02 fix — pre-fix there was no way to bound an audit
   // query by date. Compliance audits ("show me all entries from
   // 2026-04-01 to 2026-04-30") had to be done by paginating to the
   // right time slice manually. The API supports `from` and `to`
   // params; the UI now exposes them.
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const fromDate = searchParams.get('from') ?? '';
+  const toDate = searchParams.get('to') ?? '';
   const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
   const pageSize = adminConfig.defaultPageSize;
+  const dateError = fromDate && toDate && fromDate > toDate ? 'From date must be before or equal to To date.' : '';
+
+  function updateFilter(key: string, value: string): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      const trimmed = value.trim();
+      if (trimmed) params.set(key, trimmed);
+      else params.delete(key);
+      return params;
+    });
+    setSelectedEntry(null);
+  }
+
+  function setSourceFilter(value: SourceFilter): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (value === 'all') params.delete('source');
+      else params.set('source', value);
+      return params;
+    });
+    setSelectedEntry(null);
+  }
+
+  function setPage(nextPage: number): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextPage <= 1) params.delete('page');
+      else params.set('page', String(nextPage));
+      return params;
+    });
+  }
+
+  function clearFilters(): void {
+    setSearchParams(new URLSearchParams());
+    setSelectedEntry(null);
+  }
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin', 'audit-log', page, actionFilter, entityTypeFilter, sourceFilter, fromDate, toDate],
@@ -116,6 +167,7 @@ export default function AuditLogPage(): React.ReactElement {
       return res.data;
     },
     placeholderData: (prev) => prev,
+    enabled: !dateError,
   });
 
   const entries = data?.data ?? [];
@@ -142,7 +194,7 @@ export default function AuditLogPage(): React.ReactElement {
           type="text"
           placeholder="Filter by action (e.g. POST, staff_added)"
           value={actionFilter}
-          onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
+          onChange={(e) => updateFilter('action', e.target.value)}
           aria-label="Filter audit log by action"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] w-60"
         />
@@ -150,16 +202,13 @@ export default function AuditLogPage(): React.ReactElement {
           type="text"
           placeholder="Filter by entity type"
           value={entityTypeFilter}
-          onChange={(e) => { setEntityTypeFilter(e.target.value); setPage(1); }}
+          onChange={(e) => updateFilter('entityType', e.target.value)}
           aria-label="Filter audit log by entity type"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] w-60"
         />
         <select
           value={sourceFilter}
-          onChange={(e) => {
-            setSourceFilter(e.target.value as 'all' | 'audit_log' | 'admin_actions');
-            setPage(1);
-          }}
+          onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
           aria-label="Filter audit log by source stream"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
         >
@@ -173,7 +222,7 @@ export default function AuditLogPage(): React.ReactElement {
             id="audit-from"
             type="date"
             value={fromDate}
-            onChange={(e) => { setFromDate(e.target.value); setPage(1); }}
+            onChange={(e) => updateFilter('from', e.target.value)}
             aria-label="Filter audit log from date"
             className="px-2 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
           />
@@ -182,21 +231,15 @@ export default function AuditLogPage(): React.ReactElement {
             id="audit-to"
             type="date"
             value={toDate}
-            onChange={(e) => { setToDate(e.target.value); setPage(1); }}
+            onChange={(e) => updateFilter('to', e.target.value)}
             aria-label="Filter audit log to date"
             className="px-2 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
           />
         </div>
         {(actionFilter || entityTypeFilter || sourceFilter !== 'all' || fromDate || toDate) && (
           <button
-            onClick={() => {
-              setActionFilter('');
-              setEntityTypeFilter('');
-              setSourceFilter('all');
-              setFromDate('');
-              setToDate('');
-              setPage(1);
-            }}
+            type="button"
+            onClick={clearFilters}
             className="px-3 py-2 text-sm text-[var(--color-primary)] hover:underline"
           >
             Clear Filters
@@ -204,12 +247,14 @@ export default function AuditLogPage(): React.ReactElement {
         )}
       </div>
 
+      {dateError && <p role="alert" className="text-sm text-red-600">{dateError}</p>}
+
       {isLoading && !data ? (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]" />
         </div>
       ) : isError ? (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+        <div role="alert" className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
           <p className="text-red-600 font-medium">Failed to load audit log</p>
           <p className="text-sm text-red-600 mt-1">Check your connection and try again.</p>
         </div>
@@ -249,8 +294,15 @@ export default function AuditLogPage(): React.ReactElement {
                 {entries.map((entry) => (
                   <tr
                     key={entry.id}
+                    tabIndex={0}
                     className="border-b border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-colors cursor-pointer"
                     onClick={() => setSelectedEntry(selectedEntry?.id === entry.id ? null : entry)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedEntry(selectedEntry?.id === entry.id ? null : entry);
+                      }
+                    }}
                   >
                     <td className="px-4 py-3 text-[var(--color-text)] whitespace-nowrap">
                       {formatDate(entry.createdAt)}
@@ -357,15 +409,17 @@ export default function AuditLogPage(): React.ReactElement {
               </p>
               <div className="flex gap-2">
                 <button
+                  type="button"
                   disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
+                  onClick={() => setPage(page - 1)}
                   className="px-4 py-2 border border-[var(--color-border)] rounded-lg text-sm disabled:opacity-40 hover:bg-[var(--color-bg)] transition-colors"
                 >
                   Previous
                 </button>
                 <button
+                  type="button"
                   disabled={page >= pagination.totalPages}
-                  onClick={() => setPage((p) => p + 1)}
+                  onClick={() => setPage(page + 1)}
                   className="px-4 py-2 border border-[var(--color-border)] rounded-lg text-sm disabled:opacity-40 hover:bg-[var(--color-bg)] transition-colors"
                 >
                   Next

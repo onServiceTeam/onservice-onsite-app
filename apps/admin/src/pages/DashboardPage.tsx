@@ -144,7 +144,9 @@ export default function DashboardPage(): React.ReactElement {
   });
 
   const mergedAlerts: OperationalAlert[] = React.useMemo(() => {
-    const dsrRows: OperationalAlert[] = (dsrAlerts.data ?? []).map((d) => ({
+    const dsrData = Array.isArray(dsrAlerts.data) ? dsrAlerts.data : [];
+    const alertData = Array.isArray(alerts.data) ? alerts.data : [];
+    const dsrRows: OperationalAlert[] = dsrData.map((d) => ({
       id: `dsr-${d.id}`,
       type: 'dsr_due',
       severity: d.isOverdue ? 'danger' : 'warning',
@@ -153,7 +155,7 @@ export default function DashboardPage(): React.ReactElement {
       action_url: '/compliance',
       created_at: new Date().toISOString(),
     }));
-    return [...dsrRows, ...(alerts.data ?? [])];
+    return [...dsrRows, ...alertData];
   }, [dsrAlerts.data, alerts.data]);
 
   const cities = useQuery({
@@ -168,6 +170,7 @@ export default function DashboardPage(): React.ReactElement {
     void bookingVolume.refetch();
     void funnel.refetch();
     void alerts.refetch();
+    void dsrAlerts.refetch();
     void cities.refetch();
   };
 
@@ -411,9 +414,9 @@ export default function DashboardPage(): React.ReactElement {
                 <ChevronRight size={14} />
               </Button>
             </Link>
-            <Link to="/financials/reports" className="block">
+            <Link to="/financials" className="block">
               <Button variant="outline" className="w-full justify-between">
-                <span>Generate Daily Report</span>
+                <span>Review Financial Reports</span>
                 <ChevronRight size={14} />
               </Button>
             </Link>
@@ -473,7 +476,7 @@ export default function DashboardPage(): React.ReactElement {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {(cities.data ?? []).map((city) => (
-                <Link key={city.id} to={`/service-areas/${city.id}`} className="block">
+                <Link key={city.id} to="/service-areas" className="block">
                   <Card className="hover:border-[var(--color-secondary)] transition-colors cursor-pointer">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">

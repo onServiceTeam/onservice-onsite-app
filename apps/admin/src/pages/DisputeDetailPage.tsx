@@ -650,6 +650,12 @@ function DisputeActions({
   });
 
   const decisionOk = decisionNotes.trim().length >= 20;
+  const refundPercentValue = Number(refundPercent);
+  const refundPercentOk = resolutionType !== 'partial_refund' || (
+    Number.isFinite(refundPercentValue) && refundPercentValue >= 1 && refundPercentValue <= 100
+  );
+  const canResolve = decisionOk && refundPercentOk;
+  const canSendMessage = message.trim().length >= 5 && message.trim().length <= 2000;
   const totalAmount = detail.booking?.totalAmount ?? 0;
   const estimatedRefund = useMemo(() => {
     switch (resolutionType) {
@@ -681,6 +687,8 @@ function DisputeActions({
         <p className="text-sm font-medium text-[var(--color-text)]">Assign to admin</p>
         <div className="flex items-center gap-2 flex-wrap">
           <input
+            id="dispute-assignee-id"
+            aria-label="Assignee admin user ID"
             type="text"
             value={assigneeId}
             onChange={(e) => setAssigneeId(e.target.value)}
@@ -690,12 +698,16 @@ function DisputeActions({
           <Button
             size="sm"
             disabled={assigneeId.trim().length === 0 || assignMut.isPending}
-            onClick={() => assignMut.mutate({ assigneeAdminId: assigneeId.trim() })}
+            onClick={() => {
+              if (window.confirm('Assign this dispute to the entered admin ID?')) {
+                assignMut.mutate({ assigneeAdminId: assigneeId.trim() });
+              }
+            }}
           >
             <RefreshCw size={14} /> Assign
           </Button>
           {assignMut.isError && (
-            <span className="text-xs text-red-600">{getErrorMessage(assignMut.error)}</span>
+            <span role="alert" className="text-xs text-red-600">{getErrorMessage(assignMut.error)}</span>
           )}
         </div>
       </div>
@@ -729,10 +741,11 @@ function DisputeActions({
 
           {resolutionType === 'partial_refund' && (
             <div>
-              <label className="text-xs text-[var(--color-text-secondary)]">
+              <label htmlFor="detail-refund-percent" className="text-xs text-[var(--color-text-secondary)]">
                 Refund percent (1–100)
               </label>
               <input
+                id="detail-refund-percent"
                 type="number"
                 min={1}
                 max={100}
@@ -744,10 +757,11 @@ function DisputeActions({
           )}
 
           <div>
-            <label className="text-xs text-[var(--color-text-secondary)]">
+              <label htmlFor="detail-decision-notes" className="text-xs text-[var(--color-text-secondary)]">
               Decision notes (visible to user, min 20 characters)
             </label>
             <Textarea
+              id="detail-decision-notes"
               value={decisionNotes}
               onChange={(e) => setDecisionNotes(e.target.value)}
               placeholder="Explain your decision to both parties…"
@@ -763,10 +777,11 @@ function DisputeActions({
           </div>
 
           <div>
-            <label className="text-xs text-[var(--color-text-secondary)]">
+              <label htmlFor="detail-internal-notes" className="text-xs text-[var(--color-text-secondary)]">
               Internal notes (admin only, optional)
             </label>
             <Textarea
+              id="detail-internal-notes"
               value={internalNotes}
               onChange={(e) => setInternalNotes(e.target.value)}
               placeholder="Internal notes for the admin team…"
@@ -777,13 +792,13 @@ function DisputeActions({
           <div className="flex items-center gap-2 flex-wrap">
             <Button
               size="sm"
-              disabled={!decisionOk || resolveMut.isPending}
+              disabled={!canResolve || resolveMut.isPending}
               onClick={() => setConfirmResolve(true)}
             >
               <Wallet size={14} /> Resolve &amp; notify
             </Button>
             {resolveMut.isError && (
-              <span className="text-xs text-red-600">
+              <span role="alert" className="text-xs text-red-600">
                 {getErrorMessage(resolveMut.error)}
               </span>
             )}
@@ -819,7 +834,7 @@ function DisputeActions({
                       resolutionType,
                       refundPercent:
                         resolutionType === 'partial_refund'
-                          ? Number(refundPercent)
+                          ? refundPercentValue
                           : undefined,
                       decisionNotes,
                       internalNotes: internalNotes.trim() ? internalNotes : undefined,
@@ -846,6 +861,7 @@ function DisputeActions({
       <div className="space-y-2 pt-3 border-t border-[var(--color-border)]">
         <p className="text-sm font-medium text-[var(--color-text)]">Escalate</p>
         <Textarea
+          aria-label="Escalation reason"
           value={escalateReason}
           onChange={(e) => setEscalateReason(e.target.value)}
           placeholder="Why is this being escalated? (min 10 characters)"
@@ -856,12 +872,14 @@ function DisputeActions({
             size="sm"
             variant="secondary"
             disabled={escalateReason.trim().length < 10 || escalateMut.isPending}
-            onClick={() => escalateMut.mutate({ reason: escalateReason })}
+            onClick={() => {
+              if (window.confirm('Escalate this dispute?')) escalateMut.mutate({ reason: escalateReason.trim() });
+            }}
           >
             <AlertTriangle size={14} /> Escalate
           </Button>
           {escalateMut.isError && (
-            <span className="text-xs text-red-600">
+            <span role="alert" className="text-xs text-red-600">
               {getErrorMessage(escalateMut.error)}
             </span>
           )}
@@ -889,6 +907,7 @@ function DisputeActions({
           ))}
         </div>
         <Textarea
+          aria-label="Dispute message"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Message (5–2000 characters)"
@@ -898,13 +917,13 @@ function DisputeActions({
           <Button
             size="sm"
             variant="secondary"
-            disabled={message.trim().length < 5 || messageMut.isPending}
-            onClick={() => messageMut.mutate({ recipient, message })}
+            disabled={!canSendMessage || messageMut.isPending}
+            onClick={() => messageMut.mutate({ recipient, message: message.trim() })}
           >
             <Send size={14} /> Send <MessageSquare size={14} />
           </Button>
           {messageMut.isError && (
-            <span className="text-xs text-red-600">
+            <span role="alert" className="text-xs text-red-600">
               {getErrorMessage(messageMut.error)}
             </span>
           )}
@@ -925,10 +944,11 @@ function DisputeActions({
           client/server validation-mismatch pattern as Phase 142
           (force-complete) and Phase 77-02 (cancel). Now: 20-char floor
           on both placeholder hint and disabled gate. */}
-      {isSuperAdmin && (
+      {isSuperAdmin && detail.status === 'resolved' && (
         <div className="space-y-2 pt-3 border-t border-[var(--color-border)]">
           <p className="text-sm font-medium text-[var(--color-text)]">Reopen</p>
           <Textarea
+            aria-label="Reopen reason"
             value={reopenReason}
             onChange={(e) => setReopenReason(e.target.value)}
             placeholder="Why is this being reopened? (min 20 characters — describe the new evidence or reason)"
@@ -939,12 +959,14 @@ function DisputeActions({
               size="sm"
               variant="destructive"
               disabled={reopenReason.trim().length < 20 || reopenMut.isPending}
-              onClick={() => reopenMut.mutate({ reason: reopenReason })}
+              onClick={() => {
+                if (window.confirm('Reopen this resolved dispute?')) reopenMut.mutate({ reason: reopenReason.trim() });
+              }}
             >
               <RefreshCw size={14} /> Reopen
             </Button>
             {reopenMut.isError && (
-              <span className="text-xs text-red-600">
+              <span role="alert" className="text-xs text-red-600">
                 {getErrorMessage(reopenMut.error)}
               </span>
             )}

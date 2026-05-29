@@ -1,5 +1,6 @@
 import React, { useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -52,11 +53,23 @@ function formatStatus(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const STATUS_OPTIONS = new Set(['pending', 'active', 'suspended', 'closed']);
+
+function parsePage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function parseStatus(value: string | null): string {
+  return value && STATUS_OPTIONS.has(value) ? value : '';
+}
+
 export default function BusinessAccountsPage(): React.ReactElement {
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parsePage(searchParams.get('page'));
+  const statusFilter = parseStatus(searchParams.get('status'));
+  const search = searchParams.get('search')?.trim() ?? '';
+  const [searchInput, setSearchInput] = useState(search);
   const [actionError, setActionError] = useState('');
   // BUG-PHASE41-03 fix — pre-fix the suspend POST sent a hardcoded
   // "Admin action" reason. Suspending a business account is serious
@@ -91,7 +104,7 @@ export default function BusinessAccountsPage(): React.ReactElement {
 
   const suspendMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      await api.post(`/api/v1/admin/business-accounts/${id}/suspend`, { reason });
+      await api.post(`/api/v1/admin/business-accounts/${id}/suspend`, { reason: reason.trim() });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminBusinessAccounts'] });
@@ -104,9 +117,56 @@ export default function BusinessAccountsPage(): React.ReactElement {
 
   const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
-    setSearch(searchInput);
-    setPage(1);
+    const trimmed = searchInput.trim();
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (trimmed) params.set('search', trimmed);
+      else params.delete('search');
+      return params;
+    });
   };
+
+  function setPage(nextPage: number): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextPage <= 1) params.delete('page');
+      else params.set('page', String(nextPage));
+      return params;
+    });
+  }
+
+  function setStatusFilter(nextStatus: string): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (nextStatus) params.set('status', nextStatus);
+      else params.delete('status');
+      return params;
+    });
+  }
+
+  function approveAccount(account: BusinessAccount): void {
+    if (!window.confirm(`Approve business account "${account.companyName}"?`)) return;
+    approveMutation.mutate(account.id);
+  }
+
+  function openSuspend(account: BusinessAccount): void {
+    setSuspendTarget(account);
+    setSuspendReason('');
+    setActionError('');
+  }
+
+  function submitSuspend(): void {
+    if (!suspendTarget) return;
+    const reason = suspendReason.trim();
+    if (reason.length < 10) {
+      setActionError('Suspension reason must be at least 10 characters.');
+      return;
+    }
+    if (!window.confirm(`Suspend business account "${suspendTarget.companyName}"?`)) return;
+    suspendMutation.mutate({ id: suspendTarget.id, reason });
+  }
 
   const columns: Column<BusinessAccount>[] = [
     {
@@ -169,7 +229,9 @@ export default function BusinessAccountsPage(): React.ReactElement {
         <div className="flex gap-2">
           {r.status === 'pending' && (
             <button
-              onClick={() => approveMutation.mutate(r.id)}
+              type="button"
+              aria-label={`Approve business account ${r.companyName}`}
+              onClick={() => approveAccount(r)}
               disabled={approveMutation.isPending}
               className="text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
             >
@@ -178,7 +240,9 @@ export default function BusinessAccountsPage(): React.ReactElement {
           )}
           {r.status === 'active' && (
             <button
-              onClick={() => { setSuspendTarget(r); setSuspendReason(''); }}
+              type="button"
+              aria-label={`Suspend business account ${r.companyName}`}
+              onClick={() => openSuspend(r)}
               disabled={suspendMutation.isPending}
               className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
             >
@@ -201,7 +265,9 @@ export default function BusinessAccountsPage(): React.ReactElement {
 
       <div className="flex flex-wrap items-center gap-4">
         <form onSubmit={handleSearch} className="flex gap-2">
+          <label htmlFor="business-account-search" className="sr-only">Search company, city, or contact</label>
           <input
+            id="business-account-search"
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -218,7 +284,8 @@ export default function BusinessAccountsPage(): React.ReactElement {
 
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          aria-label="Filter business accounts by status"
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]"
         >
           <option value="">All Statuses</option>
@@ -229,8 +296,8 @@ export default function BusinessAccountsPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p className="text-sm text-red-600 mb-4">Failed to load business accounts. Please try again.</p>}
-      {actionError && <p className="text-sm text-red-600 mb-4">{actionError}</p>}
+      {isError && <p role="alert" className="text-sm text-red-600 mb-4">Failed to load business accounts. Please try again.</p>}
+      {actionError && <p role="alert" className="text-sm text-red-600 mb-4">{actionError}</p>}
 
       <DataTable columns={columns} data={accounts} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No business accounts found." />
 
@@ -246,13 +313,19 @@ export default function BusinessAccountsPage(): React.ReactElement {
 
       {suspendTarget && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1">Suspend business account</h3>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="suspend-business-title"
+            className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6"
+          >
+            <h3 id="suspend-business-title" className="text-lg font-semibold text-[var(--color-text)] mb-1">Suspend business account</h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
               {suspendTarget.companyName} ({TYPE_LABELS[suspendTarget.businessType] ?? suspendTarget.businessType})
             </p>
-            <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Suspension reason *</label>
+            <label htmlFor="business-suspend-reason" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Suspension reason *</label>
             <textarea
+              id="business-suspend-reason"
               value={suspendReason}
               onChange={(e) => setSuspendReason(e.target.value)}
               rows={3}
@@ -261,13 +334,15 @@ export default function BusinessAccountsPage(): React.ReactElement {
             />
             <div className="flex gap-2 justify-end mt-4">
               <button
+                type="button"
                 onClick={() => setSuspendTarget(null)}
                 className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={() => suspendMutation.mutate({ id: suspendTarget.id, reason: suspendReason })}
+                type="button"
+                onClick={submitSuspend}
                 disabled={suspendMutation.isPending || suspendReason.trim().length < 10}
                 className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
               >

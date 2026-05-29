@@ -9,6 +9,7 @@
 
 import React, { useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
@@ -46,6 +47,7 @@ import {
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type DsrStatus = 'received' | 'in_progress' | 'completed' | 'rejected';
+type ComplianceTab = 'npc' | 'bir' | 'audit' | 'tax' | 'reports';
 type DsrRequestType =
   | 'access' | 'erasure' | 'correction' | 'portability' | 'restriction' | 'objection';
 
@@ -122,9 +124,32 @@ const STATUS_LABEL: Record<DsrStatus, string> = {
   rejected: 'Rejected',
 };
 
+const COMPLIANCE_TABS = new Set<ComplianceTab>(['npc', 'bir', 'audit', 'tax', 'reports']);
+
+function parseTab(value: string | null): ComplianceTab {
+  return value && COMPLIANCE_TABS.has(value as ComplianceTab) ? value as ComplianceTab : 'npc';
+}
+
+function parseYear(value: string | null): number {
+  const fallback = new Date().getFullYear();
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 2020 && parsed <= 2050 ? parsed : fallback;
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────
 
 export default function CompliancePage(): React.ReactElement {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = parseTab(searchParams.get('tab'));
+
+  function selectTab(tab: ComplianceTab): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', tab);
+      return params;
+    });
+  }
+
   return (
     <div className="space-y-6 p-6">
       <div>
@@ -137,7 +162,7 @@ export default function CompliancePage(): React.ReactElement {
         </p>
       </div>
 
-      <Tabs defaultValue="npc">
+      <Tabs value={activeTab} onValueChange={(value) => selectTab(value as ComplianceTab)}>
         <TabsList>
           <TabsTrigger value="npc">NPC Compliance</TabsTrigger>
           <TabsTrigger value="bir">BIR Calendar</TabsTrigger>
@@ -169,9 +194,35 @@ export default function CompliancePage(): React.ReactElement {
 // ─── NPC tab ────────────────────────────────────────────────────────────────
 
 function NpcTab(): React.ReactElement {
-  const [statusFilter, setStatusFilter] = useState<DsrStatus | 'all'>('all');
-  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dsrStatusParam = searchParams.get('dsrStatus');
+  const statusFilter = dsrStatusParam === 'received' || dsrStatusParam === 'in_progress' || dsrStatusParam === 'completed' || dsrStatusParam === 'rejected'
+    ? dsrStatusParam
+    : 'all';
+  const overdueOnly = searchParams.get('overdueOnly') === 'true';
   const [selected, setSelected] = useState<DsrRecord | null>(null);
+
+  function setStatusFilter(value: DsrStatus | 'all'): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'npc');
+      if (value === 'all') params.delete('dsrStatus');
+      else params.set('dsrStatus', value);
+      return params;
+    });
+    setSelected(null);
+  }
+
+  function setOverdueOnly(value: boolean): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'npc');
+      if (value) params.set('overdueOnly', 'true');
+      else params.delete('overdueOnly');
+      return params;
+    });
+    setSelected(null);
+  }
 
   const dsrQuery = useQuery({
     queryKey: ['compliance-dsr', statusFilter, overdueOnly],
@@ -198,7 +249,7 @@ function NpcTab(): React.ReactElement {
               value={statusFilter}
               onValueChange={(v) => setStatusFilter(v as DsrStatus | 'all')}
             >
-              <SelectTrigger className="w-48">
+              <SelectTrigger aria-label="Filter DSR requests by status" className="w-48">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -249,8 +300,15 @@ function NpcTab(): React.ReactElement {
                   {(dsrQuery.data?.rows ?? []).map((r) => (
                     <tr
                       key={r.id}
+                      tabIndex={0}
                       className="border-t border-[var(--color-border)] cursor-pointer hover:bg-[var(--color-bg)]"
                       onClick={() => setSelected(r)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelected(r);
+                        }
+                      }}
                     >
                       <td className="px-4 py-2 font-mono text-xs">{r.id.slice(0, 8)}</td>
                       <td className="px-4 py-2">{r.userEmail ?? r.userId}</td>
@@ -296,13 +354,14 @@ function DsrDetailPanel(props: {
   const [adminNotes, setAdminNotes] = useState(dsr.adminNotes ?? '');
   const [rejectionReason, setRejectionReason] = useState(dsr.rejectionReason ?? '');
   const [responsePayloadUrl, setResponsePayloadUrl] = useState(dsr.responsePayloadUrl ?? '');
+  const [formError, setFormError] = useState('');
 
   const updateMut = useMutation({
     mutationFn: async () => {
       const body: Record<string, unknown> = { newStatus };
-      if (adminNotes) body.adminNotes = adminNotes;
-      if (rejectionReason) body.rejectionReason = rejectionReason;
-      if (responsePayloadUrl) body.responsePayloadUrl = responsePayloadUrl;
+      if (adminNotes.trim()) body.adminNotes = adminNotes.trim();
+      if (rejectionReason.trim()) body.rejectionReason = rejectionReason.trim();
+      if (responsePayloadUrl.trim()) body.responsePayloadUrl = responsePayloadUrl.trim();
       const res = await api.patch<{ success: boolean; data: DsrRecord }>(
         `/api/v1/admin/compliance/dsr/${dsr.id}`, body,
       );
@@ -316,6 +375,18 @@ function DsrDetailPanel(props: {
 
   const handleSubmit = (e: FormEvent): void => {
     e.preventDefault();
+    const trimmedReason = rejectionReason.trim();
+    const trimmedUrl = responsePayloadUrl.trim();
+    if (newStatus === 'rejected' && trimmedReason.length < 10) {
+      setFormError('Rejection reason must be at least 10 characters.');
+      return;
+    }
+    if (newStatus === 'completed' && !trimmedUrl) {
+      setFormError('Response payload URL is required when completing a DSR.');
+      return;
+    }
+    if (!window.confirm(`Update DSR ${dsr.id.slice(0, 8)} to ${STATUS_LABEL[newStatus]}?`)) return;
+    setFormError('');
     updateMut.mutate();
   };
 
@@ -384,8 +455,9 @@ function DsrDetailPanel(props: {
             </div>
           )}
           {updateMut.isError && (
-            <p className="text-sm text-red-600">{getErrorMessage(updateMut.error)}</p>
+            <p role="alert" className="text-sm text-red-600">{getErrorMessage(updateMut.error)}</p>
           )}
+          {formError && <p role="alert" className="text-sm text-red-600">{formError}</p>}
           <div className="flex gap-2">
             <Button type="submit" disabled={updateMut.isPending}>
               {updateMut.isPending ? 'Saving...' : 'Save changes'}
@@ -421,7 +493,7 @@ function ConsentSearchCard(): React.ReactElement {
 
   const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
-    setApplied({ userId, consentType, version });
+    setApplied({ userId: userId.trim(), consentType: consentType.trim(), version: version.trim() });
   };
 
   return (
@@ -490,7 +562,17 @@ function ConsentSearchCard(): React.ReactElement {
 // ─── BIR tab ───────────────────────────────────────────────────────────────
 
 function BirTab(): React.ReactElement {
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [searchParams, setSearchParams] = useSearchParams();
+  const year = parseYear(searchParams.get('year'));
+
+  function setYear(value: number): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'bir');
+      if (Number.isInteger(value) && value >= 2020 && value <= 2050) params.set('year', String(value));
+      return params;
+    });
+  }
 
   const calQuery = useQuery({
     queryKey: ['compliance-bir-calendar', year],
@@ -528,7 +610,7 @@ function BirTab(): React.ReactElement {
             min={2020}
             max={2050}
             value={year}
-            onChange={(e) => setYear(Number(e.target.value) || year)}
+            onChange={(e) => setYear(Number(e.target.value))}
             className="w-28"
           />
         </div>
@@ -647,31 +729,36 @@ function AuditTab(): React.ReactElement {
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
           <Input
+            aria-label="Filter compliance audit by action"
             placeholder="Action contains..."
             value={actionFilter}
             onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
           />
           <Input
+            aria-label="Filter compliance audit by entity type"
             placeholder="Entity type"
             value={entityTypeFilter}
             onChange={(e) => { setEntityTypeFilter(e.target.value); setPage(1); }}
           />
           <Input
+            aria-label="Filter compliance audit by user ID"
             placeholder="User ID"
             value={userIdFilter}
             onChange={(e) => { setUserIdFilter(e.target.value); setPage(1); }}
           />
           <Input
+            aria-label="Filter compliance audit from date"
             type="date"
             value={from}
             onChange={(e) => { setFrom(e.target.value); setPage(1); }}
           />
           <Input
+            aria-label="Filter compliance audit to date"
             type="date"
             value={to}
             onChange={(e) => { setTo(e.target.value); setPage(1); }}
           />
-          <Button onClick={() => { void handleExport(); }} disabled={exporting}>
+          <Button onClick={() => { if (window.confirm('Export the filtered compliance audit log as CSV?')) void handleExport(); }} disabled={exporting}>
             <Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}
           </Button>
         </div>
@@ -703,8 +790,15 @@ function AuditTab(): React.ReactElement {
                   {entries.map((entry) => (
                     <tr
                       key={entry.id}
+                      tabIndex={0}
                       className="border-t border-[var(--color-border)] cursor-pointer hover:bg-[var(--color-bg)]"
                       onClick={() => setSelectedEntry(selectedEntry?.id === entry.id ? null : entry)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedEntry(selectedEntry?.id === entry.id ? null : entry);
+                        }
+                      }}
                     >
                       <td className="px-4 py-2 whitespace-nowrap">{fmtDateTime(entry.createdAt)}</td>
                       <td className="px-4 py-2">{entry.userEmail ?? 'System'}</td>

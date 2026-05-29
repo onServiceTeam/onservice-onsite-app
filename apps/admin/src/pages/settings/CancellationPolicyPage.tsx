@@ -65,6 +65,17 @@ function formatPHP(centavos: number): string {
   return `₱${(centavos / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatPHT(value: string): string {
+  return new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Manila',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
 interface EditorState {
   tiers: Tier[];
   intro_text: string;
@@ -165,6 +176,36 @@ export default function CancellationPolicyPage(): React.ReactElement {
     return ageMs < 60 * 60 * 1000;
   }, [activePolicyQuery.data]);
 
+  function validateEditorState(payload: EditorState): string | null {
+    if (!payload.intro_text.trim()) return 'Intro text is required.';
+    if (!payload.legal_disclaimer.trim()) return 'Legal disclaimer is required.';
+    if (!Number.isFinite(payload.provider_no_show_credit_php) || payload.provider_no_show_credit_php < 0) {
+      return 'Provider no-show credit must be zero or higher.';
+    }
+    return null;
+  }
+
+  function savePolicy(): void {
+    if (!editing || !editMode) return;
+    const validationError = validateEditorState(editing);
+    if (validationError) {
+      setSubmitError(validationError);
+      return;
+    }
+    const body: EditorState = {
+      ...editing,
+      intro_text: editing.intro_text.trim(),
+      legal_disclaimer: editing.legal_disclaimer.trim(),
+    };
+    const action = editMode === 'in-place' ? 'save changes to the active version' : 'publish a new cancellation policy version';
+    if (!window.confirm(`Confirm ${action}?`)) return;
+    saveMutation.mutate({
+      mode: editMode,
+      version: editMode === 'in-place' ? activePolicyQuery.data?.version : undefined,
+      body,
+    });
+  }
+
   if (role !== 'super_admin') {
     return (
       <div className="p-6">
@@ -212,7 +253,7 @@ export default function CancellationPolicyPage(): React.ReactElement {
           <CardHeader>
             <CardTitle>Active version (v{activePolicyQuery.data.version})</CardTitle>
             <CardDescription>
-              Effective {new Date(activePolicyQuery.data.effective_from).toLocaleString()} —
+              Effective {formatPHT(activePolicyQuery.data.effective_from)} —
               {' '}created by {activePolicyQuery.data.creator_name ?? 'unknown'}.
               {' '}{inPlaceWindowOpen ? 'In-place edit window: open (within 1 hour of creation).' : 'In-place edit window closed; new version required.'}
             </CardDescription>
@@ -241,7 +282,7 @@ export default function CancellationPolicyPage(): React.ReactElement {
               </tbody>
             </table>
             <div className="mt-4 text-sm">
-              <strong>Provider no-show credit:</strong> ₱{activePolicyQuery.data.provider_no_show_credit_php}
+              <strong>Provider no-show credit:</strong> {formatPHP(activePolicyQuery.data.provider_no_show_credit_php * 100)}
               {' '}(platform-funded apology credit)
             </div>
             <div className="mt-4 flex gap-2">
@@ -290,6 +331,7 @@ export default function CancellationPolicyPage(): React.ReactElement {
                         <tr className="border-t border-[var(--color-border)] align-top">
                           <td className="py-2 pr-2">
                             <Input
+                              aria-label={`Tier ${i + 1} label`}
                               value={t.label}
                               onChange={(e): void => {
                                 const next = editPayload.tiers.slice();
@@ -300,6 +342,7 @@ export default function CancellationPolicyPage(): React.ReactElement {
                           </td>
                           <td className="pr-2">
                             <Input
+                              aria-label={`Tier ${i + 1} minimum hours before booking`}
                               type="number"
                               value={t.min_hours_before}
                               onChange={(e): void => {
@@ -311,6 +354,7 @@ export default function CancellationPolicyPage(): React.ReactElement {
                           </td>
                           <td className="pr-2">
                             <Input
+                              aria-label={`Tier ${i + 1} maximum hours before booking`}
                               type="number"
                               value={t.max_hours_before ?? ''}
                               placeholder="∞"
@@ -323,6 +367,7 @@ export default function CancellationPolicyPage(): React.ReactElement {
                           </td>
                           <td className="pr-2">
                             <Input
+                              aria-label={`Tier ${i + 1} refund percent`}
                               type="number"
                               value={t.refund_percent}
                               onChange={(e): void => {
@@ -334,7 +379,7 @@ export default function CancellationPolicyPage(): React.ReactElement {
                             />
                           </td>
                           <td className="pr-2">
-                            <Input type="number" value={t.fee_percent} disabled />
+                            <Input aria-label={`Tier ${i + 1} fee percent`} type="number" value={t.fee_percent} disabled />
                           </td>
                           <td>
                             <Button
@@ -435,7 +480,7 @@ export default function CancellationPolicyPage(): React.ReactElement {
             </div>
 
             {submitError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {submitError}
               </div>
             )}
@@ -443,14 +488,7 @@ export default function CancellationPolicyPage(): React.ReactElement {
             <div className="flex gap-2">
               <Button
                 disabled={!validation.ok || saveMutation.isPending}
-                onClick={(): void => {
-                  if (!editing || !editMode) return;
-                  saveMutation.mutate({
-                    mode: editMode,
-                    version: editMode === 'in-place' ? activePolicyQuery.data?.version : undefined,
-                    body: editing,
-                  });
-                }}
+                onClick={savePolicy}
               >
                 <Save className="w-4 h-4 mr-1" />
                 {saveMutation.isPending ? 'Saving...' : (editMode === 'in-place' ? 'Save in place' : 'Save as new version')}
@@ -484,10 +522,10 @@ export default function CancellationPolicyPage(): React.ReactElement {
               {(versionsQuery.data ?? []).map((v) => (
                 <tr key={v.id} className="border-t border-[var(--color-border)]">
                   <td className="py-2">{v.version}{v.is_active ? ' (active)' : ''}</td>
-                  <td>{new Date(v.effective_from).toLocaleString()}</td>
-                  <td>{v.effective_to ? new Date(v.effective_to).toLocaleString() : '—'}</td>
+                  <td>{formatPHT(v.effective_from)}</td>
+                  <td>{v.effective_to ? formatPHT(v.effective_to) : '—'}</td>
                   <td>{v.tier_count}</td>
-                  <td>₱{v.provider_no_show_credit_php}</td>
+                  <td>{formatPHP(v.provider_no_show_credit_php * 100)}</td>
                   <td>{v.creator_name ?? '—'}</td>
                 </tr>
               ))}

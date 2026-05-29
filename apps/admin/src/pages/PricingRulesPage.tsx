@@ -72,6 +72,16 @@ function formatDays(days: number[] | null): string {
   return days.map((d) => DAY_NAMES[d] ?? d).join(', ');
 }
 
+function formatDateOnly(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(`${iso}T00:00:00+08:00`).toLocaleDateString('en-PH', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
 const EMPTY_FORM = {
   name: '',
   type: 'rush' as 'rush' | 'holiday' | 'peak_hours',
@@ -125,7 +135,7 @@ export default function PricingRulesPage(): React.ReactElement {
         multiplier,
         priority: Number(form.priority) || 0,
         platformSurgeShare: Number(form.platformSurgeShare) || 0.5,
-        description: form.description,
+        description: form.description.trim(),
       };
 
       if (form.type === 'rush') {
@@ -196,6 +206,39 @@ export default function PricingRulesPage(): React.ReactElement {
     setActionError('');
   };
 
+  const validateForm = (): string | null => {
+    const multiplier = Number(form.multiplier);
+    const priority = Number(form.priority);
+    const platformSurgeShare = Number(form.platformSurgeShare);
+
+    if (!form.name.trim()) return 'Rule name is required.';
+    if (!Number.isFinite(multiplier) || multiplier < 1 || multiplier > 5) {
+      return 'Multiplier must be between 1.0 and 5.0.';
+    }
+    if (!Number.isFinite(priority) || priority < 0 || priority > 100) {
+      return 'Priority must be between 0 and 100.';
+    }
+    if (!Number.isFinite(platformSurgeShare) || platformSurgeShare < 0 || platformSurgeShare > 1) {
+      return 'Platform surge share must be between 0 and 1.';
+    }
+
+    if (form.type === 'rush') {
+      const rushHoursThreshold = Number(form.rushHoursThreshold);
+      if (!Number.isFinite(rushHoursThreshold) || rushHoursThreshold < 1 || rushHoursThreshold > 72) {
+        return 'Rush threshold must be between 1 and 72 hours.';
+      }
+    }
+    if (form.type === 'holiday' && !form.holidayDate) {
+      return 'Holiday date is required.';
+    }
+    if (form.type === 'peak_hours') {
+      if (!form.peakStartTime || !form.peakEndTime) return 'Peak start and end time are required.';
+      if (form.peakStartTime >= form.peakEndTime) return 'Peak start time must be before end time.';
+    }
+
+    return null;
+  };
+
   const openEdit = (rule: PricingRule): void => {
     setShowCreate(false);
     setEditing(rule);
@@ -217,6 +260,12 @@ export default function PricingRulesPage(): React.ReactElement {
 
   const handleSubmit = (e: FormEvent): void => {
     e.preventDefault();
+    const validationError = validateForm();
+    if (validationError) {
+      setActionError(validationError);
+      return;
+    }
+    setActionError('');
     if (editing) {
       updateMutation.mutate({
         id: editing.id,
@@ -230,7 +279,7 @@ export default function PricingRulesPage(): React.ReactElement {
           peakDaysOfWeek: form.peakDaysOfWeek.length > 0 ? form.peakDaysOfWeek : undefined,
           priority: Number(form.priority),
           platformSurgeShare: Number(form.platformSurgeShare),
-          description: form.description,
+          description: form.description.trim(),
         },
       });
     } else {
@@ -274,8 +323,8 @@ export default function PricingRulesPage(): React.ReactElement {
       </div>
 
       {/* Error banner */}
-      {actionError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
+      {actionError && !showCreate && !editing && (
+        <div role="alert" className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
           {actionError}
         </div>
       )}
@@ -283,6 +332,7 @@ export default function PricingRulesPage(): React.ReactElement {
       {/* Filters */}
       <div className="flex gap-3 flex-wrap">
         <select
+          aria-label="Filter pricing rules by type"
           value={typeFilter}
           onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
           className="text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 bg-white"
@@ -293,6 +343,7 @@ export default function PricingRulesPage(): React.ReactElement {
           <option value="peak_hours">Peak Hours</option>
         </select>
         <select
+          aria-label="Filter pricing rules by status"
           value={activeFilter}
           onChange={(e) => { setActiveFilter(e.target.value); setPage(1); }}
           className="text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 bg-white"
@@ -309,7 +360,7 @@ export default function PricingRulesPage(): React.ReactElement {
           <h2 className="text-lg font-semibold text-[var(--color-text)] mb-4">
             {editing ? 'Edit Pricing Rule' : 'Create Pricing Rule'}
           </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <Label htmlFor="pr-name" className="block text-sm font-medium text-[var(--color-text)] mb-1">
@@ -428,6 +479,7 @@ export default function PricingRulesPage(): React.ReactElement {
                           type="button"
                           onClick={() => toggleDay(i)}
                           aria-pressed={form.peakDaysOfWeek.includes(i)}
+                          aria-label={`${form.peakDaysOfWeek.includes(i) ? 'Remove' : 'Add'} ${day} peak day`}
                           className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                             form.peakDaysOfWeek.includes(i)
                               ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
@@ -487,7 +539,7 @@ export default function PricingRulesPage(): React.ReactElement {
             </div>
 
             {actionError && (
-              <p className="text-red-600 text-sm">{actionError}</p>
+              <p role="alert" className="text-red-600 text-sm">{actionError}</p>
             )}
 
             <div className="flex gap-3 justify-end">
@@ -502,7 +554,7 @@ export default function PricingRulesPage(): React.ReactElement {
               <button
                 type="submit"
                 disabled={isBusy}
-                className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50"
+                className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed"
               >
                 {isBusy ? 'Saving…' : editing ? 'Save Changes' : 'Create Rule'}
               </button>
@@ -573,7 +625,7 @@ export default function PricingRulesPage(): React.ReactElement {
                       <span>Within {rule.rushHoursThreshold}h of booking</span>
                     )}
                     {rule.type === 'holiday' && rule.holidayDate && (
-                      <span>{rule.holidayDate}</span>
+                      <span>{formatDateOnly(rule.holidayDate)}</span>
                     )}
                     {rule.type === 'peak_hours' && (
                       <div>
@@ -598,15 +650,20 @@ export default function PricingRulesPage(): React.ReactElement {
                     <div className="flex gap-2 justify-end">
                       <button
                         onClick={() => openEdit(rule)}
+                        aria-label={`Edit pricing rule ${rule.name}`}
                         className="text-xs px-2.5 py-1 border border-[var(--color-border)] rounded-md hover:bg-gray-50 text-[var(--color-text-secondary)]"
                         disabled={isBusy}
                       >
                         Edit
                       </button>
                       <button
-                        onClick={() =>
-                          toggleMutation.mutate({ id: rule.id, isActive: !rule.isActive })
-                        }
+                        onClick={() => {
+                          const action = rule.isActive ? 'Disable' : 'Enable';
+                          if (window.confirm(`${action} pricing rule "${rule.name}"?`)) {
+                            toggleMutation.mutate({ id: rule.id, isActive: !rule.isActive });
+                          }
+                        }}
+                        aria-label={`${rule.isActive ? 'Disable' : 'Enable'} pricing rule ${rule.name}`}
                         className={`text-xs px-2.5 py-1 border rounded-md disabled:opacity-50 ${
                           rule.isActive
                             ? 'border-orange-200 text-orange-600 hover:bg-orange-50'
@@ -618,6 +675,7 @@ export default function PricingRulesPage(): React.ReactElement {
                       </button>
                       <button
                         onClick={() => { setDeleteTarget(rule); }}
+                        aria-label={`Delete pricing rule ${rule.name}`}
                         className="text-xs px-2.5 py-1 border border-red-200 text-red-600 rounded-md hover:bg-red-50 disabled:opacity-50"
                         disabled={isBusy}
                       >

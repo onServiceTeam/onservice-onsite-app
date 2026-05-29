@@ -7,8 +7,9 @@
  *     online-provider markers. Click → side detail panel.
  *   - Bottom-left: ACTIVE BOOKINGS list (capped at 50 rows). Reassign / Cancel
  *     / Message buttons are wired to real mutations as of Phase 14 Dispatch 10
- *     (Bug 272.A/B/C closed). Each button opens a modal with a reason field
- *     ≥30 chars; mutation goes through the booking-admin.service which writes
+ *     (Bug 272.A/B/C closed). Each button opens a modal with client-side
+ *     validation aligned to the booking-admin.service reason/message rules;
+ *     mutation goes through the booking-admin.service which writes
  *     a paired admin_actions row inside its transaction (D06 trx pattern).
  *   - Bottom-right: ALERT TAIL — last 20 admin alerts streamed via socket.
  *
@@ -182,6 +183,11 @@ function statusColor(status: string): string {
 
 function formatStatus(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatDateTime(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
 }
 
 // ─── Marker icon factories ──────────────────────────────────────────────────
@@ -385,6 +391,10 @@ export default function DispatchConsolePage(): React.ReactElement {
   const [messageTarget, setMessageTarget] = useState<DispatchBooking | null>(null);
   const [messageBody, setMessageBody] = useState<string>('');
 
+  const canReassign = reassignProviderId.length > 0 && reassignReason.trim().length >= 5;
+  const canCancel = cancelReason.trim().length >= 10;
+  const canSendMessage = messageBody.trim().length >= 5 && messageBody.trim().length <= 2000;
+
   const reassignMutation = useMutation({
     mutationFn: async (vars: { bookingId: string; newProviderId: string; reason: string }) => {
       await api.post(`/api/v1/admin/bookings/${vars.bookingId}/reassign`, {
@@ -534,10 +544,11 @@ export default function DispatchConsolePage(): React.ReactElement {
           <button
             type="button"
             onClick={handleRefresh}
+            disabled={bookingsQuery.isFetching || providersQuery.isFetching}
             className="inline-flex items-center gap-1.5 text-sm border border-slate-300 rounded px-3 py-1.5 bg-white hover:bg-slate-50"
           >
             <RefreshCw size={14} />
-            Refresh
+            {bookingsQuery.isFetching || providersQuery.isFetching ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </header>
@@ -634,7 +645,15 @@ export default function DispatchConsolePage(): React.ReactElement {
                     className={`border-t border-slate-100 hover:bg-slate-50 ${
                       selectedBookingId === b.id ? 'bg-slate-50' : ''
                     }`}
+                    tabIndex={0}
+                    aria-label={`View booking ${b.id}`}
                     onClick={() => setSelectedBookingId(b.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedBookingId(b.id);
+                      }
+                    }}
                   >
                     <td className="px-3 py-2 font-mono text-slate-700">{b.id.slice(0, 8)}</td>
                     <td className="px-3 py-2">{b.categoryName ?? '—'}</td>
@@ -655,13 +674,15 @@ export default function DispatchConsolePage(): React.ReactElement {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleReassign(b); }}
-                        className="text-[var(--color-link)] hover:underline mr-2"
+                        aria-label={`Reassign booking ${b.id}`}
+                        className="text-[var(--color-primary)] hover:underline mr-2"
                       >
                         Reassign
                       </button>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleCancel(b); }}
+                        aria-label={`Cancel booking ${b.id}`}
                         className="text-red-600 hover:underline mr-2"
                       >
                         Cancel
@@ -669,6 +690,7 @@ export default function DispatchConsolePage(): React.ReactElement {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleMessage(b); }}
+                        aria-label={`Message customer for booking ${b.id}`}
                         className="text-slate-600 hover:underline"
                       >
                         Message
@@ -739,7 +761,7 @@ export default function DispatchConsolePage(): React.ReactElement {
             <div><strong>Customer:</strong> {selectedBooking.customerName ?? '—'}</div>
             <div><strong>Provider:</strong> {selectedBooking.providerName ?? '(unassigned)'}</div>
             <div><strong>City:</strong> {selectedBooking.city ?? '—'}</div>
-            <div><strong>Scheduled:</strong> {selectedBooking.scheduledAt ?? '—'}</div>
+            <div><strong>Scheduled:</strong> {formatDateTime(selectedBooking.scheduledAt)}</div>
           </div>
         </div>
       )}
@@ -786,7 +808,7 @@ export default function DispatchConsolePage(): React.ReactElement {
                 id="reassign-reason"
                 value={reassignReason}
                 onChange={(e) => setReassignReason(e.target.value)}
-                placeholder="Why reassign? (audit trail)"
+                placeholder="Why reassign? At least 5 characters."
                 rows={3}
               />
             </div>
@@ -810,13 +832,14 @@ export default function DispatchConsolePage(): React.ReactElement {
                   toast.warning('Reason must be at least 5 characters.');
                   return;
                 }
+                if (!window.confirm('Reassign this booking to the selected provider?')) return;
                 reassignMutation.mutate({
                   bookingId: reassignTarget.id,
                   newProviderId: reassignProviderId,
                   reason: reassignReason.trim(),
                 });
               }}
-              disabled={reassignMutation.isPending}
+              disabled={reassignMutation.isPending || !canReassign}
             >
               {reassignMutation.isPending ? 'Reassigning…' : 'Reassign'}
             </Button>
@@ -877,12 +900,13 @@ export default function DispatchConsolePage(): React.ReactElement {
                   toast.warning('Reason must be at least 10 characters.');
                   return;
                 }
+                if (!window.confirm('Cancel this booking and trigger the configured refund flow?')) return;
                 cancelMutation.mutate({
                   bookingId: cancelTarget.id,
                   reason: cancelReason.trim(),
                 });
               }}
-              disabled={cancelMutation.isPending}
+              disabled={cancelMutation.isPending || !canCancel}
             >
               {cancelMutation.isPending ? 'Cancelling…' : 'Cancel booking'}
             </Button>
@@ -937,7 +961,7 @@ export default function DispatchConsolePage(): React.ReactElement {
                   message: trimmed,
                 });
               }}
-              disabled={messageMutation.isPending}
+              disabled={messageMutation.isPending || !canSendMessage}
             >
               {messageMutation.isPending ? 'Sending…' : 'Send'}
             </Button>

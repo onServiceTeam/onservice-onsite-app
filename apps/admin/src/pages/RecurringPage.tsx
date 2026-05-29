@@ -1,5 +1,6 @@
 import React, { useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -47,11 +48,23 @@ function formatStatus(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const STATUS_OPTIONS = new Set(['active', 'paused', 'cancelled']);
+
+function parsePage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function parseStatus(value: string | null): string {
+  return value && STATUS_OPTIONS.has(value) ? value : '';
+}
+
 export default function RecurringPage(): React.ReactElement {
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parsePage(searchParams.get('page'));
+  const statusFilter = parseStatus(searchParams.get('status'));
+  const search = searchParams.get('search')?.trim() ?? '';
+  const [searchInput, setSearchInput] = useState(search);
   const [actionError, setActionError] = useState('');
   // BUG-PHASE41-02 fix — pre-fix the cancel POST sent a hardcoded
   // reason ("Admin cancellation"). The reason ends up in the audit
@@ -75,7 +88,7 @@ export default function RecurringPage(): React.ReactElement {
 
   const cancelMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      await api.post(`/api/v1/admin/recurring/${id}/cancel`, { reason });
+      await api.post(`/api/v1/admin/recurring/${id}/cancel`, { reason: reason.trim() });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminRecurring'] });
@@ -88,9 +101,51 @@ export default function RecurringPage(): React.ReactElement {
 
   const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
-    setSearch(searchInput);
-    setPage(1);
+    const trimmed = searchInput.trim();
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (trimmed) params.set('search', trimmed);
+      else params.delete('search');
+      return params;
+    });
   };
+
+  function setPage(nextPage: number): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextPage <= 1) params.delete('page');
+      else params.set('page', String(nextPage));
+      return params;
+    });
+  }
+
+  function setStatusFilter(nextStatus: string): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (nextStatus) params.set('status', nextStatus);
+      else params.delete('status');
+      return params;
+    });
+  }
+
+  function openCancel(target: RecurringBooking): void {
+    setCancelTarget(target);
+    setCancelReason('');
+    setActionError('');
+  }
+
+  function submitCancel(): void {
+    if (!cancelTarget) return;
+    const reason = cancelReason.trim();
+    if (reason.length < 10) {
+      setActionError('Cancellation reason must be at least 10 characters.');
+      return;
+    }
+    if (!window.confirm(`Cancel recurring booking ${cancelTarget.id.slice(0, 8)} for ${cancelTarget.customerName ?? 'this customer'}?`)) return;
+    cancelMutation.mutate({ id: cancelTarget.id, reason });
+  }
 
   const columns: Column<RecurringBooking>[] = [
     {
@@ -162,7 +217,9 @@ export default function RecurringPage(): React.ReactElement {
       render: (r) =>
         r.status === 'active' ? (
           <button
-            onClick={() => { setCancelTarget(r); setCancelReason(''); }}
+            type="button"
+            aria-label={`Cancel recurring booking ${r.id}`}
+            onClick={() => openCancel(r)}
             disabled={cancelMutation.isPending}
             className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
           >
@@ -184,6 +241,7 @@ export default function RecurringPage(): React.ReactElement {
       <div className="flex flex-wrap items-center gap-4">
         <form onSubmit={handleSearch} className="flex gap-2">
           <input
+            id="recurring-search"
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -201,7 +259,7 @@ export default function RecurringPage(): React.ReactElement {
 
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => setStatusFilter(e.target.value)}
           aria-label="Filter recurring bookings by status"
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]"
         >
@@ -212,8 +270,8 @@ export default function RecurringPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p className="text-sm text-red-600 mb-4">Failed to load recurring bookings. Please try again.</p>}
-      {actionError && <p className="text-sm text-red-600 mb-4">{actionError}</p>}
+      {isError && <p role="alert" className="text-sm text-red-600 mb-4">Failed to load recurring bookings. Please try again.</p>}
+      {actionError && <p role="alert" className="text-sm text-red-600 mb-4">{actionError}</p>}
 
       <DataTable columns={columns} data={bookings} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No recurring bookings found." />
 
@@ -229,13 +287,19 @@ export default function RecurringPage(): React.ReactElement {
 
       {cancelTarget && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1">Cancel recurring booking</h3>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-recurring-title"
+            className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6"
+          >
+            <h3 id="cancel-recurring-title" className="text-lg font-semibold text-[var(--color-text)] mb-1">Cancel recurring booking</h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
               {cancelTarget.customerName ?? '(unknown customer)'} — {FREQUENCY_LABELS[cancelTarget.frequency] ?? cancelTarget.frequency}
             </p>
-            <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Cancellation reason *</label>
+            <label htmlFor="recurring-cancel-reason" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Cancellation reason *</label>
             <textarea
+              id="recurring-cancel-reason"
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
               rows={3}
@@ -244,13 +308,15 @@ export default function RecurringPage(): React.ReactElement {
             />
             <div className="flex gap-2 justify-end mt-4">
               <button
+                type="button"
                 onClick={() => setCancelTarget(null)}
                 className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={() => cancelMutation.mutate({ id: cancelTarget.id, reason: cancelReason })}
+                type="button"
+                onClick={submitCancel}
                 disabled={cancelMutation.isPending || cancelReason.trim().length < 10}
                 className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
               >

@@ -1,6 +1,6 @@
-import React, { useState, type FormEvent } from 'react';
+import React, { useEffect, useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
@@ -56,10 +56,28 @@ function formatStatus(s: string): string {
 
 export default function BookingsPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') ?? '');
+  const [searchInput, setSearchInput] = useState(() => searchParams.get('search') ?? '');
+
+  useEffect(() => {
+    const nextSearch = searchParams.get('search') ?? '';
+    setSearch(nextSearch);
+    setSearchInput(nextSearch);
+    setStatusFilter(searchParams.get('status') ?? '');
+    setPage(1);
+  }, [searchParams]);
+
+  const updateUrlFilters = (next: { search?: string; status?: string }): void => {
+    const params = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(next)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    setSearchParams(params, { replace: true });
+  };
 
   useAdminSocketEvent<{ id: string }>('booking:status_changed', () => {
     void queryClient.invalidateQueries({ queryKey: ['adminBookings'] });
@@ -78,8 +96,10 @@ export default function BookingsPage(): React.ReactElement {
 
   const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
-    setSearch(searchInput);
+    const nextSearch = searchInput.trim();
+    setSearch(nextSearch);
     setPage(1);
+    updateUrlFilters({ search: nextSearch });
   };
 
   const columns: Column<Booking>[] = [
@@ -87,7 +107,7 @@ export default function BookingsPage(): React.ReactElement {
       key: 'id',
       header: 'Booking ID',
       render: (r) => (
-        <Link to={`/bookings/${r.id}`} className="font-mono text-xs text-[var(--color-link)] hover:underline">{r.id.slice(0, 8)}</Link>
+        <Link to={`/bookings/${r.id}`} className="font-mono text-xs text-[var(--color-primary)] hover:underline">{r.id.slice(0, 8)}</Link>
       ),
     },
     {
@@ -181,7 +201,7 @@ export default function BookingsPage(): React.ReactElement {
         </form>
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); updateUrlFilters({ status: e.target.value }); }}
           aria-label="Filter bookings by status"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >

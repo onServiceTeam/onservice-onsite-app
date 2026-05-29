@@ -155,11 +155,11 @@ export default function LoginPage(): React.ReactElement {
   // 2FA force-enrollment step (admin/super_admin without TOTP)
   if (requires2FASetup) {
     return (
-      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4">
+      <main className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-[var(--color-text)]">
-              <span className="text-[var(--color-secondary)]">on</span>Service
+              <span className="text-[var(--color-primary)]">on</span>Service
             </h1>
             <p className="text-sm text-[var(--color-text-secondary)] mt-1">Admin Panel</p>
           </div>
@@ -174,7 +174,7 @@ export default function LoginPage(): React.ReactElement {
             </p>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {error}
               </div>
             )}
@@ -211,7 +211,6 @@ export default function LoginPage(): React.ReactElement {
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]{6}"
-                maxLength={6}
                 value={enrolCode}
                 onChange={(e) => setEnrolCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 required
@@ -223,7 +222,7 @@ export default function LoginPage(): React.ReactElement {
             <button
               type="submit"
               disabled={loading || enrolCode.length !== 6 || !setupSecret}
-              className="w-full py-2.5 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              className="w-full py-2.5 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
             >
               {loading ? 'Enabling...' : 'Enable & Sign In'}
             </button>
@@ -244,18 +243,18 @@ export default function LoginPage(): React.ReactElement {
             </button>
           </form>
         </div>
-      </div>
+      </main>
     );
   }
 
   // 2FA verification step
   if (requires2FA) {
     return (
-      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4">
+      <main className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-[var(--color-text)]">
-              <span className="text-[var(--color-secondary)]">on</span>Service
+              <span className="text-[var(--color-primary)]">on</span>Service
             </h1>
             <p className="text-sm text-[var(--color-text-secondary)] mt-1">Admin Panel</p>
           </div>
@@ -270,7 +269,7 @@ export default function LoginPage(): React.ReactElement {
             </p>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {error}
               </div>
             )}
@@ -283,7 +282,6 @@ export default function LoginPage(): React.ReactElement {
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]{6}"
-                maxLength={6}
                 value={totpCode}
                 onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 required
@@ -296,7 +294,7 @@ export default function LoginPage(): React.ReactElement {
             <button
               type="submit"
               disabled={loading || totpCode.length !== 6}
-              className="w-full py-2.5 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              className="w-full py-2.5 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
             >
               {loading ? 'Verifying...' : 'Verify'}
             </button>
@@ -310,16 +308,16 @@ export default function LoginPage(): React.ReactElement {
             </button>
           </form>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4">
+    <main className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-[var(--color-text)]">
-            <span className="text-[var(--color-secondary)]">on</span>Service
+            <span className="text-[var(--color-primary)]">on</span>Service
           </h1>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">Admin Panel</p>
         </div>
@@ -331,7 +329,7 @@ export default function LoginPage(): React.ReactElement {
           <h2 className="text-lg font-semibold text-[var(--color-text)] mb-5">Sign In</h2>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
               {error}
             </div>
           )}
@@ -366,7 +364,7 @@ export default function LoginPage(): React.ReactElement {
           <button
             type="submit"
             disabled={loading || !email || !password}
-            className="w-full py-2.5 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+            className="w-full py-2.5 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
@@ -376,6 +374,6 @@ export default function LoginPage(): React.ReactElement {
           Authorized personnel only
         </p>
       </div>
-    </div>
+    </main>
   );
 }

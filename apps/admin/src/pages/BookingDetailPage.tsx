@@ -398,6 +398,11 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
     const n = parseFloat(amountPesos);
     return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
   })();
+  const cancelHours = (() => {
+    if (!hoursUntilScheduled) return undefined;
+    const n = Number(hoursUntilScheduled);
+    return Number.isFinite(n) ? n : undefined;
+  })();
 
   return (
     <Card className="p-5">
@@ -457,10 +462,11 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
 
           {open === 'refund' && (
             <div>
-              <label className="text-xs text-[var(--color-text-secondary)]">
+              <label htmlFor="booking-refund-amount" className="text-xs text-[var(--color-text-secondary)]">
                 Refund amount (PHP)
               </label>
               <input
+                id="booking-refund-amount"
                 type="number"
                 step="0.01"
                 value={amountPesos}
@@ -473,10 +479,11 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
 
           {open === 'reassign' && (
             <div>
-              <label className="text-xs text-[var(--color-text-secondary)]">
+              <label htmlFor="booking-reassign-provider" className="text-xs text-[var(--color-text-secondary)]">
                 New provider ID (UUID)
               </label>
               <input
+                id="booking-reassign-provider"
                 type="text"
                 value={providerId}
                 onChange={(e) => setProviderId(e.target.value)}
@@ -489,10 +496,11 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
           {open === 'cancel' && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="text-xs text-[var(--color-text-secondary)]">
+                <label htmlFor="booking-cancel-hours" className="text-xs text-[var(--color-text-secondary)]">
                   Hours until scheduled (optional)
                 </label>
                 <input
+                  id="booking-cancel-hours"
                   type="number"
                   step="0.5"
                   value={hoursUntilScheduled}
@@ -526,6 +534,7 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
                 : 'Reason (min 10 characters) — recorded in admin_actions ledger'}
             </label>
             <Textarea
+              aria-label="Booking action reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder={
@@ -542,7 +551,9 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
               <Button
                 size="sm"
                 disabled={!reasonOk || releaseMut.isPending}
-                onClick={() => releaseMut.mutate({ reason })}
+                onClick={() => {
+                  if (window.confirm('Manually release escrow for this booking?')) releaseMut.mutate({ reason });
+                }}
               >
                 Confirm release
               </Button>
@@ -552,7 +563,9 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
                 size="sm"
                 disabled={!reasonOk || refundAmtCentavos === 0 || refundMut.isPending}
                 onClick={() =>
-                  refundMut.mutate({ amount: refundAmtCentavos, reason })
+                  window.confirm(`Refund ${fmtCentavos(refundAmtCentavos)} from escrow?`)
+                    ? refundMut.mutate({ amount: refundAmtCentavos, reason })
+                    : undefined
                 }
               >
                 Confirm refund {refundAmtCentavos > 0 && `(${fmtCentavos(refundAmtCentavos)})`}
@@ -563,7 +576,9 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
                 size="sm"
                 disabled={!reasonOk || providerId.trim().length === 0 || reassignMut.isPending}
                 onClick={() =>
-                  reassignMut.mutate({ newProviderId: providerId.trim(), reason })
+                  window.confirm('Reassign this booking to the entered provider ID?')
+                    ? reassignMut.mutate({ newProviderId: providerId.trim(), reason })
+                    : undefined
                 }
               >
                 Confirm reassign
@@ -575,14 +590,14 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
                 variant="destructive"
                 disabled={!reasonOk || cancelMut.isPending}
                 onClick={() =>
-                  cancelMut.mutate({
-                    reason,
-                    hoursUntilScheduled: hoursUntilScheduled
-                      ? Number(hoursUntilScheduled)
-                      : undefined,
-                    providerArrived: providerArrived || undefined,
-                    customerNoShow: customerNoShow || undefined,
-                  })
+                  window.confirm('Cancel this booking?')
+                    ? cancelMut.mutate({
+                      reason,
+                      hoursUntilScheduled: cancelHours,
+                      providerArrived: providerArrived || undefined,
+                      customerNoShow: customerNoShow || undefined,
+                    })
+                    : undefined
                 }
               >
                 Confirm cancel
@@ -592,7 +607,9 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
               <Button
                 size="sm"
                 disabled={!reasonOkForce || forceMut.isPending}
-                onClick={() => forceMut.mutate({ reason })}
+                onClick={() => {
+                  if (window.confirm('Force-complete this booking?')) forceMut.mutate({ reason });
+                }}
               >
                 Confirm force-complete
               </Button>
@@ -601,27 +618,27 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
               Cancel
             </Button>
             {open === 'release' && releaseMut.isError && (
-              <span className="text-xs text-red-600">
+              <span role="alert" className="text-xs text-red-600">
                 {getErrorMessage(releaseMut.error)}
               </span>
             )}
             {open === 'refund' && refundMut.isError && (
-              <span className="text-xs text-red-600">
+              <span role="alert" className="text-xs text-red-600">
                 {getErrorMessage(refundMut.error)}
               </span>
             )}
             {open === 'reassign' && reassignMut.isError && (
-              <span className="text-xs text-red-600">
+              <span role="alert" className="text-xs text-red-600">
                 {getErrorMessage(reassignMut.error)}
               </span>
             )}
             {open === 'cancel' && cancelMut.isError && (
-              <span className="text-xs text-red-600">
+              <span role="alert" className="text-xs text-red-600">
                 {getErrorMessage(cancelMut.error)}
               </span>
             )}
             {open === 'force_complete' && forceMut.isError && (
-              <span className="text-xs text-red-600">
+              <span role="alert" className="text-xs text-red-600">
                 {getErrorMessage(forceMut.error)}
               </span>
             )}

@@ -1,6 +1,6 @@
 import React, { useMemo, useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
@@ -52,6 +52,12 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'receipts', label: 'Receipts' },
 ];
 
+const TAB_KEYS = new Set<TabKey>(TABS.map((tab) => tab.key));
+
+function parseTab(value: string | null): TabKey {
+  return value && TAB_KEYS.has(value as TabKey) ? (value as TabKey) : 'overview';
+}
+
 // BUG-PHASE112-01 fix — pre-fix these helpers used
 // toISOString().slice(0, 10), which is the UTC date. For an admin in
 // Manila opening this page at 00:30 Manila Thursday (= 16:30 UTC
@@ -75,6 +81,7 @@ function formatDateTime(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -88,6 +95,7 @@ function formatDate(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('en-PH', {
+    timeZone: 'Asia/Manila',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -178,21 +186,48 @@ interface OverviewData {
   averageTicket: number;
 }
 
+interface ApiOverviewData {
+  gmv?: number;
+  revenue?: number;
+  refunds?: number;
+  netRevenue?: number;
+  bookingsCompleted?: number;
+  averageTicket?: number;
+  gmvCentavos?: number;
+  revenueCentavos?: number;
+  refundsCentavos?: number;
+  netRevenueCentavos?: number;
+  averageTicketCentavos?: number;
+}
+
 interface BreakdownItem {
+  dimension?: string;
   label?: string;
   category?: string;
   city?: string;
   tier?: string;
   paymentMethod?: string;
   revenue: number;
+  revenueCentavos?: number;
   bookings: number;
+}
+
+function normalizeOverview(data: ApiOverviewData): OverviewData {
+  return {
+    gmv: Number(data.gmv ?? data.gmvCentavos ?? 0),
+    revenue: Number(data.revenue ?? data.revenueCentavos ?? 0),
+    refunds: Number(data.refunds ?? data.refundsCentavos ?? 0),
+    netRevenue: Number(data.netRevenue ?? data.netRevenueCentavos ?? 0),
+    bookingsCompleted: Number(data.bookingsCompleted ?? 0),
+    averageTicket: Number(data.averageTicket ?? data.averageTicketCentavos ?? 0),
+  };
 }
 
 function normalizeBreakdown(items: BreakdownItem[] | undefined, key: keyof BreakdownItem): BreakdownRow[] {
   if (!items) return [];
   return items.map((it) => ({
-    label: String(it[key] ?? it.label ?? '—'),
-    revenue: Number(it.revenue ?? 0),
+    label: String(it[key] ?? it.label ?? it.dimension ?? '—'),
+    revenue: Number(it.revenue ?? it.revenueCentavos ?? 0),
     bookings: Number(it.bookings ?? 0),
   }));
 }
@@ -204,11 +239,11 @@ function OverviewPanel(): React.ReactElement {
   const overviewQ = useQuery({
     queryKey: ['fin-overview', from, to],
     queryFn: async () => {
-      const res = await api.get<ApiEnvelope<OverviewData>>(
+      const res = await api.get<ApiEnvelope<ApiOverviewData>>(
         '/api/v1/admin/financials/overview',
         { params: { from, to } },
       );
-      return res.data.data;
+      return normalizeOverview(res.data.data);
     },
   });
 
@@ -375,6 +410,7 @@ interface EscrowAging {
   bucket: string;
   count: number;
   total: number;
+  totalCentavos?: number;
 }
 
 interface EscrowPending {
@@ -382,13 +418,42 @@ interface EscrowPending {
   customerName: string;
   providerName: string;
   amount: number;
+  amountCentavos?: number;
   completedAt: string | null;
 }
 
 interface EscrowData {
   totalInEscrow: number;
+  totalInEscrowCentavos?: number;
   aging: EscrowAging[];
+  agingBuckets?: EscrowAging[];
   pendingReleaseList: EscrowPending[];
+}
+
+interface ApiEscrowData {
+  totalInEscrow?: number;
+  totalInEscrowCentavos?: number;
+  aging?: EscrowAging[];
+  agingBuckets?: EscrowAging[];
+  pendingReleaseList?: EscrowPending[];
+}
+
+function normalizeEscrow(data: ApiEscrowData): EscrowData {
+  return {
+    totalInEscrow: Number(data.totalInEscrow ?? data.totalInEscrowCentavos ?? 0),
+    aging: (data.aging ?? data.agingBuckets ?? []).map((row) => ({
+      bucket: row.bucket,
+      count: Number(row.count ?? 0),
+      total: Number(row.total ?? row.totalCentavos ?? 0),
+    })),
+    pendingReleaseList: (data.pendingReleaseList ?? []).map((row) => ({
+      bookingId: row.bookingId,
+      customerName: row.customerName,
+      providerName: row.providerName,
+      amount: Number(row.amount ?? row.amountCentavos ?? 0),
+      completedAt: row.completedAt,
+    })),
+  };
 }
 
 const AGING_BUCKETS: { key: string; label: string }[] = [
@@ -402,8 +467,8 @@ function EscrowPanel(): React.ReactElement {
   const q = useQuery({
     queryKey: ['fin-escrow'],
     queryFn: async () => {
-      const res = await api.get<ApiEnvelope<EscrowData>>('/api/v1/admin/financials/escrow');
-      return res.data.data;
+      const res = await api.get<ApiEnvelope<ApiEscrowData>>('/api/v1/admin/financials/escrow');
+      return normalizeEscrow(res.data.data);
     },
   });
 
@@ -458,7 +523,7 @@ function EscrowPanel(): React.ReactElement {
                     <td className="py-2 px-3">
                       <Link
                         to={`/bookings/${row.bookingId}`}
-                        className="text-blue-600 hover:underline font-mono text-xs"
+                        className="text-[var(--color-primary)] hover:underline font-mono text-xs"
                       >
                         {row.bookingId.slice(0, 8)}…
                       </Link>
@@ -493,6 +558,7 @@ interface PayoutFailed {
   id: string;
   providerName: string;
   amount: number;
+  amountCentavos?: number;
   failedAt: string;
   failureReason: string | null;
 }
@@ -500,11 +566,32 @@ interface PayoutFailed {
 interface PayoutsData {
   pendingCount: number;
   pendingTotal: number;
+  pendingTotalCentavos?: number;
   todayCompletedCount: number;
   todayCompletedTotal: number;
+  todayCompletedCentavos?: number;
   failedCount: number;
   upcomingScheduled: number;
+  upcomingScheduledCount?: number;
   recentFailed: PayoutFailed[];
+}
+
+function normalizePayouts(data: PayoutsData): PayoutsData {
+  return {
+    pendingCount: Number(data.pendingCount ?? 0),
+    pendingTotal: Number(data.pendingTotal ?? data.pendingTotalCentavos ?? 0),
+    todayCompletedCount: Number(data.todayCompletedCount ?? 0),
+    todayCompletedTotal: Number(data.todayCompletedTotal ?? data.todayCompletedCentavos ?? 0),
+    failedCount: Number(data.failedCount ?? 0),
+    upcomingScheduled: Number(data.upcomingScheduled ?? data.upcomingScheduledCount ?? 0),
+    recentFailed: (data.recentFailed ?? []).map((row) => ({
+      id: row.id,
+      providerName: row.providerName,
+      amount: Number(row.amount ?? row.amountCentavos ?? 0),
+      failedAt: row.failedAt,
+      failureReason: row.failureReason,
+    })),
+  };
 }
 
 function PayoutsPanel(): React.ReactElement {
@@ -512,7 +599,7 @@ function PayoutsPanel(): React.ReactElement {
     queryKey: ['fin-payouts'],
     queryFn: async () => {
       const res = await api.get<ApiEnvelope<PayoutsData>>('/api/v1/admin/financials/payouts');
-      return res.data.data;
+      return normalizePayouts(res.data.data);
     },
   });
 
@@ -577,12 +664,29 @@ function PayoutsPanel(): React.ReactElement {
 
 interface GuaranteeFundData {
   currentBalance: number;
+  currentBalanceCentavos?: number;
   inflow30d: number;
+  inflow30dCentavos?: number;
   outflow30d: number;
+  outflow30dCentavos?: number;
   net30d: number;
+  net30dCentavos?: number;
   avgMonthlyOutflow: number;
+  averageMonthlyOutflowCentavos?: number;
   runwayMonths: number | null;
   needsReplenishment: boolean;
+}
+
+function normalizeGuaranteeFund(data: GuaranteeFundData): GuaranteeFundData {
+  return {
+    currentBalance: Number(data.currentBalance ?? data.currentBalanceCentavos ?? 0),
+    inflow30d: Number(data.inflow30d ?? data.inflow30dCentavos ?? 0),
+    outflow30d: Number(data.outflow30d ?? data.outflow30dCentavos ?? 0),
+    net30d: Number(data.net30d ?? data.net30dCentavos ?? 0),
+    avgMonthlyOutflow: Number(data.avgMonthlyOutflow ?? data.averageMonthlyOutflowCentavos ?? 0),
+    runwayMonths: data.runwayMonths,
+    needsReplenishment: Boolean(data.needsReplenishment),
+  };
 }
 
 function formatRunway(v: number | null | undefined): string {
@@ -596,7 +700,7 @@ function GuaranteeFundPanel(): React.ReactElement {
     queryKey: ['fin-guarantee'],
     queryFn: async () => {
       const res = await api.get<ApiEnvelope<GuaranteeFundData>>('/api/v1/admin/financials/guarantee-fund');
-      return res.data.data;
+      return normalizeGuaranteeFund(res.data.data);
     },
   });
 
@@ -641,9 +745,24 @@ interface ReconciliationRow {
   id: string;
   snapshotDate: string;
   paymongoBalance: number;
+  paymongoBalanceCentavos?: number | null;
   expectedTotal: number;
+  expectedTotalCentavos?: number;
   discrepancy: number;
+  discrepancyCentavos?: number;
   alertSent: boolean;
+  discrepancyAlertSent?: boolean;
+}
+
+function normalizeReconciliationRow(row: ReconciliationRow): ReconciliationRow {
+  return {
+    id: row.id,
+    snapshotDate: row.snapshotDate,
+    paymongoBalance: Number(row.paymongoBalance ?? row.paymongoBalanceCentavos ?? 0),
+    expectedTotal: Number(row.expectedTotal ?? row.expectedTotalCentavos ?? 0),
+    discrepancy: Number(row.discrepancy ?? row.discrepancyCentavos ?? 0),
+    alertSent: Boolean(row.alertSent ?? row.discrepancyAlertSent ?? false),
+  };
 }
 
 function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactElement {
@@ -658,7 +777,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
         '/api/v1/admin/bir/reconciliation/recent',
         { params: { limit: 30 } },
       );
-      return res.data.data;
+      return res.data.data.map(normalizeReconciliationRow);
     },
   });
 
@@ -709,13 +828,14 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
     const payload: { paymongoBalance?: number; notes?: string } = {};
     if (runBalance.trim() !== '') {
       const n = Number(runBalance);
-      if (!Number.isFinite(n)) {
-        toast.warning('PayMongo balance must be a number (centavos).');
+      if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+        toast.warning('PayMongo balance must be a non-negative integer in centavos.');
         return;
       }
       payload.paymongoBalance = n;
     }
     if (runNotes.trim() !== '') payload.notes = runNotes.trim();
+    if (!window.confirm('Run a new reconciliation snapshot now?')) return;
     runMut.mutate(payload);
   };
 
@@ -726,6 +846,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       toast.warning('Note must be 5–1000 characters.');
       return;
     }
+    if (!window.confirm('Acknowledge this reconciliation discrepancy?')) return;
     ackMut.mutate({ id: ackTarget.id, note });
   };
 
@@ -778,6 +899,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
                       <Button
                         variant="link"
                         size="sm"
+                        aria-label={`Acknowledge discrepancy for ${formatDate(row.snapshotDate)}`}
                         onClick={() => {
                           setAckTarget(row);
                           setAckNote('');
@@ -860,7 +982,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
             <Button variant="outline" onClick={() => setAckTarget(null)} disabled={ackMut.isPending}>
               Cancel
             </Button>
-            <Button onClick={submitAck} disabled={ackMut.isPending}>
+            <Button onClick={submitAck} disabled={ackMut.isPending || ackNote.trim().length < 5 || ackNote.trim().length > 1000}>
               {ackMut.isPending ? 'Submitting…' : 'Acknowledge'}
             </Button>
           </DialogFooter>
@@ -877,7 +999,9 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
 interface BirMonthlyReport {
   month: number;
   outputVat: number;
+  outputVatCentavos?: number;
   vatPayable: number;
+  vatPayableCentavos?: number;
   finalized: boolean;
   pdfUrl: string | null;
 }
@@ -886,21 +1010,60 @@ interface BirQuarterlyBatch {
   quarter: number;
   batchCount: number;
   totalWithheld: number;
+  totalWithheldCentavos?: number;
 }
 
 interface BirOverviewData {
   year: number;
   totalOutputVat: number;
+  totalOutputVatCentavos?: number;
   totalVatPayable: number;
+  totalVatPayableCentavos?: number;
   monthsFinalized: number;
   monthlyReports: BirMonthlyReport[];
+  vatMonthly?: BirMonthlyReport[];
   quarterlyBatches: BirQuarterlyBatch[];
+  q2307Batches?: BirQuarterlyBatch[];
+  annualSummary?: {
+    year: number;
+    totalOutputVatCentavos: number;
+    totalVatPayableCentavos: number;
+    monthsFinalized: number;
+  };
 }
 
 interface Q2307Item {
   providerId: string;
   providerName: string;
   amount: number;
+  withheldAmount?: number;
+}
+
+interface Q2307ListEnvelope {
+  rows: Q2307Item[];
+  total: number;
+}
+
+function normalizeBirOverview(data: BirOverviewData): BirOverviewData {
+  const summary = data.annualSummary;
+  return {
+    year: Number(data.year ?? summary?.year ?? new Date().getFullYear()),
+    totalOutputVat: Number(data.totalOutputVat ?? summary?.totalOutputVatCentavos ?? data.totalOutputVatCentavos ?? 0),
+    totalVatPayable: Number(data.totalVatPayable ?? summary?.totalVatPayableCentavos ?? data.totalVatPayableCentavos ?? 0),
+    monthsFinalized: Number(data.monthsFinalized ?? summary?.monthsFinalized ?? 0),
+    monthlyReports: (data.monthlyReports ?? data.vatMonthly ?? []).map((row) => ({
+      month: row.month,
+      outputVat: Number(row.outputVat ?? row.outputVatCentavos ?? 0),
+      vatPayable: Number(row.vatPayable ?? row.vatPayableCentavos ?? 0),
+      finalized: Boolean(row.finalized),
+      pdfUrl: row.pdfUrl,
+    })),
+    quarterlyBatches: (data.quarterlyBatches ?? data.q2307Batches ?? []).map((row) => ({
+      quarter: row.quarter,
+      batchCount: Number(row.batchCount ?? 0),
+      totalWithheld: Number(row.totalWithheld ?? row.totalWithheldCentavos ?? 0),
+    })),
+  };
 }
 
 function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactElement {
@@ -916,7 +1079,7 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
         '/api/v1/admin/bir/overview',
         { params: { year } },
       );
-      return res.data.data;
+      return normalizeBirOverview(res.data.data);
     },
   });
 
@@ -968,10 +1131,14 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
   const q2307ListQ = useQuery({
     queryKey: ['bir-2307-list', year, expandedQuarter],
     queryFn: async () => {
-      const res = await api.get<ApiEnvelope<Q2307Item[]>>(
-        `/api/v1/admin/bir/2307/quarter/${year}/${expandedQuarter}/list`,
+      const res = await api.get<ApiEnvelope<Q2307ListEnvelope>>(
+        `/api/v1/admin/bir/2307/quarter/${year}/${expandedQuarter}`,
       );
-      return res.data.data;
+      return res.data.data.rows.map((row) => ({
+        providerId: row.providerId,
+        providerName: row.providerName ?? '—',
+        amount: Number(row.amount ?? row.withheldAmount ?? 0),
+      }));
     },
     enabled: expandedQuarter !== null,
   });
@@ -1052,7 +1219,11 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => generateMonthMut.mutate({ year: d.year, month: m.month })}
+                        onClick={() => {
+                          if (window.confirm(`Generate VAT report for ${MonthName(m.month)} ${d.year}?`)) {
+                            generateMonthMut.mutate({ year: d.year, month: m.month });
+                          }
+                        }}
                         disabled={generateMonthMut.isPending}
                       >
                         Generate
@@ -1062,7 +1233,11 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={() => finalizeMonthMut.mutate({ year: d.year, month: m.month })}
+                        onClick={() => {
+                          if (window.confirm(`Finalize VAT report for ${MonthName(m.month)} ${d.year}? This cannot be casually reversed.`)) {
+                            finalizeMonthMut.mutate({ year: d.year, month: m.month });
+                          }
+                        }}
                         disabled={finalizeMonthMut.isPending}
                       >
                         Finalize
@@ -1073,7 +1248,7 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
                         href={m.pdfUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline"
+                        className="text-xs text-[var(--color-primary)] hover:underline"
                       >
                         Download PDF
                       </a>
@@ -1110,7 +1285,11 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => generateQuarterMut.mutate({ year: d.year, quarter: qb.quarter })}
+                        onClick={() => {
+                          if (window.confirm(`Generate 2307 batch for Q${qb.quarter} ${d.year}?`)) {
+                            generateQuarterMut.mutate({ year: d.year, quarter: qb.quarter });
+                          }
+                        }}
                         disabled={generateQuarterMut.isPending}
                       >
                         Generate
@@ -1176,12 +1355,34 @@ interface ReceiptRow {
   id: string;
   orNumber: string;
   customerName: string;
-  providerName: string;
+  providerName: string | null;
   issuedAt: string;
   gross: number;
+  grossCentavos?: number;
   vat: number;
+  vatCentavos?: number;
   isCancellation: boolean;
   pdfUrl: string | null;
+}
+
+interface ReceiptSearchEnvelope {
+  rows: ReceiptRow[];
+  total: number;
+}
+
+function normalizeReceiptRows(data: ReceiptRow[] | ReceiptSearchEnvelope): ReceiptRow[] {
+  const rows = Array.isArray(data) ? data : data.rows;
+  return rows.map((row) => ({
+    id: row.id,
+    orNumber: row.orNumber,
+    customerName: row.customerName,
+    providerName: row.providerName,
+    issuedAt: row.issuedAt,
+    gross: Number(row.gross ?? row.grossCentavos ?? 0),
+    vat: Number(row.vat ?? row.vatCentavos ?? 0),
+    isCancellation: Boolean(row.isCancellation),
+    pdfUrl: row.pdfUrl,
+  }));
 }
 
 interface ReceiptSearchParams {
@@ -1203,6 +1404,7 @@ function ReceiptsPanel(): React.ReactElement {
     limit: 50,
   });
   const [submitted, setSubmitted] = useState<ReceiptSearchParams | null>(null);
+  const [receiptError, setReceiptError] = useState('');
 
   const q = useQuery({
     queryKey: ['fin-receipts', submitted],
@@ -1214,24 +1416,50 @@ function ReceiptsPanel(): React.ReactElement {
       if (submitted.providerName) params.providerName = submitted.providerName;
       if (submitted.from) params.from = submitted.from;
       if (submitted.to) params.to = submitted.to;
-      const res = await api.get<ApiEnvelope<ReceiptRow[]>>(
+      const res = await api.get<ApiEnvelope<ReceiptRow[] | ReceiptSearchEnvelope>>(
         '/api/v1/admin/financials/receipts/search',
         { params },
       );
-      return res.data.data;
+      return normalizeReceiptRows(res.data.data);
     },
     enabled: submitted !== null,
   });
 
   const onSubmit = (e: FormEvent): void => {
     e.preventDefault();
-    setSubmitted({ ...draft });
+    const hasFilter = Boolean(
+      draft.orNumber.trim() ||
+      draft.customerName.trim() ||
+      draft.providerName.trim() ||
+      draft.from ||
+      draft.to
+    );
+    if (!hasFilter) {
+      setReceiptError('Enter at least one receipt filter before searching.');
+      return;
+    }
+    if (draft.from && draft.to && draft.from > draft.to) {
+      setReceiptError('Receipt search start date cannot be after end date.');
+      return;
+    }
+    if (!Number.isFinite(draft.limit) || draft.limit < 1 || draft.limit > 100) {
+      setReceiptError('Receipt search limit must be between 1 and 100.');
+      return;
+    }
+    setReceiptError('');
+    setSubmitted({
+      ...draft,
+      orNumber: draft.orNumber.trim(),
+      customerName: draft.customerName.trim(),
+      providerName: draft.providerName.trim(),
+    });
   };
 
   return (
     <div>
       <form
         onSubmit={onSubmit}
+        noValidate
         className="bg-white border border-[var(--color-border)] rounded-xl p-5 mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3"
       >
         <div className="lg:col-span-1">
@@ -1287,7 +1515,7 @@ function ReceiptsPanel(): React.ReactElement {
             id="r-limit"
             type="number"
             min={1}
-            max={500}
+            max={100}
             value={draft.limit}
             onChange={(e) => setDraft({ ...draft, limit: Number(e.target.value) || 50 })}
             className="mt-1"
@@ -1296,6 +1524,11 @@ function ReceiptsPanel(): React.ReactElement {
         <div className="sm:col-span-2 lg:col-span-6 flex justify-end">
           <Button type="submit">Search</Button>
         </div>
+        {receiptError && (
+          <p role="alert" className="sm:col-span-2 lg:col-span-6 text-sm text-red-600">
+            {receiptError}
+          </p>
+        )}
       </form>
 
       {submitted === null ? (
@@ -1333,7 +1566,7 @@ function ReceiptsPanel(): React.ReactElement {
                         href={row.pdfUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline"
+                        className="text-[var(--color-primary)] hover:underline"
                       >
                         {row.orNumber}
                       </a>
@@ -1361,7 +1594,7 @@ function ReceiptsPanel(): React.ReactElement {
                         href={row.pdfUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline"
+                        className="text-xs text-[var(--color-primary)] hover:underline"
                       >
                         PDF
                       </a>
@@ -1384,9 +1617,22 @@ function ReceiptsPanel(): React.ReactElement {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function FinancialsPage(): React.ReactElement {
-  const [tab, setTab] = useState<TabKey>('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = parseTab(searchParams.get('tab'));
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = useMemo(() => role === 'super_admin', [role]);
+
+  const selectTab = (nextTab: TabKey): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextTab === 'overview') {
+        params.delete('tab');
+      } else {
+        params.set('tab', nextTab);
+      }
+      return params;
+    });
+  };
 
   return (
     <div>
@@ -1411,7 +1657,7 @@ export default function FinancialsPage(): React.ReactElement {
               role="tab"
               aria-selected={active}
               type="button"
-              onClick={() => setTab(t.key)}
+              onClick={() => selectTab(t.key)}
               className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 active
                   ? 'bg-white text-slate-900 shadow'

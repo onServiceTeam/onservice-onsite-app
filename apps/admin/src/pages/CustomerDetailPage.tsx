@@ -383,6 +383,7 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
         <div className="mt-4 p-4 border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-secondary)]/50 space-y-3">
           <p className="text-sm font-medium text-[var(--color-text)]">Status action</p>
           <Textarea
+            aria-label="Status action reason"
             value={statusReason}
             onChange={(e) => setStatusReason(e.target.value)}
             placeholder="Reason (min 5 characters) — recorded in admin_actions ledger"
@@ -393,7 +394,11 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
               size="sm"
               variant="destructive"
               disabled={statusMutation.isPending || statusReason.trim().length < 5 || !profile.isActive}
-              onClick={() => statusMutation.mutate({ action: 'suspend', reason: statusReason })}
+              onClick={() => {
+                if (window.confirm('Suspend this customer account?')) {
+                  statusMutation.mutate({ action: 'suspend', reason: statusReason });
+                }
+              }}
             >
               Suspend
             </Button>
@@ -409,12 +414,16 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
               size="sm"
               variant="secondary"
               disabled={statusMutation.isPending || statusReason.trim().length < 5}
-              onClick={() => statusMutation.mutate({ action: 'flag_fraud', reason: statusReason })}
+              onClick={() => {
+                if (window.confirm('Flag this customer for fraud review?')) {
+                  statusMutation.mutate({ action: 'flag_fraud', reason: statusReason });
+                }
+              }}
             >
               Flag for fraud
             </Button>
             {statusMutation.isError && (
-              <span className="text-xs text-red-600 ml-2">{getErrorMessage(statusMutation.error)}</span>
+              <span role="alert" className="text-xs text-red-600 ml-2">{getErrorMessage(statusMutation.error)}</span>
             )}
           </div>
         </div>
@@ -545,6 +554,7 @@ function BookingsTab({ customerId }: { customerId: string }): React.ReactElement
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <select
+          aria-label="Filter customer bookings by status"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
@@ -661,6 +671,10 @@ function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement
   const queryClient = useQueryClient();
   const [amountPesos, setAmountPesos] = useState('');
   const [reason, setReason] = useState('');
+  const parsedAmount = Number(amountPesos);
+  const adjustmentCentavos = Number.isFinite(parsedAmount) && parsedAmount !== 0
+    ? Math.round(parsedAmount * 100)
+    : null;
 
   const q = useQuery({
     queryKey: ['admin-customer-payments', customerId],
@@ -712,7 +726,7 @@ function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement
 
       {isSuperAdmin && (
         <Card className="p-5 md:col-span-3">
-          <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Issue wallet credit</h3>
+          <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Adjust customer wallet</h3>
           <p className="text-xs text-[var(--color-text-secondary)] mb-3">
             Positive amount credits the customer wallet; negative debits. Logged to{' '}
             <code>admin_actions</code> + paired <code>wallet_transactions</code> ledger row inside a
@@ -720,8 +734,9 @@ function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-1">
-              <label className="text-xs text-[var(--color-text-secondary)]">Amount (PHP)</label>
+              <label htmlFor="customer-wallet-adjust-amount" className="text-xs text-[var(--color-text-secondary)]">Amount (PHP)</label>
               <input
+                id="customer-wallet-adjust-amount"
                 type="number"
                 step="0.01"
                 value={amountPesos}
@@ -731,8 +746,9 @@ function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="text-xs text-[var(--color-text-secondary)]">Reason (min 5 chars)</label>
+              <label htmlFor="customer-wallet-adjust-reason" className="text-xs text-[var(--color-text-secondary)]">Reason (min 5 chars)</label>
               <input
+                id="customer-wallet-adjust-reason"
                 type="text"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
@@ -747,21 +763,18 @@ function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement
               disabled={
                 credit.isPending ||
                 reason.trim().length < 5 ||
-                !amountPesos ||
-                Number.isNaN(parseFloat(amountPesos)) ||
-                Math.round(parseFloat(amountPesos) * 100) === 0
+                adjustmentCentavos === null
               }
               onClick={() =>
-                credit.mutate({
-                  amount: Math.round(parseFloat(amountPesos) * 100),
-                  reason,
-                })
+                adjustmentCentavos !== null
+                  ? credit.mutate({ amount: adjustmentCentavos, reason })
+                  : undefined
               }
             >
-              Issue credit
+              Submit wallet adjustment
             </Button>
             {credit.isError && (
-              <span className="text-xs text-red-600">{getErrorMessage(credit.error)}</span>
+              <span role="alert" className="text-xs text-red-600">{getErrorMessage(credit.error)}</span>
             )}
             {credit.isSuccess && (
               <span className="text-xs text-green-600">
@@ -1095,6 +1108,7 @@ function ActivityTab({ customerId }: { customerId: string }): React.ReactElement
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <select
+          aria-label="Activity row limit"
           value={limit}
           onChange={(e) => setLimit(Number(e.target.value))}
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white"

@@ -56,6 +56,16 @@ function appendParams(url: string, params?: ApiRequestInit['params']): string {
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const PRE_AUTH_ENDPOINTS = new Set([
+  '/api/v1/auth/admin/login',
+  '/api/v1/auth/admin/2fa/setup',
+  '/api/v1/auth/admin/2fa/verify',
+  '/api/v1/auth/admin/2fa/enable',
+]);
+
+function canRefreshAfter401(url: string): boolean {
+  return !PRE_AUTH_ENDPOINTS.has(url.split('?')[0] ?? url);
+}
 
 function readCsrfCookie(): string | null {
   if (typeof document === 'undefined') return null;
@@ -127,7 +137,13 @@ async function request<T>(url: string, init: ApiRequestInit, isRetry = false): P
   try {
     return await rawFetch<T>(url, init);
   } catch (err) {
-    if (err instanceof ApiError && err.status === 401 && !isRetry && !url.endsWith('/api/v1/auth/admin/refresh')) {
+    if (
+      err instanceof ApiError
+      && err.status === 401
+      && !isRetry
+      && !url.endsWith('/api/v1/auth/admin/refresh')
+      && canRefreshAfter401(url)
+    ) {
       try {
         await rawFetch('/api/v1/auth/admin/refresh', { method: 'POST', body: {} });
         return await request<T>(url, init, true);

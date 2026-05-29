@@ -112,12 +112,42 @@ export default function CatalogPage(): React.ReactElement {
     return Math.round(n * 100);
   };
 
+  const isFiniteNumber = (raw: string): boolean => raw === '' || Number.isFinite(Number(raw));
+
+  const validateForm = (): string | null => {
+    if (isAddonModal) {
+      if (!addonName.trim()) return 'Add-on name is required.';
+      if (!isFiniteNumber(addonPrice) || Number(addonPrice) < 0) return 'Add-on price must be a valid non-negative amount.';
+      if (!isFiniteNumber(addonOrder)) return 'Display order must be a valid number.';
+      return null;
+    }
+
+    if (!name.trim()) return 'Name is required.';
+    if (!isFiniteNumber(displayOrder)) return 'Display order must be a valid number.';
+    if (isCategoryModal) return null;
+
+    if (![basePrice, minPrice, maxPrice, estimatedDuration].every(isFiniteNumber)) {
+      return 'Prices and duration must be valid numbers.';
+    }
+    if ([basePrice, minPrice, maxPrice, estimatedDuration].some((value) => value !== '' && Number(value) < 0)) {
+      return 'Prices and duration cannot be negative.';
+    }
+    if ((pricingType === 'fixed' || pricingType === 'hourly') && basePrice === '') {
+      return 'Base price is required for fixed and hourly services.';
+    }
+    if (pricingType === 'range') {
+      if (minPrice === '' || maxPrice === '') return 'Min and max price are required for range services.';
+      if (Number(minPrice) > Number(maxPrice)) return 'Min price cannot be greater than max price.';
+    }
+    return null;
+  };
+
   const subcategoryMutation = useMutation({
     mutationFn: async () => {
       const body = {
         categoryId: targetCategoryId,
-        name,
-        description,
+        name: name.trim(),
+        description: description.trim(),
         pricingType,
         basePrice: toCentavos(basePrice),
         minPrice: toCentavos(minPrice),
@@ -162,8 +192,8 @@ export default function CatalogPage(): React.ReactElement {
     mutationFn: async () => {
       const body = {
         subcategoryId: addonSubcatId,
-        name: addonName,
-        description: addonDesc,
+        name: addonName.trim(),
+        description: addonDesc.trim(),
         price: addonPrice ? Math.round(Number(addonPrice) * 100) : 0,
         displayOrder: Number(addonOrder),
       };
@@ -263,6 +293,12 @@ export default function CatalogPage(): React.ReactElement {
 
   const handleSubmit = (e: FormEvent): void => {
     e.preventDefault();
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError('');
     if (modal === 'addCategory' || modal === 'editCategory') {
       categoryMutation.mutate();
     } else if (modal === 'addAddon' || modal === 'editAddon') {
@@ -303,12 +339,28 @@ export default function CatalogPage(): React.ReactElement {
         </button>
       </div>
 
+      {error && !modal && (
+        <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="space-y-3">
         {(data ?? []).map((cat) => (
           <div key={cat.id} className="bg-white rounded-xl border border-[var(--color-border)] overflow-hidden">
             <div
+              role="button"
+              tabIndex={0}
+              aria-expanded={expandedCategory === cat.id}
+              aria-label={`${expandedCategory === cat.id ? 'Collapse' : 'Expand'} ${cat.name} services`}
               className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors"
               onClick={() => setExpandedCategory(expandedCategory === cat.id ? null : cat.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setExpandedCategory(expandedCategory === cat.id ? null : cat.id);
+                }
+              }}
             >
               <div className="flex items-center gap-3">
                 {cat.iconUrl && <img src={cat.iconUrl} alt="" className="w-8 h-8 rounded-lg object-cover" />}
@@ -322,12 +374,14 @@ export default function CatalogPage(): React.ReactElement {
               <div className="flex items-center gap-2">
                 <button
                   onClick={(e) => { e.stopPropagation(); openEditCategory(cat); }}
+                  aria-label={`Edit category ${cat.name}`}
                   className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
                 >
                   Edit
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); openAddSubcategory(cat.id); }}
+                  aria-label={`Add service to ${cat.name}`}
                   className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
                 >
                   + Service
@@ -398,20 +452,24 @@ export default function CatalogPage(): React.ReactElement {
                           <td className="px-5 py-3 text-right">
                             <button
                               onClick={() => setExpandedAddons(expandedAddons === sub.id ? null : sub.id)}
+                              aria-expanded={expandedAddons === sub.id}
+                              aria-label={`${expandedAddons === sub.id ? 'Hide' : 'Show'} add-ons for ${sub.name}`}
                               className="px-2 py-1 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-md transition-colors mr-1"
                             >
                               Add-ons
                             </button>
                             <button
                               onClick={() => openEditSubcategory(sub)}
+                              aria-label={`Edit service ${sub.name}`}
                               className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors mr-1"
                             >
                               Edit
                             </button>
                             <button
                               onClick={() => {
-                                if (confirm(`Deactivate "${sub.name}"?`)) deleteMutation.mutate(sub.id);
+                                if (window.confirm(`Deactivate "${sub.name}"?`)) deleteMutation.mutate(sub.id);
                               }}
+                              aria-label={`Remove service ${sub.name}`}
                               className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
                             >
                               Remove
@@ -427,13 +485,14 @@ export default function CatalogPage(): React.ReactElement {
                                 </span>
                                 <button
                                   onClick={() => openAddAddon(sub.id)}
+                                  aria-label={`Add add-on to ${sub.name}`}
                                   className="px-2 py-1 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-md transition-colors"
                                 >
                                   + Add-on
                                 </button>
                               </div>
                               {isAddonsError && (
-                                <p className="text-xs text-red-600">Failed to load add-ons. Please try again.</p>
+                                <p role="alert" className="text-xs text-red-600">Failed to load add-ons. Please try again.</p>
                               )}
                               {!isAddonsError && (addonsData ?? []).length === 0 ? (
                                 <p className="text-xs text-[var(--color-text-secondary)]">No add-ons yet.</p>
@@ -452,12 +511,14 @@ export default function CatalogPage(): React.ReactElement {
                                         {!addon.isActive && <span className="text-xs text-red-600">(inactive)</span>}
                                         <button
                                           onClick={() => openEditAddon(addon)}
+                                          aria-label={`Edit add-on ${addon.name}`}
                                           className="px-2 py-0.5 text-xs text-sky-700 bg-sky-50 rounded hover:bg-sky-100 transition-colors"
                                         >
                                           Edit
                                         </button>
                                         <button
-                                          onClick={() => { if (confirm(`Remove "${addon.name}"?`)) deleteAddonMutation.mutate(addon.id); }}
+                                          onClick={() => { if (window.confirm(`Remove "${addon.name}"?`)) deleteAddonMutation.mutate(addon.id); }}
+                                          aria-label={`Remove add-on ${addon.name}`}
                                           className="px-2 py-0.5 text-xs text-red-700 bg-red-50 rounded hover:bg-red-100 transition-colors"
                                         >
                                           Remove
@@ -490,13 +551,18 @@ export default function CatalogPage(): React.ReactElement {
 
       {modal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4 capitalize">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="catalog-modal-title"
+            className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+          >
+            <h3 id="catalog-modal-title" className="text-lg font-semibold text-[var(--color-text)] mb-4 capitalize">
               {modal.replace(/([A-Z])/g, ' $1').trim()}
             </h3>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+              <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -671,7 +737,7 @@ export default function CatalogPage(): React.ReactElement {
                 <button
                   type="submit"
                   disabled={isPending || (isAddonModal ? !addonName.trim() : !name.trim())}
-                  className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                  className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
                 >
                   {isPending ? 'Saving...' : 'Save'}
                 </button>

@@ -358,9 +358,9 @@ function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactEleme
         <DocLine label="NBI Clearance" url={docs.nbiClearanceUrl}
           extra={docs.nbiExpiryDate ? `expires ${formatDateOnly(docs.nbiExpiryDate)}` : null} />
         <DocLine label="Government ID" url={docs.governmentIdUrl}
-          extra="not stored — see HONESTY-CHECK" />
+          extra="Not available in this record" />
         <DocLine label="Selfie" url={docs.selfieUrl}
-          extra="not stored — see HONESTY-CHECK" />
+          extra="Not available in this record" />
         <DocLine label="Avatar" url={(docs as { avatarUrl?: string | null }).avatarUrl ?? null} extra={null} />
       </Card>
 
@@ -556,12 +556,16 @@ function FinancialsTab({ providerId }: { providerId: string }): React.ReactEleme
   const [amountPesos, setAmountPesos] = useState('');
   const [reason, setReason] = useState('');
   const [adjustError, setAdjustError] = useState('');
+  const parsedAmount = Number(amountPesos);
+  const adjustmentCentavos = Number.isFinite(parsedAmount) && parsedAmount !== 0
+    ? Math.round(parsedAmount * 100)
+    : null;
 
   const adjust = useMutation({
     mutationFn: async () => {
-      const centavos = Math.round(parseFloat(amountPesos) * 100);
+      if (adjustmentCentavos === null) throw new Error('Enter a non-zero PHP amount.');
       await api.post(`/api/v1/admin/providers/${providerId}/wallet/adjust`, {
-        amount: centavos,
+        amount: adjustmentCentavos,
         reason,
       });
     },
@@ -605,9 +609,12 @@ function FinancialsTab({ providerId }: { providerId: string }): React.ReactEleme
             </p>
             {adjustError && <p className="text-xs text-red-700">{adjustError}</p>}
             <div className="flex gap-2 flex-wrap">
+              <label htmlFor="provider-wallet-adjust-amount" className="sr-only">Wallet adjustment amount in PHP</label>
               <input
+                id="provider-wallet-adjust-amount"
                 type="number"
                 step="0.01"
+                aria-label="Wallet adjustment amount in PHP"
                 placeholder="Amount in PHP (e.g. -50.00 or 25.00)"
                 value={amountPesos}
                 onChange={(e) => setAmountPesos(e.target.value)}
@@ -616,6 +623,7 @@ function FinancialsTab({ providerId }: { providerId: string }): React.ReactEleme
             </div>
             <Textarea
               rows={2}
+              aria-label="Wallet adjustment reason"
               placeholder="Reason (min 5 chars)"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -624,7 +632,7 @@ function FinancialsTab({ providerId }: { providerId: string }): React.ReactEleme
               <Button
                 size="sm"
                 onClick={() => adjust.mutate()}
-                disabled={adjust.isPending || !amountPesos || reason.trim().length < 5}
+                disabled={adjust.isPending || adjustmentCentavos === null || reason.trim().length < 5}
               >
                 Submit Adjustment
               </Button>
@@ -916,15 +924,16 @@ function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3 inline-flex items-center gap-1">
           <Plus size={14} /> Add internal note
         </h3>
-        {createError && <p className="text-xs text-red-700 mb-2">{createError}</p>}
+        {createError && <p role="alert" className="text-xs text-red-700 mb-2">{createError}</p>}
         <Textarea
           rows={3}
+          aria-label="Internal note"
           placeholder="Internal note (not visible to provider)…"
           value={body}
           onChange={(e) => setBody(e.target.value)}
         />
         <div className="flex items-center gap-3 mt-2 flex-wrap">
-          <select value={category} onChange={(e) => setCategory(e.target.value as typeof category)} className="px-3 py-2 border rounded text-sm">
+          <select aria-label="Note category" value={category} onChange={(e) => setCategory(e.target.value as typeof category)} className="px-3 py-2 border rounded text-sm">
             <option value="general">General</option>
             <option value="quality">Quality</option>
             <option value="financial">Financial</option>
@@ -962,7 +971,14 @@ function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
                     <Button variant="outline" size="sm" onClick={() => togglePin.mutate(n)} disabled={togglePin.isPending}>
                       {n.pinned ? 'Unpin' : 'Pin'}
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => remove.mutate(n.id)} disabled={remove.isPending}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (window.confirm('Delete this internal note?')) remove.mutate(n.id);
+                      }}
+                      disabled={remove.isPending}
+                    >
                       <Trash2 size={12} /> Delete
                     </Button>
                   </div>

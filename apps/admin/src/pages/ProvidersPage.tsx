@@ -1,5 +1,5 @@
-import React, { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState, type FormEvent } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -49,11 +49,12 @@ const TIER_BADGE: Record<string, 'info' | 'success' | 'warning' | 'default'> = {
 
 export default function ProvidersPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [tierFilter, setTierFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') ?? '');
+  const [tierFilter, setTierFilter] = useState(() => searchParams.get('tier') ?? '');
+  const [searchInput, setSearchInput] = useState(() => searchParams.get('search') ?? '');
 
   const [actionModal, setActionModal] = useState<{
     type: 'approve' | 'reject' | 'suspend' | 'reactivate' | 'tier';
@@ -62,6 +63,24 @@ export default function ProvidersPage(): React.ReactElement {
   const [actionReason, setActionReason] = useState('');
   const [actionTier, setActionTier] = useState('');
   const [actionError, setActionError] = useState('');
+
+  useEffect(() => {
+    const nextSearch = searchParams.get('search') ?? '';
+    setSearch(nextSearch);
+    setSearchInput(nextSearch);
+    setStatusFilter(searchParams.get('status') ?? '');
+    setTierFilter(searchParams.get('tier') ?? '');
+    setPage(1);
+  }, [searchParams]);
+
+  const updateUrlFilters = (next: { search?: string; status?: string; tier?: string }): void => {
+    const params = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(next)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    setSearchParams(params, { replace: true });
+  };
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['adminProviders', page, search, statusFilter, tierFilter],
@@ -107,6 +126,7 @@ export default function ProvidersPage(): React.ReactElement {
     e.preventDefault();
     setSearch(searchInput);
     setPage(1);
+    updateUrlFilters({ search: searchInput.trim() });
   };
 
   const columns: Column<Provider>[] = [
@@ -214,7 +234,7 @@ export default function ProvidersPage(): React.ReactElement {
         </form>
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); updateUrlFilters({ status: e.target.value }); }}
           aria-label="Filter providers by status"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
@@ -227,7 +247,7 @@ export default function ProvidersPage(): React.ReactElement {
         </select>
         <select
           value={tierFilter}
-          onChange={(e) => { setTierFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setTierFilter(e.target.value); setPage(1); updateUrlFilters({ tier: e.target.value }); }}
           aria-label="Filter providers by tier"
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
@@ -258,8 +278,13 @@ export default function ProvidersPage(): React.ReactElement {
 
       {actionModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1 capitalize">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="provider-action-title"
+            className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6"
+          >
+            <h3 id="provider-action-title" className="text-lg font-semibold text-[var(--color-text)] mb-1 capitalize">
               {actionModal.type} Provider
             </h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
@@ -269,28 +294,31 @@ export default function ProvidersPage(): React.ReactElement {
             </p>
 
             {actionError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {actionError}
               </div>
             )}
 
             {(actionModal.type === 'reject' || actionModal.type === 'suspend' || actionModal.type === 'tier') && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Reason</label>
+                <label htmlFor="provider-action-reason" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Reason</label>
                 <textarea
+                  id="provider-action-reason"
                   value={actionReason}
                   onChange={(e) => setActionReason(e.target.value)}
                   placeholder="Provide a reason..."
                   rows={3}
                   className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                 />
+                <p className="mt-1 text-xs text-[var(--color-text-secondary)]">At least 10 characters required.</p>
               </div>
             )}
 
             {actionModal.type === 'tier' && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">New Tier</label>
+                <label htmlFor="provider-action-tier" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">New Tier</label>
                 <select
+                  id="provider-action-tier"
                   value={actionTier}
                   onChange={(e) => setActionTier(e.target.value)}
                   className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
@@ -315,7 +343,7 @@ export default function ProvidersPage(): React.ReactElement {
               <button
                 onClick={() => actionMutation.mutate()}
                 disabled={actionMutation.isPending || ((actionModal.type === 'suspend' || actionModal.type === 'reject' || actionModal.type === 'tier') && actionReason.trim().length < 10)}
-                className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
               >
                 {actionMutation.isPending ? 'Processing...' : 'Confirm'}
               </button>

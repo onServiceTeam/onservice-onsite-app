@@ -12,6 +12,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
@@ -95,6 +96,14 @@ const STATUS_BADGE: Record<DsrStatus, { label: string; variant: 'default' | 'suc
   rejected: { label: 'Rejected', variant: 'danger' },
 };
 
+function parseStatus(value: string | null): DsrStatus | 'all' {
+  return value === 'received' || value === 'in_progress' || value === 'completed' || value === 'rejected' ? value : 'all';
+}
+
+function parseType(value: string | null): DsrRequestType | 'all' {
+  return value === 'access' || value === 'erasure' || value === 'correction' || value === 'portability' || value === 'restriction' || value === 'objection' ? value : 'all';
+}
+
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
@@ -111,10 +120,11 @@ interface DialogState {
 
 export default function DataProtectionLogPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [statusFilter, setStatusFilter] = useState<DsrStatus | 'all'>('all');
-  const [typeFilter, setTypeFilter] = useState<DsrRequestType | 'all'>('all');
-  const [overdueOnly, setOverdueOnly] = useState(false);
+  const statusFilter = parseStatus(searchParams.get('status'));
+  const typeFilter = parseType(searchParams.get('type'));
+  const overdueOnly = searchParams.get('overdueOnly') === 'true';
 
   const [dialog, setDialog] = useState<DialogState>({ kind: null, dsr: null });
   const [responseUrl, setResponseUrl] = useState('');
@@ -122,6 +132,33 @@ export default function DataProtectionLogPage(): React.ReactElement {
   const [rejectReason, setRejectReason] = useState('');
   const [npcReference, setNpcReference] = useState('');
   const [erasureConfirm, setErasureConfirm] = useState('');
+
+  function setStatusFilter(value: DsrStatus | 'all'): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (value === 'all') params.delete('status');
+      else params.set('status', value);
+      return params;
+    });
+  }
+
+  function setTypeFilter(value: DsrRequestType | 'all'): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (value === 'all') params.delete('type');
+      else params.set('type', value);
+      return params;
+    });
+  }
+
+  function setOverdueOnly(value: boolean): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (value) params.set('overdueOnly', 'true');
+      else params.delete('overdueOnly');
+      return params;
+    });
+  }
 
   const dsrQuery = useQuery({
     queryKey: ['adminDsrList', statusFilter, overdueOnly],
@@ -170,7 +207,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
   const requestInfoMutation = useMutation({
     mutationFn: async (input: { dsrId: string; infoNeeded: string }) => {
       await api.post(`/api/v1/admin/compliance/dsr/${input.dsrId}/request-info`, {
-        infoNeeded: input.infoNeeded,
+        infoNeeded: input.infoNeeded.trim(),
       });
     },
     onSuccess: () => {
@@ -183,7 +220,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
 
   const rejectMutation = useMutation({
     mutationFn: async (input: { dsrId: string; reason: string }) => {
-      await api.post(`/api/v1/admin/compliance/dsr/${input.dsrId}/reject`, { reason: input.reason });
+      await api.post(`/api/v1/admin/compliance/dsr/${input.dsrId}/reject`, { reason: input.reason.trim() });
     },
     onSuccess: () => {
       toast.success('DSR rejected.');
@@ -196,7 +233,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
   const escalateMutation = useMutation({
     mutationFn: async (input: { dsrId: string; npcReference: string }) => {
       await api.post(`/api/v1/admin/compliance/dsr/${input.dsrId}/escalate`, {
-        npcReference: input.npcReference,
+        npcReference: input.npcReference.trim(),
       });
     },
     onSuccess: () => {
@@ -444,6 +481,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
             <Button
               onClick={() => {
                 if (!dialog.dsr) return;
+                if (!window.confirm(`Mark DSR ${dialog.dsr.id.slice(-8).toUpperCase()} complete?`)) return;
                 completeMutation.mutate({ dsrId: dialog.dsr.id, responsePayloadUrl: responseUrl });
               }}
               disabled={
@@ -491,6 +529,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
                   toast.warning('Please describe what information you need (at least 10 characters).');
                   return;
                 }
+                if (!window.confirm(`Request more information for DSR ${dialog.dsr.id.slice(-8).toUpperCase()}?`)) return;
                 requestInfoMutation.mutate({ dsrId: dialog.dsr.id, infoNeeded });
               }}
               disabled={isWorking || infoNeeded.trim().length < 10}
@@ -539,6 +578,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
                   toast.warning('Rejection reason must be at least 20 characters.');
                   return;
                 }
+                if (!window.confirm(`Reject DSR ${dialog.dsr.id.slice(-8).toUpperCase()}?`)) return;
                 rejectMutation.mutate({ dsrId: dialog.dsr.id, reason: rejectReason });
               }}
               disabled={isWorking || rejectReason.trim().length < 20}
@@ -591,6 +631,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
                   toast.warning('Enter the NPC reference number.');
                   return;
                 }
+                if (!window.confirm(`Escalate DSR ${dialog.dsr.id.slice(-8).toUpperCase()} to NPC?`)) return;
                 escalateMutation.mutate({ dsrId: dialog.dsr.id, npcReference });
               }}
               disabled={isWorking || npcReference.trim().length < 3}

@@ -46,6 +46,7 @@ export default function ChangePasswordPage(): React.ReactElement {
     confirmPassword.length > 0 && newPassword !== confirmPassword;
   const formValid =
     oldPassword.length > 0
+    && confirmPassword.length > 0
     && newLen >= MIN_LEN
     && newLen <= MAX_LEN
     && !newSameAsOld
@@ -217,7 +218,7 @@ export default function ChangePasswordPage(): React.ReactElement {
         <button
           type="submit"
           disabled={!formValid || submitting || done}
-          className="w-full inline-flex items-center justify-center px-4 py-2 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full inline-flex items-center justify-center px-4 py-2 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed"
         >
           {submitting ? 'Updating…' : done ? 'Done' : 'Update password'}
         </button>
