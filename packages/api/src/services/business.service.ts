@@ -675,6 +675,44 @@ export async function getContracts(
   };
 }
 
+// Phase 200 — contract-rate resolver. Given a booking being placed for a
+// business account, find the active contract whose negotiated agreed_rate
+// should price it. Returns null (→ normal catalog pricing) unless ALL hold:
+//   - the customer is a current member of the account,
+//   - the account is active,
+//   - a contract is active and within its start/end dates,
+//   - the contract's category matches the booking's category.
+// A contract that names the exact subcategory wins over a category-level
+// contract; ties break on the most recently started contract. Dates compared
+// in Asia/Manila (contracts are stored as DATE). See
+// .ai-coder/decisions/D-phase200-contract-pricing.md for the pricing rules.
+export async function resolveBookingContract(
+  customerId: string,
+  businessAccountId: string,
+  categoryId: string,
+  subcategoryId: string | null,
+): Promise<{ contractId: string; agreedRate: number } | null> {
+  const result = await db.query<{ id: string; agreed_rate: number }>(
+    `SELECT bc.id, bc.agreed_rate
+       FROM business_contracts bc
+       JOIN business_accounts ba ON ba.id = bc.business_account_id
+       JOIN business_members bm ON bm.business_account_id = ba.id
+      WHERE bc.business_account_id = $1
+        AND bm.user_id = $2 AND bm.deleted_at IS NULL
+        AND ba.status = 'active'
+        AND bc.status = 'active'
+        AND bc.category_id = $3
+        AND (bc.subcategory_id IS NULL OR bc.subcategory_id = $4)
+        AND bc.start_date <= (NOW() AT TIME ZONE 'Asia/Manila')::date
+        AND (bc.end_date IS NULL OR bc.end_date >= (NOW() AT TIME ZONE 'Asia/Manila')::date)
+      ORDER BY CASE WHEN bc.subcategory_id = $4 THEN 0 ELSE 1 END, bc.start_date DESC
+      LIMIT 1`,
+    [businessAccountId, customerId, categoryId, subcategoryId],
+  );
+  if (result.rows.length === 0) return null;
+  return { contractId: result.rows[0]!.id, agreedRate: Number(result.rows[0]!.agreed_rate) };
+}
+
 // Phase 200 — admin read variants. The owner-facing getters above require
 // the caller to be a member of the account. Admin/super-admin staff are not
 // members, so these mirror the same data queries WITHOUT the membership gate

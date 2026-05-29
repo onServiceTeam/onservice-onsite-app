@@ -33,6 +33,10 @@ export const createBookingSchema = z.object({
   // Phase 14 Dispatch 05 — Bug 261. Customer sends only the code; server
   // resolves the discount via services/booking/promo.service.ts.
   promoCode: z.string().min(1).max(40).optional(),
+  // Phase 200 — optional B2B account the booking is placed for. When present
+  // and the customer is a member with an active matching contract, the
+  // booking is priced at the contract's agreed_rate (server-resolved).
+  businessAccountId: z.string().uuid('Invalid business account ID').optional(),
   addons: z.array(z.object({
     addonId: z.string().uuid('Invalid addon ID'),
     quantity: z.number().int().min(1).max(100),

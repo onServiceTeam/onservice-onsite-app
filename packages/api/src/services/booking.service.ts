@@ -8,6 +8,7 @@ import * as slotWaitlistService from './slot-waitlist.service';
 import * as sukiService from './suki.service';
 import * as socketService from './socket.service';
 import { resolvePromo, recordPromoRedemption } from './booking/promo.service';
+import * as businessService from './business.service';
 
 interface BookingRow {
   id: string;
@@ -40,6 +41,8 @@ interface BookingRow {
   pricing_rule_id: string | null;
   rebooked_from_id: string | null;
   suki_discount: number;
+  business_account_id: string | null;
+  contract_id: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -71,6 +74,11 @@ interface CreateBookingParams {
   waitlistId?: string;
   promoCode?: string;
   addons?: Array<{ addonId: string; quantity: number }>;
+  // Phase 200 — when set, the booking is placed for this B2B account. If the
+  // customer is a member and an active contract matches the category, the
+  // contract's agreed_rate prices the booking. Null/absent for every normal
+  // consumer booking, so default behavior is unchanged.
+  businessAccountId?: string;
 }
 
 /**
@@ -152,6 +160,28 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
     baseServicePrice = Number(subcat.base_price);
   }
 
+  // Phase 200 — B2B contract pricing. When the booking is explicitly placed
+  // for a business account and an active contract matches, the negotiated
+  // agreed_rate replaces the catalog base price. Contract-priced bookings do
+  // NOT get surge or promo (the rate is a fixed negotiated price); add-ons and
+  // the platform service fee still apply. Stamped onto the booking for audit.
+  // Inert for normal bookings (businessAccountId is never set by them).
+  let businessAccountId: string | null = null;
+  let contractId: string | null = null;
+  if (params.bookingType === 'fixed_price' && params.businessAccountId) {
+    const contract = await businessService.resolveBookingContract(
+      params.customerId,
+      params.businessAccountId,
+      params.categoryId,
+      params.subcategoryId ?? null,
+    );
+    if (contract) {
+      baseServicePrice = contract.agreedRate;
+      businessAccountId = params.businessAccountId;
+      contractId = contract.contractId;
+    }
+  }
+
   if (params.bookingType === 'fixed_price' && baseServicePrice <= 0) {
     throw createAppError(
       'Service price could not be determined. The selected service may not have a fixed price.',
@@ -163,7 +193,8 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
   let surgeAmount = 0;
   let pricingRuleId: string | null = null;
 
-  if (params.bookingType === 'fixed_price' && baseServicePrice > 0) {
+  // Contract-priced bookings skip surge (fixed negotiated rate).
+  if (params.bookingType === 'fixed_price' && baseServicePrice > 0 && !contractId) {
     const pricing = await pricingService.calculatePricing(
       baseServicePrice,
       new Date(params.scheduledAt),
@@ -230,7 +261,8 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
   // discount from `promo_codes` via services/booking/promo.service.ts.
   // Subtotal for promo eligibility is base + addons + surge.
   let promoDiscountCents = 0;
-  if (params.promoCode && params.bookingType === 'fixed_price') {
+  // Contract-priced bookings skip promo codes (the agreed rate is final).
+  if (params.promoCode && params.bookingType === 'fixed_price' && !contractId) {
     const subtotalForPromo = baseServicePrice + surgeAmount + addonsTotal;
     promoDiscountCents = await resolvePromo({
       code: params.promoCode,
@@ -261,8 +293,8 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
         latitude, longitude, scheduled_at,
         service_price, service_fee, total_amount,
         surge_multiplier, surge_amount, pricing_rule_id, rebooked_from_id,
-        status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        status, business_account_id, contract_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING *`,
       [
         params.customerId,
@@ -285,6 +317,8 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
         pricingRuleId,
         params.rebookedFromId ?? null,
         initialStatus,
+        businessAccountId,
+        contractId,
       ],
     );
     const booking = result.rows[0]!;

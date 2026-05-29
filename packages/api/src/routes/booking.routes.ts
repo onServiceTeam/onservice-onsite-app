@@ -116,6 +116,9 @@ interface BookingRow {
   job_photos: string[];
   provider_before_photos: string[];
   provider_after_photos: string[];
+  // Phase 200 — B2B contract linkage (null for normal consumer bookings).
+  business_account_id: string | null;
+  contract_id: string | null;
   created_at: Date;
   updated_at: Date;
 }
