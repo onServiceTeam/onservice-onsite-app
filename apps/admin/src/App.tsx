@@ -22,6 +22,7 @@ const PayoutsPage = lazy(() => import('@/pages/PayoutsPage'));
 const NotificationTemplatesPage = lazy(() => import('@/pages/NotificationTemplatesPage'));
 const RecurringPage = lazy(() => import('@/pages/RecurringPage'));
 const BusinessAccountsPage = lazy(() => import('@/pages/BusinessAccountsPage'));
+const BusinessAccountDetailPage = lazy(() => import('@/pages/BusinessAccountDetailPage'));
 const ServiceAreasPage = lazy(() => import('@/pages/ServiceAreasPage'));
 const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'));
 const AuditLogPage = lazy(() => import('@/pages/AuditLogPage'));
@@ -94,6 +95,7 @@ export default function App(): React.ReactElement {
             <Route path="/notification-templates" element={<NotificationTemplatesPage />} />
             <Route path="/recurring" element={<RecurringPage />} />
             <Route path="/business-accounts" element={<BusinessAccountsPage />} />
+            <Route path="/business-accounts/:id" element={<BusinessAccountDetailPage />} />
             <Route path="/service-areas" element={<ServiceAreasPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/audit-log" element={<AuditLogPage />} />

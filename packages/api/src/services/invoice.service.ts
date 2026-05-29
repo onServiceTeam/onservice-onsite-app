@@ -434,6 +434,30 @@ export async function getInvoices(
   };
 }
 
+// Phase 200 — admin read variant (no membership/permission gate; route-level
+// requireAdmin enforces access). Used by the admin B2B detail page.
+export async function getInvoicesAdmin(
+  businessId: string,
+  page = 1,
+  pageSize = 20,
+): Promise<{ items: InvoiceRow[]; total: number }> {
+  const offset = (page - 1) * pageSize;
+  const [dataResult, countResult] = await Promise.all([
+    db.query<InvoiceRow>(
+      `SELECT * FROM business_invoices
+       WHERE business_account_id = $1
+       ORDER BY billing_period_end DESC
+       LIMIT $2 OFFSET $3`,
+      [businessId, pageSize, offset],
+    ),
+    db.query<CountRow>(
+      `SELECT COUNT(*)::text as count FROM business_invoices WHERE business_account_id = $1`,
+      [businessId],
+    ),
+  ]);
+  return { items: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
+}
+
 export async function getInvoiceDetail(
   invoiceId: string,
   userId: string,

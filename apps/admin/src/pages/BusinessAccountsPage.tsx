@@ -1,6 +1,6 @@
 import React, { useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -181,7 +181,12 @@ export default function BusinessAccountsPage(): React.ReactElement {
       header: 'Company',
       render: (r) => (
         <div>
-          <span className="block font-semibold text-sm text-[var(--color-text)]">{r.companyName}</span>
+          <Link
+            to={`/business-accounts/${r.id}`}
+            className="block font-semibold text-sm text-[var(--color-secondary)] hover:underline"
+          >
+            {r.companyName}
+          </Link>
           <span className="text-xs text-[var(--color-text-secondary)]">{TYPE_LABELS[r.businessType] ?? r.businessType}</span>
         </div>
       ),

@@ -11,6 +11,7 @@ import { db } from '../models/db';
 import * as notificationService from '../services/notification.service';
 import { logger } from '../utils/logger';
 import * as invoiceService from '../services/invoice.service';
+import * as businessService from '../services/business.service';
 import * as serviceAreaService from '../services/service-area.service';
 import * as pricingService from '../services/pricing.service';
 import * as slotWaitlistService from '../services/slot-waitlist.service';
@@ -640,6 +641,69 @@ router.get(
     } catch (error) {
       next(error);
     }
+  },
+);
+
+// Phase 200 — admin B2B detail reads. These power the business-account
+// detail page (overview, members, contracts, invoices). All requireAdmin;
+// they use the admin service variants that skip the owner membership gate.
+router.get(
+  '/business-accounts/:id',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const account = await businessService.getBusinessAccountAdmin(req.params.id as string);
+      res.json({ success: true, data: businessService.formatBusinessAccount(account) });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
+  '/business-accounts/:id/members',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const members = await businessService.getMembersAdmin(req.params.id as string);
+      res.json({ success: true, data: members.map(businessService.formatMember) });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
+  '/business-accounts/:id/contracts',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
+      const { items, total } = await businessService.getContractsAdmin(req.params.id as string, page, pageSize);
+      res.json({
+        success: true,
+        data: items.map(businessService.formatContract),
+        pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
+  '/business-accounts/:id/invoices',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
+      const { items, total } = await invoiceService.getInvoicesAdmin(req.params.id as string, page, pageSize);
+      res.json({
+        success: true,
+        data: items.map(invoiceService.formatInvoice),
+        pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      });
+    } catch (error) { next(error); }
   },
 );
 

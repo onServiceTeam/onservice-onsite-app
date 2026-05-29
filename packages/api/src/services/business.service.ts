@@ -675,6 +675,56 @@ export async function getContracts(
   };
 }
 
+// Phase 200 — admin read variants. The owner-facing getters above require
+// the caller to be a member of the account. Admin/super-admin staff are not
+// members, so these mirror the same data queries WITHOUT the membership gate
+// (route-level requireAdmin enforces access). Used by the admin B2B detail
+// page so back-office staff can view any account's members and contracts.
+export async function getBusinessAccountAdmin(businessId: string): Promise<BusinessAccountRow> {
+  const result = await db.query<BusinessAccountRow>(
+    `SELECT * FROM business_accounts WHERE id = $1`,
+    [businessId],
+  );
+  if (result.rows.length === 0) throw createAppError('Business account not found.', 404);
+  return result.rows[0]!;
+}
+
+export async function getMembersAdmin(
+  businessId: string,
+): Promise<Array<BusinessMemberRow & { first_name: string; last_name: string; email: string }>> {
+  const result = await db.query<BusinessMemberRow & { first_name: string; last_name: string; email: string }>(
+    `SELECT bm.*, u.first_name, u.last_name, u.email
+     FROM business_members bm
+     INNER JOIN users u ON bm.user_id = u.id
+     WHERE bm.business_account_id = $1 AND bm.deleted_at IS NULL
+     ORDER BY CASE bm.role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END, bm.created_at ASC`,
+    [businessId],
+  );
+  return result.rows;
+}
+
+export async function getContractsAdmin(
+  businessId: string,
+  page = 1,
+  pageSize = 20,
+): Promise<{ items: BusinessContractRow[]; total: number }> {
+  const offset = (page - 1) * pageSize;
+  const [dataResult, countResult] = await Promise.all([
+    db.query<BusinessContractRow>(
+      `SELECT bc.* FROM business_contracts bc
+       WHERE bc.business_account_id = $1
+       ORDER BY bc.status ASC, bc.start_date DESC
+       LIMIT $2 OFFSET $3`,
+      [businessId, pageSize, offset],
+    ),
+    db.query<CountRow>(
+      `SELECT COUNT(*)::text as count FROM business_contracts WHERE business_account_id = $1`,
+      [businessId],
+    ),
+  ]);
+  return { items: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
+}
+
 // MED-N41 fix: status type was 'active' | 'cancelled' only. The
 // underlying DB CHECK constraint accepts the full lifecycle —
 // 'draft' | 'active' | 'expired' | 'cancelled' — and the
