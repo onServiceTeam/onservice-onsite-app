@@ -17,9 +17,11 @@ import { Home as HomeIcon, Building2, Pin } from '@/components/icons';
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
-const MANILA_REGION: Region = {
-  latitude: 14.5995,
-  longitude: 120.9842,
+// Phase 200 (Cebu launch) — the map opens on central Cebu City (launch
+// market) and Cebu is the last-resort fallback, instead of Manila.
+const DEFAULT_REGION: Region = {
+  latitude: 10.3157,
+  longitude: 123.8854,
   latitudeDelta: 0.05,
   longitudeDelta: 0.05,
 };
@@ -34,6 +36,11 @@ interface GeoResult {
 }
 
 const PH_REGIONS: { lat: number; lng: number; city: string; province: string }[] = [
+  // Phase 200 — Metro Cebu launch market, listed first.
+  { lat: 10.3157, lng: 123.8854, city: 'Cebu City', province: 'Cebu' },
+  { lat: 10.3236, lng: 123.9223, city: 'Mandaue', province: 'Cebu' },
+  { lat: 10.3103, lng: 123.9494, city: 'Lapu-Lapu', province: 'Cebu' },
+  { lat: 10.2447, lng: 123.8494, city: 'Talisay', province: 'Cebu' },
   { lat: 14.5995, lng: 120.9842, city: 'Manila', province: 'Metro Manila' },
   { lat: 14.6507, lng: 121.0495, city: 'Quezon City', province: 'Metro Manila' },
   { lat: 14.5547, lng: 121.0244, city: 'Makati', province: 'Metro Manila' },
@@ -47,7 +54,6 @@ const PH_REGIONS: { lat: number; lng: number; city: string; province: string }[]
   { lat: 14.6588, lng: 121.1107, city: 'Marikina', province: 'Metro Manila' },
   { lat: 14.4445, lng: 120.9940, city: 'Las Piñas', province: 'Metro Manila' },
   { lat: 14.4163, lng: 121.0437, city: 'Muntinlupa', province: 'Metro Manila' },
-  { lat: 10.3157, lng: 123.8854, city: 'Cebu City', province: 'Cebu' },
   { lat: 7.0732, lng: 125.6126, city: 'Davao City', province: 'Davao del Sur' },
   { lat: 8.4542, lng: 124.6319, city: 'Cagayan de Oro', province: 'Misamis Oriental' },
   { lat: 10.6918, lng: 122.5623, city: 'Iloilo City', province: 'Iloilo' },
@@ -106,8 +112,8 @@ export default function AddressPickerScreen(): React.ReactElement {
       barangay: addr.barangay,
       city: addr.city,
       province: addr.province,
-      latitude: addr.latitude ?? 14.5995,
-      longitude: addr.longitude ?? 120.9842,
+      latitude: addr.latitude ?? 10.3157,
+      longitude: addr.longitude ?? 123.8854,
     };
     setSelectedAddress(geo);
     const coords = { latitude: geo.latitude, longitude: geo.longitude };
@@ -188,8 +194,8 @@ export default function AddressPickerScreen(): React.ReactElement {
         barangay: '',
         city: '',
         province: '',
-        latitude: 14.5995,
-        longitude: 120.9842,
+        latitude: 10.3157,
+        longitude: 123.8854,
       }]);
     }
   }, [searchText]);
@@ -319,7 +325,7 @@ export default function AddressPickerScreen(): React.ReactElement {
       <MapView
         ref={mapRef}
         style={styles.map}
-        initialRegion={MANILA_REGION}
+        initialRegion={DEFAULT_REGION}
         onPress={handleMapPress}
       >
         {pin && <Marker coordinate={pin} />}

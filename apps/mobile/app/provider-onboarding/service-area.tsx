@@ -11,27 +11,23 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Routes } from '@/config/navigation';
 const RADIUS_OPTIONS = [5, 10, 15, 20, 30, 50];
 
-// Phase E CRIT-116 fix — Boracay/Aklan added (the launch market).
-// Pre-fix the list was Metro Manila + Cebu/Davao/Iloilo only, so a
-// Boracay applicant either typed a city not in the list (and got
-// the K06-fix Manila default re-route) OR fell through to the
-// rejected geocode. Boracay primary entries (Malay = the
-// municipality that owns Boracay; Boracay = the island name users
-// actually type).
+// Phase 200 (Cebu launch) — Metro Cebu is the launch market, so the four
+// Cebu cities are listed FIRST (the nearest-match geocode and the first
+// suggestions shown should favour the launch metro). Other PH cities remain
+// so the app still works for nationwide address entry and future expansion.
 const PH_REGIONS: { city: string; province: string; lat: number; lng: number }[] = [
-  { city: 'Boracay', province: 'Aklan', lat: 11.9685, lng: 121.9162 },
-  { city: 'Malay', province: 'Aklan', lat: 11.9088, lng: 121.9105 },
-  { city: 'Kalibo', province: 'Aklan', lat: 11.7080, lng: 122.3683 },
+  { city: 'Cebu City', province: 'Cebu', lat: 10.3157, lng: 123.8854 },
+  { city: 'Mandaue', province: 'Cebu', lat: 10.3236, lng: 123.9223 },
+  { city: 'Lapu-Lapu', province: 'Cebu', lat: 10.3103, lng: 123.9494 },
+  { city: 'Talisay', province: 'Cebu', lat: 10.2447, lng: 123.8494 },
   { city: 'Quezon City', province: 'Metro Manila', lat: 14.6760, lng: 121.0437 },
   { city: 'Manila', province: 'Metro Manila', lat: 14.5995, lng: 120.9842 },
   { city: 'Makati', province: 'Metro Manila', lat: 14.5547, lng: 121.0244 },
-  { city: 'Cebu City', province: 'Cebu', lat: 10.3157, lng: 123.8854 },
   { city: 'Davao City', province: 'Davao del Sur', lat: 7.1907, lng: 125.4553 },
   { city: 'Pasig', province: 'Metro Manila', lat: 14.5764, lng: 121.0851 },
   { city: 'Taguig', province: 'Metro Manila', lat: 14.5176, lng: 121.0509 },
-  { city: 'Parañaque', province: 'Metro Manila', lat: 14.4793, lng: 121.0198 },
-  { city: 'Caloocan', province: 'Metro Manila', lat: 14.6570, lng: 120.9790 },
   { city: 'Iloilo City', province: 'Iloilo', lat: 10.7202, lng: 122.5621 },
+  { city: 'Boracay', province: 'Aklan', lat: 11.9685, lng: 121.9162 },
 ];
 
 export default function ServiceAreaScreen(): React.ReactElement {

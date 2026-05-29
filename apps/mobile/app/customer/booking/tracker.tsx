@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { getBookingById } from '@/services/booking.service';
+import { getSocket, connectSocket } from '@/services/socket.service';
 import { Badge, Button } from '@/components/ui';
 // Phase 14 R5-complete — PulsingDot live indicator for en-route status.
 import PulsingDot from '@/components/PulsingDot';
@@ -41,6 +42,25 @@ export default function BookingTrackerScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
+  const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  // Phase 106 decision (kept) — the customer-side listener for live provider
+  // GPS stays wired so v1.1 only needs to land the server producer. The
+  // events never fire today, so providerLocation stays null and no provider
+  // pin is drawn; the screen is honest about this (see the hint below and
+  // LAUNCH-LIMITATIONS section 32). Do NOT remove this without removing the
+  // v1.1 plan; a regression guard protects it (bug-phase106-01 test).
+  useEffect(() => {
+    if (!bookingId) return;
+    const socket = connectSocket();
+    socket.on(`booking:${bookingId}:location`, (data: { latitude: number; longitude: number }) => {
+      setProviderLocation(data);
+    });
+    return () => {
+      const s = getSocket();
+      if (s) s.off(`booking:${bookingId}:location`);
+    };
+  }, [bookingId]);
 
   const { data: booking, isLoading, isError } = useQuery({
     queryKey: ['booking', bookingId],
@@ -94,20 +114,16 @@ export default function BookingTrackerScreen(): React.ReactElement {
         <Text style={styles.title}>Track Booking</Text>
       </View>
 
-      {/* Phase D CRIT-77 fix — fallback map center is Boracay
-           (where the launch market is), not Manila. Pre-fix any
-           booking missing coordinates centered on Manila so a
-           Boracay tourist tracking their cleaner saw the wrong
-           island. Coordinates: White Beach Station 1, Boracay
-           (the most central point of the launch service area).
-           Once we expand beyond Boracay, this can be the user's
-           saved default address center via useDefaultLocation(). */}
+      {/* Phase 200 (Cebu launch) — fallback map center is central Cebu City
+           (the launch market), used only when a booking is missing
+           coordinates. Once we expand beyond Cebu, this can become the
+           user's saved default address center via useDefaultLocation(). */}
       <MapView
         ref={mapRef}
         style={styles.map}
         initialRegion={bookingRegion ?? {
-          latitude: 11.9685,
-          longitude: 121.9162,
+          latitude: 10.3157,
+          longitude: 123.8854,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
@@ -117,6 +133,16 @@ export default function BookingTrackerScreen(): React.ReactElement {
             coordinate={{ latitude: bookingRegion.latitude, longitude: bookingRegion.longitude }}
             title="Service Location"
             pinColor={colors.primary}
+          />
+        )}
+        {/* Provider pin only renders if a real live-location event arrives.
+            That producer is a v1.1 feature, so today this never shows — it is
+            wired so v1.1 only needs the server side (Phase 106 decision). */}
+        {providerLocation && (
+          <Marker
+            coordinate={providerLocation}
+            title="Provider"
+            pinColor={colors.secondary}
           />
         )}
       </MapView>

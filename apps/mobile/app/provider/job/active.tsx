@@ -143,14 +143,14 @@ export default function ActiveJobScreen(): React.ReactElement {
         <Text style={styles.title}>Active Job</Text>
       </View>
 
-      {/* Phase D CRIT-77 fix — fallback center is Boracay (launch
-           market), not Manila. Same rationale as tracker.tsx. */}
+      {/* Phase 200 (Cebu launch) — fallback center is central Cebu City
+           (launch market), not Manila. Same rationale as tracker.tsx. */}
       <MapView
         ref={mapRef}
         style={styles.map}
         initialRegion={bookingRegion ?? {
-          latitude: 11.9685,
-          longitude: 121.9162,
+          latitude: 10.3157,
+          longitude: 123.8854,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}

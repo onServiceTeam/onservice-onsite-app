@@ -27,8 +27,8 @@ describe('Phase E CRIT-111 — service-area save uses canonical PATCH /me', () =
   it('CRIT-111 — old payload field names removed', () => {
     expect(SERVICE_AREA).not.toMatch(/centerLat,\n\s+centerLng,\n\s+radiusKm/);
   });
-  it('CRIT-111 — DEFAULT_LAT/LNG point to Boracay (launch market)', () => {
-    expect(SERVICE_AREA).toMatch(/DEFAULT_LAT = 11\.9685/);
-    expect(SERVICE_AREA).toMatch(/DEFAULT_LNG = 121\.9162/);
+  it('Phase 200 — DEFAULT_LAT/LNG point to central Cebu City (launch market)', () => {
+    expect(SERVICE_AREA).toMatch(/DEFAULT_LAT = 10\.3157/);
+    expect(SERVICE_AREA).toMatch(/DEFAULT_LNG = 123\.8854/);
   });
 });

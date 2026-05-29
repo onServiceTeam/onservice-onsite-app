@@ -27,13 +27,12 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MapPin } from '@/components/icons';
 
 const RADIUS_OPTIONS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50] as const;
-// Phase E CRIT-111 fix — default map center is Boracay (the launch
-// market), not Quezon City. Same correction landed in the
-// onboarding service-area screen via CRIT-116 / K-MED-K06. Provider
-// almost always taps "Use My Current Location" anyway, so this only
-// matters for the initial map render before geolocation resolves.
-const DEFAULT_LAT = 11.9685;
-const DEFAULT_LNG = 121.9162;
+// Phase 200 (Cebu launch) — default map center is central Cebu City (the
+// launch market), not Boracay/Quezon City. Provider almost always taps
+// "Use My Current Location" anyway, so this only matters for the initial
+// map render before geolocation resolves.
+const DEFAULT_LAT = 10.3157;
+const DEFAULT_LNG = 123.8854;
 
 export default function ProviderServiceAreaScreen(): React.ReactElement {
   const router = useRouter();

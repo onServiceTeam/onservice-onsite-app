@@ -58,9 +58,13 @@ describe('BUG-PHASE86-01 — pay-existing-booking screen exists with the right w
   });
 
   it('BUG-PHASE86-01 — pay.tsx opens the PayMongo checkoutUrl for non-wallet methods only', () => {
-    // Wallet payments are atomic on the server (escrow funded in the
-    // same transaction); only PayMongo channels need the redirect.
-    expect(PAY).toMatch(/selectedMethod !== 'wallet' && intent\.checkoutUrl/);
+    // Wallet payments are atomic on the server (escrow funded in the same
+    // transaction), so wallet returns early to the confirm screen; only the
+    // PayMongo channels reach the checkoutUrl redirect.
+    // Phase 200 — the flow was hardened to only navigate to confirm once the
+    // checkout actually opens (else route to payment-failed), so the guard is
+    // now an explicit wallet early-return rather than an inline `!== 'wallet'`.
+    expect(PAY).toMatch(/selectedMethod === 'wallet'/);
     expect(PAY).toMatch(/Linking\.openURL\(intent\.checkoutUrl\)/);
   });
 });
