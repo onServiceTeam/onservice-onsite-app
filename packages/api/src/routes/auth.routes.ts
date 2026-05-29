@@ -709,7 +709,7 @@ router.post(
       // 2FA verify always 500'd on success, blocking admin tier login
       // entirely. Now we pass the user's actual phone (PH format = 13 chars).
       const userResult = await db.query<{ id: string; phone: string | null; totp_secret: string | null; totp_enabled: boolean; role: string }>(
-        `SELECT id, phone, totp_secret, totp_enabled, role FROM users WHERE id = $1 AND role IN ('admin', 'super_admin') AND is_active = TRUE`,
+        `SELECT id, phone, totp_secret, totp_enabled, role FROM users WHERE id = $1 AND role IN ('admin', 'super_admin', 'dpo') AND is_active = TRUE`,
         [payload.userId],
       );
 
@@ -984,7 +984,7 @@ router.post(
 
       const userResult = await db.query<UserProfileRow>(
         `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at
-         FROM users WHERE id = $1 AND role IN ('admin', 'super_admin') AND is_active = TRUE`,
+         FROM users WHERE id = $1 AND role IN ('admin', 'super_admin', 'dpo') AND is_active = TRUE`,
         [payload.userId],
       );
       if (userResult.rows.length === 0) {

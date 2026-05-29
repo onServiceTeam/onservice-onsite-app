@@ -42,6 +42,7 @@ import {
 } from '@/components/ui';
 import type { Column } from '@/components/ui';
 import { Shield, AlertTriangle } from '@/components/icons';
+import { useAuthStore } from '@/stores/auth.store';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -120,6 +121,11 @@ interface DialogState {
 
 export default function DataProtectionLogPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  // Phase 200 fix — reject and escalate are super_admin-only on the server
+  // (compliance-admin.routes.ts requireSuperAdmin). Complete and request-info
+  // are open to any admin (requireAdmin). Gate only the two super-admin
+  // actions so non-super admins don't hit a guaranteed 403.
+  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
   const [searchParams, setSearchParams] = useSearchParams();
 
   const statusFilter = parseStatus(searchParams.get('status'));
@@ -325,24 +331,28 @@ export default function DataProtectionLogPage(): React.ReactElement {
             >
               Info
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={terminal}
-              onClick={() => setDialog({ kind: 'reject', dsr: r })}
-              aria-label={`Reject ${r.id.slice(-8)}`}
-            >
-              Reject
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={terminal}
-              onClick={() => setDialog({ kind: 'escalate', dsr: r })}
-              aria-label={`Escalate ${r.id.slice(-8)} to NPC`}
-            >
-              Escalate
-            </Button>
+            {isSuperAdmin && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={terminal}
+                  onClick={() => setDialog({ kind: 'reject', dsr: r })}
+                  aria-label={`Reject ${r.id.slice(-8)}`}
+                >
+                  Reject
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={terminal}
+                  onClick={() => setDialog({ kind: 'escalate', dsr: r })}
+                  aria-label={`Escalate ${r.id.slice(-8)} to NPC`}
+                >
+                  Escalate
+                </Button>
+              </>
+            )}
           </div>
         );
       },

@@ -17,6 +17,7 @@ import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
+import { useAuthStore } from '@/stores/auth.store';
 import {
   Coins,
   CreditCard,
@@ -89,6 +90,11 @@ function metaFor(category: string): { label: string; Icon: React.ComponentType<{
 
 export default function SystemSettingsPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  // Phase 200 fix — every mutation (PUT setting, reset, cache flush) is
+  // super_admin-only on the server (settings.routes.ts). Pre-fix the
+  // Edit/Reset/Flush controls rendered for any admin and always 403'd.
+  // Gate them; plain admins keep read-only + change-history access.
+  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -283,19 +289,26 @@ export default function SystemSettingsPage(): React.ReactElement {
           <p className="text-sm text-gray-500 mt-1">
             Tune commissions, fees, and runtime knobs. Changes take effect within 60 seconds (cache TTL).
           </p>
+          {!isSuperAdmin && (
+            <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 inline-block">
+              You have read-only access. Editing, resetting, and flushing settings requires a super-admin account.
+            </p>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (!window.confirm('Flush the settings cache now?')) return;
-            cacheFlushMutation.mutate();
-          }}
-          disabled={cacheFlushMutation.isPending}
-          className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded border border-gray-300 disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${cacheFlushMutation.isPending ? 'animate-spin' : ''}`} />
-          Flush cache
-        </button>
+        {isSuperAdmin && (
+          <button
+            type="button"
+            onClick={() => {
+              if (!window.confirm('Flush the settings cache now?')) return;
+              cacheFlushMutation.mutate();
+            }}
+            disabled={cacheFlushMutation.isPending}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded border border-gray-300 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${cacheFlushMutation.isPending ? 'animate-spin' : ''}`} />
+            Flush cache
+          </button>
+        )}
       </header>
 
       {banner && (
@@ -421,15 +434,17 @@ export default function SystemSettingsPage(): React.ReactElement {
                             {!s.isDefault && (
                               <span className="text-xs text-amber-600">customized</span>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => startEdit(s)}
-                              title="Edit"
-                              aria-label={`Edit setting ${s.key}`}
-                              className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
+                            {isSuperAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => startEdit(s)}
+                                title="Edit"
+                                aria-label={`Edit setting ${s.key}`}
+                                className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => setHistoryKey(historyKey === s.key ? null : s.key)}
@@ -439,16 +454,18 @@ export default function SystemSettingsPage(): React.ReactElement {
                             >
                               <History className="w-4 h-4" />
                             </button>
-                            <button
-                              type="button"
-                              disabled={s.isDefault || resetMutation.isPending}
-                              onClick={() => { setPendingReset(s); setResetReason(''); }}
-                              title="Reset to default"
-                              aria-label={`Reset ${s.key} to default`}
-                              className="p-1.5 text-gray-500 hover:bg-gray-100 rounded disabled:opacity-30 disabled:hover:bg-transparent"
-                            >
-                              <RotateCcw className="w-4 h-4" />
-                            </button>
+                            {isSuperAdmin && (
+                              <button
+                                type="button"
+                                disabled={s.isDefault || resetMutation.isPending}
+                                onClick={() => { setPendingReset(s); setResetReason(''); }}
+                                title="Reset to default"
+                                aria-label={`Reset ${s.key} to default`}
+                                className="p-1.5 text-gray-500 hover:bg-gray-100 rounded disabled:opacity-30 disabled:hover:bg-transparent"
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>

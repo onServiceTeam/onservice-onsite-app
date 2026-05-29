@@ -6,6 +6,7 @@ import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { useAuthStore } from '@/stores/auth.store';
 
 interface Payout {
   id: string;
@@ -56,6 +57,12 @@ function parseStatus(value: string | null): string {
 
 export default function PayoutsPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  // Phase 200 fix — approve/reject/complete are super_admin-only on the
+  // server (payout.routes.ts requireSuperAdmin). Pre-fix the buttons
+  // rendered for every admin, so a regular admin filled the modal and got
+  // a guaranteed 403. Gate the controls on the role the API actually
+  // requires; non-super admins get a read-only view.
+  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
   const statusFilter = parseStatus(searchParams.get('status'));
@@ -233,40 +240,45 @@ export default function PayoutsPage(): React.ReactElement {
     {
       key: 'actions',
       header: 'Actions',
-      render: (r) => (
-        <div className="flex items-center gap-1 flex-wrap">
-          {r.status === 'pending' && (
-            <>
+      render: (r) => {
+        if (!isSuperAdmin) {
+          return <span className="text-xs text-[var(--color-text-tertiary)]">—</span>;
+        }
+        return (
+          <div className="flex items-center gap-1 flex-wrap">
+            {r.status === 'pending' && (
+              <>
+                <button
+                  type="button"
+                  aria-label={`Approve payout ${r.id}`}
+                  onClick={(e) => { e.stopPropagation(); openAction(r, 'approve'); }}
+                  className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Reject payout ${r.id}`}
+                  onClick={(e) => { e.stopPropagation(); openAction(r, 'reject'); }}
+                  className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                >
+                  Reject
+                </button>
+              </>
+            )}
+            {r.status === 'approved' && (
               <button
                 type="button"
-                aria-label={`Approve payout ${r.id}`}
-                onClick={(e) => { e.stopPropagation(); openAction(r, 'approve'); }}
-                className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
+                aria-label={`Complete payout ${r.id}`}
+                onClick={(e) => { e.stopPropagation(); openAction(r, 'complete'); }}
+                className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
               >
-                Approve
+                Complete
               </button>
-              <button
-                type="button"
-                aria-label={`Reject payout ${r.id}`}
-                onClick={(e) => { e.stopPropagation(); openAction(r, 'reject'); }}
-                className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
-              >
-                Reject
-              </button>
-            </>
-          )}
-          {r.status === 'approved' && (
-            <button
-              type="button"
-              aria-label={`Complete payout ${r.id}`}
-              onClick={(e) => { e.stopPropagation(); openAction(r, 'complete'); }}
-              className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
-            >
-              Complete
-            </button>
-          )}
-        </div>
-      ),
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -277,6 +289,11 @@ export default function PayoutsPage(): React.ReactElement {
         <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
           Review and process provider payout requests
         </p>
+        {!isSuperAdmin && (
+          <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 inline-block">
+            You have read-only access. Approving, rejecting, and completing payouts requires a super-admin account.
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">

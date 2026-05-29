@@ -266,9 +266,11 @@ export default function CatalogPage(): React.ReactElement {
     setName(sub.name);
     setDescription(sub.description);
     setPricingType(sub.pricingType);
-    setBasePrice(sub.basePrice ? String(sub.basePrice / 100) : '');
-    setMinPrice(sub.minPrice ? String(sub.minPrice / 100) : '');
-    setMaxPrice(sub.maxPrice ? String(sub.maxPrice / 100) : '');
+    // Phase 200 zero-price fix — a legitimate 0-centavo price is falsy and
+    // wrongly showed blank; check null/undefined explicitly instead.
+    setBasePrice(sub.basePrice != null ? String(sub.basePrice / 100) : '');
+    setMinPrice(sub.minPrice != null ? String(sub.minPrice / 100) : '');
+    setMaxPrice(sub.maxPrice != null ? String(sub.maxPrice / 100) : '');
     setEstimatedDuration(sub.estimatedDurationMinutes ? String(sub.estimatedDurationMinutes) : '');
     setDisplayOrder(String(sub.displayOrder));
     setModal('editSubcategory');

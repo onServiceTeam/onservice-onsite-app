@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { ACTIVE_BOOKING_STATUSES } from '../types/booking.types';
 
 interface KpiRow {
   today_revenue: string;
@@ -430,8 +431,20 @@ export async function listBookingsAdmin(
   let paramIdx = 1;
 
   if (filters.status) {
-    conditions.push(`b.status = $${paramIdx++}`);
-    params.push(filters.status);
+    // Phase 200 fix — "active" is a logical bucket, not a stored status.
+    // The dispatch console requests ?status=active expecting every live
+    // booking; pre-fix the literal `b.status = 'active'` matched zero rows
+    // (no booking is ever stored with status 'active'), so the dispatch
+    // table, counters, and map were always empty. Expand the bucket to the
+    // canonical ACTIVE_BOOKING_STATUSES set; all other values stay exact.
+    if (filters.status === 'active') {
+      const placeholders = ACTIVE_BOOKING_STATUSES.map(() => `$${paramIdx++}`).join(', ');
+      conditions.push(`b.status IN (${placeholders})`);
+      params.push(...ACTIVE_BOOKING_STATUSES);
+    } else {
+      conditions.push(`b.status = $${paramIdx++}`);
+      params.push(filters.status);
+    }
   }
   if (filters.search) {
     conditions.push(`(b.id::text ILIKE $${paramIdx} OR b.city ILIKE $${paramIdx})`);

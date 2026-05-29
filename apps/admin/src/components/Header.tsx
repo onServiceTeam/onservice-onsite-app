@@ -21,7 +21,11 @@ export default function Header(): React.ReactElement {
             {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Admin'}
           </p>
           <p className="text-xs text-[var(--color-text-secondary)]">
-            {user?.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+            {user?.role === 'super_admin'
+              ? 'Super Admin'
+              : user?.role === 'dpo'
+                ? 'Data Protection Officer'
+                : 'Admin'}
           </p>
         </div>
         <button

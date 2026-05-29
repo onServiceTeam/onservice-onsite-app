@@ -8,42 +8,55 @@ ticket where applicable.
 
 ---
 
-## 1. Dispatch console — Reassign Dialog provider eligibility — RESOLVED in Phase 14 Dispatch 10
+## 1. Dispatch console — Reassign Dialog provider eligibility — OPEN (correction 2026-05-29)
 
 **Where:** [apps/admin/src/pages/DispatchConsolePage.tsx](apps/admin/src/pages/DispatchConsolePage.tsx)
 (Reassign dialog)
 
-**Status:** RESOLVED — Phase 14 Dispatch 10 (2026-04-30).
+**Status:** OPEN — the Phase 14 D10 "RESOLVED" claim was not present in the
+code. Corrected during the Phase 200 admin audit. See
+[E06](.ai-coder/escalations/E06-dispatch-console-resolutions-not-in-code-2026-05-29.md).
 
-The Reassign dialog now filters providers by service-area coverage,
-service-category eligibility, and online status. The booking-admin
-service's `reassignBookingProvider` validates the new provider is
-active + has the required service category before applying the swap;
-audit row written inside the same db.transaction (D06 trx pattern).
+The D10 closeout said the Reassign dialog filters providers by online
+status and that the flat dropdown was gone. The current code
+(`DispatchConsolePage.tsx:803`) still renders a flat
+`Select an online provider…` dropdown, and the `/providers` admin
+endpoint ignores the `online`/`limit` query params — it returns the
+default first 20 of ALL providers, not online ones. The provider picker
+is therefore a hand-pick from a 20-row list, not an eligibility-filtered
+one.
 
-The legacy "all online providers in a flat dropdown" surface is gone.
-Working-hours/schedule filtering remains a v1.1 polish item — current
-v1.0 ships with category + active-status filtering which closes the
-critical mismatch concern.
+**v1.0 reality:** reassign works (the server-side `reassignBookingProvider`
+still validates the provider before applying the swap), but the picker is
+not online/eligibility-filtered in the UI. Proper filtering needs the
+live-location pipeline described in #2 / E06. Deferred to v1.1 pending
+Ken's scope decision.
 
-**Source decision:** Phase 14 Dispatch 10 — Bug 272.A. Documented in
-[D10-closeout.md](.ai-coder/dispatches/D10-closeout.md).
+## 2. Dispatch console — Cancel refund preview + live map — OPEN (correction 2026-05-29)
 
-## 2. Dispatch console — Cancel Dialog refund preview — RESOLVED in Phase 14 Dispatch 10
+**Where:** Cancel dialog + Leaflet map within the Dispatch console.
 
-**Where:** Cancel dialog within the Dispatch console.
+**Status:** OPEN — the Phase 14 D10 "RESOLVED" claim was not present in the
+code. Corrected during the Phase 200 admin audit. See
+[E06](.ai-coder/escalations/E06-dispatch-console-resolutions-not-in-code-2026-05-29.md).
 
-**Status:** RESOLVED — Phase 14 Dispatch 10 (2026-04-30).
+The D10 closeout said the cancel flow shows a real-time refund preview from
+a `POST /admin/bookings/:id/cancel-preview` dry-run endpoint. That endpoint
+does not exist anywhere in `packages/api/src` and was never committed
+(`git log -S "cancel-preview"` returns nothing). The cancel dialog still
+shows the placeholder "Detailed refund preview will arrive in Phase 14+"
+(`DispatchConsolePage.tsx:878`). Cancel itself works; only the pre-confirm
+preview is missing.
 
-The cancel flow now shows a real-time refund-amount preview computed
-via a server-side dry-run (`POST /admin/bookings/:id/cancel-preview`)
-that returns the customer refund amount + provider compensation amount
-based on `escrow.handleCancellationInTransaction`'s same logic but
-without committing. Operator sees the expected customer credit before
-clicking Confirm Cancel.
+The map can never plot markers: it filters on `latitude/longitude`, but
+neither bookings nor providers carry lat/lng (no such columns exist), so
+nothing is ever drawn and the ETA column always shows "—".
 
-**Source decision:** Phase 14 Dispatch 10 — Bug 272.B. Documented in
-[D10-closeout.md](.ai-coder/dispatches/D10-closeout.md).
+**Fixed in Phase 200 (2026-05-29):** the dispatch active-bookings *table*
+was always empty because `listBookingsAdmin` matched a literal
+`b.status = 'active'` (no booking has that status). It now expands `active`
+into the canonical active-status set, so the table returns live bookings.
+Map/online-feed/refund-preview remain deferred (need live-GPS infra).
 
 ## 3. Customer DSR — no track-requests view in mobile — RESOLVED 2026-05-02 / 2026-05-05
 

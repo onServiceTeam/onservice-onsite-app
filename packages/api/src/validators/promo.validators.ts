@@ -29,8 +29,13 @@ export const createPromoCodeSchema = z
     minimumOrderCentavos: z.number().int().min(0).optional(),
     usageLimitTotal: z.number().int().positive().nullable().optional(),
     usageLimitPerCustomer: z.number().int().positive().optional(),
-    validFrom: z.string().datetime().optional(),
-    validUntil: z.string().datetime().nullable().optional(),
+    // Phase 200 fix — the admin UI anchors promo windows to Manila and
+    // sends ISO strings with a `+08:00` offset (e.g. 2026-01-01T23:59:59+08:00).
+    // Zod 4's bare `.datetime()` defaults to offset:false and rejects any
+    // non-`Z` offset, so creating a promo with a "Valid until" date 400'd.
+    // `{ offset: true }` accepts the timezone offset the client actually sends.
+    validFrom: z.string().datetime({ offset: true }).optional(),
+    validUntil: z.string().datetime({ offset: true }).nullable().optional(),
   })
   .strict()
   .refine(

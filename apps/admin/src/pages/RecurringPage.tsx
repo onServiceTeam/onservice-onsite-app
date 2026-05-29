@@ -215,7 +215,7 @@ export default function RecurringPage(): React.ReactElement {
       key: 'actions',
       header: '',
       render: (r) =>
-        r.status === 'active' ? (
+        r.status !== 'cancelled' ? (
           <button
             type="button"
             aria-label={`Cancel recurring booking ${r.id}`}

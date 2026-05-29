@@ -89,6 +89,19 @@ describe('Bug 261 — createPromoCodeSchema (admin)', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('Phase 200 — accepts validUntil with a +08:00 Manila offset (admin UI sends this)', () => {
+    // The admin Create Promo dialog anchors the window to Manila and sends
+    // e.g. 2026-12-31T23:59:59+08:00. Zod 4's bare .datetime() rejected any
+    // non-Z offset, so creating a promo with an end date 400'd. The schema
+    // now uses { offset: true }.
+    const result = createPromoCodeSchema.safeParse({
+      ...validInput,
+      validFrom: '2026-04-01T00:00:00+08:00',
+      validUntil: '2026-12-31T23:59:59+08:00',
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('Bug 261 — applyPromoSchema (customer)', () => {

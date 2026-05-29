@@ -507,16 +507,51 @@ router.post(
       const id = req.params.id;
       const { reason } = req.body as { reason?: string };
 
-      const result = await db.query(
+      // Phase 200 fix — the admin UI requires a >=10-char reason and tells
+      // the admin it is "recorded in audit log + sent to customer." Pre-fix
+      // the server did neither: it ran a bare UPDATE with no length check,
+      // no admin_actions row, and no notification — so the modal's promise
+      // was false. Enforce the reason, write the audit row, notify the
+      // customer.
+      if (!reason || typeof reason !== 'string' || reason.trim().length < 10) {
+        throw createAppError('A cancellation reason (min 10 characters) is required.', 400);
+      }
+      const trimmedReason = reason.trim();
+
+      const result = await db.query<{ customer_id: string; frequency: string }>(
         `UPDATE recurring_bookings
          SET status = 'cancelled', cancelled_at = NOW(), cancellation_reason = $1, updated_at = NOW()
-         WHERE id = $2 AND status IN ('active', 'paused')`,
-        [reason ?? 'Cancelled by admin', id],
+         WHERE id = $2 AND status IN ('active', 'paused')
+         RETURNING customer_id, frequency`,
+        [trimmedReason, id],
       );
 
       if ((result.rowCount ?? 0) === 0) {
         res.status(404).json({ success: false, message: 'Recurring booking not found or already cancelled.' });
         return;
+      }
+
+      const cancelled = result.rows[0]!;
+
+      await db.query(
+        `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
+         VALUES ($1, 'recurring_booking_cancelled', 'recurring_booking', $2, $3, $4)`,
+        [req.user!.userId, id, JSON.stringify({ frequency: cancelled.frequency }), trimmedReason],
+      );
+
+      try {
+        await notificationService.createNotification({
+          userId: cancelled.customer_id,
+          type: 'recurring_update',
+          title: 'Recurring booking cancelled',
+          body: `Your recurring booking has been cancelled by our team. Reason: ${trimmedReason}`,
+          data: { recurringBookingId: id },
+        });
+      } catch (notifyErr) {
+        // Notification is best-effort — the cancellation itself already
+        // committed and is audited. Log and continue so the admin still
+        // gets a success response.
+        logger.warn('Recurring cancel: customer notification failed', { recurringBookingId: id, error: notifyErr });
       }
 
       res.json({ success: true, message: 'Recurring booking cancelled.' });

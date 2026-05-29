@@ -96,7 +96,8 @@ export default function Sidebar(): React.ReactElement {
             fails WCAG AA 4.5:1). slate-400 (#94a3b8) on slate-900 = 5.2:1
             which passes. axe-core dev plugin previously flagged this on
             every admin page. */}
-        <p className="text-xs text-slate-400">v0.1.0</p>
+        {/* Phase 200 — was a stale hardcoded v0.1.0 */}
+        <p className="text-xs text-slate-400">v0.14.0</p>
       </div>
     </aside>
   );

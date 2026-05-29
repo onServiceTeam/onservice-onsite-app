@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { useAuthStore } from '@/stores/auth.store';
 
 interface AdminRole {
   id: string;
@@ -535,6 +536,11 @@ export default function StaffRolesPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseTab(searchParams.get('tab'));
   const page = parsePage(searchParams.get('page'));
+  // Phase 200 fix — every staff/roles endpoint is gated super_admin on the
+  // server (staff.routes.ts rbacMiddleware('super_admin')). Pre-fix a plain
+  // admin saw a fully interactive UI where every action 403'd. Show a clear
+  // access notice instead of a trap.
+  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
 
   function selectTab(nextTab: TabId): void {
     setSearchParams((current) => {
@@ -554,6 +560,21 @@ export default function StaffRolesPage(): React.ReactElement {
       else params.set('page', String(nextPage));
       return params;
     });
+  }
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold text-[var(--color-text)]">Staff & Roles</h1>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-6 text-center">
+          <p className="text-sm font-medium text-amber-800">Super-admin access required</p>
+          <p className="mt-1 text-sm text-amber-700">
+            Managing staff members, roles, and permissions is restricted to super-admin accounts. Contact a
+            super-admin if you need changes made here.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (

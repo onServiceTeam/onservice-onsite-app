@@ -357,11 +357,13 @@ function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactEleme
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Verification Documents</h3>
         <DocLine label="NBI Clearance" url={docs.nbiClearanceUrl}
           extra={docs.nbiExpiryDate ? `expires ${formatDateOnly(docs.nbiExpiryDate)}` : null} />
+        {/* Phase 200 — "Not available" caption only when the URL is absent. */}
         <DocLine label="Government ID" url={docs.governmentIdUrl}
-          extra="Not available in this record" />
+          extra={docs.governmentIdUrl ? null : 'Not available in this record'} />
         <DocLine label="Selfie" url={docs.selfieUrl}
-          extra="Not available in this record" />
-        <DocLine label="Avatar" url={(docs as { avatarUrl?: string | null }).avatarUrl ?? null} extra={null} />
+          extra={docs.selfieUrl ? null : 'Not available in this record'} />
+        {/* Phase 200 — avatar lives on the user object, not documents. */}
+        <DocLine label="Avatar" url={profile.user?.avatarUrl ?? null} extra={null} />
       </Card>
 
       <Card className="p-4">

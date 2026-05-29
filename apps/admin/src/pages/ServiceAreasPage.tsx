@@ -205,9 +205,11 @@ export default function ServiceAreasPage(): React.ReactElement {
     const lng = Number(formData.centerLng);
     const radius = Number(formData.radiusKm);
     const minProviders = Number(formData.minProvidersToLaunch);
-    if (!Number.isFinite(lat) || lat < -90 || lat > 90) return 'Center latitude must be between -90 and 90.';
-    if (!Number.isFinite(lng) || lng < -180 || lng > 180) return 'Center longitude must be between -180 and 180.';
-    if (!Number.isFinite(radius) || radius < 1 || radius > 50) return 'Radius must be between 1 and 50 km.';
+    // Phase 200 — align client bounds with server createServiceAreaSchema:
+    // Philippines lat 4.5..21.5, lng 116..127.5, radius 1..100 km.
+    if (!Number.isFinite(lat) || lat < 4.5 || lat > 21.5) return 'Center latitude must be within Philippines bounds (4.5 to 21.5).';
+    if (!Number.isFinite(lng) || lng < 116 || lng > 127.5) return 'Center longitude must be within Philippines bounds (116 to 127.5).';
+    if (!Number.isFinite(radius) || radius < 1 || radius > 100) return 'Radius must be between 1 and 100 km.';
     if (!Number.isInteger(minProviders) || minProviders < 1 || minProviders > 50) return 'Minimum providers to launch must be an integer from 1 to 50.';
     return null;
   }
@@ -415,7 +417,8 @@ export default function ServiceAreasPage(): React.ReactElement {
             </div>
             <div>
               <label htmlFor="area-radius" className="block text-sm font-medium text-[var(--color-text)] mb-1">Radius (km)</label>
-              <input id="area-radius" type="number" min="1" max="50" value={form.radiusKm} onChange={(e) => setForm({ ...form, radiusKm: e.target.value })}
+              {/* Phase 200 — raised max from 50 to 100 to match server bound. */}
+              <input id="area-radius" type="number" min="1" max="100" value={form.radiusKm} onChange={(e) => setForm({ ...form, radiusKm: e.target.value })}
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
             </div>
             <div>

@@ -49,6 +49,7 @@ import {
   Textarea,
 } from '@/components/ui';
 import { Activity, RefreshCw, MapPin, AlertCircle } from '@/components/icons';
+import { useAuthStore } from '@/stores/auth.store';
 
 // Vite ships broken default icon URLs; merge in the bundled assets.
 L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
@@ -266,6 +267,10 @@ function StatusBadge({ status }: { status: AdminSocketStatus }): React.ReactElem
 export default function DispatchConsolePage(): React.ReactElement {
   const queryClient = useQueryClient();
   const socketStatus = useAdminSocketStatus();
+  // Phase 200 fix — reassign/cancel/message are super_admin-only on the
+  // server (booking-admin.routes.ts requireSuperAdmin). Pre-fix the row
+  // action buttons rendered for any admin and 403'd. Gate them.
+  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
 
   const bookingsQuery = useQuery({
     queryKey: ['dispatch', 'bookings'],
@@ -671,30 +676,36 @@ export default function DispatchConsolePage(): React.ReactElement {
                     </td>
                     <td className="px-3 py-2">{b.etaMinutes != null ? `${b.etaMinutes}m` : '—'}</td>
                     <td className="px-3 py-2 text-right">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleReassign(b); }}
-                        aria-label={`Reassign booking ${b.id}`}
-                        className="text-[var(--color-primary)] hover:underline mr-2"
-                      >
-                        Reassign
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleCancel(b); }}
-                        aria-label={`Cancel booking ${b.id}`}
-                        className="text-red-600 hover:underline mr-2"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleMessage(b); }}
-                        aria-label={`Message customer for booking ${b.id}`}
-                        className="text-slate-600 hover:underline"
-                      >
-                        Message
-                      </button>
+                      {isSuperAdmin ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleReassign(b); }}
+                            aria-label={`Reassign booking ${b.id}`}
+                            className="text-[var(--color-primary)] hover:underline mr-2"
+                          >
+                            Reassign
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleCancel(b); }}
+                            aria-label={`Cancel booking ${b.id}`}
+                            className="text-red-600 hover:underline mr-2"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleMessage(b); }}
+                            aria-label={`Message customer for booking ${b.id}`}
+                            className="text-slate-600 hover:underline"
+                          >
+                            Message
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-[var(--color-text-tertiary)]">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -863,8 +874,8 @@ export default function DispatchConsolePage(): React.ReactElement {
           </DialogHeader>
           <div className="space-y-3">
             <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2">
-              This will refund the customer in full per current cancellation policy.
-              Detailed refund preview will arrive in Phase 14+.
+              The customer will be refunded per the current cancellation policy.
+              The exact amount is computed and shown on the booking detail page after cancellation.
             </div>
             <div>
               <Label htmlFor="cancel-reason">Cancellation reason</Label>

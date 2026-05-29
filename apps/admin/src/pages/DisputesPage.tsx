@@ -7,6 +7,7 @@ import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
 import { useAdminSocketEvent } from '@/lib/use-admin-socket';
+import { useAuthStore } from '@/stores/auth.store';
 
 interface Dispute {
   id: string;
@@ -54,6 +55,11 @@ function formatType(t: string): string {
 
 export default function DisputesPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  // Phase 200 fix — resolve/escalate are super_admin-only on the server
+  // (dispute.routes.ts rbacMiddleware('super_admin')). Pre-fix the buttons
+  // rendered for every admin, so a regular admin hit a guaranteed 403. The
+  // detail page already gates on isSuperAdmin; match that here.
+  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') ?? '');
@@ -227,30 +233,35 @@ export default function DisputesPage(): React.ReactElement {
     {
       key: 'actions',
       header: 'Actions',
-      render: (r) => (
-        <div className="flex items-center gap-1 flex-wrap">
-          {r.status !== 'resolved' && (
-            <>
-              <button
-                onClick={(e) => { e.stopPropagation(); openResolve(r); }}
-                aria-label={`Resolve dispute ${r.id}`}
-                className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
-              >
-                Resolve
-              </button>
-              {r.tier < 3 && (
+      render: (r) => {
+        if (!isSuperAdmin) {
+          return <span className="text-xs text-[var(--color-text-tertiary)]">—</span>;
+        }
+        return (
+          <div className="flex items-center gap-1 flex-wrap">
+            {r.status !== 'resolved' && (
+              <>
                 <button
-                  onClick={(e) => { e.stopPropagation(); openEscalate(r); }}
-                  aria-label={`Escalate dispute ${r.id}`}
-                  className="px-2 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors"
+                  onClick={(e) => { e.stopPropagation(); openResolve(r); }}
+                  aria-label={`Resolve dispute ${r.id}`}
+                  className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
                 >
-                  Escalate
+                  Resolve
                 </button>
-              )}
-            </>
-          )}
-        </div>
-      ),
+                {r.tier < 3 && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openEscalate(r); }}
+                    aria-label={`Escalate dispute ${r.id}`}
+                    className="px-2 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors"
+                  >
+                    Escalate
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -261,6 +272,11 @@ export default function DisputesPage(): React.ReactElement {
         <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
           Review and resolve customer disputes
         </p>
+        {!isSuperAdmin && (
+          <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 inline-block">
+            You have read-only access. Resolving and escalating disputes requires a super-admin account.
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">

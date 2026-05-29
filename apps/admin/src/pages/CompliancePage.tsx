@@ -43,6 +43,7 @@ import {
   Download,
   Search,
 } from '@/components/icons';
+import { useAuthStore } from '@/stores/auth.store';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -471,6 +472,13 @@ function DsrDetailPanel(props: {
 }
 
 function ConsentSearchCard(): React.ReactElement {
+  // Phase 200 fix — the consent endpoint is gated requireDpoRole
+  // (super_admin or dpo) per NPC RA 10173 §21 least-privilege. Pre-fix the
+  // card showed for every admin role and the search silently 403'd (no
+  // error branch). Gate it to the roles the API allows.
+  const canSearchConsent = useAuthStore(
+    (s) => s.user?.role === 'super_admin' || s.user?.role === 'dpo',
+  );
   const [userId, setUserId] = useState('');
   const [consentType, setConsentType] = useState('');
   const [version, setVersion] = useState('');
@@ -488,13 +496,29 @@ function ConsentSearchCard(): React.ReactElement {
       );
       return res.data.data;
     },
-    enabled: applied.userId !== '' || applied.consentType !== '' || applied.version !== '',
+    enabled: canSearchConsent && (applied.userId !== '' || applied.consentType !== '' || applied.version !== ''),
   });
 
   const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
     setApplied({ userId: userId.trim(), consentType: consentType.trim(), version: version.trim() });
   };
+
+  if (!canSearchConsent) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Consent Records Search</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            Consent record search is restricted to the Data Protection Officer and super-admins under NPC
+            least-privilege rules (RA 10173 §21).
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -522,6 +546,8 @@ function ConsentSearchCard(): React.ReactElement {
 
         {consentQuery.isFetching ? (
           <LoadingState label="Searching..." />
+        ) : consentQuery.isError ? (
+          <ErrorState title="Consent search failed" description={getErrorMessage(consentQuery.error)} />
         ) : (consentQuery.data?.rows ?? []).length === 0 ? (
           <p className="text-sm text-[var(--color-text-secondary)]">
             Enter at least one filter and click Search.
