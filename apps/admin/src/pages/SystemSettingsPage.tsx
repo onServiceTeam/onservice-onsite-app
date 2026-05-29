@@ -36,6 +36,7 @@ import {
   Settings,
   Check,
   AlertCircle,
+  MapPin,
 } from '@/components/icons';
 
 interface PlatformSetting {
@@ -82,6 +83,7 @@ const CATEGORY_META: Record<string, { label: string; Icon: React.ComponentType<{
   provider:    { label: 'Provider',     Icon: User        },
   security:    { label: 'Security',     Icon: Lock        },
   cache:       { label: 'Cache',        Icon: Zap         },
+  dispatch:    { label: 'Dispatch & Map', Icon: MapPin     },
 };
 
 function metaFor(category: string): { label: string; Icon: React.ComponentType<{ className?: string }> } {

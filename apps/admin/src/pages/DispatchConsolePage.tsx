@@ -106,7 +106,10 @@ interface DispatchBooking {
 
 interface DispatchProvider {
   id: string;
-  name: string;
+  // Phase 200 — the admin providers API returns `businessName` (see
+  // adminService.formatProvider), not `name`. Match the wire field so the
+  // map popup and reassign dropdown actually show the provider's name.
+  businessName: string | null;
   latitude: number | null;
   longitude: number | null;
   city: string | null;
@@ -221,8 +224,11 @@ function unwrap<T>(payload: ListEnvelope<T> | undefined): T[] {
 
 async function fetchBookings(): Promise<DispatchBooking[]> {
   try {
+    // Phase 200 — the admin bookings route reads `pageSize` (max 100), not
+    // `limit`; the old `limit=100` was ignored and only 20 rows came back.
+    // status=active now expands server-side to the live-booking set.
     const res = await api.get<ListEnvelope<DispatchBooking>>(
-      '/api/v1/admin/bookings?status=active&limit=100',
+      '/api/v1/admin/bookings?status=active&pageSize=100',
     );
     return unwrap(res.data);
   } catch (err) {
@@ -237,8 +243,10 @@ async function fetchBookings(): Promise<DispatchBooking[]> {
 
 async function fetchProviders(): Promise<DispatchProvider[]> {
   try {
+    // Phase 200 — `online=true` now filters to approved + available providers
+    // server-side, and `pageSize` (not `limit`) is the honored param.
     const res = await api.get<ListEnvelope<DispatchProvider>>(
-      '/api/v1/admin/providers?online=true&limit=200',
+      '/api/v1/admin/providers?online=true&pageSize=100',
     );
     return unwrap(res.data);
   } catch (err) {
@@ -246,6 +254,45 @@ async function fetchProviders(): Promise<DispatchProvider[]> {
       description: err instanceof Error ? err.message : String(err),
     });
     return [];
+  }
+}
+
+// ─── Map tile config ────────────────────────────────────────────────────────
+// Phase 200 — the tile source is admin-configurable via platform_settings
+// (category 'dispatch'). Defaults to OpenStreetMap so the map works with no
+// configuration. An operator can paste a MapTiler/Mapbox URL + key in
+// /admin/settings → Dispatch to use production tiles.
+
+const OSM_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const OSM_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+interface MapTileConfig {
+  url: string;
+  attribution: string;
+}
+
+interface SettingRow {
+  key: string;
+  value: string;
+}
+
+async function fetchMapTileConfig(): Promise<MapTileConfig> {
+  try {
+    const res = await api.get<{ success: boolean; data: SettingRow[] }>(
+      '/api/v1/admin/settings/dispatch',
+    );
+    const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+    const byKey = new Map(rows.map((r) => [r.key, r.value]));
+    const rawUrl = (byKey.get('map_tile_url') ?? '').trim() || OSM_TILE_URL;
+    const apiKey = (byKey.get('map_tile_api_key') ?? '').trim();
+    const attribution = (byKey.get('map_tile_attribution') ?? '').trim() || OSM_ATTRIBUTION;
+    // Substitute the {apiKey} placeholder only when a key is configured.
+    const url = apiKey ? rawUrl.replace('{apiKey}', encodeURIComponent(apiKey)) : rawUrl;
+    return { url, attribution };
+  } catch {
+    // Settings unreachable — fall back to keyless OSM so the map still draws.
+    return { url: OSM_TILE_URL, attribution: OSM_ATTRIBUTION };
   }
 }
 
@@ -282,6 +329,14 @@ export default function DispatchConsolePage(): React.ReactElement {
     queryFn: fetchProviders,
     refetchInterval: 60_000,
   });
+  // Admin-configurable map tiles. Stale-time long since tile config rarely
+  // changes; falls back to OSM on any error inside the fetcher.
+  const mapConfigQuery = useQuery({
+    queryKey: ['dispatch', 'map-config'],
+    queryFn: fetchMapTileConfig,
+    staleTime: 5 * 60_000,
+  });
+  const mapTile: MapTileConfig = mapConfigQuery.data ?? { url: OSM_TILE_URL, attribution: OSM_ATTRIBUTION };
 
   const [cityFilter, setCityFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -573,8 +628,9 @@ export default function DispatchConsolePage(): React.ReactElement {
           style={{ height: '100%', width: '100%' }}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            key={mapTile.url}
+            attribution={mapTile.attribution}
+            url={mapTile.url}
           />
           {filteredBookings
             .filter((b) => b.latitude != null && b.longitude != null)
@@ -604,7 +660,7 @@ export default function DispatchConsolePage(): React.ReactElement {
               >
                 <Popup>
                   <div className="text-xs">
-                    <div className="font-semibold">{p.name}</div>
+                    <div className="font-semibold">{p.businessName ?? 'Provider'}</div>
                     <div>{p.city ?? '—'}</div>
                   </div>
                 </Popup>
@@ -803,7 +859,7 @@ export default function DispatchConsolePage(): React.ReactElement {
                 <option value="">Select an online provider…</option>
                 {allProviders.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}{p.city ? ` — ${p.city}` : ''}
+                    {p.businessName ?? p.id}{p.city ? ` — ${p.city}` : ''}
                   </option>
                 ))}
               </select>

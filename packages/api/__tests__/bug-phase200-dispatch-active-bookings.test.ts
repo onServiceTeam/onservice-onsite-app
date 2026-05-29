@@ -55,4 +55,58 @@ describe('Phase 200 — listBookingsAdmin status=active expansion', () => {
     expect(countSql).not.toContain('b.status IN (');
     expect(countParams).toEqual(['completed_by_provider']);
   });
+
+  it('selects booking latitude/longitude for the dispatch map', async () => {
+    await adminService.listBookingsAdmin({ status: 'active', page: 1, pageSize: 20 });
+    // calls[0] = count, calls[1] = data query.
+    const dataSql = dbQueryMock.mock.calls[1]![0] as string;
+    expect(dataSql).toContain('b.latitude');
+    expect(dataSql).toContain('b.longitude');
+  });
+});
+
+describe('Phase 200 — listProviders online filter', () => {
+  beforeEach(() => {
+    dbQueryMock.mockReset();
+    dbQueryMock.mockResolvedValue({ rows: [{ count: '0' }] });
+  });
+
+  it('online=true restricts to approved + available providers', async () => {
+    await adminService.listProviders({ online: true, page: 1, pageSize: 100 });
+    const countSql = dbQueryMock.mock.calls[0]![0] as string;
+    expect(countSql).toContain("p.status = 'approved'");
+    expect(countSql).toContain('p.is_available = TRUE');
+  });
+
+  it('omits the online predicates when online is not set', async () => {
+    await adminService.listProviders({ page: 1, pageSize: 100 });
+    const countSql = dbQueryMock.mock.calls[0]![0] as string;
+    expect(countSql).not.toContain('p.is_available = TRUE');
+  });
+});
+
+describe('Phase 200 — dispatch map coordinates in formatters', () => {
+  it('formatBookingAdmin coerces lat/lng strings to numbers', () => {
+    const out = adminService.formatBookingAdmin({
+      id: 'b1', customer_id: 'c1', provider_id: null, category_id: 'cat1',
+      status: 'paid', escrow_status: 'held', total_amount: '10000',
+      city: 'Boracay', scheduled_at: new Date(), created_at: new Date(),
+      customer_name: 'A B', provider_name: null, category_name: 'Cleaning',
+      latitude: '11.96900000', longitude: '121.92700000',
+    } as never);
+    expect(out.latitude).toBe(11.969);
+    expect(out.longitude).toBe(121.927);
+  });
+
+  it('formatProvider leaves null coordinates as null', () => {
+    const out = adminService.formatProvider({
+      id: 'p1', user_id: 'u1', business_name: 'X', description: '', tier: 'new',
+      status: 'approved', rating: '5', total_reviews: 0, total_jobs: 0,
+      service_radius_km: 10, is_available: true, city: 'Boracay', province: 'Aklan',
+      latitude: null, longitude: null, created_at: new Date(), updated_at: new Date(),
+      phone: '0900', email: null, full_name: 'X Y',
+    } as never);
+    expect(out.latitude).toBeNull();
+    expect(out.longitude).toBeNull();
+  });
 });

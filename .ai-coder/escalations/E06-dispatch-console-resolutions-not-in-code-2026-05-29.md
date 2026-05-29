@@ -3,7 +3,8 @@
 **Date:** 2026-05-29
 **Raised by:** AI coder (Phase 200 admin UX audit)
 **Severity:** Source-of-truth conflict (CLAUDE.md hard stop #4) + falsified-resolution pattern
-**Status:** OPEN — needs Ken decision on scope
+**Status:** RESOLVED — 2026-05-29. Ken chose to build the real map. Phase 200
+wired it (see RESOLUTION at the bottom).
 
 ## What I found
 
@@ -62,3 +63,38 @@ working) with the map/online/refund-preview deferred to v1.1?
 
 I have corrected LAUNCH-LIMITATIONS #1/#2 to stop claiming RESOLVED and to
 describe the true v1.0 state. I did not delete the entries.
+
+---
+
+## RESOLUTION (2026-05-29)
+
+Ken's decision: build the real map. Done in Phase 200:
+
+- **Data:** `bookings` and `providers` already had `latitude`/`longitude`
+  columns; they were just never returned. `listBookingsAdmin` /
+  `formatBookingAdmin` and `formatProvider` now return them, so the Leaflet
+  map plots live markers.
+- **Online feed:** `listProviders` gained an `online` filter (approved +
+  is_available) and the `/providers` route reads `?online=true`. The
+  dispatch fetches now use `pageSize` (the honored param), not `limit`.
+- **Active table:** `listBookingsAdmin` expands `status=active` to
+  `ACTIVE_BOOKING_STATUSES`.
+- **Configurable tiles:** migration `127_phase200_dispatch_map_settings.sql`
+  seeds a `dispatch` settings category (`map_tile_url`,
+  `map_tile_attribution`, `map_tile_api_key`) editable at
+  /admin/settings → Dispatch & Map. Defaults to OpenStreetMap; supports
+  MapTiler/Mapbox via a `{apiKey}` placeholder. Tile token is a publishable
+  client credential, intentionally not is_sensitive so the admin map can
+  read it.
+- **Provider name bug:** the dispatch page expected `name` but the API
+  returns `businessName`; fixed the interface + popup + reassign dropdown.
+
+**Tests:** `packages/api/__tests__/bug-phase200-dispatch-active-bookings.test.ts`
+(active expansion, online filter, lat/lng formatters) and
+`apps/admin/src/pages/__tests__/dispatch-map-phase200.real.test.tsx`
+(markers render from coordinates; configured tile URL applied with key
+substitution).
+
+**Still deferred to v1.1:** live ETA + animated real-time GPS movement
+(needs a provider location-ping pipeline). The map plots the booking
+service-address and provider base location, which is the launch need.

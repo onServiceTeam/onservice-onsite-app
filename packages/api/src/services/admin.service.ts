@@ -28,6 +28,9 @@ interface ProviderAdminRow {
   is_available: boolean;
   city: string | null;
   province: string | null;
+  // DECIMAL columns — pg returns them as strings.
+  latitude: string | null;
+  longitude: string | null;
   created_at: Date;
   updated_at: Date;
   phone: string;
@@ -64,6 +67,9 @@ interface BookingAdminRow {
   customer_name: string;
   provider_name: string | null;
   category_name: string;
+  // DECIMAL columns — pg returns them as strings. Used by the dispatch map.
+  latitude: string | null;
+  longitude: string | null;
 }
 
 interface RevenueRow {
@@ -143,7 +149,7 @@ export async function getDashboardKpis(): Promise<Record<string, unknown>> {
 }
 
 export async function listProviders(
-  filters: { status?: string; tier?: string; search?: string; page: number; pageSize: number },
+  filters: { status?: string; tier?: string; search?: string; online?: boolean; page: number; pageSize: number },
 ): Promise<{ providers: ProviderAdminRow[]; total: number }> {
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -152,6 +158,13 @@ export async function listProviders(
   if (filters.status) {
     conditions.push(`p.status = $${paramIdx++}`);
     params.push(filters.status);
+  }
+  // Phase 200 — dispatch console "online providers" feed. Online = approved
+  // and currently accepting work (is_available). No params needed; both are
+  // literal predicates. Combines (AND) with any explicit status/tier filter.
+  if (filters.online) {
+    conditions.push(`p.status = 'approved'`);
+    conditions.push(`p.is_available = TRUE`);
   }
   if (filters.tier) {
     conditions.push(`p.tier = $${paramIdx++}`);
@@ -463,6 +476,7 @@ export async function listBookingsAdmin(
   const dataResult = await db.query<BookingAdminRow>(
     `SELECT b.id, b.customer_id, b.provider_id, b.category_id, b.status,
        b.escrow_status, b.total_amount::text, b.city, b.scheduled_at, b.created_at,
+       b.latitude::text AS latitude, b.longitude::text AS longitude,
        CONCAT(u.first_name, ' ', u.last_name) AS customer_name,
        p.business_name AS provider_name,
        sc.name AS category_name
@@ -581,6 +595,10 @@ export function formatProvider(p: ProviderAdminRow): Record<string, unknown> {
     isAvailable: p.is_available,
     city: p.city,
     province: p.province,
+    // Phase 200 — surfaced for the dispatch map. Number() on a null stays
+    // null; pg returns DECIMAL as a string so coerce when present.
+    latitude: p.latitude != null ? Number(p.latitude) : null,
+    longitude: p.longitude != null ? Number(p.longitude) : null,
     phone: p.phone,
     email: p.email,
     fullName: p.full_name,
@@ -618,6 +636,9 @@ export function formatBookingAdmin(b: BookingAdminRow): Record<string, unknown> 
     providerName: b.provider_name,
     categoryName: b.category_name,
     createdAt: b.created_at,
+    // Phase 200 — surfaced for the dispatch map.
+    latitude: b.latitude != null ? Number(b.latitude) : null,
+    longitude: b.longitude != null ? Number(b.longitude) : null,
   };
 }
 

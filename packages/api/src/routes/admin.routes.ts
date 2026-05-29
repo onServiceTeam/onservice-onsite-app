@@ -149,8 +149,10 @@ router.get(
       const status = typeof req.query.status === 'string' ? req.query.status : undefined;
       const tier = typeof req.query.tier === 'string' ? req.query.tier : undefined;
       const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+      // Phase 200 — dispatch console online-providers feed.
+      const online = req.query.online === 'true';
 
-      const { providers, total } = await adminService.listProviders({ status, tier, search, page, pageSize });
+      const { providers, total } = await adminService.listProviders({ status, tier, search, online, page, pageSize });
 
       res.json({
         success: true,
