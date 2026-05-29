@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -223,10 +223,11 @@ export default function ChangeOrderScreen(): React.ReactElement {
 
                 {order.photos.length > 0 && (
                   <View style={styles.photoRow}>
-                    {order.photos.map((_, i) => (
-                      <View key={i} style={styles.photoThumb}>
-                        <Text style={styles.photoIcon}>📷</Text>
-                      </View>
+                    {/* Phase 200 — render the provider's actual justification
+                         photos, not a placeholder camera glyph. The customer
+                         needs to see the evidence for the additional charge. */}
+                    {order.photos.map((uri, i) => (
+                      <Image key={i} source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
                     ))}
                   </View>
                 )}
@@ -265,6 +266,11 @@ export default function ChangeOrderScreen(): React.ReactElement {
                       bookingId: order.bookingId,
                       paymentRequired: true,
                       additionalAmount: order.additionalAmount,
+                      // Phase 200 — carry the real fee + total (now returned
+                      // by the list endpoint) so the payment screen shows the
+                      // true total and enforces the wallet-balance gate.
+                      additionalServiceFee: order.additionalServiceFee ?? undefined,
+                      additionalTotal: order.additionalTotal ?? undefined,
                     })}
                   >
                     <Text style={styles.payPendingText}>Pay Additional Amount</Text>

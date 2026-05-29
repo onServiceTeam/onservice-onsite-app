@@ -196,6 +196,11 @@ export interface ChangeOrder {
   providerId: string;
   description: string;
   additionalAmount: number;
+  // Phase 200 — the list endpoint now returns the marginal service fee +
+  // total so the re-pay screen can show the real total and gate on wallet
+  // balance. Null only if the parent booking could not be read.
+  additionalServiceFee: number | null;
+  additionalTotal: number | null;
   photos: string[];
   status: string;
   customerRespondedAt: string | null;

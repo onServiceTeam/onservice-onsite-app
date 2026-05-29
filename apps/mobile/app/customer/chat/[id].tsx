@@ -112,7 +112,7 @@ export default function ChatScreen(): React.ReactElement {
     void markConversationRead(conversationId);
     emitMarkRead(conversationId);
 
-    socket.on('new:message', (msg: Message) => {
+    const onNewMessage = (msg: Message): void => {
       if (msg.conversationId === conversationId) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === msg.id)) return prev;
@@ -123,9 +123,9 @@ export default function ChatScreen(): React.ReactElement {
           emitMarkRead(conversationId);
         }
       }
-    });
+    };
 
-    socket.on('messages:read', (data: { conversationId: string; readBy: string }) => {
+    const onMessagesRead = (data: { conversationId: string; readBy: string }): void => {
       if (data.conversationId === conversationId && data.readBy !== userId) {
         setMessages((prev) =>
           prev.map((m) =>
@@ -133,23 +133,28 @@ export default function ChatScreen(): React.ReactElement {
           ),
         );
       }
-    });
+    };
 
-    socket.on('typing:start', (data: { userId: string }) => {
+    const onTypingStart = (data: { userId: string }): void => {
       if (data.userId !== userId) setTypingUser(true);
-    });
+    };
 
-    socket.on('typing:stop', (data: { userId: string }) => {
+    const onTypingStop = (data: { userId: string }): void => {
       if (data.userId !== userId) setTypingUser(false);
-    });
+    };
+
+    socket.on('new:message', onNewMessage);
+    socket.on('messages:read', onMessagesRead);
+    socket.on('typing:start', onTypingStart);
+    socket.on('typing:stop', onTypingStop);
 
     return () => {
       leaveConversation(conversationId);
       const s = getSocket();
-      s?.off('new:message');
-      s?.off('messages:read');
-      s?.off('typing:start');
-      s?.off('typing:stop');
+      s?.off('new:message', onNewMessage);
+      s?.off('messages:read', onMessagesRead);
+      s?.off('typing:start', onTypingStart);
+      s?.off('typing:stop', onTypingStop);
     };
   }, [conversationId, userId]);
 
@@ -192,11 +197,13 @@ export default function ChatScreen(): React.ReactElement {
     try {
       const uploaded = await uploadImages([result.assets[0].uri], 'chat');
       if (uploaded.length > 0) {
-        const msg = await sendMessageApi(conversationId, '📷 Photo', 'image', uploaded[0]!.url);
+        const caption = inputText.trim() || '📷 Photo';
+        const msg = await sendMessageApi(conversationId, caption, 'image', uploaded[0]!.url);
         setMessages((prev) => {
           if (prev.some((m) => m.id === msg.id)) return prev;
           return [...prev, msg];
         });
+        setInputText('');
         flatListRef.current?.scrollToEnd({ animated: true });
       }
     } catch {
@@ -204,7 +211,7 @@ export default function ChatScreen(): React.ReactElement {
     } finally {
       setUploadingPhoto(false);
     }
-  }, [conversationId]);
+  }, [conversationId, inputText]);
 
   const handleTyping = (text: string): void => {
     setInputText(text);

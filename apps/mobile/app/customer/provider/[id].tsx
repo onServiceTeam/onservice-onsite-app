@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -78,19 +78,24 @@ export default function ProviderProfileScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { data: provider, isLoading: providerLoading, isError: providerError, refetch: refetchProvider } = useQuery({
+  const { data: provider, isLoading: providerLoading, isError: providerError, refetch: refetchProvider, isRefetching: providerRefetching } = useQuery({
     queryKey: ['provider', id],
     queryFn: () => getProviderProfile(id),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: reviewsData, isError: reviewsError } = useQuery({
+  const { data: reviewsData, isError: reviewsError, refetch: refetchReviews, isRefetching: reviewsRefetching } = useQuery({
     queryKey: ['providerReviews', id],
     queryFn: () => getProviderReviews(id, 1, 10),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
   });
+
+  const onRefresh = useCallback(() => {
+    void refetchProvider();
+    void refetchReviews();
+  }, [refetchProvider, refetchReviews]);
 
   const reviews = reviewsData?.reviews ?? [];
   const aggregate = reviewsData?.aggregate;
@@ -139,7 +144,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={false} onRefresh={() => void refetchProvider()} />
+          <RefreshControl refreshing={providerRefetching || reviewsRefetching} onRefresh={onRefresh} />
         }
       >
         <View style={styles.profileCard}>

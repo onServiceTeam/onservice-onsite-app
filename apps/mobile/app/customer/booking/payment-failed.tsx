@@ -100,9 +100,19 @@ export default function PaymentFailedScreen(): React.ReactElement {
         </View>
 
         <View style={styles.actions}>
+          {/* Phase 200 — retry and change-method must land on a screen
+               where the customer can actually re-pay. The pay screen takes
+               a bookingId, loads the payment_pending booking, and lets the
+               user pick a method. router.back() was unreliable (the failed
+               flow may have replaced the previous route with /confirm), and
+               payment-methods is an info-only screen with no pay action. */}
           <TouchableOpacity
             style={styles.primaryBtn}
-            onPress={() => router.back()}
+            onPress={() =>
+              bookingId
+                ? router.replace({ pathname: '/customer/booking/pay', params: { bookingId } })
+                : router.back()
+            }
             activeOpacity={0.7}
           >
             <Text style={styles.primaryBtnText}>Retry Payment</Text>
@@ -110,7 +120,11 @@ export default function PaymentFailedScreen(): React.ReactElement {
 
           <TouchableOpacity
             style={styles.secondaryBtn}
-            onPress={() => router.push(Routes.CUSTOMER.PAYMENT_METHODS)}
+            onPress={() =>
+              bookingId
+                ? router.replace({ pathname: '/customer/booking/pay', params: { bookingId } })
+                : router.push(Routes.CUSTOMER.PAYMENT_METHODS)
+            }
             activeOpacity={0.7}
           >
             <Text style={styles.secondaryBtnText}>Use Different Payment Method</Text>

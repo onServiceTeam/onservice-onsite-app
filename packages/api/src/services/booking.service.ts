@@ -1539,16 +1539,50 @@ export async function getChangeOrders(bookingId: string): Promise<Record<string,
     `SELECT * FROM change_orders WHERE booking_id = $1 ORDER BY created_at ASC`,
     [bookingId],
   );
-  return result.rows.map(formatChangeOrder);
+
+  // Phase 200 — include the marginal service fee + total for each order so
+  // the customer's "pay additional amount" screen can show the real total
+  // and enforce the wallet-balance gate when re-paying an already-approved
+  // order. Pre-fix only `additionalAmount` was returned, so the re-pay path
+  // showed no total and silently bypassed the insufficient-funds check.
+  // The baseline is the booking's CURRENT service_price/total_amount, which
+  // for an approved-but-unpaid order is the pre-change baseline (the booking
+  // is only updated at payment finalization) — so this matches exactly what
+  // respondToChangeOrder returned at approval time.
+  const bookingRow = await db.query<{ service_price: number; total_amount: number }>(
+    `SELECT service_price, total_amount FROM bookings WHERE id = $1`,
+    [bookingId],
+  );
+  const baseline = bookingRow.rows[0];
+
+  return Promise.all(
+    result.rows.map(async (co) => {
+      let additionalServiceFee: number | null = null;
+      let additionalTotal: number | null = null;
+      if (baseline) {
+        const newServicePrice = baseline.service_price + co.additional_amount;
+        const newServiceFee = await calculateServiceFee(newServicePrice);
+        additionalTotal = (newServicePrice + newServiceFee) - baseline.total_amount;
+        additionalServiceFee = additionalTotal - co.additional_amount;
+      }
+      return formatChangeOrder(co, additionalServiceFee, additionalTotal);
+    }),
+  );
 }
 
-function formatChangeOrder(co: ChangeOrderRow): Record<string, unknown> {
+function formatChangeOrder(
+  co: ChangeOrderRow,
+  additionalServiceFee: number | null = null,
+  additionalTotal: number | null = null,
+): Record<string, unknown> {
   return {
     id: co.id,
     bookingId: co.booking_id,
     providerId: co.provider_id,
     description: co.description,
     additionalAmount: co.additional_amount,
+    additionalServiceFee,
+    additionalTotal,
     photos: co.photos ?? [],
     status: co.status,
     customerRespondedAt: co.customer_responded_at,

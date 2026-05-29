@@ -45,10 +45,12 @@ function MembershipCard({
   membership,
   tiers,
   onRedeem,
+  redeeming,
 }: {
   membership: SukiMembership;
   tiers: SukiTier[];
   onRedeem: (id: string, points: number) => void;
+  redeeming: boolean;
 }): React.ReactElement {
   const [redeemInput, setRedeemInput] = useState('');
   const currentTier = tiers.find(t => t.name === membership.tier);
@@ -122,7 +124,7 @@ function MembershipCard({
               // use the same configurable threshold.
               style={[
                 styles.redeemBtn,
-                (!redeemInput || Number(redeemInput) < platformConfig.sukiMinRedeemPoints) && styles.redeemBtnDisabled,
+                (redeeming || !redeemInput || Number(redeemInput) < platformConfig.sukiMinRedeemPoints) && styles.redeemBtnDisabled,
               ]}
               onPress={() => {
                 const pts = Number(redeemInput);
@@ -135,9 +137,9 @@ function MembershipCard({
                   setRedeemInput('');
                 }
               }}
-              disabled={!redeemInput || Number(redeemInput) < platformConfig.sukiMinRedeemPoints}
+              disabled={redeeming || !redeemInput || Number(redeemInput) < platformConfig.sukiMinRedeemPoints}
             >
-              <Text style={styles.redeemBtnText}>Redeem → Wallet</Text>
+              <Text style={styles.redeemBtnText}>{redeeming ? 'Redeeming…' : 'Redeem → Wallet'}</Text>
             </TouchableOpacity>
           </View>
           <Text style={styles.redeemHint}>{platformConfig.sukiPointsPerPeso} points = {formatPHP(100)} wallet credit (multiples of {platformConfig.sukiMinRedeemPoints})</Text>
@@ -272,6 +274,7 @@ export default function SukiProsScreen(): React.ReactElement {
                   membership={m}
                   tiers={tiers ?? []}
                   onRedeem={(id, pts) => redeemMutation.mutate({ membershipId: id, points: pts })}
+                  redeeming={redeemMutation.isPending}
                 />
               ))}
             </>

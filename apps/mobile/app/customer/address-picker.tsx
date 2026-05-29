@@ -56,6 +56,17 @@ const PH_REGIONS: { lat: number; lng: number; city: string; province: string }[]
   { lat: 14.2139, lng: 121.1652, city: 'Calamba', province: 'Laguna' },
   { lat: 15.4857, lng: 120.9715, city: 'Angeles', province: 'Pampanga' },
   { lat: 14.3494, lng: 120.9553, city: 'Bacoor', province: 'Cavite' },
+  // Phase 200 — Boracay is the v1.0 launch market (Malay, Aklan) but was
+  // entirely absent, so a map tap there resolved to a far-away city (or
+  // Manila) and confirm was blocked ("could not determine the city"). Add
+  // the island plus its jump-off/capital points so the nearest-region
+  // geocode resolves real Boracay-area addresses.
+  { lat: 11.9674, lng: 121.9248, city: 'Boracay', province: 'Aklan' },
+  { lat: 11.9543, lng: 121.9270, city: 'Boracay', province: 'Aklan' },
+  { lat: 11.9805, lng: 121.9180, city: 'Boracay', province: 'Aklan' },
+  { lat: 11.9116, lng: 121.9248, city: 'Malay', province: 'Aklan' },
+  { lat: 11.9305, lng: 121.9544, city: 'Caticlan', province: 'Aklan' },
+  { lat: 11.7086, lng: 122.3618, city: 'Kalibo', province: 'Aklan' },
 ];
 
 function guessRegionFromCoordinates(lat: number, lng: number): { city: string; province: string } {

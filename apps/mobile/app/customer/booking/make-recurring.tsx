@@ -71,6 +71,19 @@ export default function MakeRecurringScreen(): React.ReactElement {
     if (dayIndex >= 0) setPreferredDay(dayIndex);
   }, [booking?.scheduledAt, dayTouched]);
 
+  // Redirect to Bookings if there's no booking to make recurring. Done in
+  // an effect (not during render) so navigation isn't a render side-effect.
+  // Guarded on !isLoading so we don't bounce while the query is in flight.
+  useEffect(() => {
+    if (!bookingId) {
+      router.replace(Routes.TABS.BOOKINGS);
+      return;
+    }
+    if (!isLoading && !bookingError && !booking) {
+      router.replace(Routes.TABS.BOOKINGS);
+    }
+  }, [bookingId, isLoading, bookingError, booking, router]);
+
   const createRecurring = useMutation({
     mutationFn: async () => {
       if (!booking) throw new Error('Booking data not available');
@@ -141,8 +154,7 @@ export default function MakeRecurringScreen(): React.ReactElement {
   }
 
   if (!bookingId || !booking) {
-    router.replace(Routes.TABS.BOOKINGS);
-    return <View />;
+    return <View style={styles.container} />;
   }
 
   return (

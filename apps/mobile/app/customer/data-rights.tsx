@@ -18,7 +18,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Alert, ActivityIndicator,
+  StyleSheet, Alert, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -295,7 +295,16 @@ export default function DataRightsScreen(): React.ReactElement {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.bodyContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={myRequestsQuery.isRefetching}
+            onRefresh={() => void myRequestsQuery.refetch()}
+          />
+        }
+      >
         <View style={styles.intro}>
           <View style={styles.introIcon}>
             <Shield size={28} color={colors.primary} />

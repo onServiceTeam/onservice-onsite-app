@@ -22,7 +22,7 @@ export default function SubcategoryListScreen(): React.ReactElement {
   const { id: slug } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { draft, setSubcategory } = useBookingStore();
+  const { draft, setCategory, setSubcategory } = useBookingStore();
 
   const { data: subcategories, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['subcategories', slug],
@@ -36,6 +36,9 @@ export default function SubcategoryListScreen(): React.ReactElement {
   const isQuoteBased = (sub: Subcategory): boolean => sub.pricingType === 'quote_based' || sub.basePrice == null;
 
   const handleSelect = (sub: Subcategory): void => {
+    if (sub.categoryId) {
+      setCategory(sub.categoryId, sub.categoryName ?? '', sub.categorySlug ?? '');
+    }
     if (isQuoteBased(sub)) {
       setSubcategory(sub.id, sub.name, 0);
       router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);

@@ -6,7 +6,7 @@ export interface Provider {
   id: string;
   userId: string;
   name: string | null;
-  tier: 'new' | 'verified' | 'pro' | 'elite';
+  tier: 'new' | 'verified' | 'pro' | 'elite' | 'founding';
   bio: string | null;
   rating: number | null;
   totalJobs: number;

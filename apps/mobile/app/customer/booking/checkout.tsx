@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,6 +40,10 @@ export default function CheckoutScreen(): React.ReactElement {
   const { draft, serviceFee, total, addonsTotal, setPaymentMethod, reset } = useBookingStore();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(draft.paymentMethod);
   const [loading, setLoading] = useState(false);
+  // Phase 200 — dedupe protection: once the booking is created, remember its
+  // id so a retry after a payment-intent failure re-uses it instead of
+  // creating a second booking. Cleared once we successfully navigate away.
+  const createdBookingIdRef = useRef<string | null>(null);
 
   const handleMethodSelect = (method: PaymentMethod): void => {
     setSelectedMethod(method);
@@ -70,39 +74,66 @@ export default function CheckoutScreen(): React.ReactElement {
       // No `servicePrice`; server resolves canonical price from the
       // subcategory's base_price. Addons sent as `{addonId, quantity}`;
       // server resolves canonical price from service_addons by id.
-      const booking = await createBooking({
-        categoryId: draft.categoryId,
-        subcategoryId: draft.subcategoryId,
-        bookingType: 'fixed_price',
-        description,
-        address: draft.address,
-        barangay: draft.barangay || '',
-        city: draft.city ?? '',
-        province: draft.province ?? '',
-        latitude: draft.latitude ?? undefined,
-        longitude: draft.longitude ?? undefined,
-        scheduledAt,
-        addons: draft.addons.length > 0
-          ? draft.addons.map((a) => ({ addonId: a.id, quantity: 1 }))
-          : undefined,
-      });
+      //
+      // Phase 200 — only create the booking once. If a previous attempt
+      // created the booking but the payment intent failed, re-use the same
+      // booking id on retry so we never create a duplicate.
+      let bookingId = createdBookingIdRef.current;
+      if (!bookingId) {
+        const booking = await createBooking({
+          categoryId: draft.categoryId,
+          subcategoryId: draft.subcategoryId,
+          bookingType: 'fixed_price',
+          description,
+          address: draft.address,
+          barangay: draft.barangay || '',
+          city: draft.city ?? '',
+          province: draft.province ?? '',
+          latitude: draft.latitude ?? undefined,
+          longitude: draft.longitude ?? undefined,
+          scheduledAt,
+          addons: draft.addons.length > 0
+            ? draft.addons.map((a) => ({ addonId: a.id, quantity: 1 }))
+            : undefined,
+        });
+        bookingId = booking.id;
+        createdBookingIdRef.current = bookingId;
+      }
 
-      const intent = await createPaymentIntent(booking.id, selectedMethod);
+      const intent = await createPaymentIntent(bookingId, selectedMethod);
+
+      // Wallet charges synchronously server-side (atomic debit + escrow
+      // hold), so the booking is paid by the time we land on confirm.
+      if (selectedMethod === 'wallet') {
+        reset();
+        createdBookingIdRef.current = null;
+        router.replace({ pathname: '/customer/booking/confirm', params: { bookingId } });
+        return;
+      }
+
+      // Phase 200 — non-wallet methods MUST open the PayMongo checkout. Only
+      // route to the success/confirm screen once the checkout actually opens;
+      // otherwise the customer would land on a "submitted" screen having paid
+      // nothing. If we can't open it, send them to payment-failed (the
+      // booking exists and is recoverable from there).
+      if (intent.checkoutUrl && (await Linking.canOpenURL(intent.checkoutUrl))) {
+        reset();
+        createdBookingIdRef.current = null;
+        router.replace({ pathname: '/customer/booking/confirm', params: { bookingId } });
+        await Linking.openURL(intent.checkoutUrl);
+        return;
+      }
 
       reset();
+      createdBookingIdRef.current = null;
       router.replace({
-        pathname: '/customer/booking/confirm',
-        params: { bookingId: booking.id },
+        pathname: '/customer/booking/payment-failed',
+        params: { bookingId, reason: 'We could not open the payment page. Your booking is saved — please retry payment.' },
       });
-
-      if (selectedMethod !== 'wallet' && intent.checkoutUrl) {
-        const canOpen = await Linking.canOpenURL(intent.checkoutUrl);
-        if (canOpen) {
-          await Linking.openURL(intent.checkoutUrl);
-        }
-      }
     } catch (err: unknown) {
       // Phase D CRIT-69 / K-MED-K04 fix — canonical error helper.
+      // Note: createdBookingIdRef is intentionally NOT cleared here, so a
+      // retry re-uses the already-created booking instead of duplicating it.
       const msg = getErrorMessage(err, 'Something went wrong. Please try again.');
       Alert.alert('Payment Failed', msg);
     } finally {

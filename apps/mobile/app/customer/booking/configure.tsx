@@ -175,7 +175,7 @@ export default function ConfigureScreen(): React.ReactElement {
         {addons && addons.length > 0 ? (
           <Button
             title={selectedAddons.length > 0
-              ? `Continue with ${selectedAddons.length} add-on${selectedAddons.length > 1 ? 's' : ''} • ${formatPHP(subtotal)}`
+              ? `Continue with ${selectedAddons.length} add-on${selectedAddons.length > 1 ? 's' : ''} • ${formatPHP(subtotal + localFee)}`
               : 'Continue without add-ons'}
             onPress={handleContinue}
           />

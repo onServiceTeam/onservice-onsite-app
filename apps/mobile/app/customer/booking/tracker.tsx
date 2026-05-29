@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useRef } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { getBookingById } from '@/services/booking.service';
-import { getSocket, connectSocket } from '@/services/socket.service';
 import { Badge, Button } from '@/components/ui';
 // Phase 14 R5-complete — PulsingDot live indicator for en-route status.
 import PulsingDot from '@/components/PulsingDot';
@@ -42,33 +41,21 @@ export default function BookingTrackerScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
-  const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   const { data: booking, isLoading, isError } = useQuery({
     queryKey: ['booking', bookingId],
     queryFn: () => getBookingById(bookingId),
     enabled: !!bookingId,
-    refetchInterval: 15000,
+    // Phase 200 — poll for status changes only while the booking is still
+    // live. Once it reaches a terminal state, stop refetching. (Live provider
+    // GPS movement is a v1.1 feature pending the location-ping pipeline; the
+    // map shows the service location and status updates here automatically.)
+    refetchInterval: (query) => {
+      const status = (query.state.data as { status?: string } | undefined)?.status;
+      const TERMINAL = ['confirmed', 'resolved', 'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin', 'paid_out'];
+      return status && TERMINAL.includes(status) ? false : 15000;
+    },
   });
-
-  useEffect(() => {
-    const socket = connectSocket();
-    if (bookingId) {
-      socket.on(`booking:${bookingId}:location`, (data: { latitude: number; longitude: number }) => {
-        setProviderLocation(data);
-      });
-      socket.on(`booking:${bookingId}:status`, () => {
-        // Status update will be caught by refetchInterval
-      });
-    }
-    return () => {
-      const s = getSocket();
-      if (s && bookingId) {
-        s.off(`booking:${bookingId}:location`);
-        s.off(`booking:${bookingId}:status`);
-      }
-    };
-  }, [bookingId]);
 
   const bookingRegion: Region | undefined = booking?.latitude && booking?.longitude
     ? {
@@ -132,13 +119,6 @@ export default function BookingTrackerScreen(): React.ReactElement {
             pinColor={colors.primary}
           />
         )}
-        {providerLocation && (
-          <Marker
-            coordinate={providerLocation}
-            title="Provider"
-            pinColor={colors.secondary}
-          />
-        )}
       </MapView>
 
       <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + spacing.base }]}>
@@ -160,6 +140,12 @@ export default function BookingTrackerScreen(): React.ReactElement {
             <Text style={styles.statusMessage}>
               {STATUS_LABELS[booking.status] ?? 'Tracking your booking'}
             </Text>
+
+            {(booking.status === 'provider_en_route' || booking.status === 'provider_arrived') && (
+              <Text style={styles.trackHint}>
+                The pin shows your service location. Status updates automatically — message your provider for a live ETA.
+              </Text>
+            )}
 
             <Text style={styles.serviceName}>{booking.serviceName ?? 'Service'}</Text>
 
@@ -234,6 +220,7 @@ const styles = StyleSheet.create({
   },
   scheduledText: { ...typography.caption, color: colors.textTertiary },
   statusMessage: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
+  trackHint: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.sm },
   serviceName: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.base },
 
   providerRow: {

@@ -74,16 +74,27 @@ export default function PayExistingBookingScreen(): React.ReactElement {
     setLoading(true);
     try {
       const intent = await createPaymentIntent(bookingId, selectedMethod);
-      router.replace({
-        pathname: '/customer/booking/confirm',
-        params: { bookingId },
-      });
-      if (selectedMethod !== 'wallet' && intent.checkoutUrl) {
-        const canOpen = await Linking.canOpenURL(intent.checkoutUrl);
-        if (canOpen) {
-          await Linking.openURL(intent.checkoutUrl);
-        }
+
+      // Wallet charges synchronously server-side — safe to land on confirm.
+      if (selectedMethod === 'wallet') {
+        router.replace({ pathname: '/customer/booking/confirm', params: { bookingId } });
+        return;
       }
+
+      // Phase 200 — non-wallet methods must open the PayMongo checkout.
+      // Only route to confirm once it actually opens; otherwise the customer
+      // would see "submitted" without having paid. If it can't open, route
+      // to payment-failed so they can retry.
+      if (intent.checkoutUrl && (await Linking.canOpenURL(intent.checkoutUrl))) {
+        router.replace({ pathname: '/customer/booking/confirm', params: { bookingId } });
+        await Linking.openURL(intent.checkoutUrl);
+        return;
+      }
+
+      router.replace({
+        pathname: '/customer/booking/payment-failed',
+        params: { bookingId, reason: 'We could not open the payment page. Your booking is saved — please retry payment.' },
+      });
     } catch (err: unknown) {
       const msg = getErrorMessage(err, 'Could not start payment. Please try again.');
       Alert.alert('Payment Failed', msg);
