@@ -316,6 +316,26 @@ export async function cancelOpenOffers(bookingId: string): Promise<number> {
   return result.rowCount ?? 0;
 }
 
+/**
+ * Phase 200 — auto-dispatch precondition. A booking is eligible for
+ * automatic offer-cascade on creation only when it is a fixed-price booking
+ * that already carries service coordinates (kickOfferCycle requires lat/lng
+ * and a 'requested'/'matched' status). Quote-based job-requests use the
+ * quote flow instead. The admin's auto_dispatch_enabled setting is checked
+ * separately by the caller; this is the pure shape check.
+ */
+export function shouldAutoDispatch(booking: {
+  booking_type: string;
+  latitude: string | null;
+  longitude: string | null;
+}): boolean {
+  return (
+    booking.booking_type === 'fixed_price'
+    && booking.latitude != null
+    && booking.longitude != null
+  );
+}
+
 export function formatOffer(row: OfferRow): Record<string, unknown> {
   return {
     id: row.id,

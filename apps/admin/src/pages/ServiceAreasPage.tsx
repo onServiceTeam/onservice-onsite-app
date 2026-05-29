@@ -96,6 +96,12 @@ export default function ServiceAreasPage(): React.ReactElement {
   const [form, setForm] = useState<CreateAreaForm>({ ...EMPTY_FORM });
   const [actionError, setActionError] = useState('');
   const [formError, setFormError] = useState('');
+  // Phase 200 — edit an existing market (rename, adjust radius / providers-to-launch).
+  const [editTarget, setEditTarget] = useState<ServiceArea | null>(null);
+  const [editForm, setEditForm] = useState<{ name: string; radiusKm: string; minProvidersToLaunch: string }>({
+    name: '', radiusKm: '', minProvidersToLaunch: '',
+  });
+  const [editError, setEditError] = useState('');
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
@@ -165,6 +171,41 @@ export default function ServiceAreasPage(): React.ReactElement {
     },
     onError: (e) => setActionError(getErrorMessage(e)),
   });
+
+  const editMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
+      await api.patch(`/api/v1/admin/service-areas/${id}`, updates);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['adminServiceAreas'] });
+      void queryClient.invalidateQueries({ queryKey: ['adminServiceAreaStats'] });
+      setEditTarget(null);
+      setEditError('');
+    },
+    onError: (e) => setEditError(getErrorMessage(e)),
+  });
+
+  function openEdit(area: ServiceArea): void {
+    setEditTarget(area);
+    setEditError('');
+    setEditForm({
+      name: area.name,
+      radiusKm: String(area.radiusKm),
+      minProvidersToLaunch: String(area.minProvidersToLaunch),
+    });
+  }
+
+  function submitEdit(e: FormEvent): void {
+    e.preventDefault();
+    if (!editTarget) return;
+    const name = editForm.name.trim();
+    const radius = Number(editForm.radiusKm);
+    const minProviders = Number(editForm.minProvidersToLaunch);
+    if (!name) { setEditError('Area name is required.'); return; }
+    if (!Number.isFinite(radius) || radius < 1 || radius > 100) { setEditError('Radius must be between 1 and 100 km.'); return; }
+    if (!Number.isInteger(minProviders) || minProviders < 1 || minProviders > 50) { setEditError('Minimum providers to launch must be an integer from 1 to 50.'); return; }
+    editMutation.mutate({ id: editTarget.id, updates: { name, radiusKm: radius, minProvidersToLaunch: minProviders } });
+  }
 
   const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
@@ -308,6 +349,14 @@ export default function ServiceAreasPage(): React.ReactElement {
       header: '',
       render: (r) => (
         <div className="flex gap-2">
+          <button
+            type="button"
+            aria-label={`Edit service area ${r.name}`}
+            onClick={() => openEdit(r)}
+            className="text-xs text-[var(--color-text-secondary)] hover:underline"
+          >
+            Edit
+          </button>
           {['planned', 'recruiting', 'soft_launch'].includes(r.status) && (
             <button
               type="button"
@@ -494,6 +543,47 @@ export default function ServiceAreasPage(): React.ReactElement {
           pageSize={pagination.pageSize}
           onPageChange={setPage}
         />
+      )}
+
+      {editTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="edit-area-title"
+            className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+            <h3 id="edit-area-title" className="text-lg font-semibold text-[var(--color-text)] mb-1">Edit service area</h3>
+            <p className="text-sm text-[var(--color-text-secondary)] mb-4">{editTarget.city}, {editTarget.province}</p>
+            <form onSubmit={submitEdit} noValidate className="space-y-3">
+              <div>
+                <label htmlFor="edit-area-name" className="block text-sm font-medium text-[var(--color-text)] mb-1">Area name</label>
+                <input id="edit-area-name" type="text" value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="edit-area-radius" className="block text-sm font-medium text-[var(--color-text)] mb-1">Radius (km)</label>
+                  <input id="edit-area-radius" type="number" min="1" max="100" value={editForm.radiusKm}
+                    onChange={(e) => setEditForm({ ...editForm, radiusKm: e.target.value })}
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
+                </div>
+                <div>
+                  <label htmlFor="edit-area-minprov" className="block text-sm font-medium text-[var(--color-text)] mb-1">Min providers to launch</label>
+                  <input id="edit-area-minprov" type="number" min="1" max="50" value={editForm.minProvidersToLaunch}
+                    onChange={(e) => setEditForm({ ...editForm, minProvidersToLaunch: e.target.value })}
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
+                </div>
+              </div>
+              {editError && <p role="alert" className="text-sm text-red-600">{editError}</p>}
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setEditTarget(null)}
+                  className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50">Cancel</button>
+                <button type="submit" disabled={editMutation.isPending}
+                  className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50">
+                  {editMutation.isPending ? 'Saving...' : 'Save changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

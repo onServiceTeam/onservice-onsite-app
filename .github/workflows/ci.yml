@@ -109,10 +109,13 @@ jobs:
       - name: TypeScript check — Mobile
         run: npx tsc --noEmit --project apps/mobile/tsconfig.json
 
-      - name: Mobile jest — proof + screen tests
-        # Phase 14 R5b harness + R7-real per-screen tests.
+      - name: Mobile jest — full suite
+        # Phase 200 — run the ENTIRE mobile test suite, not just
+        # __tests__/proof/ + __tests__/screens/. The narrow scope previously
+        # let bug-phase* unit tests in __tests__/ root break without failing
+        # CI (caught during the Cebu switch). Full suite is the real gate now.
         working-directory: apps/mobile
-        run: npx jest --config jest.config.js __tests__/proof/ __tests__/screens/
+        run: npx jest --config jest.config.js
 
   docker-build:
     name: Docker — API Image Build

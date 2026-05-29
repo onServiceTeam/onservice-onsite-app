@@ -21,6 +21,7 @@ import * as sukiService from '../services/suki.service';
 import { BookingStatus, canTransition } from '../types/booking.types';
 import { logger } from '../utils/logger';
 import * as pricingService from '../services/pricing.service';
+import * as settingsService from '../services/settings.service';
 import * as rebookingService from '../services/rebooking.service';
 import * as slotWaitlistService from '../services/slot-waitlist.service';
 import { platformConfig } from '../config/platform.config';
@@ -182,7 +183,29 @@ router.post(
         customerId: req.user!.userId,
         ...req.body,
       });
-      res.status(201).json({ success: true, data: formatBookingResponse(booking as BookingRow) });
+
+      // Phase 200 — auto-dispatch. When the admin setting auto_dispatch_enabled
+      // is on, immediately offer a fixed-price booking to the best-ranked
+      // eligible (vetted, in-area) provider so it doesn't sit waiting for
+      // someone to notice and quote. Best-effort: never fail booking creation
+      // if dispatch can't start (no coordinates, no eligible provider, etc.).
+      // Quote-based job-requests intentionally use the quote flow, not this.
+      const created = booking as BookingRow;
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const offerSvc = require('../services/booking-offer.service');
+      if (offerSvc.shouldAutoDispatch(created)) {
+        try {
+          if (await settingsService.getSettingBoolean('auto_dispatch_enabled')) {
+            await offerSvc.kickOfferCycle(created.id);
+          }
+        } catch (err) {
+          logger.warn('auto-dispatch on booking create failed (non-fatal)', {
+            bookingId: created.id, error: (err as Error).message,
+          });
+        }
+      }
+
+      res.status(201).json({ success: true, data: formatBookingResponse(created) });
     } catch (error) {
       next(error);
     }
