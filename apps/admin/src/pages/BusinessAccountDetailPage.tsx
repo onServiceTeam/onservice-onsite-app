@@ -703,6 +703,7 @@ function InvoicesTab({ accountId }: { accountId: string }): React.ReactElement {
   const pageSize = 20;
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState('');
+  const [actionInfo, setActionInfo] = useState('');
 
   const q = useQuery({
     queryKey: ['admin-business-account-invoices', accountId, page],
@@ -724,6 +725,22 @@ function InvoicesTab({ accountId }: { accountId: string }): React.ReactElement {
       setActionError('');
     },
     onError: (e) => setActionError(getErrorMessage(e)),
+  });
+
+  // Phase 200 — generate last month's invoice for this account on demand.
+  const generate = useMutation({
+    mutationFn: async () => {
+      const res = await api.post<{ success: boolean; data: { generated: number; message: string } }>(
+        `/api/v1/admin/business-accounts/${accountId}/generate-invoice`,
+      );
+      return res.data.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-business-account-invoices', accountId] });
+      setActionError('');
+      setActionInfo(data.message);
+    },
+    onError: (e) => { setActionInfo(''); setActionError(getErrorMessage(e)); },
   });
 
   function handleMarkPaid(invoice: BusinessInvoice): void {
@@ -802,6 +819,20 @@ function InvoicesTab({ accountId }: { accountId: string }): React.ReactElement {
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          Invoices bill the just-ended month. Pressing Generate is safe to repeat — it won&apos;t duplicate an existing one.
+        </p>
+        <button
+          type="button"
+          onClick={() => generate.mutate()}
+          disabled={generate.isPending}
+          className="shrink-0 rounded-lg bg-[var(--color-primary)] px-3 py-2 text-xs font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50"
+        >
+          {generate.isPending ? 'Generating...' : 'Generate invoice (last month)'}
+        </button>
+      </div>
+      {actionInfo && <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">{actionInfo}</p>}
       {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
       {invoices.length === 0 ? (
         <EmptyState title="No invoices for this account." />

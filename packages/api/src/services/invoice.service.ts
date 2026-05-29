@@ -118,7 +118,21 @@ function getDueDate(invoiceDate: Date, paymentTerms: string): Date {
  * Notifications are per-account (not db.query), dispatched out of band
  * and tolerant of individual failure.
  */
+// Phase 200 — the monthly cron and the admin "generate invoice now" button
+// share one implementation. `generateMonthlyInvoices()` runs every eligible
+// account; `generateInvoiceForAccount(id)` runs a single account. Both bill
+// the just-ended (last) month and are idempotent (the query skips an account
+// that already has an invoice for the period), so the admin button is safe to
+// press repeatedly and cannot double-bill.
 export async function generateMonthlyInvoices(): Promise<number> {
+  return runInvoiceGeneration(undefined);
+}
+
+export async function generateInvoiceForAccount(accountId: string): Promise<number> {
+  return runInvoiceGeneration(accountId);
+}
+
+async function runInvoiceGeneration(accountId: string | undefined): Promise<number> {
   // BUG-PHASE120-01 fix — pre-fix the cron computed "last month"
   // via device-local now.getFullYear() + now.getMonth(). Server
   // runs UTC, so when an operator triggered (or the scheduler fired)
@@ -157,6 +171,9 @@ export async function generateMonthlyInvoices(): Promise<number> {
         AND bi.billing_period_end = $2::date
        WHERE ba.status = 'active'
          AND bi.id IS NULL
+         -- Phase 200 — when an accountId is supplied (admin "generate now"),
+         -- scope to that one account; otherwise ($3 NULL) run every account.
+         AND ($3::uuid IS NULL OR ba.id = $3::uuid)
      ),
      period_bookings AS (
        SELECT e.id AS account_id,
@@ -200,7 +217,7 @@ export async function generateMonthlyInvoices(): Promise<number> {
      GROUP BY e.id, e.company_name, e.owner_user_id, e.payment_terms,
               e.volume_discount_rate
      HAVING COUNT(pb.id) > 0`,
-    [periodStart, periodEnd],
+    [periodStart, periodEnd, accountId ?? null],
   );
 
   if (aggregated.rows.length === 0) {

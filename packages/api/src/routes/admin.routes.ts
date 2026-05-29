@@ -707,6 +707,29 @@ router.get(
   },
 );
 
+// Phase 200 — admin "generate invoice now". Bills the just-ended month for
+// this one account on demand instead of waiting for the monthly cron.
+// Idempotent: if an invoice for the period already exists, generated = 0.
+router.post(
+  '/business-accounts/:id/generate-invoice',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const generated = await invoiceService.generateInvoiceForAccount(req.params.id as string);
+      res.json({
+        success: true,
+        data: {
+          generated,
+          message: generated > 0
+            ? 'Invoice generated for last month.'
+            : 'No invoice generated — either there are no billable bookings for last month, or an invoice for that period already exists.',
+        },
+      });
+    } catch (error) { next(error); }
+  },
+);
+
 router.post(
   '/business-accounts/:id/approve',
   authMiddleware,
