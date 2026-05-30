@@ -31,7 +31,7 @@ foreach ($svc in @('postgres', 'redis', 'minio')) {
   $ok = $false
   for ($i = 0; $i -lt 30; $i++) {
     $health = (docker inspect --format '{{.State.Health.Status}}' "onservice-$svc" 2>$null)
-    if ($health -eq 'healthy') { Write-Host "  $svc: healthy"; $ok = $true; break }
+    if ($health -eq 'healthy') { Write-Host "  ${svc}: healthy"; $ok = $true; break }
     Start-Sleep -Seconds 2
   }
   if (-not $ok) { throw "$svc did not become healthy. Run: docker logs onservice-$svc" }
