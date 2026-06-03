@@ -49,7 +49,7 @@ import { uploadBookingPhoto, uploadSignature } from '@/services/booking-photo.se
 import { getErrorMessage } from '@/utils/errors';
 import SignaturePad, { type SignaturePadRef } from '@/components/SignaturePad';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Camera, CheckCircle2, Edit } from '@/components/icons';
+import { Camera, CheckCircle2, Edit, ChevronLeft } from '@/components/icons';
 // Phase 14 R5-complete — CommissionBreakdown post-complete summary panel.
 import CommissionBreakdown from '@/components/provider/CommissionBreakdown';
 
@@ -242,7 +242,7 @@ export default function JobCompleteScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Complete Job</Text>
         <View style={styles.placeholder} />

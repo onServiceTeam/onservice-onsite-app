@@ -24,7 +24,7 @@ import { platformConfig } from '@/config/platform.config';
 import { formatDateTime, formatRelative, formatBookingRef } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { MapIcon } from '@/components/icons';
+import { MapIcon, ChevronLeft } from '@/components/icons';
 import { useLocation } from '@/hooks/useLocation';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -220,7 +220,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Job Details</Text>
       </View>

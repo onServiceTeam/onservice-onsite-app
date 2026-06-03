@@ -12,6 +12,7 @@ import { listBookingPhotos } from '@/services/booking-photo.service';
 import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { ChevronLeft, Camera } from '@/components/icons';
 
 type Phase = 'before' | 'after';
 
@@ -87,7 +88,7 @@ export default function ProviderPhotosScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Job Photos</Text>
         <View style={styles.placeholder} />
@@ -160,7 +161,7 @@ export default function ProviderPhotosScreen(): React.ReactElement {
           style={styles.addPhotoBtn}
           onPress={activePicker.showPickerOptions}
         >
-          <Text style={styles.addPhotoIcon}>📷</Text>
+          <Camera size={20} color={colors.primary} />
           <Text style={styles.addPhotoText}>Add Photos</Text>
         </TouchableOpacity>
 

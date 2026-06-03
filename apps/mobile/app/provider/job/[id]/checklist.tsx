@@ -30,7 +30,7 @@ import api from '@/services/api';
 import { uploadBookingPhoto } from '@/services/booking-photo.service';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { CheckCircle2, Camera, AlertCircle, X } from '@/components/icons';
+import { CheckCircle2, Camera, AlertCircle, X, ChevronLeft } from '@/components/icons';
 
 interface ChecklistItem {
   id: string;
@@ -320,7 +320,7 @@ export default function JobChecklistScreen(): React.ReactElement {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>←</Text>
+            <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Service Checklist</Text>
           <View style={styles.placeholder} />
@@ -336,7 +336,7 @@ export default function JobChecklistScreen(): React.ReactElement {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>←</Text>
+            <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Service Checklist</Text>
           <View style={styles.placeholder} />
@@ -355,7 +355,7 @@ export default function JobChecklistScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Service Checklist</Text>
         <View style={styles.placeholder} />
