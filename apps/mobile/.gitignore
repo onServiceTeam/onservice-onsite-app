@@ -4,3 +4,8 @@
 
 expo-env.d.ts
 # @end expo-cli
+
+# Web (Expo web) export output — built and deployed, not committed.
+dist-web/
+dist-web-dbg/
+.expo/

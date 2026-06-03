@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Animated } from 'react-native';
+import { StyleSheet, Text, View, Animated, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, typography } from '@/config/theme';
 
@@ -24,6 +24,23 @@ export function OfflineBanner(): React.ReactElement | null {
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
+    // On web, NetInfo's connectivity probe is unreliable (its reachability
+    // ping and even `isConnected` resolve to false on a perfectly online page,
+    // which falsely shows the offline banner). The browser exposes accurate
+    // connectivity via navigator.onLine + the window 'online'/'offline'
+    // events, so use those directly on web and skip NetInfo entirely.
+    if (Platform.OS === 'web') {
+      if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+      const update = (): void => setIsOffline(navigator.onLine === false);
+      update();
+      window.addEventListener('online', update);
+      window.addEventListener('offline', update);
+      return () => {
+        window.removeEventListener('online', update);
+        window.removeEventListener('offline', update);
+      };
+    }
+
     if (!NetInfo) return;
 
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -42,7 +59,9 @@ export function OfflineBanner(): React.ReactElement | null {
     }).start();
   }, [isOffline, opacity]);
 
-  if (!NetInfo) return null;
+  // On web the banner is driven by navigator.onLine, so render it even when the
+  // NetInfo native module is unavailable. On native, no NetInfo means no signal.
+  if (Platform.OS !== 'web' && !NetInfo) return null;
 
   return (
     <Animated.View

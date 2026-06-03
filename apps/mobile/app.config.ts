@@ -46,7 +46,16 @@ const config: ExpoConfig = {
   // newArchEnabled removed in Phase 14 Remediation #2. The field is no
   // longer recognised by Expo SDK 55's ExpoConfig type; new arch is the
   // default for SDK 55+ on iOS/Android so the explicit flag is redundant.
-  platforms: ['ios', 'android'],
+  platforms: ['ios', 'android', 'web'],
+  // Phase 200 — web (browser) build for customer/provider testing. SPA
+  // output (single index.html + client-side routing) served by nginx at
+  // app.onservice.ph. Native-only modules (maps, secure-store, MMKV, push)
+  // have .web shims; see src/web-stubs/ and the *.web.ts variants.
+  web: {
+    bundler: 'metro',
+    output: 'single',
+    favicon: './assets/icon.png',
+  },
   icon: './assets/icon.png',
   splash: {
     image: './assets/splash.png',
@@ -158,6 +167,12 @@ const config: ExpoConfig = {
   extra: {
     sentryDsn: process.env.SENTRY_DSN_MOBILE ?? '',
     eas: { projectId: easProjectId },
+    // Phase 200 — pin the Expo Router root to the real route directory `app/`.
+    // A stray empty `src/app/` placeholder used to win Expo's auto-detection
+    // (it prefers `src/app` over `app` when both exist), which produced an
+    // empty route context and a "No routes found" crash on the web export.
+    // Pinning it here makes route discovery deterministic on every platform.
+    router: { root: 'app' },
   },
   owner: 'onservice',
   // typedRoutes experiment disabled in Phase 14 Remediation #2.
