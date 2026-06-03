@@ -24,6 +24,7 @@ interface ServiceArea {
   activeProviderCount: number;
   activeCustomerCount: number;
   totalBookings: number;
+  isDefault: boolean;
   createdAt: string;
 }
 
@@ -172,6 +173,17 @@ export default function ServiceAreasPage(): React.ReactElement {
     onError: (e) => setActionError(getErrorMessage(e)),
   });
 
+  const setDefaultMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.post(`/api/v1/admin/service-areas/${id}/set-default`);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['adminServiceAreas'] });
+      setActionError('');
+    },
+    onError: (e) => setActionError(getErrorMessage(e)),
+  });
+
   const editMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
       await api.patch(`/api/v1/admin/service-areas/${id}`, updates);
@@ -277,13 +289,21 @@ export default function ServiceAreasPage(): React.ReactElement {
     pauseMutation.mutate(area.id);
   }
 
+  function setDefaultArea(area: ServiceArea): void {
+    if (!window.confirm(`Make "${area.name}" the default city? The mobile apps will center their map and default their location pickers here.`)) return;
+    setDefaultMutation.mutate(area.id);
+  }
+
   const columns: Column<ServiceArea>[] = [
     {
       key: 'name',
       header: 'Area',
       render: (r) => (
         <div>
-          <span className="block font-semibold text-sm text-[var(--color-text)]">{r.name}</span>
+          <span className="flex items-center gap-2 font-semibold text-sm text-[var(--color-text)]">
+            {r.name}
+            {r.isDefault && <Badge variant="success" label="Default" />}
+          </span>
           <span className="text-xs text-[var(--color-text-secondary)]">{r.city}, {r.province}</span>
         </div>
       ),
@@ -377,6 +397,17 @@ export default function ServiceAreasPage(): React.ReactElement {
               className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
             >
               Pause
+            </button>
+          )}
+          {!r.isDefault && ['active', 'soft_launch'].includes(r.status) && (
+            <button
+              type="button"
+              aria-label={`Set ${r.name} as the default city`}
+              onClick={() => setDefaultArea(r)}
+              disabled={setDefaultMutation.isPending}
+              className="text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
+            >
+              Set default
             </button>
           )}
         </div>

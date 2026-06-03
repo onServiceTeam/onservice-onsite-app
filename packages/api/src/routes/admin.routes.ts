@@ -1056,6 +1056,24 @@ router.post(
   },
 );
 
+// Multi-city — make this area the app default (map center + default pickers
+// in the mobile apps). Exactly one area is the default at a time.
+router.post(
+  '/service-areas/:id/set-default',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const id = req.params.id as string;
+
+      const area = await serviceAreaService.setDefaultServiceArea(id, req.user!.userId);
+      res.json({ success: true, data: serviceAreaService.formatServiceArea(area), message: 'Default service area updated.' });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.get(
   '/service-areas/:id/providers',
   authMiddleware,

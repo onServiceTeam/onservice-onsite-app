@@ -24,15 +24,16 @@ import api from '@/services/api';
 import { getMyProfile } from '@/services/provider-api.service';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { useServiceAreaDefaults, FALLBACK_REGION } from '@/hooks/useServiceAreaDefaults';
 import { MapPin } from '@/components/icons';
 
 const RADIUS_OPTIONS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50] as const;
-// Phase 200 (Cebu launch) — default map center is central Cebu City (the
-// launch market), not Boracay/Quezon City. Provider almost always taps
-// "Use My Current Location" anyway, so this only matters for the initial
-// map render before geolocation resolves.
-const DEFAULT_LAT = 10.3157;
-const DEFAULT_LNG = 123.8854;
+// Multi-city — the initial map center comes from the admin-configured default
+// service area (see the effect below). These constants are only the offline
+// floor for the very first render before that data loads; the provider almost
+// always taps "Use My Current Location" anyway.
+const DEFAULT_LAT = FALLBACK_REGION.latitude;
+const DEFAULT_LNG = FALLBACK_REGION.longitude;
 
 export default function ProviderServiceAreaScreen(): React.ReactElement {
   const router = useRouter();
@@ -41,6 +42,8 @@ export default function ProviderServiceAreaScreen(): React.ReactElement {
   const [radiusKm, setRadiusKm] = useState<number>(15);
   const [locating, setLocating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { defaultArea } = useServiceAreaDefaults();
+  const userPositioned = React.useRef(false);
 
   // BUG-PHASE55-01 fix — pre-fix the screen loaded with hardcoded
   // DEFAULT_LAT/DEFAULT_LNG/15km regardless of the provider's
@@ -63,6 +66,16 @@ export default function ProviderServiceAreaScreen(): React.ReactElement {
     if (profile.serviceRadiusKm != null) setRadiusKm(profile.serviceRadiusKm);
   }, [profileQuery.data]);
 
+  // First-time setup — center on the admin-configured default city until the
+  // provider locates themselves. Never overrides a saved location or a GPS tap.
+  React.useEffect(() => {
+    if (userPositioned.current) return;
+    if (profileQuery.data?.latitude != null) return;
+    if (!defaultArea) return;
+    setCenterLat(defaultArea.centerLat);
+    setCenterLng(defaultArea.centerLng);
+  }, [defaultArea, profileQuery.data]);
+
   const useCurrentLocation = async (): Promise<void> => {
     setLocating(true);
     try {
@@ -72,6 +85,7 @@ export default function ProviderServiceAreaScreen(): React.ReactElement {
         return;
       }
       const loc = await Location.getCurrentPositionAsync({});
+      userPositioned.current = true;
       setCenterLat(loc.coords.latitude);
       setCenterLng(loc.coords.longitude);
     } catch {

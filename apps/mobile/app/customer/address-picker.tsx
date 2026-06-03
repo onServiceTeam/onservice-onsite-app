@@ -1,9 +1,9 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Marker, type Region } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
 import { useQuery } from '@tanstack/react-query';
 import { useBookingStore } from '@/stores/booking.store';
 import { useLocation } from '@/hooks/useLocation';
@@ -11,20 +11,16 @@ import { Button } from '@/components/ui';
 import * as addressService from '@/services/address.service';
 import type { SavedAddress } from '@/services/address.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { useServiceAreaDefaults } from '@/hooks/useServiceAreaDefaults';
 import type { ComponentType } from 'react';
 import { Home as HomeIcon, Building2, Pin, MapPin } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
-// Phase 200 (Cebu launch) — the map opens on central Cebu City (launch
-// market) and Cebu is the last-resort fallback, instead of Manila.
-const DEFAULT_REGION: Region = {
-  latitude: 10.3157,
-  longitude: 123.8854,
-  latitudeDelta: 0.05,
-  longitudeDelta: 0.05,
-};
+// Multi-city — the map opens on the admin-configured default service area
+// (see useServiceAreaDefaults). No hardcoded city here; FALLBACK_REGION in the
+// hook is the offline floor.
 
 interface GeoResult {
   address: string;
@@ -94,6 +90,8 @@ export default function AddressPickerScreen(): React.ReactElement {
   const setAddress = useBookingStore((s) => s.setAddress);
   const mapRef = useRef<MapView>(null);
   const { isAvailable: gpsAvailable, isLoading: gpsLoading, getCurrentLocation } = useLocation();
+  const { defaultRegion } = useServiceAreaDefaults();
+  const recenteredOnDefault = useRef(false);
 
   const [pin, setPin] = useState<{ latitude: number; longitude: number } | null>(null);
   const [searchText, setSearchText] = useState('');
@@ -105,6 +103,16 @@ export default function AddressPickerScreen(): React.ReactElement {
     queryFn: addressService.getAddresses,
     staleTime: 60 * 1000,
   });
+
+  // Once the configured default area loads, recenter the map there — but only
+  // if the user hasn't already dropped a pin or picked an address, and only
+  // once, so we never fight a user gesture.
+  useEffect(() => {
+    if (recenteredOnDefault.current) return;
+    if (pin || selectedAddress) return;
+    recenteredOnDefault.current = true;
+    mapRef.current?.animateToRegion(defaultRegion, 350);
+  }, [defaultRegion, pin, selectedAddress]);
 
   const handleSelectSaved = useCallback((addr: SavedAddress) => {
     const geo: GeoResult = {
@@ -325,7 +333,7 @@ export default function AddressPickerScreen(): React.ReactElement {
       <MapView
         ref={mapRef}
         style={styles.map}
-        initialRegion={DEFAULT_REGION}
+        initialRegion={defaultRegion}
         onPress={handleMapPress}
       >
         {pin && <Marker coordinate={pin} />}

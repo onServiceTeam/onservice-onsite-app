@@ -22,6 +22,7 @@ interface ServiceAreaRow {
   active_provider_count: number;
   active_customer_count: number;
   total_bookings: number;
+  is_default: boolean;
   settings: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
@@ -340,6 +341,52 @@ export async function updateServiceArea(
   return result.rows[0]!;
 }
 
+// Multi-city — set exactly one area as the app default (drives the mobile
+// map center + default pickers). Clears the previous default first so the
+// `uq_service_areas_one_default` partial unique index never conflicts. Runs
+// the swap + admin_actions audit in a single transaction, mirroring the other
+// service-area mutations.
+export async function setDefaultServiceArea(
+  areaId: string,
+  adminId?: string,
+): Promise<ServiceAreaRow> {
+  return db.transaction(async (client) => {
+    const target = await client.query<ServiceAreaRow>(
+      `SELECT * FROM service_areas WHERE id = $1`,
+      [areaId],
+    );
+    if (target.rows.length === 0) {
+      throw createAppError('Service area not found.', 404);
+    }
+
+    // Clear the existing default, then set the new one.
+    await client.query(
+      `UPDATE service_areas SET is_default = FALSE, updated_at = NOW() WHERE is_default = TRUE AND id <> $1`,
+      [areaId],
+    );
+    const result = await client.query<ServiceAreaRow>(
+      `UPDATE service_areas SET is_default = TRUE, updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [areaId],
+    );
+    const row = result.rows[0]!;
+
+    if (adminId) {
+      await client.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details)
+         VALUES ($1, 'config_changed', 'service_area', $2, $3::jsonb)`,
+        [
+          adminId,
+          row.id,
+          JSON.stringify({ op: 'set_default', slug: row.slug, name: row.name }),
+        ],
+      );
+    }
+
+    return row;
+  });
+}
+
 export async function checkCoverage(
   lat: number,
   lng: number,
@@ -652,6 +699,7 @@ export function formatServiceArea(sa: ServiceAreaRow): Record<string, unknown> {
     activeProviderCount: sa.active_provider_count,
     activeCustomerCount: sa.active_customer_count,
     totalBookings: sa.total_bookings,
+    isDefault: sa.is_default,
     settings: sa.settings,
     createdAt: sa.created_at,
     updatedAt: sa.updated_at,

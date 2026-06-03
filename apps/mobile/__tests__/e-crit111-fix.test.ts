@@ -6,6 +6,7 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { FALLBACK_REGION } from '../src/hooks/useServiceAreaDefaults';
 
 const SERVICE_AREA = readFileSync(
   resolve(__dirname, '../app/provider/service-area.tsx'),
@@ -27,8 +28,15 @@ describe('Phase E CRIT-111 — service-area save uses canonical PATCH /me', () =
   it('CRIT-111 — old payload field names removed', () => {
     expect(SERVICE_AREA).not.toMatch(/centerLat,\n\s+centerLng,\n\s+radiusKm/);
   });
-  it('Phase 200 — DEFAULT_LAT/LNG point to central Cebu City (launch market)', () => {
-    expect(SERVICE_AREA).toMatch(/DEFAULT_LAT = 10\.3157/);
-    expect(SERVICE_AREA).toMatch(/DEFAULT_LNG = 123\.8854/);
+  it('Multi-city — offline default map center (FALLBACK_REGION) is central Cebu City (default launch market)', () => {
+    // The screen's offline default now derives from FALLBACK_REGION rather than
+    // its own hardcoded literals; the live default comes from the admin-
+    // configured service area. Assert the actual fallback value, not source text.
+    expect(FALLBACK_REGION.latitude).toBeCloseTo(10.3157, 4);
+    expect(FALLBACK_REGION.longitude).toBeCloseTo(123.8854, 4);
+  });
+  it('Multi-city — service-area screen sources its default center from FALLBACK_REGION (not a hardcoded city)', () => {
+    expect(SERVICE_AREA).toMatch(/DEFAULT_LAT = FALLBACK_REGION\.latitude/);
+    expect(SERVICE_AREA).toMatch(/useServiceAreaDefaults/);
   });
 });

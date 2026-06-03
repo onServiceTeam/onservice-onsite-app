@@ -19,6 +19,7 @@ export interface ServiceArea {
   activeProviderCount: number;
   activeCustomerCount: number;
   totalBookings: number;
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
