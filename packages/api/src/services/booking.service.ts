@@ -640,6 +640,19 @@ export async function transitionBookingStatus(
 
     const updated = result.rows[0]!;
 
+    // Phase 200 — keep the provider's completed-jobs counter live. Pre-fix
+    // providers.total_jobs was never incremented anywhere, so the "X jobs
+    // completed" stat shown to providers/admins (and any experience signal)
+    // never grew past the seed value. We count a job as completed when the
+    // CUSTOMER confirms it (status -> 'confirmed'); a provider-only
+    // 'completed_by_provider' that later gets disputed should not count.
+    if (newStatus === 'confirmed' && updated.provider_id) {
+      await client.query(
+        `UPDATE providers SET total_jobs = total_jobs + 1, updated_at = NOW() WHERE id = $1`,
+        [updated.provider_id],
+      );
+    }
+
     logger.info('Booking status transitioned', {
       bookingId,
       from: currentStatus,

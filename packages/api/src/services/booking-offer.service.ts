@@ -70,9 +70,39 @@ async function loadBookingForOffer(bookingId: string): Promise<BookingOfferConte
 }
 
 /**
+ * Phase 200 — notify the customer at most once per booking that no provider
+ * is currently available. Guarded by a lookup so repeated sweep cycles don't
+ * spam them. Best-effort: never throws into the offer cycle.
+ */
+async function notifyCustomerNoProviderOnce(customerId: string, bookingId: string): Promise<void> {
+  try {
+    const existing = await db.query(
+      `SELECT 1 FROM notifications
+        WHERE user_id = $1 AND type = 'no_provider_available'
+          AND data->>'bookingId' = $2
+        LIMIT 1`,
+      [customerId, bookingId],
+    );
+    if (existing.rows.length > 0) return;
+    await notificationService.createNotification({
+      userId: customerId,
+      type: 'no_provider_available',
+      title: 'Still finding your provider',
+      body: 'No provider is available for your booking right now. Our team is on it and you will be notified the moment someone is matched.',
+      data: { bookingId },
+    });
+    logger.info('Customer notified: no provider available', { bookingId, customerId });
+  } catch (err) {
+    logger.warn('notifyCustomerNoProviderOnce failed', {
+      bookingId, error: (err as Error).message,
+    });
+  }
+}
+
+/**
  * Pick the next provider not yet offered this booking, INSERT an
  * offer row, return it. If all candidates exhausted (or none in the
- * radius), throws 409 noProviderAvailable.
+ * radius), notifies the customer once and returns null.
  */
 export async function kickOfferCycle(bookingId: string): Promise<OfferRow | null> {
   const bk = await loadBookingForOffer(bookingId);
@@ -122,6 +152,9 @@ export async function kickOfferCycle(bookingId: string): Promise<OfferRow | null
     logger.info('Offer cycle exhausted — no untried candidates remain', {
       bookingId, candidateCount: candidates.length, triedCount: tried.size,
     });
+    // Phase 200 — tell the customer once, so a booking with no available
+    // provider does not just sit silently on "Looking for provider".
+    await notifyCustomerNoProviderOnce(bk.customer_id, bookingId);
     return null;
   }
 

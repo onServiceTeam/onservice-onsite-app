@@ -6,9 +6,19 @@ import * as settingsService from './settings.service';
 /**
  * Provider matching algorithm (FR-051).
  *
- * 1. Filter providers by: category match, service area, availability, status=approved
- * 2. Score: (rating * 0.4) + (distance_inverse * 0.3) + (acceptance_rate * 0.2) + (tier_bonus * 0.1)
+ * 1. Filter providers by: category match, service area, availability,
+ *    status=approved, is_available, and (Phase 200) a rating floor that drops
+ *    providers with a proven-low average (rating < floor once they have
+ *    >= minReviews reviews — new providers are never excluded for being new).
+ * 2. Score: (rating * 0.4) + (distance_inverse * 0.3) + (reliability * 0.2)
+ *    + (tier_bonus * 0.1). Reliability (Phase 200) is the provider's REAL
+ *    accept rate from booking_offers history (accepted / responded); the old
+ *    total_jobs proxy was never populated and is gone.
  * 3. Return ranked list; caller handles the 45s offer chain.
+ *
+ * Suspended providers (status != 'approved') and unavailable providers are
+ * already excluded by the SQL filter, so admin suspension / dispute-driven
+ * suspension immediately removes a provider from dispatch.
  */
 
 interface MatchableProvider {
@@ -77,6 +87,150 @@ async function loadTierBonus(): Promise<Record<string, number>> {
 
 const MAX_MATCH_ATTEMPTS = 10;
 const EARTH_RADIUS_KM = 6371;
+
+// ── Provider-quality controls (Phase 200) ───────────────────────────
+//
+// Rating floor: stop auto-dispatching to providers who have a PROVEN bad
+// track record. We only exclude a provider once they have enough reviews to
+// be judged fairly (minReviews) AND their average is below the floor — so a
+// brand-new provider with 0 reviews is never excluded for being new. Both
+// values are admin-tunable via platform_settings without a deploy.
+const RATING_FLOOR_DEFAULT = 2.5;
+const RATING_FLOOR_MIN_REVIEWS_DEFAULT = 5;
+// Reliability (acceptance) for providers with no offer history yet — neutral,
+// slightly positive so newcomers still get a fair shot at being offered work.
+const ACCEPTANCE_NEUTRAL_DEFAULT = 0.7;
+
+/**
+ * True when a provider should be excluded from auto-dispatch because of a
+ * proven-low rating. Pure function (no I/O) so it is unit-tested directly.
+ */
+export function isExcludedByRatingFloor(
+  rating: number,
+  totalReviews: number,
+  floor: number,
+  minReviews: number,
+): boolean {
+  return totalReviews >= minReviews && rating < floor;
+}
+
+/**
+ * Real acceptance/reliability rate from a provider's offer history.
+ * accepted / (accepted + declined + expired). Returns the neutral default
+ * when the provider has not responded to any offers yet. Pure function.
+ */
+export function computeAcceptanceRate(
+  accepted: number,
+  responded: number,
+  neutralDefault: number = ACCEPTANCE_NEUTRAL_DEFAULT,
+): number {
+  if (responded <= 0) return neutralDefault;
+  return accepted / responded;
+}
+
+/**
+ * The dispatch score for a single provider. Pure function so the weighting is
+ * unit-tested without a database. Weights: rating 0.4, distance 0.3,
+ * reliability 0.2, tier 0.1.
+ */
+export function scoreProvider(p: {
+  rating: number;
+  distanceKm: number;
+  maxDistanceKm: number;
+  acceptanceRate: number;
+  tierBonus: number;
+}): number {
+  const ratingScore = (p.rating / 5) * 0.4;
+  const distanceScore = (1 - p.distanceKm / Math.max(p.maxDistanceKm, 1)) * 0.3;
+  const acceptanceScore = p.acceptanceRate * 0.2;
+  const tierScore = p.tierBonus * 0.1;
+  return Math.round((ratingScore + distanceScore + acceptanceScore + tierScore) * 1000) / 1000;
+}
+
+async function loadRatingFloor(): Promise<{ floor: number; minReviews: number }> {
+  let floor = RATING_FLOOR_DEFAULT;
+  let minReviews = RATING_FLOOR_MIN_REVIEWS_DEFAULT;
+  try {
+    const f = await settingsService.getSettingNumber('matching_min_rating');
+    if (Number.isFinite(f) && f >= 0 && f <= 5) floor = f;
+  } catch { /* setting absent — keep default */ }
+  try {
+    const m = await settingsService.getSettingInteger('matching_min_rating_reviews');
+    if (Number.isFinite(m) && m >= 1) minReviews = m;
+  } catch { /* setting absent — keep default */ }
+  return { floor, minReviews };
+}
+
+/**
+ * Real reliability rates for a set of providers, computed live from the
+ * booking_offers history. Map provider_id -> acceptance rate. Providers with
+ * no responded offers are simply absent (callers fall back to the neutral
+ * default). Replaces the old dead proxy (total_jobs / (reviews+jobs)) that was
+ * never populated.
+ */
+async function loadAcceptanceRates(providerIds: string[]): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (providerIds.length === 0) return map;
+  const r = await db.query<{ provider_id: string; acc: string; resp: string }>(
+    `SELECT provider_id,
+            COUNT(*) FILTER (WHERE status = 'accepted')::text AS acc,
+            COUNT(*) FILTER (WHERE status IN ('accepted','declined','expired'))::text AS resp
+       FROM booking_offers
+      WHERE provider_id = ANY($1)
+      GROUP BY provider_id`,
+    [providerIds],
+  );
+  for (const row of r.rows) {
+    const responded = Number(row.resp);
+    if (responded > 0) {
+      map.set(row.provider_id, computeAcceptanceRate(Number(row.acc), responded));
+    }
+  }
+  return map;
+}
+
+/**
+ * Shared candidate ranking: applies the rating floor, enriches with real
+ * reliability, scores, and sorts. The SQL candidate query is intentionally
+ * left untouched (it is the dispatch hot path); all quality logic lives here
+ * in plain, testable code operating on the returned rows.
+ */
+async function rankCandidates(rows: MatchableProvider[]): Promise<ScoredProvider[]> {
+  if (rows.length === 0) return [];
+  const { floor, minReviews } = await loadRatingFloor();
+  const eligible = rows.filter(
+    (r) => !isExcludedByRatingFloor(r.rating, r.total_reviews, floor, minReviews),
+  );
+  if (eligible.length === 0) {
+    logger.info('All matched candidates excluded by rating floor', {
+      candidateCount: rows.length, floor, minReviews,
+    });
+    return [];
+  }
+  const maxDistance = Math.max(...eligible.map((r) => r.distance_km), 1);
+  const tierBonus = await loadTierBonus();
+  const acceptance = await loadAcceptanceRates(eligible.map((r) => r.provider_id));
+
+  const scored: ScoredProvider[] = eligible.map((p) => ({
+    providerId: p.provider_id,
+    userId: p.user_id,
+    businessName: p.business_name,
+    tier: p.tier,
+    rating: p.rating,
+    totalJobs: p.total_jobs,
+    distanceKm: Math.round(p.distance_km * 100) / 100,
+    score: scoreProvider({
+      rating: p.rating,
+      distanceKm: p.distance_km,
+      maxDistanceKm: maxDistance,
+      acceptanceRate: acceptance.get(p.provider_id) ?? ACCEPTANCE_NEUTRAL_DEFAULT,
+      tierBonus: tierBonus[p.tier] ?? 0,
+    }),
+  }));
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored;
+}
 
 // BUG-PHASE119-01 fix — Manila-aware extraction of day-of-week and
 // HH:MM:SS from a UTC-stored scheduledAt instant. Pre-fix this was
@@ -184,33 +338,7 @@ export async function findMatchingProviders(
       : [categoryId, customerLat, customerLng, dayOfWeek, timeStr, MAX_MATCH_ATTEMPTS * 3],
   );
 
-  if (result.rows.length === 0) {
-    return [];
-  }
-
-  const maxDistance = Math.max(...result.rows.map((r) => r.distance_km), 1);
-  const tierBonus = await loadTierBonus();
-
-  const scored: ScoredProvider[] = result.rows.map((p) => {
-    const ratingScore = (p.rating / 5) * 0.4;
-    const distanceScore = (1 - p.distance_km / maxDistance) * 0.3;
-    const acceptanceRate = p.total_jobs / Math.max(p.total_reviews + p.total_jobs, 1);
-    const acceptanceScore = acceptanceRate * 0.2;
-    const tierScore = (tierBonus[p.tier] ?? 0) * 0.1;
-
-    return {
-      providerId: p.provider_id,
-      userId: p.user_id,
-      businessName: p.business_name,
-      tier: p.tier,
-      rating: p.rating,
-      totalJobs: p.total_jobs,
-      distanceKm: Math.round(p.distance_km * 100) / 100,
-      score: Math.round((ratingScore + distanceScore + acceptanceScore + tierScore) * 1000) / 1000,
-    };
-  });
-
-  scored.sort((a, b) => b.score - a.score);
+  const scored = await rankCandidates(result.rows);
 
   logger.info('Provider matching complete', {
     categoryId,
@@ -279,29 +407,7 @@ export async function findMatchingProvidersSimple(
     [categoryId, customerLat, customerLng, dayOfWeek, timeStr, MAX_MATCH_ATTEMPTS],
   );
 
-  if (result.rows.length === 0) return [];
-
-  const maxDistance = Math.max(...result.rows.map((r) => r.distance_km), 1);
-  const tierBonus = await loadTierBonus();
-
-  return result.rows.map((p) => {
-    const ratingScore = (p.rating / 5) * 0.4;
-    const distanceScore = (1 - p.distance_km / maxDistance) * 0.3;
-    const acceptanceRate = p.total_jobs / Math.max(p.total_reviews + p.total_jobs, 1);
-    const acceptanceScore = acceptanceRate * 0.2;
-    const tierScore = (tierBonus[p.tier] ?? 0) * 0.1;
-
-    return {
-      providerId: p.provider_id,
-      userId: p.user_id,
-      businessName: p.business_name,
-      tier: p.tier,
-      rating: p.rating,
-      totalJobs: p.total_jobs,
-      distanceKm: Math.round(p.distance_km * 100) / 100,
-      score: Math.round((ratingScore + distanceScore + acceptanceScore + tierScore) * 1000) / 1000,
-    };
-  }).sort((a, b) => b.score - a.score);
+  return rankCandidates(result.rows);
 }
 
 export function getMatchConfig(): Record<string, unknown> {
@@ -311,6 +417,8 @@ export function getMatchConfig(): Record<string, unknown> {
     maxWaitMinutes: 5,
     scoringWeights: { rating: 0.4, distance: 0.3, acceptance: 0.2, tier: 0.1 },
     maxServiceRadiusKm: platformConfig.maxServiceRadius,
+    ratingFloorDefault: RATING_FLOOR_DEFAULT,
+    ratingFloorMinReviewsDefault: RATING_FLOOR_MIN_REVIEWS_DEFAULT,
   };
 }
 

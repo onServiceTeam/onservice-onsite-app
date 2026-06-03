@@ -33,6 +33,10 @@ interface CountRow { count: string }
 export type NotificationType =
   // Booking lifecycle
   | 'booking_created' | 'booking_confirmed' | 'booking_expired'
+  // Phase 200 — customer is told when the auto-dispatch cascade can't find an
+  // available provider, instead of being left on "Looking for provider"
+  // silently.
+  | 'no_provider_available'
   // Phase N MED-N59 fix — `provider_cancelled` added so cancellation
   // notifications correctly differentiate party-of-cancellation. Pre-fix
   // both `cancelled_by_customer` and `cancelled_by_provider` mapped to
