@@ -168,6 +168,47 @@ pulls the latest code, runs the pre-flight checks (typecheck, tests, smoke
 gate per `docs/DEPLOYMENT.md`), runs any new migrations, and restarts the API
 container. Rollback procedure is in `docs/DEPLOYMENT.md`.
 
+### Frontend (customer/provider web app + admin)
+
+The two web frontends are served by nginx from build artifacts that are
+**gitignored** (`apps/mobile/dist-web` and `apps/admin/dist`), so `git pull`
+on the server never updates them. They are built locally and transferred:
+
+```
+# Customer/provider web app (Expo web export). The API URL must be set at
+# build time, otherwise a production build throws (platform.config.ts).
+cd apps/mobile
+EXPO_PUBLIC_API_URL=https://api.onservice.ph npx expo export -p web --output-dir dist-web
+# (Do NOT also set NODE_ENV=production unless EAS_PROJECT_ID + the Google Maps
+#  native keys are present — those are native-only and unused by the web bundle,
+#  so without NODE_ENV=production they fall back to harmless placeholders that
+#  never reach the web JS. Verify: the bundle has api.onservice.ph and no
+#  "DEV_MISSING"/"localhost:7381" string.)
+
+# Admin (Vite build):
+cd apps/admin && npm run build
+
+# Transfer (example for the web app):
+tar czf /tmp/dist-web.tar.gz -C dist-web .
+scp -i ~/.ssh/onservice_hetzner /tmp/dist-web.tar.gz root@<IP>:/tmp/
+```
+
+**GOTCHA — bind-mount inode trap.** nginx bind-mounts these paths into the
+container. If you *replace* the path (rename the directory via `mv`, or rewrite
+a single config file via `git pull`), the container keeps serving the OLD inode
+and you get stale content or 404s — an `nginx -s reload` does NOT fix it because
+it re-reads the same orphaned inode. Two safe options:
+
+1. **Extract in place** (preserves the directory inode), e.g.
+   `rm -rf /opt/onservice/apps/mobile/dist-web/* && tar xzf /tmp/dist-web.tar.gz -C /opt/onservice/apps/mobile/dist-web` — note the `/*`, keep the dir itself.
+2. **Force-recreate** so the mount re-resolves to the current inode:
+   `docker compose -f docker-compose.prod.yml up -d --force-recreate nginx`.
+
+This same trap applies to `nginx/nginx.conf`: after `git pull` rewrites it,
+the running container still has the old config until you `--force-recreate nginx`
+(a plain reload is not enough). Always verify the live result with
+`curl -sI https://app.onservice.ph/_expo/static/js/web/entry-<hash>.js`.
+
 ---
 
 ## Safety guardrails (important)
