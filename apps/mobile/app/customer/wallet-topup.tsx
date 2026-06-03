@@ -13,7 +13,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
-import { Smartphone, CreditCard, ScanLine } from '@/components/icons';
+import { Smartphone, CreditCard, ScanLine, ChevronLeft, Check } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -94,7 +94,7 @@ export default function WalletTopUpScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Top Up Wallet</Text>
         <View style={styles.placeholder} />
@@ -157,7 +157,7 @@ export default function WalletTopUpScreen(): React.ReactElement {
             <Text style={[styles.methodText, selectedMethod === method.id && styles.methodTextSelected]}>
               {method.label}
             </Text>
-            {selectedMethod === method.id && <Text style={styles.methodCheck}>✓</Text>}
+            {selectedMethod === method.id && <Check size={18} color={colors.primary} style={{ marginLeft: 'auto' }} />}
           </TouchableOpacity>
           );
         })}

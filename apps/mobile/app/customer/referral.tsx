@@ -9,7 +9,7 @@ import { getMyCode, getMyReferrals, redeemCode } from '@/services/referral.servi
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
-import { AlertTriangle, ClipboardList } from '@/components/icons';
+import { AlertTriangle, ClipboardList, Gift, Send, ChevronLeft } from '@/components/icons';
 
 export default function ReferralScreen(): React.ReactElement {
   const router = useRouter();
@@ -78,7 +78,7 @@ export default function ReferralScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Referral Program</Text>
         <View style={styles.placeholder} />
@@ -99,7 +99,7 @@ export default function ReferralScreen(): React.ReactElement {
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           <View style={styles.heroCard}>
-            <Text style={styles.heroEmoji}>🎁</Text>
+            <Gift size={48} color={colors.primary} style={{ marginBottom: spacing.md }} />
             <Text style={styles.heroTitle}>Earn {referrerAmount} for Every Friend!</Text>
             <Text style={styles.heroDesc}>
               Share your code, your friend gets {refereeAmount} on signup, and you earn {referrerAmount} after their first completed booking.
@@ -118,7 +118,8 @@ export default function ReferralScreen(): React.ReactElement {
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
-                  <Text style={styles.shareBtnText}>📤 Share</Text>
+                  <Send size={16} color={colors.white} />
+                  <Text style={styles.shareBtnText}> Share</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -230,7 +231,7 @@ const styles = StyleSheet.create({
   copyBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.md, backgroundColor: colors.backgroundSecondary },
   copyBtnRow: { flexDirection: 'row' as const, alignItems: 'center' as const },
   copyBtnText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
-  shareBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.md, backgroundColor: colors.info },
+  shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.md, backgroundColor: colors.info },
   shareBtnText: { fontSize: 14, fontWeight: '600', color: colors.white },
   statsRow: { flexDirection: 'row', gap: spacing.md, marginBottom: 20 },
   statCard: { flex: 1, backgroundColor: colors.white, borderRadius: borderRadius.lg, padding: spacing.base, alignItems: 'center', borderWidth: 1, borderColor: colors.border },

@@ -14,7 +14,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 // Phase 14 R5-complete — ConfirmModal for delete-address destructive flow.
 import ConfirmModal from '@/components/ConfirmModal';
 import type { ComponentType } from 'react';
-import { Home as HomeIcon, Briefcase, Pin, AlertTriangle } from '@/components/icons';
+import { Home as HomeIcon, Briefcase, Pin, AlertTriangle, MapPin, ChevronLeft, Check } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -143,7 +143,7 @@ export default function AddressesScreen(): React.ReactElement {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>←</Text>
+            <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.title}>My Addresses</Text>
         </View>
@@ -203,7 +203,7 @@ export default function AddressesScreen(): React.ReactElement {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={resetForm} style={styles.backBtn}>
-            <Text style={styles.backText}>←</Text>
+            <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.title}>{editingId ? 'Edit Address' : 'Add Address'}</Text>
         </View>
@@ -290,7 +290,7 @@ export default function AddressesScreen(): React.ReactElement {
             onPress={() => setIsDefault((v) => !v)}
           >
             <View style={[styles.checkbox, isDefault && styles.checkboxChecked]}>
-              {isDefault && <Text style={styles.checkmark}>✓</Text>}
+              {isDefault && <Check size={16} color={colors.primary} />}
             </View>
             <Text style={styles.defaultToggleText}>Set as default address</Text>
           </TouchableOpacity>
@@ -311,7 +311,7 @@ export default function AddressesScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>My Addresses</Text>
       </View>
@@ -322,7 +322,7 @@ export default function AddressesScreen(): React.ReactElement {
         </View>
       ) : addresses.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>📍</Text>
+          <MapPin size={48} color={colors.textTertiary} style={{ marginBottom: spacing.base }} />
           <Text style={styles.emptyTitle}>No Saved Addresses</Text>
           <Text style={styles.emptyText}>
             Add your home, work, or other frequently used addresses for quick booking.
