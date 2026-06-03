@@ -33,6 +33,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/api/node_modules ./packages/api/node_modules
 COPY --from=build /app/packages/api/src ./packages/api/src
+COPY --from=build /app/packages/api/scripts ./packages/api/scripts
 COPY --from=build /app/packages/api/package.json ./packages/api/
 COPY --from=build /app/packages/api/tsconfig.json ./packages/api/
 COPY tsconfig.json ./
