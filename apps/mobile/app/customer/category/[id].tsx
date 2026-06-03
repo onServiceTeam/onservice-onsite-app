@@ -16,6 +16,7 @@ import { getSubcategories, type Subcategory } from '@/services/catalog.service';
 import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Clock, ChevronLeft } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 export default function SubcategoryListScreen(): React.ReactElement {
@@ -62,7 +63,10 @@ export default function SubcategoryListScreen(): React.ReactElement {
             {item.description}
           </Text>
           {item.estimatedDurationMinutes != null && (
-            <Text style={styles.duration}>⏱ {item.estimatedDurationMinutes} min</Text>
+            <View style={styles.durationRow}>
+              <Clock size={12} color={colors.textTertiary} />
+              <Text style={styles.duration}>{item.estimatedDurationMinutes} min</Text>
+            </View>
           )}
         </View>
         <View style={styles.priceContainer}>
@@ -84,7 +88,7 @@ export default function SubcategoryListScreen(): React.ReactElement {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>{draft.categoryName ?? 'Services'}</Text>
       </View>
@@ -159,6 +163,7 @@ const styles = StyleSheet.create({
   cardContent: { flex: 1, marginRight: spacing.base },
   serviceName: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   serviceDesc: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.sm },
+  durationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   duration: { ...typography.caption, color: colors.textTertiary },
   priceContainer: { alignItems: 'flex-end', justifyContent: 'center' },
   priceLabel: { ...typography.caption, color: colors.textTertiary, marginBottom: 2 },

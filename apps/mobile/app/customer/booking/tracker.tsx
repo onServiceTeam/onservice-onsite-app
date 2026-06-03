@@ -12,6 +12,7 @@ import { Button, StatusBadge } from '@/components/ui';
 import PulsingDot from '@/components/PulsingDot';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { MessageSquare, ChevronLeft } from '@/components/icons';
 
 const STATUS_LABELS: Record<string, string> = {
   matched: 'Waiting for provider',
@@ -98,7 +99,7 @@ export default function BookingTrackerScreen(): React.ReactElement {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Track Booking</Text>
       </View>
@@ -173,7 +174,7 @@ export default function BookingTrackerScreen(): React.ReactElement {
                   style={styles.chatButton}
                   onPress={() => router.push(`/customer/chat/${booking.id}`)}
                 >
-                  <Text style={styles.chatIcon}>💬</Text>
+                  <MessageSquare size={20} color={colors.primary} />
                 </TouchableOpacity>
               </View>
             )}

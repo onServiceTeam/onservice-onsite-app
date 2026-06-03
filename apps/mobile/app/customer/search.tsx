@@ -17,7 +17,7 @@ import type { Subcategory } from '@/services/catalog.service';
 import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Star, AlertTriangle } from '@/components/icons';
+import { Star, AlertTriangle, Clock, MapPin, Filter, Search, ChevronLeft } from '@/components/icons';
 // Phase 14 R5-complete — FilterModal for advanced search filters.
 import FilterModal from '@/components/FilterModal';
 import useDebouncedValue from '@/hooks/useDebouncedValue';
@@ -146,7 +146,10 @@ export default function SearchScreen(): React.ReactElement {
             <Text style={styles.resultName}>{svc.name}</Text>
             <Text style={styles.resultDesc} numberOfLines={2}>{svc.description}</Text>
             {svc.estimatedDurationMinutes != null && (
-              <Text style={styles.resultDuration}>⏱ {svc.estimatedDurationMinutes} min</Text>
+              <View style={styles.resultDurationRow}>
+                <Clock size={12} color={colors.textTertiary} />
+                <Text style={styles.resultDuration}>{svc.estimatedDurationMinutes} min</Text>
+              </View>
             )}
           </View>
           <View style={styles.resultPrice}>
@@ -185,7 +188,12 @@ export default function SearchScreen(): React.ReactElement {
             {prov.totalReviews > 0 && (
               <Text style={styles.providerReviews}>({prov.totalReviews} reviews)</Text>
             )}
-            {prov.city && <Text style={styles.providerCity}>📍 {prov.city}</Text>}
+            {prov.city && (
+              <View style={styles.providerCityRow}>
+                <MapPin size={12} color={colors.textTertiary} />
+                <Text style={styles.providerCity}>{prov.city}</Text>
+              </View>
+            )}
           </View>
         </View>
         <View style={styles.providerBadge}>
@@ -199,7 +207,7 @@ export default function SearchScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         {/* BUG-PHASE166-01 fix — pre-fix this had no maxLength.
             Server caps at 100 (Phase 166-01). Match the cap. */}
@@ -230,12 +238,12 @@ export default function SearchScreen(): React.ReactElement {
           style={styles.filterButton}
           accessibilityLabel="Open search filters"
         >
-          <Text style={styles.filterButtonText}>
-            ⚙
-            {Object.values(activeFilters).flat().length > 0
-              ? ` (${Object.values(activeFilters).flat().length})`
-              : ''}
-          </Text>
+          <Filter size={18} color={colors.text} />
+          {Object.values(activeFilters).flat().length > 0 && (
+            <Text style={styles.filterButtonText}>
+              {` (${Object.values(activeFilters).flat().length})`}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -277,7 +285,7 @@ export default function SearchScreen(): React.ReactElement {
 
       {!isLoading && !isError && isFetched && searchTerm.length >= 2 && totalResults === 0 && (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>🔍</Text>
+          <View style={styles.emptyIconWrap}><Search size={48} color={colors.textTertiary} /></View>
           <Text style={styles.emptyTitle}>No results for &quot;{searchTerm}&quot;</Text>
           <Text style={styles.emptySubtitle}>Try a different keyword or browse categories.</Text>
           {/* BUG-PHASE176-01 fix — pre-fix the hint said "or browse
@@ -367,6 +375,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     minWidth: 44,
     minHeight: 44,
+    flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     backgroundColor: colors.backgroundSecondary,
@@ -393,6 +402,7 @@ const styles = StyleSheet.create({
   resultContent: { flex: 1, marginRight: spacing.base },
   resultName: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   resultDesc: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.sm },
+  resultDurationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   resultDuration: { ...typography.caption, color: colors.textTertiary },
   resultPrice: { alignItems: 'flex-end', justifyContent: 'center' },
   priceLabel: { ...typography.caption, color: colors.textTertiary, marginBottom: 2 },
@@ -422,6 +432,7 @@ const styles = StyleSheet.create({
   providerRating: { ...typography.caption, color: colors.text },
   providerRatingRow: { flexDirection: 'row' as const, alignItems: 'center' as const },
   providerReviews: { ...typography.caption, color: colors.textSecondary },
+  providerCityRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   providerCity: { ...typography.caption, color: colors.textSecondary },
   providerBadge: {
     backgroundColor: colors.primaryLight,
