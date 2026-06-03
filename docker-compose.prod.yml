@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgis/postgis:18-3.5
+    # Matches the dev image (proven with the migrations). PG18 PostGIS images
+    # are not published under an 18-3.5 tag; 17-3.5 is the supported pair.
+    image: postgis/postgis:17-3.5
     restart: always
     ports:
       - "127.0.0.1:5432:5432"
@@ -10,6 +12,9 @@ services:
       POSTGRES_DB: ${DB_NAME}
     volumes:
       - pgdata_prod:/var/lib/postgresql/data
+      # Run on first DB init: creates pgcrypto + postgis extensions and the
+      # uuidv7() shim the migrations require (PG17 has no native uuidv7()).
+      - ./infra/docker/postgres-init:/docker-entrypoint-initdb.d:ro
     deploy:
       resources:
         limits:
