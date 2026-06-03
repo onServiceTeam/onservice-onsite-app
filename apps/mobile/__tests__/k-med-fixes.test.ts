@@ -36,12 +36,18 @@ describe('Phase K MED-K05 — provider-api ProviderSelf.tier includes founding',
   });
 });
 
-describe('Phase K MED-K11 — provider dashboard renders job.totalAmount (not servicePrice)', () => {
-  it('MED-K11 — jobPrice text shows totalAmount', () => {
-    expect(DASHBOARD).toMatch(/<Text style=\{styles\.jobPrice\}>\{formatPHP\(job\.totalAmount\)\}<\/Text>/);
+// Phase 200 supersedes MED-K11: the provider dashboard now shows servicePrice
+// (the provider's gross for the job), matching the Jobs tab. totalAmount
+// includes the customer's platform fee the provider never receives, so showing
+// it here overstated the provider's take AND disagreed with the Jobs tab card
+// (same job, two different prices). The job-detail screen still shows the full
+// net-of-commission breakdown.
+describe('Phase 200 — provider dashboard job card shows servicePrice, consistent with the Jobs tab', () => {
+  it('jobPrice text shows servicePrice', () => {
+    expect(DASHBOARD).toMatch(/<Text style=\{styles\.jobPrice\}>\{formatPHP\(job\.servicePrice\)\}<\/Text>/);
   });
-  it('MED-K11 — old servicePrice render removed', () => {
-    expect(DASHBOARD).not.toMatch(/<Text style=\{styles\.jobPrice\}>\{formatPHP\(job\.servicePrice\)\}<\/Text>/);
+  it('no longer renders the customer total (totalAmount) on the provider card', () => {
+    expect(DASHBOARD).not.toMatch(/<Text style=\{styles\.jobPrice\}>\{formatPHP\(job\.totalAmount\)\}<\/Text>/);
   });
 });
 
