@@ -49,22 +49,50 @@ redis.on('error', (err) => {
 });
 
 // BullMQ wants explicit host/port. Parse REDIS_URL when set.
-function parseBullConnection(): { host: string; port: number } {
-  if (redisUrl) {
+//
+// Phase 200 fix — CRITICAL: this previously returned ONLY host + port and
+// dropped the password. When Redis runs with `requirepass` (as in production),
+// every BullMQ queue and worker connected unauthenticated and failed with
+// "NOAUTH Authentication required" — so the entire background-job system was
+// down: the scheduler worker (offer-cascade sweep / re-kick, NBI-expiry
+// checks, recurring auto-charges) plus the notification/SMS/payout queues
+// never ran. The offer sweep being dead meant auto-dispatch stalled after the
+// first provider's 45s offer expired (no re-kick to the next provider). Now we
+// carry the password (and username, if any) through from REDIS_URL or the
+// REDIS_PASSWORD env var so BullMQ authenticates like the main client does.
+export interface BullConnection {
+  host: string;
+  port: number;
+  password?: string;
+  username?: string;
+}
+
+export function parseBullConnection(
+  url: string | undefined = redisUrl,
+  env: NodeJS.ProcessEnv = process.env,
+): BullConnection {
+  if (url) {
     try {
-      const u = new URL(redisUrl);
-      return {
+      const u = new URL(url);
+      const conn: BullConnection = {
         host: u.hostname || 'localhost',
         port: u.port ? Number(u.port) : 6379,
       };
+      if (u.password) conn.password = decodeURIComponent(u.password);
+      // Redis `requirepass` uses the implicit "default" user; only forward an
+      // explicit non-default username to avoid breaking password-only auth.
+      if (u.username && u.username !== 'default') conn.username = decodeURIComponent(u.username);
+      return conn;
     } catch {
       // malformed URL — fall through to host/port env vars
     }
   }
-  return {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: Number(process.env.REDIS_PORT) || 6379,
+  const conn: BullConnection = {
+    host: env.REDIS_HOST || 'localhost',
+    port: Number(env.REDIS_PORT) || 6379,
   };
+  if (env.REDIS_PASSWORD) conn.password = env.REDIS_PASSWORD;
+  return conn;
 }
 
 export const bullMqConnection = parseBullConnection();
