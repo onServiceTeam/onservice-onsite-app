@@ -12,7 +12,7 @@ import * as addressService from '@/services/address.service';
 import type { SavedAddress } from '@/services/address.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
-import { Home as HomeIcon, Building2, Pin } from '@/components/icons';
+import { Home as HomeIcon, Building2, Pin, MapPin } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -260,7 +260,7 @@ export default function AddressPickerScreen(): React.ReactElement {
               style={styles.resultItem}
               onPress={() => handleSelectResult(item)}
             >
-              <Text style={styles.resultIcon}>📍</Text>
+              <MapPin size={16} color={colors.textTertiary} style={styles.resultIcon} />
               <View style={styles.resultText}>
                 <Text style={styles.resultAddress}>{item.address}</Text>
                 <Text style={styles.resultArea}>
@@ -313,7 +313,7 @@ export default function AddressPickerScreen(): React.ReactElement {
           {gpsLoading ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Text style={styles.myLocationIcon}>📍</Text>
+            <MapPin size={16} color={colors.primary} style={styles.myLocationIcon} />
           )}
           <Text style={styles.myLocationText}>
             {gpsLoading ? 'Getting location...' : 'Use My Location'}
@@ -334,9 +334,12 @@ export default function AddressPickerScreen(): React.ReactElement {
       {/* Bottom bar */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
         {selectedAddress && (
-          <Text style={styles.selectedText} numberOfLines={2}>
-            📍 {[selectedAddress.address, selectedAddress.barangay, selectedAddress.city].filter(Boolean).join(', ')}
-          </Text>
+          <View style={styles.selectedRow}>
+            <MapPin size={16} color={colors.text} style={{ marginRight: 6, marginTop: 2 }} />
+            <Text style={styles.selectedText} numberOfLines={2}>
+              {[selectedAddress.address, selectedAddress.barangay, selectedAddress.city].filter(Boolean).join(', ')}
+            </Text>
+          </View>
         )}
         <Button
           title="Confirm Address"
@@ -374,7 +377,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     zIndex: 10,
   },
-  myLocationIcon: { fontSize: 16 },
+  myLocationIcon: { marginRight: spacing.xs },
   myLocationText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
   searchContainer: {
     paddingHorizontal: spacing.base,
@@ -411,7 +414,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  resultIcon: { fontSize: 16, marginRight: spacing.sm, marginTop: 2 },
+  resultIcon: { marginRight: spacing.sm, marginTop: 2 },
   resultText: { flex: 1 },
   resultAddress: { ...typography.body, color: colors.text },
   resultArea: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
@@ -458,9 +461,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.divider,
   },
+  selectedRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
+  },
   selectedText: {
     ...typography.bodySmall,
     color: colors.text,
-    marginBottom: spacing.md,
+    flex: 1,
   },
 });

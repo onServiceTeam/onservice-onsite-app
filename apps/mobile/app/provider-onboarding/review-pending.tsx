@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ClipboardList } from '@/components/icons';
+import { ClipboardList, Lightbulb } from '@/components/icons';
 import api, { type ApiResponse } from '@/services/api';
 import { getMyProfile } from '@/services/provider-api.service';
 import { useAuthStore, type User } from '@/stores/auth.store';
@@ -124,7 +124,7 @@ export default function ReviewPendingScreen(): React.ReactElement {
         )}
 
         <View style={styles.infoCard}>
-          <Text style={styles.infoIcon}>💡</Text>
+          <Lightbulb size={18} color={colors.info} style={styles.infoIcon} />
           <Text style={styles.infoText}>
             {isRejected
               ? "If you believe this was a mistake, our support team can review the decision and let you know what's needed to re-apply."
@@ -188,6 +188,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: spacing.sm,
   },
-  infoIcon: { fontSize: 18, marginTop: 2 },
+  infoIcon: { marginTop: 2 },
   infoText: { ...typography.bodySmall, color: colors.infoDark, flex: 1, lineHeight: 20 },
 });

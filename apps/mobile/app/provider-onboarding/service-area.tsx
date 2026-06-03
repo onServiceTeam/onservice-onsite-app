@@ -7,6 +7,7 @@ import * as Location from 'expo-location';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 import { Button, Input } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { MapPin } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 const RADIUS_OPTIONS = [5, 10, 15, 20, 30, 50];
@@ -183,7 +184,10 @@ export default function ServiceAreaScreen(): React.ReactElement {
           {locating ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Text style={styles.locateBtnText}>📍 Use My Current Location</Text>
+            <>
+              <MapPin size={18} color={colors.primary} style={{ marginRight: spacing.xs }} />
+              <Text style={styles.locateBtnText}>Use My Current Location</Text>
+            </>
           )}
         </TouchableOpacity>
         {lat != null && lng != null && (

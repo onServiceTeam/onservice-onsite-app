@@ -13,7 +13,7 @@ import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ClipboardList, ChevronLeft, Wallet, Check } from '@/components/icons';
 
-const PAYMENT_METHOD = { id: 'wallet', label: 'Wallet Balance', icon: '👛' } as const;
+const PAYMENT_METHOD = { id: 'wallet', label: 'Wallet Balance' } as const;
 
 export default function ChangeOrderScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();

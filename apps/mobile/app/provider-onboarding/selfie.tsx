@@ -8,6 +8,7 @@ import { useOnboardingStore } from '@/stores/onboarding.store';
 import { uploadImages } from '@/services/upload.service';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Camera } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 export default function SelfieScreen(): React.ReactElement {
@@ -83,7 +84,7 @@ export default function SelfieScreen(): React.ReactElement {
             <Image source={{ uri: selfieUri }} style={styles.selfieImage} />
           ) : (
             <View style={styles.selfiePlaceholder}>
-              <Text style={styles.selfieIcon}>📸</Text>
+              <Camera size={48} color={colors.textTertiary} style={styles.selfieIcon} />
               <Text style={styles.selfieHint}>No selfie taken yet</Text>
             </View>
           )}
@@ -162,7 +163,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.success,
   },
-  selfieIcon: { fontSize: 48, marginBottom: spacing.sm },
+  selfieIcon: { marginBottom: spacing.sm },
   selfieHint: { ...typography.caption, color: colors.textTertiary },
   uploadingText: { ...typography.caption, color: colors.primary, marginTop: spacing.sm },
   captureBtn: {

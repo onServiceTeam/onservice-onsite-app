@@ -15,6 +15,7 @@ import { useOnboardingStore } from '@/stores/onboarding.store';
 import { uploadImages } from '@/services/upload.service';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { FileText } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 type DocField = 'governmentIdFrontUri' | 'governmentIdBackUri' | 'nbiClearanceUri';
@@ -140,7 +141,7 @@ export default function DocumentsScreen(): React.ReactElement {
                 <Image source={{ uri }} style={styles.docThumb} />
               ) : (
                 <View style={styles.docPlaceholder}>
-                  <Text style={styles.docPlaceholderIcon}>📄</Text>
+                  <FileText size={20} color={colors.textTertiary} />
                 </View>
               )}
               <View style={styles.docInfo}>

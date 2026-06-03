@@ -11,7 +11,7 @@ import { Badge, Button } from '@/components/ui';
 import { formatRelative } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { MapIcon } from '@/components/icons';
+import { MapIcon, MapPin, MessageSquare } from '@/components/icons';
 import { useLocation } from '@/hooks/useLocation';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -178,9 +178,12 @@ export default function ActiveJobScreen(): React.ReactElement {
           {STATUS_LABELS[booking.status] ?? 'Active job'}
         </Text>
         <Text style={styles.serviceName}>{booking.serviceName ?? 'Service'}</Text>
-        <Text style={styles.addressText} numberOfLines={1}>
-          📍 {[booking.address, booking.barangay, booking.city].filter(Boolean).join(', ')}
-        </Text>
+        <View style={styles.addressRow}>
+          <MapPin size={14} color={colors.textTertiary} style={{ marginRight: 4 }} />
+          <Text style={styles.addressText} numberOfLines={1}>
+            {[booking.address, booking.barangay, booking.city].filter(Boolean).join(', ')}
+          </Text>
+        </View>
 
         <View style={styles.actionRow}>
           {action && (
@@ -203,7 +206,7 @@ export default function ActiveJobScreen(): React.ReactElement {
           style={styles.chatRow}
           onPress={() => router.push(`/provider/chat/${booking.id}`)}
         >
-          <Text style={styles.chatIcon}>💬</Text>
+          <MessageSquare size={18} color={colors.secondary} style={styles.chatIcon} />
           <Text style={styles.chatText}>Chat with Customer</Text>
         </TouchableOpacity>
       </View>
@@ -251,7 +254,8 @@ const styles = StyleSheet.create({
   timeText: { ...typography.caption, color: colors.textTertiary },
   statusMessage: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   serviceName: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.xs },
-  addressText: { ...typography.bodySmall, color: colors.textTertiary, marginBottom: spacing.base },
+  addressRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.base },
+  addressText: { ...typography.bodySmall, color: colors.textTertiary, flex: 1 },
 
   actionRow: {
     flexDirection: 'row',
@@ -277,6 +281,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundSecondary,
     borderRadius: borderRadius.md,
   },
-  chatIcon: { fontSize: 18, marginRight: spacing.sm },
+  chatIcon: { marginRight: spacing.sm },
   chatText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
 });

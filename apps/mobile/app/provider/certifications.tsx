@@ -37,7 +37,7 @@ import { uploadImages } from '@/services/upload.service';
 import { getErrorMessage } from '@/utils/errors';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle } from '@/components/icons';
+import { AlertTriangle, ScrollText } from '@/components/icons';
 // Phase 14 R5-complete — NbiStatusBanner mounts at the top of the
 // certifications page so the provider sees expiry warnings on the
 // same screen where they manage cert documents.
@@ -342,7 +342,7 @@ export default function CertificationsScreen(): React.ReactElement {
               activeOpacity={0.8}
               disabled={isPending}
             >
-              <Text style={styles.pickerIcon}>📜</Text>
+              <ScrollText size={36} color={colors.textTertiary} style={styles.pickerIcon} />
               <Text style={styles.pickerTitle}>Tap to add certificate photo</Text>
               <Text style={styles.pickerHint}>Camera or photo library (optional)</Text>
             </TouchableOpacity>
@@ -380,7 +380,7 @@ export default function CertificationsScreen(): React.ReactElement {
       >
         {certifications.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📜</Text>
+            <ScrollText size={64} color={colors.textTertiary} style={styles.emptyIcon} />
             <Text style={styles.emptyTitle}>No Certifications Yet</Text>
             <Text style={styles.emptyDesc}>
               Add your TESDA certifications, training certificates, or professional licenses to
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
   scrollContent: { padding: spacing.base, gap: spacing.sm },
 
   emptyState: { alignItems: 'center', paddingTop: spacing.xxl },
-  emptyIcon: { fontSize: 64, marginBottom: spacing.base },
+  emptyIcon: { marginBottom: spacing.base },
   emptyTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
   emptyDesc: {
     ...typography.body,
@@ -555,7 +555,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pickerIcon: { fontSize: 36, marginBottom: spacing.xs },
+  pickerIcon: { marginBottom: spacing.xs },
   pickerTitle: { ...typography.body, color: colors.text, fontWeight: '600' },
   pickerHint: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   previewWrap: {

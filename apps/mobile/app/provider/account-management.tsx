@@ -17,7 +17,7 @@ import {
 } from '@/services/data-management.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { getErrorMessage } from '@/utils/errors';
-import { Package, AlertTriangle, CheckCircle2, XCircle, Hourglass } from '@/components/icons';
+import { Package, AlertTriangle, CheckCircle2, XCircle, Hourglass, Clock } from '@/components/icons';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-PH', {
@@ -245,7 +245,7 @@ export default function AccountManagementScreen(): React.ReactElement {
           ) : hasPendingDeletion ? (
             <View style={styles.deletionActive}>
               <View style={styles.warningBanner}>
-                <Text style={styles.warningIcon}>🕐</Text>
+                <Clock size={24} color={colors.warning} style={styles.warningIcon} />
                 <View style={styles.warningContent}>
                   <Text style={styles.warningTitle}>
                     Deletion Scheduled
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     gap: spacing.sm,
   },
-  warningIcon: { fontSize: 24 },
+  warningIcon: { marginTop: 1 },
   warningContent: { flex: 1 },
   warningTitle: { ...typography.body, fontWeight: '700', color: colors.warning, marginBottom: 2 },
   warningText: { ...typography.bodySmall, color: colors.text, lineHeight: 20 },

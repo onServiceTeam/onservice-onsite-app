@@ -39,6 +39,7 @@ import { uploadImages } from '@/services/upload.service';
 import { LazyImage } from '@/components/ui';
 import { formatTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { MessageSquare, Camera, Send, ChevronLeft } from '@/components/icons';
 
 import * as ImagePicker from 'expo-image-picker';
 
@@ -297,7 +298,7 @@ export default function ProviderChatScreen(): React.ReactElement {
     >
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIconText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>{customerName}</Text>
@@ -329,7 +330,7 @@ export default function ProviderChatScreen(): React.ReactElement {
         }
         ListEmptyComponent={
           <View style={styles.emptyChat}>
-            <Text style={styles.emptyChatIcon}>💬</Text>
+            <MessageSquare size={48} color={colors.textTertiary} style={styles.emptyChatIcon} />
             <Text style={styles.emptyChatText}>Start the conversation</Text>
           </View>
         }
@@ -344,7 +345,7 @@ export default function ProviderChatScreen(): React.ReactElement {
           {uploadingPhoto ? (
             <ActivityIndicator size="small" color={colors.secondary} />
           ) : (
-            <Text style={styles.photoIcon}>📷</Text>
+            <Camera size={22} color={colors.secondary} />
           )}
         </TouchableOpacity>
         <TextInput
@@ -361,7 +362,7 @@ export default function ProviderChatScreen(): React.ReactElement {
           onPress={handleSend}
           disabled={!inputText.trim() || sending}
         >
-          <Text style={styles.sendIcon}>➤</Text>
+          <Send size={20} color={colors.white} />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -411,7 +412,7 @@ const styles = StyleSheet.create({
   chatImage: { width: 200, height: 150, borderRadius: borderRadius.md, marginBottom: spacing.xs },
 
   emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
-  emptyChatIcon: { fontSize: 48, marginBottom: spacing.md },
+  emptyChatIcon: { marginBottom: spacing.md },
   emptyChatText: { ...typography.body, color: colors.textSecondary },
 
   inputBar: {

@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, ChevronLeft, Camera } from '@/components/icons';
+import { AlertTriangle, ChevronLeft, Camera, Repeat } from '@/components/icons';
 import { getAppContentWidth } from '@/components/WebAppFrame';
 
 // BUG-PHASE56-01 fix — pre-fix the screen read photos from
@@ -160,7 +160,7 @@ export default function BookingPhotosScreen(): React.ReactElement {
           <>
             {activeTab === 'before' && afterPhotos.length > 0 && (
               <View style={styles.comparisonBanner}>
-                <Text style={styles.comparisonIcon}>🔄</Text>
+                <Repeat size={16} color={colors.primary} />
                 <Text style={styles.comparisonText}>
                   Compare with {afterPhotos.length} after photo{afterPhotos.length !== 1 ? 's' : ''}
                 </Text>
@@ -171,7 +171,7 @@ export default function BookingPhotosScreen(): React.ReactElement {
             )}
             {activeTab === 'after' && beforePhotos.length > 0 && (
               <View style={styles.comparisonBanner}>
-                <Text style={styles.comparisonIcon}>🔄</Text>
+                <Repeat size={16} color={colors.primary} />
                 <Text style={styles.comparisonText}>
                   Compare with {beforePhotos.length} before photo{beforePhotos.length !== 1 ? 's' : ''}
                 </Text>

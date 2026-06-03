@@ -41,7 +41,7 @@ import { uploadImages } from '@/services/upload.service';
 import { getErrorMessage } from '@/utils/errors';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle } from '@/components/icons';
+import { AlertTriangle, Camera } from '@/components/icons';
 
 type ModalMode = 'add' | 'edit' | null;
 
@@ -252,7 +252,7 @@ export default function PortfolioScreen(): React.ReactElement {
                   activeOpacity={0.8}
                   disabled={isPending}
                 >
-                  <Text style={styles.pickerIcon}>📷</Text>
+                  <Camera size={40} color={colors.textTertiary} style={styles.pickerIcon} />
                   <Text style={styles.pickerTitle}>Tap to add photo</Text>
                   <Text style={styles.pickerHint}>Camera or photo library</Text>
                 </TouchableOpacity>
@@ -290,7 +290,7 @@ export default function PortfolioScreen(): React.ReactElement {
       >
         {portfolio.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📷</Text>
+            <Camera size={64} color={colors.textTertiary} style={styles.emptyIcon} />
             <Text style={styles.emptyTitle}>No Portfolio Photos Yet</Text>
             <Text style={styles.emptyDesc}>
               Add photos of your past work to build trust with customers and showcase your skills.
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
   scrollContent: { padding: spacing.base },
 
   emptyState: { alignItems: 'center', paddingTop: spacing.xxl },
-  emptyIcon: { fontSize: 64, marginBottom: spacing.base },
+  emptyIcon: { marginBottom: spacing.base },
   emptyTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
   emptyDesc: {
     ...typography.body,
@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pickerIcon: { fontSize: 40, marginBottom: spacing.xs },
+  pickerIcon: { marginBottom: spacing.xs },
   pickerTitle: { ...typography.body, color: colors.text, fontWeight: '600' },
   pickerHint: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   previewWrap: {

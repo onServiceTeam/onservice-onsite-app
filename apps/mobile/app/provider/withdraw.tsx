@@ -23,14 +23,15 @@ import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
+import { Wallet, Building2 } from '@/components/icons';
 // Phase 14 R5-complete — EarningsChart preview of recent earnings.
 import EarningsChart from '@/components/provider/EarningsChart';
 
 const PAYOUT_METHODS = [
-  { id: 'gcash', label: 'GCash', icon: '💚' },
-  { id: 'maya', label: 'Maya', icon: '💜' },
-  { id: 'bank_instapay', label: 'InstaPay', icon: '🏦' },
-  { id: 'bank_pesonet', label: 'PESONet', icon: '🏦' },
+  { id: 'gcash', label: 'GCash', Icon: Wallet },
+  { id: 'maya', label: 'Maya', Icon: Wallet },
+  { id: 'bank_instapay', label: 'InstaPay', Icon: Building2 },
+  { id: 'bank_pesonet', label: 'PESONet', Icon: Building2 },
 ] as const;
 
 type PayoutMethod = typeof PAYOUT_METHODS[number]['id'];
@@ -197,7 +198,7 @@ export default function WithdrawScreen(): React.ReactElement {
               style={[styles.methodCard, method === m.id && styles.methodCardActive]}
               onPress={() => setMethod(m.id)}
             >
-              <Text style={styles.methodIcon}>{m.icon}</Text>
+              <m.Icon size={28} color={method === m.id ? colors.secondary : colors.textSecondary} style={styles.methodIcon} />
               <Text style={[styles.methodLabel, method === m.id && styles.methodLabelActive]}>
                 {m.label}
               </Text>
@@ -300,7 +301,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   methodCardActive: { borderColor: colors.secondary, backgroundColor: colors.successLight },
-  methodIcon: { fontSize: 28, marginBottom: spacing.xs },
+  methodIcon: { marginBottom: spacing.xs },
   methodLabel: { ...typography.bodySmall, color: colors.text, fontWeight: '600' },
   methodLabelActive: { color: colors.secondary },
 

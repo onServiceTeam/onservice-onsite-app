@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, MapPin, ChevronRight } from '@/components/icons';
+import { AlertTriangle, MapPin, ChevronRight, Repeat } from '@/components/icons';
 import { Routes } from '@/config/navigation';
 
 interface RecurringBooking {
@@ -137,7 +137,7 @@ export default function RecurringListScreen(): React.ReactElement {
 
       {!isLoading && !isError && items.length === 0 && (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>🔄</Text>
+          <Repeat size={48} color={colors.textTertiary} style={styles.emptyIcon} />
           <Text style={styles.emptyTitle}>No recurring bookings</Text>
           <Text style={styles.emptySubtitle}>
             After completing a booking, you can set it to repeat automatically.
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   arrow: { ...typography.h2, color: colors.textTertiary },
 
   empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: spacing.xl },
-  emptyIcon: { fontSize: 48, marginBottom: spacing.base },
+  emptyIcon: { marginBottom: spacing.base },
   emptyTitle: { ...typography.h3, color: colors.text, textAlign: 'center', marginBottom: spacing.sm },
   emptySubtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
   // BUG-PHASE173-01 fix styles for the Browse Services CTA.
