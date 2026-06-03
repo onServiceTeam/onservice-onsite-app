@@ -17,6 +17,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
+import { MessageSquare, Camera, Send } from '@/components/icons';
 import { getBookingById } from '@/services/booking.service';
 import {
   createConversation,
@@ -334,7 +335,7 @@ export default function ChatScreen(): React.ReactElement {
         }
         ListEmptyComponent={
           <View style={styles.emptyChat}>
-            <Text style={styles.emptyChatIcon}>💬</Text>
+            <MessageSquare size={44} color={colors.textTertiary} />
             <Text style={styles.emptyChatText}>Start the conversation</Text>
           </View>
         }
@@ -349,7 +350,7 @@ export default function ChatScreen(): React.ReactElement {
           {uploadingPhoto ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Text style={styles.photoIcon}>📷</Text>
+            <Camera size={22} color={colors.primary} />
           )}
         </TouchableOpacity>
         <TextInput
@@ -366,7 +367,7 @@ export default function ChatScreen(): React.ReactElement {
           onPress={handleSend}
           disabled={!inputText.trim() || sending}
         >
-          <Text style={styles.sendIcon}>➤</Text>
+          <Send size={20} color={colors.white} />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

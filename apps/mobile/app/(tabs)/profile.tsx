@@ -12,7 +12,7 @@ import Avatar from '@/components/Avatar';
 import PhoneInput from '@/components/PhoneInput';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
-import { MapPin, CreditCard, Bell, HelpCircle, FileText, KeyRound } from '@/components/icons';
+import { MapPin, CreditCard, Bell, HelpCircle, FileText, KeyRound, ChevronRight } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -191,7 +191,7 @@ export default function ProfileScreen(): React.ReactElement {
             >
               <View style={styles.menuIconWrap}><ItemIcon size={20} color={colors.text} /></View>
               <Text style={styles.menuLabel}>{item.label}</Text>
-              <Text style={styles.menuArrow}>›</Text>
+              <ChevronRight size={20} color={colors.textTertiary} />
             </TouchableOpacity>
           );
         })}
