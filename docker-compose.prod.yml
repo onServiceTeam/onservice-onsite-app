@@ -107,6 +107,8 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./certbot/conf:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
+      - ./apps/admin/dist:/usr/share/nginx/admin:ro
+      - ./apps/mobile/dist-web:/usr/share/nginx/app:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       api:
