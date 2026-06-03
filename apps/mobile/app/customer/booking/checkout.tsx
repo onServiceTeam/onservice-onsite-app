@@ -4,7 +4,8 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBookingStore, type BookingDraft } from '@/stores/booking.store';
 import { createBooking } from '@/services/booking.service';
-import { createPaymentIntent } from '@/services/payment.service';
+import { createPaymentIntent, getWalletBalance } from '@/services/payment.service';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
@@ -40,6 +41,12 @@ export default function CheckoutScreen(): React.ReactElement {
   const { draft, serviceFee, total, addonsTotal, setPaymentMethod, reset } = useBookingStore();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(draft.paymentMethod);
   const [loading, setLoading] = useState(false);
+  // Phase 200 — know the wallet balance so we can stop a wallet payment that
+  // would fail server-side (insufficient funds) and point the customer to
+  // top up, instead of creating the booking and then hitting a raw error.
+  const walletQuery = useQuery({ queryKey: ['wallet'], queryFn: getWalletBalance, staleTime: 30_000 });
+  const walletBalance = walletQuery.data?.availableBalance ?? 0;
+  const walletShort = selectedMethod === 'wallet' && walletBalance < total;
   // Phase 200 — dedupe protection: once the booking is created, remember its
   // id so a retry after a payment-intent failure re-uses it instead of
   // creating a second booking. Cleared once we successfully navigate away.
@@ -57,6 +64,17 @@ export default function CheckoutScreen(): React.ReactElement {
     }
     if (!draft.categoryId || !draft.subcategoryId || !draft.address || !draft.barangay || !draft.scheduledDate || !draft.scheduledTime) {
       Alert.alert('Missing Info', 'Booking details incomplete. Please go back and fill in all fields.');
+      return;
+    }
+    if (selectedMethod === 'wallet' && walletBalance < total) {
+      Alert.alert(
+        'Insufficient wallet balance',
+        'Your wallet balance is lower than the total. Top up your wallet or choose another payment method.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Top Up', onPress: () => router.push('/customer/wallet-topup') },
+        ],
+      );
       return;
     }
 
@@ -272,6 +290,11 @@ export default function CheckoutScreen(): React.ReactElement {
 
       {/* Bottom CTA */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
+        {walletShort && (
+          <Text style={styles.walletShortHint}>
+            Wallet balance ({formatPHP(walletBalance)}) is below the total. Top up or pick another method.
+          </Text>
+        )}
         <Button
           title={loading ? 'Processing...' : `Pay ${formatPHP(total)}`}
           onPress={handlePay}
@@ -407,5 +430,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.base,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
+  },
+  walletShortHint: {
+    ...typography.bodySmall,
+    color: colors.error,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
   },
 });
