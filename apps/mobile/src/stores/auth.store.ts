@@ -33,7 +33,8 @@ export interface User {
   email: string | null;
   firstName: string | null;
   lastName: string | null;
-  role: 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo';
+  // D23 — `provider_staff` is a team member with their own scoped login.
+  role: 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo' | 'provider_staff';
   avatarUrl: string | null;
 }
 
@@ -49,6 +50,10 @@ interface AuthState {
   register: (phone: string, firstName: string, lastName: string) => Promise<void>;
   logout: () => void;
   setUser: (user: User) => void;
+  // D23 — after accepting a team invite the API returns a fresh token pair
+  // carrying the provider_staff role; swap in the new session so routing
+  // re-evaluates to the staff app.
+  applyStaffSession: (accessToken: string, refreshToken: string) => void;
 }
 
 // Bug 1061 fix: tokens + user PII live in secure-storage (encrypted MMKV
@@ -177,5 +182,14 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
   setUser: (user: User) => {
     storeUser(JSON.stringify(user));
     set({ user });
+  },
+
+  applyStaffSession: (accessToken: string, refreshToken: string) => {
+    storeTokens(accessToken, refreshToken);
+    set((state) => {
+      const user = state.user ? { ...state.user, role: 'provider_staff' as const } : state.user;
+      if (user) storeUser(JSON.stringify(user));
+      return { user, isAuthenticated: true };
+    });
   },
 }));

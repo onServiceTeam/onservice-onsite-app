@@ -1,4 +1,4 @@
-export type UserRole = 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo';
+export type UserRole = 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo' | 'provider_staff';
 
 /**
  * E01 / D15 (2026-05-02) — admin-tier roles.

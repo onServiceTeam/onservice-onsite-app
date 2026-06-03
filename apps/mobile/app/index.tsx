@@ -20,6 +20,8 @@ export default function SplashScreen(): React.ReactElement {
       if (isAuthenticated) {
         if (user?.role === 'provider') {
           router.replace(Routes.PROVIDER_TABS.DASHBOARD);
+        } else if (user?.role === 'provider_staff') {
+          router.replace(Routes.STAFF.JOBS);
         } else {
           router.replace(Routes.TABS.HOME);
         }

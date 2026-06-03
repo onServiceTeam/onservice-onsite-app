@@ -141,6 +141,12 @@ export const Routes = {
     // PROVIDER_TABS.PROVIDER_PROFILE — both tabs, not standalone screens.
   },
 
+  // D23 — team member ("provider_staff") scoped area.
+  STAFF: {
+    JOBS: '/staff/jobs',
+    INVITES: '/staff/invites',
+  },
+
   PROVIDER_ONBOARDING: {
     ROLE_SELECT: '/provider-onboarding/role-select',
     CATEGORIES: '/provider-onboarding/categories',

@@ -102,7 +102,7 @@ export function formatProviderStaff(s: ProviderStaffRow): Record<string, unknown
 
 export async function listStaffByProvider(providerId: string): Promise<ProviderStaffRow[]> {
   const res = await db.query<ProviderStaffRow>(
-    `SELECT ps.*, u.full_name AS user_full_name
+    `SELECT ps.*, NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), '') AS user_full_name
      FROM provider_staff ps
      LEFT JOIN users u ON u.id = ps.user_id
      WHERE ps.provider_id = $1
@@ -364,4 +364,146 @@ export async function getStaffPerformance(staffId: string): Promise<{
     totalReviews: Number(row?.total_reviews ?? 0),
     averageRating: row?.avg_rating ? Number(Number(row.avg_rating).toFixed(2)) : 0,
   };
+}
+
+// ── Staff-member self-service (D23 Phase 4) ──────────────────────────────────
+
+export interface PendingInvite {
+  staffId: string;
+  providerBusinessName: string;
+  roleTitle: string | null;
+  invitePhone: string | null;
+  inviteEmail: string | null;
+}
+
+// Pending invites that match the given user's phone/email (so a freshly
+// registered user can discover and accept an invite addressed to them).
+export async function listInvitesForUser(userId: string): Promise<PendingInvite[]> {
+  const userRes = await db.query<{ phone: string | null; email: string | null }>(
+    `SELECT phone, email FROM users WHERE id = $1`,
+    [userId],
+  );
+  const u = userRes.rows[0];
+  if (!u) return [];
+  const phone = u.phone;
+  const email = u.email;
+  const res = await db.query<{
+    id: string; role_title: string | null; invite_phone: string | null;
+    invite_email: string | null; business_name: string;
+  }>(
+    `SELECT ps.id, ps.role_title, ps.invite_phone, ps.invite_email, p.business_name
+     FROM provider_staff ps
+     JOIN providers p ON p.id = ps.provider_id
+     WHERE ps.status = 'invited' AND ps.user_id IS NULL
+       AND (
+         ($1::text IS NOT NULL AND ps.invite_phone = $1)
+         OR ($2::text IS NOT NULL AND LOWER(ps.invite_email) = LOWER($2))
+       )
+       AND (ps.invite_expires_at IS NULL OR ps.invite_expires_at > NOW())
+     ORDER BY ps.created_at DESC`,
+    [phone, email],
+  );
+  return res.rows.map((r) => ({
+    staffId: r.id,
+    providerBusinessName: r.business_name,
+    roleTitle: r.role_title,
+    invitePhone: r.invite_phone,
+    inviteEmail: r.invite_email,
+  }));
+}
+
+// The invited person accepts: links their account to the staff row, flips their
+// role to provider_staff, and moves the row to pending_review (acceptance == the
+// member has submitted; back-office still has to approve). Validates that the
+// invite is actually addressed to this user. The caller (route) is responsible
+// for issuing a fresh token pair so the new role takes effect.
+export async function acceptInvite(staffId: string, userId: string): Promise<ProviderStaffRow> {
+  return db.transaction(async (client) => {
+    const userRes = await client.query<{ phone: string | null; email: string | null; role: string }>(
+      `SELECT phone, email, role FROM users WHERE id = $1`,
+      [userId],
+    );
+    const user = userRes.rows[0];
+    if (!user) throw createAppError('User not found.', 404);
+    if (['provider', 'admin', 'super_admin'].includes(user.role)) {
+      throw createAppError('This account cannot be added as a team member.', 409);
+    }
+
+    const staffRes = await client.query<ProviderStaffRow>(
+      `SELECT * FROM provider_staff WHERE id = $1 FOR UPDATE`,
+      [staffId],
+    );
+    const staff = staffRes.rows[0];
+    if (!staff) throw createAppError('Invite not found.', 404);
+    if (staff.status !== 'invited' || staff.user_id !== null) {
+      throw createAppError('This invite is no longer open.', 409);
+    }
+    if (staff.invite_expires_at && staff.invite_expires_at.getTime() < Date.now()) {
+      throw createAppError('This invite has expired. Ask the provider to re-send it.', 409);
+    }
+    // The invite must be addressed to this user (phone or email match).
+    const phoneMatch = !!staff.invite_phone && staff.invite_phone === user.phone;
+    const emailMatch = !!staff.invite_email && !!user.email &&
+      staff.invite_email.toLowerCase() === user.email.toLowerCase();
+    if (!phoneMatch && !emailMatch) {
+      throw createAppError('This invite is not addressed to your account.', 403);
+    }
+
+    const updated = await client.query<ProviderStaffRow>(
+      `UPDATE provider_staff
+         SET user_id = $1, status = 'pending_review', submitted_for_review_at = NOW(), updated_at = NOW()
+       WHERE id = $2 RETURNING *`,
+      [userId, staffId],
+    );
+    await client.query(
+      `UPDATE users SET role = 'provider_staff', updated_at = NOW() WHERE id = $1`,
+      [userId],
+    );
+    return updated.rows[0]!;
+  });
+}
+
+export interface StaffAssignedJob {
+  id: string;
+  status: string;
+  scheduledAt: Date | null;
+  address: string | null;
+  barangay: string | null;
+  city: string | null;
+  serviceName: string | null;
+  customerName: string | null;
+}
+
+// Bookings assigned to the authenticated staff member (across any provider they
+// belong to). Read-only list for the staff app's "My Jobs".
+export async function getAssignedJobsForUser(userId: string): Promise<StaffAssignedJob[]> {
+  const res = await db.query<{
+    id: string; status: string; scheduled_at: Date | null;
+    address: string | null; barangay: string | null; city: string | null;
+    category_name: string | null; subcategory_name: string | null; customer_name: string | null;
+  }>(
+    `SELECT b.id, b.status, b.scheduled_at, b.address, b.barangay, b.city,
+            sc.name AS category_name, sub.name AS subcategory_name,
+            NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), '') AS customer_name
+     FROM bookings b
+     JOIN provider_staff ps ON ps.id = b.performer_staff_id
+     LEFT JOIN service_categories sc ON sc.id = b.category_id
+     LEFT JOIN service_subcategories sub ON sub.id = b.subcategory_id
+     LEFT JOIN users u ON u.id = b.customer_id
+     WHERE ps.user_id = $1
+       AND b.performer_staff_id IS NOT NULL
+     ORDER BY b.scheduled_at DESC NULLS LAST
+     LIMIT 100`,
+    [userId],
+  );
+  return res.rows.map((r) => ({
+    id: r.id,
+    status: r.status,
+    scheduledAt: r.scheduled_at,
+    address: r.address,
+    barangay: r.barangay,
+    city: r.city,
+    serviceName: r.subcategory_name ?? r.category_name,
+    customerName: r.customer_name,
+  }));
 }

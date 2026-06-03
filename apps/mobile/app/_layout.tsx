@@ -115,6 +115,7 @@ function RootLayout(): React.ReactElement {
             <Stack.Screen name="customer" />
             <Stack.Screen name="(provider-tabs)" />
             <Stack.Screen name="provider" />
+            <Stack.Screen name="staff" />
           </Stack>
         </WebAppFrame>
       </QueryClientProvider>

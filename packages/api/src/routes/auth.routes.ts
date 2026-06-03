@@ -89,7 +89,8 @@ function adminAuthOrSetupToken(
       const payload = jwt.default.verify(token, secret) as {
         userId: string;
         // E01 / D15 — `dpo` added for NPC RA 10173 §21 segregation.
-        role: 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo';
+        // D23 — `provider_staff` team-member login.
+        role: 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo' | 'provider_staff';
         type?: string;
         iat: number;
         exp: number;
