@@ -1,5 +1,7 @@
 # STRATEGY — onService PH
 
+> **STATUS (2026-06-04) — launch-city framing below is superseded.** onService is multi-city and city-agnostic; cities/service areas are configured in the admin area, not in code. The default / first launch market is **Metro Cebu**; other markets (Boracay, General Santos, Davao, Metro Manila, Bacolod, and others) are turned on in admin when ready, and which we actively market is an internal decision. Any single-city / "Boracay-primary" framing in this document is historical strategy, kept for context. Current source of truth: `CLAUDE.md` → "What this codebase is" and `docs/strategy/CEBU-LAUNCH-PLAN.md`.
+
 **Decisions Ken needs to make before Phase 04 (admin dashboard) starts. Most of these are already implicit in the plan; this document makes them explicit.**
 
 ---

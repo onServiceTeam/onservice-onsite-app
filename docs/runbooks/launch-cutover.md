@@ -120,7 +120,12 @@ Manual confirmation. Save PDF to encrypted backup.
 
 ---
 
-## Item 4 — Mayor's permit (Malay LGU, Boracay)
+## Item 4 — Mayor's / business permit (launch city LGU)
+
+The platform is multi-city; this item is for the **launch market's** local
+government unit. Default launch market is **Metro Cebu** (Cebu City LGU). If a
+different city is launched first, substitute that city's LGU (e.g. Malay
+Municipal Hall for Boracay, General Santos City Hall for GenSan).
 
 **Owner:** Ken
 **Estimated time:** 1 day verification; 30+ days renewal if expired
@@ -128,9 +133,11 @@ Manual confirmation. Save PDF to encrypted backup.
 
 ### Steps
 
-1. Visit Malay Municipal Hall, Business Permits and Licensing Office.
-2. Verify Mayor's Permit is current.
+1. Visit the launch city's Business Permits and Licensing Office (Cebu City
+   Hall BPLO for the default Cebu launch).
+2. Verify Mayor's / business permit is current for that city.
 3. Save PDF to encrypted backup.
+4. Repeat per city as new markets are turned on in admin.
 
 ### Verification
 
@@ -405,7 +412,7 @@ After every Item verified + smoke complete:
 | 1. NPC DPO registration | <pass/fail> | Regulatory action, ₱5M penalty per breach |
 | 2. BIR OR series | <pass/fail> | Cannot issue compliant receipts; tax fraud exposure |
 | 3. DTI permit | <pass/fail> | Cannot operate as registered business |
-| 4. Mayor's permit | <pass/fail> | Cannot operate in Boracay |
+| 4. Mayor's permit | <pass/fail> | Cannot operate in the launch city (default: Cebu City) |
 | 5. hCaptcha | <pass/fail> | Bot abuse; SMS-cost vector |
 | 6. Sentry | <pass/fail> | Production errors invisible; debugging blind |
 | 7. PayMongo | <pass/fail> | Cannot accept payments |
@@ -424,7 +431,7 @@ After every Item verified + smoke complete:
 When every sign-off above is checked AND `bash scripts/verify-launch-readiness.sh` returns 0:
 
 ```bash
-git tag -a v1.0.0-launch-ready -m "Phase 14 complete — onService PH cleared for Boracay launch"
+git tag -a v1.0.0-launch-ready -m "Phase 14 complete — onService PH cleared for launch (default market: Metro Cebu)"
 git push origin v1.0.0-launch-ready
 ```
 

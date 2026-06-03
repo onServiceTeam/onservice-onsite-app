@@ -4,6 +4,8 @@
 **Latest commit verified:** `322330a`
 **Verified by:** Direct git clone in this session, file-by-file inspection
 
+> **STATUS (2026-06-04):** the launch-city conclusion in this audit ("Boracay primary at launch, expand to Kalibo then Iloilo") is superseded. The current decision is multi-city / city-agnostic, configured in admin, with **Metro Cebu** as the default first market. This audit's *engineering* findings still stand; only the city choice changed. See `CLAUDE.md`.
+
 This document is what's actually true about the codebase, the prior plans, and the strategic choices. Where I was wrong before, I say so explicitly.
 
 ---

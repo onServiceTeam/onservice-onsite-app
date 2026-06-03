@@ -1,6 +1,8 @@
 # MARKETING PLAYBOOK — onService PH
 
-**Launch market:** Boracay Island (Malay, Aklan), expanding to Kalibo (m6) and Iloilo (m12).
+> **STATUS (2026-06-04) — the launch market below is superseded.** The platform is multi-city and city-agnostic (cities configured in admin). Current default / first launch market is **Metro Cebu**; expansion cities (Boracay, General Santos, Davao, Metro Manila, Bacolod, and others) are turned on in admin when ready. The Boracay→Kalibo→Iloilo path below is historical and kept for the B2B tactics it describes, which still apply to any tourist market. Current source of truth: `CLAUDE.md` and `docs/strategy/CEBU-LAUNCH-PLAN.md`.
+
+**Launch market (historical):** Boracay Island (Malay, Aklan), expanding to Kalibo (m6) and Iloilo (m12).
 **Strategic frame:** B2B-first via tourism accommodation operators, then C2C via residential and HOA channels. This was settled in the April 16 strategy chat.
 
 The key insight: Boracay isn't a typical Tier-2 PH city. It's a 10.32 sq km tourist island with seasonal demographics — ~37,000 permanent residents but 2 million annual visitors driving recurring service demand at hotels, condotels, hostels, and short-term rentals. The right marketing strategy reflects that mix.
