@@ -51,6 +51,24 @@ export async function removeStaff(staffId: string): Promise<ProviderStaffMember>
   return res.data.data;
 }
 
+// Send an invited member to onService back-office for approval.
+export async function submitStaffForReview(staffId: string): Promise<ProviderStaffMember> {
+  const res = await api.post<ApiResponse<ProviderStaffMember>>(`/api/v1/provider/staff/${staffId}/submit`, {});
+  return res.data.data;
+}
+
+// Assign (staffId) or clear (null) the team member who performs a booking.
+export async function assignStaffToBooking(
+  bookingId: string,
+  staffId: string | null,
+): Promise<ProviderStaffMember | null> {
+  const res = await api.post<ApiResponse<ProviderStaffMember | null>>(
+    `/api/v1/provider/bookings/${bookingId}/assign-staff`,
+    { staffId },
+  );
+  return res.data.data;
+}
+
 // Human-readable status for the UI.
 export function staffStatusLabel(status: StaffStatus): string {
   switch (status) {

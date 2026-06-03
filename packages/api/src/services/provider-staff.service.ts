@@ -191,6 +191,70 @@ export async function deactivateStaff(staffId: string): Promise<ProviderStaffRow
   return res.rows[0]!;
 }
 
+// Provider sends a member to onService back-office for approval
+// (invited/rejected → pending_review). Stamps submitted_for_review_at so the
+// admin review queue is ordered.
+export async function submitStaffForReview(staffId: string): Promise<ProviderStaffRow> {
+  const row = await getStaffById(staffId);
+  if (!row) throw createAppError('Staff member not found.', 404);
+  if (!canTransitionStaffStatus(row.status, 'pending_review')) {
+    throw createAppError(`Cannot submit a member that is ${row.status} for review.`, 409);
+  }
+  const res = await db.query<ProviderStaffRow>(
+    `UPDATE provider_staff
+       SET status = 'pending_review', submitted_for_review_at = NOW(), updated_at = NOW()
+     WHERE id = $1 RETURNING *`,
+    [staffId],
+  );
+  return res.rows[0]!;
+}
+
+// Assign (or, with staffId = null, unassign) an approved team member as the
+// performer of a booking. Validates that both the booking and the staff member
+// belong to the provider and that the member is assignable. Returns the staff
+// row (or null when unassigning).
+export async function assignStaffToBooking(params: {
+  bookingId: string;
+  providerId: string;
+  staffId: string | null;
+}): Promise<ProviderStaffRow | null> {
+  return db.transaction(async (client) => {
+    const booking = await client.query<{ provider_id: string | null }>(
+      `SELECT provider_id FROM bookings WHERE id = $1 FOR UPDATE`,
+      [params.bookingId],
+    );
+    if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
+    if (booking.rows[0]!.provider_id !== params.providerId) {
+      throw createAppError('This booking is not assigned to your account.', 403);
+    }
+
+    if (params.staffId === null) {
+      await client.query(
+        `UPDATE bookings SET performer_staff_id = NULL WHERE id = $1`,
+        [params.bookingId],
+      );
+      return null;
+    }
+
+    const staff = await client.query<ProviderStaffRow>(
+      `SELECT * FROM provider_staff WHERE id = $1`,
+      [params.staffId],
+    );
+    const row = staff.rows[0];
+    if (!row || row.provider_id !== params.providerId) {
+      throw createAppError('Team member not found.', 404);
+    }
+    if (!isAssignable(row.status)) {
+      throw createAppError('Only approved team members can be assigned to jobs.', 409);
+    }
+    await client.query(
+      `UPDATE bookings SET performer_staff_id = $1 WHERE id = $2`,
+      [params.staffId, params.bookingId],
+    );
+    return row;
+  });
+}
+
 // Back-office decision on a staff member. Validates the transition, then writes
 // the new status + an admin_actions audit row in one transaction.
 export async function reviewStaff(params: {

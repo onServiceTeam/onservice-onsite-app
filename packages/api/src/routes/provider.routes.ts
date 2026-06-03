@@ -932,4 +932,53 @@ router.delete(
   },
 );
 
+// Send a team member to onService back-office for approval.
+router.post(
+  '/staff/:staffId/submit',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const staff = await providerStaffService.getStaffById(req.params.staffId as string);
+      if (!staff || staff.provider_id !== provider.id) {
+        throw createAppError('Team member not found.', 404);
+      }
+      const updated = await providerStaffService.submitStaffForReview(req.params.staffId as string);
+      res.json({ success: true, data: providerStaffService.formatProviderStaff(updated) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// Assign (or clear, with staffId: null) the approved team member who performs a
+// booking. The performer's reviews then roll up to this provider's quality and
+// into the member's per-member breakdown.
+router.post(
+  '/bookings/:bookingId/assign-staff',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const rawStaffId = req.body?.staffId;
+      const staffId = rawStaffId === null || rawStaffId === undefined || rawStaffId === ''
+        ? null
+        : String(rawStaffId);
+      const assigned = await providerStaffService.assignStaffToBooking({
+        bookingId: req.params.bookingId as string,
+        providerId: provider.id,
+        staffId,
+      });
+      res.json({
+        success: true,
+        data: assigned ? providerStaffService.formatProviderStaff(assigned) : null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 export default router;

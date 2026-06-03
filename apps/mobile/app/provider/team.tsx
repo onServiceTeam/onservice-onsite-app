@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  getMyStaff, inviteStaff, removeStaff, staffStatusLabel,
+  getMyStaff, inviteStaff, removeStaff, submitStaffForReview, staffStatusLabel,
   type ProviderStaffMember, type StaffStatus,
 } from '@/services/provider-staff.service';
 import { getErrorMessage } from '@/utils/errors';
@@ -54,6 +54,15 @@ export default function ProviderTeamScreen(): React.ReactElement {
     mutationFn: (staffId: string) => removeStaff(staffId),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['providerStaff'] }),
     onError: (e) => Alert.alert('Could not remove', getErrorMessage(e, 'Please try again.')),
+  });
+
+  const submit = useMutation({
+    mutationFn: (staffId: string) => submitStaffForReview(staffId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['providerStaff'] });
+      Alert.alert('Sent for review', 'onService will review this team member before they can be assigned jobs.');
+    },
+    onError: (e) => Alert.alert('Could not submit', getErrorMessage(e, 'Please try again.')),
   });
 
   function confirmRemove(m: ProviderStaffMember): void {
@@ -184,14 +193,26 @@ export default function ProviderTeamScreen(): React.ReactElement {
                 <Text style={styles.rejectReason}>Reason: {m.adminDecisionReason}</Text>
               ) : null}
             </View>
-            <TouchableOpacity
-              onPress={() => confirmRemove(m)}
-              style={styles.removeBtn}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              disabled={remove.isPending}
-            >
-              <Trash2 size={18} color={colors.error} />
-            </TouchableOpacity>
+            <View style={styles.memberActions}>
+              {(m.status === 'invited' || m.status === 'rejected') && (
+                <TouchableOpacity
+                  onPress={() => submit.mutate(m.id)}
+                  style={styles.submitBtn}
+                  disabled={submit.isPending}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.submitBtnText}>Submit for review</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => confirmRemove(m)}
+                style={styles.removeBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                disabled={remove.isPending}
+              >
+                <Trash2 size={18} color={colors.error} />
+              </TouchableOpacity>
+            </View>
           </View>
         ))}
       </ScrollView>
@@ -253,5 +274,11 @@ const styles = StyleSheet.create({
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: { ...typography.caption, color: colors.textTertiary },
   rejectReason: { ...typography.caption, color: colors.error, marginTop: spacing.xs, fontStyle: 'italic' },
-  removeBtn: { padding: spacing.xs, marginLeft: spacing.sm },
+  memberActions: { alignItems: 'flex-end', marginLeft: spacing.sm, gap: spacing.xs },
+  submitBtn: {
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm, backgroundColor: colors.primaryLight,
+  },
+  submitBtnText: { ...typography.caption, color: colors.primary, fontWeight: '700' },
+  removeBtn: { padding: spacing.xs },
 });
