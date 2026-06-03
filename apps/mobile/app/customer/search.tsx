@@ -51,6 +51,19 @@ const TIER_LABELS: Record<string, string> = {
   elite: 'Elite',
 };
 
+// Popular services shown on the search screen before the user types, so it is
+// never a blank page. Each chip jumps to the category browse screen.
+const POPULAR_SERVICES: { slug: string; label: string }[] = [
+  { slug: 'cleaning', label: 'Cleaning' },
+  { slug: 'aircon', label: 'Aircon' },
+  { slug: 'plumbing', label: 'Plumbing' },
+  { slug: 'electrical', label: 'Electrical' },
+  { slug: 'carpentry', label: 'Carpentry' },
+  { slug: 'painting', label: 'Painting' },
+  { slug: 'pest-control', label: 'Pest Control' },
+  { slug: 'appliance-repair', label: 'Appliance Repair' },
+];
+
 export default function SearchScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -240,6 +253,28 @@ export default function SearchScreen(): React.ReactElement {
         </View>
       )}
 
+      {/* Phase 200 — initial state (before typing) instead of a blank screen:
+          popular service suggestions that jump straight to the category. */}
+      {!isLoading && !isError && query.trim().length < 2 && (
+        <View style={styles.suggestWrap}>
+          <Text style={styles.suggestTitle}>Popular services</Text>
+          <View style={styles.suggestChips}>
+            {POPULAR_SERVICES.map((c) => (
+              <TouchableOpacity
+                key={c.slug}
+                style={styles.suggestChip}
+                onPress={() => router.push(`/customer/category/${c.slug}`)}
+                accessibilityRole="button"
+                accessibilityLabel={`Browse ${c.label}`}
+              >
+                <Text style={styles.suggestChipText}>{c.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.suggestHint}>Or type a service or provider name above.</Text>
+        </View>
+      )}
+
       {!isLoading && !isError && isFetched && searchTerm.length >= 2 && totalResults === 0 && (
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>🔍</Text>
@@ -397,6 +432,19 @@ const styles = StyleSheet.create({
   providerBadgeText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
 
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  suggestWrap: { paddingHorizontal: spacing.base, paddingTop: spacing.lg },
+  suggestTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
+  suggestChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  suggestChip: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  suggestChipText: { ...typography.bodySmall, color: colors.text, fontWeight: '500' },
+  suggestHint: { ...typography.bodySmall, color: colors.textTertiary, marginTop: spacing.lg },
   empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: spacing.xl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
   emptyIconWrap: { marginBottom: spacing.base, alignItems: 'center' as const },

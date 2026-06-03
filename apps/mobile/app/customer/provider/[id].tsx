@@ -13,15 +13,17 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
-import { getProviderProfile } from '@/services/provider.service';
+import { getProviderProfile, type ProviderService } from '@/services/provider.service';
 import { getProviderReviews } from '@/services/review.service';
+import { useBookingStore } from '@/stores/booking.store';
+import { Routes } from '@/config/navigation';
 import { Badge, Button } from '@/components/ui';
 // Phase 14 R5-complete — Avatar with initials fallback in provider header.
 import Avatar from '@/components/Avatar';
 import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Star, AlertTriangle, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText } from '@/components/icons';
+import { Star, AlertTriangle, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText, ChevronRight } from '@/components/icons';
 // BUG-PHASE94-01 — founding tier added so customers viewing a
 // founding-batch provider see the right badge color + label.
 const TIER_COLORS: Record<string, string> = {
@@ -77,6 +79,26 @@ export default function ProviderProfileScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { setCategory, setSubcategory } = useBookingStore();
+
+  // Phase 200 — start a booking from one of this provider's services. Seeds the
+  // booking draft (category + subcategory) exactly like the category screen,
+  // then routes into the normal booking flow. (onService matches a provider
+  // automatically, so this books the SERVICE; this provider is preferred where
+  // available.) Pre-fix the "Book this Provider" button routed to an empty
+  // booking form that showed ₱0 and a permanently-disabled Proceed button.
+  const bookService = useCallback((svc: ProviderService): void => {
+    if (svc.categoryId) {
+      setCategory(svc.categoryId, svc.categoryName ?? '', svc.categorySlug ?? '');
+    }
+    if (svc.basePrice == null) {
+      setSubcategory(svc.subcategoryId, svc.subcategoryName, 0);
+      router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);
+    } else {
+      setSubcategory(svc.subcategoryId, svc.subcategoryName, svc.basePrice);
+      router.push(Routes.CUSTOMER.BOOKING_CONFIGURE);
+    }
+  }, [router, setCategory, setSubcategory]);
 
   const { data: provider, isLoading: providerLoading, isError: providerError, refetch: refetchProvider, isRefetching: providerRefetching } = useQuery({
     queryKey: ['provider', id],
@@ -159,9 +181,6 @@ export default function ProviderProfileScreen(): React.ReactElement {
               backgroundColor={TIER_COLORS[provider.tier] ?? colors.textTertiary}
               size="md"
             />
-            <Text style={styles.tierLabel}>
-              {TIER_LABELS[provider.tier] ?? provider.tier}
-            </Text>
           </View>
           <View style={styles.statsRow}>
             <View style={styles.stat}>
@@ -227,13 +246,26 @@ export default function ProviderProfileScreen(): React.ReactElement {
         {provider.services.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Services Offered</Text>
+            <Text style={styles.sectionHint}>Tap a service to book it.</Text>
             {provider.services.map((svc) => (
-              <View key={svc.id} style={styles.serviceRow}>
+              <TouchableOpacity
+                key={svc.id}
+                style={styles.serviceRow}
+                onPress={() => bookService(svc)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Book ${svc.subcategoryName}`}
+              >
                 <Text style={styles.serviceName}>{svc.subcategoryName}</Text>
-                {svc.basePrice != null && (
-                  <Text style={styles.servicePrice}>{formatPHP(svc.basePrice)}</Text>
-                )}
-              </View>
+                <View style={styles.serviceRowRight}>
+                  {svc.basePrice != null ? (
+                    <Text style={styles.servicePrice}>{formatPHP(svc.basePrice)}</Text>
+                  ) : (
+                    <Text style={styles.serviceQuote}>Get Quote</Text>
+                  )}
+                  <ChevronRight size={18} color={colors.textTertiary} />
+                </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -353,16 +385,19 @@ export default function ProviderProfileScreen(): React.ReactElement {
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
-      {/* Sticky Book CTA */}
-      <View style={[styles.bookCtaContainer, { paddingBottom: Math.max(insets.bottom, spacing.base) }]}>
-        <TouchableOpacity
-          style={styles.bookCtaButton}
-          onPress={() => router.push(`/customer/booking/form?providerId=${id}`)}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.bookCtaText}>Book this Provider</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Sticky Book CTA — books the provider's first service (the rows above
+          let the customer pick a specific one). Hidden if no services. */}
+      {provider.services.length > 0 && (
+        <View style={[styles.bookCtaContainer, { paddingBottom: Math.max(insets.bottom, spacing.base) }]}>
+          <TouchableOpacity
+            style={styles.bookCtaButton}
+            onPress={() => bookService(provider.services[0]!)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.bookCtaText}>Book a Service</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -433,6 +468,7 @@ const styles = StyleSheet.create({
 
   section: { marginBottom: spacing.xl },
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
+  sectionHint: { ...typography.bodySmall, color: colors.textTertiary, marginTop: -spacing.sm, marginBottom: spacing.sm },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   reviewCount: { ...typography.bodySmall, color: colors.textTertiary },
 
@@ -441,10 +477,13 @@ const styles = StyleSheet.create({
   serviceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
+  serviceRowRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  serviceQuote: { ...typography.body, color: colors.secondary, fontWeight: '600' },
   serviceName: { ...typography.body, color: colors.text, flex: 1 },
   servicePrice: { ...typography.body, color: colors.primary, fontWeight: '600' },
 

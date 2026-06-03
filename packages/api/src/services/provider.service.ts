@@ -28,6 +28,7 @@ interface ProviderServiceRow {
   id: string;
   provider_id: string;
   subcategory_id: string;
+  category_id: string;
   base_price: string | null;
   is_active: boolean;
   created_at: Date;
@@ -132,11 +133,28 @@ export async function setAvailability(
   return result.rows[0]!;
 }
 
-export async function getProviderServices(providerId: string): Promise<(ProviderServiceRow & { subcategory_name: string })[]> {
-  const result = await db.query<ProviderServiceRow & { subcategory_name: string }>(
-    `SELECT ps.*, sc.name as subcategory_name
+export async function getProviderServices(
+  providerId: string,
+): Promise<(ProviderServiceRow & {
+  subcategory_name: string;
+  category_name: string;
+  category_slug: string;
+})[]> {
+  const result = await db.query<ProviderServiceRow & {
+    subcategory_name: string;
+    category_name: string;
+    category_slug: string;
+  }>(
+    // Phase 200 — also return the category (name + slug) so the customer app
+    // can start a booking from a provider's service row (it needs the category
+    // context to seed the booking draft). Pre-fix only the subcategory came
+    // back, so "Book this Provider" / tapping a service had no category to
+    // route with and dead-ended on an empty booking form.
+    `SELECT ps.*, sc.name as subcategory_name,
+            c.name as category_name, c.slug as category_slug
      FROM provider_services ps
      JOIN service_subcategories sc ON sc.id = ps.subcategory_id
+     JOIN service_categories c ON c.id = ps.category_id
      WHERE ps.provider_id = $1 AND ps.is_active = TRUE
      ORDER BY sc.name ASC`,
     [providerId],
@@ -397,12 +415,22 @@ export function formatProvider(p: ProviderRow): Record<string, unknown> {
   };
 }
 
-export function formatProviderService(ps: ProviderServiceRow & { subcategory_name?: string }): Record<string, unknown> {
+export function formatProviderService(
+  ps: ProviderServiceRow & {
+    subcategory_name?: string;
+    category_name?: string;
+    category_slug?: string;
+  },
+): Record<string, unknown> {
   return {
     id: ps.id,
     providerId: ps.provider_id,
     subcategoryId: ps.subcategory_id,
     subcategoryName: ps.subcategory_name ?? null,
+    // Phase 200 — category context so the customer app can book this service.
+    categoryId: ps.category_id ?? null,
+    categoryName: ps.category_name ?? null,
+    categorySlug: ps.category_slug ?? null,
     basePrice: ps.base_price ? Number(ps.base_price) : null,
     isActive: ps.is_active,
   };

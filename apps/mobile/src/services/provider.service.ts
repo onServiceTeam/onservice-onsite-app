@@ -27,6 +27,10 @@ export interface ProviderService {
   providerId: string;
   subcategoryId: string;
   subcategoryName: string;
+  // Phase 200 — category context so the customer can book this service.
+  categoryId: string | null;
+  categoryName: string | null;
+  categorySlug: string | null;
   basePrice: number | null;
   isActive: boolean;
 }

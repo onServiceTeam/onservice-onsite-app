@@ -413,7 +413,7 @@ export default function HomeScreen(): React.ReactElement {
                 )}
                 <TouchableOpacity
                   style={styles.sukiBookBtn}
-                  onPress={() => router.push(`/customer/booking/form?providerId=${item.providerId}`)}
+                  onPress={() => router.push(`/customer/provider/${item.providerId}`)}
                 >
                   <Text style={styles.sukiBookText}>Book</Text>
                 </TouchableOpacity>
