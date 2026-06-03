@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 
@@ -47,7 +48,7 @@ export interface ProviderStaffRow {
 // decisions and suspend/reactivate.
 export const STAFF_STATUS_TRANSITIONS: Record<StaffStatus, StaffStatus[]> = {
   invited: ['pending_review', 'deactivated'],
-  pending_review: ['approved', 'rejected', 'invited'], // 'invited' = sent back to fix
+  pending_review: ['approved', 'rejected', 'invited', 'deactivated'], // 'invited' = sent back; provider may also cancel
   approved: ['suspended', 'deactivated'],
   rejected: ['pending_review', 'deactivated'], // can re-apply
   suspended: ['approved', 'deactivated'],
@@ -155,6 +156,37 @@ export async function inviteStaff(params: {
       params.providerId, params.invitedByUserId, params.roleTitle ?? null,
       params.phone ?? null, params.email ?? null, params.inviteToken, params.inviteExpiresAt,
     ],
+  );
+  return res.rows[0]!;
+}
+
+// Provider-facing invite — generates the token + 7-day expiry, then inserts.
+export async function createStaffInvite(params: {
+  providerId: string;
+  invitedByUserId: string;
+  roleTitle?: string;
+  phone?: string;
+  email?: string;
+}): Promise<ProviderStaffRow> {
+  return inviteStaff({
+    ...params,
+    inviteToken: randomUUID(),
+    inviteExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  });
+}
+
+// Provider removes a team member (or cancels a pending invite). Validated
+// against the state machine; no admin_actions row (this is a provider action,
+// not a back-office one).
+export async function deactivateStaff(staffId: string): Promise<ProviderStaffRow> {
+  const row = await getStaffById(staffId);
+  if (!row) throw createAppError('Staff member not found.', 404);
+  if (!canTransitionStaffStatus(row.status, 'deactivated')) {
+    throw createAppError(`Cannot remove a staff member that is ${row.status}.`, 409);
+  }
+  const res = await db.query<ProviderStaffRow>(
+    `UPDATE provider_staff SET status = 'deactivated', updated_at = NOW() WHERE id = $1 RETURNING *`,
+    [staffId],
   );
   return res.rows[0]!;
 }

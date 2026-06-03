@@ -5,6 +5,7 @@ import { providerApplicationSchema, updateProfileSchema, addServiceSchema, setSc
 import * as providerService from '../services/provider.service';
 import * as reviewService from '../services/review.service';
 import * as providerToolsService from '../services/provider-tools.service';
+import * as providerStaffService from '../services/provider-staff.service';
 import { createAppError } from '../middleware/error.middleware';
 
 const router = Router();
@@ -859,6 +860,72 @@ router.get(
 
       const summary = await providerToolsService.getMonthlySummary(provider.id, safeYear, safeMonth);
       res.json({ success: true, data: summary });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// ─── Team / staff (D23) ───────────────────────────────────────────────────────
+// The provider owner manages their own team. Members go to back-office review
+// (admin Staff tab) before they can be assigned jobs.
+
+router.get(
+  '/staff',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const data = await providerStaffService.listStaffWithPerformance(provider.id);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/staff',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : undefined;
+      const email = typeof req.body?.email === 'string' ? req.body.email.trim() : undefined;
+      const roleTitle = typeof req.body?.roleTitle === 'string' ? req.body.roleTitle.trim() : undefined;
+      if (!phone && !email) {
+        throw createAppError('Enter a phone number or email to invite a team member.', 400);
+      }
+      const staff = await providerStaffService.createStaffInvite({
+        providerId: provider.id,
+        invitedByUserId: req.user!.userId,
+        roleTitle: roleTitle || undefined,
+        phone: phone || undefined,
+        email: email || undefined,
+      });
+      res.status(201).json({ success: true, data: providerStaffService.formatProviderStaff(staff) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.delete(
+  '/staff/:staffId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const staff = await providerStaffService.getStaffById(req.params.staffId as string);
+      // Only the owning provider may remove their own member.
+      if (!staff || staff.provider_id !== provider.id) {
+        throw createAppError('Team member not found.', 404);
+      }
+      const updated = await providerStaffService.deactivateStaff(req.params.staffId as string);
+      res.json({ success: true, data: providerStaffService.formatProviderStaff(updated) });
     } catch (error) {
       next(error);
     }

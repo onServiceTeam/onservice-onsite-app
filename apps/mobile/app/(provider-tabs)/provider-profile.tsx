@@ -25,6 +25,7 @@ import {
   Banknote,
   Bell,
   Settings,
+  Users,
 } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
@@ -327,6 +328,11 @@ export default function ProviderProfileScreen(): React.ReactElement {
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.REVIEWS)}>
           <Star size={22} color={colors.warning} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>My Reviews</Text>
+          <Text style={styles.menuArrow}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.TEAM)}>
+          <Users size={22} color={colors.primary} style={styles.menuIconImg} />
+          <Text style={styles.menuLabel}>My Team</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.PAYOUTS)}>

@@ -123,6 +123,7 @@ export const Routes = {
     AVAILABILITY: '/provider/availability',
     PORTFOLIO: '/provider/portfolio',
     CERTIFICATIONS: '/provider/certifications',
+    TEAM: '/provider/team',
     PAYOUTS: '/provider/payouts',
     PAYOUT_SETTINGS: '/provider/payout-settings',
     SUKI_CUSTOMERS: '/provider/suki-customers',

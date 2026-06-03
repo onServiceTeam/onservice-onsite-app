@@ -30,6 +30,12 @@ describe('provider-staff approval state machine', () => {
     expect(canTransitionStaffStatus('suspended', 'approved')).toBe(true);
   });
 
+  it('a provider can remove (deactivate) a member in any active state', () => {
+    (['invited', 'pending_review', 'approved', 'rejected', 'suspended'] as StaffStatus[]).forEach((from) => {
+      expect(canTransitionStaffStatus(from, 'deactivated')).toBe(true);
+    });
+  });
+
   it('deactivated is terminal — no transitions out', () => {
     expect(STAFF_STATUS_TRANSITIONS.deactivated).toHaveLength(0);
     (['approved', 'pending_review', 'invited'] as StaffStatus[]).forEach((to) => {
