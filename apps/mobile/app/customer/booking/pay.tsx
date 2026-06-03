@@ -161,7 +161,10 @@ export default function PayExistingBookingScreen(): React.ReactElement {
           )}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Service Price</Text>
-            <Text style={styles.summaryValue}>{formatPHP(booking.servicePrice)}</Text>
+            {/* servicePrice already has the suki discount removed; show the
+                gross here so the "Suki Discount" line below doesn't subtract it
+                a second time (the lines now reconcile to the Total). */}
+            <Text style={styles.summaryValue}>{formatPHP(booking.servicePrice + (booking.sukiDiscount ?? 0))}</Text>
           </View>
           {(booking.sukiDiscount ?? 0) > 0 && (
             <View style={styles.summaryRow}>

@@ -204,7 +204,11 @@ export default function BookingDetailScreen(): React.ReactElement {
           <View style={styles.receiptRow}>
             <Text style={styles.receiptLabel}>Service Price</Text>
             <Text style={styles.receiptValue}>
-              {formatPHP(booking.servicePrice + (booking.sukiDiscount ?? 0))}
+              {/* servicePrice already bakes in surge and the suki discount.
+                  Show the pre-surge, pre-discount base here so the separate
+                  Surge (+) and Suki Discount (-) lines below don't double-count
+                  and the line items reconcile to the Total. */}
+              {formatPHP(booking.servicePrice + (booking.sukiDiscount ?? 0) - (booking.surgeAmount ?? 0))}
             </Text>
           </View>
           {(booking.sukiDiscount ?? 0) > 0 && (

@@ -58,7 +58,7 @@ BEGIN
       VALUES (
         cust, provs[i], cats[i], 'fixed_price', 'paid_out', 'released',
         sp, sf, sp + sf, '[demo] completed job',
-        'Station 1, White Beach', 'Balabag', 'Malay', 'Aklan',
+        '12 Salinas Drive, Lahug', 'Lahug', 'Cebu City', 'Cebu',
         now() - (daysago || ' days')::interval,
         now() - (daysago || ' days')::interval,
         now() - (daysago || ' days')::interval,
@@ -93,7 +93,7 @@ BEGIN
     VALUES (
       custs[1 + (i % array_length(custs,1))], provs[i], cats[i], 'fixed_price', 'in_progress', 'held',
       prices[i], round(prices[i]*0.10), prices[i] + round(prices[i]*0.10), '[demo] in-progress job',
-      'Station 2, White Beach', 'Balabag', 'Malay', 'Aklan',
+      '88 Banilad Road, Banilad', 'Banilad', 'Mandaue', 'Cebu',
       now(), now() - interval '2 hours', now());
 
     -- One upcoming paid job (Active tab)
@@ -105,7 +105,7 @@ BEGIN
     VALUES (
       custs[1 + ((i+2) % array_length(custs,1))], provs[i], cats[i], 'fixed_price', 'paid', 'held',
       prices[i], round(prices[i]*0.10), prices[i] + round(prices[i]*0.10), '[demo] upcoming job',
-      'Station 3, White Beach', 'Balabag', 'Malay', 'Aklan',
+      '5 Gorordo Avenue, Mabolo', 'Mabolo', 'Cebu City', 'Cebu',
       now() + interval '2 days', now() - interval '1 day', now());
   END LOOP;
 
