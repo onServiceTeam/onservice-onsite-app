@@ -6,6 +6,7 @@ import {
   Dimensions,
   StyleSheet,
   ViewToken,
+  LayoutChangeEvent,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,8 +19,6 @@ import { Home, Lock, Star } from '@/components/icons';
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
-
-const { width } = Dimensions.get('window');
 
 interface Slide {
   id: string;
@@ -64,7 +63,18 @@ export default function OnboardingScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(0);
+  // Width of the pager's own container, not the OS window. On the web build the
+  // app runs inside a centered phone-width column (see WebAppFrame), so the
+  // window width (e.g. 1440) is wider than the actual pager. Measuring the
+  // container keeps each slide exactly one page wide and paging accurate at any
+  // size. Initialise to the window width so the first frame is sensible.
+  const [pageWidth, setPageWidth] = useState<number>(Dimensions.get('window').width);
   const flatListRef = useRef<FlatList>(null);
+
+  const onContainerLayout = (e: LayoutChangeEvent): void => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && w !== pageWidth) setPageWidth(w);
+  };
 
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -90,7 +100,7 @@ export default function OnboardingScreen(): React.ReactElement {
   const renderSlide = ({ item }: { item: Slide }): React.ReactElement => {
     const SlideIcon = item.icon;
     return (
-      <View style={[styles.slide, { width, backgroundColor: item.bgColor }]}>
+      <View style={[styles.slide, { width: pageWidth, backgroundColor: item.bgColor }]}>
         <View style={styles.slideIconWrap}><SlideIcon size={96} color={colors.white} /></View>
         <Text style={styles.slideTitle}>{item.title}</Text>
         <Text style={styles.slideDescription}>{item.description}</Text>
@@ -99,7 +109,10 @@ export default function OnboardingScreen(): React.ReactElement {
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom + spacing.base }]}>
+    <View
+      style={[styles.container, { paddingBottom: insets.bottom + spacing.base }]}
+      onLayout={onContainerLayout}
+    >
       <FlatList
         ref={flatListRef}
         data={slides}
@@ -110,6 +123,7 @@ export default function OnboardingScreen(): React.ReactElement {
         showsHorizontalScrollIndicator={false}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ viewAreaCoveragePercentThreshold: 50 }}
+        getItemLayout={(_, index) => ({ length: pageWidth, offset: pageWidth * index, index })}
       />
 
       <View style={styles.footer}>

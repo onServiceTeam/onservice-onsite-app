@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  StyleSheet, Dimensions, Modal, ActivityIndicator,
+  StyleSheet, Modal, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { getBookingById } from '@/services/booking.service';
 import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle } from '@/components/icons';
+import { getAppContentWidth } from '@/components/WebAppFrame';
 
 // BUG-PHASE56-01 fix — pre-fix the screen read photos from
 // booking.providerBeforePhotos / providerAfterPhotos / jobPhotos
@@ -34,7 +35,9 @@ interface BookingPhotoItem {
   uploadedAt: string;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// Clamp to the web app column so the 3-up photo grid and the lightbox don't
+// blow out to full desktop width inside the centered web frame.
+const SCREEN_WIDTH = getAppContentWidth();
 const THUMB_SIZE = (SCREEN_WIDTH - spacing.base * 2 - spacing.sm * 2) / 3;
 
 type Tab = 'before' | 'after' | 'customer';

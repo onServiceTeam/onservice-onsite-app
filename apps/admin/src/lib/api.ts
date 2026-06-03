@@ -148,7 +148,19 @@ async function request<T>(url: string, init: ApiRequestInit, isRetry = false): P
         await rawFetch('/api/v1/auth/admin/refresh', { method: 'POST', body: {} });
         return await request<T>(url, init, true);
       } catch {
-        if (typeof window !== 'undefined') window.location.href = '/login';
+        // Redirect to the login screen when a session genuinely expired — but
+        // NOT if we are already on /login. Pre-fix, the auth bootstrap's
+        // /auth/me probe on the login page 401'd, the refresh below 401'd too,
+        // and this unconditionally set window.location.href = '/login'. On the
+        // login page that is the *current* URL, so the assignment forced a full
+        // page reload, which re-ran the bootstrap, which 401'd again — an
+        // infinite reload loop that wiped the login form roughly once a second
+        // and made signing in impossible. The pathname guard breaks the loop:
+        // on /login we just surface the 401 to the caller (hydrate catches it
+        // and settles into a clean logged-out state).
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
         throw err;
       }
     }

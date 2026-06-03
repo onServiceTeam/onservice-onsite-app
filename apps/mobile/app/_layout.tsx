@@ -14,6 +14,7 @@ import { fetchPlatformConfig } from '@/services/config.service';
 import { initSecureStorage } from '@/services/secure-storage';
 import { migrateLegacyTokensIfNeeded } from '@/services/auth-migration';
 import { OfflineBanner } from '@/components/ui';
+import { WebAppFrame } from '@/components/WebAppFrame';
 
 const sentryDsn = Constants.expoConfig?.extra?.sentryDsn as string | undefined;
 if (sentryDsn) {
@@ -94,18 +95,20 @@ function RootLayout(): React.ReactElement {
     <GestureHandlerRootView style={styles.root}>
       <QueryClientProvider client={queryClient}>
         <PushNotificationGate />
-        <OfflineBanner />
         <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="onboarding" />
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="provider-onboarding" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="customer" />
-          <Stack.Screen name="(provider-tabs)" />
-          <Stack.Screen name="provider" />
-        </Stack>
+        <WebAppFrame>
+          <OfflineBanner />
+          <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="onboarding" />
+            <Stack.Screen name="auth" />
+            <Stack.Screen name="provider-onboarding" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="customer" />
+            <Stack.Screen name="(provider-tabs)" />
+            <Stack.Screen name="provider" />
+          </Stack>
+        </WebAppFrame>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
