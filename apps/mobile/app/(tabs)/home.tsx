@@ -48,6 +48,8 @@ import {
   Lock,
   Home as HomeIcon,
   AlertTriangle,
+  ChevronDown,
+  ArrowRight,
 } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
@@ -207,15 +209,17 @@ export default function HomeScreen(): React.ReactElement {
           }
         >
           <Text style={styles.locationLabel}>Current Location</Text>
-          <Text style={styles.locationValue} numberOfLines={1}>
+          <View style={styles.locationValueRow}>
             {/* Phase K MED-K09 fix — show selected location instead
-                 of generic placeholder. Pre-fix the text was always
-                 "Select your address ▾" even when the user had a
-                 default Home address saved. */}
-            {headerAddress
-              ? `${headerAddress.label} · ${headerAddress.city} ▾`
-              : 'Select your address ▾'}
-          </Text>
+                 of generic placeholder. Phase 200 — the dropdown affordance
+                 is now a ChevronDown icon, not a ▾ glyph appended to the text. */}
+            <Text style={styles.locationValue} numberOfLines={1}>
+              {headerAddress
+                ? `${headerAddress.label} · ${headerAddress.city}`
+                : 'Select your address'}
+            </Text>
+            <ChevronDown size={14} color={colors.text} />
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -278,7 +282,8 @@ export default function HomeScreen(): React.ReactElement {
                 </Text>
               )}
               <View style={styles.activeCardCta}>
-                <Text style={styles.trackText}>Track Status →</Text>
+                <Text style={styles.trackText}>Track Status</Text>
+                <ArrowRight size={14} color={colors.white} />
               </View>
             </TouchableOpacity>
           ))}
@@ -589,7 +594,8 @@ const styles = StyleSheet.create({
   avatarText: { color: colors.white, fontWeight: '700', fontSize: 18 },
   locationSelector: { flex: 1 },
   locationLabel: { ...typography.caption, color: colors.textTertiary },
-  locationValue: { ...typography.bodySmall, fontWeight: '600', color: colors.text },
+  locationValueRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locationValue: { ...typography.bodySmall, fontWeight: '600', color: colors.text, flexShrink: 1 },
   notifButton: { padding: spacing.sm, position: 'relative' as const, minWidth: 44, minHeight: 44, justifyContent: 'center' as const, alignItems: 'center' as const },
   notifIcon: { fontSize: 22 },
   notifBadge: {
@@ -644,7 +650,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     marginBottom: spacing.md,
   },
-  activeCardCta: { alignItems: 'flex-end' },
+  activeCardCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
   trackText: {
     ...typography.bodySmall,
     fontWeight: '600',
