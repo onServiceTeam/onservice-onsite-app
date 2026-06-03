@@ -18,7 +18,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
     items: [
       {
         q: 'How do I receive job requests?',
-        a: 'When a customer books a service in your area and category, you will receive a notification. Go to the Jobs tab to view available requests and accept them.',
+        a: 'When a customer books a service in your area and category, a job offer pops up in the app (and as a notification) with about a minute to Accept or Decline. Accept it and the job moves into your Jobs tab under Active. If you miss it, it is offered to the next available provider.',
       },
       {
         q: 'How does the quoting system work?',

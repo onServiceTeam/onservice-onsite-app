@@ -248,12 +248,14 @@ export default function ProviderDashboardScreen(): React.ReactElement {
               <Text style={styles.jobService}>{job.serviceName ?? job.categoryName ?? 'Service'}</Text>
               <Text style={styles.jobAddress} numberOfLines={1}>{[job.address, job.barangay, job.city].filter(Boolean).join(', ')}</Text>
               <View style={styles.jobCardBottom}>
-                {/* Phase K MED-K11 fix — show totalAmount (what
-                     customer pays) not servicePrice. servicePrice is
-                     the pre-fee component; provider's earnings are
-                     net of commission, but the customer-facing price
-                     on the job card is the total. */}
-                <Text style={styles.jobPrice}>{formatPHP(job.totalAmount)}</Text>
+                {/* Phase 200 — show servicePrice (the provider's gross for
+                     the job), matching the Jobs tab card. totalAmount includes
+                     the customer's platform service fee, which the provider
+                     never receives, so showing it here both overstated the
+                     provider's take AND disagreed with the Jobs tab (the same
+                     job appeared at two different prices). The job detail
+                     screen shows the full net-of-commission breakdown. */}
+                <Text style={styles.jobPrice}>{formatPHP(job.servicePrice)}</Text>
                 <Text style={styles.jobArrow}>›</Text>
               </View>
             </TouchableOpacity>
