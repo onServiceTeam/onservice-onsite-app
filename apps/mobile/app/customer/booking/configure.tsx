@@ -11,6 +11,7 @@ import { useBookingStore, type SelectedAddon } from '@/stores/booking.store';
 import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { ChevronLeft, Check } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
 
 import { Routes } from '@/config/navigation';
@@ -78,7 +79,7 @@ export default function ConfigureScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Customize Your Service</Text>
       </View>
@@ -126,7 +127,7 @@ export default function ConfigureScreen(): React.ReactElement {
                   activeOpacity={0.7}
                 >
                   <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
-                    {isSelected && <Text style={styles.checkMark}>✓</Text>}
+                    {isSelected && <Check size={16} color={colors.primary} />}
                   </View>
                   <View style={styles.addonInfo}>
                     <Text style={[styles.addonName, isSelected && styles.addonNameActive]}>

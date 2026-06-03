@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle } from '@/components/icons';
+import { AlertTriangle, ChevronLeft, Camera } from '@/components/icons';
 import { getAppContentWidth } from '@/components/WebAppFrame';
 
 // BUG-PHASE56-01 fix — pre-fix the screen read photos from
@@ -108,7 +108,7 @@ export default function BookingPhotosScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Job Photos</Text>
         <View style={styles.placeholder} />
@@ -144,7 +144,7 @@ export default function BookingPhotosScreen(): React.ReactElement {
           </View>
         ) : activePhotos.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyEmoji}>📷</Text>
+            <Camera size={44} color={colors.textTertiary} style={{ marginBottom: spacing.base }} />
             <Text style={styles.emptyTitle}>
               No {activeTab === 'customer' ? 'Customer' : activeTab === 'before' ? 'Before' : 'After'} Photos
             </Text>

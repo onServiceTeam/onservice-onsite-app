@@ -13,7 +13,7 @@ import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle } from '@/components/icons';
+import { AlertTriangle, PartyPopper, Heart } from '@/components/icons';
 
 const TIP_PERCENTAGES = [10, 15, 20] as const;
 
@@ -160,14 +160,15 @@ export default function TipScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.base }]}>
       <View style={styles.content}>
-        <Text style={styles.emoji}>🎉</Text>
+        <PartyPopper size={44} color={colors.primary} style={{ marginBottom: spacing.md }} />
         <Text style={styles.title}>Tip Your Provider</Text>
         <Text style={styles.subtitle}>
           Show your appreciation for great service.
         </Text>
 
         <View style={styles.guaranteeBadge}>
-          <Text style={styles.guaranteeText}>💚 100% goes to the provider — no commission on tips</Text>
+          <Heart size={14} color={colors.success} />
+          <Text style={styles.guaranteeText}> 100% goes to the provider, no commission on tips</Text>
         </View>
 
         <View style={styles.presetRow}>
@@ -295,6 +296,9 @@ const styles = StyleSheet.create({
   subtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.lg },
 
   guaranteeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.successLight,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,

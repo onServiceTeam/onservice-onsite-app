@@ -14,6 +14,7 @@ import { useBookingStore } from '@/stores/booking.store';
 import { Button, Input } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { ChevronLeft, ChevronRight, MapPin } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 const TIME_SLOTS = [
@@ -77,7 +78,7 @@ export default function BookingFormScreen(): React.ReactElement {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Book Service</Text>
       </View>
@@ -101,13 +102,13 @@ export default function BookingFormScreen(): React.ReactElement {
             style={styles.addressButton}
             onPress={() => router.push(Routes.CUSTOMER.ADDRESS_PICKER)}
           >
-            <Text style={styles.addressIcon}>📍</Text>
+            <MapPin size={18} color={colors.primary} style={styles.addressIcon} />
             <Text style={[styles.addressText, !draft.address && styles.addressPlaceholder]}>
               {draft.address
                 ? [draft.address, draft.barangay, draft.city].filter(Boolean).join(', ')
                 : 'Tap to select your address'}
             </Text>
-            <Text style={styles.addressArrow}>›</Text>
+            <ChevronRight size={18} color={colors.textTertiary} />
           </TouchableOpacity>
         </View>
 

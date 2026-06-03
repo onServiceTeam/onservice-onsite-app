@@ -9,7 +9,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
-import { Ban, Wrench, ThumbsDown, AlertOctagon, Lock, Coins, CircleHelp, AlertTriangle } from '@/components/icons';
+import { Ban, Wrench, ThumbsDown, AlertOctagon, Lock, Coins, CircleHelp, AlertTriangle, ChevronLeft, Check } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -70,7 +70,7 @@ export default function DisputeScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>File a Dispute</Text>
         <View style={styles.placeholder} />
@@ -102,7 +102,7 @@ export default function DisputeScreen(): React.ReactElement {
                   </Text>
                   <Text style={styles.typeDesc}>{type.desc}</Text>
                 </View>
-                {disputeType === type.value && <Text style={styles.checkMark}>✓</Text>}
+                {disputeType === type.value && <Check size={18} color={colors.primary} />}
               </TouchableOpacity>
             );
           })}

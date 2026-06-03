@@ -8,7 +8,7 @@ import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDate, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Lock } from '@/components/icons';
+import { Lock, Check } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 export default function BookingConfirmScreen(): React.ReactElement {
@@ -37,7 +37,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
     >
       <View style={styles.content}>
         <View style={styles.successCircle}>
-          <Text style={styles.checkmark}>✓</Text>
+          <Check size={40} color={colors.white} />
         </View>
 
         <Text style={styles.title}>{titleText}</Text>

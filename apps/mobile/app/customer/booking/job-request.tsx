@@ -9,6 +9,7 @@ import { createJobRequest } from '@/services/booking.service';
 import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, borderRadius } from '@/config/theme';
+import { ChevronLeft, ChevronRight } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
 import { Routes } from '@/config/navigation';
 
@@ -83,7 +84,7 @@ export default function JobRequestScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Request Custom Quote</Text>
         <View style={styles.placeholder} />
@@ -223,7 +224,7 @@ export default function JobRequestScreen(): React.ReactElement {
                 ? [draft.address, draft.barangay, draft.city, draft.province].filter(Boolean).join(', ')
                 : 'No address selected — tap to choose'}
             </Text>
-            <Text style={styles.addressArrow}>›</Text>
+            <ChevronRight size={18} color={colors.textTertiary} />
           </TouchableOpacity>
         </View>
 
