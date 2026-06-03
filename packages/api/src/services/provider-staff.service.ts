@@ -36,6 +36,8 @@ export interface ProviderStaffRow {
   total_reviews: number;
   created_at: Date;
   updated_at: Date;
+  // Joined from users when the member has accepted (LEFT JOIN in list queries).
+  user_full_name?: string | null;
 }
 
 // ── Pure state machine (unit-tested) ─────────────────────────────────────────
@@ -75,6 +77,7 @@ export function formatProviderStaff(s: ProviderStaffRow): Record<string, unknown
     id: s.id,
     providerId: s.provider_id,
     userId: s.user_id,
+    userName: s.user_full_name ?? null,
     roleTitle: s.role_title,
     status: s.status,
     invitedBy: s.invited_by,
@@ -98,7 +101,11 @@ export function formatProviderStaff(s: ProviderStaffRow): Record<string, unknown
 
 export async function listStaffByProvider(providerId: string): Promise<ProviderStaffRow[]> {
   const res = await db.query<ProviderStaffRow>(
-    `SELECT * FROM provider_staff WHERE provider_id = $1 ORDER BY created_at DESC`,
+    `SELECT ps.*, u.full_name AS user_full_name
+     FROM provider_staff ps
+     LEFT JOIN users u ON u.id = ps.user_id
+     WHERE ps.provider_id = $1
+     ORDER BY ps.created_at DESC`,
     [providerId],
   );
   return res.rows;
@@ -110,6 +117,20 @@ export async function getStaffById(staffId: string): Promise<ProviderStaffRow | 
     [staffId],
   );
   return res.rows[0] ?? null;
+}
+
+// Admin list: each member's DTO plus the live per-member performance breakdown
+// (computed from real bookings/reviews, not the advisory cached columns).
+export async function listStaffWithPerformance(
+  providerId: string,
+): Promise<Array<Record<string, unknown>>> {
+  const rows = await listStaffByProvider(providerId);
+  return Promise.all(
+    rows.map(async (r) => ({
+      ...formatProviderStaff(r),
+      performance: await getStaffPerformance(r.id),
+    })),
+  );
 }
 
 // Provider owner invites a team member (no user account yet).
