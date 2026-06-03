@@ -17,7 +17,7 @@ import {
 } from '@/services/data-management.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { getErrorMessage } from '@/utils/errors';
-import { Package, AlertTriangle, CheckCircle2, XCircle, Hourglass } from '@/components/icons';
+import { Package, AlertTriangle, CheckCircle2, XCircle, Hourglass, ChevronLeft, Clock } from '@/components/icons';
 // Phase 14 R5-complete — wire ConfirmModal into delete-account destructive flow.
 import ConfirmModal from '@/components/ConfirmModal';
 
@@ -113,7 +113,7 @@ export default function AccountManagementScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Account & Data</Text>
         <View style={styles.placeholder} />
@@ -240,7 +240,7 @@ export default function AccountManagementScreen(): React.ReactElement {
           ) : hasPendingDeletion ? (
             <View style={styles.deletionActive}>
               <View style={styles.warningBanner}>
-                <Text style={styles.warningIcon}>🕐</Text>
+                <Clock size={18} color={colors.warning} style={{ marginRight: spacing.sm }} />
                 <View style={styles.warningContent}>
                   <Text style={styles.warningTitle}>
                     Deletion Scheduled
