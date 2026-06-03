@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { ChevronLeft } from '@/components/icons';
 
 interface NotificationPrefs {
   bookingUpdates: boolean;
@@ -134,7 +135,7 @@ export default function NotificationSettingsScreen(): React.ReactElement {
       )}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Back</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Notification Settings</Text>
         <Text style={styles.subtitle}>

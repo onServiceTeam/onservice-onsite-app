@@ -11,7 +11,7 @@ import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle } from '@/components/icons';
+import { AlertTriangle, ChevronLeft } from '@/components/icons';
 
 interface RecurringDetail {
   id: string;
@@ -187,7 +187,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backIcon}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Recurring Booking</Text>
       </View>

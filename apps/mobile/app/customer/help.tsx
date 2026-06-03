@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Mail, Phone } from '@/components/icons';
+import { Mail, Phone, MessageSquare, ChevronLeft } from '@/components/icons';
 import { fetchCancellationPolicy, policyToHelpAnswer } from '@/utils/cancellation-policy';
 import { platformConfig } from '@/config/platform.config';
 
@@ -124,14 +124,14 @@ export default function HelpScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Help & Support</Text>
       </View>
 
       <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
         <View style={styles.heroCard}>
-          <Text style={styles.heroIcon}>💬</Text>
+          <MessageSquare size={40} color={colors.primary} style={{ marginBottom: spacing.md }} />
           <Text style={styles.heroTitle}>How can we help?</Text>
           <Text style={styles.heroSubtitle}>
             Browse frequently asked questions or contact our support team.

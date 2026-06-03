@@ -23,7 +23,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import {
   CheckCircle2, User, Car, MapPin, PartyPopper, Coins, Scale,
-  Star, Gift, Bell, AlertTriangle, MessageSquare, Ban,
+  Star, Gift, Bell, AlertTriangle, MessageSquare, Ban, ChevronLeft,
 } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
@@ -161,7 +161,7 @@ export default function NotificationsScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Notifications</Text>
         {unread > 0 && (

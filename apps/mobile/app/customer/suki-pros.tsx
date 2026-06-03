@@ -9,7 +9,7 @@ import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
-import { Sparkle, Star, Award, Crown, AlertTriangle, Heart, Home as HomeIcon } from '@/components/icons';
+import { Sparkle, Star, Award, Crown, AlertTriangle, Heart, Home as HomeIcon, ChevronLeft } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -186,7 +186,7 @@ export default function SukiProsScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Suki Pros</Text>
         <View style={styles.headerPlaceholder} />
