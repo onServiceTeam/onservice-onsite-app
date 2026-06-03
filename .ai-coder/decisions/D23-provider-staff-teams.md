@@ -37,8 +37,13 @@ verified against the live schema.
 - The branch is **not merged to master and not deployed.** Merging means applying
   migration 131 + rebuilding the API image + redeploying admin and mobile-web —
   recommend one clean cutover (Ken's call).
-- Staff **job execution** (a member updating status / uploading photos on their
-  assigned job) is out of scope for this slice — the staff view is read-only.
+- Staff **on-site job execution — DONE.** A member taps an assigned job and drives
+  the on-site steps (start navigation → en route → arrived [GPS-checked] → start
+  service). Authorization extended so the assigned approved performer is a
+  provider-side actor for booking READ (getBookingById) and the on-site status
+  transitions (validateRoleForTransition). **Completion stays with the provider
+  owner** — it carries the checklist + after-photo quality gates; letting staff
+  complete would need those auth surfaces extended too (a clean future step).
 - Invite delivery is in-app discovery (the invited person finds it under their
   profile via phone/email match). SMS/email invite links are a future enhancement.
 

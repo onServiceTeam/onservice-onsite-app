@@ -433,7 +433,13 @@ export async function getBookingById(bookingId: string, userId: string): Promise
      JOIN users cu ON cu.id = b.customer_id
      LEFT JOIN service_categories c ON b.category_id = c.id
      LEFT JOIN service_subcategories sc ON b.subcategory_id = sc.id
-     WHERE b.id = $1 AND (b.customer_id = $2 OR p.user_id = $2)`,
+     -- D23: the assigned approved team member (performer) can also read their job.
+     LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+     WHERE b.id = $1 AND (
+       b.customer_id = $2
+       OR p.user_id = $2
+       OR (ps.user_id = $2 AND ps.status = 'approved')
+     )`,
     [bookingId, userId],
   );
 
@@ -786,6 +792,29 @@ async function validateRoleForTransition(
       if (providerResult.rows[0]?.user_id !== userId) {
         throw createAppError('You are not assigned to this booking.', 403);
       }
+    }
+  }
+
+  // D23 — the assigned, approved team member may drive the ON-SITE steps of
+  // their job. Completion (completed_by_provider) stays with the provider owner
+  // for now, since it carries the checklist + after-photo quality gates.
+  if (role === 'provider_staff') {
+    const staffAllowed: BookingStatus[] = [
+      'provider_en_route', 'provider_arrived', 'in_progress',
+    ];
+    if (!staffAllowed.includes(newStatus)) {
+      throw createAppError('Team members can update on-site status (en route, arrived, started). Ask your provider to mark the job complete.', 403);
+    }
+    const performerStaffId = (booking as { performer_staff_id?: string | null }).performer_staff_id;
+    if (!performerStaffId) {
+      throw createAppError('This job is not assigned to you.', 403);
+    }
+    const staffResult = await db.query<{ id: string }>(
+      `SELECT id FROM provider_staff WHERE id = $1 AND user_id = $2 AND status = 'approved'`,
+      [performerStaffId, userId],
+    );
+    if (staffResult.rows.length === 0) {
+      throw createAppError('This job is not assigned to you.', 403);
     }
   }
 }

@@ -145,6 +145,7 @@ export const Routes = {
   STAFF: {
     JOBS: '/staff/jobs',
     INVITES: '/staff/invites',
+    JOB_DETAIL: '/staff/job/[id]',
   },
 
   PROVIDER_ONBOARDING: {

@@ -76,7 +76,12 @@ export default function StaffJobsScreen(): React.ReactElement {
         )}
 
         {list.map((job: StaffAssignedJob) => (
-          <View key={job.id} style={styles.jobCard}>
+          <TouchableOpacity
+            key={job.id}
+            style={styles.jobCard}
+            activeOpacity={0.8}
+            onPress={() => router.push(`/staff/job/${job.id}`)}
+          >
             <View style={styles.jobTop}>
               <Text style={styles.jobService}>{job.serviceName ?? 'Service'}</Text>
               <View style={styles.statusPill}>
@@ -96,7 +101,7 @@ export default function StaffJobsScreen(): React.ReactElement {
                 </Text>
               </View>
             ) : null}
-          </View>
+          </TouchableOpacity>
         ))}
       </ScrollView>
     </SafeAreaView>
