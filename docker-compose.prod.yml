@@ -31,6 +31,10 @@ services:
     restart: always
     environment:
       DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      # The API connects to pgbouncer:6432 (DATABASE_URL above), but the
+      # edoburu image listens on 5432 by default. Make it listen on 6432.
+      LISTEN_PORT: 6432
+      AUTH_TYPE: scram-sha-256
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 10000
       DEFAULT_POOL_SIZE: 100
