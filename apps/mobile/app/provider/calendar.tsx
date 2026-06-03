@@ -29,6 +29,14 @@ const STATUS_COLORS: Record<string, string> = {
   payment_pending: colors.warning,
   pending: colors.textTertiary,
   quoted: colors.secondary,
+  // Phase 200 — live job states were missing, so en-route/arrived/completed
+  // jobs rendered as grey "unknown" dots on the calendar.
+  matched: colors.info,
+  provider_en_route: colors.success,
+  provider_arrived: colors.success,
+  completed_by_provider: colors.statusCompleted,
+  payout_ready: colors.statusCompleted,
+  paid_out: colors.statusCompleted,
 };
 
 // BUG-PHASE105-01 fix — pre-fix the from/to range was anchored to UTC
