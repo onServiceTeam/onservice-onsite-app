@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getBookingQuotes, acceptQuote, declineQuote, type BookingQuote } from '@/services/booking.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
+import { Star, ChevronLeft } from '@/components/icons';
 
 function QuoteCard({ quote, onAccept, onDecline, isPending }: {
   quote: BookingQuote;
@@ -24,7 +25,10 @@ function QuoteCard({ quote, onAccept, onDecline, isPending }: {
           <Text style={styles.providerName}>{quote.providerName ?? 'Provider'}</Text>
           <View style={styles.providerMeta}>
             {quote.providerRating != null && (
-              <Text style={styles.metaText}>★ {quote.providerRating.toFixed(1)}</Text>
+              <View style={styles.metaStar}>
+                <Star size={12} color={colors.warning} />
+                <Text style={styles.metaText}>{quote.providerRating.toFixed(1)}</Text>
+              </View>
             )}
             <Text style={styles.metaText}>• {quote.providerTotalJobs} jobs</Text>
           </View>
@@ -181,7 +185,7 @@ export default function QuotesScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Compare Quotes</Text>
         <View style={styles.placeholder} />
@@ -249,7 +253,8 @@ const styles = StyleSheet.create({
   quoteResolved: { opacity: 0.7 },
   quoteHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md },
   providerName: { fontSize: 16, fontWeight: '700', color: colors.text },
-  providerMeta: { flexDirection: 'row', gap: 6, marginTop: 2 },
+  providerMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  metaStar: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   metaText: { fontSize: 12, color: colors.textSecondary },
   priceBox: { alignItems: 'flex-end' },
   priceLabel: { fontSize: 11, color: colors.textSecondary, textTransform: 'uppercase' },

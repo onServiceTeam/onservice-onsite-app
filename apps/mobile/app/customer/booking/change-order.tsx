@@ -11,7 +11,7 @@ import {
 import { getWalletBalance } from '@/services/payment.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ClipboardList } from '@/components/icons';
+import { ClipboardList, ChevronLeft, Wallet, Check } from '@/components/icons';
 
 const PAYMENT_METHOD = { id: 'wallet', label: 'Wallet Balance', icon: '👛' } as const;
 
@@ -84,7 +84,7 @@ export default function ChangeOrderScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Change Orders</Text>
         <View style={styles.placeholder} />
@@ -123,9 +123,9 @@ export default function ChangeOrderScreen(): React.ReactElement {
 
             <Text style={styles.payMethodLabel}>Payment Method</Text>
             <View style={[styles.payMethodOption, styles.payMethodSelected]}>
-              <Text style={styles.payMethodIcon}>{PAYMENT_METHOD.icon}</Text>
+              <Wallet size={20} color={colors.primary} style={{ marginRight: spacing.md }} />
               <Text style={[styles.payMethodText, styles.payMethodTextSelected]}>{PAYMENT_METHOD.label}</Text>
-              <Text style={styles.payMethodCheck}>✓</Text>
+              <Check size={18} color={colors.primary} style={{ marginLeft: 'auto' }} />
             </View>
             <Text style={styles.walletNote}>
               Additional charges are paid from your wallet balance. Top up your wallet in your profile if needed.

@@ -11,7 +11,7 @@ import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle } from '@/components/icons';
+import { AlertTriangle, Repeat } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 type Frequency = 'weekly' | 'bi_weekly' | 'monthly';
@@ -161,7 +161,7 @@ export default function MakeRecurringScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.base }]}>
       <View style={styles.content}>
         <View style={styles.iconCircle}>
-          <Text style={styles.icon}>🔄</Text>
+          <Repeat size={28} color={colors.primary} />
         </View>
 
         <Text style={styles.title}>Make This Recurring?</Text>

@@ -9,7 +9,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
-import { CheckCircle2, Lock } from '@/components/icons';
+import { CheckCircle2, Lock, Clock } from '@/components/icons';
 
 export default function JobCompletionScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
@@ -71,7 +71,7 @@ export default function JobCompletionScreen(): React.ReactElement {
         </View>
 
         <View style={styles.autoConfirmCard}>
-          <Text style={styles.autoConfirmIcon}>⏰</Text>
+          <Clock size={18} color={colors.warning} style={styles.autoConfirmIcon} />
           <Text style={styles.autoConfirmText}>
             If you don't respond, the job will be auto-confirmed in {platformConfig.escrowAutoConfirmHours} hours.
           </Text>
