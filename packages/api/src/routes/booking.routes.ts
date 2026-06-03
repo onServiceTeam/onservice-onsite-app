@@ -132,6 +132,7 @@ function formatBookingResponse(b: BookingRow): Record<string, unknown> {
     subcategory_name?: string;
     provider_name?: string;
     customer_name?: string;
+    performer_staff_id?: string | null;
   };
   return {
     id: row.id,
@@ -173,6 +174,8 @@ function formatBookingResponse(b: BookingRow): Record<string, unknown> {
     serviceName: row.subcategory_name ?? null,
     providerName: row.provider_name ?? null,
     customerName: row.customer_name ?? null,
+    // D23 — which team member (if any) is assigned to perform this job.
+    performerStaffId: row.performer_staff_id ?? null,
   };
 }
 
