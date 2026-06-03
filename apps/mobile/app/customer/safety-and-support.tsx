@@ -41,7 +41,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
-import { CheckCircle2, Lock, MapPin, Phone, MessageSquare, AlertTriangle } from '@/components/icons';
+import { CheckCircle2, Lock, MapPin, Phone, MessageSquare, AlertTriangle, ChevronLeft } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -138,7 +138,7 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Safety & support</Text>
         <View style={styles.headerSpacer} />

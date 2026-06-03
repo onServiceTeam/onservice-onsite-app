@@ -33,7 +33,7 @@ import {
   type PendingMaterialConsent,
 } from '@/services/compliance.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Shield, FileText, AlertTriangle, CheckCircle2 } from '@/components/icons';
+import { Shield, FileText, AlertTriangle, CheckCircle2, ChevronLeft } from '@/components/icons';
 import { getErrorMessage } from '@/utils/errors';
 
 type FlowKey = 'access' | 'correction' | 'erasure';
@@ -289,7 +289,7 @@ export default function DataRightsScreen(): React.ReactElement {
           accessibilityLabel="Go back"
           accessibilityRole="button"
         >
-          <Text style={styles.backText}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Data Rights</Text>
         <View style={styles.placeholder} />

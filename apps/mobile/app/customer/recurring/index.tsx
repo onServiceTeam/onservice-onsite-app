@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle } from '@/components/icons';
+import { AlertTriangle, MapPin, ChevronRight } from '@/components/icons';
 import { Routes } from '@/config/navigation';
 
 interface RecurringBooking {
@@ -88,9 +88,10 @@ export default function RecurringListScreen(): React.ReactElement {
                 spot. Now: explicit '—' fallback. */}
             {FREQ_LABELS[item.frequency] ?? item.frequency} &middot; {DAY_NAMES[item.preferredDay] ?? '—'} at {item.preferredTime ?? '—'}
           </Text>
-          <Text style={styles.detail}>
-            📍 {item.city} &middot; {formatPHP(item.servicePrice)}
-          </Text>
+          <View style={styles.detailRow}>
+            <MapPin size={12} color={colors.textSecondary} />
+            <Text style={styles.detail}>{item.city} &middot; {formatPHP(item.servicePrice)}</Text>
+          </View>
           {item.nextScheduledDate && (
             <Text style={styles.nextDate}>
               Next: {new Date(item.nextScheduledDate).toLocaleDateString('en-PH', {
@@ -102,7 +103,7 @@ export default function RecurringListScreen(): React.ReactElement {
 
         <View style={styles.cardFooter}>
           <Text style={styles.completedCount}>{item.totalCompleted} completed</Text>
-          <Text style={styles.arrow}>›</Text>
+          <ChevronRight size={18} color={colors.textTertiary} />
         </View>
       </TouchableOpacity>
     );
@@ -210,7 +211,8 @@ const styles = StyleSheet.create({
   statusText: { ...typography.caption, fontWeight: '600' },
 
   cardDetails: { marginBottom: spacing.sm },
-  detail: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: 2 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
+  detail: { ...typography.bodySmall, color: colors.textSecondary },
   nextDate: { ...typography.bodySmall, color: colors.primary, fontWeight: '600', marginTop: 4 },
 
   cardFooter: {
