@@ -122,9 +122,17 @@ describe('MED-N102 (admin-tunability) — matching_tier_bonus is admin-tunable',
     expect(MATCHING).toMatch(/return TIER_BONUS_DEFAULTS/);
   });
 
-  it('findMatchingProviders + findMatchingProvidersSimple both await loadTierBonus', () => {
-    const calls = (MATCHING.match(/await loadTierBonus\(\)/g) ?? []).length;
-    expect(calls).toBeGreaterThanOrEqual(2);
+  it('findMatchingProviders + findMatchingProvidersSimple both apply the tunable tier bonus via rankCandidates', () => {
+    // Phase 200 refactor: both matchers now delegate ranking to the shared
+    // rankCandidates() helper, which awaits loadTierBonus() once and applies
+    // tierBonus[tier]. So the admin-tunable bonus is still applied in BOTH
+    // matcher paths, without duplicating the load. Assert the shared helper
+    // loads the bonus and that both matchers route through it.
+    expect(MATCHING).toMatch(/await loadTierBonus\(\)/);
+    expect(MATCHING).toMatch(/async function rankCandidates/);
+    // 1 definition + 1 call in each matcher = at least 3 references.
+    const rankRefs = (MATCHING.match(/rankCandidates\(/g) ?? []).length;
+    expect(rankRefs).toBeGreaterThanOrEqual(3);
   });
 
   it('only finite numbers from the setting are kept (rejects strings/NaN/null)', () => {
