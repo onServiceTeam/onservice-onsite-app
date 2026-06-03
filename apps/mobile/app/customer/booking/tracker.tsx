@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { getBookingById } from '@/services/booking.service';
 import { getSocket, connectSocket } from '@/services/socket.service';
-import { Badge, Button } from '@/components/ui';
+import { Button, StatusBadge } from '@/components/ui';
 // Phase 14 R5-complete — PulsingDot live indicator for en-route status.
 import PulsingDot from '@/components/PulsingDot';
 import { formatRelative } from '@/utils/date';
@@ -25,17 +25,6 @@ const STATUS_LABELS: Record<string, string> = {
   resolved: 'Dispute resolved',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  matched: colors.statusConfirmed,
-  paid: colors.statusConfirmed,
-  provider_en_route: colors.statusInProgress,
-  provider_arrived: colors.statusInProgress,
-  in_progress: colors.statusInProgress,
-  completed_by_provider: colors.statusCompleted,
-  confirmed: colors.statusCompleted,
-  disputed: colors.statusDisputed,
-  resolved: colors.statusCompleted,
-};
 
 export default function BookingTrackerScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
@@ -151,11 +140,7 @@ export default function BookingTrackerScreen(): React.ReactElement {
         {booking && (
           <>
             <View style={styles.statusRow}>
-              <Badge
-                label={booking.status.replace(/_/g, ' ').toUpperCase()}
-                backgroundColor={STATUS_COLORS[booking.status] ?? colors.statusPending}
-                size="md"
-              />
+              <StatusBadge status={booking.status} size="md" />
               {/* Phase 14 R5-complete — PulsingDot for live en-route/arrived */}
               {(booking.status === 'provider_en_route' || booking.status === 'provider_arrived') && (
                 <PulsingDot />

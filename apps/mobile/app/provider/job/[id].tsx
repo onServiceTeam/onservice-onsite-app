@@ -228,7 +228,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.statusCard}>
           <Badge
-            label={booking.status.replace(/_/g, ' ').toUpperCase()}
+            label={STATUS_LABELS[booking.status] ?? booking.status.replace(/_/g, ' ')}
             backgroundColor={getStatusColor(booking.status)}
             size="md"
           />

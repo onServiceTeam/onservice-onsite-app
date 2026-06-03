@@ -16,11 +16,13 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSocket } from '@/services/socket.service';
+import { acceptOffer, declineOffer } from '@/services/booking.service';
+import { getErrorMessage } from '@/utils/errors';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Wrench, Coins } from '@/components/icons';
+import { Wrench, Coins, MapPin } from '@/components/icons';
 
 const COUNTDOWN_SECONDS = 60;
 
@@ -31,10 +33,12 @@ interface NewJobEvent {
   city: string;
   title: string;
   body: string;
+  offerId?: string;
 }
 
 export default function NewJobModal(): React.ReactElement | null {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [job, setJob] = useState<NewJobEvent | null>(null);
   const [timeLeft, setTimeLeft] = useState(COUNTDOWN_SECONDS);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -100,40 +104,52 @@ export default function NewJobModal(): React.ReactElement | null {
     return () => { clearTimer(); };
   }, [job, dismiss, clearTimer, progressAnim]);
 
-  // Phase K MED-K15 fix — provider passing on a NewJobModal offer is
-  // NOT the same as cancelling an accepted job. Pre-fix the modal
-  // called updateBookingStatus(id, 'cancelled_by_provider') which
-  // terminated the booking entirely (status flips to a cancelled_*
-  // terminal). The right semantics for "I'm not taking this job"
-  // is to simply dismiss the modal locally — the booking stays in
-  // 'requested' / 'quoted' state and the matching service offers it
-  // to the next eligible provider on the broadcast list.
-  // No backend call is made. (Future: a dedicated /providers/me/jobs/
-  // :id/pass endpoint would let the server route past this provider
-  // immediately instead of waiting for the offer-timeout to expire.)
-  const declineMutation = useMutation({
-    mutationFn: async (_bookingId: string) => {
-      // Intentionally no backend call — see comment above.
-      return undefined;
+  // Phase 200 fix — accepting an offer now actually calls the accept endpoint.
+  // Pre-fix "Accept Job" only navigated to the booking, but the offer was
+  // never accepted, so the booking's provider_id stayed NULL: the job detail
+  // 404'd and the job never appeared in the Jobs tab. Now we POST the accept
+  // (which sets provider_id + status='matched'), refresh the jobs list, then
+  // navigate into the now-assigned job.
+  const acceptMutation = useMutation({
+    mutationFn: async (offerId: string) => acceptOffer(offerId),
+    onSuccess: (result) => {
+      clearTimer();
+      const bookingId = result?.booking_id ?? job?.bookingId;
+      setJob(null);
+      void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
+      void queryClient.invalidateQueries({ queryKey: ['providerProfile'] });
+      if (bookingId) router.push(`/provider/job/${bookingId}`);
     },
-    onSuccess: () => {
-      dismiss();
-    },
-    onError: () => {
+    onError: (err) => {
+      Alert.alert('Could not accept', getErrorMessage(err, 'This job may have expired or been taken. Please wait for the next one.'));
       dismiss();
     },
   });
 
+  // Declining tells the server (so the cascade moves to the next provider
+  // immediately) instead of just silently waiting for the 45s timeout.
+  const declineMutation = useMutation({
+    mutationFn: async (offerId: string) => declineOffer(offerId),
+    onSuccess: () => { dismiss(); },
+    onError: () => { dismiss(); },
+  });
+
   const handleAccept = (): void => {
     if (!job) return;
-    clearTimer();
-    const bookingId = job.bookingId;
-    setJob(null);
-    router.push(`/provider/job/${bookingId}`);
+    if (job.offerId) {
+      acceptMutation.mutate(job.offerId);
+    } else {
+      // Legacy path (no offer id) — just navigate.
+      clearTimer();
+      const bookingId = job.bookingId;
+      setJob(null);
+      router.push(`/provider/job/${bookingId}`);
+    }
   };
 
   const handleDecline = (): void => {
     if (!job) return;
+    const offerId = job.offerId;
     Alert.alert(
       'Decline Job',
       'Are you sure you want to decline this job? It will be offered to another provider.',
@@ -142,7 +158,7 @@ export default function NewJobModal(): React.ReactElement | null {
         {
           text: 'Decline',
           style: 'destructive',
-          onPress: () => { declineMutation.mutate(job.bookingId); },
+          onPress: () => { if (offerId) { declineMutation.mutate(offerId); } else { dismiss(); } },
         },
       ],
     );
@@ -196,7 +212,10 @@ export default function NewJobModal(): React.ReactElement | null {
             <Text style={styles.serviceName}>{job.serviceName}</Text>
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>📍 Location</Text>
+              <View style={styles.detailLabelRow}>
+                <MapPin size={14} color={colors.textSecondary} />
+                <Text style={styles.detailLabel}> Location</Text>
+              </View>
               <Text style={styles.detailValue}>{job.city}</Text>
             </View>
 
@@ -222,12 +241,13 @@ export default function NewJobModal(): React.ReactElement | null {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.acceptButton}
+              style={[styles.acceptButton, acceptMutation.isPending && styles.acceptButtonDisabled]}
               onPress={handleAccept}
+              disabled={acceptMutation.isPending}
               accessibilityRole="button"
               accessibilityLabel="Accept job"
             >
-              <Text style={styles.acceptText}>Accept Job</Text>
+              <Text style={styles.acceptText}>{acceptMutation.isPending ? 'Accepting…' : 'Accept Job'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -352,6 +372,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  acceptButtonDisabled: {
+    opacity: 0.6,
   },
   acceptText: {
     ...typography.button,

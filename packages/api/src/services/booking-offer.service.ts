@@ -185,6 +185,9 @@ export async function kickOfferCycle(bookingId: string): Promise<OfferRow | null
       'New job available',
       bk.service_price,
       bk.city,
+      // Phase 200 fix — pass the offer id so the provider's app can actually
+      // accept/decline THIS offer (POST /bookings/offers/:offerId/accept).
+      offer.id,
     );
   } catch (err) {
     logger.warn('notifyProviderNewJob failed in kickOfferCycle', {

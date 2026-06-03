@@ -21,7 +21,7 @@ import {
 } from '@/services/provider-api.service';
 import api from '@/services/api';
 import type { Booking } from '@/services/booking.service';
-import { Badge } from '@/components/ui';
+import { Badge, StatusBadge } from '@/components/ui';
 import { AlertTriangle, Bell, Calendar, Wrench, CreditCard, Inbox } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 // Phase 14 Remediation #5 — Bug 1234 NBI lifecycle banner.
@@ -64,17 +64,6 @@ async function getUnreadNotificationCount(): Promise<number> {
   return res.data.meta?.unread ?? 0;
 }
 
-function getJobStatusColor(status: string): string {
-  const map: Record<string, string> = {
-    matched: colors.statusConfirmed,
-    paid: colors.statusConfirmed,
-    provider_en_route: colors.statusInProgress,
-    provider_arrived: colors.statusInProgress,
-    in_progress: colors.statusInProgress,
-    completed_by_provider: colors.statusCompleted,
-  };
-  return map[status] ?? colors.textTertiary;
-}
 
 export default function ProviderDashboardScreen(): React.ReactElement {
   const router = useRouter();
@@ -253,11 +242,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
               activeOpacity={0.7}
             >
               <View style={styles.jobCardTop}>
-                <Badge
-                  label={job.status.replace(/_/g, ' ').toUpperCase()}
-                  backgroundColor={getJobStatusColor(job.status)}
-                  size="sm"
-                />
+                <StatusBadge status={job.status} size="sm" />
                 <Text style={styles.jobTime}>{formatRelative(job.scheduledAt)}</Text>
               </View>
               <Text style={styles.jobService}>{job.serviceName ?? job.categoryName ?? 'Service'}</Text>

@@ -190,6 +190,19 @@ export async function declineQuote(bookingId: string, quoteId: string): Promise<
   return res.data.data;
 }
 
+// Phase 200 — provider responds to an auto-dispatch offer (the 45s "New Job"
+// offer). Accepting sets the booking's provider_id and advances it to
+// 'matched'; declining lets the cascade move to the next provider.
+export async function acceptOffer(offerId: string): Promise<{ booking_id: string; provider_id: string }> {
+  const res = await api.post<ApiResponse<{ booking_id: string; provider_id: string }>>(`/api/v1/bookings/offers/${offerId}/accept`);
+  return res.data.data;
+}
+
+export async function declineOffer(offerId: string, reason = 'Not available'): Promise<{ booking_id: string }> {
+  const res = await api.post<ApiResponse<{ booking_id: string }>>(`/api/v1/bookings/offers/${offerId}/decline`, { reason });
+  return res.data.data;
+}
+
 export interface ChangeOrder {
   id: string;
   bookingId: string;

@@ -51,11 +51,16 @@ describe('BUG-PHASE131-01 — booking-offer hardcoded "Boracay" replaced with bk
     );
   });
 
-  it('notifyProviderNewJob call ends with bk.city, not a hardcoded string', () => {
-    // The 5th positional arg (city) used to be `'Boracay'`. Assert
-    // the call closes with `bk.city,\n  );` — i.e., the last
-    // positional argument is the row reference, not a string literal.
-    expect(SOURCE).toMatch(/bk\.city,\s*\)\s*;/);
+  it('passes bk.city (not a hardcoded string), followed by the offer id', () => {
+    // The city arg used to be the literal 'Boracay'; it is now bk.city.
+    // Phase 200 also appends offer.id as the final arg so the provider's app
+    // can accept the offer, so bk.city is no longer the last token — but it
+    // must still be the row reference, immediately followed by offer.id.
+    expect(SOURCE).toMatch(/bk\.city,\s*[\s\S]*?offer\.id,/);
+  });
+
+  it('never passes a hardcoded city string literal to notifyProviderNewJob', () => {
+    expect(SOURCE).not.toMatch(/notifyProviderNewJob\([\s\S]+?'(Boracay|Caticlan|Manila)'/);
   });
 
   it('regression guard: the PHASE131 fix-comment is preserved', () => {

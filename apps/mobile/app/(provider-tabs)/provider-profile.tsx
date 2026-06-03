@@ -41,6 +41,15 @@ const TIER_COLORS: Record<string, string> = {
   pro: colors.tierPro,
   elite: colors.tierElite,
 };
+// Friendly, properly-cased tier labels (matches the dashboard). Avoids the raw
+// ALL-CAPS "VERIFIED" the badge used to show.
+const TIER_LABELS: Record<string, string> = {
+  founding: 'Founding',
+  new: 'New',
+  verified: 'Verified',
+  pro: 'Pro',
+  elite: 'Elite',
+};
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -162,7 +171,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
         {profile && (
           <TouchableOpacity onPress={(): void => { router.push(Routes.PROVIDER.TIER_PROGRESSION); }}>
             <Badge
-              label={profile.tier.toUpperCase()}
+              label={TIER_LABELS[profile.tier] ?? profile.tier}
               backgroundColor={TIER_COLORS[profile.tier] ?? colors.textTertiary}
               size="md"
             />

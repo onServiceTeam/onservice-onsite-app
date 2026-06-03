@@ -155,7 +155,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
           )}
           <View style={styles.tierRow}>
             <Badge
-              label={provider.tier.toUpperCase()}
+              label={TIER_LABELS[provider.tier] ?? provider.tier}
               backgroundColor={TIER_COLORS[provider.tier] ?? colors.textTertiary}
               size="md"
             />

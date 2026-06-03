@@ -405,6 +405,12 @@ export async function notifyProviderNewJob(
   serviceName: string,
   amount: number,
   city: string,
+  // Phase 200 fix — the offerId MUST flow to the client so the provider can
+  // actually accept/decline the offer. Pre-fix it was omitted, so the in-app
+  // "Accept Job" modal had nothing to POST to and just navigated to a booking
+  // the provider wasn't assigned to (404), and the booking never got a
+  // provider. Carried in both the notification data and the socket payload.
+  offerId?: string,
 ): Promise<void> {
   const amountStr = formatPHP(amount);
   const { title, body } = await resolveTemplate(
@@ -418,13 +424,13 @@ export async function notifyProviderNewJob(
     type: 'new_job_available',
     title,
     body,
-    data: { bookingId, serviceName, amount },
+    data: { bookingId, serviceName, amount, offerId },
   });
 
-  void deliverPushToDevice(providerUserId, title, body, { bookingId, serviceName, amount, notificationId: n.id, type: 'new_job_available' });
+  void deliverPushToDevice(providerUserId, title, body, { bookingId, serviceName, amount, offerId, notificationId: n.id, type: 'new_job_available' });
 
   // Also emit real-time socket event so the in-app modal fires immediately
-  emitToUser(providerUserId, 'new:job', { bookingId, serviceName, amount, city, title, body });
+  emitToUser(providerUserId, 'new:job', { bookingId, serviceName, amount, city, title, body, offerId });
 }
 
 export async function notifyCustomerProviderAssigned(
