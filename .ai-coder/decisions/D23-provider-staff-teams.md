@@ -1,6 +1,6 @@
 # D23 — Provider staff / team members
 
-**Status:** Decided (Ken, 2026-06-04). Build in progress on topic branch `feat/provider-staff` (not yet merged to master).
+**Status:** Decided (Ken, 2026-06-04). Built end-to-end on topic branch `feat/provider-staff` (not yet merged/deployed — awaiting Ken's cutover call).
 **Owner:** AI coder, reviewed by Ken.
 
 ### Build progress (2026-06-04)
@@ -17,20 +17,30 @@
   (createReview copies performer_staff_id → reviews so performance rolls up to the
   provider and into the per-member breakdown). Mobile "Submit for review" button. ✅ tested.
 
-- **REMAINING — assign-from-app UI:** the assign-staff endpoint works, but the
-  provider can't yet trigger it from the app. Needs a staff picker on the active
-  job screen AND `performerStaffId` threaded through the booking DTO (the booking
-  response mapping is spread across booking.service/routes — money-path-adjacent,
-  so do it carefully, not at the tail of a long session).
-- **REMAINING — Phase 4 (staff own login):** the heaviest, auth-sensitive layer —
-  invite-accept, the `provider_staff` role wired into mobile navigation/route
-  guards, and the staff member's scoped "my assigned jobs" view. Recommend a
-  dedicated focused pass.
+- **DONE — Phase 4 (staff own login):** `/api/v1/staff` (my-invites, accept,
+  my-jobs); `provider_staff` role added to every role union (API + mobile);
+  accept-invite returns a fresh token pair so the app re-routes; mobile staff
+  area (staff/jobs read-only assigned list + staff/invites accept flow); splash
+  routes provider_staff → staff jobs; "Team Invitations" discovery entry on the
+  customer profile. ✅ tested (render tests; SQL validated vs live schema).
+- **DONE — assign-from-app UI:** booking DTO exposes performerStaffId; the active
+  job screen has a "Who's doing this job?" chip row (Me + approved members) that
+  assigns/reassigns. ✅ tested.
 
-Everything above master is functional and tested EXCEPT the two remaining items;
-the provider can build + submit a team, back-office can approve/suspend, and a
-member's reviews already attribute + roll up once a job is assigned (assignment is
-currently API-only until the assign-from-app UI lands).
+**The feature is complete end-to-end on the branch.** Two real bugs were caught
+and fixed during integrity checks: a singular-vs-plural API path mismatch in the
+mobile staff calls, and `u.full_name` (a nonexistent column) in two queries — both
+verified against the live schema.
+
+### Not yet done (intentional, post-merge ops)
+
+- The branch is **not merged to master and not deployed.** Merging means applying
+  migration 131 + rebuilding the API image + redeploying admin and mobile-web —
+  recommend one clean cutover (Ken's call).
+- Staff **job execution** (a member updating status / uploading photos on their
+  assigned job) is out of scope for this slice — the staff view is read-only.
+- Invite delivery is in-app discovery (the invited person finds it under their
+  profile via phone/email match). SMS/email invite links are a future enhancement.
 
 ## The ask (Ken, 2026-06-04)
 
