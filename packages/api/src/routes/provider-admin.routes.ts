@@ -12,6 +12,7 @@ import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import * as providerAdminService from '../services/provider-admin.service';
+import * as providerStaffService from '../services/provider-staff.service';
 
 const router = Router();
 
@@ -297,6 +298,82 @@ router.delete(
         reason,
       );
       res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// ─── Staff / team members (D23) ───────────────────────────────────────────────
+// Back-office review of a provider's team. A staff member must clear review here
+// before the provider can assign them jobs. Their performance rolls up to the
+// provider automatically (reviews.provider_id); this tab shows the per-member
+// breakdown so support can spot a weak member.
+
+async function loadStaffForProvider(
+  providerId: string,
+  staffId: string,
+): Promise<providerStaffService.ProviderStaffRow> {
+  const staff = await providerStaffService.getStaffById(staffId);
+  if (!staff || staff.provider_id !== providerId) {
+    throw createAppError('Staff member not found for this provider.', 404);
+  }
+  return staff;
+}
+
+router.get(
+  '/:id/staff',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const data = await providerStaffService.listStaffWithPerformance(req.params.id as string);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/:id/staff/:staffId/review',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const decision = req.body?.decision as providerStaffService.StaffAdminDecision;
+      if (!['approved', 'rejected', 'sent_back'].includes(decision)) {
+        throw createAppError('decision must be one of: approved, rejected, sent_back.', 400);
+      }
+      await loadStaffForProvider(req.params.id as string, req.params.staffId as string);
+      const updated = await providerStaffService.reviewStaff({
+        staffId: req.params.staffId as string,
+        adminId: req.user!.userId,
+        decision,
+        reason: typeof req.body?.reason === 'string' ? req.body.reason : undefined,
+      });
+      res.json({ success: true, data: providerStaffService.formatProviderStaff(updated) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/:id/staff/:staffId/suspend',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const suspend = req.body?.suspend !== false; // default: suspend; pass { suspend: false } to reactivate
+      await loadStaffForProvider(req.params.id as string, req.params.staffId as string);
+      const updated = await providerStaffService.setStaffSuspension({
+        staffId: req.params.staffId as string,
+        adminId: req.user!.userId,
+        suspend,
+        reason: typeof req.body?.reason === 'string' ? req.body.reason : undefined,
+      });
+      res.json({ success: true, data: providerStaffService.formatProviderStaff(updated) });
     } catch (error) {
       next(error);
     }

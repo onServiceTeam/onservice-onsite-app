@@ -3,7 +3,7 @@ import { AuthenticatedRequest } from './auth.middleware';
 import { createAppError } from './error.middleware';
 
 // E01 / D15 (2026-05-02) — `dpo` added for NPC RA 10173 §21 segregation.
-type UserRole = 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo';
+type UserRole = 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo' | 'provider_staff';
 
 /**
  * Role-based access control middleware.

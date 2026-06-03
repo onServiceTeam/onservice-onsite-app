@@ -12,7 +12,7 @@ import Avatar from '@/components/Avatar';
 import PhoneInput from '@/components/PhoneInput';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
-import { MapPin, CreditCard, Bell, HelpCircle, FileText, KeyRound, ChevronRight } from '@/components/icons';
+import { MapPin, CreditCard, Bell, HelpCircle, FileText, KeyRound, ChevronRight, Users } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -94,6 +94,7 @@ export default function ProfileScreen(): React.ReactElement {
     { label: 'Help & Support', icon: HelpCircle, onPress: () => router.push(Routes.CUSTOMER.HELP) },
     { label: 'Terms & Privacy', icon: FileText, onPress: () => router.push(Routes.CUSTOMER.TERMS) },
     { label: 'Account & Data', icon: KeyRound, onPress: () => router.push(Routes.CUSTOMER.ACCOUNT_MANAGEMENT) },
+    { label: 'Team Invitations', icon: Users, onPress: () => router.push(Routes.STAFF.INVITES) },
   ];
 
   return (

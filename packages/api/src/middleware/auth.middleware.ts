@@ -7,7 +7,8 @@ import { logger } from '../utils/logger';
 // segregation of duties. JWTs may now be signed with role='dpo'.
 export interface AuthPayload {
   userId: string;
-  role: 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo';
+  // D23 — `provider_staff` is a team member with their own scoped login.
+  role: 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo' | 'provider_staff';
   iat: number;
   exp: number;
 }

@@ -56,6 +56,9 @@ export interface Booking {
   // calendar) display this as the destination/contact name. Customer-
   // side screens never need it but receiving it is harmless.
   customerName?: string;
+  // D23 — the team member assigned to perform this job (null = the provider
+  // owner does it themselves).
+  performerStaffId?: string | null;
 }
 
 // Phase 14 Dispatch 05 — Bug 175 + Bug 176.

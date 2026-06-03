@@ -156,7 +156,7 @@ interface Note {
   updatedAt: string;
 }
 
-const TABS = ['profile', 'jobs', 'financials', 'reviews', 'disputes', 'activity', 'notes'] as const;
+const TABS = ['profile', 'jobs', 'financials', 'reviews', 'staff', 'disputes', 'activity', 'notes'] as const;
 type TabId = (typeof TABS)[number];
 void TABS;
 
@@ -258,6 +258,7 @@ export default function ProviderDetailPage(): React.ReactElement {
           <TabsTrigger value="jobs">Jobs</TabsTrigger>
           <TabsTrigger value="financials">Financials</TabsTrigger>
           <TabsTrigger value="reviews">Reviews</TabsTrigger>
+          <TabsTrigger value="staff">Staff</TabsTrigger>
           <TabsTrigger value="disputes">Disputes</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
@@ -274,6 +275,9 @@ export default function ProviderDetailPage(): React.ReactElement {
         </TabsContent>
         <TabsContent value="reviews">
           <ReviewsTab providerId={id} />
+        </TabsContent>
+        <TabsContent value="staff">
+          <StaffTab providerId={id} />
         </TabsContent>
         <TabsContent value="disputes">
           <DisputesTab providerId={id} />
@@ -866,6 +870,154 @@ function ActivityTab({ providerId }: { providerId: string }): React.ReactElement
 }
 
 // ─── Notes Tab ────────────────────────────────────────────────────────────
+
+// ─── Staff / team members (D23) ──────────────────────────────────────────────
+
+interface StaffMember {
+  id: string;
+  userId: string | null;
+  userName: string | null;
+  roleTitle: string | null;
+  status: 'invited' | 'pending_review' | 'approved' | 'rejected' | 'suspended' | 'deactivated';
+  invitePhone: string | null;
+  inviteEmail: string | null;
+  adminDecisionReason: string | null;
+  isAssignable: boolean;
+  createdAt: string;
+  performance: { totalJobs: number; totalReviews: number; averageRating: number };
+}
+
+const STAFF_STATUS_BADGE: Record<StaffMember['status'], 'success' | 'warning' | 'danger' | 'info' | 'default'> = {
+  invited: 'info',
+  pending_review: 'warning',
+  approved: 'success',
+  rejected: 'danger',
+  suspended: 'danger',
+  deactivated: 'default',
+};
+
+export function StaffTab({ providerId }: { providerId: string }): React.ReactElement {
+  const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState('');
+
+  const q = useQuery({
+    queryKey: ['admin-provider-staff', providerId],
+    queryFn: async () => {
+      const res = await api.get<{ success: true; data: StaffMember[] }>(
+        `/api/v1/admin/providers/${providerId}/staff`,
+      );
+      return res.data.data;
+    },
+  });
+
+  const invalidate = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ['admin-provider-staff', providerId] });
+  };
+
+  const review = useMutation({
+    mutationFn: async (vars: { staffId: string; decision: 'approved' | 'rejected' | 'sent_back'; reason?: string }) => {
+      await api.post(`/api/v1/admin/providers/${providerId}/staff/${vars.staffId}/review`, {
+        decision: vars.decision,
+        reason: vars.reason,
+      });
+    },
+    onSuccess: () => { setActionError(''); invalidate(); },
+    onError: (e) => setActionError(getErrorMessage(e)),
+  });
+
+  const suspend = useMutation({
+    mutationFn: async (vars: { staffId: string; suspend: boolean; reason?: string }) => {
+      await api.post(`/api/v1/admin/providers/${providerId}/staff/${vars.staffId}/suspend`, {
+        suspend: vars.suspend,
+        reason: vars.reason,
+      });
+    },
+    onSuccess: () => { setActionError(''); invalidate(); },
+    onError: (e) => setActionError(getErrorMessage(e)),
+  });
+
+  if (q.isLoading) return <LoadingState label="Loading team members…" />;
+  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
+  const staff = q.data!;
+  const busy = review.isPending || suspend.isPending;
+
+  function approve(s: StaffMember): void {
+    review.mutate({ staffId: s.id, decision: 'approved' });
+  }
+  function reject(s: StaffMember): void {
+    const reason = window.prompt('Reason for rejecting this team member? (required, shared with the provider)');
+    if (reason == null || !reason.trim()) return;
+    review.mutate({ staffId: s.id, decision: 'rejected', reason: reason.trim() });
+  }
+  function sendBack(s: StaffMember): void {
+    const reason = window.prompt('What does the team member need to fix? (optional)');
+    if (reason == null) return;
+    review.mutate({ staffId: s.id, decision: 'sent_back', reason: reason.trim() || undefined });
+  }
+  function setSuspend(s: StaffMember, doSuspend: boolean): void {
+    if (doSuspend && !window.confirm(`Suspend ${s.userName || s.roleTitle || 'this member'}? They will not be assignable to jobs.`)) return;
+    suspend.mutate({ staffId: s.id, suspend: doSuspend });
+  }
+
+  return (
+    <div className="space-y-4 mt-4">
+      <p className="text-sm text-[var(--color-text-secondary)]">
+        Team members the provider added. Each is reviewed here before they can be assigned jobs.
+        Their job performance counts toward this provider&apos;s overall rating; the per-member
+        numbers below are the breakdown.
+      </p>
+      {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
+
+      {staff.length === 0 ? (
+        <EmptyState title="No team members" description="This provider hasn't added any staff yet." />
+      ) : (
+        staff.map((s) => (
+          <Card key={s.id} className="p-4">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-sm text-[var(--color-text)]">
+                    {s.userName || s.roleTitle || 'Invited member'}
+                  </span>
+                  <Badge label={s.status.replace(/_/g, ' ')} variant={STAFF_STATUS_BADGE[s.status]} />
+                  {s.roleTitle && s.userName && (
+                    <span className="text-xs text-[var(--color-text-secondary)]">{s.roleTitle}</span>
+                  )}
+                </div>
+                <div className="text-xs text-[var(--color-text-secondary)] mt-1 flex flex-wrap gap-3">
+                  {s.invitePhone && <span className="inline-flex items-center gap-1"><Phone size={12} /> {s.invitePhone}</span>}
+                  {s.inviteEmail && <span className="inline-flex items-center gap-1"><Mail size={12} /> {s.inviteEmail}</span>}
+                  <span className="inline-flex items-center gap-1">
+                    <Star size={12} /> {s.performance.averageRating.toFixed(2)} ({s.performance.totalReviews} reviews)
+                  </span>
+                  <span>{s.performance.totalJobs} jobs done</span>
+                </div>
+                {s.adminDecisionReason && (
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-1 italic">Note: {s.adminDecisionReason}</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-1 items-stretch">
+                {s.status === 'pending_review' && (
+                  <>
+                    <Button size="sm" onClick={() => approve(s)} disabled={busy}>Approve</Button>
+                    <Button size="sm" variant="outline" onClick={() => sendBack(s)} disabled={busy}>Send back</Button>
+                    <Button size="sm" variant="outline" onClick={() => reject(s)} disabled={busy}>Reject</Button>
+                  </>
+                )}
+                {s.status === 'approved' && (
+                  <Button size="sm" variant="outline" onClick={() => setSuspend(s, true)} disabled={busy}>Suspend</Button>
+                )}
+                {s.status === 'suspended' && (
+                  <Button size="sm" onClick={() => setSuspend(s, false)} disabled={busy}>Reactivate</Button>
+                )}
+              </div>
+            </div>
+          </Card>
+        ))
+      )}
+    </div>
+  );
+}
 
 function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
   const queryClient = useQueryClient();

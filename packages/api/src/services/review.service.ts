@@ -50,6 +50,10 @@ interface BookingContextRow {
   customer_id: string;
   provider_id: string | null;
   status: string;
+  // D23 — which team member performed the job (NULL = the provider owner). The
+  // review is attributed to them so per-member quality can be broken out while
+  // the provider's headline rating still aggregates all of provider_id's reviews.
+  performer_staff_id: string | null;
 }
 
 const IMMUTABLE_AFTER_DAYS = 7;
@@ -79,7 +83,7 @@ export async function createReview(
   },
 ): Promise<ReviewRow> {
   const booking = await db.query<BookingContextRow>(
-    `SELECT id, customer_id, provider_id, status FROM bookings WHERE id = $1`,
+    `SELECT id, customer_id, provider_id, status, performer_staff_id FROM bookings WHERE id = $1`,
     [bookingId],
   );
   if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
@@ -127,8 +131,8 @@ export async function createReview(
     const result = await client.query<ReviewRow>(
       `INSERT INTO reviews
         (booking_id, reviewer_id, provider_id, rating, quality_rating, punctuality_rating,
-         professionalism_rating, communication_rating, value_rating, comment, tags, private_note, is_visible, is_flagged)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+         professionalism_rating, communication_rating, value_rating, comment, tags, private_note, is_visible, is_flagged, performer_staff_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
       [
         bookingId, reviewerId, bk.provider_id,
         data.rating,
@@ -142,6 +146,8 @@ export async function createReview(
         data.privateNote?.trim() ?? null,
         !flagged,
         flagged,
+        // D23 — attribute the review to whoever performed the job.
+        bk.performer_staff_id,
       ],
     );
 

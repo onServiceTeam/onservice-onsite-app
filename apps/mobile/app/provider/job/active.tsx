@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { getBookingById } from '@/services/booking.service';
 import { updateBookingStatus } from '@/services/provider-api.service';
+import { getMyStaff, assignStaffToBooking } from '@/services/provider-staff.service';
 import { Badge, Button } from '@/components/ui';
 import { formatRelative } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
@@ -50,6 +51,22 @@ export default function ActiveJobScreen(): React.ReactElement {
     queryFn: () => getBookingById(bookingId),
     enabled: !!bookingId,
     refetchInterval: 15000,
+  });
+
+  // D23 — approved team members the provider can assign this job to.
+  const { data: staff } = useQuery({
+    queryKey: ['providerStaff'],
+    queryFn: getMyStaff,
+    staleTime: 60 * 1000,
+  });
+  const approvedStaff = (staff ?? []).filter((m) => m.status === 'approved');
+
+  const assignMutation = useMutation({
+    mutationFn: (staffId: string | null) => assignStaffToBooking(bookingId, staffId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
+    },
+    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Could not assign this job.')),
   });
 
   const statusMutation = useMutation({
@@ -209,6 +226,36 @@ export default function ActiveJobScreen(): React.ReactElement {
           <MessageSquare size={18} color={colors.secondary} style={styles.chatIcon} />
           <Text style={styles.chatText}>Chat with Customer</Text>
         </TouchableOpacity>
+
+        {approvedStaff.length > 0 && (
+          <View style={styles.assignSection}>
+            <Text style={styles.assignLabel}>Who's doing this job?</Text>
+            <View style={styles.assignChips}>
+              <TouchableOpacity
+                style={[styles.assignChip, !booking.performerStaffId && styles.assignChipActive]}
+                onPress={() => assignMutation.mutate(null)}
+                disabled={assignMutation.isPending}
+              >
+                <Text style={[styles.assignChipText, !booking.performerStaffId && styles.assignChipTextActive]}>Me</Text>
+              </TouchableOpacity>
+              {approvedStaff.map((m) => {
+                const active = booking.performerStaffId === m.id;
+                return (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={[styles.assignChip, active && styles.assignChipActive]}
+                    onPress={() => assignMutation.mutate(m.id)}
+                    disabled={assignMutation.isPending}
+                  >
+                    <Text style={[styles.assignChipText, active && styles.assignChipTextActive]}>
+                      {m.userName || m.roleTitle || 'Team member'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -283,4 +330,16 @@ const styles = StyleSheet.create({
   },
   chatIcon: { marginRight: spacing.sm },
   chatText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
+
+  assignSection: { marginTop: spacing.base, paddingTop: spacing.base, borderTopWidth: 1, borderTopColor: colors.border },
+  assignLabel: { ...typography.bodySmall, fontWeight: '600', color: colors.text, marginBottom: spacing.sm },
+  assignChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  assignChip: {
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: 20, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.backgroundSecondary,
+  },
+  assignChipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+  assignChipText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' },
+  assignChipTextActive: { color: colors.primary },
 });
