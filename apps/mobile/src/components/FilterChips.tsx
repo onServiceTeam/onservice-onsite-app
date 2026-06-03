@@ -38,6 +38,7 @@ export function FilterChips({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
       contentContainerStyle={styles.row}
       testID={testID}
       accessibilityRole="tablist"
@@ -65,18 +66,29 @@ export function FilterChips({
 }
 
 const styles = StyleSheet.create({
+  // flexGrow:0 keeps the horizontal scroller from expanding to fill its parent
+  // column on web (react-native-web would otherwise stretch it vertically,
+  // which combined with the row's default align-items:stretch turned the chips
+  // into tall full-height pills). alignSelf flex-start pins it to the top.
+  scroll: { flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' },
   row: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
     gap: spacing.sm,
+    // Chips size to their content and stay vertically centered instead of
+    // stretching to the row height.
+    alignItems: 'center',
   },
   chip: {
+    minHeight: 36,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
     backgroundColor: colors.divider,
     borderWidth: 1,
     borderColor: colors.divider,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chipActive: {
     backgroundColor: colors.primary,

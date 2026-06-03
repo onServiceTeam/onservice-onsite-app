@@ -26,7 +26,7 @@ import { getActiveBookings, getRecentBookings } from '@/services/booking.service
 // it goes to the address picker as before.
 import { getAddresses, type SavedAddress } from '@/services/address.service';
 import api from '@/services/api';
-import { Badge } from '@/components/ui';
+import { StatusBadge } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -92,18 +92,10 @@ const CATEGORY_ICONS: Record<string, IconComponent> = {
   'general-maintenance': Hammer,
 };
 
-function getBookingStatusColor(status: string): string {
-  const map: Record<string, string> = {
-    matched: colors.statusConfirmed,
-    paid: colors.statusConfirmed,
-    provider_en_route: colors.statusInProgress,
-    provider_arrived: colors.statusInProgress,
-    in_progress: colors.statusInProgress,
-    completed_by_provider: colors.statusCompleted,
-    payment_pending: colors.statusPending,
-  };
-  return map[status] ?? colors.textTertiary;
-}
+// Booking status is rendered via the canonical <StatusBadge/> component, which
+// maps each backend status to a friendly, properly-cased label and on-brand
+// colors (replaces the old raw ALL-CAPS Badge that showed e.g. "PROVIDER EN
+// ROUTE").
 
 export default function HomeScreen(): React.ReactElement {
   const router = useRouter();
@@ -272,10 +264,7 @@ export default function HomeScreen(): React.ReactElement {
               activeOpacity={0.8}
             >
               <View style={styles.activeCardTop}>
-                <Badge
-                  label={booking.status.replace(/_/g, ' ').toUpperCase()}
-                  backgroundColor={getBookingStatusColor(booking.status)}
-                />
+                <StatusBadge status={booking.status} />
                 <Text style={styles.activeCardTime}>
                   {formatRelative(booking.scheduledAt)}
                 </Text>
@@ -495,18 +484,24 @@ export default function HomeScreen(): React.ReactElement {
         <View style={styles.howItWorksGrid}>
           <View style={styles.howItWorksTile}>
             <View style={styles.howItWorksIconWrap}><Search size={28} color={colors.primary} /></View>
-            <Text style={styles.howItWorksTileTitle}>Pick a service</Text>
-            <Text style={styles.howItWorksTileBody}>Browse trusted pros nearby.</Text>
+            <View style={styles.howItWorksTextWrap}>
+              <Text style={styles.howItWorksTileTitle}>Pick a service</Text>
+              <Text style={styles.howItWorksTileBody}>Browse trusted pros nearby.</Text>
+            </View>
           </View>
           <View style={styles.howItWorksTile}>
             <View style={styles.howItWorksIconWrap}><Users size={28} color={colors.primary} /></View>
-            <Text style={styles.howItWorksTileTitle}>Get matched</Text>
-            <Text style={styles.howItWorksTileBody}>Choose from quotes or book directly.</Text>
+            <View style={styles.howItWorksTextWrap}>
+              <Text style={styles.howItWorksTileTitle}>Get matched</Text>
+              <Text style={styles.howItWorksTileBody}>Choose from quotes or book directly.</Text>
+            </View>
           </View>
           <View style={styles.howItWorksTile}>
             <View style={styles.howItWorksIconWrap}><Lock size={28} color={colors.primary} /></View>
-            <Text style={styles.howItWorksTileTitle}>Pay safely</Text>
-            <Text style={styles.howItWorksTileBody}>Payment held in escrow until you confirm.</Text>
+            <View style={styles.howItWorksTextWrap}>
+              <Text style={styles.howItWorksTileTitle}>Pay safely</Text>
+              <Text style={styles.howItWorksTileBody}>Payment held in escrow until you confirm.</Text>
+            </View>
           </View>
         </View>
       </View>
@@ -893,6 +888,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   howItWorksIconWrap: { marginRight: spacing.md, width: 32, alignItems: 'center' as const },
+  howItWorksTextWrap: { flex: 1 },
   howItWorksTileTitle: { ...typography.body, fontWeight: '600', color: colors.text, marginBottom: 2 },
   howItWorksTileBody: { ...typography.bodySmall, color: colors.textSecondary },
 
