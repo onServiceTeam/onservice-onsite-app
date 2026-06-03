@@ -14,7 +14,14 @@ import { fetchPlatformConfig } from '@/services/config.service';
 import { initSecureStorage } from '@/services/secure-storage';
 import { migrateLegacyTokensIfNeeded } from '@/services/auth-migration';
 import { OfflineBanner } from '@/components/ui';
+import { AlertHost } from '@/components/ui/AlertHost';
 import { WebAppFrame } from '@/components/WebAppFrame';
+import { installWebAlert } from '@/utils/web-alert';
+
+// Make Alert.alert render a real dialog on the web build (react-native-web's
+// Alert is a no-op). Installed at module load so it is in place before any
+// screen fires an alert. No-op on native.
+installWebAlert();
 
 const sentryDsn = Constants.expoConfig?.extra?.sentryDsn as string | undefined;
 if (sentryDsn) {
@@ -98,6 +105,7 @@ function RootLayout(): React.ReactElement {
         <StatusBar style="dark" />
         <WebAppFrame>
           <OfflineBanner />
+          <AlertHost />
           <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="onboarding" />
