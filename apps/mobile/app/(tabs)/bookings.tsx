@@ -16,7 +16,7 @@ import type { Booking } from '@/services/booking.service';
 import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, ClipboardList } from '@/components/icons';
+import { AlertTriangle, ClipboardList, Filter, Repeat } from '@/components/icons';
 // Phase 14 Remediation #5 — Bug 889/911/918 (filter chips), Bug 891/916/923
 // (pagination loader), Bug 895/901 (status badge) wired here.
 import StatusBadge from '@/components/StatusBadge';
@@ -139,18 +139,19 @@ export default function BookingsScreen(): React.ReactElement {
             onPress={() => setAdvancedFiltersVisible(true)}
             accessibilityLabel="Open booking filters"
           >
-            <Text style={styles.recurringLinkText}>
-              ⚙
-              {Object.values(advancedFilters).flat().length > 0
-                ? ` (${Object.values(advancedFilters).flat().length})`
-                : ''}
-            </Text>
+            <Filter size={18} color={colors.primary} />
+            {Object.values(advancedFilters).flat().length > 0 && (
+              <Text style={styles.recurringLinkText}>
+                {` (${Object.values(advancedFilters).flat().length})`}
+              </Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.recurringLink}
             onPress={() => router.push(Routes.CUSTOMER.RECURRING_BOOKINGS)}
           >
-            <Text style={styles.recurringLinkText}>🔄 Recurring</Text>
+            <Repeat size={16} color={colors.primary} />
+            <Text style={styles.recurringLinkText}> Recurring</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -267,7 +268,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.base },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
   title: { ...typography.h1, color: colors.text },
-  recurringLink: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
+  recurringLink: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   recurringLinkText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
 
   filterRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.base },

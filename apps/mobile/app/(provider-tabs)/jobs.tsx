@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { getProviderBookings } from '@/services/provider-api.service';
 import type { Booking } from '@/services/booking.service';
-import { AlertTriangle, Inbox, CheckCircle2, Ban, Filter } from '@/components/icons';
+import { AlertTriangle, Inbox, CheckCircle2, Ban, Filter, MapPin } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 // Phase 14 R5-complete — wire StatusBadge + FilterChips + PaginationLoader
 // + PulsingDot + NbiStatusBanner (auto-hides when NBI is valid).
@@ -113,9 +113,12 @@ export default function ProviderJobsScreen(): React.ReactElement {
         <Text style={styles.jobId}>#{formatBookingRef(item.id, item.createdAt)}</Text>
       </View>
       <Text style={styles.jobService}>{item.serviceName ?? item.categoryName ?? 'Service'}</Text>
-      <Text style={styles.jobAddress} numberOfLines={1}>
-        📍 {[item.address, item.barangay, item.city].filter(Boolean).join(', ')}
-      </Text>
+      <View style={styles.jobAddressRow}>
+        <MapPin size={13} color={colors.textTertiary} />
+        <Text style={styles.jobAddress} numberOfLines={1}>
+          {[item.address, item.barangay, item.city].filter(Boolean).join(', ')}
+        </Text>
+      </View>
       <View style={styles.jobBottom}>
         <Text style={styles.jobPrice}>{formatPHP(item.servicePrice)}</Text>
         <Text style={styles.jobDate}>
@@ -326,7 +329,8 @@ const styles = StyleSheet.create({
   },
   jobId: { ...typography.caption, color: colors.textTertiary, fontWeight: '600' },
   jobService: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
-  jobAddress: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.sm },
+  jobAddressRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.sm },
+  jobAddress: { ...typography.bodySmall, color: colors.textSecondary, flex: 1 },
   jobBottom: {
     flexDirection: 'row',
     justifyContent: 'space-between',
