@@ -1,7 +1,36 @@
 # D23 — Provider staff / team members
 
-**Status:** Decided (Ken, 2026-06-04). Build in progress — foundation on topic branch `feat/provider-staff`.
+**Status:** Decided (Ken, 2026-06-04). Build in progress on topic branch `feat/provider-staff` (not yet merged to master).
 **Owner:** AI coder, reviewed by Ken.
+
+### Build progress (2026-06-04)
+
+- **DONE — Phase 1 (foundation):** migration 131 (provider_staff, approval state
+  machine, users.role += provider_staff, performer_staff_id on bookings+reviews),
+  provider-staff.service with the pure tested state machine. ✅ tested.
+- **DONE — Phase 2 (admin Staff tab):** admin endpoints (list / review / suspend)
+  + the Staff tab on ProviderDetailPage with per-member performance. ✅ tested.
+- **DONE — Phase 3 (provider mobile manage team):** provider endpoints (list /
+  invite / remove), the mobile `provider/team` screen + profile menu entry. ✅ tested.
+- **DONE — quality flow backend:** submit-for-review (so admin approval is
+  reachable), assign-staff-to-booking endpoint + service, and review attribution
+  (createReview copies performer_staff_id → reviews so performance rolls up to the
+  provider and into the per-member breakdown). Mobile "Submit for review" button. ✅ tested.
+
+- **REMAINING — assign-from-app UI:** the assign-staff endpoint works, but the
+  provider can't yet trigger it from the app. Needs a staff picker on the active
+  job screen AND `performerStaffId` threaded through the booking DTO (the booking
+  response mapping is spread across booking.service/routes — money-path-adjacent,
+  so do it carefully, not at the tail of a long session).
+- **REMAINING — Phase 4 (staff own login):** the heaviest, auth-sensitive layer —
+  invite-accept, the `provider_staff` role wired into mobile navigation/route
+  guards, and the staff member's scoped "my assigned jobs" view. Recommend a
+  dedicated focused pass.
+
+Everything above master is functional and tested EXCEPT the two remaining items;
+the provider can build + submit a team, back-office can approve/suspend, and a
+member's reviews already attribute + roll up once a job is assigned (assignment is
+currently API-only until the assign-from-app UI lands).
 
 ## The ask (Ken, 2026-06-04)
 
