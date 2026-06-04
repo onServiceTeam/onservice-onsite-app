@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import { platformConfig } from '@/config/platform.config';
 // Phase 14 remediation — audited (D14r-9 markers pass)
@@ -60,6 +60,7 @@ const MIN_PHOTOS = 2;
 export default function JobCompleteScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [photos, setPhotos] = useState<(string | null)[]>(() =>
     Array.from({ length: PHOTO_SLOTS }, () => null),
   );
@@ -225,6 +226,10 @@ export default function JobCompleteScreen(): React.ReactElement {
         completionNotes: notes.trim() || undefined,
       });
 
+      // Refresh the booking + the provider's job lists so the dashboard
+      // doesn't keep showing this job as in-progress from stale cache.
+      void queryClient.invalidateQueries({ queryKey: ['booking', id] });
+      void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
       Alert.alert('Submitted', 'Job marked as complete.');
       router.replace(Routes.PROVIDER_TABS.DASHBOARD);
     } catch (err) {

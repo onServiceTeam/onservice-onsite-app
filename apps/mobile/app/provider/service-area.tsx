@@ -19,7 +19,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import MapView, { Marker, Circle as MapCircle, PROVIDER_DEFAULT } from 'react-native-maps';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { getMyProfile } from '@/services/provider-api.service';
 import { getErrorMessage } from '@/utils/errors';
@@ -37,6 +37,7 @@ const DEFAULT_LNG = FALLBACK_REGION.longitude;
 
 export default function ProviderServiceAreaScreen(): React.ReactElement {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [centerLat, setCenterLat] = useState<number>(DEFAULT_LAT);
   const [centerLng, setCenterLng] = useState<number>(DEFAULT_LNG);
   const [radiusKm, setRadiusKm] = useState<number>(15);
@@ -107,6 +108,9 @@ export default function ProviderServiceAreaScreen(): React.ReactElement {
         longitude: centerLng,
         serviceRadiusKm: radiusKm,
       });
+      // Refresh the cached profile so reopening this screen shows the new
+      // coordinates/radius instead of stale values.
+      void queryClient.invalidateQueries({ queryKey: ['providerProfile'] });
       Alert.alert('Saved', 'Your service area has been updated.', [
         { text: 'OK', onPress: () => router.back() },
       ]);

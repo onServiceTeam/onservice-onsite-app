@@ -3,6 +3,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { createReviewSchema, providerResponseSchema } from '../validators/review.validators';
 import * as reviewService from '../services/review.service';
+import * as bookingService from '../services/booking.service';
 import { createAppError } from '../middleware/error.middleware';
 import { db } from '../models/db';
 
@@ -68,6 +69,12 @@ router.get(
     try {
       const bookingId = req.params['bookingId'];
       if (typeof bookingId !== 'string' || !bookingId) throw createAppError('Booking ID is required.', 400);
+
+      // IDOR fix — only a party to the booking (or an admin) may read its review
+      // by booking id. Public review browsing happens via the provider profile.
+      if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
+        await bookingService.getBookingById(bookingId, req.user!.userId);
+      }
 
       const review = await reviewService.getReviewByBooking(bookingId);
       if (!review) {

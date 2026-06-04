@@ -13,8 +13,10 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
-import api from '@/services/api';
 import { getBookingById } from '@/services/booking.service';
+import { updateBookingStatus } from '@/services/provider-api.service';
+import { useLocation } from '@/hooks/useLocation';
+import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import {
   ArrowLeft,
@@ -38,6 +40,7 @@ export default function NavigateToJobScreen(): React.ReactElement {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [marking, setMarking] = useState(false);
+  const { getCurrentLocation, isLoading: locating } = useLocation();
 
   const bookingQuery = useQuery({
     queryKey: ['booking', id],
@@ -91,11 +94,19 @@ export default function NavigateToJobScreen(): React.ReactElement {
     }
     setMarking(true);
     try {
-      await api.post(`/api/v1/bookings/${id}/arrived`);
+      const loc = await getCurrentLocation();
+      if (!loc) {
+        Alert.alert('Location needed', 'We need your current location to mark arrival.');
+        return;
+      }
+      // Server verifies the provider is within the arrival radius of the job.
+      await updateBookingStatus(id, 'provider_arrived', undefined, {
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+      });
       router.back();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not update arrival status.';
-      Alert.alert('Failed', msg);
+      Alert.alert('Failed', getErrorMessage(err, 'Could not update arrival status.'));
     } finally {
       setMarking(false);
     }
@@ -168,12 +179,12 @@ export default function NavigateToJobScreen(): React.ReactElement {
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.arrivedBtn, marking && styles.arrivedBtnDisabled]}
+          style={[styles.arrivedBtn, (marking || locating) && styles.arrivedBtnDisabled]}
           onPress={handleArrived}
           activeOpacity={0.7}
-          disabled={marking}
+          disabled={marking || locating}
         >
-          {marking ? (
+          {(marking || locating) ? (
             <ActivityIndicator size="small" color={colors.white} />
           ) : (
             <>

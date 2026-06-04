@@ -3,6 +3,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { sendTipSchema } from '../validators/tip.validators';
 import * as tipService from '../services/tip.service';
+import * as bookingService from '../services/booking.service';
 import { getSettingNumber } from '../services/settings.service';
 import { createAppError } from '../middleware/error.middleware';
 
@@ -74,6 +75,13 @@ router.get(
     try {
       const bookingId = req.params['bookingId'];
       if (typeof bookingId !== 'string' || !bookingId) throw createAppError('Booking ID is required.', 400);
+
+      // IDOR fix — only a party to the booking (or an admin) may read its tips.
+      // getBookingById throws 404 when the caller is neither the customer, the
+      // assigned provider, nor the assigned staff performer.
+      if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
+        await bookingService.getBookingById(bookingId, req.user!.userId);
+      }
 
       const tips = await tipService.getTipsByBooking(bookingId);
       res.json({ success: true, data: tips.map(tipService.formatTip) });
