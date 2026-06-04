@@ -1003,18 +1003,34 @@ Two edge cases remain:
    `reference_id` but has **no unique constraint** on it, so nothing stops the
    second insert.
 
-**Why not fixed at v1.0:** the correct fix is a DB idempotency key (e.g. a partial
-unique index on `wallet_transactions.reference_id` scoped to top-up credits, plus
-`ON CONFLICT DO NOTHING` and reordering credit-before-status). `reference_id` is
-written by several transaction types, so the uniqueness scope must be designed +
-backfill-checked carefully — a money-path migration that should not be rushed.
+**Why not fixed at v1.0 + refined fix design (audited 2026-06-04):** a unique
+index on `wallet_transactions.reference_id` is the WRONG approach — `reference_id`
+is written by multiple flows with different semantics (generic `creditWallet`,
+booking.service:~1575, customer-admin wallet adjust), so a constraint there could
+reject legitimate rows. The RIGHT fix is **event-level idempotency**, which also
+covers booking-payment events, not just top-ups:
 
-**v1.1 scope:** add the scoped unique index + make `creditWallet` idempotent on
-`reference_id`, reorder so the credit commits before the status flip, and add a
-test for both edge cases. Until then, monitor `Wallet top-up credit failed` log
-lines (case 1) — they indicate a customer owed a manual credit.
+1. New table `webhook_events (event_id TEXT PRIMARY KEY, status TEXT
+   ['processing'|'done'], event_type, received_at, completed_at)`. The PayMongo
+   event id is `req.body.data.id` (stable across retries; distinct from the
+   nested payment id).
+2. At the start of `POST /paymongo` (after signature verify): claim via
+   `INSERT … (event_id,'processing') ON CONFLICT DO NOTHING RETURNING`. If no row,
+   look up the existing: `done` → idempotent 200 skip; `processing` → a concurrent
+   delivery, return 200 (PayMongo retries later).
+3. After the switch completes: `UPDATE … SET status='done'`.
+4. On throw (the outer catch, before `next(error)`): `DELETE` the claim so the
+   PayMongo retry reprocesses — this also fixes the "lost credit" case (#1),
+   because a `creditWallet` failure no longer leaves the intent permanently
+   `succeeded` with no credit.
 
-**Source:** Payment/webhook audit (2026-06-04).
+This is HIGH blast radius (the webhook processes ALL payment events — booking
+payments + top-ups), so it needs a dedicated session with webhook tests, not a
+tail-of-marathon edit. Until then: the common replay is already guarded by the
+`intent.status==='succeeded'` check, and ops should monitor `Wallet top-up credit
+failed` log lines (case 1 = a customer owed a manual credit).
+
+**Source:** Payment/webhook audit (2026-06-04; fix design refined same day).
 
 ---
 
