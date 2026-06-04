@@ -1026,8 +1026,15 @@ migrations or auth-path edits) rather than a rushed fix; the clear/safe findings
 from the same audit were fixed and shipped. None is a high-probability exploit on
 the current single-server, single-worker deployment.
 
-1. **Recurring auto-charge idempotency (currently prevented by config — fix
-   needed before scaling out workers).** `processRecurringBookings`
+1. **RESOLVED (2026-06-04, commit on master + migration 132).** Recurring
+   auto-charge is now idempotent: `recurring_instances` has a unique key on
+   `(recurring_booking_id, scheduled_date)` and `processRecurringBookings` claims
+   the instance via `INSERT ... ON CONFLICT DO NOTHING` before creating the
+   booking, skipping the cycle if already claimed. Behavioral tests in
+   `recurring-idempotency-gate.test.ts`. Original finding below for history:
+
+   ~~Recurring auto-charge idempotency (currently prevented by config — fix
+   needed before scaling out workers).~~ `processRecurringBookings`
    (`recurring.service.ts`) selects due series without a row lock, and
    `recurring_instances` has no unique key on `(recurring_booking_id,
    scheduled_date)`. In theory two concurrent/retried cron runs could create two
