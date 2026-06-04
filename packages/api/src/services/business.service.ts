@@ -612,6 +612,20 @@ export async function createContract(
     throw createAppError('You do not have permission to create contracts.', 403);
   }
 
+  // Money-field bounds — without these a negative agreedRate (creates credits)
+  // or a discount > 100% (negative invoice total) corrupts B2B invoicing.
+  if (!Number.isFinite(params.agreedRate) || params.agreedRate < 0) {
+    throw createAppError('Agreed rate must be a non-negative amount.', 400);
+  }
+  if (params.discountPercentage !== undefined &&
+      (!Number.isFinite(params.discountPercentage) || params.discountPercentage < 0 || params.discountPercentage > 100)) {
+    throw createAppError('Discount percentage must be between 0 and 100.', 400);
+  }
+  if (params.estimatedMonthlyValue !== undefined &&
+      (!Number.isFinite(params.estimatedMonthlyValue) || params.estimatedMonthlyValue < 0)) {
+    throw createAppError('Estimated monthly value cannot be negative.', 400);
+  }
+
   const result = await db.query<BusinessContractRow>(
     `INSERT INTO business_contracts (
       business_account_id, category_id, subcategory_id, provider_id,

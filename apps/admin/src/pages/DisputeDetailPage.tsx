@@ -585,6 +585,9 @@ function DisputeActions({
 
   const invalidate = (): void => {
     queryClient.invalidateQueries({ queryKey: ['admin-dispute-detail', disputeId] });
+    // Refresh the disputes list too, so its row status updates after resolve/
+    // assign/escalate/reopen when the admin navigates back.
+    queryClient.invalidateQueries({ queryKey: ['adminDisputes'] });
   };
 
   const assignMut = useMutation({

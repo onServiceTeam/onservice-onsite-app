@@ -106,7 +106,7 @@ export default function WalletScreen(): React.ReactElement {
     if (txFilter === 'all') return allTransactions;
     if (txFilter === 'topup') {
       return allTransactions.filter(
-        (t) => t.type === 'topup' || t.type === 'wallet_topup' || t.description.toLowerCase().includes('top-up'),
+        (t) => t.type === 'topup' || t.type === 'wallet_topup' || (t.description ?? '').toLowerCase().includes('top-up'),
       );
     }
     if (txFilter === 'payment') {

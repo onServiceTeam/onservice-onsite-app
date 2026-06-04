@@ -366,7 +366,7 @@ export default function HomeScreen(): React.ReactElement {
   );
 
   const renderCategoryItem = ({ item }: { item: Category }): React.ReactElement => {
-    const Icon = CATEGORY_ICONS[item.slug] ?? CATEGORY_ICONS[item.name.toLowerCase()] ?? Hammer;
+    const Icon = CATEGORY_ICONS[item.slug] ?? CATEGORY_ICONS[(item.name ?? '').toLowerCase()] ?? Hammer;
     return (
       <TouchableOpacity
         style={styles.categoryItem}

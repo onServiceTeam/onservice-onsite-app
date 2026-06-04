@@ -299,6 +299,9 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
     queryClient.invalidateQueries({ queryKey: ['admin-booking-timeline', bookingId] });
     queryClient.invalidateQueries({ queryKey: ['admin-booking-dispute', bookingId] });
     queryClient.invalidateQueries({ queryKey: ['admin-booking-evidence', bookingId] });
+    // Also refresh the bookings list so its row reflects the action when the
+    // admin navigates back (was stale until a manual refetch).
+    queryClient.invalidateQueries({ queryKey: ['adminBookings'] });
   };
 
   const reset = (): void => {

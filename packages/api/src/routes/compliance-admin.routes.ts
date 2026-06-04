@@ -116,9 +116,12 @@ router.get(
 router.get(
   '/consent/users/:userId',
   authMiddleware,
+  // NPC RA 10173 §21 segregation — consent records are DPO-scoped. This must
+  // match the /consent search (also requireDpoRole); leaving it at requireAdmin
+  // let a non-DPO admin read the same consent data the search gates.
+  requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const data = await compliance.listConsentForUser(req.params.userId as string);
       res.json({ success: true, data });
     } catch (error) { next(error); }
@@ -277,7 +280,10 @@ router.post(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      // DSR decisions are super_admin-gated, matching the sibling /reject +
+      // /escalate (a junior admin shouldn't close a data-subject request when
+      // they can't reject one). NPC RA 10173 segregation of duties.
+      requireSuperAdmin(req);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const data = await complianceAdmin.markDsrComplete({
         dsrId: req.params.id as string,
@@ -295,7 +301,8 @@ router.post(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      // Super_admin-gated to match the other DSR decision endpoints.
+      requireSuperAdmin(req);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const infoNeeded = typeof body.infoNeeded === 'string' ? body.infoNeeded : '';
       validateDsrText(infoNeeded, 'infoNeeded');
