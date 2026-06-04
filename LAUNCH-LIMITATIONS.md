@@ -1086,3 +1086,57 @@ the current single-server, single-worker deployment.
 
 **Source:** Deep audit (2026-06-04). Auth, messaging, dispute, address, payout,
 notification, and staff authorization were all audited and confirmed correct.
+
+---
+
+## 35. Deep-audit 2026-06-04 (wave 2) — high-priority hardening needing dedicated work
+
+These were surfaced by the wave-2 deep audit. The contained, safe fixes from the
+same wave shipped immediately (socket typing authorization; tip phantom-charge
+rowCount guard). The items below are real and important but need careful,
+test-backed money-path or infra changes — NOT a tail-of-session edit.
+
+### 35a. KYC documents may be readable by direct URL (PRIVACY/NPC — highest priority)
+Government ID front/back, NBI clearance, and selfie are uploaded via the same
+generic `/api/v1/uploads` flow (`upload.service.ts`) and stored with **direct,
+non-expiring CDN/S3 URLs** (no presigned URLs). The object key includes a random
+UUID, so it isn't trivially enumerable, but the URL is bearer-access: anyone with
+the URL (which is stored in the DB and passed around) can read the document, and
+the bucket appears to serve objects by URL (booking photos display that way). For
+ordinary booking photos that's acceptable; for **KYC personal data it is an NPC
+RA 10173 exposure**. Fix (dedicated, infra + code + migration): store KYC docs in
+a private bucket and serve them only through an authenticated proxy endpoint
+(owner + admin) or short-lived presigned URLs; migrate existing rows.
+
+### 35b. Refund / escrow money operations are not fully atomic
+- `payment.service.processRefund` reads `refunded_amount`, calls PayMongo, then
+  UPDATEs — with no transaction or `SELECT ... FOR UPDATE`. Concurrent refunds for
+  one booking can race (double PayMongo refund recorded once, or an orphaned
+  second refund). Fix: wrap in a trx with `FOR UPDATE` on the payment_intent and
+  re-validate the cumulative cap at write time.
+- `escrow.service.refundFromEscrow` debits escrow in a trx, then calls
+  `processRefund` OUTSIDE it. A mid-failure leaves escrow debited but the intent
+  not updated. (A retry-enqueue partly mitigates.)
+- `dispute.service` (resolveDispute / acceptPartialOffer / addProviderResponse):
+  the booking is committed to `status='resolved'` BEFORE the refund is attempted;
+  if `refundFromEscrow` throws it's caught + logged + swallowed, so the booking
+  reads "resolved" while no money moved and the provider split never releases.
+  Fix: don't mark resolved until the money movement succeeds (or move to a
+  pending/`refund_failed` state with reconciliation + alerting), and make the
+  escrow-move + status-flip atomic.
+
+These are low-probability today (refunds/disputes are admin-driven and serialized
+in practice) but are real correctness/money-integrity gaps. Each needs its own
+focused, tested change.
+
+### 35c. File-upload defense-in-depth
+`upload.service.validateFile` checks MIME + extension only (no magic-byte
+inspection); no per-user/per-booking upload quota (10MB×10 per request, unbounded
+total). Fix: add `file-type` magic-byte validation and a per-booking/per-user
+upload cap. (Path traversal is already prevented — the client filename is never
+used as the key.)
+
+**Source:** Deep audit wave 2 (2026-06-04). Socket auth, JWT re-validation, socket
+rate-limiting, admin-room isolation, and the many atomic money paths
+(releaseEscrowInTransaction, debitWalletInTransaction, requestPayout,
+redeemReferralCode, redeemPoints) were audited and confirmed correct.

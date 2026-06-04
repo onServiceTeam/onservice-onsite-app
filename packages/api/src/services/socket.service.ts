@@ -218,15 +218,23 @@ export function initSocketServer(httpServer: HttpServer): Server {
       }
     });
 
-    socket.on('typing:start', (conversationId: string) => {
-      // typing events are silent on rate-limit (no error spam back).
+    // Typing events must be authorized like join/send/mark-read — otherwise a
+    // user could spam fake "typing" indicators into any conversation room they
+    // aren't a participant of. Silent on failure (no error spam, like rate-limit).
+    socket.on('typing:start', async (conversationId: string) => {
       if (!checkRateLimit(socket)) return;
-      socket.to(`conversation:${conversationId}`).emit('typing:start', { userId });
+      try {
+        await messagingService.getConversationById(conversationId, userId);
+        socket.to(`conversation:${conversationId}`).emit('typing:start', { userId });
+      } catch { /* not a participant — drop silently */ }
     });
 
-    socket.on('typing:stop', (conversationId: string) => {
+    socket.on('typing:stop', async (conversationId: string) => {
       if (!checkRateLimit(socket)) return;
-      socket.to(`conversation:${conversationId}`).emit('typing:stop', { userId });
+      try {
+        await messagingService.getConversationById(conversationId, userId);
+        socket.to(`conversation:${conversationId}`).emit('typing:stop', { userId });
+      } catch { /* not a participant — drop silently */ }
     });
 
     socket.on('disconnect', () => {

@@ -101,11 +101,18 @@ export async function sendTip(
     if (Number(wallet.available_balance) < data.amount) {
       throw createAppError('Insufficient wallet balance for tip.', 400);
     }
-    await client.query(
+    const debit = await client.query(
       `UPDATE wallets SET available_balance = available_balance - $1, updated_at = NOW()
        WHERE id = $2 AND available_balance >= $1`,
       [data.amount, wallet.id],
     );
+    // The balance read above isn't FOR UPDATE, so a concurrent tip could have
+    // drained the wallet between the check and this guarded UPDATE. If the
+    // guard matched 0 rows the debit didn't happen — abort the whole trx so we
+    // never credit the provider / record a tip without actually charging.
+    if (debit.rowCount === 0) {
+      throw createAppError('Insufficient wallet balance for tip.', 400);
+    }
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
        VALUES ($1, $2, 'payment', $3, (SELECT available_balance FROM wallets WHERE id = $1), 'Tip sent')`,
