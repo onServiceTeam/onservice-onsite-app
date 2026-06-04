@@ -11,6 +11,9 @@ const dbQueryMock = jest.fn();
 jest.mock('../src/models/db', () => ({
   db: {
     query: (...args: unknown[]) => dbQueryMock(...args),
+    // §35b — processRefund runs inside db.transaction with FOR UPDATE.
+    transaction: (cb: (client: { query: (...a: unknown[]) => unknown }) => unknown) =>
+      cb({ query: (...args: unknown[]) => dbQueryMock(...args) }),
   },
 }));
 

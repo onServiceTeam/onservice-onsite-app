@@ -235,117 +235,138 @@ export async function processRefund(
     throw createAppError('refundAmount must be a positive integer (centavos).', 400);
   }
 
-  const intent = await getBookingPaymentIntent(bookingId);
-  if (!intent) throw createAppError('No payment found for this booking.', 404);
-
-  // CRIT-01 — accept either succeeded or partially_refunded.
-  if (intent.status !== 'succeeded' && intent.status !== 'partially_refunded') {
-    throw createAppError(
-      `Can only refund payments in status 'succeeded' or 'partially_refunded' (current: ${intent.status}).`,
-      409,
+  // §35b fix — serialize refunds for one booking and re-validate the
+  // cumulative cap at WRITE time under a row lock. Pre-fix this read
+  // refunded_amount, called PayMongo, then UPDATEd with no transaction or
+  // lock, so two concurrent refunds for the same booking could both pass
+  // the cap check and both call PayMongo / double-record. Now we lock the
+  // booking's payment_intent row FOR UPDATE, validate, call PayMongo while
+  // holding the lock, then UPDATE+commit; if PayMongo fails (prod) the trx
+  // rolls back so no partial state is recorded. Refunds are admin-driven
+  // and low-volume, so holding the row lock across the PayMongo call is
+  // acceptable and avoids orphaned-claim states on crash.
+  await db.transaction(async (client) => {
+    // Lock the same row getBookingPaymentIntent would have returned.
+    const intentResult = await client.query<PaymentIntentRow>(
+      `SELECT * FROM payment_intents
+         WHERE booking_id = $1
+         ORDER BY created_at DESC
+         LIMIT 1
+         FOR UPDATE`,
+      [bookingId],
     );
-  }
+    const intent = intentResult.rows[0];
+    if (!intent) throw createAppError('No payment found for this booking.', 404);
 
-  // CRIT-01 — cumulative refunded check. The column is added by
-  // mig 114; for older deployments before mig 114 lands, refunded_amount
-  // may be undefined — treat it as 0 (matching the column default).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const currentRefunded = Number((intent as any).refunded_amount ?? 0);
-  const intentAmount = Number(intent.amount);
-  const newCumulative = currentRefunded + refundAmount;
-  if (newCumulative > intentAmount) {
-    throw createAppError(
-      `Refund amount ${refundAmount} would exceed remaining refundable balance (already refunded: ${currentRefunded}, intent total: ${intentAmount}).`,
-      400,
-    );
-  }
-
-  // CRIT-02 — get the actual PayMongo payment ID (pay_XYZ) for the
-  // refund call. paymongo_payment_id column populated from the
-  // payment.paid webhook (post-mig-114 + webhook fix). Fall back to
-  // metadata.reference_id for in-flight rows before the column lands.
-
-  const paymongoPaymentId: string | null =
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (intent as any).paymongo_payment_id ??
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (intent.metadata as any)?.reference_id ??
-    null;
-
-  // Skip PayMongo call for sandbox intents and intents with no captured
-  // payment id (sandbox / test fixtures / pre-mig rows).
-  const shouldCallPayMongo =
-    paymongoPaymentId !== null &&
-    paymongoPaymentId.startsWith('pay_') &&
-    !paymongoPaymentId.includes('sandbox');
-
-  if (shouldCallPayMongo) {
-    try {
-      const response = await globalThis.fetch(`${PAYMONGO_BASE}/refunds`, {
-        method: 'POST',
-        headers: { ...getPaymongoHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data: {
-            attributes: {
-              amount: refundAmount,
-              // CRIT-02 — use the PAYMENT id, not the intent id.
-              payment_id: paymongoPaymentId,
-              reason: 'requested_by_customer',
-              notes: reason,
-            },
-          },
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(`PayMongo refund returned status ${response.status}`);
-      }
-    } catch (err) {
-      logger.error('PayMongo refund failed', { bookingId, error: err instanceof Error ? err.message : 'Unknown' });
-      if (process.env.NODE_ENV === 'production') {
-        throw createAppError('Refund processing failed. Please contact support.', 502);
-      }
+    // CRIT-01 — accept either succeeded or partially_refunded.
+    if (intent.status !== 'succeeded' && intent.status !== 'partially_refunded') {
+      throw createAppError(
+        `Can only refund payments in status 'succeeded' or 'partially_refunded' (current: ${intent.status}).`,
+        409,
+      );
     }
-  } else if (paymongoPaymentId === null && process.env.NODE_ENV === 'production') {
-    // Production should always have a payment id by the time refund
-    // runs (the webhook captures it on payment.paid). If we get here
-    // in prod, log loudly but don't block the refund — the customer
-    // still gets the wallet credit; we just need ops to reconcile
-    // with PayMongo manually.
-    logger.error('Refund attempted without PayMongo payment ID — manual reconciliation required', {
+
+    // CRIT-01 — cumulative refunded check, re-evaluated under the lock so a
+    // concurrent refund that committed first is reflected here.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const currentRefunded = Number((intent as any).refunded_amount ?? 0);
+    const intentAmount = Number(intent.amount);
+    const newCumulative = currentRefunded + refundAmount;
+    if (newCumulative > intentAmount) {
+      throw createAppError(
+        `Refund amount ${refundAmount} would exceed remaining refundable balance (already refunded: ${currentRefunded}, intent total: ${intentAmount}).`,
+        400,
+      );
+    }
+
+    // CRIT-02 — get the actual PayMongo payment ID (pay_XYZ) for the
+    // refund call. paymongo_payment_id column populated from the
+    // payment.paid webhook (post-mig-114 + webhook fix). Fall back to
+    // metadata.reference_id for in-flight rows before the column lands.
+    const paymongoPaymentId: string | null =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (intent as any).paymongo_payment_id ??
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (intent.metadata as any)?.reference_id ??
+      null;
+
+    // Skip PayMongo call for sandbox intents and intents with no captured
+    // payment id (sandbox / test fixtures / pre-mig rows).
+    const shouldCallPayMongo =
+      paymongoPaymentId !== null &&
+      paymongoPaymentId.startsWith('pay_') &&
+      !paymongoPaymentId.includes('sandbox');
+
+    if (shouldCallPayMongo) {
+      try {
+        const response = await globalThis.fetch(`${PAYMONGO_BASE}/refunds`, {
+          method: 'POST',
+          headers: { ...getPaymongoHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            data: {
+              attributes: {
+                amount: refundAmount,
+                // CRIT-02 — use the PAYMENT id, not the intent id.
+                payment_id: paymongoPaymentId,
+                reason: 'requested_by_customer',
+                notes: reason,
+              },
+            },
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(`PayMongo refund returned status ${response.status}`);
+        }
+      } catch (err) {
+        logger.error('PayMongo refund failed', { bookingId, error: err instanceof Error ? err.message : 'Unknown' });
+        if (process.env.NODE_ENV === 'production') {
+          // Roll back the whole trx (the UPDATE below never runs) so the
+          // intent is not recorded as refunded when no money moved.
+          throw createAppError('Refund processing failed. Please contact support.', 502);
+        }
+      }
+    } else if (paymongoPaymentId === null && process.env.NODE_ENV === 'production') {
+      // Production should always have a payment id by the time refund
+      // runs (the webhook captures it on payment.paid). If we get here
+      // in prod, log loudly but don't block the refund — the customer
+      // still gets the wallet credit; we just need ops to reconcile
+      // with PayMongo manually.
+      logger.error('Refund attempted without PayMongo payment ID — manual reconciliation required', {
+        bookingId,
+        intentId: intent.id,
+        paymongoIntentId: intent.paymongo_intent_id,
+      });
+    }
+
+    const finalStatus = newCumulative >= intentAmount ? 'refunded' : 'partially_refunded';
+
+    // Atomic UPDATE — both fields move together, under the same lock.
+    await client.query(
+      `UPDATE payment_intents
+          SET status = $1,
+              refunded_amount = $2,
+              updated_at = NOW(),
+              metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb
+        WHERE id = $3`,
+      [
+        finalStatus,
+        newCumulative,
+        intent.id,
+        JSON.stringify({
+          last_refund_at: new Date().toISOString(),
+          last_refund_amount: refundAmount,
+          last_refund_reason: reason,
+        }),
+      ],
+    );
+
+    logger.info('Refund processed', {
       bookingId,
-      intentId: intent.id,
-      paymongoIntentId: intent.paymongo_intent_id,
-    });
-  }
-
-  const finalStatus = newCumulative >= intentAmount ? 'refunded' : 'partially_refunded';
-
-  // Atomic UPDATE — both fields move together.
-  await db.query(
-    `UPDATE payment_intents
-        SET status = $1,
-            refunded_amount = $2,
-            updated_at = NOW(),
-            metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb
-      WHERE id = $3`,
-    [
+      refundAmount,
+      cumulativeRefunded: newCumulative,
+      intentAmount,
       finalStatus,
-      newCumulative,
-      intent.id,
-      JSON.stringify({
-        last_refund_at: new Date().toISOString(),
-        last_refund_amount: refundAmount,
-        last_refund_reason: reason,
-      }),
-    ],
-  );
-
-  logger.info('Refund processed', {
-    bookingId,
-    refundAmount,
-    cumulativeRefunded: newCumulative,
-    intentAmount,
-    finalStatus,
+    });
   });
 }
 

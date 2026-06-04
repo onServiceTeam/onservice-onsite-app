@@ -1122,11 +1122,13 @@ a private bucket and serve them only through an authenticated proxy endpoint
 (owner + admin) or short-lived presigned URLs; migrate existing rows.
 
 ### 35b. Refund / escrow money operations are not fully atomic
-- `payment.service.processRefund` reads `refunded_amount`, calls PayMongo, then
-  UPDATEs — with no transaction or `SELECT ... FOR UPDATE`. Concurrent refunds for
-  one booking can race (double PayMongo refund recorded once, or an orphaned
-  second refund). Fix: wrap in a trx with `FOR UPDATE` on the payment_intent and
-  re-validate the cumulative cap at write time.
+- `payment.service.processRefund` — **RESOLVED (2026-06-04).** Pre-fix it read
+  `refunded_amount`, called PayMongo, then UPDATEd with no transaction or lock, so
+  concurrent refunds for one booking could race. Now wrapped in a `db.transaction`
+  that locks the booking's `payment_intent` row `FOR UPDATE`, re-validates the
+  cumulative cap at write time, calls PayMongo while holding the lock, then
+  UPDATEs; a PayMongo failure in prod rolls the trx back so no partial state is
+  recorded. Test: `b-crit01-crit02-partial-refund.test.ts` (FOR-UPDATE shape).
 - `escrow.service.refundFromEscrow` debits escrow in a trx, then calls
   `processRefund` OUTSIDE it. A mid-failure leaves escrow debited but the intent
   not updated. (A retry-enqueue partly mitigates.)

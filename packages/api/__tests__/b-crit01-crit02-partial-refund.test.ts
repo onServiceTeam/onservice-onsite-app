@@ -3,7 +3,15 @@
 
 const dbQueryMock = jest.fn();
 jest.mock('../src/models/db', () => ({
-  db: { query: (...a: unknown[]) => dbQueryMock(...a) },
+  db: {
+    query: (...a: unknown[]) => dbQueryMock(...a),
+    // §35b — processRefund now runs inside db.transaction with a
+    // SELECT ... FOR UPDATE. Route the trx client through the same mock so
+    // the existing call-order assertions (calls[0]=SELECT, calls[1]=UPDATE)
+    // still hold.
+    transaction: (cb: (client: { query: (...a: unknown[]) => unknown }) => unknown) =>
+      cb({ query: (...a: unknown[]) => dbQueryMock(...a) }),
+  },
 }));
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
@@ -151,6 +159,23 @@ describe('Phase B CRIT-01 — partial refund can be called multiple times', () =
     await expect(processRefund('booking-1', -100, 'r')).rejects.toMatchObject({ statusCode: 400 });
     await expect(processRefund('booking-1', 0, 'r')).rejects.toMatchObject({ statusCode: 400 });
     await expect(processRefund('booking-1', 1.5, 'r')).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('§35b — locks the payment_intent row with SELECT ... FOR UPDATE before refunding', async () => {
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [{
+        id: 'intent-1', booking_id: 'booking-1', paymongo_intent_id: 'pi_sandbox_xyz',
+        paymongo_payment_id: null, amount: '10000', refunded_amount: 0,
+        payment_method: 'card', status: 'succeeded', client_key: null, metadata: {},
+      }],
+      rowCount: 1,
+    });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 }); // UPDATE
+
+    await processRefund('booking-1', 3000, 'lock check');
+    const selectSql = dbQueryMock.mock.calls[0]![0] as string;
+    expect(selectSql).toMatch(/FROM payment_intents/);
+    expect(selectSql).toMatch(/FOR UPDATE/);
   });
 });
 
