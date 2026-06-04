@@ -538,6 +538,34 @@ export async function processRecurringBookings(): Promise<number> {
 
   let created = 0;
   for (const rb of dueBookings.rows) {
+    // Idempotency gate — claim this (series, scheduled_date) before doing any
+    // work. ON CONFLICT DO NOTHING means a prior/concurrent run already handled
+    // this cycle, so we skip rather than create a second booking + charge.
+    // (uq_recurring_instances_series_date enforces one instance per cycle.)
+    let instanceId: string;
+    try {
+      const claim = await db.query<{ id: string }>(
+        `INSERT INTO recurring_instances (recurring_booking_id, scheduled_date, status)
+         VALUES ($1, $2, 'pending')
+         ON CONFLICT (recurring_booking_id, scheduled_date) DO NOTHING
+         RETURNING id`,
+        [rb.id, rb.next_booking_date],
+      );
+      if (claim.rows.length === 0) {
+        logger.info('Recurring cycle already claimed — skipping (idempotent)', {
+          recurringId: rb.id, scheduledDate: rb.next_booking_date,
+        });
+        continue;
+      }
+      instanceId = claim.rows[0]!.id;
+    } catch (claimErr) {
+      logger.error('Failed to claim recurring instance — skipping this cycle', {
+        recurringId: rb.id,
+        error: claimErr instanceof Error ? claimErr.message : String(claimErr),
+      });
+      continue;
+    }
+
     try {
       const scheduledAt = new Date(`${rb.next_booking_date}T${rb.preferred_time}+08:00`);
 
@@ -566,10 +594,10 @@ export async function processRecurringBookings(): Promise<number> {
 
       const bookingId = bookingResult.rows[0]!.id;
 
+      // Attach the booking to the instance we claimed above + mark it created.
       await db.query(
-        `INSERT INTO recurring_instances (recurring_booking_id, booking_id, scheduled_date, status)
-         VALUES ($1, $2, $3, 'created')`,
-        [rb.id, bookingId, rb.next_booking_date],
+        `UPDATE recurring_instances SET booking_id = $1, status = 'created' WHERE id = $2`,
+        [bookingId, instanceId],
       );
 
       const nextDate = calculateNextDate(rb.frequency, rb.preferred_day, new Date(rb.next_booking_date));
@@ -628,10 +656,11 @@ export async function processRecurringBookings(): Promise<number> {
       created++;
       logger.info('Recurring booking instance created', { recurringId: rb.id, bookingId });
     } catch (err) {
+      // The instance was already claimed above — mark it failed rather than
+      // inserting a second row (which the unique key would now reject anyway).
       await db.query(
-        `INSERT INTO recurring_instances (recurring_booking_id, scheduled_date, status, failure_reason)
-         VALUES ($1, $2, 'failed', $3)`,
-        [rb.id, rb.next_booking_date, err instanceof Error ? err.message : 'Unknown error'],
+        `UPDATE recurring_instances SET status = 'failed', failure_reason = $1 WHERE id = $2`,
+        [err instanceof Error ? err.message : 'Unknown error', instanceId],
       );
 
       try {

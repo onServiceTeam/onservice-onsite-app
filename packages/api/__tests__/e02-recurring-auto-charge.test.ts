@@ -169,14 +169,14 @@ describe('E02 — recurring scheduler integration', () => {
     // The branch lives inside processRecurringBookings.
     const procStart = RECURRING_SVC.indexOf('export async function processRecurringBookings');
     expect(procStart).toBeGreaterThan(0);
-    const procBlock = RECURRING_SVC.slice(procStart, procStart + 6000);
+    const procBlock = RECURRING_SVC.slice(procStart, procStart + 9000);
     expect(procBlock).toMatch(/if \(rb\.auto_charge\)/);
     expect(procBlock).toMatch(/autoChargeService\.attemptAutoCharge/);
   });
 
   it('E02 — scheduler suppresses generic recurring_update notification on auto-charge success', () => {
     const procStart = RECURRING_SVC.indexOf('export async function processRecurringBookings');
-    const procBlock = RECURRING_SVC.slice(procStart, procStart + 6000);
+    const procBlock = RECURRING_SVC.slice(procStart, procStart + 9000);
     // "if (!autoChargeSucceeded) { ... type: 'recurring_update' ..."
     expect(procBlock).toMatch(/if \(!autoChargeSucceeded\)[\s\S]*?'recurring_update'/);
   });
