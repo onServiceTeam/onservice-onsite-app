@@ -984,6 +984,15 @@ specific promise we cannot keep.
 
 ## 33. Wallet top-up webhook idempotency not constraint-enforced (audit, 2026-06-04)
 
+**STATUS: RESOLVED (2026-06-04, migration 133).** Implemented event-level
+idempotency exactly as the refined plan below describes: a `webhook_events`
+table (event_id PK), claimed `'processing'` at the start of `POST /paymongo`,
+marked `'done'` on success, and DELETEd on failure so PayMongo's retry
+reprocesses (which also fixes the lost-credit case). Duplicate/concurrent
+deliveries are skipped via `ON CONFLICT DO NOTHING`. Behavioral test:
+`webhook-idempotency.test.ts`. Original analysis kept below for history.
+
+
 **What works today:** The PayMongo `payment.paid` webhook for a wallet top-up
 credits the wallet, and the common replay case is guarded: the handler skips if
 `payment_intents.status === 'succeeded'` (which is flipped before crediting), so

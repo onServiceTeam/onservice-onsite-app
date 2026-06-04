@@ -99,6 +99,8 @@ router.post(
   '/paymongo',
   webhookRateLimit, // MED-N164
   async (req: Request, res: Response, next: NextFunction) => {
+    // Declared outside the try so the catch can release the idempotency claim.
+    let claimedEventId: string | null = null;
     try {
       const signature = req.headers['paymongo-signature'];
       if (typeof signature !== 'string' || !signature) {
@@ -149,6 +151,35 @@ router.post(
       const isTopUp =
         intentKind === 'top_up' ||
         (intentKind === undefined && (bookingId?.startsWith('topup_') ?? false));
+
+      // §33 idempotency gate — claim this PayMongo event before doing any work.
+      // The event id (envelope `data.id`) is stable across PayMongo's retries.
+      const eventId: string | undefined = req.body?.data?.id;
+      if (eventId) {
+        const claim = await db.query<{ event_id: string }>(
+          `INSERT INTO webhook_events (event_id, event_type, status)
+           VALUES ($1, $2, 'processing')
+           ON CONFLICT (event_id) DO NOTHING
+           RETURNING event_id`,
+          [eventId, eventType],
+        );
+        if (claim.rows.length === 0) {
+          // Already claimed: 'done' = a true duplicate; 'processing' = a
+          // concurrent delivery still running. Either way, don't reprocess —
+          // ack 200 so PayMongo stops retrying (done) or retries later
+          // (processing resolves to done or gets released on failure).
+          const existing = await db.query<{ status: string }>(
+            `SELECT status FROM webhook_events WHERE event_id = $1`,
+            [eventId],
+          );
+          logger.info('Duplicate PayMongo webhook event — skipping (idempotent)', {
+            eventId, eventType, existingStatus: existing.rows[0]?.status,
+          });
+          res.json({ success: true, data: { received: true, idempotent: true } });
+          return;
+        }
+        claimedEventId = eventId;
+      }
 
       switch (eventType) {
         case 'payment.paid': {
@@ -336,8 +367,30 @@ router.post(
           logger.info('Unhandled webhook event type', { eventType });
       }
 
+      if (claimedEventId) {
+        await db.query(
+          `UPDATE webhook_events SET status = 'done', completed_at = NOW() WHERE event_id = $1`,
+          [claimedEventId],
+        );
+      }
       res.json({ success: true, data: { received: true } });
     } catch (error) {
+      // Processing failed — release the claim so PayMongo's retry reprocesses
+      // (this is what fixes the "lost credit" case: a failed creditWallet no
+      // longer leaves the event marked handled with nothing done).
+      if (claimedEventId) {
+        try {
+          await db.query(
+            `DELETE FROM webhook_events WHERE event_id = $1 AND status = 'processing'`,
+            [claimedEventId],
+          );
+        } catch (delErr) {
+          logger.error('Failed to release webhook idempotency claim', {
+            eventId: claimedEventId,
+            error: delErr instanceof Error ? delErr.message : String(delErr),
+          });
+        }
+      }
       next(error);
     }
   },
