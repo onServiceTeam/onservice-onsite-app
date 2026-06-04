@@ -276,6 +276,17 @@ bash scripts/verify-s3-bir.sh
 
 ## Item 9 — Production Postgres PITR
 
+> **Progress (2026-06-04):** A nightly backup is now live and verified — it dumps
+> the database AND tars the uploads volume (booking photos + KYC docs) to
+> `/opt/onservice/backups/`, keeps 7 days, and the dump has been restore-tested
+> (loads into a scratch DB with real rows). This fixes a latent bug where the
+> cron had been failing every night (non-executable script). Runbook:
+> `docs/runbooks/postgres-restore.md`. **Still needed (Ken/engineer):** (a) an
+> OFF-SITE copy target (Hetzner Storage Box or any rclone remote) so a total disk
+> loss doesn't lose the only backups — set `BACKUP_RCLONE_REMOTE` + install
+> rclone; (b) continuous WAL/PITR if sub-24h RPO is required. Daily dump + an
+> off-site copy is an acceptable launch baseline.
+
 **Owner:** API platform engineer
 **Estimated time:** 1–3 days
 **Cost:** ~30% premium over standard storage

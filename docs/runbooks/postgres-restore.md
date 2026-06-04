@@ -38,9 +38,12 @@ upgrade — see "Upgrade to PITR" below.)
    ```
    If the dump fails to apply cleanly onto the live DB, recreate it first:
    ```bash
+   # NOTE: separate -c flags — DROP/CREATE DATABASE cannot run inside one
+   # transaction block (a single multi-statement -c would error).
    docker compose -f docker-compose.prod.yml exec -T postgres \
-     psql -U onservice_user -d postgres -c \
-     "DROP DATABASE onservice WITH (FORCE); CREATE DATABASE onservice OWNER onservice_user;"
+     psql -U onservice_user -d postgres \
+     -c "DROP DATABASE onservice WITH (FORCE);" \
+     -c "CREATE DATABASE onservice OWNER onservice_user;"
    gunzip -c "$F" | docker compose -f docker-compose.prod.yml exec -T postgres \
      psql -U onservice_user -d onservice
    ```
@@ -64,13 +67,13 @@ docker run --rm -v onservice_uploads_data:/data -v /opt/onservice/backups:/backu
 ## Verify a backup WITHOUT a full restore (do this monthly)
 
 ```bash
-# DB dump loads into a scratch database:
+# DB dump loads into a scratch database (verified working 2026-06-04):
 docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U onservice_user -d postgres -c "CREATE DATABASE restore_test;"
+  psql -U onservice_user -d postgres -c "DROP DATABASE IF EXISTS restore_test;" -c "CREATE DATABASE restore_test;"
 gunzip -c /opt/onservice/backups/onservice-<TS>.sql.gz | \
-  docker compose -f docker-compose.prod.yml exec -T postgres psql -U onservice_user -d restore_test
+  docker compose -f docker-compose.prod.yml exec -T postgres psql -U onservice_user -d restore_test -q
 docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U onservice_user -d restore_test -c "SELECT count(*) FROM users;"
+  psql -U onservice_user -d restore_test -tA -c "SELECT count(*) FROM users;"
 docker compose -f docker-compose.prod.yml exec -T postgres \
   psql -U onservice_user -d postgres -c "DROP DATABASE restore_test;"
 ```
