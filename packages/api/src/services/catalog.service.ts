@@ -208,6 +208,28 @@ export async function updateCategory(
   });
 }
 
+// Catalog price bounds must satisfy min <= base <= max when present. Without
+// this, an admin could save inverted bounds (e.g. min 5000 > base 1000), which
+// downstream pricing/validation code assumes can't happen.
+function assertPriceBounds(
+  minPrice: number | null | undefined,
+  basePrice: number | null | undefined,
+  maxPrice: number | null | undefined,
+): void {
+  const min = minPrice ?? null;
+  const base = basePrice ?? null;
+  const max = maxPrice ?? null;
+  if (min != null && base != null && min > base) {
+    throw createAppError('Minimum price cannot exceed the base price.', 400);
+  }
+  if (base != null && max != null && base > max) {
+    throw createAppError('Base price cannot exceed the maximum price.', 400);
+  }
+  if (min != null && max != null && min > max) {
+    throw createAppError('Minimum price cannot exceed the maximum price.', 400);
+  }
+}
+
 export async function createSubcategory(
   input: {
     categoryId: string;
@@ -227,6 +249,7 @@ export async function createSubcategory(
   // BUG-PHASE163-01 fix — explicit length validation.
   validateCatalogText(input.name, 'name', CATALOG_NAME_MAX, false);
   validateCatalogText(input.description, 'description', CATALOG_DESCRIPTION_MAX);
+  assertPriceBounds(input.minPrice, input.basePrice, input.maxPrice);
   const slug = slugify(input.name);
 
   return db.transaction(async (client) => {
@@ -292,6 +315,23 @@ export async function updateSubcategory(
   // BUG-PHASE163-01 fix — explicit length validation on PATCH path.
   validateCatalogText(patch.name, 'name', CATALOG_NAME_MAX);
   validateCatalogText(patch.description, 'description', CATALOG_DESCRIPTION_MAX);
+
+  // Validate price bounds against the MERGED result (patch over existing), so a
+  // patch that only moves one bound can't create an inverted min/base/max.
+  if (patch.basePrice !== undefined || patch.minPrice !== undefined || patch.maxPrice !== undefined) {
+    const existing = await db.query<{ base_price: number | null; min_price: number | null; max_price: number | null }>(
+      `SELECT base_price, min_price, max_price FROM service_subcategories WHERE id = $1`,
+      [subcategoryId],
+    );
+    if (existing.rows.length === 0) throw createAppError('Subcategory not found.', 404);
+    const cur = existing.rows[0]!;
+    assertPriceBounds(
+      patch.minPrice !== undefined ? patch.minPrice : cur.min_price,
+      patch.basePrice !== undefined ? patch.basePrice : cur.base_price,
+      patch.maxPrice !== undefined ? patch.maxPrice : cur.max_price,
+    );
+  }
+
   const sets: string[] = [];
   const values: unknown[] = [];
   const auditPatch: Record<string, unknown> = {};
@@ -515,6 +555,19 @@ export async function updateAddon(
   // BUG-PHASE163-01 fix — explicit length validation on PATCH path.
   validateCatalogText(patch.name, 'name', CATALOG_NAME_MAX);
   validateCatalogText(patch.description, 'description', CATALOG_DESCRIPTION_MAX);
+  // Audit fix — mirror createAddon's admin-tunable price cap on the PATCH path
+  // (previously updateAddon could raise a price past the configured maximum).
+  if (patch.price !== undefined) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getAddonPriceMaxCentsLive } = require('../validators/admin-catalog.validators');
+    const liveMaxCents: number = await getAddonPriceMaxCentsLive();
+    if (patch.price > liveMaxCents) {
+      throw createAppError(
+        `Add-on price ${patch.price} exceeds the configured maximum (${liveMaxCents} centavos). Adjust addon_price_max_cents via Settings to raise the cap.`,
+        400,
+      );
+    }
+  }
   const sets: string[] = [];
   const values: unknown[] = [];
   const auditPatch: Record<string, unknown> = {};

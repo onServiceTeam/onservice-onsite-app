@@ -220,12 +220,16 @@ interface ExpoPushTicket {
 // Phase 36a — Quiet-hours bypass. Critical types are delivered even
 // during quiet hours so customers aren't left wondering whether their
 // payment went through or their booking was cancelled.
-const QUIET_HOURS_BYPASS_TYPES = new Set<string>([
-  'payment_received', 'payment_failed', 'refund_processed',
-  'booking_cancelled', 'booking_disputed',
-  'security_alert', 'admin_message',
+// Typed to NotificationType so a stale/typo'd entry is a compile error (the
+// previous Set<string> silently carried 5 type names that don't exist, so they
+// never matched). Only genuinely can't-wait-till-morning events bypass.
+const QUIET_HOURS_BYPASS_TYPES = new Set<NotificationType>([
+  // Money + booking-state changes the user needs even at night.
+  'refund_processed', 'booking_cancelled', 'provider_cancelled', 'customer_cancelled',
   // Provider arrival is time-sensitive — provider is at the door now.
   'provider_arrived',
+  // Customer is actively waiting on dispatch — tell them immediately if it failed.
+  'no_provider_available',
 ]);
 
 /**
@@ -242,7 +246,7 @@ async function isInQuietHours(
   userId: string,
   notificationType?: string,
 ): Promise<boolean> {
-  if (notificationType && QUIET_HOURS_BYPASS_TYPES.has(notificationType)) {
+  if (notificationType && QUIET_HOURS_BYPASS_TYPES.has(notificationType as NotificationType)) {
     return false;
   }
   const prefRow = await db.query<{
