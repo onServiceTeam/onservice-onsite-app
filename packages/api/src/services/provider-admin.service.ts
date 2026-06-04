@@ -12,6 +12,7 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import * as kycDocumentService from './kyc-document.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -49,13 +50,16 @@ export interface ProviderProfile {
     lastLoginAt: string | null;
   };
   documents: {
+    // §35a — these are authenticated proxy PATHS (admin-only), not raw storage
+    // URLs. The admin app fetches them with its bearer token; the file is read
+    // server-side from the private KYC bucket. null when no document uploaded.
     nbiClearanceUrl: string | null;
     nbiExpiryDate: string | null;
     nbiExpiryNotified: boolean;
     avatarUrl: string | null;
-    // Government ID + selfie fields not present in current schema (see HONESTY-CHECK).
-    governmentIdUrl: null;
-    selfieUrl: null;
+    governmentIdUrl: string | null;
+    governmentIdBackUrl: string | null;
+    selfieUrl: string | null;
   };
   categories: { id: string; name: string; basePrice: number | null }[];
   serviceAreas: { id: string; name: string; isPrimary: boolean }[];
@@ -159,6 +163,9 @@ export async function getProviderProfile(providerId: string): Promise<ProviderPr
     tier: string;
     status: string;
     nbi_clearance_url: string | null;
+    government_id_front_url: string | null;
+    government_id_back_url: string | null;
+    selfie_url: string | null;
     nbi_expiry_date: Date | null;
     nbi_expiry_notified: boolean;
     service_radius_km: number;
@@ -240,13 +247,22 @@ export async function getProviderProfile(providerId: string): Promise<ProviderPr
       isActive: p.is_active,
       lastLoginAt: p.last_login_at ? p.last_login_at.toISOString() : null,
     },
+    // §35a — never emit the raw storage URL for KYC PII. Return an
+    // authenticated proxy path (admin-only) that the admin app fetches WITH
+    // its bearer token; the actual object is read server-side from the
+    // private KYC bucket. A field is null when no document was uploaded.
     documents: {
-      nbiClearanceUrl: p.nbi_clearance_url,
+      nbiClearanceUrl: p.nbi_clearance_url
+        ? kycDocumentService.kycProxyPath('admin', 'nbi_clearance', p.id) : null,
       nbiExpiryDate: p.nbi_expiry_date ? p.nbi_expiry_date.toISOString().slice(0, 10) : null,
       nbiExpiryNotified: p.nbi_expiry_notified,
       avatarUrl: p.avatar_url,
-      governmentIdUrl: null,
-      selfieUrl: null,
+      governmentIdUrl: p.government_id_front_url
+        ? kycDocumentService.kycProxyPath('admin', 'government_id_front', p.id) : null,
+      governmentIdBackUrl: p.government_id_back_url
+        ? kycDocumentService.kycProxyPath('admin', 'government_id_back', p.id) : null,
+      selfieUrl: p.selfie_url
+        ? kycDocumentService.kycProxyPath('admin', 'selfie', p.id) : null,
     },
     categories: categoriesResult.rows.map((r) => ({
       id: r.id,

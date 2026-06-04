@@ -44,6 +44,7 @@ let s3Client: {
 let s3Commands: {
   PutObjectCommand: new (params: Record<string, unknown>) => unknown;
   DeleteObjectCommand: new (params: Record<string, unknown>) => unknown;
+  GetObjectCommand: new (params: Record<string, unknown>) => unknown;
 } | null = null;
 
 async function getS3(): Promise<{
@@ -66,6 +67,7 @@ async function getS3(): Promise<{
     s3Commands = {
       PutObjectCommand: cmds.PutObjectCommand,
       DeleteObjectCommand: cmds.DeleteObjectCommand,
+      GetObjectCommand: cmds.GetObjectCommand,
     };
   }
   return { client: s3Client, commands: s3Commands };
@@ -274,4 +276,104 @@ export async function deleteUploadedFile(filename: string): Promise<void> {
 
 export function getUploadDir(): string {
   return UPLOAD_DIR;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// §35a — private KYC document serving.
+//
+// KYC docs (gov ID, NBI, selfie) were stored with direct CDN/S3 URLs and
+// handed to clients on upload — a bearer URL anyone could read. The fix is
+// to serve them ONLY through an authenticated proxy (owner + admin), reading
+// the object server-side with the API's own credentials. These helpers do
+// the storage side; authorization lives in kyc-document.service.ts.
+//
+// KYC objects live in a PRIVATE bucket. KYC_S3_BUCKET overrides S3_BUCKET for
+// reads when the operator provisions a separate private bucket (see
+// docs/runbooks/kyc-private-bucket.md). Until then it falls back to S3_BUCKET.
+// ─────────────────────────────────────────────────────────────────
+
+const KYC_BUCKET = process.env.KYC_S3_BUCKET || process.env.S3_BUCKET || '';
+
+/**
+ * Derive the storage object key from a value that may be either a full
+ * public URL (legacy rows) or an already-bare object key. Strips any known
+ * base prefix (CDN, S3 virtual-host, or the local upload base URL) and a
+ * leading slash. Returns null for empty / unparseable input.
+ */
+export function extractObjectKey(urlOrKey: string | null | undefined): string | null {
+  if (!urlOrKey || typeof urlOrKey !== 'string') return null;
+  let v = urlOrKey.trim();
+  if (!v) return null;
+
+  // If it looks like a URL, drop scheme://host and keep the path.
+  const schemeMatch = v.match(/^https?:\/\/[^/]+\/(.*)$/i);
+  if (schemeMatch) {
+    v = schemeMatch[1] ?? '';
+  }
+  // Strip any leading slash and a stray query string / fragment.
+  v = v.replace(/^\/+/, '').split('?')[0]!.split('#')[0]!;
+
+  if (!v) return null;
+  // Defense-in-depth: never allow path traversal in a key.
+  if (v.includes('..')) return null;
+  return v;
+}
+
+export interface ObjectStream {
+  body: NodeJS.ReadableStream;
+  contentType: string;
+  contentLength?: number;
+}
+
+function guessContentType(key: string): string {
+  const ext = path.extname(key).toLowerCase();
+  if (ext === '.png') return 'image/png';
+  if (ext === '.webp') return 'image/webp';
+  if (ext === '.pdf') return 'application/pdf';
+  return 'image/jpeg';
+}
+
+/**
+ * Open a read stream for a stored object by key, from the PRIVATE KYC bucket
+ * (S3) or the local upload dir (dev). Throws a 404 AppError if missing.
+ */
+export async function getObjectStream(key: string): Promise<ObjectStream> {
+  const cleanKey = extractObjectKey(key);
+  if (!cleanKey) throw createAppError('Document not found.', 404);
+
+  if (USE_S3) {
+    const { client, commands } = await getS3();
+    try {
+      const out = (await client!.send(new commands!.GetObjectCommand({
+        Bucket: KYC_BUCKET,
+        Key: cleanKey,
+      }))) as { Body?: NodeJS.ReadableStream; ContentType?: string; ContentLength?: number };
+      if (!out.Body) throw createAppError('Document not found.', 404);
+      return {
+        body: out.Body,
+        contentType: out.ContentType || guessContentType(cleanKey),
+        contentLength: out.ContentLength,
+      };
+    } catch (err) {
+      logger.warn('KYC object fetch failed', { key: cleanKey, error: err instanceof Error ? err.message : 'Unknown' });
+      throw createAppError('Document not found.', 404);
+    }
+  }
+
+  // Local filesystem fallback (dev only).
+  const fullPath = path.resolve(path.join(UPLOAD_DIR, cleanKey));
+  if (!fullPath.startsWith(path.resolve(UPLOAD_DIR))) {
+    throw createAppError('Document not found.', 404);
+  }
+  try {
+    const stat = await fs.stat(fullPath);
+    const { createReadStream } = await import('node:fs');
+    return {
+      body: createReadStream(fullPath),
+      contentType: guessContentType(cleanKey),
+      contentLength: stat.size,
+    };
+  } catch {
+    throw createAppError('Document not found.', 404);
+  }
 }

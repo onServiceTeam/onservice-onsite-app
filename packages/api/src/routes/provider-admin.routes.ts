@@ -13,6 +13,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { createAppError } from '../middleware/error.middleware';
 import * as providerAdminService from '../services/provider-admin.service';
 import * as providerStaffService from '../services/provider-staff.service';
+import * as kycDocumentService from '../services/kyc-document.service';
 
 const router = Router();
 
@@ -374,6 +375,36 @@ router.post(
         reason: typeof req.body?.reason === 'string' ? req.body.reason : undefined,
       });
       res.json({ success: true, data: providerStaffService.formatProviderStaff(updated) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// §35a — stream a provider's KYC document (gov ID, NBI, selfie) for admin
+// review. Read server-side from the private KYC bucket; never expose the raw
+// storage URL. Admin/super_admin only.
+router.get(
+  '/:id/kyc/:docType',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const docType = req.params.docType;
+      if (!kycDocumentService.isKycDocType(docType)) {
+        throw createAppError('Invalid document type.', 400);
+      }
+      const stream = await kycDocumentService.getProviderKycDocumentStream({
+        providerId: req.params.id as string,
+        docType,
+        requesterUserId: req.user!.userId,
+        requesterRole: req.user!.role,
+      });
+      res.setHeader('Content-Type', stream.contentType);
+      res.setHeader('Cache-Control', 'private, no-store');
+      if (stream.contentLength != null) res.setHeader('Content-Length', String(stream.contentLength));
+      stream.body.on('error', (err: Error) => next(err));
+      stream.body.pipe(res);
     } catch (error) {
       next(error);
     }

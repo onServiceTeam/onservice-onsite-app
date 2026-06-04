@@ -26,4 +26,8 @@ declare module '@aws-sdk/client-s3' {
   class DeleteObjectCommand {
     constructor(params: Record<string, unknown>);
   }
+
+  class GetObjectCommand {
+    constructor(params: Record<string, unknown>);
+  }
 }

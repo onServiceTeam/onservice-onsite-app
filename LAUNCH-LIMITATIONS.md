@@ -1109,17 +1109,30 @@ same wave shipped immediately (socket typing authorization; tip phantom-charge
 rowCount guard). The items below are real and important but need careful,
 test-backed money-path or infra changes — NOT a tail-of-session edit.
 
-### 35a. KYC documents may be readable by direct URL (PRIVACY/NPC — highest priority)
-Government ID front/back, NBI clearance, and selfie are uploaded via the same
-generic `/api/v1/uploads` flow (`upload.service.ts`) and stored with **direct,
-non-expiring CDN/S3 URLs** (no presigned URLs). The object key includes a random
-UUID, so it isn't trivially enumerable, but the URL is bearer-access: anyone with
-the URL (which is stored in the DB and passed around) can read the document, and
-the bucket appears to serve objects by URL (booking photos display that way). For
-ordinary booking photos that's acceptable; for **KYC personal data it is an NPC
-RA 10173 exposure**. Fix (dedicated, infra + code + migration): store KYC docs in
-a private bucket and serve them only through an authenticated proxy endpoint
-(owner + admin) or short-lived presigned URLs; migrate existing rows.
+### 35a. KYC documents readable by direct URL — CODE RESOLVED (2026-06-04); one infra step pending Ken
+Government ID front/back, NBI clearance, and selfie were uploaded via the generic
+`/api/v1/uploads` flow and stored with **direct, non-expiring CDN/S3 URLs**, so
+anyone with the URL could read the document — an NPC RA 10173 exposure.
+
+**Code shipped (2026-06-04):**
+- Authenticated proxy endpoints serve KYC docs server-side (owner or
+  admin/super_admin/dpo only): `GET /api/v1/providers/me/kyc/:docType` and
+  `GET /api/v1/admin/providers/:id/kyc/:docType` (`kyc-document.service.ts` +
+  `upload.service.getObjectStream`/`extractObjectKey`, reading from
+  `KYC_S3_BUCKET`).
+- API responses **no longer emit the raw storage URL** for KYC fields — only the
+  protected proxy path (`provider-admin.service.ts`). The admin dashboard's
+  "view" links now fetch through the proxy with the admin session and open the
+  blob (`ProviderDetailPage.tsx`).
+- Tests: `kyc-document-access-35a.test.ts` (owner-allowed / other-provider-403 /
+  customer-403 / admin-allowed / missing-doc-404 / key extraction).
+
+**Pending — one-time infra step (Ken, can't be done from code):** create a
+private bucket, set `KYC_S3_BUCKET`, copy existing KYC objects in (same keys),
+restart API. Runbook: `docs/runbooks/kyc-private-bucket.md`. Until that runs, the
+proxy already removes bearer URLs from API responses, but the objects remain
+readable by their old direct URL until the bucket is made private + the files
+moved. **This item is not fully closed until the runbook is executed.**
 
 ### 35b. Refund / escrow money operations are not fully atomic
 - `payment.service.processRefund` — **RESOLVED (2026-06-04).** Pre-fix it read

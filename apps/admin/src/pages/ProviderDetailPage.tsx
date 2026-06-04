@@ -72,6 +72,7 @@ interface ProviderProfile {
     nbiExpiryNotified: boolean;
     avatarUrl: string | null;
     governmentIdUrl: string | null;
+    governmentIdBackUrl: string | null;
     selfieUrl: string | null;
   };
   categories: { id: string; name: string; basePrice: number | null }[];
@@ -352,7 +353,10 @@ function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactEleme
   const docs = profile.documents ?? {
     nbiClearanceUrl: null,
     nbiExpiryDate: null,
+    nbiExpiryNotified: false,
+    avatarUrl: null,
     governmentIdUrl: null,
+    governmentIdBackUrl: null,
     selfieUrl: null,
   };
   return (
@@ -362,8 +366,10 @@ function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactEleme
         <DocLine label="NBI Clearance" url={docs.nbiClearanceUrl}
           extra={docs.nbiExpiryDate ? `expires ${formatDateOnly(docs.nbiExpiryDate)}` : null} />
         {/* Phase 200 — "Not available" caption only when the URL is absent. */}
-        <DocLine label="Government ID" url={docs.governmentIdUrl}
+        <DocLine label="Government ID (front)" url={docs.governmentIdUrl}
           extra={docs.governmentIdUrl ? null : 'Not available in this record'} />
+        <DocLine label="Government ID (back)" url={docs.governmentIdBackUrl}
+          extra={docs.governmentIdBackUrl ? null : 'Not available in this record'} />
         <DocLine label="Selfie" url={docs.selfieUrl}
           extra={docs.selfieUrl ? null : 'Not available in this record'} />
         {/* Phase 200 — avatar lives on the user object, not documents. */}
@@ -428,22 +434,61 @@ function DocLine({
   url: string | null;
   extra: string | null;
 }): React.ReactElement {
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // §35a — KYC documents (gov ID, NBI, selfie) are served through an
+  // authenticated, admin-only API proxy (path starts with /api/), never a
+  // public storage URL. We fetch the file WITH the admin session and open the
+  // resulting blob, so the document is never reachable by a bare link. External
+  // URLs (e.g. the avatar) keep the plain anchor.
+  const isProxied = !!url && url.startsWith('/api/');
+
+  async function openProxied(): Promise<void> {
+    if (!url) return;
+    setErr(null);
+    setLoading(true);
+    try {
+      const res = await api.get<Blob>(url, { responseType: 'blob' });
+      const objectUrl = URL.createObjectURL(res.data);
+      window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      // Give the new tab time to load before releasing the blob URL.
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (e) {
+      setErr(getErrorMessage(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="flex items-center justify-between py-1.5 text-sm border-b border-slate-100 last:border-0">
       <span className="text-[var(--color-text)]">{label}</span>
       <span className="flex items-center gap-2">
         {url ? (
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[var(--color-secondary)] hover:underline text-xs"
-          >
-            view
-          </a>
+          isProxied ? (
+            <button
+              type="button"
+              onClick={() => { void openProxied(); }}
+              disabled={loading}
+              className="text-[var(--color-secondary)] hover:underline text-xs disabled:opacity-50"
+            >
+              {loading ? 'opening…' : 'view'}
+            </button>
+          ) : (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--color-secondary)] hover:underline text-xs"
+            >
+              view
+            </a>
+          )
         ) : (
           <span className="text-xs text-[var(--color-text-secondary)]">missing</span>
         )}
+        {err && <span className="text-xs text-red-500">{err}</span>}
         {extra && <span className="text-xs text-[var(--color-text-secondary)]">· {extra}</span>}
       </span>
     </div>

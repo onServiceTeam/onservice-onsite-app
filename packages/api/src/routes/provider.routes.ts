@@ -6,6 +6,7 @@ import * as providerService from '../services/provider.service';
 import * as reviewService from '../services/review.service';
 import * as providerToolsService from '../services/provider-tools.service';
 import * as providerStaffService from '../services/provider-staff.service';
+import * as kycDocumentService from '../services/kyc-document.service';
 import { createAppError } from '../middleware/error.middleware';
 
 const router = Router();
@@ -975,6 +976,37 @@ router.post(
         success: true,
         data: assigned ? providerStaffService.formatProviderStaff(assigned) : null,
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// §35a — stream the authenticated provider's OWN KYC document (gov ID, NBI,
+// selfie) through the API instead of exposing a public storage URL. The doc
+// is read server-side from the private KYC bucket; only the owning provider
+// (or an admin, via the admin route) can reach it.
+router.get(
+  '/me/kyc/:docType',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const docType = req.params.docType;
+      if (!kycDocumentService.isKycDocType(docType)) {
+        throw createAppError('Invalid document type.', 400);
+      }
+      const providerId = await kycDocumentService.getProviderIdForUser(req.user!.userId);
+      const stream = await kycDocumentService.getProviderKycDocumentStream({
+        providerId,
+        docType,
+        requesterUserId: req.user!.userId,
+        requesterRole: req.user!.role,
+      });
+      res.setHeader('Content-Type', stream.contentType);
+      res.setHeader('Cache-Control', 'private, no-store');
+      if (stream.contentLength != null) res.setHeader('Content-Length', String(stream.contentLength));
+      stream.body.on('error', (err: Error) => next(err));
+      stream.body.pipe(res);
     } catch (error) {
       next(error);
     }
