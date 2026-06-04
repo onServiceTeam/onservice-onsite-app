@@ -1,4 +1,4 @@
-import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
+import rateLimit, { RateLimitRequestHandler, ipKeyGenerator } from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import { Request, Response, NextFunction } from 'express';
 import { platformConfig } from '../config/platform.config';
@@ -233,4 +233,93 @@ export function authRateLimitMiddleware(
 
 export function __getAuthCachedForTest(): { windowMs: number; max: number } {
   return { windowMs: authCurrentWindow, max: authCurrentMax };
+}
+
+// ── §35c fix — per-user upload quota ──────────────────────────────
+//
+// File uploads are expensive (storage cost + S3 PUT cost + bandwidth)
+// and the global limiter keys by IP, so a single authenticated user
+// behind a shared NAT/proxy could either be throttled by unrelated
+// traffic or, the other way, burn storage by spamming the upload
+// endpoints. This dedicated limiter keys by the AUTHENTICATED USER id
+// (upload routes always run authMiddleware first) and is much stricter
+// than the global limiter. Each request may still carry up to
+// maxImagesPerBooking files, so this bounds total stored objects to
+// (max requests × maxImagesPerBooking) per window per user.
+//
+// Settings keys (operator-tunable, conservative defaults):
+//   upload_rate_limit_window_ms: 60000  (1 minute)
+//   upload_rate_limit_max_requests: 30
+let uploadCurrentWindow: number = 60_000;
+let uploadCurrentMax: number = 30;
+let uploadActiveWindow: number = uploadCurrentWindow;
+
+function buildUploadLimiter(windowMs: number): RateLimitRequestHandler {
+  return rateLimit({
+    windowMs,
+    limit: () => uploadCurrentMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: buildRedisStore('rl:upload:'),
+    // Key by authenticated user; fall back to the IPv6-safe IP key for
+    // the (shouldn't-happen) unauthenticated case.
+    keyGenerator: (req: Request): string => {
+      const uid = (req as Request & { user?: { userId?: string } }).user?.userId;
+      return uid ? `u:${uid}` : ipKeyGenerator(req.ip ?? '');
+    },
+    message: {
+      success: false,
+      error: {
+        message: 'Too many uploads. Please wait a moment and try again.',
+        statusCode: 429,
+      },
+    },
+  });
+}
+
+let uploadActiveLimiter: RateLimitRequestHandler = buildUploadLimiter(uploadCurrentWindow);
+
+export async function refreshUploadRateLimits(): Promise<void> {
+  try {
+    const fetched = await Promise.all([
+      settingsService.getSettingInteger('upload_rate_limit_window_ms').catch(() => uploadCurrentWindow),
+      settingsService.getSettingInteger('upload_rate_limit_max_requests').catch(() => uploadCurrentMax),
+    ]);
+    const [nextWindow, nextMax] = fetched;
+    uploadCurrentWindow = Number.isFinite(nextWindow) && nextWindow > 0 ? Number(nextWindow) : uploadCurrentWindow;
+    uploadCurrentMax = Number.isFinite(nextMax) && nextMax > 0 ? Number(nextMax) : uploadCurrentMax;
+    if (uploadCurrentWindow !== uploadActiveWindow) {
+      uploadActiveLimiter = buildUploadLimiter(uploadCurrentWindow);
+      uploadActiveWindow = uploadCurrentWindow;
+      logger.info('Upload rate-limit windowMs changed; limiter rebuilt', {
+        windowMs: uploadCurrentWindow,
+        max: uploadCurrentMax,
+      });
+    }
+  } catch (err) {
+    logger.warn('Upload rate-limit settings refresh failed; keeping current values', {
+      error: (err as Error).message,
+    });
+  }
+}
+
+export async function initUploadRateLimit(): Promise<void> {
+  await refreshUploadRateLimits();
+  setInterval(() => { void refreshUploadRateLimits(); }, 60_000).unref();
+}
+
+export function uploadRateLimitMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  (uploadActiveLimiter as unknown as (
+    r: Request,
+    s: Response,
+    n: NextFunction,
+  ) => void)(req, res, next);
+}
+
+export function __getUploadCachedForTest(): { windowMs: number; max: number } {
+  return { windowMs: uploadCurrentWindow, max: uploadCurrentMax };
 }

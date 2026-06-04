@@ -21,7 +21,7 @@ import morgan from 'morgan';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { errorMiddleware } from './middleware/error.middleware';
-import { rateLimitMiddleware, initRateLimit } from './middleware/rate-limit.middleware';
+import { rateLimitMiddleware, initRateLimit, initUploadRateLimit } from './middleware/rate-limit.middleware';
 import { requireAdminCsrf } from './middleware/admin-csrf.middleware';
 import { logger } from './utils/logger';
 import { platformConfig } from './config/platform.config';
@@ -365,6 +365,11 @@ httpServer.listen(PORT, () => {
   initRateLimit()
     .then(() => logger.info('Rate-limit live config loaded'))
     .catch((err: unknown) => logger.error('Rate-limit init failed; using platformConfig defaults', { error: err }));
+
+  // §35c — start the per-user upload limiter's live-settings refresh loop.
+  initUploadRateLimit()
+    .then(() => logger.info('Upload rate-limit live config loaded'))
+    .catch((err: unknown) => logger.error('Upload rate-limit init failed; using defaults', { error: err }));
 
   // Initialize background jobs after server is listening
   initScheduledJobs()

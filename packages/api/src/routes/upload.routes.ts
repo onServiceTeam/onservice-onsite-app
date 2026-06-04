@@ -1,6 +1,7 @@
 import { Router, type Response, type NextFunction } from 'express';
 import multer from 'multer';
 import { authMiddleware, type AuthenticatedRequest } from '../middleware/auth.middleware';
+import { uploadRateLimitMiddleware } from '../middleware/rate-limit.middleware';
 import * as uploadService from '../services/upload.service';
 import * as bookingPhotoService from '../services/booking-photo.service';
 import { platformConfig } from '../config/platform.config';
@@ -48,6 +49,7 @@ const upload = multer({
 router.post(
   '/',
   authMiddleware,
+  uploadRateLimitMiddleware,
   upload.array('files', platformConfig.maxImagesPerBooking),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
@@ -100,6 +102,7 @@ router.post(
 router.post(
   '/booking-photo',
   authMiddleware,
+  uploadRateLimitMiddleware,
   upload.single('photo'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
@@ -179,6 +182,7 @@ router.get(
 router.post(
   '/booking-signature',
   authMiddleware,
+  uploadRateLimitMiddleware,
   upload.single('signature'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {

@@ -38,6 +38,14 @@ jest.mock('@aws-sdk/client-s3', () => ({
   DeleteObjectCommand: MockDeleteObjectCommand,
 }));
 
+// §35c — saveUploadedFile now content-sniffs the buffer (magic bytes), so the
+// fixtures must be a genuine image, not arbitrary text. Minimal valid JPEG:
+// SOI + APP0 marker, padded past the 12-byte minimum the sniffer needs.
+const JPEG_BYTES = Buffer.from([
+  0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+  0x01, 0x00, 0x00, 0x01,
+]);
+
 beforeEach(() => {
   putCalls.length = 0;
   process.env.S3_BUCKET = 'test-bucket';
@@ -56,7 +64,7 @@ describe('Bug 1325 fix verified — upload service forces server-side encryption
     const { saveUploadedFile } = await import('../src/services/upload.service');
 
     await saveUploadedFile(
-      Buffer.from('test'),
+      JPEG_BYTES,
       'photo.jpg',
       'image/jpeg',
       '11111111-1111-1111-1111-111111111111',
@@ -75,7 +83,7 @@ describe('Bug 1325 fix verified — upload service forces server-side encryption
     const { saveUploadedFile } = await import('../src/services/upload.service');
 
     await saveUploadedFile(
-      Buffer.from('test2'),
+      JPEG_BYTES,
       'photo.jpg',
       'image/jpeg',
       '22222222-2222-2222-2222-222222222222',

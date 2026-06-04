@@ -1142,12 +1142,26 @@ These are low-probability today (refunds/disputes are admin-driven and serialize
 in practice) but are real correctness/money-integrity gaps. Each needs its own
 focused, tested change.
 
-### 35c. File-upload defense-in-depth
-`upload.service.validateFile` checks MIME + extension only (no magic-byte
-inspection); no per-user/per-booking upload quota (10MB×10 per request, unbounded
-total). Fix: add `file-type` magic-byte validation and a per-booking/per-user
-upload cap. (Path traversal is already prevented — the client filename is never
-used as the key.)
+### 35c. File-upload defense-in-depth — RESOLVED (2026-06-04)
+Pre-fix: `upload.service.validateFile` checked the CLIENT-SUPPLIED MIME +
+extension only (both spoofable — an HTML/script or executable could be stored
+and CDN-served while declaring `image/jpeg`/`.jpg`), and there was no per-user
+upload quota (10MB×10 per request, unbounded total requests). Fixed:
+1. **Content sniffing.** `saveUploadedFile` now calls `assertImageMagicBytes`,
+   which inspects the actual leading bytes and accepts ONLY genuine JPEG
+   (`FF D8 FF`), PNG (`89 50 4E 47 …`), or WebP (`RIFF…WEBP`), and rejects a
+   declared MIME that doesn't match the real content. Central in
+   `saveUploadedFile`, so every path (generic `/`, booking-photo, signature) is
+   covered. No new dependency — `file-type` is ESM-only; the three signatures
+   are short and stable, so we sniff inline.
+2. **Per-user upload quota.** New `uploadRateLimitMiddleware` (Redis-backed,
+   keyed by authenticated user id, default 30 requests/min, operator-tunable via
+   `upload_rate_limit_*` settings) on all three upload POST routes. Combined with
+   multer's per-request file cap this bounds total stored objects per user.
+
+Tests: `upload-magic-bytes-35c.test.ts` (accept real JPEG/PNG/WebP, reject
+script payload + MIME mismatch, no S3 PUT on rejection). (Path traversal was
+already prevented — the client filename is never used as the storage key.)
 
 **Source:** Deep audit wave 2 (2026-06-04). Socket auth, JWT re-validation, socket
 rate-limiting, admin-room isolation, and the many atomic money paths

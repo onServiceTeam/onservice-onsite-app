@@ -141,6 +141,50 @@ export function validateFileSync(
   }
 }
 
+// §35c fix — magic-byte (content-sniffing) validation. The MIME type and
+// file extension are both CLIENT-SUPPLIED and trivially spoofable: an
+// attacker could upload an HTML page, SVG-with-script, or executable while
+// declaring `image/jpeg` + `.jpg`, and we would happily store it and serve
+// it from our CDN. This inspects the actual leading bytes of the buffer and
+// confirms it is genuinely one of the three allowed image formats. We do NOT
+// add an external dependency (file-type is ESM-only and would be a new dep);
+// the three signatures we accept are short and stable.
+function detectImageType(buffer: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | null {
+  if (buffer.length < 12) return null;
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47 &&
+    buffer[4] === 0x0d && buffer[5] === 0x0a && buffer[6] === 0x1a && buffer[7] === 0x0a
+  ) {
+    return 'image/png';
+  }
+  // WebP: "RIFF" .... "WEBP"
+  if (
+    buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+    buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
+
+export function assertImageMagicBytes(buffer: Buffer, declaredMime: string): void {
+  const detected = detectImageType(buffer);
+  if (!detected) {
+    throw createAppError('Uploaded file content is not a valid image (JPEG, PNG, or WebP).', 400);
+  }
+  // Cross-check the declared MIME against the real content so a file can't
+  // be stored under a type that doesn't match its bytes.
+  if (declaredMime && declaredMime !== detected) {
+    throw createAppError(
+      `File content (${detected}) does not match its declared type (${declaredMime}).`,
+      400,
+    );
+  }
+}
+
 export async function saveUploadedFile(
   buffer: Buffer,
   originalname: string,
@@ -148,6 +192,8 @@ export async function saveUploadedFile(
   userId: string,
   context: string,
 ): Promise<UploadedFile> {
+  // §35c — content-sniff every upload before it touches storage/CDN.
+  assertImageMagicBytes(buffer, mimetype);
   const ext = path.extname(originalname).toLowerCase();
   const fileId = randomUUID();
   const safeContext = context.replace(/[^a-z0-9_-]/gi, '');
