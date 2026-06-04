@@ -415,8 +415,10 @@ export async function getInvoices(
   pageSize = 20,
 ): Promise<{ items: InvoiceRow[]; total: number }> {
   const member = await db.query(
+    // Removed members are soft-deleted (deleted_at set); they must lose invoice
+    // access — every other member gate in business.service filters this out.
     `SELECT can_view_invoices, role FROM business_members
-     WHERE business_account_id = $1 AND user_id = $2`,
+     WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [businessId, userId],
   );
 
@@ -489,8 +491,9 @@ export async function getInvoiceDetail(
   }
 
   const member = await db.query(
+    // Soft-deleted (removed) members must not read invoice detail either.
     `SELECT can_view_invoices, role FROM business_members
-     WHERE business_account_id = $1 AND user_id = $2`,
+     WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [invoice.rows[0]!.business_account_id, userId],
   );
 

@@ -1015,3 +1015,43 @@ test for both edge cases. Until then, monitor `Wallet top-up credit failed` log
 lines (case 1) — they indicate a customer owed a manual credit.
 
 **Source:** Payment/webhook audit (2026-06-04).
+
+---
+
+## 34. Audit 2026-06-04 — items deferred to v1.1 (idempotency / abuse-vector hardening)
+
+These were found in the 2026-06-04 deep audit. They are lower-probability or
+product-decision items that need careful, test-backed changes (money-path
+migrations or auth-path edits) rather than a rushed fix; the clear/safe findings
+from the same audit were fixed and shipped. None is a high-probability exploit on
+the current single-server, single-worker deployment.
+
+1. **Recurring auto-charge idempotency.** `processRecurringBookings`
+   (`recurring.service.ts`) selects due series without a row lock and
+   `recurring_instances` has no unique key on `(recurring_booking_id,
+   scheduled_date)`. Two concurrent/retried cron runs could create two bookings +
+   two charges for one cycle. Partially mitigated today: the code advances
+   `next_booking_date` BEFORE charging (so a retry won't re-pick an advanced row),
+   and there is one worker. **v1.1 fix:** add a unique index on
+   `recurring_instances(recurring_booking_id, scheduled_date)`, insert the instance
+   FIRST with `ON CONFLICT DO NOTHING` as the idempotency gate, and wrap the
+   per-series create+advance+charge in one transaction.
+
+2. **OTP verify race (low severity).** `verifyOtp` (`auth.service.ts`) checks
+   `is_used = FALSE` then marks used without a `FOR UPDATE` lock (the refresh-token
+   flow in the same file does use `FOR UPDATE`). Two simultaneous submissions of
+   the same valid code could both succeed — but both sessions are for the SAME
+   user, so it's a duplicate session, not account takeover. **v1.1 fix:** wrap the
+   OTP lookup+mark-used in a transaction with `SELECT ... FOR UPDATE`, mirroring
+   the refresh path.
+
+3. **Referral referee bonus timing (product decision).** `redeemReferralCode`
+   credits the referee's wallet immediately on code redemption, before they
+   complete any booking. Self-referral is blocked, but this still allows
+   sign-up-and-withdraw farming. This is a deliberate-looking incentive choice, so
+   it's Ken's call: either keep it (instant incentive) or move the referee credit
+   to fire after their first completed+paid booking (like the referrer credit
+   already does via `creditReferrerAfterBooking`).
+
+**Source:** Deep audit (2026-06-04). Auth, messaging, dispute, address, payout,
+notification, and staff authorization were all audited and confirmed correct.
