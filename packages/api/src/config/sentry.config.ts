@@ -13,7 +13,8 @@ interface SentryLike {
 let sentry: SentryLike | null = null;
 
 export function initSentry(): void {
-  const dsn = process.env.SENTRY_DSN;
+  // Accept either env name (the launch-cutover runbook uses SENTRY_API_DSN).
+  const dsn = process.env.SENTRY_DSN || process.env.SENTRY_API_DSN;
   if (!dsn) {
     logger.info('Sentry DSN not configured — error tracking disabled');
     return;

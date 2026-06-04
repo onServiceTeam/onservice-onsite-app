@@ -3,13 +3,16 @@ dotenv.config({ path: '../../.env' });
 
 import * as Sentry from '@sentry/node';
 
-// Initialize Sentry before any other imports
-if (process.env.SENTRY_DSN) {
+// Initialize Sentry before any other imports.
+// Accept SENTRY_DSN or SENTRY_API_DSN — the launch-cutover runbook (Item 6)
+// names the latter, so honor both rather than silently leaving tracking off.
+const SENTRY_DSN = process.env.SENTRY_DSN || process.env.SENTRY_API_DSN;
+if (SENTRY_DSN) {
   Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV || 'development',
+    dsn: SENTRY_DSN,
+    environment: process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development',
     tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1.0,
-    release: `onservice-api@${process.env.npm_package_version || '0.1.0'}`,
+    release: process.env.SENTRY_RELEASE || `onservice-api@${process.env.npm_package_version || '0.1.0'}`,
   });
 }
 
@@ -340,7 +343,7 @@ app.get('/metrics', async (_req, res) => {
 });
 
 // --- Sentry Error Handler (must be before custom error handler) ---
-if (process.env.SENTRY_DSN) {
+if (SENTRY_DSN) {
   Sentry.setupExpressErrorHandler(app);
 }
 
