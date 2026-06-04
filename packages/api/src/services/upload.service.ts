@@ -193,6 +193,11 @@ export async function saveUploadedFile(
   mimetype: string,
   userId: string,
   context: string,
+  // §35a — KYC/identity uploads pass 'private' so the object is written with a
+  // private ACL and is never publicly readable by its storage URL; it can only
+  // be reached through the authenticated proxy or a short-lived presigned URL.
+  // Defaults to 'public' so booking photos and other uploads are unchanged.
+  visibility: 'public' | 'private' = 'public',
 ): Promise<UploadedFile> {
   // §35c — content-sniff every upload before it touches storage/CDN.
   assertImageMagicBytes(buffer, mimetype);
@@ -201,6 +206,7 @@ export async function saveUploadedFile(
   const safeContext = context.replace(/[^a-z0-9_-]/gi, '');
   const safeUser = userId.replace(/[^a-f0-9-]/gi, '');
   const objectKey = `${safeContext}/${safeUser}/${fileId}${ext}`;
+  const isPrivate = visibility === 'private';
 
   let url: string;
 
@@ -220,7 +226,10 @@ export async function saveUploadedFile(
       Key: objectKey,
       Body: buffer,
       ContentType: mimetype,
-      CacheControl: 'public, max-age=31536000, immutable',
+      // Private objects must NOT be cached by any shared/CDN cache, and carry a
+      // private ACL so the storage URL is not anonymously readable.
+      CacheControl: isPrivate ? 'private, no-store' : 'public, max-age=31536000, immutable',
+      ...(isPrivate ? { ACL: 'private' } : {}),
       ...sseParams,
     }));
     const cdnBase = process.env.S3_CDN_URL || `https://${bucket}.s3.${process.env.S3_REGION || 'ap-southeast-1'}.amazonaws.com`;
@@ -376,4 +385,32 @@ export async function getObjectStream(key: string): Promise<ObjectStream> {
   } catch {
     throw createAppError('Document not found.', 404);
   }
+}
+
+/**
+ * §35a (presigned-URL option) — mint a short-lived, signed GET URL for a
+ * private KYC object, so an authorized client can load it directly from
+ * storage for a brief window instead of streaming through the API. Returns
+ * null when S3 is not configured (local dev), so the caller falls back to the
+ * streaming proxy. Authorization MUST be enforced by the caller before this is
+ * called — a presigned URL is itself a bearer token for its short lifetime.
+ */
+export async function getKycPresignedUrl(
+  key: string,
+  expiresInSeconds = 120,
+): Promise<string | null> {
+  const cleanKey = extractObjectKey(key);
+  if (!cleanKey) throw createAppError('Document not found.', 404);
+  if (!USE_S3) return null;
+
+  const { client, commands } = await getS3();
+  const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+  const command = new commands!.GetObjectCommand({ Bucket: KYC_BUCKET, Key: cleanKey });
+  // The client/command are structurally compatible with the presigner; the
+  // lazy-import type stub keeps them loosely typed, so cast at the boundary.
+  return getSignedUrl(
+    client as unknown as Parameters<typeof getSignedUrl>[0],
+    command as unknown as Parameters<typeof getSignedUrl>[1],
+    { expiresIn: Math.max(30, Math.min(expiresInSeconds, 900)) },
+  );
 }

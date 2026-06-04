@@ -1,5 +1,18 @@
 # Runbook — make KYC documents private (§35a)
 
+> **Read first (findings 2026-06-04):**
+> - Production currently has **0 KYC documents**, so there is **nothing to
+>   migrate** — you can skip the "copy existing files" step (step 3) for now.
+> - More urgent: the configured Space `onservice-uploads` is **not reachable**
+>   with the current server credentials (NoSuchBucket). Until that's fixed, NO
+>   uploads work in prod. Sort out the Space/credentials first (see
+>   LAUNCH-LIMITATIONS item 36), then come back to this runbook.
+> - New KYC uploads are now written **private-by-default** in code, so once the
+>   Space is reachable + private, KYC docs are protected with no further work.
+> - The app can serve KYC two ways (both shipped): a streaming proxy (default)
+>   and short-lived signed links (`?mode=link`). Either works once the Space is
+>   set up; you don't have to choose.
+
 **Audience:** Ken (server/infra owner). **Time:** ~20–30 min. **Risk:** low if you
 follow the order. **What it fixes:** government IDs, NBI clearances, and selfies
 are currently stored in object storage and were handed out as direct links.

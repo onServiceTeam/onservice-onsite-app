@@ -70,6 +70,12 @@ router.post(
 
       const results: uploadService.UploadedFile[] = [];
 
+      // §35a — KYC/identity documents (uploaded under the 'onboarding' context)
+      // are personal data and must be stored privately, never publicly readable
+      // by their storage URL. Everything else (booking photos, chat, etc.) stays
+      // public as before.
+      const visibility = context === 'onboarding' ? 'private' : 'public';
+
       for (const file of files) {
         // MED-N144 — validateFile is async (reads admin-tunable allowlist).
         await uploadService.validateFile(file.originalname, file.mimetype, file.size);
@@ -79,6 +85,7 @@ router.post(
           file.mimetype,
           req.user!.userId,
           context,
+          visibility,
         );
         results.push(saved);
       }

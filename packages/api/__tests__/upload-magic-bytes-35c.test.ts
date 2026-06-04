@@ -69,4 +69,18 @@ describe('§35c — upload content sniffing', () => {
     expect(result.mimeType).toBe('image/png');
     expect(putCalls).toHaveLength(1);
   });
+
+  it('§35a — a PUBLIC upload writes no private ACL and is cacheable', async () => {
+    const { saveUploadedFile } = await import('../src/services/upload.service');
+    await saveUploadedFile(PNG, 'ok.png', 'image/png', '33333333-3333-3333-3333-333333333333', 'chat');
+    expect(putCalls[0]!.ACL).toBeUndefined();
+    expect(putCalls[0]!.CacheControl).toMatch(/public/);
+  });
+
+  it('§35a — a PRIVATE (KYC) upload sets ACL=private and no-store cache', async () => {
+    const { saveUploadedFile } = await import('../src/services/upload.service');
+    await saveUploadedFile(PNG, 'id.png', 'image/png', '44444444-4444-4444-4444-444444444444', 'onboarding', 'private');
+    expect(putCalls[0]!.ACL).toBe('private');
+    expect(putCalls[0]!.CacheControl).toMatch(/no-store/);
+  });
 });

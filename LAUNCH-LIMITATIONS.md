@@ -1127,12 +1127,30 @@ anyone with the URL could read the document — an NPC RA 10173 exposure.
 - Tests: `kyc-document-access-35a.test.ts` (owner-allowed / other-provider-403 /
   customer-403 / admin-allowed / missing-doc-404 / key extraction).
 
-**Pending — one-time infra step (Ken, can't be done from code):** create a
-private bucket, set `KYC_S3_BUCKET`, copy existing KYC objects in (same keys),
-restart API. Runbook: `docs/runbooks/kyc-private-bucket.md`. Until that runs, the
-proxy already removes bearer URLs from API responses, but the objects remain
-readable by their old direct URL until the bucket is made private + the files
-moved. **This item is not fully closed until the runbook is executed.**
+**Also shipped (2026-06-04, second pass):**
+- **Presigned-URL option** (the alternative serving mode): both KYC routes accept
+  `?mode=link` and return a short-lived signed URL (`@aws-sdk/s3-request-presigner`,
+  authorized via Ken's product decision), enforcing the same owner/admin authz
+  before minting the link; falls back to streaming when S3 isn't configured.
+- **KYC uploads are now private-by-default**: the `onboarding` upload context
+  writes the object with a `private` ACL + `no-store` cache, so new KYC files are
+  never publicly readable by their storage URL. Tests:
+  `kyc-document-access-35a.test.ts`, `upload-magic-bytes-35c.test.ts`.
+
+**Production findings (2026-06-04) that change the remaining work:**
+- Prod has **0 KYC documents** (5 providers, all gov-ID/NBI/selfie null) — so
+  there is **nothing to migrate**. The "copy existing files" step is moot.
+- The configured DigitalOcean Space (`onservice-uploads`) is **not reachable
+  with the current credentials** (NoSuchBucket on both path- and virtual-host
+  addressing) — i.e. **S3 uploads are not actually working in production yet.**
+  This is a separate pre-launch item: the Space/region/credentials must be
+  corrected (or the Space created) before any uploads — KYC or booking photo —
+  work in prod. Tracked as item 36 below.
+
+**Remaining (Ken):** once the Space is reachable, confirm KYC objects are private
+(new uploads already are; there are no old ones to fix). Runbook:
+`docs/runbooks/kyc-private-bucket.md`. With the proxy + private-by-default
+uploads + presigned option all shipped, no further code is required for §35a.
 
 ### 35b. Refund / escrow money operations are not fully atomic
 - `payment.service.processRefund` — **RESOLVED (2026-06-04).** Pre-fix it read
@@ -1202,3 +1220,23 @@ already prevented — the client filename is never used as the storage key.)
 rate-limiting, admin-room isolation, and the many atomic money paths
 (releaseEscrowInTransaction, debitWalletInTransaction, requestPayout,
 redeemReferralCode, redeemPoints) were audited and confirmed correct.
+
+---
+
+## 36. Production object storage (DigitalOcean Spaces) not reachable — uploads not working in prod (found 2026-06-04)
+While wiring §35a I checked the live Space with the server's configured
+credentials: `ListObjects`/`PutObject`/`GetBucketPolicy` against `S3_BUCKET`
+(`onservice-uploads`, endpoint `sgp1.digitaloceanspaces.com`) all return
+**NoSuchBucket**, on both path-style and virtual-host addressing. That means the
+server cannot read or write the Space, so **file uploads (provider KYC, booking
+photos, chat attachments, avatars) do not work in production today.** It hasn't
+surfaced yet because prod is pre-launch with no real uploads (5 seed providers, 0
+KYC docs).
+
+**Fix (Ken, infra):** verify the Space name/region and the `S3_ACCESS_KEY_ID` /
+`S3_SECRET_ACCESS_KEY` actually belong to a Space that exists at `sgp1`. Either
+create the `onservice-uploads` Space (and a separate private one for KYC per the
+runbook), or correct the env vars to match the real Space. After fixing,
+re-test: an upload through the app should succeed and a KYC doc should be private
+(403 on the direct URL, viewable through the app). This is a launch blocker for
+any feature that stores a file.

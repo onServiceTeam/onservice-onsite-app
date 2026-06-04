@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1038.0",
+    "@aws-sdk/s3-request-presigner": "^3.1061.0",
     "@sentry/node": "^9.27.0",
     "@types/multer": "^2.1.0",
     "bullmq": "^5.73.0",

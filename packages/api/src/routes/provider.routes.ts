@@ -996,6 +996,16 @@ router.get(
         throw createAppError('Invalid document type.', 400);
       }
       const providerId = await kycDocumentService.getProviderIdForUser(req.user!.userId);
+      // §35a (presigned option) — ?mode=link returns a short-lived signed URL
+      // instead of streaming. Falls through to streaming if S3 isn't configured.
+      if (req.query.mode === 'link') {
+        const link = await kycDocumentService.getProviderKycPresignedUrl({
+          providerId, docType,
+          requesterUserId: req.user!.userId,
+          requesterRole: req.user!.role,
+        });
+        if (link) { res.json({ success: true, data: link }); return; }
+      }
       const stream = await kycDocumentService.getProviderKycDocumentStream({
         providerId,
         docType,

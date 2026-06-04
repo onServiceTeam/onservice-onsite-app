@@ -10,15 +10,21 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 const getObjectStreamMock = jest.fn();
+const getKycPresignedUrlMock = jest.fn();
 jest.mock('../src/services/upload.service', () => {
   // Keep the real extractObjectKey (pure helper under test); stub only the
-  // S3/FS read so no network/disk is touched.
+  // S3/FS read + presign so no network/disk is touched.
   const actual = jest.requireActual('../src/services/upload.service');
-  return { ...actual, getObjectStream: (...a: unknown[]) => getObjectStreamMock(...a) };
+  return {
+    ...actual,
+    getObjectStream: (...a: unknown[]) => getObjectStreamMock(...a),
+    getKycPresignedUrl: (...a: unknown[]) => getKycPresignedUrlMock(...a),
+  };
 });
 
 import {
   getProviderKycDocumentStream,
+  getProviderKycPresignedUrl,
   isKycDocType,
   kycProxyPath,
 } from '../src/services/kyc-document.service';
@@ -37,6 +43,7 @@ beforeEach(() => {
   dbQueryMock.mockReset();
   getObjectStreamMock.mockReset();
   getObjectStreamMock.mockResolvedValue({ body: {}, contentType: 'image/jpeg' });
+  getKycPresignedUrlMock.mockReset();
 });
 
 describe('§35a — KYC document authorization', () => {
@@ -83,6 +90,31 @@ describe('§35a — KYC document authorization', () => {
     await expect(
       getProviderKycDocumentStream({ providerId: 'nope', docType: 'nbi_clearance', requesterUserId: 'x', requesterRole: 'admin' }),
     ).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('§35a — presigned-URL option', () => {
+  it('enforces the SAME authorization before minting a link (other provider → 403)', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [PROVIDER_ROW] });
+    await expect(
+      getProviderKycPresignedUrl({ providerId: 'prov-1', docType: 'nbi_clearance', requesterUserId: 'attacker', requesterRole: 'provider' }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(getKycPresignedUrlMock).not.toHaveBeenCalled();
+  });
+
+  it('returns a signed url + expiry for an authorized requester', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [PROVIDER_ROW] });
+    getKycPresignedUrlMock.mockResolvedValueOnce('https://spaces/signed?sig=abc');
+    const res = await getProviderKycPresignedUrl({ providerId: 'prov-1', docType: 'nbi_clearance', requesterUserId: 'owner-user', requesterRole: 'provider', expiresInSeconds: 90 });
+    expect(res).toEqual({ url: 'https://spaces/signed?sig=abc', expiresInSeconds: 90 });
+    expect(getKycPresignedUrlMock).toHaveBeenCalledWith(PROVIDER_ROW.nbi_clearance_url, 90);
+  });
+
+  it('returns null when storage cannot presign (dev/local) so caller falls back to streaming', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [PROVIDER_ROW] });
+    getKycPresignedUrlMock.mockResolvedValueOnce(null);
+    const res = await getProviderKycPresignedUrl({ providerId: 'prov-1', docType: 'nbi_clearance', requesterUserId: 'owner-user', requesterRole: 'admin' });
+    expect(res).toBeNull();
   });
 });
 

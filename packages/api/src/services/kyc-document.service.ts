@@ -35,17 +35,19 @@ interface ProviderKycRow {
   selfie_url: string | null;
 }
 
-/**
- * Authorize + resolve a provider's KYC document to a server-side read stream.
- * `providerId` is the providers.id. Access is granted only to the owning
- * provider (by users.id) or an admin/super_admin/dpo.
- */
-export async function getProviderKycDocumentStream(args: {
+interface KycAccessArgs {
   providerId: string;
   docType: KycDocType;
   requesterUserId: string;
   requesterRole: string;
-}): Promise<uploadService.ObjectStream> {
+}
+
+/**
+ * Shared authorization + resolution. Loads the provider, verifies the
+ * requester is the owner or an admin/super_admin/dpo, and returns the stored
+ * value (URL or key) for the requested document. Throws 404/403 as needed.
+ */
+async function resolveAuthorizedKycValue(args: KycAccessArgs): Promise<string> {
   const result = await db.query<ProviderKycRow>(
     `SELECT id, user_id, government_id_front_url, government_id_back_url,
             nbi_clearance_url, selfie_url
@@ -64,8 +66,32 @@ export async function getProviderKycDocumentStream(args: {
   const column = DOC_TYPE_TO_COLUMN[args.docType] as keyof ProviderKycRow;
   const stored = provider[column] as string | null;
   if (!stored) throw createAppError('Document not found.', 404);
+  return stored;
+}
 
+/**
+ * Authorize + resolve a provider's KYC document to a server-side read stream.
+ * `providerId` is the providers.id. Access is granted only to the owning
+ * provider (by users.id) or an admin/super_admin/dpo.
+ */
+export async function getProviderKycDocumentStream(args: KycAccessArgs): Promise<uploadService.ObjectStream> {
+  const stored = await resolveAuthorizedKycValue(args);
   return uploadService.getObjectStream(stored);
+}
+
+/**
+ * §35a (presigned option) — same authorization as the streaming path, but
+ * returns a short-lived signed URL the client can load directly from storage.
+ * Returns null when S3 isn't configured (dev), so the caller falls back to the
+ * streaming proxy. Authorization is enforced here BEFORE the URL is minted.
+ */
+export async function getProviderKycPresignedUrl(
+  args: KycAccessArgs & { expiresInSeconds?: number },
+): Promise<{ url: string; expiresInSeconds: number } | null> {
+  const stored = await resolveAuthorizedKycValue(args);
+  const expiresInSeconds = args.expiresInSeconds ?? 120;
+  const url = await uploadService.getKycPresignedUrl(stored, expiresInSeconds);
+  return url ? { url, expiresInSeconds } : null;
 }
 
 /**
