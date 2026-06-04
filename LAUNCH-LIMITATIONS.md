@@ -1131,18 +1131,38 @@ a private bucket and serve them only through an authenticated proxy endpoint
   recorded. Test: `b-crit01-crit02-partial-refund.test.ts` (FOR-UPDATE shape).
 - `escrow.service.refundFromEscrow` debits escrow in a trx, then calls
   `processRefund` OUTSIDE it. A mid-failure leaves escrow debited but the intent
-  not updated. (A retry-enqueue partly mitigates.)
-- `dispute.service` (resolveDispute / acceptPartialOffer / addProviderResponse):
-  the booking is committed to `status='resolved'` BEFORE the refund is attempted;
-  if `refundFromEscrow` throws it's caught + logged + swallowed, so the booking
-  reads "resolved" while no money moved and the provider split never releases.
-  Fix: don't mark resolved until the money movement succeeds (or move to a
-  pending/`refund_failed` state with reconciliation + alerting), and make the
-  escrow-move + status-flip atomic.
+  not updated. **Mitigated (2026-06-04):** every caller now enqueues a
+  gateway-retry on failure (see below), so the eventual-consistency retry brings
+  the intent in line. Full single-transaction atomicity (escrow ledger +
+  PayMongo) is impractical because PayMongo is an external call; the retry queue
+  is the accepted reconciliation path. Tracked for the v1.1 rework below.
+- `dispute.service` (resolveDispute / acceptPartialOffer / addProviderResponse) —
+  **RESOLVED (2026-06-04).** Pre-fix these three paths committed the booking to
+  `status='resolved'` and then, post-commit, called `refundFromEscrow` /
+  `releasePartialEscrow` / `releaseEscrow` inside a `try/catch` that **logged and
+  swallowed** any failure — so the dispute read "resolved" while no money moved
+  and nothing was scheduled to reconcile it (the provider split never released).
+  Fixed by making all three enqueue the failed action on the gateway-retry queue
+  (the same MED-N28 pattern the canonical admin path `dispute-admin.service`
+  already used), so the refund/release eventually completes. Test:
+  `dispute-refund-enqueue-35b.test.ts`.
 
 These are low-probability today (refunds/disputes are admin-driven and serialized
-in practice) but are real correctness/money-integrity gaps. Each needs its own
-focused, tested change.
+in practice) but are real correctness/money-integrity gaps.
+
+> **Newly found while fixing §35b (low-probability, retry-only) — `refund_from_escrow`
+> retry can double-debit escrow.** The gateway-retry worker's `refund_from_escrow`
+> action replays the WHOLE `refundFromEscrow` (escrow ledger debit + PayMongo). If
+> the original post-commit call committed the escrow debit and then PayMongo
+> failed, the enqueued retry re-debits the platform-escrow wallet. It only fires
+> when a refund's PayMongo leg fails after the escrow leg committed (rare), and
+> the existing `handleCancellation` + `dispute-admin` paths already carry the same
+> latent issue — the §35b dispute fix did not introduce it, it made those paths
+> consistent. **v1.1 fix (proposed):** split the escrow-ledger move (do it inside
+> the resolution transaction, atomic with the status flip) from the PayMongo leg
+> (post-commit), and add a `paymongo_refund_only` retry action that replays ONLY
+> `processRefund` (which is now itself `FOR UPDATE`-locked and cap-revalidated, so
+> it is safe to replay). Then no retry ever re-touches the escrow ledger.
 
 ### 35c. File-upload defense-in-depth — RESOLVED (2026-06-04)
 Pre-fix: `upload.service.validateFile` checked the CLIENT-SUPPLIED MIME +

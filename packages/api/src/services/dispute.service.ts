@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import * as escrowService from './escrow.service';
 import * as socketService from './socket.service';
 import * as settingsService from './settings.service';
+import * as gatewayRetryService from './gateway-retry.service';
 
 interface DisputeRow {
   id: string;
@@ -367,11 +368,24 @@ export async function addProviderResponse(
   });
 
   if (action === 'accept') {
+    const totalAmount = Number(bk.total_amount);
     try {
-      const totalAmount = Number(bk.total_amount);
       await escrowService.refundFromEscrow(d.booking_id, totalAmount, 'Provider accepted dispute — full refund');
     } catch (err) {
-      logger.error('Failed to process dispute refund after provider accept', { disputeId, error: err instanceof Error ? err.message : 'Unknown' });
+      // §35b fix — pre-fix this failure was logged and SWALLOWED, so the
+      // dispute read 'resolved' while no money moved and nothing retried.
+      // Now we enqueue the gateway-retry worker (matching the canonical
+      // admin-resolve path, MED-N28) so the refund eventually completes.
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.error('Failed to process dispute refund after provider accept; enqueueing retry', { disputeId, error: errMsg });
+      await gatewayRetryService.enqueueRetry({
+        actionType: 'refund_from_escrow',
+        bookingId: d.booking_id,
+        disputeId,
+        amountCentavos: totalAmount,
+        description: 'Provider accepted dispute — full refund',
+        initialError: errMsg,
+      });
     }
   }
 
@@ -433,7 +447,17 @@ export async function acceptPartialOffer(disputeId: string, customerId: string):
       await escrowService.refundFromEscrow(d.booking_id, refundAmount, 'Partial offer accepted — dispute refund');
       refundSucceeded = true;
     } catch (err) {
-      logger.error('Failed to process partial offer refund', { disputeId, refundAmount, error: err instanceof Error ? err.message : 'Unknown' });
+      // §35b fix — enqueue instead of swallowing (see addProviderResponse).
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.error('Failed to process partial offer refund; enqueueing retry', { disputeId, refundAmount, error: errMsg });
+      await gatewayRetryService.enqueueRetry({
+        actionType: 'refund_from_escrow',
+        bookingId: d.booking_id,
+        disputeId,
+        amountCentavos: refundAmount,
+        description: 'Partial offer accepted — dispute refund',
+        initialError: errMsg,
+      });
     }
 
     const remainingAmount = totalAmount - refundAmount;
@@ -441,7 +465,18 @@ export async function acceptPartialOffer(disputeId: string, customerId: string):
       try {
         await escrowService.releasePartialEscrow(d.booking_id, remainingAmount);
       } catch (err) {
-        logger.error('Failed to release remaining escrow after partial offer acceptance', { disputeId, remainingAmount, error: err instanceof Error ? err.message : 'Unknown' });
+        // §35b fix — the provider's split must release even if this call
+        // fails now; enqueue the release for retry instead of swallowing.
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error('Failed to release remaining escrow after partial offer acceptance; enqueueing retry', { disputeId, remainingAmount, error: errMsg });
+        await gatewayRetryService.enqueueRetry({
+          actionType: 'release_partial_escrow',
+          bookingId: d.booking_id,
+          disputeId,
+          amountCentavos: remainingAmount,
+          description: 'Release remaining escrow after partial offer acceptance',
+          initialError: errMsg,
+        });
       }
     }
   }
@@ -616,7 +651,17 @@ export async function resolveDispute(
       await escrowService.refundFromEscrow(bookingId, refundAmount, `Admin dispute resolution: ${data.resolutionType}`);
       refundSucceeded = true;
     } catch (err) {
-      logger.error('Failed to process admin dispute refund', { disputeId, refundAmount, error: err instanceof Error ? err.message : 'Unknown' });
+      // §35b fix — enqueue instead of swallowing (see addProviderResponse).
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.error('Failed to process admin dispute refund; enqueueing retry', { disputeId, refundAmount, error: errMsg });
+      await gatewayRetryService.enqueueRetry({
+        actionType: 'refund_from_escrow',
+        bookingId,
+        disputeId,
+        amountCentavos: refundAmount,
+        description: `Admin dispute resolution: ${data.resolutionType}`,
+        initialError: errMsg,
+      });
     }
 
     const remainingAmount = totalAmount - refundAmount;
@@ -624,7 +669,16 @@ export async function resolveDispute(
       try {
         await escrowService.releasePartialEscrow(bookingId, remainingAmount);
       } catch (err) {
-        logger.error('Failed to release remaining escrow after partial refund', { disputeId, remainingAmount, error: err instanceof Error ? err.message : 'Unknown' });
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error('Failed to release remaining escrow after partial refund; enqueueing retry', { disputeId, remainingAmount, error: errMsg });
+        await gatewayRetryService.enqueueRetry({
+          actionType: 'release_partial_escrow',
+          bookingId,
+          disputeId,
+          amountCentavos: remainingAmount,
+          description: 'Release remaining escrow after admin partial refund',
+          initialError: errMsg,
+        });
       }
     }
   }
@@ -636,7 +690,16 @@ export async function resolveDispute(
       const { releaseEscrow } = await import('./escrow.service');
       await releaseEscrow(bookingId);
     } catch (err) {
-      logger.error('Failed to release escrow after dispute resolution', { disputeId, resolutionType: data.resolutionType, error: err instanceof Error ? err.message : 'Unknown' });
+      // §35b fix — the provider's full payout must release; enqueue on failure.
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.error('Failed to release escrow after dispute resolution; enqueueing retry', { disputeId, resolutionType: data.resolutionType, error: errMsg });
+      await gatewayRetryService.enqueueRetry({
+        actionType: 'release_escrow',
+        bookingId,
+        disputeId,
+        description: `Release escrow to provider after dispute resolution: ${data.resolutionType}`,
+        initialError: errMsg,
+      });
     }
   }
 
