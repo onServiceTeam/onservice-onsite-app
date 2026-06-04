@@ -979,3 +979,39 @@ specific promise we cannot keep.
   in_progress). Do not promise live GPS.
 
 **Source:** Phase 106 audit (2026-05-05).
+
+---
+
+## 33. Wallet top-up webhook idempotency not constraint-enforced (audit, 2026-06-04)
+
+**What works today:** The PayMongo `payment.paid` webhook for a wallet top-up
+credits the wallet, and the common replay case is guarded: the handler skips if
+`payment_intents.status === 'succeeded'` (which is flipped before crediting), so
+PayMongo's normal retries do not double-credit.
+
+**The gap:** idempotency is guarded at the application layer, not the database.
+Two edge cases remain:
+1. **Lost credit (more likely):** in `webhook.routes.ts`, `updatePaymentStatus(... 'succeeded')`
+   runs *before* `creditWallet(...)`, and a `creditWallet` failure is caught +
+   logged but not re-thrown. If the credit throws (e.g. DB blip), the intent is
+   already `succeeded`, so the retry hits the idempotent skip and the credit is
+   never made — the customer paid but the wallet was not funded. Recoverable only
+   by a manual admin credit.
+2. **Double credit (low probability):** two *truly concurrent* deliveries of the
+   same event could both read `status='awaiting_payment'` before either flips it,
+   and both credit. `wallet_transactions` stores the PayMongo payment id in
+   `reference_id` but has **no unique constraint** on it, so nothing stops the
+   second insert.
+
+**Why not fixed at v1.0:** the correct fix is a DB idempotency key (e.g. a partial
+unique index on `wallet_transactions.reference_id` scoped to top-up credits, plus
+`ON CONFLICT DO NOTHING` and reordering credit-before-status). `reference_id` is
+written by several transaction types, so the uniqueness scope must be designed +
+backfill-checked carefully — a money-path migration that should not be rushed.
+
+**v1.1 scope:** add the scoped unique index + make `creditWallet` idempotent on
+`reference_id`, reorder so the credit commits before the status flip, and add a
+test for both edge cases. Until then, monitor `Wallet top-up credit failed` log
+lines (case 1) — they indicate a customer owed a manual credit.
+
+**Source:** Payment/webhook audit (2026-06-04).

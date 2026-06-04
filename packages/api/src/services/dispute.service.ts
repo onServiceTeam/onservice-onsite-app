@@ -342,6 +342,13 @@ export async function addProviderResponse(
       if (!partialOfferAmount || partialOfferAmount <= 0) {
         throw createAppError('Partial offer amount must be positive.', 400);
       }
+      // A partial refund can never exceed what the customer paid. Without this
+      // cap an oversized offer, once accepted, issues a real refund larger than
+      // the booking total and drains the shared escrow pool (refundFromEscrow
+      // only guards the platform-wide balance, not per-booking).
+      if (partialOfferAmount > Number(bk.total_amount)) {
+        throw createAppError('Partial offer cannot exceed the booking total.', 400);
+      }
       await client.query(
         `UPDATE disputes SET
            provider_response = $1, provider_responded_at = NOW(),
@@ -395,7 +402,9 @@ export async function acceptPartialOffer(disputeId: string, customerId: string):
   if (booking.rows.length === 0) throw createAppError('Associated booking not found.', 404);
   const bk = booking.rows[0]!;
   const totalAmount = Number(bk.total_amount);
-  const refundAmount = Number(d.refund_amount);
+  // Defense-in-depth: never refund more than the booking total, even if a
+  // stale/oversized refund_amount was somehow stored on the dispute.
+  const refundAmount = Math.min(Number(d.refund_amount), totalAmount);
   const refundPercent = totalAmount > 0 ? Math.round((refundAmount / totalAmount) * 10000) / 100 : 0;
 
   const result = await db.query<DisputeRow>(
