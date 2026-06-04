@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
+import { logger } from '../utils/logger';
+import * as notificationService from './notification.service';
 
 // Provider staff / team members — D23. Phase-1 foundation: the approval state
 // machine + CRUD. The state machine is pure and unit-tested; the DB functions
@@ -263,7 +265,7 @@ export async function reviewStaff(params: {
   decision: StaffAdminDecision;
   reason?: string;
 }): Promise<ProviderStaffRow> {
-  return db.transaction(async (client) => {
+  const updated = await db.transaction(async (client) => {
     const current = await client.query<ProviderStaffRow>(
       `SELECT * FROM provider_staff WHERE id = $1 FOR UPDATE`,
       [params.staffId],
@@ -300,6 +302,42 @@ export async function reviewStaff(params: {
 
     return updated.rows[0]!;
   });
+
+  // Best-effort post-commit notification to the provider owner so they learn
+  // the back-office decision. A notification failure must not undo the review.
+  if (params.decision === 'approved' || params.decision === 'rejected') {
+    try {
+      const owner = await db.query<{ user_id: string; member_name: string | null }>(
+        `SELECT p.user_id,
+                NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), '') AS member_name
+         FROM providers p
+         LEFT JOIN provider_staff ps ON ps.id = $1
+         LEFT JOIN users u ON u.id = ps.user_id
+         WHERE p.id = $2`,
+        [params.staffId, updated.provider_id],
+      );
+      const ownerUserId = owner.rows[0]?.user_id;
+      const memberName = owner.rows[0]?.member_name ?? updated.role_title ?? 'Your team member';
+      if (ownerUserId) {
+        await notificationService.createNotification({
+          userId: ownerUserId,
+          type: params.decision === 'approved' ? 'provider_staff_approved' : 'provider_staff_rejected',
+          title: params.decision === 'approved' ? 'Team member approved' : 'Team member not approved',
+          body: params.decision === 'approved'
+            ? `${memberName} is approved and can now be assigned to jobs.`
+            : `${memberName} was not approved.${params.reason ? ' Reason: ' + params.reason : ''}`,
+          data: { staffId: params.staffId },
+        });
+      }
+    } catch (err) {
+      logger.error('provider_staff review notification failed (non-fatal)', {
+        staffId: params.staffId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return updated;
 }
 
 // Suspend or reactivate an approved/suspended member (back-office control).

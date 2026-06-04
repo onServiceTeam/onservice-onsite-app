@@ -53,6 +53,8 @@ export type NotificationType =
   | 'rating_received' | 'tier_upgrade' | 'nbi_expiring'
   | 'provider_approved' | 'provider_rejected' | 'provider_suspended'
   | 'provider_reactivated' | 'provider_tier_changed'
+  // D23 — provider is told when back-office decides on a team member they added.
+  | 'provider_staff_approved' | 'provider_staff_rejected'
   // Chat / messaging
   | 'new_message' | 'chat_started' | 'chat_last_message'
   // Quotes
