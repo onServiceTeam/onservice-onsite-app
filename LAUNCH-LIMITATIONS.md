@@ -1026,16 +1026,24 @@ migrations or auth-path edits) rather than a rushed fix; the clear/safe findings
 from the same audit were fixed and shipped. None is a high-probability exploit on
 the current single-server, single-worker deployment.
 
-1. **Recurring auto-charge idempotency.** `processRecurringBookings`
-   (`recurring.service.ts`) selects due series without a row lock and
+1. **Recurring auto-charge idempotency (currently prevented by config — fix
+   needed before scaling out workers).** `processRecurringBookings`
+   (`recurring.service.ts`) selects due series without a row lock, and
    `recurring_instances` has no unique key on `(recurring_booking_id,
-   scheduled_date)`. Two concurrent/retried cron runs could create two bookings +
-   two charges for one cycle. Partially mitigated today: the code advances
-   `next_booking_date` BEFORE charging (so a retry won't re-pick an advanced row),
-   and there is one worker. **v1.1 fix:** add a unique index on
-   `recurring_instances(recurring_booking_id, scheduled_date)`, insert the instance
-   FIRST with `ON CONFLICT DO NOTHING` as the idempotency gate, and wrap the
-   per-series create+advance+charge in one transaction.
+   scheduled_date)`. In theory two concurrent/retried cron runs could create two
+   bookings + two charges for one cycle. **Why it can't happen today:** the
+   scheduler `Worker` runs `concurrency: 1` (`workers.ts:493`), the
+   `recurring-process` repeatable job sets no `attempts` (BullMQ default 1 → no
+   retry), and the deployment is a single API container — so the job never runs
+   concurrently or re-runs. The code also advances `next_booking_date` before
+   charging. **This becomes a real double-charge risk the moment a second worker
+   process / API replica is added.** Before horizontal scaling, do the **v1.1
+   fix:** add a unique index on `recurring_instances(recurring_booking_id,
+   scheduled_date)`, claim the instance FIRST with `ON CONFLICT DO NOTHING` as the
+   idempotency gate (skip if already claimed), and wrap per-series
+   create+advance+charge in one transaction. NB: the 3 tests that drive
+   `processRecurringBookings` prime `db.query` with ordered `mockResolvedValueOnce`
+   chains, so they must be re-sequenced as part of that change.
 
 2. **OTP verify race (low severity).** `verifyOtp` (`auth.service.ts`) checks
    `is_used = FALSE` then marks used without a `FOR UPDATE` lock (the refresh-token
