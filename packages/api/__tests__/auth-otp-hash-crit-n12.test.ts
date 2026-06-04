@@ -119,22 +119,30 @@ describe('CRIT-N12 — OTP codes are stored as hashes, not plaintext', () => {
     expect(sentOtp).toMatch(/^\d{6}$/);
     expect(storedHash).toMatch(/^scrypt:/);
 
-    // Now verify the same OTP — should succeed.
-    dbQueryMock.mockResolvedValueOnce({
-      rows: [{
-        id: 'otp-1',
-        phone: '+639171234567',
-        code: null,             // new-format row: plaintext is null
-        code_hash: storedHash,
-        attempts: 0,
-        is_used: false,
-        expires_at: new Date(Date.now() + 5 * 60 * 1000),
-        created_at: new Date(),
-      }],
-      rowCount: 1,
+    // Now verify the same OTP — should succeed. §34.2: the OTP SELECT (now
+    // FOR UPDATE) + consume happen inside db.transaction.
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn(async (sql: string, _params: unknown[] = []) => {
+        if (/SELECT \* FROM otp_codes/.test(sql)) {
+          return {
+            rows: [{
+              id: 'otp-1',
+              phone: '+639171234567',
+              code: null,             // new-format row: plaintext is null
+              code_hash: storedHash,
+              attempts: 0,
+              is_used: false,
+              expires_at: new Date(Date.now() + 5 * 60 * 1000),
+              created_at: new Date(),
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 1 }; // mark used
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (cb as any)({ query: clientQuery });
     });
-    // mark used
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     // SELECT users → existing user found
     dbQueryMock.mockResolvedValueOnce({
       rows: [{
@@ -183,21 +191,29 @@ describe('CRIT-N12 — OTP codes are stored as hashes, not plaintext', () => {
     await sendOtp('+639171234567');
 
     // Force the SELECT to return the row with the hash from the send above.
-    dbQueryMock.mockResolvedValueOnce({
-      rows: [{
-        id: 'otp-1',
-        phone: '+639171234567',
-        code: null,
-        code_hash: storedHash,
-        attempts: 0,
-        is_used: false,
-        expires_at: new Date(Date.now() + 5 * 60 * 1000),
-        created_at: new Date(),
-      }],
-      rowCount: 1,
+    // §34.2: SELECT FOR UPDATE + attempts-increment run inside db.transaction.
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn(async (sql: string, _params: unknown[] = []) => {
+        if (/SELECT \* FROM otp_codes/.test(sql)) {
+          return {
+            rows: [{
+              id: 'otp-1',
+              phone: '+639171234567',
+              code: null,
+              code_hash: storedHash,
+              attempts: 0,
+              is_used: false,
+              expires_at: new Date(Date.now() + 5 * 60 * 1000),
+              created_at: new Date(),
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 1 }; // increment attempts
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (cb as any)({ query: clientQuery });
     });
-    // increment attempts
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
     // Attempt to verify with WRONG code.
     await expect(
@@ -208,21 +224,29 @@ describe('CRIT-N12 — OTP codes are stored as hashes, not plaintext', () => {
   it('CRIT-N12 — verifyOtp legacy fallback: still verifies plaintext code rows during rollout', async () => {
     // Simulate a legacy row (mid-rollout) with plaintext `code` populated
     // and `code_hash` null. The new verify path falls back to a
-    // timing-safe plaintext compare.
-    dbQueryMock.mockResolvedValueOnce({
-      rows: [{
-        id: 'otp-legacy-1',
-        phone: '+639171234567',
-        code: '111111',
-        code_hash: null,
-        attempts: 0,
-        is_used: false,
-        expires_at: new Date(Date.now() + 5 * 60 * 1000),
-        created_at: new Date(),
-      }],
-      rowCount: 1,
+    // timing-safe plaintext compare. §34.2: consume runs in a transaction.
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn(async (sql: string, _params: unknown[] = []) => {
+        if (/SELECT \* FROM otp_codes/.test(sql)) {
+          return {
+            rows: [{
+              id: 'otp-legacy-1',
+              phone: '+639171234567',
+              code: '111111',
+              code_hash: null,
+              attempts: 0,
+              is_used: false,
+              expires_at: new Date(Date.now() + 5 * 60 * 1000),
+              created_at: new Date(),
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 1 }; // mark used
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (cb as any)({ query: clientQuery });
     });
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 }); // mark used
     dbQueryMock.mockResolvedValueOnce({
       rows: [{
         id: 'user-1',
@@ -245,5 +269,59 @@ describe('CRIT-N12 — OTP codes are stored as hashes, not plaintext', () => {
 
     const result = await verifyOtp('+639171234567', '111111');
     expect(result.user.id).toBe('user-1');
+  });
+
+  it('§34.2 — verifyOtp claims the OTP row with SELECT ... FOR UPDATE inside a transaction', async () => {
+    let selectSql = '';
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn(async (sql: string, _params: unknown[] = []) => {
+        if (/SELECT \* FROM otp_codes/.test(sql)) {
+          selectSql = sql;
+          return {
+            rows: [{
+              id: 'otp-1', phone: '+639171234567', code: '111111', code_hash: null,
+              attempts: 0, is_used: false,
+              expires_at: new Date(Date.now() + 5 * 60 * 1000), created_at: new Date(),
+            }],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 1 };
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (cb as any)({ query: clientQuery });
+    });
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [{
+        id: 'user-1', phone: '+639171234567', email: null, first_name: 'T', last_name: 'U',
+        role: 'customer', avatar_url: null, is_verified: true, is_active: true,
+        last_login_at: null, created_at: new Date(), updated_at: new Date(),
+      }],
+      rowCount: 1,
+    });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    await verifyOtp('+639171234567', '111111');
+    // The serialization guarantee: the row is locked FOR UPDATE so a
+    // concurrent verify blocks until this one commits.
+    expect(dbTransactionMock).toHaveBeenCalledTimes(1);
+    expect(selectSql).toMatch(/FOR UPDATE/);
+  });
+
+  it('§34.2 — a second concurrent verify sees the row already consumed and is rejected', async () => {
+    // Models the loser of the race: after the winner committed is_used=TRUE,
+    // the FOR UPDATE SELECT (which filters is_used=FALSE) returns no row.
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn(async (_sql: string, _params: unknown[] = []) => {
+        return { rows: [], rowCount: 0 }; // row gone — already consumed
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (cb as any)({ query: clientQuery });
+    });
+
+    await expect(verifyOtp('+639171234567', '111111')).rejects.toThrow(/No valid verification code/);
+    // No token issuance happened — the loser never reached the user lookup.
+    expect(dbQueryMock).not.toHaveBeenCalled();
   });
 });

@@ -1077,13 +1077,17 @@ the current single-server, single-worker deployment.
    `processRecurringBookings` prime `db.query` with ordered `mockResolvedValueOnce`
    chains, so they must be re-sequenced as part of that change.
 
-2. **OTP verify race (low severity).** `verifyOtp` (`auth.service.ts`) checks
-   `is_used = FALSE` then marks used without a `FOR UPDATE` lock (the refresh-token
-   flow in the same file does use `FOR UPDATE`). Two simultaneous submissions of
-   the same valid code could both succeed — but both sessions are for the SAME
-   user, so it's a duplicate session, not account takeover. **v1.1 fix:** wrap the
-   OTP lookup+mark-used in a transaction with `SELECT ... FOR UPDATE`, mirroring
-   the refresh path.
+2. **OTP verify race — RESOLVED (2026-06-04).** `verifyOtp` (`auth.service.ts`)
+   used to check `is_used = FALSE` then mark used without a `FOR UPDATE` lock, so
+   two simultaneous submissions of the same valid code could both succeed (a
+   duplicate session, and on first-time signup, potentially two user rows). Fixed:
+   the OTP lookup + consume now runs inside `db.transaction` with
+   `SELECT ... FOR UPDATE`, mirroring the refresh path. The loser of the race
+   blocks until the winner commits, then re-evaluates the `is_used = FALSE`
+   filter, finds no row, and is rejected with "no valid code". The
+   attempts-increment / max-attempts branches return an outcome (instead of
+   throwing inside the trx) so the rate-limit UPDATE still commits. Tests:
+   `auth-otp-hash-crit-n12.test.ts` (FOR-UPDATE-shape + loser-rejected cases).
 
 3. **Referral referee bonus timing (product decision).** `redeemReferralCode`
    credits the referee's wallet immediately on code redemption, before they

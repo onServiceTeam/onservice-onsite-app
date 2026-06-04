@@ -83,8 +83,13 @@ describe('Phase 200 — dev OTP bypass', () => {
   it('is OFF by default — without ALLOW_DEV_OTP the dev code falls through to real verification', async () => {
     process.env.NODE_ENV = 'development';
     delete process.env.ALLOW_DEV_OTP;
-    // Falls through to the otp_codes lookup, which finds nothing → rejects.
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    // Falls through to the otp_codes lookup (now a FOR UPDATE inside a
+    // transaction, §34.2), which finds nothing → rejects.
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn(async () => ({ rows: [], rowCount: 0 }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (cb as any)({ query: clientQuery });
+    });
 
     await expect(verifyOtp(PHONE, '000000')).rejects.toMatchObject({ statusCode: 400 });
   });
@@ -92,8 +97,13 @@ describe('Phase 200 — dev OTP bypass', () => {
   it('can NEVER fire in production even if ALLOW_DEV_OTP=1 is mis-set', async () => {
     process.env.NODE_ENV = 'production';
     process.env.ALLOW_DEV_OTP = '1';
-    // Production must ignore the bypass entirely and do the real lookup.
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    // Production must ignore the bypass entirely and do the real lookup
+    // (FOR UPDATE inside a transaction, §34.2).
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn(async () => ({ rows: [], rowCount: 0 }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (cb as any)({ query: clientQuery });
+    });
 
     await expect(verifyOtp(PHONE, '000000')).rejects.toMatchObject({ statusCode: 400 });
   });
