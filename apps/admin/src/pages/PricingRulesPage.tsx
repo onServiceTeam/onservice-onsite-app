@@ -224,8 +224,9 @@ export default function PricingRulesPage(): React.ReactElement {
 
     if (form.type === 'rush') {
       const rushHoursThreshold = Number(form.rushHoursThreshold);
-      if (!Number.isFinite(rushHoursThreshold) || rushHoursThreshold < 1 || rushHoursThreshold > 72) {
-        return 'Rush threshold must be between 1 and 72 hours.';
+      // Must match the server validator (admin-pricing-rules.validators.ts: max 24).
+      if (!Number.isFinite(rushHoursThreshold) || rushHoursThreshold < 1 || rushHoursThreshold > 24) {
+        return 'Rush threshold must be between 1 and 24 hours.';
       }
     }
     if (form.type === 'holiday' && !form.holidayDate) {
@@ -420,7 +421,7 @@ export default function PricingRulesPage(): React.ReactElement {
                     id="pr-rush-threshold"
                     type="number"
                     min="1"
-                    max="72"
+                    max="24"
                     value={form.rushHoursThreshold}
                     onChange={(e) => setForm((p) => ({ ...p, rushHoursThreshold: e.target.value }))}
                     placeholder="e.g. 3"

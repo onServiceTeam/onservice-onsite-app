@@ -24,14 +24,14 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
-import { createPaymentIntent } from '@/services/payment.service';
+import { createPaymentIntent, getWalletBalance } from '@/services/payment.service';
 import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatBookingRef } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
-import { Smartphone, CreditCard, Wallet, ScanLine, Lock, AlertTriangle } from '@/components/icons';
+import { Smartphone, CreditCard, Wallet, ScanLine, Lock, AlertTriangle, ChevronLeft } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -66,9 +66,20 @@ export default function PayExistingBookingScreen(): React.ReactElement {
     enabled: !!bookingId,
   });
 
+  // Wallet balance — so a customer paying from their onService wallet is told
+  // up front if it's short, instead of failing server-side after tapping Pay.
+  const walletQuery = useQuery({ queryKey: ['wallet'], queryFn: getWalletBalance, staleTime: 30_000 });
+  const walletBalance = walletQuery.data?.availableBalance ?? 0;
+  const total = booking?.totalAmount ?? 0;
+  const walletShort = selectedMethod === 'wallet' && walletBalance < total;
+
   const handlePay = async (): Promise<void> => {
     if (!selectedMethod || !bookingId) {
       Alert.alert('Payment Method', 'Please select a payment method.');
+      return;
+    }
+    if (selectedMethod === 'wallet' && walletBalance < total) {
+      Alert.alert('Wallet balance too low', `Your wallet balance (${formatPHP(walletBalance)}) is below the total. Top up or choose another method.`);
       return;
     }
     setLoading(true);
@@ -141,7 +152,7 @@ export default function PayExistingBookingScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Complete Payment</Text>
       </View>
@@ -217,11 +228,16 @@ export default function PayExistingBookingScreen(): React.ReactElement {
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
+        {walletShort && (
+          <Text style={styles.walletShortHint}>
+            Wallet balance ({formatPHP(walletBalance)}) is below the total. Top up or pick another method.
+          </Text>
+        )}
         <Button
           title={loading ? 'Processing…' : `Pay ${formatPHP(booking.totalAmount)}`}
           onPress={handlePay}
           loading={loading}
-          disabled={!selectedMethod || loading}
+          disabled={!selectedMethod || loading || walletShort}
         />
       </View>
     </View>
@@ -302,5 +318,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.base,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
+  },
+  walletShortHint: {
+    ...typography.caption,
+    color: colors.error,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
   },
 });
