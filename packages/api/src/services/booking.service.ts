@@ -795,15 +795,18 @@ async function validateRoleForTransition(
     }
   }
 
-  // D23 — the assigned, approved team member may drive the ON-SITE steps of
-  // their job. Completion (completed_by_provider) stays with the provider owner
-  // for now, since it carries the checklist + after-photo quality gates.
+  // D23 + D15 — the assigned, approved team member drives the on-site steps of
+  // their job AND now marks it complete. The completion path enforces the same
+  // checklist + after-photo quality gates regardless of who triggers it (those
+  // gates key on the booking, not the actor), and the team member can upload
+  // those photos (see booking-photo.service resolveBookingRole). Quality still
+  // rolls up to the provider account via the booking's performer_staff_id.
   if (role === 'provider_staff') {
     const staffAllowed: BookingStatus[] = [
-      'provider_en_route', 'provider_arrived', 'in_progress',
+      'provider_en_route', 'provider_arrived', 'in_progress', 'completed_by_provider',
     ];
     if (!staffAllowed.includes(newStatus)) {
-      throw createAppError('Team members can update on-site status (en route, arrived, started). Ask your provider to mark the job complete.', 403);
+      throw createAppError('Team members can update on-site status (en route, arrived, started) and mark the job complete. Other actions are provider-owner only.', 403);
     }
     const performerStaffId = (booking as { performer_staff_id?: string | null }).performer_staff_id;
     if (!performerStaffId) {

@@ -23,7 +23,11 @@ const router = Router();
 function resolveActorRole(req: AuthenticatedRequest): bookingPhotoService.ActorRole {
   const role = req.user!.role;
   if (role === 'admin' || role === 'super_admin') return 'admin';
-  if (role === 'provider') return 'provider';
+  // D15 — an assigned staff member performs the job on the provider's behalf,
+  // so for booking photos/signatures they act as 'provider'. The service still
+  // verifies they are the APPROVED staff assigned to THIS booking before
+  // allowing the write, and records their individual user id in uploaded_by.
+  if (role === 'provider' || role === 'provider_staff') return 'provider';
   return 'customer';
 }
 

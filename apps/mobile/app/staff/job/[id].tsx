@@ -13,8 +13,10 @@ import { useLocation } from '@/hooks/useLocation';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft, MapPin, Clock, MessageSquare } from '@/components/icons';
 
-// On-site steps a team member can drive. Completion stays with the provider
-// owner (it carries the checklist + after-photo quality gates).
+// On-site steps a team member drives. D15 — completion is now staff-enabled:
+// at in_progress the team member enters the SAME checklist + after-photo flow
+// the provider owner uses (handled below, not via this map), and the server
+// enforces the identical quality gates and attributes the work to the provider.
 const STAFF_NEXT_ACTION: Record<string, { status: string; label: string }> = {
   paid: { status: 'provider_en_route', label: 'Start Navigation' },
   provider_en_route: { status: 'provider_arrived', label: "I've Arrived" },
@@ -141,7 +143,16 @@ export default function StaffJobDetailScreen(): React.ReactElement {
             )}
           </TouchableOpacity>
         ) : booking.status === 'in_progress' ? (
-          <Text style={styles.doneHint}>Service in progress. Your provider will confirm completion once the work is documented.</Text>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => router.push(`/provider/job/${booking.id}/checklist` as never)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.actionBtnText}>Complete Job</Text>
+          </TouchableOpacity>
+        ) : null}
+        {booking.status === 'in_progress' ? (
+          <Text style={styles.doneHint}>Finish the checklist and add the required photos to complete the job. It counts toward your provider&apos;s record.</Text>
         ) : null}
 
         <TouchableOpacity style={styles.chatRow} onPress={() => router.push(`/provider/chat/${booking.id}`)}>

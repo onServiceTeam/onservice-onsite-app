@@ -52,6 +52,8 @@ interface BookingActorRow {
   id: string;
   customer_id: string;
   provider_user_id: string | null;
+  staff_user_id: string | null;
+  staff_status: string | null;
 }
 
 /**
@@ -59,15 +61,24 @@ interface BookingActorRow {
  * userId matches the booking's customer_id, 'provider' if it matches the
  * provider's user_id, or null if the user has no relationship to the
  * booking. Admins bypass this check at the route layer.
+ *
+ * D15 — an APPROVED staff member assigned to this booking (the booking's
+ * performer_staff_id) acts on the provider side: they're the one on site doing
+ * the work, so they may upload before/during/after/checklist photos and the
+ * customer-acceptance signature exactly as the provider would. Their actions
+ * are attributed to the provider (uploaded_by_role='provider') while
+ * uploaded_by still records the individual staff user.
  */
 async function resolveBookingRole(
   bookingId: string,
   userId: string,
 ): Promise<{ role: 'customer' | 'provider' } | null> {
   const result = await db.query<BookingActorRow>(
-    `SELECT b.id, b.customer_id, p.user_id AS provider_user_id
+    `SELECT b.id, b.customer_id, p.user_id AS provider_user_id,
+            ps.user_id AS staff_user_id, ps.status AS staff_status
      FROM bookings b
      LEFT JOIN providers p ON p.id = b.provider_id
+     LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
      WHERE b.id = $1`,
     [bookingId],
   );
@@ -75,6 +86,7 @@ async function resolveBookingRole(
   if (!row) return null;
   if (row.customer_id === userId) return { role: 'customer' };
   if (row.provider_user_id === userId) return { role: 'provider' };
+  if (row.staff_user_id === userId && row.staff_status === 'approved') return { role: 'provider' };
   return null;
 }
 
