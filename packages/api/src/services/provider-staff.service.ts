@@ -128,12 +128,30 @@ export async function listStaffWithPerformance(
   providerId: string,
 ): Promise<Array<Record<string, unknown>>> {
   const rows = await listStaffByProvider(providerId);
-  return Promise.all(
-    rows.map(async (r) => ({
-      ...formatProviderStaff(r),
-      performance: await getStaffPerformance(r.id),
-    })),
+  if (rows.length === 0) return [];
+  // One grouped query for ALL members' performance instead of one query per
+  // member (was an N+1). Same numbers as getStaffPerformance, batched.
+  const perf = await db.query<{ id: string; total_jobs: string; total_reviews: string; avg_rating: string | null }>(
+    `SELECT ps.id,
+            COUNT(DISTINCT b.id) FILTER (WHERE b.status = 'completed') AS total_jobs,
+            COUNT(r.id) AS total_reviews,
+            AVG(r.rating) AS avg_rating
+       FROM provider_staff ps
+       LEFT JOIN bookings b ON b.performer_staff_id = ps.id
+       LEFT JOIN reviews r ON r.performer_staff_id = ps.id AND r.is_visible = TRUE
+      WHERE ps.provider_id = $1
+      GROUP BY ps.id`,
+    [providerId],
   );
+  const perfById = new Map(perf.rows.map((p) => [p.id, {
+    totalJobs: Number(p.total_jobs),
+    totalReviews: Number(p.total_reviews),
+    averageRating: p.avg_rating ? Number(Number(p.avg_rating).toFixed(2)) : 0,
+  }]));
+  return rows.map((r) => ({
+    ...formatProviderStaff(r),
+    performance: perfById.get(r.id) ?? { totalJobs: 0, totalReviews: 0, averageRating: 0 },
+  }));
 }
 
 // Provider owner invites a team member (no user account yet).
