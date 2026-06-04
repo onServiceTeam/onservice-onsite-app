@@ -314,7 +314,20 @@ export function extractObjectKey(urlOrKey: string | null | undefined): string | 
   let v = urlOrKey.trim();
   if (!v) return null;
 
-  // If it looks like a URL, drop scheme://host and keep the path.
+  // First strip a known configured base, INCLUDING its path component. This
+  // matters for the local-FS backend where UPLOAD_BASE_URL is e.g.
+  // https://api.onservice.ph/uploads — the object key is `onboarding/u/f.jpg`,
+  // NOT `uploads/onboarding/u/f.jpg`, so a bare scheme://host strip would leave
+  // a stray `uploads/` segment and the file lookup would miss.
+  const cdnBase = process.env.S3_CDN_URL;
+  for (const base of [BASE_URL, cdnBase]) {
+    if (base && v.startsWith(base)) {
+      v = v.slice(base.length);
+      break;
+    }
+  }
+
+  // Otherwise, if it still looks like a URL, drop scheme://host and keep the path.
   const schemeMatch = v.match(/^https?:\/\/[^/]+\/(.*)$/i);
   if (schemeMatch) {
     v = schemeMatch[1] ?? '';

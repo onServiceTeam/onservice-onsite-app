@@ -1223,20 +1223,26 @@ redeemReferralCode, redeemPoints) were audited and confirmed correct.
 
 ---
 
-## 36. Production object storage (DigitalOcean Spaces) not reachable — uploads not working in prod (found 2026-06-04)
-While wiring §35a I checked the live Space with the server's configured
-credentials: `ListObjects`/`PutObject`/`GetBucketPolicy` against `S3_BUCKET`
-(`onservice-uploads`, endpoint `sgp1.digitaloceanspaces.com`) all return
-**NoSuchBucket**, on both path-style and virtual-host addressing. That means the
-server cannot read or write the Space, so **file uploads (provider KYC, booking
-photos, chat attachments, avatars) do not work in production today.** It hasn't
-surfaced yet because prod is pre-launch with no real uploads (5 seed providers, 0
-KYC docs).
+## 36. Production object storage was misconfigured — RESOLVED 2026-06-04 (now local disk on the Hetzner box)
+The server `.env` pointed `S3_*` at a **DigitalOcean Space**
+(`onservice-uploads` @ `sgp1.digitaloceanspaces.com`) — but the project runs on
+**Hetzner only** (no DigitalOcean account), so those were stale placeholder
+values and every storage call returned **NoSuchBucket**. Net effect: file
+uploads (provider KYC, booking photos, chat attachments, avatars) did not work
+in production. Masked because prod is pre-launch with no real uploads (5 seed
+providers, 0 KYC docs) — so there was nothing to migrate.
 
-**Fix (Ken, infra):** verify the Space name/region and the `S3_ACCESS_KEY_ID` /
-`S3_SECRET_ACCESS_KEY` actually belong to a Space that exists at `sgp1`. Either
-create the `onservice-uploads` Space (and a separate private one for KYC per the
-runbook), or correct the env vars to match the real Space. After fixing,
-re-test: an upload through the app should succeed and a KYC doc should be private
-(403 on the direct URL, viewable through the app). This is a launch blocker for
-any feature that stores a file.
+**Fix (shipped):** switched production to **local-disk storage on the Hetzner
+server**, which is the infra Ken actually has. `docker-compose.prod.yml` now:
+sets `S3_BUCKET=""` (forces the local-FS backend), `UPLOAD_DIR=/app/uploads`,
+`UPLOAD_BASE_URL=https://api.onservice.ph/uploads`; mounts a persistent
+`uploads_data` named volume into the API (rw) and nginx (ro). The Dockerfile
+pre-creates `/app/uploads` owned by `node` so the volume is writable. nginx
+serves `/uploads/` publicly (booking photos) but **returns 404 for
+`/uploads/onboarding/`** (KYC), which is reachable only via the authenticated
+API proxy. No external object store, no new credentials.
+
+Future option (not required): move to Hetzner Object Storage (S3-compatible) by
+setting the real `S3_*` values — the app already supports it and KYC privacy
+(private ACL + proxy + presigned) would then apply. Local disk is fine for a
+single-box launch; just include `uploads_data` in the backup plan.

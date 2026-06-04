@@ -41,6 +41,12 @@ COPY packages/api/migrations ./packages/api/migrations
 
 WORKDIR /app/packages/api
 
+# §35a/§36 — local-disk upload storage. Pre-create the upload dir owned by the
+# non-root `node` user so the bind-/named-volume mounted here at runtime
+# inherits that ownership (Docker seeds a fresh named volume from the image
+# dir's contents + ownership), letting the API write uploads without EACCES.
+RUN mkdir -p /app/uploads && chown -R node:node /app/uploads
+
 EXPOSE 7381
 
 USER node

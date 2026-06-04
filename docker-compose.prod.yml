@@ -80,6 +80,17 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # §35a/§36 — file storage lives on THIS Hetzner box (local disk), not an
+      # external object store. Empty S3_BUCKET forces the local-FS backend;
+      # uploads persist in the uploads_data volume. Overrides any stale S3_*
+      # values still present in .env.
+      S3_BUCKET: ""
+      UPLOAD_DIR: /app/uploads
+      UPLOAD_BASE_URL: https://api.onservice.ph/uploads
+    volumes:
+      # Persistent upload storage (booking photos = public via nginx; KYC docs
+      # under onboarding/ = private, reachable only through the API proxy).
+      - uploads_data:/app/uploads
     depends_on:
       pgbouncer:
         condition: service_started
@@ -109,6 +120,10 @@ services:
       - ./certbot/www:/var/www/certbot:ro
       - ./apps/admin/dist:/usr/share/nginx/admin:ro
       - ./apps/mobile/dist-web:/usr/share/nginx/app:ro
+      # §35a — serve public uploads (booking photos) straight off disk. The KYC
+      # subtree (onboarding/) is blocked in nginx.conf and served only via the
+      # authenticated API proxy.
+      - uploads_data:/usr/share/nginx/uploads:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       api:
@@ -172,3 +187,4 @@ volumes:
   nginx_logs:
   prometheus_data:
   grafana_data:
+  uploads_data:

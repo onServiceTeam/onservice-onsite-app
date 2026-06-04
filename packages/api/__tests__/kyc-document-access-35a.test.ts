@@ -141,6 +141,12 @@ describe('§35a — extractObjectKey', () => {
   it('passes through a bare key', () => {
     expect(extractObjectKey('onboarding/u1/nbi.jpg')).toBe('onboarding/u1/nbi.jpg');
   });
+  it('strips the local UPLOAD_BASE_URL path prefix (no stray uploads/ segment)', () => {
+    // Local-FS backend: stored URL is <base>/<key>; key must NOT include the
+    // /uploads path component or the on-disk lookup would miss.
+    expect(extractObjectKey('http://localhost:7381/uploads/onboarding/u1/nbi.jpg'))
+      .toBe('onboarding/u1/nbi.jpg');
+  });
   it('drops query strings and leading slashes', () => {
     expect(extractObjectKey('/identity/u1/abc.jpg?sig=xyz')).toBe('identity/u1/abc.jpg');
   });
