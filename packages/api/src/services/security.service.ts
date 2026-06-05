@@ -49,18 +49,30 @@ export async function recordLoginAttempt(params: {
   deviceFingerprint?: string;
   userAgent?: string;
 }): Promise<void> {
-  await db.query(
-    `INSERT INTO login_attempts (phone, ip_address, attempt_type, success, device_fingerprint, user_agent)
-     VALUES ($1, $2::inet, $3, $4, $5, $6)`,
-    [
-      params.phone,
-      params.ipAddress,
-      params.attemptType,
-      params.success,
-      params.deviceFingerprint ?? null,
-      params.userAgent ?? null,
-    ],
-  );
+  // Best-effort audit write. This MUST NOT throw: recording a login attempt is
+  // a side-channel, and a failure here (e.g. the historical varchar(15) overflow
+  // when an admin EMAIL was stored in the phone-sized column) must never turn a
+  // normal failed/successful login into a 500. The `phone` column holds the
+  // login identifier — a phone for OTP, the email for admin_login.
+  try {
+    await db.query(
+      `INSERT INTO login_attempts (phone, ip_address, attempt_type, success, device_fingerprint, user_agent)
+       VALUES ($1, $2::inet, $3, $4, $5, $6)`,
+      [
+        params.phone,
+        params.ipAddress,
+        params.attemptType,
+        params.success,
+        params.deviceFingerprint ?? null,
+        params.userAgent ?? null,
+      ],
+    );
+  } catch (err) {
+    logger.warn('recordLoginAttempt failed (non-fatal)', {
+      attemptType: params.attemptType,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 export async function checkOtpLockout(phone: string, ipAddress: string): Promise<{

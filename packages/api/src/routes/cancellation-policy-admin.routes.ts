@@ -44,6 +44,7 @@ interface PolicyListRow {
   created_by: string | null;
   created_at: Date;
   intro_text: string;
+  legal_disclaimer: string;
   tiers: CancellationPolicyTier[];
   provider_no_show_credit_php: number;
   creator_first_name: string | null;
@@ -93,6 +94,7 @@ router.get('/:version', async (req: AuthenticatedRequest, res: Response, next: N
     const result = await db.query<PolicyListRow>(
       `SELECT cp.id, cp.version, cp.effective_from, cp.effective_to,
               cp.created_by, cp.created_at, cp.tiers, cp.intro_text,
+              cp.legal_disclaimer,
               cp.provider_no_show_credit_php,
               u.first_name AS creator_first_name,
               u.last_name  AS creator_last_name
@@ -115,6 +117,7 @@ router.get('/:version', async (req: AuthenticatedRequest, res: Response, next: N
         is_active: r.effective_to === null,
         tiers: r.tiers,
         intro_text: r.intro_text,
+        legal_disclaimer: r.legal_disclaimer,
         provider_no_show_credit_php: r.provider_no_show_credit_php,
         created_at: r.created_at,
         created_by: r.created_by,

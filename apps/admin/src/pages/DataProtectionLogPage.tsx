@@ -121,10 +121,12 @@ interface DialogState {
 
 export default function DataProtectionLogPage(): React.ReactElement {
   const queryClient = useQueryClient();
-  // Phase 200 fix — reject and escalate are super_admin-only on the server
-  // (compliance-admin.routes.ts requireSuperAdmin). Complete and request-info
-  // are open to any admin (requireAdmin). Gate only the two super-admin
-  // actions so non-super admins don't hit a guaranteed 403.
+  // Audit fix (2026-06-05) — ALL four DSR actions (complete, request-info,
+  // reject, escalate) are super_admin-only on the server
+  // (compliance-admin.routes.ts: requireSuperAdmin on /complete, /request-info,
+  // /reject, /escalate). Gate every action button on isSuperAdmin so a
+  // non-super admin never sees a button that returns a guaranteed 403. (The
+  // earlier comment wrongly described complete/request-info as any-admin.)
   const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -313,26 +315,26 @@ export default function DataProtectionLogPage(): React.ReactElement {
         const terminal = r.status === 'completed' || r.status === 'rejected';
         return (
           <div className="flex flex-wrap gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={terminal}
-              onClick={() => setDialog({ kind: 'complete', dsr: r })}
-              aria-label={`Mark request ${r.id.slice(-8)} complete`}
-            >
-              Complete
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={terminal}
-              onClick={() => setDialog({ kind: 'request_info', dsr: r })}
-              aria-label={`Request more info for ${r.id.slice(-8)}`}
-            >
-              Info
-            </Button>
             {isSuperAdmin && (
               <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={terminal}
+                  onClick={() => setDialog({ kind: 'complete', dsr: r })}
+                  aria-label={`Mark request ${r.id.slice(-8)} complete`}
+                >
+                  Complete
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={terminal}
+                  onClick={() => setDialog({ kind: 'request_info', dsr: r })}
+                  aria-label={`Request more info for ${r.id.slice(-8)}`}
+                >
+                  Info
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"

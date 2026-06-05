@@ -917,8 +917,15 @@ router.post(
       // tokens so the admin completes login in one round-trip instead of being
       // forced to log in again and supply a code.
       if (req.isSetupToken) {
-        const fullUser = await db.query<UserProfileRow>(
-          `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at FROM users WHERE id = $1`,
+        // Pull must_rotate_password so a forced-rotation admin is still routed
+        // to /change-password after completing 2FA enrollment in one shot
+        // (matches the /admin/login and /admin/2fa/verify responses; without it
+        // the mandatory rotation was silently skipped on the enroll-then-login
+        // path).
+        const fullUser = await db.query<UserProfileRow & { must_rotate_password: boolean | null }>(
+          `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at,
+                  COALESCE(must_rotate_password, FALSE) AS must_rotate_password
+             FROM users WHERE id = $1`,
           [userId],
         );
         await db.query(
@@ -941,6 +948,7 @@ router.post(
           data: {
             message: 'Two-factor authentication is now enabled.',
             user: formatUserResponse(fullUser.rows[0]!),
+            mustRotatePassword: fullUser.rows[0]?.must_rotate_password === true,
             sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
           },
         });
