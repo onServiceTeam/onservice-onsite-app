@@ -345,7 +345,7 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
               </span>
             )}
             <span className="inline-flex items-center gap-1">
-              <Calendar size={14} /> joined {new Date(profile.createdAt).toLocaleDateString('en-PH')}
+              <Calendar size={14} /> joined {new Date(profile.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}
             </span>
             {/* BUG-PHASE39-05 fix — lastLoginAt was on the API payload
                  and the CustomerProfile interface but never rendered in

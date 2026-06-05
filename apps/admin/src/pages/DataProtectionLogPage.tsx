@@ -375,6 +375,14 @@ export default function DataProtectionLogPage(): React.ReactElement {
         </div>
       </div>
 
+      {!isSuperAdmin && (
+        <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          You have read-only access to this page. Acting on a Data Subject Request
+          (complete, request info, reject, escalate) requires super-admin access —
+          contact a super administrator.
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Filters</CardTitle>

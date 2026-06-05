@@ -1333,7 +1333,7 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
                 <tbody>
                   {q2307ListQ.data.map((it) => (
                     <tr key={it.providerId} className="border-b border-[var(--color-border)]">
-                      <td className="py-2 px-3 text-[var(--color-text)]">{it.providerName}</td>
+                      <td className="py-2 px-3 text-[var(--color-text)]">{it.providerName ?? '—'}</td>
                       <td className="py-2 px-3 text-right">{formatCurrency(it.amount)}</td>
                     </tr>
                   ))}

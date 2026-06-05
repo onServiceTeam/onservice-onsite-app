@@ -151,7 +151,7 @@ export default function DashboardPage(): React.ReactElement {
       type: 'dsr_due',
       severity: d.isOverdue ? 'danger' : 'warning',
       title: `DSR ${d.requestType} ${d.isOverdue ? 'OVERDUE' : 'due soon'}`,
-      description: `${d.userEmail ?? 'user'} — due ${new Date(d.dueAt).toLocaleDateString('en-PH')} (${d.daysUntilDue}d)`,
+      description: `${d.userEmail ?? 'user'} — due ${new Date(d.dueAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' })} (${d.daysUntilDue}d)`,
       action_url: '/compliance',
       created_at: new Date().toISOString(),
     }));
