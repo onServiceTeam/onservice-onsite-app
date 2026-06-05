@@ -124,6 +124,9 @@ services:
       # subtree (onboarding/) is blocked in nginx.conf and served only via the
       # authenticated API proxy.
       - uploads_data:/usr/share/nginx/uploads:ro
+      # Public legal pages (privacy/terms) — required by NPC registration +
+      # app-store submission. Static HTML, served at /privacy and /terms.
+      - ./legal:/usr/share/nginx/legal:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       api:

@@ -40,7 +40,8 @@ If an item fails verification:
    - PIC (Personal Information Controller) details: company name, TIN, business address, registered owner.
    - DPO details: full name, role title, email (`dpo@onservice.ph` recommended), phone.
    - Description of personal data processed (categories: customer phone/email/address/payment; provider NBI/government ID/financial).
-   - Privacy policy URL (must be publicly accessible).
+   - Privacy policy URL (must be publicly accessible). **Now live:**
+     `https://app.onservice.ph/privacy` (and `/terms`) — static, crawlable pages.
 4. Submit registration at https://privacy.gov.ph/dpo-registration/.
 5. Await confirmation email (typically 14–21 days).
 6. Update `LAUNCH-LIMITATIONS.md` §26 with NPC PIC registration number (`NPC-PIC-NNNNNN`).
