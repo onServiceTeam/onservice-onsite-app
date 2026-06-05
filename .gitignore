@@ -66,3 +66,13 @@ docker-compose.override.yml
 /.ai-coder/checkpoints/logs/PHASE-*/gates/
 infra/terraform/.terraform/
 infra/terraform/.terraform.lock.hcl
+
+# Server-local operational data — MUST NEVER be committed. These exist only on
+# the production box: backups/ holds DB dumps + uploaded files (real user PII),
+# certbot/ holds TLS private keys. Ignored so an accidental `git add -A` on the
+# server can't leak secrets or personal data into the repo. The server
+# bootstrap scripts are likewise server-local.
+/backups/
+/certbot/
+/00-docker.sh
+/02-deploy.sh
