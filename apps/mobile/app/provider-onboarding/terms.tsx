@@ -104,46 +104,92 @@ export default function TermsScreen(): React.ReactElement {
         <View style={styles.agreementCard}>
           <Text style={styles.agreementTitle}>Key Terms</Text>
 
-          <Text style={styles.clauseTitle}>1. Relationship</Text>
+          <Text style={styles.clauseTitle}>1. Independent Contractor Relationship</Text>
           <Text style={styles.clauseText}>
-            You are registering as an independent contractor, not an employee of onService.
-            You maintain full control over how, when, and where you perform services.
+            You register as an independent contractor — not an employee, agent, or partner
+            of onService. You control how, when, and where you perform services and use your
+            own tools and methods. Nothing in this agreement creates an employment,
+            partnership, or joint-venture relationship.
           </Text>
 
           <Text style={styles.clauseTitle}>2. Service Standards</Text>
           <Text style={styles.clauseText}>
-            You agree to perform all jobs to a professional standard, arrive on time,
-            and communicate promptly with customers.
+            You agree to perform every job competently, safely, and lawfully, to a
+            professional standard, to arrive on time, and to communicate promptly with
+            customers.
           </Text>
 
-          <Text style={styles.clauseTitle}>3. Commission</Text>
+          <Text style={styles.clauseTitle}>3. Commission & Fees</Text>
           <Text style={styles.clauseText}>
-            onService charges a service fee (paid by the customer) per booking.
-            Commission rates vary by your tier level and are detailed in the Provider Dashboard.
+            onService charges a service fee per booking. Your commission rate varies by tier
+            and is shown in the Provider Dashboard. You agree these amounts may be deducted
+            from your payouts.
           </Text>
 
           <Text style={styles.clauseTitle}>4. Escrow Payments</Text>
           <Text style={styles.clauseText}>
-            Customer payments are held in escrow until the job is confirmed complete.
-            Funds are released to your wallet minus any applicable commission.
+            Customer payments are held in escrow until the job is confirmed complete. Funds
+            are released to your wallet minus any applicable commission. You agree not to
+            accept or solicit off-platform or cash payment for jobs booked through onService.
           </Text>
 
           <Text style={styles.clauseTitle}>5. Verification</Text>
           <Text style={styles.clauseText}>
             You consent to identity verification, NBI clearance validation, and ongoing
-            background checks. You must keep your NBI clearance current.
+            background checks, and you must keep your NBI clearance current. You confirm the
+            documents and information you submit are genuine and yours.
           </Text>
 
-          <Text style={styles.clauseTitle}>6. Disputes</Text>
+          <Text style={styles.clauseTitle}>6. Taxes & Your Own Insurance</Text>
           <Text style={styles.clauseText}>
-            You agree to respond to customer disputes within 48 hours. Failure to respond
-            may result in automatic resolution in the customer's favor.
+            As an independent contractor you are solely responsible for your own taxes and
+            BIR obligations on your earnings. onService does not withhold or remit taxes on
+            your behalf except where required by law. You are encouraged to carry your own
+            liability insurance; onService does not insure you or your work.
           </Text>
 
-          <Text style={styles.clauseTitle}>7. Termination</Text>
+          <Text style={styles.clauseTitle}>7. Liability & Indemnification</Text>
           <Text style={styles.clauseText}>
-            Either party may end this agreement at any time. Outstanding job obligations
-            and pending payouts will be honored.
+            You are solely responsible for any loss, injury, or property damage you (or your
+            team members) cause while performing a service. You agree to indemnify and hold
+            onService harmless from any claim, damage, or reasonable expense arising from
+            your services, your breach of this agreement, or your violation of any law or
+            third-party right.
+          </Text>
+
+          <Text style={styles.clauseTitle}>8. Compliance, Licenses & No Circumvention</Text>
+          <Text style={styles.clauseText}>
+            You will comply with all applicable laws and hold any licenses or permits your
+            services require. You will not circumvent the platform, divert customers
+            off-platform, misrepresent your identity or services, or post false reviews.
+          </Text>
+
+          <Text style={styles.clauseTitle}>9. Team Members</Text>
+          <Text style={styles.clauseText}>
+            If you add team members, you are responsible for their conduct, eligibility, and
+            verification, and their performance counts toward your account. They must be
+            approved through the platform's review before performing jobs.
+          </Text>
+
+          <Text style={styles.clauseTitle}>10. Data & Confidentiality</Text>
+          <Text style={styles.clauseText}>
+            You will use customer information only to perform the booked job and will handle
+            it in accordance with the Data Privacy Act (RA 10173) and our Privacy Policy. You
+            will not retain, share, or reuse customer data for any other purpose.
+          </Text>
+
+          <Text style={styles.clauseTitle}>11. Disputes</Text>
+          <Text style={styles.clauseText}>
+            You agree to respond to customer disputes within 48 hours. Failure to respond may
+            result in automatic resolution in the customer's favor and a refund from escrow.
+          </Text>
+
+          <Text style={styles.clauseTitle}>12. Termination</Text>
+          <Text style={styles.clauseText}>
+            Either party may end this agreement at any time. Outstanding job obligations and
+            pending payouts will be honored. Clauses on liability, indemnification, taxes,
+            confidentiality, and no-circumvention survive termination. onService may suspend
+            or remove you for safety, quality, fraud, or legal reasons.
           </Text>
         </View>
 

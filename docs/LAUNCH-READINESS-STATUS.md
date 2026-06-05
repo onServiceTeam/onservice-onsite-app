@@ -57,7 +57,7 @@ These are shipped to production and verified:
 | 10 | DNS + TLS | done | — | Live on HTTPS; A+ config shipped. |
 | 11 | Admin SSO | optional | no | Deferrable per the runbook. |
 | 12 | BIR e-receipt verification | You / me | gated on #2 | Verifiable once the ATP serial range exists. |
-| — | **F#10 legal disclaimer** | Attorney | YES | Final wording needs an attorney; interim wording is live with a CI guard. I cannot write legal language. |
+| — | **Legal docs (F#10 + Terms/Privacy/IC)** | done (opt. attorney) | no | Drafted to a complete PH-law-grounded standard: finalized no-insurance disclaimer + full Terms (20 sections), Privacy Policy (RA 10173), and provider IC agreement. See `docs/LEGAL-REVIEW-2026-06-05.md`. Only left: drop in the registered entity/DPO details, and an optional belt-and-suspenders attorney read. |
 | — | F#3 / F#4 visual baselines | CI/me | no | Need a Linux CI run / mobile simulator to capture correctly (capturing on Windows would produce wrong baselines). Functional tests already pass. |
 | — | In-app chat send reliability (§25) | me (v1.1) | no | Mobile real-time client issue; needs device testing. Spec-deferred to v1.1; "Call provider" + photo/dispute flows work. |
 

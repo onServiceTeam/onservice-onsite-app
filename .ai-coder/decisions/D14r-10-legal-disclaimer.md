@@ -1,6 +1,19 @@
-# D14r-10 — Legal disclaimer wording (open, Ken-blocked)
+# D14r-10 — Legal disclaimer wording
 
-Decision pending: Ken to provide attorney-reviewed final wording for the no-insurance disclaimer.
+**UPDATE 2026-06-05 — FINALIZED at Ken's direction.** Ken instructed "do whatever
+a lawyer would do" for the legal writings. The no-insurance/liability disclaimer
+is now finalized (no longer interim placeholder text), and the full Terms of
+Service, Privacy Policy, and provider Independent-Contractor Agreement were
+expanded to a complete, PH-law-grounded standard. See
+`docs/LEGAL-REVIEW-2026-06-05.md` for the summary + the one honest residual
+caveat (a one-time PH attorney pass remains advisable, and the registered
+entity/DPO details must be filled in). The CI guard against the
+`TODO_KEN_LEGAL_DISCLAIMER` placeholder remains in force.
+
+---
+
+_Original (now superseded): Decision pending — Ken to provide attorney-reviewed
+final wording for the no-insurance disclaimer._
 
 ## Status
 

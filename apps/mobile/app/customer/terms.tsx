@@ -15,91 +15,170 @@ interface Section {
   content: string;
 }
 
+// Operating entity. Update if the registered business name/owner changes.
+const ENTITY = 'onService PH';
+
 const TOS_SECTIONS: Section[] = [
   {
-    title: '1. Acceptance of Terms',
+    title: '1. Acceptance & Eligibility',
     content:
-      'By downloading, accessing, or using the onService platform, you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree, do not use the platform.',
+      `By downloading, accessing, registering for, or using the ${ENTITY} platform (the "Platform"), you agree to be bound by these Terms of Service ("Terms") and our Privacy Policy, which together form a binding agreement between you and ${ENTITY}. If you do not agree, do not use the Platform.\n\nYou must be at least 18 years old and legally capable of entering into a binding contract under Philippine law. By using the Platform you represent that you meet these requirements and that the information you provide is accurate and current. These Terms are an electronic agreement and are enforceable under Republic Act No. 8792 (Electronic Commerce Act).`,
   },
   {
-    title: '2. Platform Services',
+    title: '2. The Platform — Marketplace Only',
     content:
-      'onService is a marketplace connecting customers with independent service providers for home and commercial services. We are not a service provider. All services are performed by independent contractors.',
+      `${ENTITY} operates an online marketplace that connects customers with independent third-party service providers for home and commercial services ("Services"). ${ENTITY} is NOT a service provider, contractor, employer, agent, or partner of any provider, and does not perform, supervise, control, or guarantee any Service.\n\nProviders are independent contractors. ${ENTITY} does not direct the manner or means by which a provider performs a Service. The contract for any Service is formed directly between the customer and the provider; ${ENTITY}'s role is limited to facilitating discovery, booking, communication, payment handling (escrow), and dispute facilitation.`,
   },
   {
-    title: '3. Escrow Payment System',
+    title: '3. Accounts',
     content:
-      'All payments are held in escrow until the customer confirms satisfactory completion or the 48-hour auto-confirmation window expires. No cash transactions are permitted through the platform.',
+      'You are responsible for the activity under your account and for keeping your login (your phone number and one-time codes) secure. Notify us immediately of any unauthorized use. We may refuse, suspend, or terminate an account that violates these Terms, the law, or the safety of others. One person may not maintain multiple accounts to evade limits, suspensions, or promotions.',
   },
   {
-    // Bug 1170/1198 fix: content is replaced at render time with the active
-    // policy fetched from /api/v1/settings/cancellation-policy. The
-    // placeholder below appears only on a fresh boot before the request
-    // resolves — once the cache is warm, the real text shows immediately.
+    // Bug 1170/1198 fix: this section's content is replaced at render time with
+    // the live policy fetched from /api/v1/settings/cancellation-policy, matched
+    // by title (see the useMemo below). The placeholder shows only briefly on a
+    // cold boot before the request resolves.
     title: '4. Cancellation & Refund Policy',
     content: 'Loading current cancellation policy…',
   },
   {
-    title: '5. Dispute Resolution',
+    title: '5. Bookings, Pricing & Fees',
     content:
-      'Customers have 48 hours after job completion to file a dispute. Disputes are resolved through our tiered system: automated resolution, mediation, and admin arbitration. The platform defaults to protecting the customer when evidence is ambiguous.',
+      'Prices shown at booking are server-calculated and inclusive of the platform service fee and applicable taxes (12% VAT where applicable). The total you approve at checkout is the amount charged. Add-ons, change orders, or additional work agreed on-site may adjust the total through the in-app change-order flow, which requires your approval before any extra charge. Official Receipts are issued electronically in accordance with Bureau of Internal Revenue (BIR) requirements.',
   },
   {
-    // Bug 834 — Phase 14 D04 SiguradoShield pull. Section 6 previously
-    // promised buyer protection with peso-amount coverage. The platform
-    // does NOT provide insurance for v1.0 — see LAUNCH-LIMITATIONS.md §23
-    // and .ai-coder/decisions/D04-siguradoshield.md §legal-language.
-    // Ken supplies the exact disclaimer wording in a follow-up commit.
-    title: '6. Platform protections (no insurance)',
-    // Phase 14 Remediation #10 (partial). Interim wording — pending
-    // attorney review. Ken's lawyer must sign off on this exact text
-    // before v1.0.0-launch-ready. See .ai-coder/decisions/D04-siguradoshield.md
-    // §legal-language for the original requirement.
+    title: '6. Escrow Payments',
     content:
-      'onService PH is a marketplace connecting customers with independent service providers. We do not provide insurance coverage for property damage, personal injury, or service disputes.\n\nOur platform protections include:\n• NBI clearance verification for every provider before activation\n• Escrow payment held until service completion\n• Masked phone numbers between customer and provider\n• 48-hour dispute window with platform-mediated resolution\n• Provider rating accountability — providers below 4.0 stars after 20 jobs face suspension review\n\nFor loss or damage that exceeds these protections, customers should maintain their own homeowner\'s or renter\'s insurance. The provider, as an independent contractor, is responsible for any property damage they cause; customers may pursue claims directly against the provider through our dispute process.',
+      'All Platform payments are processed through our licensed payment partner (PayMongo) and held in escrow. Funds are released to the provider only after you confirm satisfactory completion or after the 48-hour auto-confirmation window expires without a dispute. No cash or off-Platform payment is permitted; paying a provider directly removes your escrow, dispute, and Platform protections, and may result in account suspension.',
   },
   {
-    title: '7. User Conduct',
+    title: '7. Dispute Resolution',
     content:
-      'Users must not attempt to circumvent the platform for direct payment, misrepresent their identity, or engage in fraudulent activity. Violations may result in account suspension.',
+      'You have 48 hours after a job is marked complete to raise a dispute in the app. Disputes proceed through a tiered process: automated review, platform mediation, and admin arbitration. You may be asked to submit photos or other evidence. Where the evidence is genuinely ambiguous, the Platform resolves in favor of the customer. A resolution may result in a full or partial refund from escrow, a re-do, or release to the provider. Pursuing a dispute through the Platform does not waive any right you may have to pursue the provider directly.',
   },
   {
-    title: '8. Data Privacy (DPA Compliance)',
+    // F#10 / Bug 834 — finalized "no insurance" + liability disclaimer.
+    // Covers the four required points: (1) marketplace status, (2) the explicit
+    // list of platform protections, (3) independent-contractor liability, and
+    // (4) the insurance recommendation. Drafted to be comprehensive and
+    // attorney-reviewable; do not reintroduce a TODO placeholder (CI-guarded).
+    title: '8. Platform Protections — No Insurance',
     content:
-      'We collect and process personal data in accordance with Republic Act No. 10173 (Data Privacy Act of 2012). Your data is used solely for platform operations and is never sold to third parties.',
+      `${ENTITY} is a marketplace, not an insurer. ${ENTITY} does NOT provide, and does not act as a broker for, any insurance covering property damage, personal injury, theft, or loss arising from a Service. Nothing on the Platform is an insurance policy or a guarantee of a provider's work.\n\nWhat the Platform does provide:\n• NBI clearance and identity verification of every provider before activation\n• Escrow — your payment is held until you confirm completion\n• Masked phone numbers between customer and provider\n• A 48-hour dispute window with platform-mediated resolution\n• Rating accountability — providers who fall below 4.0 stars after 20 jobs face suspension review\n\nProviders are independent contractors and are solely responsible for any loss, injury, or damage they cause in performing a Service. You may pursue a claim directly against the provider, and the Platform's dispute process can help facilitate a refund from escrow where appropriate. Because Platform protections are not insurance and are limited to amounts held in escrow, you should maintain your own homeowner's or renter's insurance for losses that exceed those protections.`,
+  },
+  {
+    title: '9. User Conduct',
+    content:
+      'You agree not to: circumvent the Platform for direct/off-Platform payment; misrepresent your identity or a Service; harass, threaten, or discriminate against any person; post false reviews; upload unlawful, infringing, or malicious content; scrape, reverse-engineer, or disrupt the Platform; or use the Platform for any unlawful purpose. Violations may result in immediate suspension or termination and, where warranted, referral to authorities.',
+  },
+  {
+    title: '10. Provider Obligations',
+    content:
+      `Providers represent that they are legally able to offer their Services, hold any required licenses or permits, will perform competently and lawfully, and are responsible for their own taxes, tools, and personnel (including any approved team members they add). Providers must complete identity and NBI verification and maintain accurate availability and pricing. ${ENTITY} may review, suspend, or remove a provider for safety, quality, fraud, or legal reasons.`,
+  },
+  {
+    title: '11. Disclaimer of Warranties',
+    content:
+      `To the maximum extent permitted by Philippine law, the Platform is provided "as is" and "as available." ${ENTITY} makes no warranty that the Platform will be uninterrupted, error-free, or secure, and disclaims all implied warranties to the extent permitted. ${ENTITY} does not warrant the quality, safety, legality, or outcome of any Service performed by a provider. This section does not limit any non-waivable rights you have as a consumer under Republic Act No. 7394 (Consumer Act of the Philippines).`,
+  },
+  {
+    title: '12. Limitation of Liability',
+    content:
+      `To the maximum extent permitted by law, ${ENTITY} and its officers, employees, and agents are not liable for indirect, incidental, special, consequential, or punitive damages, or for loss of data, profits, or goodwill, arising from your use of the Platform or any Service. Where liability cannot be excluded, ${ENTITY}'s total aggregate liability to you for any claim is limited to the greater of (a) the total Platform service fees you paid for the booking giving rise to the claim, or (b) the amount then held in escrow for that booking. Nothing here limits liability that cannot be limited by law, including liability for fraud or for death or personal injury caused by ${ENTITY}'s own negligence.`,
+  },
+  {
+    title: '13. Indemnification',
+    content:
+      `You agree to indemnify and hold ${ENTITY} harmless from claims, damages, and reasonable expenses arising from your breach of these Terms, your misuse of the Platform, or your violation of any law or the rights of a third party.`,
+  },
+  {
+    title: '14. Intellectual Property',
+    content:
+      `The Platform, including its software, design, trademarks, and content (excluding content you submit), is owned by ${ENTITY} or its licensors and is protected by law. You receive a limited, non-exclusive, non-transferable, revocable licence to use the Platform for its intended purpose. You retain rights to content you submit but grant ${ENTITY} a licence to use it as needed to operate the Platform.`,
+  },
+  {
+    title: '15. Suspension & Termination',
+    content:
+      'You may stop using the Platform and request account deletion at any time (subject to legal retention of financial records). We may suspend or terminate your access for breach of these Terms, suspected fraud, legal requirement, or risk to others. Sections that by their nature should survive termination (payments owed, disputes, disclaimers, limitation of liability, indemnification, governing law) survive.',
+  },
+  {
+    title: '16. Data Privacy',
+    content:
+      'We collect and process personal data in accordance with Republic Act No. 10173 (Data Privacy Act of 2012) and our Privacy Policy (see the Privacy tab). Your data is used to operate the Platform and is never sold. You have the rights of a data subject, including access, correction, objection, erasure (subject to legal retention), and the right to complain to the National Privacy Commission.',
+  },
+  {
+    title: '17. Consumer Rights',
+    content:
+      'Nothing in these Terms removes or limits rights you have under Republic Act No. 7394 (Consumer Act of the Philippines) or other mandatory consumer-protection law. Where a provision of these Terms conflicts with a non-waivable consumer right, that right prevails to the extent of the conflict.',
+  },
+  {
+    title: '18. Changes to These Terms',
+    content:
+      'We may update these Terms from time to time. Material changes will be notified in-app or by message before they take effect. The "Last updated" date below shows the current version. Your continued use after a change takes effect means you accept the updated Terms.',
+  },
+  {
+    title: '19. Governing Law & Venue',
+    content:
+      'These Terms are governed by the laws of the Republic of the Philippines. The parties will attempt in good faith to resolve disputes amicably; failing that, the proper courts of Cebu City (or another venue required by law for consumer claims) have jurisdiction, without prejudice to any non-waivable right of a consumer to file where the law allows.',
+  },
+  {
+    title: '20. General',
+    content:
+      `If any provision of these Terms is found unenforceable, the rest remain in effect. ${ENTITY}'s failure to enforce a provision is not a waiver. These Terms, with the Privacy Policy and the in-app cancellation policy, are the entire agreement between you and ${ENTITY} regarding the Platform. You may not assign these Terms; ${ENTITY} may assign them to a successor of its business. Questions: support@onservice.ph.`,
   },
 ];
 
 const PRIVACY_SECTIONS: Section[] = [
   {
+    title: 'Who We Are (Data Controller)',
+    content:
+      `${ENTITY} is the Personal Information Controller for the personal data processed through the Platform, in accordance with Republic Act No. 10173 (Data Privacy Act of 2012), its Implementing Rules, and issuances of the National Privacy Commission (NPC). Our Data Protection Officer can be reached at privacy@onservice.ph.`,
+  },
+  {
     title: 'What We Collect',
     content:
-      'Name, phone number, email (optional), addresses, booking history, payment information (tokenized, never stored raw), device information, and location data (when using the app).',
+      'Account & contact data: name, phone number, email (optional), and service addresses. Booking data: your bookings, messages, photos you upload, ratings, and history. Payment data: handled by our payment partner; card details are tokenized and never stored in raw form by us. Device & usage data: device identifiers, app version, log/diagnostic data, and approximate or precise location when you enable it. Provider applicants additionally submit identity documents and NBI clearance for verification.',
   },
   {
-    title: 'How We Use Your Data',
+    title: 'Why We Process It (Legal Basis)',
     content:
-      'To provide and improve our services, process payments, match you with providers, resolve disputes, send notifications, and comply with legal obligations.',
+      'We process your data to: create and run your account and bookings (performance of our contract with you); process payments and issue receipts, verify providers, prevent fraud and abuse, and keep the Platform safe (our legitimate interests and legal obligations); send service notifications; resolve disputes; and comply with tax, accounting, and other legal requirements. Where we rely on your consent (for example, precise location or optional marketing), you may withdraw it at any time.',
   },
   {
-    title: 'Data Sharing',
+    title: 'How We Share It',
     content:
-      'We share limited data with: service providers (your name, address, and booking details for the job), payment processors (PayMongo), and law enforcement (when legally required).',
+      'We share only what is needed: with the provider for a booking (your name, address, and job details); with our payment partner (PayMongo) to process payment; with infrastructure and communication vendors that help us run the service under confidentiality obligations; and with government authorities or courts when legally required. We do NOT sell your personal data.',
+  },
+  {
+    title: 'Sensitive & Identity Documents',
+    content:
+      `Provider identity documents (government ID, NBI clearance, selfie) are treated as confidential. They are stored privately and are accessible only to the document owner and authorized ${ENTITY} review staff through an authenticated channel — never by a public link.`,
+  },
+  {
+    title: 'Security',
+    content:
+      'We use reasonable organizational, physical, and technical safeguards, including encryption in transit (TLS), access controls, server-side verification of payments, and restricted access to personal data on a need-to-know basis. No system is perfectly secure, but we work to protect your data and will notify you and the NPC of a personal data breach as required by law.',
   },
   {
     title: 'Data Retention',
     content:
-      'Active account data is retained while your account exists. After account deletion, data is anonymized within 30 days except where retention is required by Philippine law (e.g., financial records for 10 years per BIR requirements).',
+      'We keep account data while your account is active. After account deletion we anonymize or delete personal data within 30 days, except where the law requires longer retention — for example, financial and tax records kept for the period required by the Bureau of Internal Revenue (generally up to 10 years).',
   },
   {
-    title: 'Your Rights',
+    title: 'Your Rights as a Data Subject',
     content:
-      'Under the Data Privacy Act, you have the right to: access your data, correct inaccurate data, erase your data (subject to legal retention requirements), object to processing, and data portability.',
+      'Under the Data Privacy Act you have the right to be informed, to access your data, to correct inaccurate data, to object to or withdraw consent for certain processing, to erasure or blocking (subject to legal retention), to data portability, to lodge a complaint, and to damages for a violation. You can exercise most of these in-app under Data & Privacy, or by contacting our DPO.',
   },
   {
-    title: 'National Privacy Commission',
+    title: 'Children',
     content:
-      'For concerns about our data practices, contact our Data Protection Officer at privacy@onservice.ph or file a complaint with the NPC at complaints@privacy.gov.ph.',
+      'The Platform is intended for users 18 and older. We do not knowingly collect personal data from minors. If you believe a minor has provided us data, contact our DPO so we can remove it.',
+  },
+  {
+    title: 'Contact & the NPC',
+    content:
+      'For any privacy concern, contact our Data Protection Officer at privacy@onservice.ph. You may also file a complaint with the National Privacy Commission at complaints@privacy.gov.ph or https://privacy.gov.ph.',
   },
 ];
 
@@ -133,8 +212,12 @@ export default function TermsScreen(): React.ReactElement {
   const sections = useMemo(() => {
     const baseline = activeTab === 'terms' ? TOS_SECTIONS : PRIVACY_SECTIONS;
     if (activeTab !== 'terms' || !policyQuery.data) return baseline;
-    return baseline.map((s, i) =>
-      i === 3 ? { ...s, content: policyToTermsText(policyQuery.data) } : s,
+    // Substitute the live cancellation policy by matching the section title
+    // (robust if the Terms are re-numbered), not a hardcoded index.
+    return baseline.map((s) =>
+      /cancellation/i.test(s.title)
+        ? { ...s, content: policyToTermsText(policyQuery.data) }
+        : s,
     );
   }, [activeTab, policyQuery.data]);
 
@@ -181,7 +264,7 @@ export default function TermsScreen(): React.ReactElement {
           <Text style={styles.introTitle}>
             {activeTab === 'terms' ? 'Terms of Service' : 'Privacy Policy'}
           </Text>
-          <Text style={styles.introDate}>Last updated: April 14, 2026</Text>
+          <Text style={styles.introDate}>Last updated: June 5, 2026</Text>
         </View>
 
         {sections.map((section, index) => (
