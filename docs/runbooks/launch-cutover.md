@@ -281,11 +281,11 @@ bash scripts/verify-s3-bir.sh
 > `/opt/onservice/backups/`, keeps 7 days, and the dump has been restore-tested
 > (loads into a scratch DB with real rows). This fixes a latent bug where the
 > cron had been failing every night (non-executable script). Runbook:
-> `docs/runbooks/postgres-restore.md`. **Still needed (Ken/engineer):** (a) an
-> OFF-SITE copy target (Hetzner Storage Box or any rclone remote) so a total disk
-> loss doesn't lose the only backups — set `BACKUP_RCLONE_REMOTE` + install
-> rclone; (b) continuous WAL/PITR if sub-24h RPO is required. Daily dump + an
-> off-site copy is an acceptable launch baseline.
+> `docs/runbooks/postgres-restore.md`. **Disaster recovery is already covered by
+> Hetzner Automatic Backups + snapshots (whole volume, off the box), so this is
+> NOT a launch blocker.** Optional later: continuous WAL/PITR for sub-24h RPO,
+> and/or pushing the logical dumps to a dedicated off-box target
+> (`BACKUP_RCLONE_REMOTE` + rclone). Both are nice-to-haves, not blockers.
 
 **Owner:** API platform engineer
 **Estimated time:** 1–3 days

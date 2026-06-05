@@ -10,11 +10,16 @@ server time) writes two files per night to `/opt/onservice/backups/`:
 hours since the last 02:00 run. (Continuous point-in-time recovery is a later
 upgrade — see "Upgrade to PITR" below.)
 
-> **Durability gap to close (Ken):** backups currently live on the SAME disk as
-> the data. A total box/disk loss loses both. Set `BACKUP_RCLONE_REMOTE` to an
-> off-box destination (a Hetzner Storage Box or any rclone remote) and install
-> `rclone` so each night's files are also copied off-site. That's the final
-> durability step and needs a destination + credentials from you.
+> **Disaster recovery is covered by Hetzner.** The server has Hetzner Automatic
+> Backups + snapshot capability enabled, which back up the WHOLE volume (DB +
+> uploads) off the box — so a total disk/box loss is already recoverable from
+> Hetzner's side. This app-level nightly dump is a *supplement*: a portable,
+> logical copy you can inspect, partially restore, or move to another Postgres
+> (a volume snapshot can't do that). It is NOT the only line of defense.
+>
+> Optional later: set `BACKUP_RCLONE_REMOTE` + install `rclone` to also push the
+> logical dumps to a dedicated off-box target. Not required given the Hetzner
+> volume backups.
 
 ---
 

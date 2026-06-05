@@ -53,7 +53,7 @@ These are shipped to production and verified:
 | 6 | Sentry production DSN | You | YES | Code ready; just create the project + paste the DSN. |
 | 7 | PayMongo live mode | You | YES | KYC onboarding + live keys (you paste secrets). ~14–30 days. |
 | 8 | BIR receipt long-term retention | You / me | gated on #2 | Was specced as S3 Object Lock; on Hetzner we'll do WORM-style local + off-site. Not needed until BIR pipeline is live. |
-| 9 | Backups OFF-SITE + (optional) PITR | You + me | recommended | Nightly backups work but sit on the same disk as the data. Give me an off-box target (Hetzner Storage Box / rclone remote) and I wire the off-site copy. |
+| 9 | Backups | done | — | **Covered.** Hetzner's server-level Automatic Backups + snapshots already back up the whole volume (DB + uploads) OFF the box — that's disaster recovery. On top of that, the app-level nightly logical DB+files dump (whose cron I fixed — it had been failing) gives a portable, restore-tested copy. Off-site is therefore NOT a blocker; can add a dedicated off-site target later if desired. |
 | 10 | DNS + TLS | done | — | Live on HTTPS; A+ config shipped. |
 | 11 | Admin SSO | optional | no | Deferrable per the runbook. |
 | 12 | BIR e-receipt verification | You / me | gated on #2 | Verifiable once the ATP serial range exists. |
@@ -65,7 +65,8 @@ These are shipped to production and verified:
 The **app and its infrastructure are launch-ready from a code, data-durability,
 and security standpoint.** What stands between here and "open to all users" is
 almost entirely **external/administrative**: the government registrations
-(NPC/BIR/DTI/Mayor), going live on PayMongo, creating a Sentry project, and one
-CAPTCHA provider decision (E07). The moment you hand me (a) the CAPTCHA provider
-choice and (b) an off-site backup target, I'll close those two out and verify
-them. The rest are forms, KYC, and sign-offs that only you can submit.
+(NPC/BIR/DTI/Mayor), going live on PayMongo, and creating a Sentry project. On
+the technical side the only thing I need *from* you is the free **Cloudflare
+Turnstile keys** — the captcha is now wired end to end (server + mobile) and just
+needs the keys pasted into the env. The rest are forms, KYC, and sign-offs that
+only you can submit.
