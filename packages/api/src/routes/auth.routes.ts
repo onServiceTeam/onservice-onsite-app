@@ -563,15 +563,16 @@ router.post(
       const totpEnabled = totpResult.rows[0]?.totp_enabled ?? false;
 
       if (totpEnabled) {
-        // Return a partial response requiring 2FA verification
-        // Sign a short-lived pre-auth token (5 min) for the 2FA step
+        // Return a partial response requiring 2FA verification.
+        // 10-min pre-auth window — enough time to open the authenticator and
+        // type a code without the token expiring mid-flow.
         const jwt = await import('jsonwebtoken');
         const secret = process.env.JWT_SECRET;
         if (!secret) throw new Error('JWT_SECRET is not configured');
         const preAuthToken = jwt.default.sign(
           { userId: user.id, role: user.role, type: 'pre_auth_2fa' },
           secret,
-          { algorithm: 'HS256', expiresIn: 300 },
+          { algorithm: 'HS256', expiresIn: 600 },
         );
 
         await securityService.logSecurityEvent({
@@ -600,10 +601,15 @@ router.post(
         const jwtSetup = await import('jsonwebtoken');
         const setupSecret = process.env.JWT_SECRET;
         if (!setupSecret) throw new Error('JWT_SECRET is not configured');
+        // 30-min setup window — first-time enrollment (install/open an
+        // authenticator app, add the key, sync time) routinely takes longer
+        // than 5 minutes, especially on an emulator. A short token here was
+        // causing "Invalid or expired authentication token" before the admin
+        // could finish.
         const preAuthToken = jwtSetup.default.sign(
           { userId: user.id, role: user.role, type: 'pre_auth_2fa_setup' },
           setupSecret,
-          { algorithm: 'HS256', expiresIn: 300 },
+          { algorithm: 'HS256', expiresIn: 1800 },
         );
 
         await securityService.logSecurityEvent({
@@ -720,7 +726,10 @@ router.post(
 
       const user = userResult.rows[0]!;
       const decryptedSecret = decryptSecret(user.totp_secret!);
-      const valid = verifyTotp(decryptedSecret, totpCode);
+      // window=2 (±60s) tolerates moderate device clock drift (common on
+      // emulators) without meaningfully weakening 2FA (lockout + rate limit
+      // still bound brute force).
+      const valid = verifyTotp(decryptedSecret, totpCode, 2);
       if (!valid) {
         await securityService.logSecurityEvent({
           userId: user.id,
@@ -901,7 +910,8 @@ router.post(
       }
 
       const decryptedEnableSecret = decryptSecret(user.totp_secret);
-      const valid = verifyTotp(decryptedEnableSecret, totpCode);
+      // window=2 (±60s) — tolerate emulator/device clock drift during enrollment.
+      const valid = verifyTotp(decryptedEnableSecret, totpCode, 2);
       if (!valid) {
         throw createAppError('Invalid verification code. Please try again with a new code from your authenticator app.', 400);
       }
