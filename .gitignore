@@ -76,3 +76,6 @@ infra/terraform/.terraform.lock.hcl
 /certbot/
 /00-docker.sh
 /02-deploy.sh
+
+# Ad-hoc diagnostic scripts (one-off, may contain test creds) — never commit
+/scripts/diag-*.sh
