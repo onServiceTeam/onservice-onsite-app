@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { useAuthStore } from '@/stores/auth.store';
 
 interface Template {
   id: string;
@@ -50,6 +51,9 @@ function parseChannel(value: string | null): string {
 
 export default function NotificationTemplatesPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  // Delete is super_admin-only on the server (notification-template.routes DELETE
+  // → requireSuperAdmin). Gate the button so a regular admin doesn't hit a 403.
+  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
   const typeFilter = parseType(searchParams.get('type'));
@@ -268,17 +272,19 @@ export default function NotificationTemplatesPage(): React.ReactElement {
           >
             Edit
           </button>
-          <button
-            type="button"
-            aria-label={`Delete template ${r.slug}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (window.confirm(`Delete template "${r.slug}"?`)) deleteMutation.mutate(r.id);
-            }}
-            className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
-          >
-            Delete
-          </button>
+          {isSuperAdmin && (
+            <button
+              type="button"
+              aria-label={`Delete template ${r.slug}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (window.confirm(`Delete template "${r.slug}"?`)) deleteMutation.mutate(r.id);
+              }}
+              className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+            >
+              Delete
+            </button>
+          )}
         </div>
       ),
     },

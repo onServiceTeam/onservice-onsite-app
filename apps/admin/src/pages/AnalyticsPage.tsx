@@ -392,6 +392,9 @@ function ChurnTab(): React.ReactElement {
               ))}
             </tbody>
           </table>
+          {data?.data.length === 0 && (
+            <p className="text-sm text-slate-500 text-center py-8">No customers match this risk level.</p>
+          )}
           {(data?.pagination.totalPages ?? 0) > 1 && (
             <div className="flex justify-center gap-2">
               <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1 text-sm border rounded disabled:opacity-30">Prev</button>
@@ -480,7 +483,9 @@ function QualityTab(): React.ReactElement {
         </button>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load quality scores. Please try again.</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load quality scores. Please try again.</p> : data?.data.length === 0 ? (
+        <p className="text-sm text-slate-500 py-4">No providers have quality scores yet. Click &ldquo;Recompute Scores&rdquo; to generate them.</p>
+      ) : (
         <table className="w-full text-sm">
           <thead className="bg-slate-50">
             <tr>
@@ -540,7 +545,9 @@ function CommissionTab(): React.ReactElement {
 
   return (
     <div className="space-y-4">
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load commission data. Please try again.</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load commission data. Please try again.</p> : (data?.length ?? 0) === 0 ? (
+        <p className="text-sm text-slate-500 py-4">No commission optimization suggestions available.</p>
+      ) : (
         <div className="grid gap-4">
           {data?.map((s) => {
             const delta = s.suggestedRate - s.currentRate;

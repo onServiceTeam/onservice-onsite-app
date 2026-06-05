@@ -46,6 +46,7 @@ interface CustomerAdminRow {
   last_name: string;
   role: string;
   is_active: boolean;
+  is_flagged_fraud: boolean;
   created_at: Date;
   updated_at: Date;
   total_bookings: string;
@@ -409,8 +410,16 @@ export async function listCustomers(
     paramIdx++;
   }
   if (filters.status) {
-    conditions.push(`u.is_active = $${paramIdx++}`);
-    params.push(filters.status === 'active');
+    // Map the four UI filter values to the underlying flags. 'suspended' and
+    // 'inactive' are the same state (is_active=false); 'flag_fraud' keys on the
+    // fraud flag regardless of active state.
+    if (filters.status === 'flag_fraud') {
+      conditions.push(`u.is_flagged_fraud = TRUE`);
+    } else if (filters.status === 'active') {
+      conditions.push(`u.is_active = TRUE AND u.is_flagged_fraud = FALSE`);
+    } else if (filters.status === 'inactive' || filters.status === 'suspended') {
+      conditions.push(`u.is_active = FALSE`);
+    }
   }
 
   const whereClause = `WHERE ${conditions.join(' AND ')}`;
@@ -422,7 +431,7 @@ export async function listCustomers(
 
   const offset = (filters.page - 1) * filters.pageSize;
   const dataResult = await db.query<CustomerAdminRow>(
-    `SELECT u.id, u.phone, u.email, u.first_name, u.last_name, u.role, u.is_active, u.created_at, u.updated_at,
+    `SELECT u.id, u.phone, u.email, u.first_name, u.last_name, u.role, u.is_active, u.is_flagged_fraud, u.created_at, u.updated_at,
        (SELECT COUNT(*) FROM bookings WHERE customer_id = u.id)::text AS total_bookings,
        COALESCE((SELECT SUM(total_amount) FROM bookings WHERE customer_id = u.id AND status IN ('confirmed', 'payout_ready', 'paid_out')), 0)::text AS total_spent,
        (SELECT COUNT(*) FROM disputes WHERE filed_by = u.id)::text AS total_disputes
@@ -613,7 +622,7 @@ export function formatCustomer(c: CustomerAdminRow): Record<string, unknown> {
     email: c.email,
     firstName: c.first_name,
     lastName: c.last_name,
-    status: c.is_active ? 'active' : 'inactive',
+    status: c.is_flagged_fraud ? 'flag_fraud' : (c.is_active ? 'active' : 'inactive'),
     totalBookings: Number(c.total_bookings),
     totalSpent: Number(c.total_spent),
     totalDisputes: Number(c.total_disputes),

@@ -177,10 +177,16 @@ export default function CancellationPolicyPage(): React.ReactElement {
   }, [activePolicyQuery.data]);
 
   function validateEditorState(payload: EditorState): string | null {
-    if (!payload.intro_text.trim()) return 'Intro text is required.';
-    if (!payload.legal_disclaimer.trim()) return 'Legal disclaimer is required.';
-    if (!Number.isFinite(payload.provider_no_show_credit_php) || payload.provider_no_show_credit_php < 0) {
-      return 'Provider no-show credit must be zero or higher.';
+    // Mirror the server's Zod limits so the admin gets a clear message instead
+    // of an opaque server validation error on save.
+    if (payload.intro_text.trim().length < 10) return 'Intro text must be at least 10 characters.';
+    if (payload.legal_disclaimer.trim().length < 10) return 'Legal disclaimer must be at least 10 characters.';
+    if (
+      !Number.isFinite(payload.provider_no_show_credit_php) ||
+      payload.provider_no_show_credit_php < 0 ||
+      payload.provider_no_show_credit_php > 10000
+    ) {
+      return 'Provider no-show credit must be between 0 and 10,000 pesos.';
     }
     return null;
   }

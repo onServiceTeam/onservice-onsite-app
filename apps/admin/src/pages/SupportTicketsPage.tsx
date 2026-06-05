@@ -174,6 +174,10 @@ export default function SupportTicketsPage(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['adminSupportTickets'] });
       void queryClient.invalidateQueries({ queryKey: ['adminSupportTicket'] });
       setError('');
+      // Close the confirm dialog ONLY after the status update actually
+      // succeeds — so a failure keeps the dialog open with the error visible.
+      setPendingStatus(null);
+      setResolutionNotes('');
     },
     onError: (e) => setError(getErrorMessage(e)),
   });
@@ -406,6 +410,9 @@ export default function SupportTicketsPage(): React.ReactElement {
                   placeholder="Explain how this ticket was resolved (min 10 characters) — recorded in audit trail."
                   className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                 />
+                {error && updateStatusMutation.isError && (
+                  <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>
+                )}
                 <div className="flex gap-2 justify-end mt-4">
                   <button
                     type="button"
@@ -420,8 +427,9 @@ export default function SupportTicketsPage(): React.ReactElement {
                       if (pendingStatus) {
                         const notes = resolutionNotes.trim();
                         if (!window.confirm(`Mark ${ticket.ticket_number} as ${formatLabel(pendingStatus)}?`)) return;
+                        // Dialog stays open until the mutation succeeds (closed in
+                        // onSuccess) so a failure is shown here, not in the background.
                         updateStatusMutation.mutate({ id: ticket.id, status: pendingStatus, resolutionNotes: notes });
-                        setPendingStatus(null);
                       }
                     }}
                     disabled={updateStatusMutation.isPending || resolutionNotes.trim().length < 10}
