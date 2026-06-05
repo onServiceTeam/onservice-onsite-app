@@ -15,6 +15,8 @@ import { initSecureStorage } from '@/services/secure-storage';
 import { migrateLegacyTokensIfNeeded } from '@/services/auth-migration';
 import { OfflineBanner } from '@/components/ui';
 import { AlertHost } from '@/components/ui/AlertHost';
+import { ToastProvider } from '@/components/ui/Toast';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { WebAppFrame } from '@/components/WebAppFrame';
 import { installWebAlert } from '@/utils/web-alert';
 
@@ -103,21 +105,30 @@ function RootLayout(): React.ReactElement {
       <QueryClientProvider client={queryClient}>
         <PushNotificationGate />
         <StatusBar style="dark" />
-        <WebAppFrame>
-          <OfflineBanner />
-          <AlertHost />
-          <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="onboarding" />
-            <Stack.Screen name="auth" />
-            <Stack.Screen name="provider-onboarding" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="customer" />
-            <Stack.Screen name="(provider-tabs)" />
-            <Stack.Screen name="provider" />
-            <Stack.Screen name="staff" />
-          </Stack>
-        </WebAppFrame>
+        {/* A2 — a render error in any screen below shows a recoverable
+            fallback instead of white-screening the whole app. */}
+        <ErrorBoundary>
+          <WebAppFrame>
+            <OfflineBanner />
+            <AlertHost />
+            {/* A3 — mount the toast renderer once at the app root so
+                showToast()/showRetryableToast() actually render on native +
+                web. Previously only AlertHost (a web-only shim) was mounted,
+                so showToast() was silent on devices. */}
+            <ToastProvider />
+            <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="onboarding" />
+              <Stack.Screen name="auth" />
+              <Stack.Screen name="provider-onboarding" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="customer" />
+              <Stack.Screen name="(provider-tabs)" />
+              <Stack.Screen name="provider" />
+              <Stack.Screen name="staff" />
+            </Stack>
+          </WebAppFrame>
+        </ErrorBoundary>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

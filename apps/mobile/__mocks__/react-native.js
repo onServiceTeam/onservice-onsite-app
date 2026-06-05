@@ -159,6 +159,7 @@ const Animated = {
     }
   },
   timing: () => ({ start: (cb) => cb && cb({ finished: true }) }),
+  spring: () => ({ start: (cb) => cb && cb({ finished: true }) }),
   parallel: (animations) => ({
     start: (cb) => {
       animations.forEach((a) => a && a.start && a.start());
