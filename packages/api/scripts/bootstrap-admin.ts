@@ -140,12 +140,18 @@ async function main(): Promise<void> {
     );
     process.stdout.write(`Updated password and role for existing user: ${email} (id=${row.id}, role=${ROLE})\n`);
   } else {
+    // users.phone is NOT NULL + UNIQUE. Admins sign in by email, but the column
+    // is required, so use ADMIN_BOOTSTRAP_PHONE if given, else a synthetic
+    // unique placeholder (PH-shaped) so the INSERT doesn't violate NOT NULL.
+    const phone =
+      process.env.ADMIN_BOOTSTRAP_PHONE ||
+      `+639${Math.floor(100000000 + Math.random() * 900000000)}`;
     await db.query(
-      `INSERT INTO users (email, password_hash, role, is_active, is_verified, created_at, updated_at)
-       VALUES ($1, $2, $3, true, true, NOW(), NOW())`,
-      [email, hash, ROLE],
+      `INSERT INTO users (email, password_hash, role, phone, is_active, is_verified, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, true, true, NOW(), NOW())`,
+      [email, hash, ROLE, phone],
     );
-    process.stdout.write(`Created ${ROLE} user: ${email}\n`);
+    process.stdout.write(`Created ${ROLE} user: ${email} (phone=${phone})\n`);
   }
 
   process.stdout.write('Bootstrap complete. Sign in via /login with the provided password.\n');

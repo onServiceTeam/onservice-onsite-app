@@ -1,6 +1,7 @@
-import React, { useState, useRef, type FormEvent } from 'react';
+import React, { useState, useRef, useEffect, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { useNavigate, Navigate } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { useAuthStore, type AdminUser } from '@/stores/auth.store';
 import api, { getErrorMessage } from '@/lib/api';
 import { Label, Input } from '@/components/ui';
@@ -23,7 +24,20 @@ export default function LoginPage(): React.ReactElement {
   const [requires2FASetup, setRequires2FASetup] = useState(false);
   const [setupSecret, setSetupSecret] = useState('');
   const [setupUri, setSetupUri] = useState('');
+  const [setupQrDataUrl, setSetupQrDataUrl] = useState('');
   const [enrolCode, setEnrolCode] = useState('');
+
+  // Render the otpauth URI to a scannable QR image (client-side; the secret is
+  // never sent anywhere). Without this the screen showed only a raw secret
+  // string, which non-technical admins could not act on.
+  useEffect(() => {
+    if (!setupUri) { setSetupQrDataUrl(''); return; }
+    let cancelled = false;
+    QRCode.toDataURL(setupUri, { width: 220, margin: 1 })
+      .then((url) => { if (!cancelled) setSetupQrDataUrl(url); })
+      .catch(() => { if (!cancelled) setSetupQrDataUrl(''); });
+    return () => { cancelled = true; };
+  }, [setupUri]);
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -169,9 +183,14 @@ export default function LoginPage(): React.ReactElement {
             className="bg-white rounded-xl border border-[var(--color-border)] p-6 shadow-sm"
           >
             <h2 className="text-lg font-semibold text-[var(--color-text)] mb-2">Set Up Two-Factor Authentication</h2>
-            <p className="text-sm text-[var(--color-text-secondary)] mb-5">
-              Two-factor authentication is required for all admin accounts. Add the secret below to your authenticator app, then enter the 6-digit code.
+            <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+              This is a one-time setup, required for all admin accounts.
             </p>
+            <ol className="text-sm text-[var(--color-text-secondary)] mb-4 list-decimal pl-5 space-y-1">
+              <li>Install an authenticator app on your phone (Google Authenticator, Microsoft Authenticator, or Authy).</li>
+              <li>Scan the QR code below with that app (or tap &ldquo;Enter a setup key&rdquo; and type the secret).</li>
+              <li>Enter the 6-digit code the app shows, then press <strong>Enable &amp; Sign In</strong>.</li>
+            </ol>
 
             {error && (
               <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -181,30 +200,33 @@ export default function LoginPage(): React.ReactElement {
 
             {setupSecret ? (
               <>
+                {setupQrDataUrl && (
+                  <div className="mb-4 flex justify-center">
+                    <img
+                      src={setupQrDataUrl}
+                      alt="Two-factor authentication QR code"
+                      width={220}
+                      height={220}
+                      className="border border-[var(--color-border)] rounded-lg bg-white p-2"
+                    />
+                  </div>
+                )}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">
-                    Secret (base32)
+                    Can&rsquo;t scan? Enter this setup key manually:
                   </label>
-                  <code className="block w-full px-3 py-2 bg-gray-50 border border-[var(--color-border)] rounded-lg text-xs font-mono break-all">
+                  <code className="block w-full px-3 py-2 bg-gray-50 border border-[var(--color-border)] rounded-lg text-xs font-mono break-all select-all">
                     {setupSecret}
-                  </code>
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">
-                    otpauth URI (open in your authenticator)
-                  </label>
-                  <code className="block w-full px-3 py-2 bg-gray-50 border border-[var(--color-border)] rounded-lg text-xs font-mono break-all">
-                    {setupUri}
                   </code>
                 </div>
               </>
             ) : (
-              <p className="mb-4 text-sm text-[var(--color-text-secondary)]">Generating secret&hellip;</p>
+              <p className="mb-4 text-sm text-[var(--color-text-secondary)]">Generating QR code&hellip;</p>
             )}
 
             <div className="mb-5">
               <Label htmlFor="enrol-totp" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">
-                Verification code
+                6-digit code from your authenticator app
               </Label>
               <Input
                 id="enrol-totp"
