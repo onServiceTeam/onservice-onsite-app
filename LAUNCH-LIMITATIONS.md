@@ -1246,3 +1246,22 @@ Future option (not required): move to Hetzner Object Storage (S3-compatible) by
 setting the real `S3_*` values — the app already supports it and KYC privacy
 (private ACL + proxy + presigned) would then apply. Local disk is fine for a
 single-box launch; just include `uploads_data` in the backup plan.
+
+---
+
+## 37. Admin 2FA (TOTP) temporarily bypassable via ADMIN_DISABLE_2FA (staging — must address before production)
+At Ken's request (2026-06-05), admin login can be reduced to email + password by
+setting `ADMIN_DISABLE_2FA=1`. When set, `/auth/admin/login` skips both the
+TOTP-verify and the forced-enrollment branches and issues the session directly;
+a loud `logger.warn` fires on every such login. The flag defaults OFF (secure):
+with it unset, mandatory TOTP enrollment is unchanged.
+
+**Currently ON** on the staging server (`.env`) because the authenticator-app
+flow was impractical to set up in BlueStacks for testing.
+
+**Before production launch — do ONE of:**
+1. Unset `ADMIN_DISABLE_2FA` to restore mandatory TOTP 2FA, OR
+2. Implement SMS/email admin-login 2FA (Ken's stated preference) and require it.
+
+Leaving admin accounts on password-only in production is a security risk
+(no second factor on the most privileged accounts).

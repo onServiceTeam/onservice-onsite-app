@@ -555,6 +555,20 @@ router.post(
         }
       }
 
+      // ADMIN_DISABLE_2FA escape hatch (default OFF = secure). When set, admin
+      // login is email + password only: both the TOTP-verify and the forced-
+      // enrollment branches below are skipped and a session is issued directly.
+      // Intended for staging/testing or until SMS/email admin 2FA is built.
+      // MUST be re-enabled (or replaced) before production — see
+      // LAUNCH-LIMITATIONS. Loud warning so it can never be silently on in prod.
+      const twoFaDisabled =
+        process.env.ADMIN_DISABLE_2FA === '1' || process.env.ADMIN_DISABLE_2FA === 'true';
+      if (twoFaDisabled) {
+        logger.warn('ADMIN_DISABLE_2FA is active — admin login is password-only', {
+          email, nodeEnv: process.env.NODE_ENV,
+        });
+      }
+
       // Check if 2FA is enabled — require TOTP verification before issuing tokens
       const totpResult = await db.query<{ totp_enabled: boolean }>(
         `SELECT totp_enabled FROM users WHERE id = $1`,
@@ -562,7 +576,7 @@ router.post(
       );
       const totpEnabled = totpResult.rows[0]?.totp_enabled ?? false;
 
-      if (totpEnabled) {
+      if (totpEnabled && !twoFaDisabled) {
         // Return a partial response requiring 2FA verification.
         // 10-min pre-auth window — enough time to open the authenticator and
         // type a code without the token expiring mid-flow.
@@ -597,7 +611,8 @@ router.post(
       // configured TOTP. Issue a short-lived `pre_auth_2fa_setup` token that
       // grants access ONLY to /admin/2fa/setup and /admin/2fa/enable.
       // E01 / D15 — DPO is in the admin tier and must enroll TOTP too.
-      if (user.role === 'admin' || user.role === 'super_admin' || user.role === 'dpo') {
+      // Skipped entirely when ADMIN_DISABLE_2FA is set (password-only login).
+      if (!twoFaDisabled && (user.role === 'admin' || user.role === 'super_admin' || user.role === 'dpo')) {
         const jwtSetup = await import('jsonwebtoken');
         const setupSecret = process.env.JWT_SECRET;
         if (!setupSecret) throw new Error('JWT_SECRET is not configured');
