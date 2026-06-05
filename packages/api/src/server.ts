@@ -76,6 +76,7 @@ import settingsRoutes from './routes/settings.routes';
 import cancellationPolicyPublicRoutes from './routes/cancellation-policy-public.routes';
 import cancellationPolicyAdminRoutes from './routes/cancellation-policy-admin.routes';
 import * as settingsService from './services/settings.service';
+import { assertAdmin2faNotDisabledInProduction } from './config/boot-guards';
 import { db } from './models/db';
 import { redis } from './config/redis.config';
 
@@ -107,6 +108,12 @@ function validateProductionSecrets(): void {
   }
 }
 validateProductionSecrets();
+
+// A1 / C1 — refuse to boot if admin 2FA is disabled in production. The flag
+// is a staging/testing escape hatch (LAUNCH-LIMITATIONS.md #37); leaving it on
+// in production would reduce the most privileged accounts to password-only.
+// Throws synchronously, before the port is bound, so it can never ship silently.
+assertAdmin2faNotDisabledInProduction();
 
 const app = express();
 const PORT = process.env.PORT || 3001;

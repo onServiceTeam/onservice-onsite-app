@@ -1265,3 +1265,12 @@ flow was impractical to set up in BlueStacks for testing.
 
 Leaving admin accounts on password-only in production is a security risk
 (no second factor on the most privileged accounts).
+
+**Production hard-stop now in place (A1, 2026-06-06).** A boot guard
+(`assertAdmin2faNotDisabledInProduction` in
+`packages/api/src/config/boot-guards.ts`, called from `server.ts` before the
+port is bound) throws and refuses to boot if `ADMIN_DISABLE_2FA` is truthy AND
+`NODE_ENV=production`. So the flag can no longer reach production silently — a
+prod deploy with it still set crashes on startup with a clear message. Staging
+(where it is currently ON) is unaffected. This does not by itself satisfy the
+"do ONE of" list above; it just makes option 1 mandatory before prod boot.
