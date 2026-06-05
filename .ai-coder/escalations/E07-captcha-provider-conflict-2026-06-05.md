@@ -1,6 +1,28 @@
 # E07 — CAPTCHA provider conflict + client side not wired (2026-06-05)
 
-**Status:** OPEN — needs Ken's decision (provider choice) before it can be finished.
+**Status:** RESOLVED (2026-06-05). Ken's direction: don't make him pick — use the
+provider already in the code. Standardized on **Cloudflare Turnstile** and wired
+it end to end. The only remaining step is Ken creating the free Turnstile keys
+(runbook Item 5).
+
+## Resolution (what shipped)
+
+- Server: `verifyCaptchaToken` documented as Turnstile, accepts
+  `CAPTCHA_SECRET_KEY` or `TURNSTILE_SECRET_KEY`, fails closed in production when
+  unset (bypasses in dev/staging).
+- Mobile: new `TurnstileModal` (react-native-webview) + `useCaptchaOtp` hook wire
+  the captcha into the login + register OTP flows — it appears only on the
+  server's 428 `captchaRequired` challenge (post-lockout) and retries the OTP
+  with the token. Reads the public site key from `EXPO_PUBLIC_TURNSTILE_SITE_KEY`.
+- Removed dead `utils/hcaptcha.ts` + its test; corrected runbook Item 5 to
+  Turnstile.
+- Tests green; both the API and mobile suites pass. Client token round-trip
+  should be smoke-tested on a device once the real site key is set.
+
+---
+
+_Original analysis below._
+
 **Severity:** Medium. Not a hard blocker (rate limiting + OTP are the live baseline
 defense), but launch-cutover Item 5 lists CAPTCHA in the must-pass set, and the
 runbook currently tells you to configure the WRONG product.

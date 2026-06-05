@@ -45,7 +45,7 @@ interface AuthState {
   otpRequestId: string | null;
 
   hydrate: () => void;
-  requestOtp: (phone: string) => Promise<void>;
+  requestOtp: (phone: string, captchaToken?: string) => Promise<void>;
   verifyOtp: (phone: string, code: string) => Promise<void>;
   register: (phone: string, firstName: string, lastName: string) => Promise<void>;
   logout: () => void;
@@ -84,7 +84,7 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     }
   },
 
-  requestOtp: async (phone: string) => {
+  requestOtp: async (phone: string, captchaToken?: string) => {
     // BUG-PHASE127-01 fix — wire device fingerprint. Best-effort:
     // if the fingerprint generation fails (e.g. expo-application
     // unavailable in some test/dev environments), fall through to
@@ -96,7 +96,10 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     } catch {
       deviceFingerprint = undefined;
     }
-    await api.post('/api/v1/auth/send-otp', { phone, deviceFingerprint });
+    // captchaToken is sent only after the server has demanded one (HTTP 428,
+    // captchaRequired) following the failed-attempt lockout. The caller obtains
+    // it from the Cloudflare Turnstile challenge (see useCaptchaOtp).
+    await api.post('/api/v1/auth/send-otp', { phone, deviceFingerprint, captchaToken });
     set({ otpRequestId: phone });
   },
 

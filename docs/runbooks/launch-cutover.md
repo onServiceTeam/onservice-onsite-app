@@ -149,29 +149,32 @@ Manual confirmation.
 
 ---
 
-## Item 5 — hCaptcha production contract
+## Item 5 — CAPTCHA (Cloudflare Turnstile)
 
-**Owner:** Ken
-**Estimated time:** Same-day signup; ~7 days for paid tier KYC
-**Cost:** Free tier OK for v1.0; Pro at $99/mo if traffic warrants
+**Owner:** Ken **Cost:** Free **Time:** ~15 min
+
+The app uses **Cloudflare Turnstile** (free, no KYC). Server verification and the
+mobile challenge UI are both wired (the captcha appears only after the
+failed-attempt lockout, to stop bots burning SMS). You only need to create the
+keys:
 
 ### Steps
 
-1. Sign up at https://www.hcaptcha.com/ with company email.
-2. Create production site for `*.onservice.ph`.
-3. Note site key (public) and secret key (server-only).
-4. Add to `.env.production`:
+1. Go to https://dash.cloudflare.com/ → **Turnstile** → **Add site**.
+2. Domain: `onservice.ph` (add `app.onservice.ph` too). Widget mode: **Managed**.
+3. Copy the **Site Key** (public) and **Secret Key** (server-only).
+4. Server — add the secret to `/opt/onservice/.env`:
    ```bash
-   HCAPTCHA_SITE_KEY=<public>
-   HCAPTCHA_SECRET_KEY=<secret>
+   CAPTCHA_SECRET_KEY=<secret>   # (TURNSTILE_SECRET_KEY also accepted)
    ```
-5. Rotate from dev key in mobile builds (`apps/mobile/eas.json` env reference).
+   then `docker compose -f docker-compose.prod.yml up -d api`.
+5. Mobile — the PUBLIC site key goes into the build env as
+   `EXPO_PUBLIC_TURNSTILE_SITE_KEY=<site-key>` (EAS build env / `eas.json`), then
+   rebuild + redeploy the mobile web bundle (and native builds when you cut them).
 
-### Verification
-
-```bash
-bash scripts/verify-hcaptcha.sh
-```
+Until the keys are set, the live baseline is rate-limiting + OTP (the server
+fails the captcha challenge closed in production, so set the keys before relying
+on the lockout-captcha path). See escalation E07 for the history.
 
 ### Sign-off
 

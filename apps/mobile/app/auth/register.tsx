@@ -3,18 +3,18 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuthStore } from '@/stores/auth.store';
 import { getErrorMessage } from '@/utils/errors';
 import { Button, Input } from '@/components/ui';
 import { validatePHPhone, normalizePHPhone } from '@/utils/phone';
 import { colors, spacing, typography } from '@/config/theme';
 // Phase 14 R5-complete — PhoneInput component for register form.
 import PhoneInput from '@/components/PhoneInput';
+import { useCaptchaOtp } from '@/hooks/useCaptchaOtp';
 
 export default function RegisterScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { requestOtp } = useAuthStore();
+  const { requestOtpWithCaptcha, captchaModal } = useCaptchaOtp();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -36,7 +36,7 @@ export default function RegisterScreen(): React.ReactElement {
     setLoading(true);
     try {
       const normalized = normalizePHPhone(phone);
-      await requestOtp(normalized);
+      await requestOtpWithCaptcha(normalized);
       router.push({
         pathname: '/auth/otp-verify',
         params: {
@@ -147,6 +147,7 @@ export default function RegisterScreen(): React.ReactElement {
           .
         </Text>
       </ScrollView>
+      {captchaModal}
     </KeyboardAvoidingView>
   );
 }

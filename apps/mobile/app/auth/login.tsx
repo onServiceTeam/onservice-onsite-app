@@ -3,10 +3,10 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuthStore } from '@/stores/auth.store';
 import { Button } from '@/components/ui';
 import { validatePHPhone, normalizePHPhone } from '@/utils/phone';
 import { getErrorMessage } from '@/utils/errors';
+import { useCaptchaOtp } from '@/hooks/useCaptchaOtp';
 import { colors, spacing, typography } from '@/config/theme';
 // Phase 14 R5-complete — PhoneInput cross-cutting component wired
 // into the login flow. Replaces the inline <Input> phone field with
@@ -17,7 +17,9 @@ import PhoneInput from '@/components/PhoneInput';
 export default function LoginScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { requestOtp } = useAuthStore();
+  // requestOtpWithCaptcha transparently handles the server's 428 captcha
+  // challenge (Cloudflare Turnstile) that appears after the lockout threshold.
+  const { requestOtpWithCaptcha, captchaModal } = useCaptchaOtp();
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -32,7 +34,7 @@ export default function LoginScreen(): React.ReactElement {
     setLoading(true);
     try {
       const normalized = normalizePHPhone(phone);
-      await requestOtp(normalized);
+      await requestOtpWithCaptcha(normalized);
       router.push({ pathname: '/auth/otp-verify', params: { phone: normalized, mode: 'login' } });
     } catch (err: unknown) {
       // Phase D CRIT-69 fix — use canonical getErrorMessage helper
@@ -115,6 +117,8 @@ export default function LoginScreen(): React.ReactElement {
         </Text>
         .
       </Text>
+
+      {captchaModal}
     </KeyboardAvoidingView>
   );
 }

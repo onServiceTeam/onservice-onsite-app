@@ -179,14 +179,18 @@ export async function checkOtpLockout(phone: string, ipAddress: string): Promise
 }
 
 export async function verifyCaptchaToken(token: string): Promise<boolean> {
-  const captchaSecret = process.env.CAPTCHA_SECRET_KEY;
+  // Provider is Cloudflare Turnstile (see escalation E07). The secret lives only
+  // on the server; the matching PUBLIC site key is shipped in the client build
+  // (EXPO_PUBLIC_TURNSTILE_SITE_KEY). Accept TURNSTILE_SECRET_KEY as a clearer
+  // alias for the historical CAPTCHA_SECRET_KEY name.
+  const captchaSecret = process.env.CAPTCHA_SECRET_KEY || process.env.TURNSTILE_SECRET_KEY;
 
   if (!captchaSecret) {
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV !== 'production') {
       logger.info('[DEV] CAPTCHA verification skipped — no secret key');
       return true;
     }
-    logger.warn('CAPTCHA_SECRET_KEY not configured');
+    logger.warn('CAPTCHA secret (CAPTCHA_SECRET_KEY / TURNSTILE_SECRET_KEY) not configured — failing closed');
     return false;
   }
 

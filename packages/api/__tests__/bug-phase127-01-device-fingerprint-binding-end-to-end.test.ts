@@ -85,10 +85,12 @@ describe('BUG-PHASE127-01 — device fingerprint binding end-to-end', () => {
     });
 
     it('BUG-PHASE127-01 — requestOtp passes deviceFingerprint', () => {
-      const fnBody = AUTH_STORE.match(/requestOtp: async \(phone: string\) => \{[\s\S]+?\},/);
+      // Signature gained an optional captchaToken (E07 — Turnstile captcha on
+      // the post-lockout OTP challenge); deviceFingerprint binding is unchanged.
+      const fnBody = AUTH_STORE.match(/requestOtp: async \(phone: string, captchaToken\?: string\) => \{[\s\S]+?\},/);
       expect(fnBody).not.toBeNull();
       expect(fnBody?.[0]).toMatch(/deviceFingerprint = await getDeviceFingerprint\(\)/);
-      expect(fnBody?.[0]).toMatch(/api\.post\('\/api\/v1\/auth\/send-otp', \{ phone, deviceFingerprint \}\)/);
+      expect(fnBody?.[0]).toMatch(/api\.post\('\/api\/v1\/auth\/send-otp', \{ phone, deviceFingerprint, captchaToken \}\)/);
     });
 
     it('BUG-PHASE127-01 — verifyOtp passes deviceFingerprint', () => {

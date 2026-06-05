@@ -13,6 +13,10 @@
 // __DEV__ global RN normally provides at build time.
 globalThis.__DEV__ = true;
 
+// react-native-webview ships untransformed ESM; stub it so screens that mount
+// the Turnstile captcha sheet (login/register) render in tests without it.
+jest.mock('react-native-webview', () => ({ WebView: () => null }));
+
 // Project-internal services.
 jest.mock('@/services/api', () => ({
   __esModule: true,
