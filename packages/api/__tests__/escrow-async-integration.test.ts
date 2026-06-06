@@ -24,6 +24,8 @@ jest.mock('../src/services/wallet.service', () => ({
   getPlatformWallet: (...a: unknown[]) => getPlatformWalletMock(...a),
   getUserWallet: (...a: unknown[]) => getUserWalletMock(...a),
   holdEscrow: (...a: unknown[]) => holdEscrowMock(...a),
+  // A5 — release paths now row-lock wallets up front (no-op in these mocks).
+  lockWalletsForUpdate: jest.fn(),
 }));
 
 const processRefundMock = jest.fn();
@@ -60,8 +62,10 @@ function captureClientCalls(calls: QueryCall[]): { query: jest.Mock } {
   return {
     query: jest.fn(async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
-      // The escrowGuard UPDATE checks rowCount; default to 1.
-      return { rows: [{ id: 'b1' }], rowCount: 1 };
+      // The escrowGuard UPDATE checks rowCount; default to 1. Include a
+      // pending_balance so refundFromEscrow's in-trx FOR UPDATE check (A4)
+      // sees a sufficient balance and proceeds.
+      return { rows: [{ id: 'b1', pending_balance: '1000000' }], rowCount: 1 };
     }),
   };
 }
@@ -652,25 +656,35 @@ describe('refundFromEscrow', () => {
       .rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('throws 409 when escrow pending balance is insufficient', async () => {
-    getPlatformWalletMock.mockImplementationOnce(async () => ({
-      id: 'wallet-platform_escrow',
-      pending_balance: '100',
-      available_balance: '0',
-    }));
+  it('A4 — throws 409 when escrow pending balance (read under FOR UPDATE) is insufficient', async () => {
+    // The balance is now re-checked INSIDE the transaction under a row lock,
+    // not from the pre-transaction getPlatformWallet read. Drive the in-trx
+    // FOR UPDATE select to return an insufficient balance.
+    dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
+      await cb({
+        query: jest.fn(async (sql: string) => {
+          if (/FOR UPDATE/.test(sql)) return { rows: [{ pending_balance: '100' }], rowCount: 1 };
+          return { rows: [], rowCount: 1 };
+        }),
+      });
+    });
     await expect(escrowService.refundFromEscrow('b1', 50000, 'r'))
       .rejects.toMatchObject({ statusCode: 409 });
+    // No gateway refund when the in-trx guard rejected.
+    expect(processRefundMock).not.toHaveBeenCalled();
   });
 
-  it('happy path: writes wallet update + tx and calls processRefund', async () => {
+  it('A4 — happy path: locks+checks the row, writes wallet update + tx, calls processRefund', async () => {
     const calls: QueryCall[] = [];
     dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
       await cb(captureClientCalls(calls));
     });
     await escrowService.refundFromEscrow('b1', 50000, 'cancellation');
-    expect(calls.length).toBe(2);
-    expect(calls[0]!.params).toEqual([50000, 'wallet-platform_escrow']);
-    expect(calls[1]!.params[2]).toBe(-50000);
+    // [0] SELECT pending_balance ... FOR UPDATE  [1] UPDATE pending_balance  [2] INSERT tx
+    expect(calls.length).toBe(3);
+    expect(calls[0]!.sql).toMatch(/FOR UPDATE/);
+    expect(calls[1]!.params).toEqual([50000, 'wallet-platform_escrow']);
+    expect(calls[2]!.params[2]).toBe(-50000);
     expect(processRefundMock).toHaveBeenCalledWith('b1', 50000, 'cancellation');
   });
 });

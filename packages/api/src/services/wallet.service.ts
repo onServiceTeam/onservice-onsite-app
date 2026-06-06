@@ -192,6 +192,31 @@ export async function holdEscrowInTransaction(
   );
 }
 
+/**
+ * A5 / H3 — acquire row-level write locks on the given wallets in a
+ * deterministic order (by id) so concurrent money transactions serialize on
+ * the shared rows (notably the single `platform_escrow` wallet) instead of
+ * racing. Pre-fix, escrow refunds checked the pending balance OUTSIDE the
+ * transaction (a check-then-act race that could let two concurrent refunds
+ * both pass and over-drain the shared pool), and balance reads weren't
+ * serialized.
+ *
+ * Acquiring all needed locks in a single `ORDER BY id ... FOR UPDATE`
+ * statement is what makes this deadlock-free: every transaction that touches
+ * an overlapping set of wallets takes the locks in the same global order, so
+ * no two transactions can hold-and-wait in a cycle. Call this once, early in
+ * the transaction (after any bookings-row lock), before reading or writing
+ * balances.
+ */
+export async function lockWalletsForUpdate(client: PgClient, walletIds: Array<string | null | undefined>): Promise<void> {
+  const unique = [...new Set(walletIds.filter((id): id is string => !!id))];
+  if (unique.length === 0) return;
+  await client.query(
+    `SELECT id FROM wallets WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE`,
+    [unique],
+  );
+}
+
 export async function getWalletTransactions(
   walletId: string,
   page = 1,

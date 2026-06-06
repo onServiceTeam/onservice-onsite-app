@@ -179,6 +179,13 @@ export async function releaseEscrow(bookingId: string): Promise<commissionServic
       throw createAppError('Escrow already released or not held for this booking.', 409);
     }
 
+    // A5 — lock every wallet this release touches, in id order, before any
+    // balance read/write so concurrent money transactions serialize instead
+    // of racing on balance_after. (Deadlock-free: single id-ordered lock.)
+    await walletService.lockWalletsForUpdate(client, [
+      escrowWallet.id, providerWallet.id, revenueWallet.id, guaranteeWallet.id,
+    ]);
+
     await client.query(
       `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
       [totalAmount, escrowWallet.id],
@@ -352,6 +359,11 @@ export async function releasePartialEscrow(
       throw createAppError('Escrow not in partially-refunded state for this booking.', 409);
     }
 
+    // A5 — lock all touched wallets in id order before any balance write.
+    await walletService.lockWalletsForUpdate(client, [
+      escrowWallet.id, providerWallet.id, revenueWallet.id, guaranteeWallet.id,
+    ]);
+
     await client.query(
       `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
       [remainingAmount, escrowWallet.id],
@@ -418,12 +430,28 @@ export async function refundFromEscrow(
 ): Promise<void> {
   if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
 
+  // getPlatformWallet only gives us the (stable) wallet id; the authoritative
+  // balance check happens under a row lock inside the transaction below.
   const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
-  if (Number(escrowWallet.pending_balance) < refundAmount) {
-    throw createAppError('Insufficient escrow balance for refund.', 409);
-  }
 
   await db.transaction(async (client) => {
+    // A4 + A5 — lock the escrow wallet row and re-check the balance INSIDE the
+    // transaction. Pre-fix the sufficiency check read the balance OUTSIDE the
+    // transaction (check-then-act): two concurrent refunds could both pass the
+    // check and over-drain the shared escrow pool (a double refund). Under FOR
+    // UPDATE the check + debit are one atomic step, so a duplicate/concurrent
+    // refund that would exceed the held balance is rejected with 409 instead.
+    const locked = await client.query<{ pending_balance: string }>(
+      `SELECT pending_balance FROM wallets WHERE id = $1 FOR UPDATE`,
+      [escrowWallet.id],
+    );
+    if (locked.rows.length === 0) {
+      throw createAppError('Platform escrow wallet not found.', 500);
+    }
+    if (Number(locked.rows[0]!.pending_balance) < refundAmount) {
+      throw createAppError('Insufficient escrow balance for refund.', 409);
+    }
+
     await client.query(
       `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
       [refundAmount, escrowWallet.id],
@@ -654,6 +682,12 @@ export async function releaseEscrowInTransaction(
     throw createAppError('Escrow already released or not held for this booking.', 409);
   }
 
+  // A5 — lock all touched wallets in id order before any balance write so
+  // this release serializes cleanly with other money transactions.
+  await walletService.lockWalletsForUpdate(client, [
+    escrowWallet.id, providerWallet.id, revenueWallet.id, guaranteeWallet.id,
+  ]);
+
   await client.query(
     `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
     [totalAmount, escrowWallet.id],
@@ -731,7 +765,17 @@ export async function refundFromEscrowInTransaction(
   if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
 
   const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
-  if (Number(escrowWallet.pending_balance) < refundAmount) {
+  // A4 + A5 — lock the escrow row and re-check the balance under the lock,
+  // inside the caller's transaction, so the check + debit are atomic and two
+  // concurrent refunds can't both pass and over-drain the shared escrow pool.
+  const locked = await client.query<{ pending_balance: string }>(
+    `SELECT pending_balance FROM wallets WHERE id = $1 FOR UPDATE`,
+    [escrowWallet.id],
+  );
+  if (locked.rows.length === 0) {
+    throw createAppError('Platform escrow wallet not found.', 500);
+  }
+  if (Number(locked.rows[0]!.pending_balance) < refundAmount) {
     throw createAppError('Insufficient escrow balance for refund.', 409);
   }
 
@@ -790,6 +834,34 @@ export async function handleCancellationInTransaction(
 
   const feeRefund = customerNoShow ? 0 : serviceFee;
   const totalCustomerRefund = refund.customerRefundAmount + feeRefund;
+
+  // A5 — pre-resolve every wallet this cancellation may touch and lock them
+  // (in id order) before any balance write, so it serializes cleanly with
+  // concurrent releases/refunds on the shared escrow + revenue wallets. The
+  // booking row is already locked (FOR UPDATE above), so the global lock order
+  // is bookings -> wallets across every money path (deadlock-free).
+  const needsProviderComp = refund.providerCompensationAmount > 0 && !!bk.provider_id;
+  const needsNoShowFee = customerNoShow && serviceFee > 0;
+
+  const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+  let providerWallet: { id: string } | null = null;
+  if (needsProviderComp) {
+    const providerRow = await client.query<ProviderRow>(
+      `SELECT user_id, tier FROM providers WHERE id = $1`,
+      [bk.provider_id],
+    );
+    if (providerRow.rows.length > 0) {
+      providerWallet = await walletService.getUserWallet(providerRow.rows[0]!.user_id, 'provider');
+    }
+  }
+  const revenueWallet = needsNoShowFee
+    ? await walletService.getPlatformWallet('platform_revenue')
+    : null;
+
+  await walletService.lockWalletsForUpdate(client, [
+    escrowWallet.id, providerWallet?.id, revenueWallet?.id,
+  ]);
+
   if (totalCustomerRefund > 0) {
     await refundFromEscrowInTransaction(
       client,
@@ -799,44 +871,33 @@ export async function handleCancellationInTransaction(
     );
   }
 
-  if (refund.providerCompensationAmount > 0 && bk.provider_id) {
-    const providerRow = await client.query<ProviderRow>(
-      `SELECT user_id, tier FROM providers WHERE id = $1`,
-      [bk.provider_id],
+  if (providerWallet) {
+    await client.query(
+      `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+      [refund.providerCompensationAmount, escrowWallet.id],
     );
-    if (providerRow.rows.length > 0) {
-      const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
-      const providerWallet = await walletService.getUserWallet(providerRow.rows[0]!.user_id, 'provider');
+    await client.query(
+      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+       VALUES ($1, $2, 'escrow_release', $3,
+               (SELECT pending_balance FROM wallets WHERE id = $1),
+               'Escrow release for provider cancellation compensation')`,
+      [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
+    );
 
-      await client.query(
-        `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-        [refund.providerCompensationAmount, escrowWallet.id],
-      );
-      await client.query(
-        `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-         VALUES ($1, $2, 'escrow_release', $3,
-                 (SELECT pending_balance FROM wallets WHERE id = $1),
-                 'Escrow release for provider cancellation compensation')`,
-        [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
-      );
-
-      await client.query(
-        `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-        [refund.providerCompensationAmount, providerWallet.id],
-      );
-      await client.query(
-        `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-         VALUES ($1, $2, 'escrow_release', $3,
-                 (SELECT available_balance FROM wallets WHERE id = $1),
-                 'Cancellation compensation')`,
-        [providerWallet.id, bookingId, refund.providerCompensationAmount],
-      );
-    }
+    await client.query(
+      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+      [refund.providerCompensationAmount, providerWallet.id],
+    );
+    await client.query(
+      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+       VALUES ($1, $2, 'escrow_release', $3,
+               (SELECT available_balance FROM wallets WHERE id = $1),
+               'Cancellation compensation')`,
+      [providerWallet.id, bookingId, refund.providerCompensationAmount],
+    );
   }
 
-  if (customerNoShow && serviceFee > 0) {
-    const revenueWallet = await walletService.getPlatformWallet('platform_revenue');
-    const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+  if (revenueWallet) {
     await client.query(
       `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
       [serviceFee, escrowWallet.id],

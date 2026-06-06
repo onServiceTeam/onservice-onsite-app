@@ -37,6 +37,9 @@ jest.mock('../../src/services/settings.service', () => settingsMock);
 const walletServiceMock = {
   getPlatformWallet: jest.fn(),
   getUserWallet: jest.fn(),
+  // A5 — releaseEscrowInTransaction now row-locks the wallets up front.
+  // No-op here; the conservation assertions don't depend on it.
+  lockWalletsForUpdate: jest.fn(),
 };
 jest.mock('../../src/services/wallet.service', () => walletServiceMock);
 
