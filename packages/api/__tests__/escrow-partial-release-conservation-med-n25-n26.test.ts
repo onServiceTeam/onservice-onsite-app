@@ -35,6 +35,8 @@ const getUserWalletMock = jest.fn();
 jest.mock('../src/services/wallet.service', () => ({
   getPlatformWallet: (...args: unknown[]) => getPlatformWalletMock(...args),
   getUserWallet: (...args: unknown[]) => getUserWalletMock(...args),
+  // A5 — releasePartialEscrow now row-locks the wallets up front (no-op here).
+  lockWalletsForUpdate: jest.fn(),
 }));
 
 jest.mock('../src/services/settings.service', () => ({

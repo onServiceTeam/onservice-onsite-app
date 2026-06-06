@@ -1579,6 +1579,8 @@ describe('escrow → orService.issueOR hook', () => {
     jest.doMock('../src/services/wallet.service', () => ({
       getPlatformWallet: jest.fn().mockResolvedValue({ id: 'plat-w' }),
       getUserWallet: jest.fn().mockResolvedValue({ id: 'user-w' }),
+      // A5 — releaseEscrow now row-locks the wallets up front (no-op here).
+      lockWalletsForUpdate: jest.fn(),
     }));
     jest.doMock('../src/services/settings.service', () => ({
       getCommissionRate: jest.fn().mockResolvedValue(0.1),
