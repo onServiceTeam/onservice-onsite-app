@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +15,9 @@ import type { Booking } from '@/services/booking.service';
 import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, ClipboardList, Filter, Repeat } from '@/components/icons';
+import { Filter, Repeat } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 // Phase 14 Remediation #5 — Bug 889/911/918 (filter chips), Bug 891/916/923
 // (pagination loader), Bug 895/901 (status badge) wired here.
 import StatusBadge from '@/components/StatusBadge';
@@ -164,18 +165,17 @@ export default function BookingsScreen(): React.ReactElement {
       />
 
       {isLoading ? (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={styles.list}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
       ) : isError ? (
-        <View style={styles.empty}>
-          <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={styles.emptyTitle}>Something went wrong</Text>
-          <Text style={styles.emptySubtitle}>Could not load your bookings.</Text>
-          <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
-            <Text style={styles.retryText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load your bookings. Please check your connection and try again."
+          onRetry={onRefresh}
+        />
       ) : (
         <FlatList
           data={bookings}
@@ -200,33 +200,20 @@ export default function BookingsScreen(): React.ReactElement {
               endLabel="You're all caught up"
             />
           }
+          // BUG-PHASE170-01 — the all-filter empty state gets a "Browse
+          // Services" CTA (a new customer with zero bookings needs a path
+          // forward); filter-specific empties don't (they're about a
+          // sub-filter, not the genuine no-history case).
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <View style={styles.emptyIconWrap}><ClipboardList size={48} color={colors.textTertiary} /></View>
-              <Text style={styles.emptyTitle}>No bookings yet</Text>
-              <Text style={styles.emptySubtitle}>
-                {filter === 'all'
-                  ? 'Your booking history will appear here.'
-                  : `No ${filter} bookings found.`}
-              </Text>
-              {/* BUG-PHASE170-01 fix — pre-fix the empty state had no
-                  action button. A new customer with zero bookings saw
-                  "No bookings yet" with no path forward — they had to
-                  navigate back to (tabs)/home to find the categories
-                  and start booking. Now: a "Browse Services" CTA on
-                  the all-filter empty state takes them home. The
-                  filter-specific empty states (e.g., "No active
-                  bookings found") don't get the CTA — those are
-                  about a sub-filter, not the genuine no-history case. */}
-              {filter === 'all' && (
-                <TouchableOpacity
-                  style={styles.retryButton}
-                  onPress={() => router.push(Routes.TABS.HOME)}
-                >
-                  <Text style={styles.retryText}>Browse Services</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+            <EmptyState
+              icon="📋"
+              title="No bookings yet"
+              description={filter === 'all'
+                ? 'Your booking history will appear here.'
+                : `No ${filter} bookings found.`}
+              actionLabel={filter === 'all' ? 'Browse Services' : undefined}
+              onAction={filter === 'all' ? () => router.push(Routes.TABS.HOME) : undefined}
+            />
           }
         />
       )}

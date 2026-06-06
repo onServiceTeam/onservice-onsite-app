@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
-  View, Text, TouchableOpacity, StyleSheet, FlatList,
+  View, Text, TouchableOpacity, StyleSheet,
   Alert, ActivityIndicator, TextInput, ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -9,12 +9,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as addressService from '@/services/address.service';
 import type { SavedAddress } from '@/services/address.service';
-import { Button } from '@/components/ui';
+// A7 — adopt the shared UI kit (skeleton/empty/error/list) + toast feedback.
+import { Button, SkeletonCard, EmptyState, ErrorState, OptimizedList } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 // Phase 14 R5-complete — ConfirmModal for delete-address destructive flow.
 import ConfirmModal from '@/components/ConfirmModal';
 import type { ComponentType } from 'react';
-import { Home as HomeIcon, Briefcase, Pin, AlertTriangle, MapPin, ChevronLeft, Check } from '@/components/icons';
+import { Home as HomeIcon, Briefcase, Pin, ChevronLeft, Check } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -62,10 +64,11 @@ export default function AddressesScreen(): React.ReactElement {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['addresses'] });
       resetForm();
+      showToast('Address added', 'success');
     },
     onError: (err: unknown) => {
       const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ?? 'Failed to save address.';
-      Alert.alert('Error', msg);
+      showToast(msg, 'error');
     },
   });
 
@@ -75,17 +78,21 @@ export default function AddressesScreen(): React.ReactElement {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['addresses'] });
       resetForm();
+      showToast('Address updated', 'success');
     },
     onError: (err: unknown) => {
       const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ?? 'Failed to update address.';
-      Alert.alert('Error', msg);
+      showToast(msg, 'error');
     },
   });
 
   const deleteMut = useMutation({
     mutationFn: addressService.deleteAddress,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['addresses'] }),
-    onError: () => Alert.alert('Error', 'Failed to delete address.'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['addresses'] });
+      showToast('Address removed', 'success');
+    },
+    onError: () => showToast('Failed to delete address.', 'error'),
   });
 
   const handleSave = (): void => {
@@ -147,14 +154,10 @@ export default function AddressesScreen(): React.ReactElement {
           </TouchableOpacity>
           <Text style={styles.title}>My Addresses</Text>
         </View>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <View style={{ marginBottom: 12, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
-          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load addresses. Please try again.</Text>
-          <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
-            <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load your addresses. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </SafeAreaView>
     );
   }
@@ -317,26 +320,28 @@ export default function AddressesScreen(): React.ReactElement {
       </View>
 
       {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={styles.listContent}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
       ) : addresses.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <MapPin size={48} color={colors.textTertiary} style={{ marginBottom: spacing.base }} />
-          <Text style={styles.emptyTitle}>No Saved Addresses</Text>
-          <Text style={styles.emptyText}>
-            Add your home, work, or other frequently used addresses for quick booking.
-          </Text>
-          <Button title="Add Your First Address" onPress={() => setShowForm(true)} />
-        </View>
+        <EmptyState
+          icon="📍"
+          title="No Saved Addresses"
+          description="Add your home, work, or other frequently used addresses for quick booking."
+          actionLabel="Add Your First Address"
+          onAction={() => setShowForm(true)}
+        />
       ) : (
         <>
-          <FlatList
+          <OptimizedList
             data={addresses}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item: SavedAddress) => item.id}
             renderItem={renderAddress}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            onRefresh={async () => { await refetch(); }}
           />
           <View style={styles.addFooter}>
             {addresses.length < 10 ? (
