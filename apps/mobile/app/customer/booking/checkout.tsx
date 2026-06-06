@@ -7,6 +7,8 @@ import { createBooking } from '@/services/booking.service';
 import { createPaymentIntent, getWalletBalance } from '@/services/payment.service';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui';
+// B2 — inline validation feedback (toast for screen-level, inline for field).
+import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { formatDate } from '@/utils/date';
@@ -41,6 +43,8 @@ export default function CheckoutScreen(): React.ReactElement {
   const { draft, serviceFee, total, addonsTotal, setPaymentMethod, reset } = useBookingStore();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(draft.paymentMethod);
   const [loading, setLoading] = useState(false);
+  // B2 — inline field error for the payment-method picker (was a modal alert).
+  const [methodError, setMethodError] = useState<string | null>(null);
   // Phase 200 — know the wallet balance so we can stop a wallet payment that
   // would fail server-side (insufficient funds) and point the customer to
   // top up, instead of creating the booking and then hitting a raw error.
@@ -55,15 +59,20 @@ export default function CheckoutScreen(): React.ReactElement {
   const handleMethodSelect = (method: PaymentMethod): void => {
     setSelectedMethod(method);
     setPaymentMethod(method);
+    // B2 — clear the inline error as soon as the user picks a method.
+    setMethodError(null);
   };
 
   const handlePay = async (): Promise<void> => {
     if (!selectedMethod) {
-      Alert.alert('Payment Method', 'Please select a payment method.');
+      // B2 — inline error on the payment section instead of a modal alert.
+      setMethodError('Please select a payment method to continue.');
       return;
     }
     if (!draft.categoryId || !draft.subcategoryId || !draft.address || !draft.barangay || !draft.scheduledDate || !draft.scheduledTime) {
-      Alert.alert('Missing Info', 'Booking details incomplete. Please go back and fill in all fields.');
+      // The missing fields live on earlier steps (nothing to highlight on this
+      // screen), so a single summary toast is the right affordance here.
+      showToast('Booking details are incomplete. Please go back and complete all fields.', 'error');
       return;
     }
     if (selectedMethod === 'wallet' && walletBalance < total) {
@@ -200,7 +209,18 @@ export default function CheckoutScreen(): React.ReactElement {
         </View>
 
         {/* Payment methods */}
-        <Text style={styles.sectionTitle}>Choose Payment Method</Text>
+        <Text style={[styles.sectionTitle, methodError ? styles.sectionTitleError : null]}>
+          Choose Payment Method
+        </Text>
+        {methodError ? (
+          <Text
+            style={styles.fieldError}
+            accessibilityRole="alert"
+            accessibilityLiveRegion="assertive"
+          >
+            {methodError}
+          </Text>
+        ) : null}
         {PAYMENT_METHODS.map((method) => {
           const MIcon = method.icon;
           return (
@@ -340,6 +360,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...typography.h3,
     color: colors.text,
+    marginBottom: spacing.md,
+  },
+  // B2 — inline payment-method validation error.
+  sectionTitleError: { color: colors.error },
+  fieldError: {
+    ...typography.bodySmall,
+    color: colors.error,
+    marginTop: -spacing.sm,
     marginBottom: spacing.md,
   },
 
