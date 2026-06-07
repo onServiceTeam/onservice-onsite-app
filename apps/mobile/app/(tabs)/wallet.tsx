@@ -31,8 +31,9 @@ import {
   ClipboardList,
   Shield,
   Repeat,
-  AlertTriangle,
 } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -183,13 +184,10 @@ export default function WalletScreen(): React.ReactElement {
       />
 
       {isError ? (
-        <View style={styles.empty}>
-          <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={styles.emptyText}>Failed to load wallet data.</Text>
-          <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
-            <Text style={styles.retryText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load your wallet. Please check your connection and try again."
+          onRetry={onRefresh}
+        />
       ) : (
         <FlatList
           data={transactions}
@@ -201,30 +199,25 @@ export default function WalletScreen(): React.ReactElement {
           refreshControl={
             <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
+          // BUG-PHASE177-01 — the empty message reflects whether the
+          // wallet is genuinely empty or just the active filter is empty.
           ListEmptyComponent={
             transactionsQuery.isLoading ? (
-              <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
-            ) : (
-              /* BUG-PHASE177-01 fix — pre-fix the empty state always
-                 said "No transactions yet" even when the user had
-                 transactions of other types and just switched to a
-                 filter that returned zero. Misleading. Now: the
-                 message reflects whether the underlying list is
-                 actually empty or just the active filter is empty.
-                 Same UX-gap family as Phase 169-176. */
-              <View style={styles.empty}>
-                <View style={styles.emptyIconWrap}><CreditCard size={48} color={colors.textSecondary} /></View>
-                <Text style={styles.emptyText}>
-                  {allTransactions.length === 0
-                    ? 'No transactions yet'
-                    : `No ${txFilter === 'topup' ? 'top-ups' : txFilter === 'payment' ? 'payments' : txFilter === 'refund' ? 'refunds' : 'transactions'} in this view`}
-                </Text>
-                {allTransactions.length === 0 && (
-                  <Text style={styles.emptyHint}>
-                    Top up your wallet or pay for a booking to see history here.
-                  </Text>
-                )}
+              <View style={styles.list}>
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
               </View>
+            ) : (
+              <EmptyState
+                icon="💳"
+                title={allTransactions.length === 0
+                  ? 'No transactions yet'
+                  : `No ${txFilter === 'topup' ? 'top-ups' : txFilter === 'payment' ? 'payments' : txFilter === 'refund' ? 'refunds' : 'transactions'} in this view`}
+                description={allTransactions.length === 0
+                  ? 'Top up your wallet or pay for a booking to see history here.'
+                  : undefined}
+              />
             )
           }
         />
