@@ -7,7 +7,6 @@ import {
   SectionList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,7 +16,9 @@ import type { Subcategory } from '@/services/catalog.service';
 import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Star, AlertTriangle, Clock, MapPin, Filter, Search, ChevronLeft } from '@/components/icons';
+import { Star, Clock, MapPin, Filter, ChevronLeft } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 // Phase 14 R5-complete — FilterModal for advanced search filters.
 import FilterModal from '@/components/FilterModal';
 import useDebouncedValue from '@/hooks/useDebouncedValue';
@@ -79,7 +80,7 @@ export default function SearchScreen(): React.ReactElement {
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
 
-  const { data, isLoading, isError, isFetched } = useQuery({
+  const { data, isLoading, isError, isFetched, refetch } = useQuery({
     queryKey: ['search', searchTerm],
     queryFn: async () => {
       if (searchTerm.length < 2) return { services: [], providers: [] } as SearchResponse;
@@ -248,17 +249,18 @@ export default function SearchScreen(): React.ReactElement {
       </View>
 
       {isLoading && (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={styles.list}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
       )}
 
       {isError && (
-        <View style={styles.empty}>
-          <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={styles.emptyTitle}>Search failed</Text>
-          <Text style={styles.emptySubtitle}>Something went wrong. Please try again.</Text>
-        </View>
+        <ErrorState
+          message="Search failed. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       )}
 
       {/* Phase 200 — initial state (before typing) instead of a blank screen:
@@ -284,21 +286,14 @@ export default function SearchScreen(): React.ReactElement {
       )}
 
       {!isLoading && !isError && isFetched && searchTerm.length >= 2 && totalResults === 0 && (
-        <View style={styles.empty}>
-          <View style={styles.emptyIconWrap}><Search size={48} color={colors.textTertiary} /></View>
-          <Text style={styles.emptyTitle}>No results for &quot;{searchTerm}&quot;</Text>
-          <Text style={styles.emptySubtitle}>Try a different keyword or browse categories.</Text>
-          {/* BUG-PHASE176-01 fix — pre-fix the hint said "or browse
-              categories" but there was no actual link to browse —
-              just text. Same UX-gap family as Phase 169/170/172/173/
-              174/175. Now: a Browse Categories CTA routes to home. */}
-          <TouchableOpacity
-            style={styles.emptyCta}
-            onPress={() => router.push(Routes.TABS.HOME)}
-          >
-            <Text style={styles.emptyCtaText}>Browse Categories</Text>
-          </TouchableOpacity>
-        </View>
+        // BUG-PHASE176-01 — no-results state has a real "Browse Categories" CTA.
+        <EmptyState
+          icon="🔍"
+          title={`No results for "${searchTerm}"`}
+          description="Try a different keyword or browse categories."
+          actionLabel="Browse Categories"
+          onAction={() => router.push(Routes.TABS.HOME)}
+        />
       )}
 
       <SectionList

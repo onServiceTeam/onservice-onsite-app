@@ -65,6 +65,36 @@ const FlatList = ({ data, renderItem, ListEmptyComponent, ListFooterComponent, .
   );
 };
 
+const SectionList = ({ sections, renderItem, renderSectionHeader, ListEmptyComponent, ListHeaderComponent, ListFooterComponent, ...rest }) => {
+  const children = [];
+  const secs = sections || [];
+  secs.forEach((section, si) => {
+    if (renderSectionHeader) {
+      children.push(React.createElement(React.Fragment, { key: `h${si}` }, renderSectionHeader({ section })));
+    }
+    (section.data || []).forEach((item, index) => {
+      if (renderItem) {
+        children.push(React.createElement(React.Fragment, { key: `i${si}-${index}` }, renderItem({ item, index, section })));
+      }
+    });
+  });
+  const isEmpty = secs.every((s) => !s.data || s.data.length === 0);
+  return React.createElement(
+    'rn-section-list',
+    rest,
+    ListHeaderComponent
+      ? (typeof ListHeaderComponent === 'function' ? React.createElement(ListHeaderComponent) : ListHeaderComponent)
+      : null,
+    ...children,
+    isEmpty && ListEmptyComponent
+      ? (typeof ListEmptyComponent === 'function' ? React.createElement(ListEmptyComponent) : ListEmptyComponent)
+      : null,
+    ListFooterComponent
+      ? (typeof ListFooterComponent === 'function' ? React.createElement(ListFooterComponent) : ListFooterComponent)
+      : null,
+  );
+};
+
 // Render Pressable as a real <button> so click events fire normally.
 // disabled prop maps directly; onPress maps to onClick.
 const Pressable = ({ children, onPress, disabled, ...rest }) => {
@@ -220,6 +250,7 @@ module.exports = {
   RefreshControl,
   Image,
   FlatList,
+  SectionList,
   Pressable,
   TouchableOpacity,
   TouchableHighlight,
