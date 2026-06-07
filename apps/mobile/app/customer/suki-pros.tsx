@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,10 @@ import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
-import { Sparkle, Star, Award, Crown, AlertTriangle, Heart, Home as HomeIcon, ChevronLeft } from '@/components/icons';
+import { Sparkle, Star, Award, Crown, Heart, ChevronLeft } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states + toast feedback.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -129,9 +132,9 @@ function MembershipCard({
               onPress={() => {
                 const pts = Number(redeemInput);
                 if (pts < platformConfig.sukiMinRedeemPoints || pts % platformConfig.sukiMinRedeemPoints !== 0) {
-                  Alert.alert('Invalid', `Points must be a multiple of ${platformConfig.sukiMinRedeemPoints}.`);
+                  showToast(`Points must be a multiple of ${platformConfig.sukiMinRedeemPoints}.`, 'warning');
                 } else if (pts > membership.pointsBalance) {
-                  Alert.alert('Invalid', `You only have ${membership.pointsBalance} points available.`);
+                  showToast(`You only have ${membership.pointsBalance} points available.`, 'warning');
                 } else {
                   onRedeem(membership.id, pts);
                   setRedeemInput('');
@@ -174,11 +177,11 @@ export default function SukiProsScreen(): React.ReactElement {
       redeemPoints(membershipId, points),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['sukiMemberships'] });
-      Alert.alert('Points Redeemed', `${formatPHP(result.amountCredited)} added to your wallet.\n${result.remainingPoints} points remaining.`);
+      showToast(`${formatPHP(result.amountCredited)} added to your wallet. ${result.remainingPoints} points left.`, 'success');
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : 'Could not redeem points.';
-      Alert.alert('Error', message);
+      showToast(message, 'error');
     },
   });
 
@@ -193,18 +196,16 @@ export default function SukiProsScreen(): React.ReactElement {
       </View>
 
       {membershipsLoading ? (
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color={colors.info} />
+        <View style={styles.bodyContent}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
       ) : isError ? (
-        <View style={styles.centerBox}>
-          <View style={styles.emptyEmojiWrap}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={styles.emptyTitle}>Failed to load</Text>
-          <Text style={styles.emptyDesc}>Something went wrong. Please try again.</Text>
-          <TouchableOpacity onPress={() => void refetch()} style={[styles.redeemBtn, { marginTop: spacing.base, paddingHorizontal: 24 }]}>
-            <Text style={styles.redeemBtnText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load your Suki memberships. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           <View style={styles.heroSection}>
@@ -246,23 +247,15 @@ export default function SukiProsScreen(): React.ReactElement {
           )}
 
           {(memberships ?? []).length === 0 ? (
-            <View style={styles.emptyBox}>
-              <View style={styles.emptyEmojiWrap}><HomeIcon size={48} color={colors.textSecondary} /></View>
-              <Text style={styles.emptyTitle}>No Suki Relationships Yet</Text>
-              <Text style={styles.emptyDesc}>
-                Complete bookings with the same provider to start building Suki loyalty and earn points!
-              </Text>
-              {/* BUG-PHASE174-01 fix — pre-fix this empty state had no
-                  CTA. Same UX-gap family as Phase 169/170/172/173.
-                  The Suki feature requires booking with the same
-                  provider repeatedly — start by booking. */}
-              <TouchableOpacity
-                style={styles.emptyCta}
-                onPress={() => router.push('/(tabs)/home')}
-              >
-                <Text style={styles.emptyCtaText}>Browse Services</Text>
-              </TouchableOpacity>
-            </View>
+            // BUG-PHASE174-01 — empty state has a "Browse Services" CTA (the
+            // Suki feature requires repeat bookings with the same provider).
+            <EmptyState
+              icon="💛"
+              title="No Suki Relationships Yet"
+              description="Complete bookings with the same provider to start building Suki loyalty and earn points!"
+              actionLabel="Browse Services"
+              onAction={() => router.push('/(tabs)/home')}
+            />
           ) : (
             <>
               <Text style={styles.sectionTitle}>

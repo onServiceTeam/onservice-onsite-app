@@ -1,6 +1,6 @@
 import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,9 @@ import { getProviderSukiCustomers, type SukiCustomer } from '@/services/suki.ser
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
-import { Sparkle, Star, Award, Crown, AlertTriangle, ClipboardList, Heart } from '@/components/icons';
+import { Sparkle, Star, Award, Crown, Heart } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -88,17 +90,16 @@ export default function ProviderSukiCustomersScreen(): React.ReactElement {
       </View>
 
       {isLoading ? (
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color={colors.secondary} />
+        <View style={styles.listContent}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
       ) : isError ? (
-        <View style={styles.centerBox}>
-          <View style={styles.errorEmojiWrap}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={styles.errorText}>Failed to load customers</Text>
-          <TouchableOpacity onPress={() => void refetch()} style={styles.retryButton}>
-            <Text style={styles.retryText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load your Suki customers. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       ) : (
         <FlatList
           data={customers ?? []}
@@ -124,13 +125,11 @@ export default function ProviderSukiCustomersScreen(): React.ReactElement {
             </View>
           }
           ListEmptyComponent={
-            <View style={styles.emptyBox}>
-              <View style={styles.emptyEmojiWrap}><ClipboardList size={48} color={colors.textSecondary} /></View>
-              <Text style={styles.emptyTitle}>No Suki Customers Yet</Text>
-              <Text style={styles.emptyDesc}>
-                As customers rebook your services, they will appear here with their loyalty tier and stats.
-              </Text>
-            </View>
+            <EmptyState
+              icon="💛"
+              title="No Suki Customers Yet"
+              description="As customers rebook your services, they will appear here with their loyalty tier and stats."
+            />
           }
         />
       )}
