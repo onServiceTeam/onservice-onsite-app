@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
   type DimensionValue,
 } from 'react-native';
@@ -16,7 +15,9 @@ import { useQuery } from '@tanstack/react-query';
 import { getTierProgression, type TierRequirement } from '@/services/provider-api.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
-import { Sparkle, CheckCircle2, Star, Crown, AlertTriangle } from '@/components/icons';
+import { Sparkle, CheckCircle2, Star, Crown } from '@/components/icons';
+// A7 — shared UI kit for loading/error states.
+import { SkeletonCard, ErrorState } from '@/components/ui';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -53,21 +54,23 @@ export default function TierProgressionScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   if (isError || !data) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-        <View style={{ marginBottom: 12, alignItems: 'center' }}><AlertTriangle size={48} color={colors.error} /></View>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
-        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load tier progression. Please try again.</Text>
-        <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
-          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          message="We couldn't load your tier progression. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </View>
     );
   }

@@ -13,6 +13,9 @@ import {
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft, Plus, Trash2, Star, Phone, Mail } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states + toast feedback.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 
 const STATUS_COLOR: Record<StaffStatus, string> = {
   invited: colors.info,
@@ -45,24 +48,24 @@ export default function ProviderTeamScreen(): React.ReactElement {
     onSuccess: () => {
       setPhone(''); setEmail(''); setRoleTitle('');
       void queryClient.invalidateQueries({ queryKey: ['providerStaff'] });
-      Alert.alert('Invite sent', 'Your team member will be reviewed by onService before they can be assigned jobs.');
+      showToast('Invite sent. Your team member will be reviewed before they can be assigned jobs.', 'success');
     },
-    onError: (e) => Alert.alert('Could not invite', getErrorMessage(e, 'Please try again.')),
+    onError: (e) => showToast(getErrorMessage(e, 'Could not send invite. Please try again.'), 'error'),
   });
 
   const remove = useMutation({
     mutationFn: (staffId: string) => removeStaff(staffId),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['providerStaff'] }),
-    onError: (e) => Alert.alert('Could not remove', getErrorMessage(e, 'Please try again.')),
+    onError: (e) => showToast(getErrorMessage(e, 'Could not remove team member. Please try again.'), 'error'),
   });
 
   const submit = useMutation({
     mutationFn: (staffId: string) => submitStaffForReview(staffId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['providerStaff'] });
-      Alert.alert('Sent for review', 'onService will review this team member before they can be assigned jobs.');
+      showToast('Sent for review. This team member will be reviewed before they can be assigned jobs.', 'success');
     },
-    onError: (e) => Alert.alert('Could not submit', getErrorMessage(e, 'Please try again.')),
+    onError: (e) => showToast(getErrorMessage(e, 'Could not submit for review. Please try again.'), 'error'),
   });
 
   function confirmRemove(m: ProviderStaffMember): void {
@@ -78,7 +81,7 @@ export default function ProviderTeamScreen(): React.ReactElement {
 
   function submitInvite(): void {
     if (!phone.trim() && !email.trim()) {
-      Alert.alert('Add a contact', 'Enter a phone number or email to invite a team member.');
+      showToast('Enter a phone number or email to invite a team member.', 'warning');
       return;
     }
     invite.mutate();
@@ -155,14 +158,25 @@ export default function ProviderTeamScreen(): React.ReactElement {
 
         <Text style={styles.sectionLabel}>Team members ({members.length})</Text>
 
-        {isLoading && <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: spacing.base }} />}
-        {isError && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>Could not load your team. Pull down to refresh.</Text>
+        {isLoading && (
+          <View style={{ marginTop: spacing.base }}>
+            <SkeletonCard />
+            <SkeletonCard />
           </View>
         )}
+        {isError && (
+          <ErrorState
+            compact
+            message="We couldn't load your team. Pull down to refresh."
+            onRetry={() => void refetch()}
+          />
+        )}
         {!isLoading && !isError && members.length === 0 && (
-          <Text style={styles.empty}>No team members yet. Invite someone above.</Text>
+          <EmptyState
+            icon="👥"
+            title="No team members yet"
+            description="Invite someone above to add them to your team."
+          />
         )}
 
         {members.map((m) => (
