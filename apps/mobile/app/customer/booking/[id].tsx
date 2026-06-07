@@ -5,8 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
-  Alert,
   TextInput,
   RefreshControl,
   KeyboardAvoidingView,
@@ -18,7 +16,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { getBookingById } from '@/services/booking.service';
 import { listBookingPhotos } from '@/services/booking-photo.service';
-import { Button } from '@/components/ui';
+// A7 — shared UI kit for loading + error states + toast feedback.
+import { Button, Skeleton, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatBookingRef } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
@@ -88,11 +88,11 @@ export default function BookingDetailScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['activeBookings'] });
       setShowCancelForm(false);
       setCancelReason('');
-      Alert.alert('Booking Cancelled', 'Your booking has been cancelled. Any applicable refund will be processed automatically.');
+      showToast('Booking cancelled. Any applicable refund is processed automatically.', 'success');
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Could not cancel booking.'));
+      showToast(getErrorMessage(err, 'Could not cancel booking.'), 'error');
     },
   });
 
@@ -103,17 +103,36 @@ export default function BookingDetailScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Booking Details</Text>
+        </View>
+        <View style={{ padding: spacing.base }}>
+          <Skeleton width="100%" height={88} borderRadius={borderRadius.lg} style={{ marginBottom: spacing.base }} />
+          <Skeleton width="55%" height={20} style={{ marginBottom: spacing.md }} />
+          <Skeleton width="100%" height={120} borderRadius={borderRadius.lg} style={{ marginBottom: spacing.base }} />
+          <Skeleton width="100%" height={120} borderRadius={borderRadius.lg} />
+        </View>
       </View>
     );
   }
 
   if (error || !booking) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <Text style={styles.errorText}>Failed to load booking details.</Text>
-        <Button title="Go Back" onPress={() => router.back()} variant="outline" />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Booking Details</Text>
+        </View>
+        <ErrorState
+          message="We couldn't load this booking. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </View>
     );
   }
