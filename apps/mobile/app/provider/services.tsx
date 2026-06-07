@@ -20,12 +20,13 @@ import {
   type ProviderServiceItem,
 } from '@/services/provider-api.service';
 import { getCategories, getSubcategories, type Category, type Subcategory } from '@/services/catalog.service';
-import { Button, Input } from '@/components/ui';
+// A7 — shared UI kit for loading/empty states + toast feedback.
+import { Button, Input, SkeletonCard, EmptyState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Wrench } from '@/components/icons';
 
 export default function ManageServicesScreen(): React.ReactElement {
   const router = useRouter();
@@ -74,11 +75,11 @@ export default function ManageServicesScreen(): React.ReactElement {
       setSelectedCategory(null);
       setSelectedSubcategory(null);
       setBasePrice('');
-      Alert.alert('Added', 'Service has been added to your profile.');
+      showToast('Service added to your profile.', 'success');
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to add service.'));
+      showToast(getErrorMessage(err, 'Failed to add service.'), 'error');
     },
   });
 
@@ -90,7 +91,7 @@ export default function ManageServicesScreen(): React.ReactElement {
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to remove service.'));
+      showToast(getErrorMessage(err, 'Failed to remove service.'), 'error');
     },
   });
 
@@ -123,26 +124,21 @@ export default function ManageServicesScreen(): React.ReactElement {
           </View>
         )}
         {servicesQuery.isLoading ? (
-          <ActivityIndicator size="large" color={colors.secondary} style={{ marginTop: spacing.xl }} />
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
         ) : services.length === 0 ? (
-          <View style={styles.empty}>
-            <View style={styles.emptyIconWrap}><Wrench size={48} color={colors.textTertiary} /></View>
-            <Text style={styles.emptyText}>No services added yet</Text>
-            <Text style={styles.emptyHint}>Add services you can offer to customers</Text>
-            {/* BUG-PHASE183-01 fix — pre-fix the empty state had no
-                embedded CTA. The "+ Add Service" button rendered AFTER
-                the empty state in the same ScrollView, but a provider
-                landing here didn't see a clear next step inside the
-                empty state itself. Same UX-gap family as Phase 169-178. */}
-            {!showAdd && (
-              <TouchableOpacity
-                style={styles.emptyCta}
-                onPress={() => setShowAdd(true)}
-              >
-                <Text style={styles.emptyCtaText}>Add Your First Service</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          // BUG-PHASE183-01 — empty state has an embedded "Add Your First
+          // Service" CTA so a provider sees a clear next step.
+          <EmptyState
+            icon="🧰"
+            title="No services added yet"
+            description="Add services you can offer to customers."
+            actionLabel={!showAdd ? 'Add Your First Service' : undefined}
+            onAction={!showAdd ? () => setShowAdd(true) : undefined}
+          />
         ) : (
           services.map((svc) => (
             <View key={svc.id} style={styles.serviceCard}>
