@@ -2,7 +2,7 @@ import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  ActivityIndicator, RefreshControl,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +10,9 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, MapPin, ChevronRight, Repeat } from '@/components/icons';
+import { MapPin, ChevronRight } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { Routes } from '@/config/navigation';
 
 interface RecurringBooking {
@@ -118,55 +120,40 @@ export default function RecurringListScreen(): React.ReactElement {
         <Text style={styles.title}>Recurring Bookings</Text>
       </View>
 
-      {isLoading && (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
+      {isLoading ? (
+        <View style={styles.list}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
+      ) : isError ? (
+        <ErrorState
+          message="We couldn't load your recurring bookings. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
+      ) : (
+        <FlatList
+          data={items}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
+          }
+          // BUG-PHASE173-01 — empty state has a "Browse Services" CTA so a
+          // customer with no recurring bookings has a path forward.
+          ListEmptyComponent={
+            <EmptyState
+              icon="🔁"
+              title="No recurring bookings"
+              description="After completing a booking, you can set it to repeat automatically."
+              actionLabel="Browse Services"
+              onAction={() => router.push(Routes.TABS.HOME)}
+            />
+          }
+        />
       )}
-
-      {!isLoading && isError && (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <View style={{ marginBottom: 12, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
-          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load recurring bookings. Please try again.</Text>
-          <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
-            <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {!isLoading && !isError && items.length === 0 && (
-        <View style={styles.empty}>
-          <Repeat size={48} color={colors.textTertiary} style={styles.emptyIcon} />
-          <Text style={styles.emptyTitle}>No recurring bookings</Text>
-          <Text style={styles.emptySubtitle}>
-            After completing a booking, you can set it to repeat automatically.
-          </Text>
-          {/* BUG-PHASE173-01 fix — pre-fix this empty state had no CTA.
-              A customer with no recurring bookings (also probably no
-              one-off bookings yet either) had no path forward — the
-              hint says "After completing a booking..." but doesn't
-              link them to where they'd start one. Same UX-gap family
-              as Phase 169-170-172. */}
-          <TouchableOpacity
-            style={styles.emptyCta}
-            onPress={() => router.push(Routes.TABS.HOME)}
-          >
-            <Text style={styles.emptyCtaText}>Browse Services</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <FlatList
-        data={items}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
-        }
-      />
     </View>
   );
 }

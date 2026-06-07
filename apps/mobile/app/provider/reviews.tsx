@@ -9,7 +9,6 @@ import {
   RefreshControl,
   ActivityIndicator,
   TextInput,
-  Alert,
   Image,
   ScrollView,
 } from 'react-native';
@@ -18,11 +17,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMyProfile } from '@/services/provider-api.service';
 import api from '@/services/api';
-import { Button } from '@/components/ui';
+// A7 — shared UI kit for loading/empty/error states + toast feedback.
+import { Button, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { formatRelative } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, Star } from '@/components/icons';
 
 interface ReviewImage {
   id: string;
@@ -154,11 +154,11 @@ export default function ProviderReviewsScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['providerReviews'] });
       setRespondingTo(null);
       setResponseText('');
-      Alert.alert('Response Sent', 'Your response has been posted.');
+      showToast('Your response has been posted.', 'success');
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to submit response.'));
+      showToast(getErrorMessage(err, 'Failed to submit response.'), 'error');
     },
   });
 
@@ -271,8 +271,18 @@ export default function ProviderReviewsScreen(): React.ReactElement {
 
   if (profileQuery.isLoading) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.secondary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>My Reviews</Text>
+        </View>
+        <View style={styles.list}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
@@ -287,13 +297,10 @@ export default function ProviderReviewsScreen(): React.ReactElement {
       </View>
 
       {isError ? (
-        <View style={styles.empty}>
-          <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={styles.emptyText}>Failed to load reviews.</Text>
-          <TouchableOpacity onPress={onRefresh} style={{ marginTop: spacing.base }}>
-            <Text style={{ color: colors.secondary, fontWeight: '600' }}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load your reviews. Please check your connection and try again."
+          onRetry={onRefresh}
+        />
       ) : (
         <FlatList
           data={reviews}
@@ -314,13 +321,17 @@ export default function ProviderReviewsScreen(): React.ReactElement {
           }
           ListEmptyComponent={
             isLoading ? (
-              <ActivityIndicator size="large" color={colors.secondary} style={styles.loader} />
-            ) : (
-              <View style={styles.empty}>
-                <View style={styles.emptyIconWrap}><Star size={48} color={colors.textTertiary} /></View>
-                <Text style={styles.emptyText}>No reviews yet</Text>
-                <Text style={styles.emptyHint}>Reviews from customers will appear here</Text>
+              <View style={styles.list}>
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
               </View>
+            ) : (
+              <EmptyState
+                icon="⭐"
+                title="No reviews yet"
+                description="Reviews from customers will appear here."
+              />
             )
           }
         />
