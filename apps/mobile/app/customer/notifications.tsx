@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +24,8 @@ import {
   CheckCircle2, User, Car, MapPin, PartyPopper, Coins, Scale,
   Star, Gift, Bell, AlertTriangle, MessageSquare, Ban, ChevronLeft,
 } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -172,18 +173,17 @@ export default function NotificationsScreen(): React.ReactElement {
       </View>
 
       {isLoading ? (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={styles.list}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
       ) : isError ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <View style={{ marginBottom: 12 }}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
-          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load notifications. Please try again.</Text>
-          <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
-            <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load your notifications. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       ) : (
         <FlatList
           data={notifications}
@@ -199,16 +199,11 @@ export default function NotificationsScreen(): React.ReactElement {
             <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} />
           }
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <View style={styles.emptyIconWrap}><Bell size={48} color={colors.textTertiary} /></View>
-              <Text style={styles.emptyText}>No notifications yet</Text>
-              {/* BUG-PHASE178-02 fix — pre-fix the empty state was bare.
-                  Same UX-gap family as Phase 169-177. Now: a one-line
-                  hint that explains what arrives here. */}
-              <Text style={styles.emptyHint}>
-                Booking updates, provider arrivals, quotes, and promos will appear here.
-              </Text>
-            </View>
+            <EmptyState
+              icon="🔔"
+              title="No notifications yet"
+              description="Booking updates, provider arrivals, quotes, and promos will appear here."
+            />
           }
         />
       )}
