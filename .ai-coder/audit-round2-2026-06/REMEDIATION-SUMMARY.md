@@ -24,7 +24,7 @@ staging server. Full API suite (262 suites / 2898 tests) and full mobile suite
 ## Partially done — remaining work for follow-up
 
 ### A7 — adopt shared UI kit across mobile screens (BIG: ~96 screens)
-**Done (18 screens, tested + live). All named high-traffic targets + notifications, wallet, recurring, reviews, suki (x2), referral, data-rights, search:**
+**Done (23 screens, tested + live). All named high-traffic targets + notifications, wallet, recurring, reviews, suki (x2), referral, data-rights, search, category browse, provider profile, portfolio, services, certifications:**
 - `customer/addresses` — Skeleton + EmptyState + ErrorState + OptimizedList + toast feedback (first live exercise of the A3 toast).
 - `(tabs)/bookings` — Skeleton + ErrorState + EmptyState (kept the tuned FlatList + PaginationLoader; OptimizedList would clobber the pagination footer).
 - `(tabs)/home` — top-level loading→Skeleton, categories-error→ErrorState.
@@ -41,6 +41,11 @@ staging server. Full API suite (262 suites / 2898 tests) and full mobile suite
 - `customer/referral` — Skeleton/Error; redeem + copy feedback → toast.
 - `customer/data-rights` — Alert.alert → toast (form screen, no primary load state).
 - `customer/search` — Skeleton/Error; no-results EmptyState (Browse Categories CTA).
+
+- `customer/category/[id]` — Skeleton/Error/Empty (Browse Other Categories CTA).
+- `customer/provider/[id]` — Skeleton/Error; not-found EmptyState.
+- `provider/portfolio` + `provider/certifications` — Skeleton/Error/Empty; add/update/remove + upload/permission feedback → toast (kept picker chooser + remove/validation dialogs).
+- `provider/services` — Skeleton/Empty (Add Your First Service CTA); add/remove → toast.
 
 Also added `SectionList` + `Animated.spring` stubs to the shared react-native test mock (they were missing), which un-blocked several previously-todo screen tests.
 
