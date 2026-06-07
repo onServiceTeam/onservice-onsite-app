@@ -20,6 +20,8 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 // Phase 14 R5-complete — EarningsChart + CommissionBreakdown panels.
 import EarningsChart from '@/components/provider/EarningsChart';
 import CommissionBreakdown from '@/components/provider/CommissionBreakdown';
+// A7 — shared UI kit for loading/empty/error states.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { platformConfig } from '@/config/platform.config';
 import {
   CreditCard,
@@ -34,7 +36,6 @@ import {
   Gift,
   Repeat,
   Coins,
-  AlertTriangle,
 } from '@/components/icons';
 import type { ComponentType } from 'react';
 
@@ -262,13 +263,10 @@ export default function EarningsScreen(): React.ReactElement {
       <Text style={styles.title}>Earnings</Text>
 
       {isError ? (
-        <View style={styles.empty}>
-          <AlertTriangle size={40} color={colors.error} style={styles.emptyIconImg} />
-          <Text style={styles.emptyText}>Failed to load earnings data.</Text>
-          <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
-            <Text style={styles.retryText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load your earnings. Please check your connection and try again."
+          onRetry={onRefresh}
+        />
       ) : (
         <FlatList
           data={transactions}
@@ -282,13 +280,17 @@ export default function EarningsScreen(): React.ReactElement {
           }
           ListEmptyComponent={
             transactionsQuery.isLoading ? (
-              <ActivityIndicator size="large" color={colors.secondary} style={styles.loader} />
-            ) : (
-              <View style={styles.empty}>
-                <CreditCard size={40} color={colors.textTertiary} style={styles.emptyIconImg} />
-                <Text style={styles.emptyText}>No transactions yet</Text>
-                <Text style={styles.emptyHint}>Complete jobs to start earning</Text>
+              <View style={styles.list}>
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
               </View>
+            ) : (
+              <EmptyState
+                icon="💸"
+                title="No transactions yet"
+                description="Complete jobs to start earning."
+              />
             )
           }
         />

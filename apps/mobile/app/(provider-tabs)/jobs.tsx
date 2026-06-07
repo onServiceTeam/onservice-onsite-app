@@ -7,14 +7,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { getProviderBookings } from '@/services/provider-api.service';
 import type { Booking } from '@/services/booking.service';
-import { AlertTriangle, Inbox, CheckCircle2, Ban, Filter, MapPin } from '@/components/icons';
+import { Filter, MapPin } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 // Phase 14 R5-complete — wire StatusBadge + FilterChips + PaginationLoader
 // + PulsingDot + NbiStatusBanner (auto-hides when NBI is valid).
@@ -158,13 +159,10 @@ export default function ProviderJobsScreen(): React.ReactElement {
       />
 
       {isError ? (
-        <View style={styles.empty}>
-          <AlertTriangle size={40} color={colors.error} style={styles.emptyIconImg} />
-          <Text style={styles.emptyText}>Failed to load jobs.</Text>
-          <TouchableOpacity onPress={onRefresh} style={styles.retryButton}>
-            <Text style={styles.retryText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load your jobs. Please check your connection and try again."
+          onRetry={onRefresh}
+        />
       ) : (
         <FlatList
           data={jobs}
@@ -191,48 +189,30 @@ export default function ProviderJobsScreen(): React.ReactElement {
               endLabel="No more jobs"
             />
           }
+          // BUG-PHASE175-01 — each empty state carries helper text so a
+          // provider understands why the list is empty (be online, etc.).
           ListEmptyComponent={
             isLoading ? (
-              <ActivityIndicator size="large" color={colors.secondary} style={styles.loader} />
-            ) : (
-              <View style={styles.empty}>
-                {filter === 'active' ? (
-                  <Inbox size={40} color={colors.textTertiary} style={styles.emptyIconImg} />
-                ) : filter === 'completed' ? (
-                  <CheckCircle2 size={40} color={colors.success} style={styles.emptyIconImg} />
-                ) : (
-                  <Ban size={40} color={colors.textTertiary} style={styles.emptyIconImg} />
-                )}
-                <Text style={styles.emptyText}>
-                  {filter === 'active'
-                    ? 'No active jobs'
-                    : filter === 'completed'
-                      ? 'No completed jobs yet'
-                      : 'No cancelled jobs'}
-                </Text>
-                {/* BUG-PHASE175-01 fix — pre-fix the empty state on the
-                    provider Jobs tab had no helper text. The dashboard
-                    explains "Go online to start receiving jobs" / "New
-                    job requests will appear here" but the Jobs tab
-                    didn't echo that, leaving providers wondering why
-                    they had no jobs. Same UX-gap family as Phase
-                    169/170/172/173/174. */}
-                {filter === 'active' && (
-                  <Text style={styles.emptyHint}>
-                    Make sure you&apos;re online (toggle on the Dashboard) and have services configured. New job requests will appear here.
-                  </Text>
-                )}
-                {filter === 'completed' && (
-                  <Text style={styles.emptyHint}>
-                    Completed jobs will show here after the customer confirms or after the auto-confirm window passes.
-                  </Text>
-                )}
-                {filter === 'cancelled' && (
-                  <Text style={styles.emptyHint}>
-                    Cancelled jobs will appear here.
-                  </Text>
-                )}
+              <View style={styles.list}>
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
               </View>
+            ) : (
+              <EmptyState
+                icon={filter === 'completed' ? '✅' : filter === 'cancelled' ? '🚫' : '📭'}
+                title={filter === 'active'
+                  ? 'No active jobs'
+                  : filter === 'completed'
+                    ? 'No completed jobs yet'
+                    : 'No cancelled jobs'}
+                description={filter === 'active'
+                  ? "Make sure you're online (toggle on the Dashboard) and have services configured. New job requests will appear here."
+                  : filter === 'completed'
+                    ? 'Completed jobs will show here after the customer confirms or after the auto-confirm window passes.'
+                    : 'Cancelled jobs will appear here.'}
+              />
             )
           }
         />

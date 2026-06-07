@@ -13,7 +13,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,14 +20,14 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatRelative } from '@/utils/date';
-import { Badge } from '@/components/ui';
+// A7 — shared UI kit for loading/empty/error states.
+import { Badge, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 // Phase 14 R5-complete — PaginationLoader + EarningsChart + CommissionBreakdown panels.
 import PaginationLoader from '@/components/PaginationLoader';
 import EarningsChart from '@/components/provider/EarningsChart';
 import CommissionBreakdown from '@/components/provider/CommissionBreakdown';
-import { AlertTriangle, Banknote } from '@/components/icons';
 
 interface Payout {
   id: string;
@@ -219,13 +218,10 @@ export default function PayoutsScreen(): React.ReactElement {
       </View>
 
       {isError ? (
-        <View style={styles.empty}>
-          <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={styles.emptyText}>Failed to load payouts.</Text>
-          <TouchableOpacity onPress={onRefresh} style={{ marginTop: spacing.base }}>
-            <Text style={{ color: colors.secondary, fontWeight: '600' }}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load your payouts. Please check your connection and try again."
+          onRetry={onRefresh}
+        />
       ) : (
         <FlatList
           data={payouts}
@@ -250,13 +246,17 @@ export default function PayoutsScreen(): React.ReactElement {
           }
           ListEmptyComponent={
             isLoading ? (
-              <ActivityIndicator size="large" color={colors.secondary} style={styles.loader} />
-            ) : (
-              <View style={styles.empty}>
-                <View style={styles.emptyIconWrap}><Banknote size={48} color={colors.textTertiary} /></View>
-                <Text style={styles.emptyText}>No payouts yet</Text>
-                <Text style={styles.emptyHint}>Completed withdrawals will appear here</Text>
+              <View style={styles.list}>
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
               </View>
+            ) : (
+              <EmptyState
+                icon="🏦"
+                title="No payouts yet"
+                description="Completed withdrawals will appear here."
+              />
             )
           }
         />
