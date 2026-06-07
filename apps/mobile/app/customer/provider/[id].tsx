@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   Image,
   RefreshControl,
   type DimensionValue,
@@ -17,13 +16,14 @@ import { getProviderProfile, type ProviderService } from '@/services/provider.se
 import { getProviderReviews } from '@/services/review.service';
 import { useBookingStore } from '@/stores/booking.store';
 import { Routes } from '@/config/navigation';
-import { Badge, Button } from '@/components/ui';
+// A7 — shared UI kit for loading/empty/error states.
+import { Badge, Skeleton, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 // Phase 14 R5-complete — Avatar with initials fallback in provider header.
 import Avatar from '@/components/Avatar';
 import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Star, AlertTriangle, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText, ChevronRight } from '@/components/icons';
+import { Star, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText, ChevronRight } from '@/components/icons';
 // BUG-PHASE94-01 — founding tier added so customers viewing a
 // founding-batch provider see the right badge color + label.
 const TIER_COLORS: Record<string, string> = {
@@ -124,30 +124,55 @@ export default function ProviderProfileScreen(): React.ReactElement {
 
   if (providerLoading) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Provider Profile</Text>
+        </View>
+        <View style={{ padding: spacing.base }}>
+          <Skeleton width="100%" height={120} borderRadius={borderRadius.lg} style={{ marginBottom: spacing.base }} />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   if (providerError) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top, padding: 24 }]}>
-        <View style={styles.errorEmojiWrap}><AlertTriangle size={48} color={colors.error} /></View>
-        <Text style={styles.errorTitle}>Something went wrong</Text>
-        <Text style={styles.errorSubtitle}>Failed to load provider profile. Please try again.</Text>
-        <TouchableOpacity onPress={() => void refetchProvider()} style={styles.retryButton}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Provider Profile</Text>
+        </View>
+        <ErrorState
+          message="We couldn't load this provider profile. Please check your connection and try again."
+          onRetry={() => void refetchProvider()}
+        />
       </View>
     );
   }
 
   if (!provider) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <Text style={styles.errorText}>Provider not found.</Text>
-        <Button title="Go Back" onPress={() => router.back()} variant="outline" />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Provider Profile</Text>
+        </View>
+        <EmptyState
+          icon="🔍"
+          title="Provider not found"
+          description="This provider may no longer be available."
+          actionLabel="Go Back"
+          onAction={() => router.back()}
+        />
       </View>
     );
   }

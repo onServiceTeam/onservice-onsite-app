@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -17,6 +16,8 @@ import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Clock, ChevronLeft } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 
 import { Routes } from '@/config/navigation';
 export default function SubcategoryListScreen(): React.ReactElement {
@@ -93,48 +94,40 @@ export default function SubcategoryListScreen(): React.ReactElement {
         <Text style={styles.title}>{draft.categoryName ?? 'Services'}</Text>
       </View>
 
-      {isLoading && (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.primary} />
+      {isLoading ? (
+        <View style={styles.list}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
+      ) : error ? (
+        <ErrorState
+          message="We couldn't load these services. Please check your connection and try again."
+          onRetry={onRefresh}
+        />
+      ) : (
+        <FlatList
+          data={subcategories}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} />
+          }
+          // BUG-PHASE184-01 — empty state has a "Browse Other Categories" CTA
+          // so a customer on a freshly-onboarded market has a path forward.
+          ListEmptyComponent={
+            <EmptyState
+              icon="🧰"
+              title="No services yet"
+              description="Check back soon — providers in this category may be coming online."
+              actionLabel="Browse Other Categories"
+              onAction={() => router.push(Routes.TABS.HOME)}
+            />
+          }
+        />
       )}
-
-      {error && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Failed to load services. Pull to retry.</Text>
-        </View>
-      )}
-
-      <FlatList
-        data={subcategories}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} />
-        }
-        ListEmptyComponent={
-          !isLoading ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>No services available in this category.</Text>
-              {/* BUG-PHASE184-01 fix — pre-fix the empty state was a
-                  dead-end. A customer landing here on a freshly-onboarded
-                  market with no subcategories had no path forward. Same
-                  UX-gap family as Phase 169-178. */}
-              <Text style={styles.emptyHint}>
-                Check back soon — providers in this category may be coming online.
-              </Text>
-              <TouchableOpacity
-                style={styles.emptyCta}
-                onPress={() => router.push(Routes.TABS.HOME)}
-              >
-                <Text style={styles.emptyCtaText}>Browse Other Categories</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null
-        }
-      />
     </View>
   );
 }
