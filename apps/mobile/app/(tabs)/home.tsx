@@ -7,7 +7,6 @@ import {
   StyleSheet,
   RefreshControl,
   Pressable,
-  ActivityIndicator,
   Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -26,7 +25,8 @@ import { getActiveBookings, getRecentBookings } from '@/services/booking.service
 // it goes to the address picker as before.
 import { getAddresses, type SavedAddress } from '@/services/address.service';
 import api from '@/services/api';
-import { StatusBadge } from '@/components/ui';
+// A7 — shared UI kit for the top-level loading + error states.
+import { StatusBadge, Skeleton, ErrorState } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -47,7 +47,6 @@ import {
   Users,
   Lock,
   Home as HomeIcon,
-  AlertTriangle,
   ChevronDown,
   ArrowRight,
 } from '@/components/icons';
@@ -528,22 +527,26 @@ export default function HomeScreen(): React.ReactElement {
 
   if (categoriesQuery.isLoading) {
     return (
-      <View style={[styles.container, styles.centeredState, { paddingTop: insets.top + 80 }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Loading services...</Text>
+      <View style={[styles.container, { paddingTop: insets.top + spacing.base, paddingHorizontal: spacing.base }]}>
+        <Skeleton width="55%" height={26} style={{ marginBottom: spacing.base }} />
+        <Skeleton width="100%" height={110} borderRadius={borderRadius.lg} style={{ marginBottom: spacing.lg }} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={String(i)} width={70} height={84} borderRadius={borderRadius.md} />
+          ))}
+        </View>
       </View>
     );
   }
 
   if (categoriesQuery.isError && categories.length === 0) {
     return (
-      <View style={[styles.container, styles.centeredState, { paddingTop: insets.top + 80 }]}>
-        <View style={styles.emptyIconWrap}><AlertTriangle size={48} color={colors.error} /></View>
-        <Text style={styles.emptyTitle}>Could not load services</Text>
-        <Text style={styles.emptySubtitle}>Please check your connection and try again.</Text>
-        <TouchableOpacity onPress={onRefresh} style={styles.retryBtn}>
-          <Text style={styles.retryText}>Try Again</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          title="Could not load services"
+          message="Please check your connection and try again."
+          onRetry={onRefresh}
+        />
       </View>
     );
   }
