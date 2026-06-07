@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  ActivityIndicator,
   Linking,
   Platform,
 } from 'react-native';
@@ -17,7 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import { updateBookingStatus } from '@/services/provider-api.service';
-import { Badge, Button } from '@/components/ui';
+// A7 — shared UI kit for loading + error states + toast feedback.
+import { Badge, Button, Skeleton, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
 // Phase E CRIT-101 — commission table for tier-based net earnings.
 import { platformConfig } from '@/config/platform.config';
@@ -65,7 +66,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   const queryClient = useQueryClient();
   const { getCurrentLocation, isLoading: isGettingLocation } = useLocation();
 
-  const { data: booking, isLoading, isError } = useQuery({
+  const { data: booking, isLoading, isError, refetch } = useQuery({
     queryKey: ['booking', id],
     queryFn: () => getBookingById(id),
     enabled: !!id,
@@ -99,7 +100,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to update status.'));
+      showToast(getErrorMessage(err, 'Failed to update status.'), 'error');
     },
   });
 
@@ -128,16 +129,12 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
       setShowCancelForm(false);
       setCancelReason('');
-      if (result.warning) {
-        Alert.alert('Cancelled', result.warning.message);
-      } else {
-        Alert.alert('Cancelled', 'Job has been cancelled.');
-      }
+      showToast(result.warning ? result.warning.message : 'Job has been cancelled.', 'success');
       router.back();
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to cancel.'));
+      showToast(getErrorMessage(err, 'Failed to cancel.'), 'error');
     },
   });
 
@@ -173,7 +170,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
 
   const handleNavigate = async (): Promise<void> => {
     if (!booking?.latitude || !booking?.longitude) {
-      Alert.alert('No Location', 'No GPS coordinates available for this job.');
+      showToast('No GPS coordinates available for this job.', 'warning');
       return;
     }
     const lat = booking.latitude;
@@ -188,24 +185,43 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        Alert.alert('Navigation', 'Could not open the maps application.');
+        showToast('Could not open the maps application.', 'error');
       }
     }
   };
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.secondary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Job Details</Text>
+        </View>
+        <View style={{ padding: spacing.base }}>
+          <Skeleton width="100%" height={88} borderRadius={borderRadius.lg} style={{ marginBottom: spacing.base }} />
+          <Skeleton width="55%" height={20} style={{ marginBottom: spacing.md }} />
+          <Skeleton width="100%" height={130} borderRadius={borderRadius.lg} style={{ marginBottom: spacing.base }} />
+          <Skeleton width="100%" height={130} borderRadius={borderRadius.lg} />
+        </View>
       </View>
     );
   }
 
   if (isError || !booking) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <Text style={styles.errorText}>Failed to load job details.</Text>
-        <Button title="Go Back" onPress={() => router.back()} variant="outline" />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Job Details</Text>
+        </View>
+        <ErrorState
+          message="We couldn't load this job. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </View>
     );
   }
