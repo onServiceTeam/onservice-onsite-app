@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Share } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Share } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,10 @@ import { getMyCode, getMyReferrals, redeemCode } from '@/services/referral.servi
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
-import { AlertTriangle, ClipboardList, Gift, Send, ChevronLeft } from '@/components/icons';
+import { ClipboardList, Gift, Send, ChevronLeft } from '@/components/icons';
+// A7 — shared UI kit for loading/error states + toast feedback.
+import { SkeletonCard, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 
 export default function ReferralScreen(): React.ReactElement {
   const router = useRouter();
@@ -31,11 +34,11 @@ export default function ReferralScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['myReferrals'] });
       setRedeemInput('');
-      Alert.alert('Success', 'Referral code redeemed! A bonus has been added to your wallet.');
+      showToast('Referral code redeemed! A bonus has been added to your wallet.', 'success');
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : 'Could not redeem referral code.';
-      Alert.alert('Error', message);
+      showToast(message, 'error');
     },
   });
 
@@ -64,9 +67,9 @@ export default function ReferralScreen(): React.ReactElement {
     if (!code?.code) return;
     try {
       await Clipboard.setStringAsync(code.code);
-      Alert.alert('Copied', `Code "${code.code}" copied to clipboard.`);
+      showToast(`Code "${code.code}" copied to clipboard.`, 'success');
     } catch {
-      Alert.alert('Copy Failed', 'Could not copy to clipboard.');
+      showToast('Could not copy to clipboard.', 'error');
     }
   };
 
@@ -85,17 +88,16 @@ export default function ReferralScreen(): React.ReactElement {
       </View>
 
       {isLoading ? (
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color={colors.info} />
+        <View style={styles.bodyContent}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
       ) : isError ? (
-        <View style={styles.centerBox}>
-          <View style={{ marginBottom: spacing.md, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={styles.heroTitle}>Failed to load</Text>
-          <TouchableOpacity onPress={refetchAll} style={[styles.redeemBtn, { marginTop: spacing.base, paddingVertical: 12 }]}>
-            <Text style={styles.redeemBtnText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load your referral program. Please check your connection and try again."
+          onRetry={refetchAll}
+        />
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           <View style={styles.heroCard}>
