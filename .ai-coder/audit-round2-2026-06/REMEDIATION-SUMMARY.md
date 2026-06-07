@@ -24,7 +24,7 @@ staging server. Full API suite (262 suites / 2898 tests) and full mobile suite
 ## Partially done — remaining work for follow-up
 
 ### A7 — adopt shared UI kit across mobile screens (BIG: ~96 screens)
-**Done (13 screens, tested + live; all the audit's named high-traffic targets + notifications + wallet + recurring + provider reviews):**
+**Done (18 screens, tested + live). All named high-traffic targets + notifications, wallet, recurring, reviews, suki (x2), referral, data-rights, search:**
 - `customer/addresses` — Skeleton + EmptyState + ErrorState + OptimizedList + toast feedback (first live exercise of the A3 toast).
 - `(tabs)/bookings` — Skeleton + ErrorState + EmptyState (kept the tuned FlatList + PaginationLoader; OptimizedList would clobber the pagination footer).
 - `(tabs)/home` — top-level loading→Skeleton, categories-error→ErrorState.
@@ -37,6 +37,12 @@ staging server. Full API suite (262 suites / 2898 tests) and full mobile suite
 - `(tabs)/wallet` — SkeletonCard + ErrorState + EmptyState (filter-aware).
 - `customer/recurring/index` — SkeletonCard + ErrorState + EmptyState (Browse Services CTA).
 - `provider/reviews` — SkeletonCard + ErrorState + EmptyState; response feedback → toast.
+- `customer/suki-pros` + `provider/suki-customers` — Skeleton/Error/Empty; redeem feedback → toast.
+- `customer/referral` — Skeleton/Error; redeem + copy feedback → toast.
+- `customer/data-rights` — Alert.alert → toast (form screen, no primary load state).
+- `customer/search` — Skeleton/Error; no-results EmptyState (Browse Categories CTA).
+
+Also added `SectionList` + `Animated.spring` stubs to the shared react-native test mock (they were missing), which un-blocked several previously-todo screen tests.
 
 Tests: real render tests for `customer/addresses` and `(provider-tabs)/jobs` kit states; real render tests replaced the PHASE170/177/173 source-regex empty-state tests (bookings/wallet/recurring). Each batch ran the full mobile suite green (159 suites).
 
