@@ -24,7 +24,7 @@ staging server. Full API suite (262 suites / 2898 tests) and full mobile suite
 ## Partially done — remaining work for follow-up
 
 ### A7 — adopt shared UI kit across mobile screens (BIG: ~96 screens)
-**Done (10 screens, tested + live; all the audit's named high-traffic targets + both notification screens):**
+**Done (13 screens, tested + live; all the audit's named high-traffic targets + notifications + wallet + recurring + provider reviews):**
 - `customer/addresses` — Skeleton + EmptyState + ErrorState + OptimizedList + toast feedback (first live exercise of the A3 toast).
 - `(tabs)/bookings` — Skeleton + ErrorState + EmptyState (kept the tuned FlatList + PaginationLoader; OptimizedList would clobber the pagination footer).
 - `(tabs)/home` — top-level loading→Skeleton, categories-error→ErrorState.
@@ -34,8 +34,13 @@ staging server. Full API suite (262 suites / 2898 tests) and full mobile suite
 - `customer/booking/[id]` — Skeleton + ErrorState; cancel success/error → toast (confirm stays a ConfirmModal).
 - `provider/job/[id]` — Skeleton + ErrorState; status/cancel/maps feedback → toast (action confirm stays an Alert dialog).
 - `customer/notifications` + `provider/notifications` — SkeletonCard + ErrorState + EmptyState.
+- `(tabs)/wallet` — SkeletonCard + ErrorState + EmptyState (filter-aware).
+- `customer/recurring/index` — SkeletonCard + ErrorState + EmptyState (Browse Services CTA).
+- `provider/reviews` — SkeletonCard + ErrorState + EmptyState; response feedback → toast.
 
-Tests: real render tests for `customer/addresses` and `(provider-tabs)/jobs` kit states; the bookings empty-CTA render test. Each batch ran the full mobile suite green (159 suites).
+Tests: real render tests for `customer/addresses` and `(provider-tabs)/jobs` kit states; real render tests replaced the PHASE170/177/173 source-regex empty-state tests (bookings/wallet/recurring). Each batch ran the full mobile suite green (159 suites).
+
+**Remaining A7 (~50 screens, long tail, lower-traffic):** settings, profile, onboarding steps (documents/selfie/service-area), chat, search, category browse, suki lists, provider profile/services/portfolio/certifications/availability/calendar/schedule/team/tier-progression/dashboard, customer account-management/referral/data-rights/wallet-topup, staff screens, and the booking sub-flows (pay/configure/tip/confirm/dispute/quotes/etc.). Same recipe as the 13 done. Note: many of these use ActivityIndicator only as a localized action/submit spinner (not a full-screen load), so for those the A7 change is just swapping any error/empty branches + success/error alerts → toast, not necessarily a Skeleton.
 
 **Remaining:** the rest of the ~96 screens. **Recipe per screen (use the 3 done as templates):**
 1. `import { SkeletonCard/Skeleton, EmptyState, ErrorState, OptimizedList } from '@/components/ui'` and `import { showToast } from '@/lib/toast'`.
