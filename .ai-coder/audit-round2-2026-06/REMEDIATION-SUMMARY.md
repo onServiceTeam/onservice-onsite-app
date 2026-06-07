@@ -24,10 +24,18 @@ staging server. Full API suite (262 suites / 2898 tests) and full mobile suite
 ## Partially done — remaining work for follow-up
 
 ### A7 — adopt shared UI kit across mobile screens (BIG: ~96 screens)
-**Done (3 screens, pattern proven + tested + live):**
+**Done (10 screens, tested + live; all the audit's named high-traffic targets + both notification screens):**
 - `customer/addresses` — Skeleton + EmptyState + ErrorState + OptimizedList + toast feedback (first live exercise of the A3 toast).
 - `(tabs)/bookings` — Skeleton + ErrorState + EmptyState (kept the tuned FlatList + PaginationLoader; OptimizedList would clobber the pagination footer).
 - `(tabs)/home` — top-level loading→Skeleton, categories-error→ErrorState.
+- `(provider-tabs)/jobs` — ErrorState + SkeletonCard + per-filter EmptyState.
+- `(provider-tabs)/earnings` — ErrorState + SkeletonCard + EmptyState (tx list).
+- `provider/payouts` — ErrorState + SkeletonCard + EmptyState.
+- `customer/booking/[id]` — Skeleton + ErrorState; cancel success/error → toast (confirm stays a ConfirmModal).
+- `provider/job/[id]` — Skeleton + ErrorState; status/cancel/maps feedback → toast (action confirm stays an Alert dialog).
+- `customer/notifications` + `provider/notifications` — SkeletonCard + ErrorState + EmptyState.
+
+Tests: real render tests for `customer/addresses` and `(provider-tabs)/jobs` kit states; the bookings empty-CTA render test. Each batch ran the full mobile suite green (159 suites).
 
 **Remaining:** the rest of the ~96 screens. **Recipe per screen (use the 3 done as templates):**
 1. `import { SkeletonCard/Skeleton, EmptyState, ErrorState, OptimizedList } from '@/components/ui'` and `import { showToast } from '@/lib/toast'`.
