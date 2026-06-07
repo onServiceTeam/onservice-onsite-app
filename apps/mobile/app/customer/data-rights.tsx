@@ -18,7 +18,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Alert, ActivityIndicator, RefreshControl,
+  StyleSheet, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,6 +35,8 @@ import {
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Shield, FileText, AlertTriangle, CheckCircle2, ChevronLeft } from '@/components/icons';
 import { getErrorMessage } from '@/utils/errors';
+// A7 — toast feedback instead of modal alerts.
+import { showToast } from '@/lib/toast';
 
 type FlowKey = 'access' | 'correction' | 'erasure';
 
@@ -118,10 +120,7 @@ export default function DataRightsScreen(): React.ReactElement {
     }),
     onSuccess: () => { void pendingConsentsQuery.refetch(); },
     onError: (err: unknown) => {
-      Alert.alert(
-        'Could not record consent',
-        getErrorMessage(err, 'Please try again in a moment.'),
-      );
+      showToast(getErrorMessage(err, 'Could not record consent. Please try again in a moment.'), 'error');
     },
   });
 
@@ -141,10 +140,7 @@ export default function DataRightsScreen(): React.ReactElement {
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert(
-        'Request failed',
-        getErrorMessage(err, 'Could not submit your request. Please try again.'),
-      );
+      showToast(getErrorMessage(err, 'Could not submit your request. Please try again.'), 'error');
     },
   });
 
@@ -157,10 +153,7 @@ export default function DataRightsScreen(): React.ReactElement {
 
   const handleSubmit = (flow: FlowConfig): void => {
     if (flow.requireDeleteConfirmation && deleteConfirmText.trim() !== 'DELETE') {
-      Alert.alert(
-        'Confirmation required',
-        'Type DELETE (in capitals) in the confirmation box to request account deletion.',
-      );
+      showToast('Type DELETE (in capitals) in the confirmation box to request account deletion.', 'warning');
       return;
     }
     submitMutation.mutate({ flow, userMessage: message });
