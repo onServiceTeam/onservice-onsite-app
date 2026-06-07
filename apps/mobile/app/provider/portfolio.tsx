@@ -22,7 +22,6 @@ import {
   Image,
   TextInput,
   Alert,
-  ActivityIndicator,
   RefreshControl,
   type DimensionValue,
 } from 'react-native';
@@ -39,9 +38,11 @@ import {
 } from '@/services/provider-api.service';
 import { uploadImages } from '@/services/upload.service';
 import { getErrorMessage } from '@/utils/errors';
-import { Button } from '@/components/ui';
+// A7 — shared UI kit for loading/empty/error states + toast feedback.
+import { Button, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, Camera } from '@/components/icons';
+import { Camera } from '@/components/icons';
 
 type ModalMode = 'add' | 'edit' | null;
 
@@ -71,11 +72,11 @@ export default function PortfolioScreen(): React.ReactElement {
     onSuccess: () => {
       invalidate();
       resetForm();
-      Alert.alert('Success', 'Portfolio photo added.');
+      showToast('Portfolio photo added.', 'success');
     },
     // Phase E CRIT-108 fix — canonical error helper.
     onError: (err: unknown) =>
-      Alert.alert('Error', getErrorMessage(err, 'Could not add portfolio photo.')),
+      showToast(getErrorMessage(err, 'Could not add portfolio photo.'), 'error'),
   });
 
   const updateMutation = useMutation({
@@ -84,20 +85,20 @@ export default function PortfolioScreen(): React.ReactElement {
     onSuccess: () => {
       invalidate();
       resetForm();
-      Alert.alert('Updated', 'Caption updated.');
+      showToast('Caption updated.', 'success');
     },
     onError: (err: unknown) =>
-      Alert.alert('Error', getErrorMessage(err, 'Could not update caption.')),
+      showToast(getErrorMessage(err, 'Could not update caption.'), 'error'),
   });
 
   const removeMutation = useMutation({
     mutationFn: (itemId: string) => removePortfolioItem(itemId),
     onSuccess: () => {
       invalidate();
-      Alert.alert('Removed', 'Portfolio photo removed.');
+      showToast('Portfolio photo removed.', 'success');
     },
     onError: (err: unknown) =>
-      Alert.alert('Error', getErrorMessage(err, 'Could not remove photo.')),
+      showToast(getErrorMessage(err, 'Could not remove photo.'), 'error'),
   });
 
   const resetForm = useCallback((): void => {
@@ -127,7 +128,7 @@ export default function PortfolioScreen(): React.ReactElement {
   const pickFromGallery = useCallback(async (): Promise<void> => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') {
-      Alert.alert('Permission Required', 'Photo library access is needed to select a photo.');
+      showToast('Photo library access is needed to select a photo.', 'warning');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -143,7 +144,7 @@ export default function PortfolioScreen(): React.ReactElement {
   const pickFromCamera = useCallback(async (): Promise<void> => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (perm.status !== 'granted') {
-      Alert.alert('Permission Required', 'Camera access is needed to take a photo.');
+      showToast('Camera access is needed to take a photo.', 'warning');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -168,7 +169,7 @@ export default function PortfolioScreen(): React.ReactElement {
       // Phase E CRIT-108 fix — upload the picked file first to get a
       // real https URL, then POST it to /providers/me/portfolio.
       if (!pendingLocalUri) {
-        Alert.alert('Required', 'Please pick a photo to add.');
+        showToast('Please pick a photo to add.', 'warning');
         return;
       }
       void (async () => {
@@ -179,7 +180,7 @@ export default function PortfolioScreen(): React.ReactElement {
           if (!url) throw new Error('Upload returned no URL.');
           addMutation.mutate({ imageUrl: url, caption: caption.trim() || undefined });
         } catch (err) {
-          Alert.alert('Upload Failed', getErrorMessage(err, 'Could not upload photo.'));
+          showToast(getErrorMessage(err, 'Could not upload photo.'), 'error');
         } finally {
           setIsUploading(false);
         }
@@ -200,21 +201,23 @@ export default function PortfolioScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   if (isError) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-        <View style={{ marginBottom: 12, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
-        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load portfolio. Please try again.</Text>
-        <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
-          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          message="We couldn't load your portfolio. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </View>
     );
   }
@@ -289,14 +292,13 @@ export default function PortfolioScreen(): React.ReactElement {
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.secondary} />}
       >
         {portfolio.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Camera size={64} color={colors.textTertiary} style={styles.emptyIcon} />
-            <Text style={styles.emptyTitle}>No Portfolio Photos Yet</Text>
-            <Text style={styles.emptyDesc}>
-              Add photos of your past work to build trust with customers and showcase your skills.
-            </Text>
-            <Button title="Add Your First Photo" onPress={handleAdd} />
-          </View>
+          <EmptyState
+            icon="📷"
+            title="No Portfolio Photos Yet"
+            description="Add photos of your past work to build trust with customers and showcase your skills."
+            actionLabel="Add Your First Photo"
+            onAction={handleAdd}
+          />
         ) : (
           <View style={styles.grid}>
             {portfolio.map((item) => (
