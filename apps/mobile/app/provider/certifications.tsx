@@ -19,7 +19,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -35,9 +34,11 @@ import {
 } from '@/services/provider-api.service';
 import { uploadImages } from '@/services/upload.service';
 import { getErrorMessage } from '@/utils/errors';
-import { Button } from '@/components/ui';
+// A7 — shared UI kit for loading/empty/error states + toast feedback.
+import { Button, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, ScrollText } from '@/components/icons';
+import { ScrollText } from '@/components/icons';
 // Phase 14 R5-complete — NbiStatusBanner mounts at the top of the
 // certifications page so the provider sees expiry warnings on the
 // same screen where they manage cert documents.
@@ -79,10 +80,10 @@ export default function CertificationsScreen(): React.ReactElement {
     onSuccess: () => {
       invalidate();
       resetForm();
-      Alert.alert('Success', 'Certification added. It will be reviewed for verification.');
+      showToast('Certification added. It will be reviewed for verification.', 'success');
     },
     onError: (err: unknown) =>
-      Alert.alert('Error', getErrorMessage(err, 'Could not add certification.')),
+      showToast(getErrorMessage(err, 'Could not add certification.'), 'error'),
   });
 
   const updateMutation = useMutation({
@@ -96,20 +97,20 @@ export default function CertificationsScreen(): React.ReactElement {
     onSuccess: () => {
       invalidate();
       resetForm();
-      Alert.alert('Updated', 'Certification updated.');
+      showToast('Certification updated.', 'success');
     },
     onError: (err: unknown) =>
-      Alert.alert('Error', getErrorMessage(err, 'Could not update certification.')),
+      showToast(getErrorMessage(err, 'Could not update certification.'), 'error'),
   });
 
   const removeMutation = useMutation({
     mutationFn: (certId: string) => removeCertification(certId),
     onSuccess: () => {
       invalidate();
-      Alert.alert('Removed', 'Certification removed.');
+      showToast('Certification removed.', 'success');
     },
     onError: (err: unknown) =>
-      Alert.alert('Error', getErrorMessage(err, 'Could not remove certification.')),
+      showToast(getErrorMessage(err, 'Could not remove certification.'), 'error'),
   });
 
   const resetForm = useCallback((): void => {
@@ -221,7 +222,7 @@ export default function CertificationsScreen(): React.ReactElement {
           if (!url) throw new Error('Upload returned no URL.');
           finalCertUrl = url;
         } catch (err) {
-          Alert.alert('Upload Failed', getErrorMessage(err, 'Could not upload certificate photo.'));
+          showToast(getErrorMessage(err, 'Could not upload certificate photo.'), 'error');
           setIsUploading(false);
           return;
         } finally {
@@ -255,21 +256,23 @@ export default function CertificationsScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   if (isError) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-        <View style={{ marginBottom: 12, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
-        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load certifications. Please try again.</Text>
-        <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
-          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          message="We couldn't load your certifications. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </View>
     );
   }
@@ -379,15 +382,13 @@ export default function CertificationsScreen(): React.ReactElement {
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.secondary} />}
       >
         {certifications.length === 0 ? (
-          <View style={styles.emptyState}>
-            <ScrollText size={64} color={colors.textTertiary} style={styles.emptyIcon} />
-            <Text style={styles.emptyTitle}>No Certifications Yet</Text>
-            <Text style={styles.emptyDesc}>
-              Add your TESDA certifications, training certificates, or professional licenses to
-              build trust and unlock Elite tier benefits.
-            </Text>
-            <Button title="Add Certification" onPress={handleAdd} />
-          </View>
+          <EmptyState
+            icon="📜"
+            title="No Certifications Yet"
+            description="Add your TESDA certifications, training certificates, or professional licenses to build trust and unlock Elite tier benefits."
+            actionLabel="Add Certification"
+            onAction={handleAdd}
+          />
         ) : (
           certifications.map((cert) => (
             <View key={cert.id} style={styles.certCard}>
