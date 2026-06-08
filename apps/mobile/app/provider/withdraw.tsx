@@ -19,6 +19,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getWalletBalance } from '@/services/payment.service';
 import api from '@/services/api';
 import { Button, Input } from '@/components/ui';
+// A7 — toast feedback instead of modal alerts.
+import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -92,13 +94,12 @@ export default function WithdrawScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['wallet'] });
       void queryClient.invalidateQueries({ queryKey: ['walletTransactions'] });
-      Alert.alert('Withdrawal Requested', 'Your withdrawal is being processed.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      showToast('Withdrawal requested. It is being processed.', 'success');
+      router.back();
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to process withdrawal.'));
+      showToast(getErrorMessage(err, 'Failed to process withdrawal.'), 'error');
     },
   });
 
@@ -108,19 +109,19 @@ export default function WithdrawScreen(): React.ReactElement {
 
   const handleWithdraw = (): void => {
     if (!method) {
-      Alert.alert('Select Method', 'Please select a payout method.');
+      showToast('Please select a payout method.', 'warning');
       return;
     }
     if (!account.trim()) {
-      Alert.alert('Account Required', 'Please enter your account number or details.');
+      showToast('Please enter your account number or details.', 'warning');
       return;
     }
     if (amountCentavos < minWithdraw) {
-      Alert.alert('Minimum Amount', `Minimum withdrawal is ${formatPHP(minWithdraw)}.`);
+      showToast(`Minimum withdrawal is ${formatPHP(minWithdraw)}.`, 'warning');
       return;
     }
     if (amountCentavos > availableBalance) {
-      Alert.alert('Insufficient Balance', 'Amount exceeds your available balance.');
+      showToast('Amount exceeds your available balance.', 'warning');
       return;
     }
 

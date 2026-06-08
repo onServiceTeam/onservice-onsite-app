@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput,
+  ActivityIndicator, TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,9 @@ import { platformConfig } from '@/config/platform.config';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import api from '@/services/api';
+// A7 — shared UI kit for loading state + toast feedback.
+import { SkeletonCard } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 
 interface PayoutPrefs {
   frequency: string;
@@ -77,11 +80,11 @@ export default function PayoutSettingsScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['payout-preferences'] });
       setDirty(false);
-      Alert.alert('Saved', 'Your payout preferences have been updated.');
+      showToast('Your payout preferences have been updated.', 'success');
     },
     onError: (err: unknown) => {
       // Phase K MED-K04 fix — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to save preferences.'));
+      showToast(getErrorMessage(err, 'Failed to save preferences.'), 'error');
     },
   });
 
@@ -94,12 +97,12 @@ export default function PayoutSettingsScreen(): React.ReactElement {
   const handleSave = useCallback(() => {
     const thresholdCentavos = Math.round(Number(threshold) * 100);
     if (isNaN(thresholdCentavos) || thresholdCentavos < platformConfig.minimumPayoutThreshold) {
-      Alert.alert('Invalid Threshold', `Minimum payout threshold is ${formatPHP(platformConfig.minimumPayoutThreshold)}`);
+      showToast(`Minimum payout threshold is ${formatPHP(platformConfig.minimumPayoutThreshold)}.`, 'warning');
       return;
     }
     const normalizedAccount = normalizeAccount(account);
     if (frequency !== 'manual' && normalizedAccount.length === 0) {
-      Alert.alert('Account Required', 'Please enter your payout account number.');
+      showToast('Please enter your payout account number.', 'warning');
       return;
     }
     updateMutation.mutate({
@@ -112,8 +115,10 @@ export default function PayoutSettingsScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={{ flex: 1, padding: spacing.base }}>
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
       </View>
     );
   }

@@ -14,6 +14,8 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
 import { Smartphone, CreditCard, ScanLine, ChevronLeft, Check } from '@/components/icons';
+// A7 — toast feedback instead of modal alerts.
+import { showToast } from '@/lib/toast';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -66,14 +68,13 @@ export default function WalletTopUpScreen(): React.ReactElement {
           ],
         );
       } else {
-        Alert.alert('Top-Up Initiated', result.message, [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+        showToast(result.message || 'Top-up initiated.', 'success');
+        router.back();
       }
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Top-Up Failed', getErrorMessage(err, 'Could not process top-up.'));
+      showToast(getErrorMessage(err, 'Could not process top-up.'), 'error');
     },
   });
 
