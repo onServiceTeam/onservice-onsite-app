@@ -18,6 +18,8 @@ import {
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { getErrorMessage } from '@/utils/errors';
 import { Package, AlertTriangle, CheckCircle2, XCircle, Hourglass, ChevronLeft, Clock } from '@/components/icons';
+// A7 — toast feedback instead of modal alerts.
+import { showToast } from '@/lib/toast';
 // Phase 14 R5-complete — wire ConfirmModal into delete-account destructive flow.
 import ConfirmModal from '@/components/ConfirmModal';
 
@@ -58,14 +60,11 @@ export default function AccountManagementScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['accountDeletion'] });
       setShowDeleteForm(false);
       setReason('');
-      Alert.alert(
-        'Deletion Requested',
-        'Your account has been scheduled for deletion. You have 30 days to change your mind. After that, all your data will be permanently removed.',
-      );
+      showToast('Account scheduled for deletion. You have 30 days to change your mind.', 'success');
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Could not process request.'));
+      showToast(getErrorMessage(err, 'Could not process request.'), 'error');
     },
   });
 
@@ -73,11 +72,11 @@ export default function AccountManagementScreen(): React.ReactElement {
     mutationFn: cancelAccountDeletion,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['accountDeletion'] });
-      Alert.alert('Cancelled', 'Your account deletion has been cancelled. Your account is safe.');
+      showToast('Account deletion cancelled. Your account is safe.', 'success');
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Could not cancel.'));
+      showToast(getErrorMessage(err, 'Could not cancel.'), 'error');
     },
   });
 
@@ -85,11 +84,11 @@ export default function AccountManagementScreen(): React.ReactElement {
     mutationFn: (format: 'json' | 'csv') => requestDataExport(format),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['dataExports'] });
-      Alert.alert('Export Requested', 'Your data export is being prepared. Check back shortly.');
+      showToast('Data export requested. It is being prepared — check back shortly.', 'success');
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Could not export data.'));
+      showToast(getErrorMessage(err, 'Could not export data.'), 'error');
     },
   });
 
