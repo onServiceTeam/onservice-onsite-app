@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,8 @@ import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import { Ban, Wrench, ThumbsDown, AlertOctagon, Lock, Coins, CircleHelp, AlertTriangle, ChevronLeft, Check } from '@/components/icons';
+// A7 — toast feedback instead of modal alerts.
+import { showToast } from '@/lib/toast';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -49,15 +51,12 @@ export default function DisputeScreen(): React.ReactElement {
       });
     },
     onSuccess: () => {
-      Alert.alert(
-        'Dispute Filed',
-        'Your dispute has been submitted. The provider has 48 hours to respond. We\'ll keep you updated.',
-        [{ text: 'OK', onPress: () => router.back() }],
-      );
+      showToast('Dispute submitted. The provider has 48 hours to respond.', 'success');
+      router.back();
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to submit dispute. Please try again or contact support.'));
+      showToast(getErrorMessage(err, 'Failed to submit dispute. Please try again or contact support.'), 'error');
     },
   });
 

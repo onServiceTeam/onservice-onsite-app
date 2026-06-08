@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,7 +11,10 @@ import { Button } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, Repeat } from '@/components/icons';
+import { Repeat } from '@/components/icons';
+// A7 — shared UI kit for loading/error states + toast feedback.
+import { SkeletonCard, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 
 import { Routes } from '@/config/navigation';
 type Frequency = 'weekly' | 'bi_weekly' | 'monthly';
@@ -112,15 +115,12 @@ export default function MakeRecurringScreen(): React.ReactElement {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['recurring-bookings'] });
-      Alert.alert(
-        'Recurring Booking Created!',
-        'We\'ll automatically schedule this service for you. You can manage it from your Bookings tab.',
-        [{ text: 'Great!', onPress: (): void => { router.replace(Routes.TABS.BOOKINGS); } }],
-      );
+      showToast('Recurring booking created! Manage it from your Bookings tab.', 'success');
+      router.replace(Routes.TABS.BOOKINGS);
     },
     onError: (err: unknown) => {
       // Phase K MED-K04 fix — canonical error helper instead of raw err.message.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to create recurring booking.'));
+      showToast(getErrorMessage(err, 'Failed to create recurring booking.'), 'error');
     },
   });
 
@@ -134,21 +134,22 @@ export default function MakeRecurringScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   if (bookingError) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top, padding: 24 }]}>
-        <View style={{ marginBottom: 12, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
-        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load booking details. Please try again.</Text>
-        <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
-          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          message="We couldn't load this booking. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </View>
     );
   }

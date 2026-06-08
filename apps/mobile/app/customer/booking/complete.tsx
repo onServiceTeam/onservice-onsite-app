@@ -1,12 +1,14 @@
 import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { getErrorMessage } from '@/utils/errors';
 import { Button } from '@/components/ui';
+// A7 — toast feedback instead of modal alerts.
+import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import { CheckCircle2, Lock, Clock } from '@/components/icons';
@@ -29,8 +31,7 @@ export default function JobCompletionScreen(): React.ReactElement {
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      const msg = getErrorMessage(err, 'Failed to confirm. Please try again.');
-      Alert.alert('Error', msg);
+      showToast(getErrorMessage(err, 'Failed to confirm. Please try again.'), 'error');
     },
   });
 
