@@ -11,7 +11,10 @@ import { getMyInvites, acceptInvite, type PendingInvite } from '@/services/provi
 import { getErrorMessage } from '@/utils/errors';
 import { Routes } from '@/config/navigation';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft, Users } from '@/components/icons';
+import { ChevronLeft } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states + toast feedback.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 
 export default function StaffInvitesScreen(): React.ReactElement {
   const router = useRouter();
@@ -30,7 +33,7 @@ export default function StaffInvitesScreen(): React.ReactElement {
       applyStaffSession(tokens.accessToken, tokens.refreshToken);
       router.replace(Routes.STAFF.JOBS);
     },
-    onError: (e) => Alert.alert('Could not accept', getErrorMessage(e, 'Please try again.')),
+    onError: (e) => showToast(getErrorMessage(e, 'Could not accept the invitation. Please try again.'), 'error'),
   });
 
   function confirmAccept(invite: PendingInvite): void {
@@ -61,20 +64,25 @@ export default function StaffInvitesScreen(): React.ReactElement {
         contentContainerStyle={styles.bodyContent}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={colors.primary} colors={[colors.primary]} />}
       >
-        {isLoading && <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: spacing.lg }} />}
+        {isLoading && (
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
+        )}
         {isError && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>Could not load invitations. Pull down to refresh.</Text>
-          </View>
+          <ErrorState
+            compact
+            message="We couldn't load your invitations. Please check your connection and try again."
+            onRetry={() => { void refetch(); }}
+          />
         )}
         {!isLoading && !isError && list.length === 0 && (
-          <View style={styles.empty}>
-            <Users size={48} color={colors.textTertiary} style={{ marginBottom: spacing.base }} />
-            <Text style={styles.emptyTitle}>No invitations</Text>
-            <Text style={styles.emptyText}>
-              If a provider invites you to their team, the invitation appears here.
-            </Text>
-          </View>
+          <EmptyState
+            icon="✉️"
+            title="No invitations"
+            description="If a provider invites you to their team, the invitation appears here."
+          />
         )}
 
         {list.map((invite: PendingInvite) => (

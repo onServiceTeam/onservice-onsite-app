@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, RefreshControl, TextInput, type DimensionValue,
+  Alert, RefreshControl, TextInput, type DimensionValue,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,7 +11,10 @@ import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, ChevronLeft } from '@/components/icons';
+import { ChevronLeft } from '@/components/icons';
+// A7 — shared UI kit for loading/error states + toast feedback.
+import { SkeletonCard, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 
 interface RecurringDetail {
   id: string;
@@ -89,9 +92,9 @@ export default function RecurringDetailScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['recurring', id] });
       void queryClient.invalidateQueries({ queryKey: ['recurring-bookings'] });
-      Alert.alert('Paused', 'Your recurring booking has been paused.');
+      showToast('Recurring booking paused.', 'success');
     },
-    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
+    onError: (err: unknown) => showToast(getErrorMessage(err, 'Operation failed.'), 'error'),
   });
 
   const resumeMutation = useMutation({
@@ -99,9 +102,9 @@ export default function RecurringDetailScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['recurring', id] });
       void queryClient.invalidateQueries({ queryKey: ['recurring-bookings'] });
-      Alert.alert('Resumed', 'Your recurring booking has been resumed.');
+      showToast('Recurring booking resumed.', 'success');
     },
-    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
+    onError: (err: unknown) => showToast(getErrorMessage(err, 'Operation failed.'), 'error'),
   });
 
   const cancelMutation = useMutation({
@@ -109,9 +112,9 @@ export default function RecurringDetailScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['recurring', id] });
       void queryClient.invalidateQueries({ queryKey: ['recurring-bookings'] });
-      Alert.alert('Cancelled', 'Your recurring booking has been cancelled.');
+      showToast('Recurring booking cancelled.', 'success');
     },
-    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
+    onError: (err: unknown) => showToast(getErrorMessage(err, 'Operation failed.'), 'error'),
   });
 
   const skipMutation = useMutation({
@@ -119,9 +122,9 @@ export default function RecurringDetailScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['recurring', id] });
       void queryClient.invalidateQueries({ queryKey: ['recurring-instances', id] });
-      Alert.alert('Skipped', 'The next instance has been skipped.');
+      showToast('Next instance skipped.', 'success');
     },
-    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
+    onError: (err: unknown) => showToast(getErrorMessage(err, 'Operation failed.'), 'error'),
   });
 
   const handlePause = useCallback(() => {
@@ -159,19 +162,21 @@ export default function RecurringDetailScreen(): React.ReactElement {
   if (isLoading || !recurring) {
     if (isError) {
       return (
-        <View style={[styles.center, { paddingTop: insets.top, padding: 24 }]}>
-          <View style={{ marginBottom: 12, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
-          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load recurring booking details. Please try again.</Text>
-          <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
-            <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
-          </TouchableOpacity>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+          <ErrorState
+            message="We couldn't load this recurring booking. Please check your connection and try again."
+            onRetry={() => void refetch()}
+          />
         </View>
       );
     }
     return (
-      <View style={[styles.center, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }

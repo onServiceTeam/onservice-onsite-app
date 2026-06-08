@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,9 @@ import { getErrorMessage } from '@/utils/errors';
 import { useLocation } from '@/hooks/useLocation';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft, MapPin, Clock, MessageSquare } from '@/components/icons';
+// A7 — shared UI kit for loading/error states + toast feedback.
+import { SkeletonCard, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 
 // On-site steps a team member drives. D15 — completion is now staff-enabled:
 // at in_progress the team member enters the SAME checklist + after-photo flow
@@ -38,7 +41,7 @@ export default function StaffJobDetailScreen(): React.ReactElement {
   const queryClient = useQueryClient();
   const { getCurrentLocation, isLoading: gettingLocation } = useLocation();
 
-  const { data: booking, isLoading, isError } = useQuery({
+  const { data: booking, isLoading, isError, refetch } = useQuery({
     queryKey: ['staffJob', id],
     queryFn: () => getBookingById(id),
     enabled: !!id,
@@ -52,7 +55,7 @@ export default function StaffJobDetailScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['staffJob', id] });
       void queryClient.invalidateQueries({ queryKey: ['staffJobs'] });
     },
-    onError: (err: unknown) => Alert.alert('Could not update', getErrorMessage(err, 'Please try again.')),
+    onError: (err: unknown) => showToast(getErrorMessage(err, 'Could not update the job. Please try again.'), 'error'),
   });
 
   async function handleAction(): Promise<void> {
@@ -68,7 +71,7 @@ export default function StaffJobDetailScreen(): React.ReactElement {
         // getCurrentLocation surfaces its own errors; the server also re-checks.
       }
       if (!location) {
-        Alert.alert('Location needed', 'We need your current location to mark arrival.');
+        showToast('We need your current location to mark arrival.', 'warning');
         return;
       }
     }
@@ -77,16 +80,22 @@ export default function StaffJobDetailScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, styles.centered]} edges={['top']}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </SafeAreaView>
     );
   }
   if (isError || !booking) {
     return (
-      <SafeAreaView style={[styles.container, styles.centered]} edges={['top']}>
-        <Text style={styles.errorText}>Could not load this job.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.linkBtn}><Text style={styles.linkText}>Go back</Text></TouchableOpacity>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ErrorState
+          message="We couldn't load this job. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </SafeAreaView>
     );
   }

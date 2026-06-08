@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, RefreshControl,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
 import { getMyAssignedJobs, type StaffAssignedJob } from '@/services/provider-staff.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { MapPin, Clock, LogOut, ClipboardList } from '@/components/icons';
+import { MapPin, Clock, LogOut } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 
 function formatWhen(iso: string | null): string {
   if (!iso) return 'Not scheduled';
@@ -59,20 +61,26 @@ export default function StaffJobsScreen(): React.ReactElement {
         contentContainerStyle={styles.bodyContent}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={colors.primary} colors={[colors.primary]} />}
       >
-        {isLoading && <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: spacing.lg }} />}
+        {isLoading && (
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
+        )}
         {isError && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>Could not load your jobs. Pull down to refresh.</Text>
-          </View>
+          <ErrorState
+            compact
+            message="We couldn't load your jobs. Please check your connection and try again."
+            onRetry={() => { void refetch(); }}
+          />
         )}
         {!isLoading && !isError && list.length === 0 && (
-          <View style={styles.empty}>
-            <ClipboardList size={48} color={colors.textTertiary} style={{ marginBottom: spacing.base }} />
-            <Text style={styles.emptyTitle}>No jobs assigned yet</Text>
-            <Text style={styles.emptyText}>
-              When your provider assigns you a job, it shows up here.
-            </Text>
-          </View>
+          <EmptyState
+            icon="📋"
+            title="No jobs assigned yet"
+            description="When your provider assigns you a job, it shows up here."
+          />
         )}
 
         {list.map((job: StaffAssignedJob) => (
