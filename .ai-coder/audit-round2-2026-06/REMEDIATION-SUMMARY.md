@@ -24,7 +24,7 @@ staging server. Full API suite (262 suites / 2898 tests) and full mobile suite
 ## Partially done — remaining work for follow-up
 
 ### A7 — adopt shared UI kit across mobile screens (BIG: ~96 screens)
-**Done (23 screens, tested + live). All named high-traffic targets + notifications, wallet, recurring, reviews, suki (x2), referral, data-rights, search, category browse, provider profile, portfolio, services, certifications:**
+**Done (28 screens, tested + live — ~half the app). All named high-traffic targets + notifications, wallet, recurring, reviews, suki (x2), referral, data-rights, search, category browse, provider profile, portfolio, services, certifications, tier-progression, team, customer+provider account-management, provider dashboard:**
 - `customer/addresses` — Skeleton + EmptyState + ErrorState + OptimizedList + toast feedback (first live exercise of the A3 toast).
 - `(tabs)/bookings` — Skeleton + ErrorState + EmptyState (kept the tuned FlatList + PaginationLoader; OptimizedList would clobber the pagination footer).
 - `(tabs)/home` — top-level loading→Skeleton, categories-error→ErrorState.
