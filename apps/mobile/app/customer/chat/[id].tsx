@@ -10,7 +10,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
   RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -18,6 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
 import { MessageSquare, Camera, Send } from '@/components/icons';
+// A7 — toast feedback instead of modal alerts.
+import { showToast } from '@/lib/toast';
 import { getBookingById } from '@/services/booking.service';
 import {
   createConversation,
@@ -171,7 +172,7 @@ export default function ChatScreen(): React.ReactElement {
       setInputText('');
       flatListRef.current?.scrollToEnd({ animated: true });
     } catch {
-      Alert.alert('Send Failed', 'Message could not be sent. Please try again.');
+      showToast('Message could not be sent. Please try again.', 'error');
     } finally {
       setSending(false);
     }
@@ -182,7 +183,7 @@ export default function ChatScreen(): React.ReactElement {
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Needed', 'Please allow access to your photo library to send images.');
+      showToast('Please allow photo library access to send images.', 'warning');
       return;
     }
 
@@ -208,7 +209,7 @@ export default function ChatScreen(): React.ReactElement {
         flatListRef.current?.scrollToEnd({ animated: true });
       }
     } catch {
-      Alert.alert('Upload Failed', 'Could not send the photo. Please try again.');
+      showToast('Could not send the photo. Please try again.', 'error');
     } finally {
       setUploadingPhoto(false);
     }

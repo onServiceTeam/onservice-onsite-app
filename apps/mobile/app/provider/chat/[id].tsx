@@ -10,7 +10,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
   RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -40,6 +39,8 @@ import { LazyImage } from '@/components/ui';
 import { formatTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MessageSquare, Camera, Send, ChevronLeft } from '@/components/icons';
+// A7 — toast feedback instead of modal alerts.
+import { showToast } from '@/lib/toast';
 
 import * as ImagePicker from 'expo-image-picker';
 
@@ -168,7 +169,7 @@ export default function ProviderChatScreen(): React.ReactElement {
       setInputText('');
       flatListRef.current?.scrollToEnd({ animated: true });
     } catch {
-      Alert.alert('Send Failed', 'Message could not be sent. Please try again.');
+      showToast('Message could not be sent. Please try again.', 'error');
     } finally {
       setSending(false);
     }
@@ -179,7 +180,7 @@ export default function ProviderChatScreen(): React.ReactElement {
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Needed', 'Please allow access to your photo library to send images.');
+      showToast('Please allow photo library access to send images.', 'warning');
       return;
     }
 
@@ -203,7 +204,7 @@ export default function ProviderChatScreen(): React.ReactElement {
         flatListRef.current?.scrollToEnd({ animated: true });
       }
     } catch {
-      Alert.alert('Upload Failed', 'Could not send the photo. Please try again.');
+      showToast('Could not send the photo. Please try again.', 'error');
     } finally {
       setUploadingPhoto(false);
     }
