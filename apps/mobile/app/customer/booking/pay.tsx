@@ -18,7 +18,7 @@
 
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Linking, ActivityIndicator,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,7 +31,10 @@ import { formatBookingRef } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
-import { Smartphone, CreditCard, Wallet, ScanLine, Lock, AlertTriangle, ChevronLeft } from '@/components/icons';
+import { Smartphone, CreditCard, Wallet, ScanLine, Lock, ChevronLeft } from '@/components/icons';
+// A7 — shared UI kit for loading/error states + toast feedback.
+import { SkeletonCard, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -75,11 +78,11 @@ export default function PayExistingBookingScreen(): React.ReactElement {
 
   const handlePay = async (): Promise<void> => {
     if (!selectedMethod || !bookingId) {
-      Alert.alert('Payment Method', 'Please select a payment method.');
+      showToast('Please select a payment method.', 'warning');
       return;
     }
     if (selectedMethod === 'wallet' && walletBalance < total) {
-      Alert.alert('Wallet balance too low', `Your wallet balance (${formatPHP(walletBalance)}) is below the total. Top up or choose another method.`);
+      showToast(`Your wallet balance (${formatPHP(walletBalance)}) is below the total. Top up or choose another method.`, 'warning');
       return;
     }
     setLoading(true);
@@ -116,20 +119,22 @@ export default function PayExistingBookingScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   if (isError || !booking) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top, padding: 24 }]}>
-        <View style={{ marginBottom: 12, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Could not load booking</Text>
-        <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 }}>
-          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          message="We couldn't load this booking. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </View>
     );
   }

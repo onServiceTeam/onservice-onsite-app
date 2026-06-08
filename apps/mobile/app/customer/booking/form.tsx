@@ -6,12 +6,13 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBookingStore } from '@/stores/booking.store';
 import { Button, Input } from '@/components/ui';
+// A7 — toast feedback instead of modal alerts.
+import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft, ChevronRight, MapPin } from '@/components/icons';
@@ -61,11 +62,11 @@ export default function BookingFormScreen(): React.ReactElement {
 
   const handleProceed = (): void => {
     if (!selectedDate || !selectedTime) {
-      Alert.alert('Select Schedule', 'Please select both a date and time for your booking.');
+      showToast('Please select both a date and time for your booking.', 'warning');
       return;
     }
     if (!draft.address) {
-      Alert.alert('Select Address', 'Please select your service address.');
+      showToast('Please select your service address.', 'warning');
       return;
     }
     setSchedule(selectedDate, selectedTime);
