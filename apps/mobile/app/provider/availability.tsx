@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  ActivityIndicator,
   Switch,
   RefreshControl,
 } from 'react-native';
@@ -23,10 +22,12 @@ import {
   toggleAvailability,
   type AvailabilityOverride,
 } from '@/services/provider-api.service';
-import { Button } from '@/components/ui';
+// A7 — shared UI kit for loading/empty/error states + toast feedback.
+import { Button, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, Calendar, ClipboardList } from '@/components/icons';
+import { ClipboardList } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 export default function AvailabilitySettingsScreen(): React.ReactElement {
@@ -60,7 +61,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
   const toggleMutation = useMutation({
     mutationFn: (available: boolean) => toggleAvailability(available),
     onSuccess: () => { invalidateAll(); },
-    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
+    onError: (err: unknown) => showToast(getErrorMessage(err, 'Operation failed.'), 'error'),
   });
 
   const addMutation = useMutation({
@@ -70,18 +71,18 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
     onSuccess: () => {
       invalidateAll();
       resetForm();
-      Alert.alert('Saved', 'Availability override added.');
+      showToast('Availability override added.', 'success');
     },
-    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
+    onError: (err: unknown) => showToast(getErrorMessage(err, 'Operation failed.'), 'error'),
   });
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => removeAvailabilityOverride(id),
     onSuccess: () => {
       invalidateAll();
-      Alert.alert('Removed', 'Override removed.');
+      showToast('Override removed.', 'success');
     },
-    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Operation failed.')),
+    onError: (err: unknown) => showToast(getErrorMessage(err, 'Operation failed.'), 'error'),
   });
 
   const resetForm = useCallback((): void => {
@@ -99,11 +100,11 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
 
   const handleAddOverride = useCallback((): void => {
     if (!overrideDate.trim()) {
-      Alert.alert('Required', 'Please enter a date (YYYY-MM-DD).');
+      showToast('Please enter a date (YYYY-MM-DD).', 'warning');
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(overrideDate.trim())) {
-      Alert.alert('Invalid Date', 'Please use format YYYY-MM-DD.');
+      showToast('Please use date format YYYY-MM-DD.', 'warning');
       return;
     }
     // BUG-PHASE50-01 fix — pre-fix the form accepted any
@@ -115,19 +116,16 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
     // later" client-side guard with a clear error message.
     const todayManila = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
     if (overrideDate.trim() < todayManila) {
-      Alert.alert(
-        'Past Date',
-        `Overrides can only be set for today or later (today in Manila is ${todayManila}).`,
-      );
+      showToast(`Overrides can only be set for today or later (today in Manila is ${todayManila}).`, 'warning');
       return;
     }
     const isCustomAvailable = overrideType === 'custom';
     if (isCustomAvailable && (!startTime.trim() || !endTime.trim())) {
-      Alert.alert('Hours Required', 'Custom hours need both start and end time (HH:MM).');
+      showToast('Custom hours need both start and end time (HH:MM).', 'warning');
       return;
     }
     if (isCustomAvailable && startTime.trim() >= endTime.trim()) {
-      Alert.alert('Invalid Hours', 'End time must be later than start time.');
+      showToast('End time must be later than start time.', 'warning');
       return;
     }
     addMutation.mutate({
@@ -152,21 +150,23 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.secondary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   if (isError) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-        <View style={{ marginBottom: 12, alignItems: 'center' }}><AlertTriangle size={48} color={colors.error} /></View>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
-        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load availability settings. Please try again.</Text>
-        <TouchableOpacity onPress={() => { void invalidateAll(); }} style={{ backgroundColor: colors.secondary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10, minHeight: 44, justifyContent: 'center' as const }}>
-          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          message="We couldn't load your availability settings. Please check your connection and try again."
+          onRetry={() => { void invalidateAll(); }}
+        />
       </View>
     );
   }
@@ -291,13 +291,11 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
         )}
 
         {futureOverrides.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconWrap}><Calendar size={48} color={colors.textSecondary} /></View>
-            <Text style={styles.emptyTitle}>No Date Overrides</Text>
-            <Text style={styles.emptyDesc}>
-              Your weekly schedule is active. Add overrides to block specific dates or set custom hours when you need time off.
-            </Text>
-          </View>
+          <EmptyState
+            icon="📅"
+            title="No Date Overrides"
+            description="Your weekly schedule is active. Add overrides to block specific dates or set custom hours when you need time off."
+          />
         ) : (
           futureOverrides.map((o) => (
             <View key={o.id} style={styles.overrideCard}>
