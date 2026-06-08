@@ -8,6 +8,8 @@ import { getBookingQuotes, acceptQuote, declineQuote, type BookingQuote } from '
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { Star, ChevronLeft } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 
 function QuoteCard({ quote, onAccept, onDecline, isPending }: {
   quote: BookingQuote;
@@ -192,16 +194,15 @@ export default function QuotesScreen(): React.ReactElement {
       </View>
 
       {isLoading ? (
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color={colors.info} />
+        <View style={styles.bodyContent}>
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
       ) : isError ? (
-        <View style={styles.centerBox}>
-          <Text style={styles.errorText}>Failed to load quotes</Text>
-          <TouchableOpacity onPress={() => void refetch()} style={styles.retryBtn}>
-            <Text style={styles.retryText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load the quotes. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           <Text style={styles.quotesCount}>
@@ -209,11 +210,11 @@ export default function QuotesScreen(): React.ReactElement {
           </Text>
 
           {(quotes ?? []).length === 0 ? (
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyEmoji}>⏳</Text>
-              <Text style={styles.emptyTitle}>Waiting for Quotes</Text>
-              <Text style={styles.emptyDesc}>Providers will send quotes soon. You'll be notified when new quotes arrive.</Text>
-            </View>
+            <EmptyState
+              icon="⏳"
+              title="Waiting for Quotes"
+              description="Providers will send quotes soon. You'll be notified when new quotes arrive."
+            />
           ) : (
             quotes?.map((quote) => (
               <QuoteCard

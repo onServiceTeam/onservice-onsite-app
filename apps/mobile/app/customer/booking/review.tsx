@@ -16,6 +16,7 @@ import { createReview, type CreateReviewPayload } from '@/services/review.servic
 import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { Button, Input } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Star, Lock } from '@/components/icons';
 
@@ -138,8 +139,9 @@ export default function ReviewScreen(): React.ReactElement {
       router.replace({ pathname: '/customer/booking/tip', params: { bookingId } });
     } catch (err: unknown) {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
+      // A7 — non-blocking toast instead of a modal Alert for network failures.
       const msg = getErrorMessage(err, 'Failed to submit review. Please try again.');
-      Alert.alert('Error', msg);
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }

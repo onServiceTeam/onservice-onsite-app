@@ -11,7 +11,10 @@ import {
 import { getWalletBalance } from '@/services/payment.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ClipboardList, ChevronLeft, Wallet, Check } from '@/components/icons';
+import { ChevronLeft, Wallet, Check } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states + toast feedback.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 
 const PAYMENT_METHOD = { id: 'wallet', label: 'Wallet Balance' } as const;
 
@@ -48,12 +51,12 @@ export default function ChangeOrderScreen(): React.ReactElement {
       if (approved && result.paymentRequired) {
         setPendingPayment(result);
       } else if (!approved) {
-        Alert.alert('Declined', 'Change order declined. The provider will complete the original scope.');
+        showToast('Change order declined. The provider will complete the original scope.', 'info');
       }
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : 'Could not process change order.';
-      Alert.alert('Error', message);
+      showToast(message, 'error');
     },
   });
 
@@ -62,11 +65,11 @@ export default function ChangeOrderScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['changeOrders', bookingId] });
       setPendingPayment(null);
-      Alert.alert('Payment Complete', 'Additional payment processed. The provider has been notified to proceed.');
+      showToast('Additional payment processed. The provider has been notified to proceed.', 'success');
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : 'Could not process additional payment.';
-      Alert.alert('Payment Failed', message);
+      showToast(message, 'error');
     },
   });
 
@@ -176,25 +179,23 @@ export default function ChangeOrderScreen(): React.ReactElement {
           </View>
         </ScrollView>
       ) : isLoading ? (
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={styles.bodyContent}>
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
       ) : isError ? (
-        <View style={styles.centerBox}>
-          <Text style={styles.emptyTitle}>Failed to load</Text>
-          <Text style={[styles.emptyDesc, { marginBottom: spacing.base }]}>Something went wrong. Please try again.</Text>
-          <TouchableOpacity style={styles.approveBtn} onPress={() => void refetch()}>
-            <Text style={styles.approveText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState
+          message="We couldn't load the change orders. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       ) : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           {(orders ?? []).length === 0 ? (
-            <View style={styles.emptyBox}>
-              <View style={styles.emptyEmojiWrap}><ClipboardList size={48} color={colors.textTertiary} /></View>
-              <Text style={styles.emptyTitle}>No Change Orders</Text>
-              <Text style={styles.emptyDesc}>If the provider finds additional work is needed, change orders will appear here.</Text>
-            </View>
+            <EmptyState
+              icon="📋"
+              title="No Change Orders"
+              description="If the provider finds additional work is needed, change orders will appear here."
+            />
           ) : (
             orders?.map((order) => (
               <View key={order.id} style={styles.orderCard}>
