@@ -7,8 +7,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   Switch,
-  ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,8 +19,10 @@ import {
 } from '@/services/provider-api.service';
 import api from '@/services/api';
 import type { Booking } from '@/services/booking.service';
-import { Badge, StatusBadge } from '@/components/ui';
-import { AlertTriangle, Bell, Calendar, Wrench, CreditCard, Inbox } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states + toast feedback.
+import { Badge, StatusBadge, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
+import { Bell, Calendar, Wrench, CreditCard } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 // Phase 14 Remediation #5 — Bug 1234 NBI lifecycle banner.
 import NbiStatusBanner from '@/components/provider/NbiStatusBanner';
@@ -100,7 +100,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to update availability.'));
+      showToast(getErrorMessage(err, 'Failed to update availability.'), 'error');
     },
   });
 
@@ -115,20 +115,23 @@ export default function ProviderDashboardScreen(): React.ReactElement {
 
   if (profileQuery.isLoading) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.secondary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   if (profileQuery.isError) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <AlertTriangle size={48} color={colors.error} style={styles.errorIcon} />
-        <Text style={styles.errorText}>Failed to load your profile.</Text>
-        <TouchableOpacity onPress={() => void profileQuery.refetch()}>
-          <Text style={styles.retryText}>Try Again</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          message="We couldn't load your dashboard. Please check your connection and try again."
+          onRetry={() => void profileQuery.refetch()}
+        />
       </View>
     );
   }
@@ -224,15 +227,13 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         </View>
 
         {activeJobs.length === 0 ? (
-          <View style={styles.emptyJobs}>
-            <Inbox size={40} color={colors.textTertiary} style={styles.emptyIconImg} />
-            <Text style={styles.emptyText}>No active jobs right now</Text>
-            <Text style={styles.emptyHint}>
-              {profile?.isAvailable
-                ? 'New job requests will appear here'
-                : 'Go online to start receiving jobs'}
-            </Text>
-          </View>
+          <EmptyState
+            icon="📭"
+            title="No active jobs right now"
+            description={profile?.isAvailable
+              ? 'New job requests will appear here.'
+              : 'Go online to start receiving jobs.'}
+          />
         ) : (
           activeJobs.map((job: Booking) => (
             <TouchableOpacity
