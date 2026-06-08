@@ -7,16 +7,16 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
 import { getMyProfile, updateMyProfile } from '@/services/provider-api.service';
-import { Badge, Button, Input } from '@/components/ui';
+// A7 — shared UI kit for loading/error states + toast feedback.
+import { Badge, Button, Input, SkeletonCard, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import {
-  AlertTriangle,
   Calendar,
   Wrench,
   Camera,
@@ -109,11 +109,11 @@ export default function ProviderProfileScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['providerProfile'] });
       setEditing(false);
-      Alert.alert('Saved', 'Your profile has been updated.');
+      showToast('Your profile has been updated.', 'success');
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to update profile.'));
+      showToast(getErrorMessage(err, 'Failed to update profile.'), 'error');
     },
   });
 
@@ -133,20 +133,23 @@ export default function ProviderProfileScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.errorCenter, { paddingTop: insets.top + 80 }]}>
-        <ActivityIndicator size="large" color={colors.secondary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   if (isError && !profile) {
     return (
-      <View style={[styles.container, styles.errorCenter, { paddingTop: insets.top + 80 }]}>
-        <AlertTriangle size={48} color={colors.error} style={styles.errorIcon} />
-        <Text style={styles.title}>Could not load profile</Text>
-        <TouchableOpacity onPress={() => void refetch()} style={styles.retryButton}>
-          <Text style={styles.retryText}>Try Again</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          message="We couldn't load your profile. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </View>
     );
   }

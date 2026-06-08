@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, ActivityIndicator, RefreshControl,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,9 @@ import api from '@/services/api';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft } from '@/components/icons';
+// A7 — shared UI kit for loading state + toast feedback.
+import { SkeletonCard } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 
 interface NotificationPrefs {
   bookingUpdates: boolean;
@@ -83,11 +86,11 @@ export default function NotificationSettingsScreen(): React.ReactElement {
       setPrefs(saved);
       setDirty(false);
       void queryClient.invalidateQueries({ queryKey: ['notification-preferences'] });
-      Alert.alert('Saved', 'Your notification preferences have been updated.');
+      showToast('Your notification preferences have been updated.', 'success');
     },
     onError: (err: unknown) => {
       // Phase K MED-K04 fix — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to save preferences.'));
+      showToast(getErrorMessage(err, 'Failed to save preferences.'), 'error');
     },
   });
 
@@ -116,8 +119,12 @@ export default function NotificationSettingsScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
