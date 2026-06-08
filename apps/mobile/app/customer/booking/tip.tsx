@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -8,12 +8,14 @@ import { getBookingById } from '@/services/booking.service';
 import { sendTip } from '@/services/tip.service';
 import { getWalletBalance } from '@/services/payment.service';
 import api from '@/services/api';
-import { Button } from '@/components/ui';
+// A7 — shared UI kit for loading/error states + toast feedback.
+import { Button, SkeletonCard, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, PartyPopper, Heart } from '@/components/icons';
+import { PartyPopper, Heart } from '@/components/icons';
 
 const TIP_PERCENTAGES = [10, 15, 20] as const;
 
@@ -100,14 +102,12 @@ export default function TipScreen(): React.ReactElement {
       message: message.trim() || undefined,
     }),
     onSuccess: () => {
-      Alert.alert('Thank you!', 'Your tip has been sent to the provider.', [
-        { text: 'Done', onPress: (): void => { router.replace({ pathname: '/customer/booking/make-recurring', params: { bookingId: bookingId ?? '' } }); } },
-      ]);
+      showToast('Thank you! Your tip has been sent to the provider.', 'success');
+      router.replace({ pathname: '/customer/booking/make-recurring', params: { bookingId: bookingId ?? '' } });
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      const msg = getErrorMessage(err, 'Failed to send tip. Please try again.');
-      Alert.alert('Error', msg);
+      showToast(getErrorMessage(err, 'Failed to send tip. Please try again.'), 'error');
     },
   });
 
@@ -115,7 +115,7 @@ export default function TipScreen(): React.ReactElement {
 
   const handleSendTip = (): void => {
     if (tipAmount <= 0) {
-      Alert.alert('Enter Amount', 'Please select or enter a tip amount.');
+      showToast('Please select or enter a tip amount.', 'warning');
       return;
     }
     if (tipAmount > maxTip) {
@@ -123,14 +123,11 @@ export default function TipScreen(): React.ReactElement {
       const reason = platformTipMax < servicePrice
         ? `platform cap of ${formatPHP(maxTip)}`
         : `${formatPHP(maxTip)} (100% of service price)`;
-      Alert.alert('Tip Too Large', `Maximum tip is ${reason}.`);
+      showToast(`Maximum tip is ${reason}.`, 'warning');
       return;
     }
     if (tipAmount > walletBalance) {
-      Alert.alert(
-        'Insufficient Wallet Balance',
-        `Your wallet has ${formatPHP(walletBalance)}. Top up first or pick a smaller tip.`,
-      );
+      showToast(`Your wallet has ${formatPHP(walletBalance)}. Top up first or pick a smaller tip.`, 'warning');
       return;
     }
     tipMutation.mutate(tipAmount);
@@ -138,21 +135,22 @@ export default function TipScreen(): React.ReactElement {
 
   if (bookingLoading) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, alignItems: 'center', justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   if (bookingError) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
-        <View style={{ marginBottom: 12, alignItems: 'center' as const }}><AlertTriangle size={48} color={colors.error} /></View>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
-        <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load booking details. Please try again.</Text>
-        <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10, minHeight: 44, justifyContent: 'center' as const }}>
-          <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
+        <ErrorState
+          message="We couldn't load this booking. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </View>
     );
   }

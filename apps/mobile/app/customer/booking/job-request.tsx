@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Image } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,8 @@ import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { ChevronLeft, ChevronRight } from '@/components/icons';
+// A7 — toast feedback instead of modal alerts.
+import { showToast } from '@/lib/toast';
 import { platformConfig } from '@/config/platform.config';
 import { Routes } from '@/config/navigation';
 
@@ -53,13 +55,12 @@ export default function JobRequestScreen(): React.ReactElement {
       });
     },
     onSuccess: (booking) => {
-      Alert.alert('Success', 'Your job request has been submitted. Providers will send quotes soon.', [
-        { text: 'OK', onPress: () => router.replace(`/customer/booking/${booking.id}`) },
-      ]);
+      showToast('Job request submitted. Providers will send quotes soon.', 'success');
+      router.replace(`/customer/booking/${booking.id}`);
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Could not submit request.'));
+      showToast(getErrorMessage(err, 'Could not submit request.'), 'error');
     },
   });
 
