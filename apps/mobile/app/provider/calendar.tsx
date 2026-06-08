@@ -15,6 +15,8 @@ import { useQuery } from '@tanstack/react-query';
 import { getCalendarData, type CalendarJob, type AvailabilityOverride } from '@/services/provider-api.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Settings } from '@/components/icons';
+// A7 — shared empty state for the selected-day job list.
+import { EmptyState } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 
 import { Routes } from '@/config/navigation';
@@ -245,9 +247,11 @@ export default function ProviderCalendarScreen(): React.ReactElement {
         )}
 
         {selectedJobs.length === 0 ? (
-          <View style={styles.noJobs}>
-            <Text style={styles.noJobsText}>No jobs scheduled</Text>
-          </View>
+          <EmptyState
+            icon="📅"
+            title="No jobs scheduled"
+            description="You have no jobs on this day."
+          />
         ) : (
           selectedJobs.map((job) => (
             <TouchableOpacity
