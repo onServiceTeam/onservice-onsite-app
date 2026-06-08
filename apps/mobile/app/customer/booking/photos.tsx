@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  StyleSheet, Modal, ActivityIndicator,
+  StyleSheet, Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +10,9 @@ import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { AlertTriangle, ChevronLeft, Camera, Repeat } from '@/components/icons';
+import { ChevronLeft, Repeat } from '@/components/icons';
+// A7 — shared UI kit for loading/empty/error states.
+import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { getAppContentWidth } from '@/components/WebAppFrame';
 
 // BUG-PHASE56-01 fix — pre-fix the screen read photos from
@@ -131,31 +133,24 @@ export default function BookingPhotosScreen(): React.ReactElement {
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
         {bookingLoading ? (
           <View style={styles.loadingCenter}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <SkeletonCard />
+            <SkeletonCard />
           </View>
         ) : bookingError ? (
-          <View style={styles.emptyBox}>
-            <View style={styles.emptyEmojiWrap}><AlertTriangle size={48} color={colors.error} /></View>
-            <Text style={styles.emptyTitle}>Could not load photos</Text>
-            <Text style={styles.emptyDesc}>Please check your connection and try again.</Text>
-            <TouchableOpacity onPress={() => void refetch()} style={styles.retryButton}>
-              <Text style={styles.retryText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
+          <ErrorState
+            message="We couldn't load the photos. Please check your connection and try again."
+            onRetry={() => void refetch()}
+          />
         ) : activePhotos.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Camera size={44} color={colors.textTertiary} style={{ marginBottom: spacing.base }} />
-            <Text style={styles.emptyTitle}>
-              No {activeTab === 'customer' ? 'Customer' : activeTab === 'before' ? 'Before' : 'After'} Photos
-            </Text>
-            <Text style={styles.emptyDesc}>
-              {activeTab === 'before'
-                ? 'The provider has not uploaded any photos taken before starting the job.'
-                : activeTab === 'after'
-                ? 'The provider has not uploaded any completion photos yet.'
-                : 'No photos were submitted with the job request.'}
-            </Text>
-          </View>
+          <EmptyState
+            icon="📷"
+            title={`No ${activeTab === 'customer' ? 'Customer' : activeTab === 'before' ? 'Before' : 'After'} Photos`}
+            description={activeTab === 'before'
+              ? 'The provider has not uploaded any photos taken before starting the job.'
+              : activeTab === 'after'
+              ? 'The provider has not uploaded any completion photos yet.'
+              : 'No photos were submitted with the job request.'}
+          />
         ) : (
           <>
             {activeTab === 'before' && afterPhotos.length > 0 && (

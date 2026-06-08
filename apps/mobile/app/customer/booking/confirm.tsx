@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
-import { Button } from '@/components/ui';
+import { Button, SkeletonCard } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDate, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -50,7 +50,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
           </View>
         )}
 
-        {isLoading && <ActivityIndicator size="small" color={colors.primary} style={styles.loadingIndicator} />}
+        {isLoading && <SkeletonCard />}
 
         {isError && (
           <View style={styles.errorBanner}>

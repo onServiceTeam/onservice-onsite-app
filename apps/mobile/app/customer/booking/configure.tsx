@@ -1,14 +1,14 @@
 import React, { useState, useCallback } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { useBookingStore, type SelectedAddon } from '@/stores/booking.store';
-import { Button } from '@/components/ui';
+import { Button, SkeletonCard } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft, Check } from '@/components/icons';
@@ -96,7 +96,8 @@ export default function ConfigureScreen(): React.ReactElement {
 
         {isLoading && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <SkeletonCard />
+            <SkeletonCard />
           </View>
         )}
 

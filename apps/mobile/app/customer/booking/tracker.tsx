@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { getBookingById } from '@/services/booking.service';
 import { getSocket, connectSocket } from '@/services/socket.service';
-import { Button, StatusBadge } from '@/components/ui';
+// A7 — shared UI kit for loading/error states.
+import { Button, StatusBadge, SkeletonCard, ErrorState } from '@/components/ui';
 // Phase 14 R5-complete — PulsingDot live indicator for en-route status.
 import PulsingDot from '@/components/PulsingDot';
 import { formatRelative } from '@/utils/date';
@@ -52,7 +53,7 @@ export default function BookingTrackerScreen(): React.ReactElement {
     };
   }, [bookingId]);
 
-  const { data: booking, isLoading, isError } = useQuery({
+  const { data: booking, isLoading, isError, refetch } = useQuery({
     queryKey: ['booking', bookingId],
     queryFn: () => getBookingById(bookingId),
     enabled: !!bookingId,
@@ -78,19 +79,22 @@ export default function BookingTrackerScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   if (isError || (!isLoading && !booking)) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <Text style={styles.errorText}>
-          Failed to load booking details.
-        </Text>
-        <Button title="Go Back" onPress={() => router.back()} variant="outline" />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          message="We couldn't load this booking. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </View>
     );
   }
