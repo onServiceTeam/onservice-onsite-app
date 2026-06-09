@@ -12,6 +12,13 @@ ENV_FILE="$REPO_ROOT/infra/docker/.env.docker"
 
 cd "$REPO_ROOT"
 
+# E07 — .env.docker is gitignored (so a real secret can't be committed). On a
+# fresh checkout it won't exist yet; provision it from the tracked template.
+if [ ! -f "$ENV_FILE" ]; then
+  echo "==> .env.docker not found; creating it from .env.docker.example (local dev defaults)"
+  cp "$REPO_ROOT/infra/docker/.env.docker.example" "$ENV_FILE"
+fi
+
 echo "==> Building and starting the stack..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
 

@@ -21,6 +21,13 @@ $DbUrl       = 'postgresql://onservice:onservice_dev@localhost:7383/onservice_de
 
 Set-Location $RepoRoot
 
+# E07 — .env.docker is gitignored (so a real secret can't be committed). On a
+# fresh checkout it won't exist yet; provision it from the tracked template.
+if (-not (Test-Path $EnvFile)) {
+  Write-Host '==> .env.docker not found; creating it from .env.docker.example (local dev defaults)' -ForegroundColor Yellow
+  Copy-Item (Join-Path $RepoRoot 'infra\docker\.env.docker.example') $EnvFile
+}
+
 Write-Host '==> Building and starting the stack...' -ForegroundColor Cyan
 docker compose -f $ComposeFile --env-file $EnvFile up -d --build
 if ($LASTEXITCODE -ne 0) { throw 'docker compose failed. Is Docker Desktop running?' }

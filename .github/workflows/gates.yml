@@ -62,6 +62,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # E07 — .env.docker is now gitignored (so a real secret can't be committed).
+      # Provision the local-dev defaults from the tracked template before the stack starts.
+      - name: Provision local dev env file
+        run: cp infra/docker/.env.docker.example infra/docker/.env.docker
       - uses: pnpm/action-setup@v3
         with:
           version: 9
@@ -116,6 +120,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      # E07 — provision the gitignored local-dev env file from the tracked template.
+      - name: Provision local dev env file
+        run: cp infra/docker/.env.docker.example infra/docker/.env.docker
       - uses: pnpm/action-setup@v3
         with:
           version: 9

@@ -9,6 +9,10 @@ node_modules/
 # E07 — server-only secret: admin Basic Auth hash (generated on the box, never committed)
 nginx/.htpasswd
 
+# E07 — local dev env: untracked so a real secret can't be committed here.
+# Provisioned from infra/docker/.env.docker.example by CI + scripts/dev/up.*
+infra/docker/.env.docker
+
 # Build outputs
 dist/
 build/
