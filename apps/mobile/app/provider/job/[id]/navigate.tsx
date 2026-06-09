@@ -17,6 +17,8 @@ import { getBookingById } from '@/services/booking.service';
 import { updateBookingStatus } from '@/services/provider-api.service';
 import { useLocation } from '@/hooks/useLocation';
 import { getErrorMessage } from '@/utils/errors';
+// A7 — shared UI kit for loading/error states.
+import { SkeletonCard, ErrorState } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import {
   ArrowLeft,
@@ -128,14 +130,16 @@ export default function NavigateToJobScreen(): React.ReactElement {
         showsVerticalScrollIndicator={false}
       >
         {bookingQuery.isLoading && (
-          <ActivityIndicator size="small" color={colors.primary} style={{ marginBottom: spacing.base }} />
+          <View style={{ marginBottom: spacing.base }}>
+            <SkeletonCard />
+          </View>
         )}
         {bookingQuery.isError && (
-          <View style={[styles.addressCard, { backgroundColor: colors.errorLight, borderColor: colors.error }]}>
-            <Text style={{ color: colors.error, ...typography.bodySmall }}>
-              Could not load this job. Please go back and try again.
-            </Text>
-          </View>
+          <ErrorState
+            compact
+            message="We couldn't load this job. Please check your connection and try again."
+            onRetry={() => void bookingQuery.refetch()}
+          />
         )}
         {!bookingQuery.isLoading && !bookingQuery.isError && (
           <View style={styles.addressCard}>

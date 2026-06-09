@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  StyleSheet, Alert, ActivityIndicator, RefreshControl,
+  StyleSheet, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,9 @@ import { getBookingById, uploadJobPhotos } from '@/services/booking.service';
 import { listBookingPhotos } from '@/services/booking-photo.service';
 import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
+// A7 — shared UI kit for loading/error states + toast feedback.
+import { SkeletonCard, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft, Camera } from '@/components/icons';
 
@@ -64,11 +67,11 @@ export default function ProviderPhotosScreen(): React.ReactElement {
       // BUG-PHASE71-03 fix — also invalidate the canonical photos
       // query so the new uploads appear immediately in existingPhotos.
       void queryClient.invalidateQueries({ queryKey: ['bookingPhotos', bookingId] });
-      Alert.alert('Uploaded', `${phase === 'before' ? 'Before' : 'After'} photos saved successfully.`);
+      showToast(`${phase === 'before' ? 'Before' : 'After'} photos saved successfully.`, 'success');
     },
     onError: (err: unknown) => {
-      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Upload Failed', getErrorMessage(err, 'Could not upload photos.'));
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper (A7: non-blocking toast).
+      showToast(getErrorMessage(err, 'Could not upload photos.'), 'error');
     },
   });
 
@@ -112,12 +115,16 @@ export default function ProviderPhotosScreen(): React.ReactElement {
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={colors.primary} colors={[colors.primary]} />}
       >
         {bookingLoading && (
-          <ActivityIndicator size="small" color={colors.primary} style={{ marginBottom: spacing.base }} />
+          <View style={{ marginBottom: spacing.base }}>
+            <SkeletonCard />
+          </View>
         )}
         {bookingError && (
-          <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: 12 }}>
-            <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load booking photos.</Text>
-          </View>
+          <ErrorState
+            compact
+            message="We couldn't load this job's photos. Please check your connection and try again."
+            onRetry={() => void refetch()}
+          />
         )}
         <Text style={styles.phaseHint}>
           {activePhase === 'before'

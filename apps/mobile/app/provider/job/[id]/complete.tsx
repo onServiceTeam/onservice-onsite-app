@@ -47,6 +47,7 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '@/services/api';
 import { uploadBookingPhoto, uploadSignature } from '@/services/booking-photo.service';
 import { getErrorMessage } from '@/utils/errors';
+import { showToast } from '@/lib/toast';
 import SignaturePad, { type SignaturePadRef } from '@/components/SignaturePad';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Camera, CheckCircle2, Edit, ChevronLeft } from '@/components/icons';
@@ -230,13 +231,14 @@ export default function JobCompleteScreen(): React.ReactElement {
       // doesn't keep showing this job as in-progress from stale cache.
       void queryClient.invalidateQueries({ queryKey: ['booking', id] });
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
-      Alert.alert('Submitted', 'Job marked as complete.');
+      // A7 — non-blocking toast then return to the dashboard; was a modal Alert.
+      showToast('Job marked as complete.', 'success');
       router.replace(Routes.PROVIDER_TABS.DASHBOARD);
     } catch (err) {
-      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert(
-        'Submission failed',
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper (A7: non-blocking toast).
+      showToast(
         getErrorMessage(err, 'Could not submit completion. Please try again.'),
+        'error',
       );
     } finally {
       setSubmitting(false);

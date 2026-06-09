@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { submitQuote } from '@/services/booking.service';
+import { showToast } from '@/lib/toast';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
@@ -94,13 +95,13 @@ export default function QuoteBuilderScreen(): React.ReactElement {
       });
     },
     onSuccess: () => {
-      Alert.alert('Success', 'Your quote has been submitted. The customer will review it.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      // A7 — non-blocking toast then return to the job; was a modal Alert.
+      showToast('Your quote has been submitted. The customer will review it.', 'success');
+      router.back();
     },
     onError: (err: unknown) => {
-      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Could not submit quote.'));
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper (A7: non-blocking toast).
+      showToast(getErrorMessage(err, 'Could not submit quote.'), 'error');
     },
   });
 

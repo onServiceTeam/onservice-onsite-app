@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Linking, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,7 +8,8 @@ import MapView, { Marker, type Region } from 'react-native-maps';
 import { getBookingById } from '@/services/booking.service';
 import { updateBookingStatus } from '@/services/provider-api.service';
 import { getMyStaff, assignStaffToBooking } from '@/services/provider-staff.service';
-import { Badge, Button } from '@/components/ui';
+import { Badge, Button, SkeletonCard, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { formatRelative } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -46,7 +47,7 @@ export default function ActiveJobScreen(): React.ReactElement {
   const mapRef = useRef<MapView>(null);
   const { getCurrentLocation, isLoading: isGettingLocation } = useLocation();
 
-  const { data: booking, isLoading, isError } = useQuery({
+  const { data: booking, isLoading, isError, refetch } = useQuery({
     queryKey: ['booking', bookingId],
     queryFn: () => getBookingById(bookingId),
     enabled: !!bookingId,
@@ -66,7 +67,7 @@ export default function ActiveJobScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
     },
-    onError: (err: unknown) => Alert.alert('Error', getErrorMessage(err, 'Could not assign this job.')),
+    onError: (err: unknown) => showToast(getErrorMessage(err, 'Could not assign this job.'), 'error'),
   });
 
   const statusMutation = useMutation({
@@ -77,8 +78,8 @@ export default function ActiveJobScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
     },
     onError: (err: unknown) => {
-      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Failed to update status.'));
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper (A7: non-blocking toast).
+      showToast(getErrorMessage(err, 'Failed to update status.'), 'error');
     },
   });
 
@@ -132,19 +133,22 @@ export default function ActiveJobScreen(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.secondary} />
+      <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   if (isError || !booking) {
     return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <Text style={{ ...typography.body, color: colors.error, marginBottom: spacing.lg }}>
-          Failed to load job details.
-        </Text>
-        <Button title="Go Back" onPress={() => router.back()} variant="outline" />
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          message="We couldn't load this job's details. Please check your connection and try again."
+          onRetry={() => void refetch()}
+        />
       </View>
     );
   }

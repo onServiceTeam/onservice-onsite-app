@@ -29,6 +29,9 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '@/services/api';
 import { uploadBookingPhoto } from '@/services/booking-photo.service';
 import { getErrorMessage } from '@/utils/errors';
+// A7 — shared UI kit for loading/error states + toast feedback.
+import { SkeletonCard, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { CheckCircle2, Camera, AlertCircle, X, ChevronLeft } from '@/components/icons';
 
@@ -63,6 +66,8 @@ export default function JobChecklistScreen(): React.ReactElement {
   const [issueItemId, setIssueItemId] = useState<string | null>(null);
   const [issueText, setIssueText] = useState('');
   const [issueSubmitting, setIssueSubmitting] = useState(false);
+  // A7 — bump to re-run the checklist fetch when the user taps "Try Again".
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Phase E CRIT-105 fix — fetch the canonical checklist for this
   // booking from the server. The server's getChecklistForBooking
@@ -115,7 +120,7 @@ export default function JobChecklistScreen(): React.ReactElement {
       }
     })();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, reloadKey]);
 
   const totals = useMemo(() => {
     let total = 0;
@@ -162,9 +167,9 @@ export default function JobChecklistScreen(): React.ReactElement {
           isCompleted: nextDone,
         });
       } catch (err: unknown) {
-        // Revert local state and surface the error.
+        // Revert local state and surface the error (A7: non-blocking toast).
         updateItem(item.id, { done: item.done, completedAt: item.completedAt });
-        Alert.alert('Could not save', getErrorMessage(err, 'Please try again.'));
+        showToast(getErrorMessage(err, 'Could not save. Please try again.'), 'error');
       }
     })();
   };
@@ -203,9 +208,9 @@ export default function JobChecklistScreen(): React.ReactElement {
         // server returned, so the photo survives screen re-mounts.
         updateItem(item.id, { photoUri: uploaded.storageUrl });
       } catch (err: unknown) {
-        // Revert local preview and surface the failure.
+        // Revert local preview and surface the failure (A7: non-blocking toast).
         updateItem(item.id, { photoUri: item.photoUri });
-        Alert.alert('Upload failed', getErrorMessage(err, 'Could not save the photo. Please try again.'));
+        showToast(getErrorMessage(err, 'Could not save the photo. Please try again.'), 'error');
       }
     } catch {
       Alert.alert('Camera unavailable', 'Could not open the camera on this device.');
@@ -244,11 +249,11 @@ export default function JobChecklistScreen(): React.ReactElement {
         itemId: issueItemId,
         description: issueText.trim(),
       });
-      Alert.alert('Reported', 'Your issue has been sent to the customer.');
+      showToast('Your issue has been sent to the customer.', 'success');
     } catch (err) {
-      Alert.alert(
-        'Could not send report',
+      showToast(
         getErrorMessage(err, 'Issue reporting is temporarily unavailable. Please contact the customer directly.'),
+        'error',
       );
     } finally {
       setIssueSubmitting(false);
@@ -325,8 +330,10 @@ export default function JobChecklistScreen(): React.ReactElement {
           <Text style={styles.headerTitle}>Service Checklist</Text>
           <View style={styles.placeholder} />
         </View>
-        <View style={[styles.progressWrap, { alignItems: 'center', paddingVertical: spacing.xl }]}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
       </SafeAreaView>
     );
@@ -341,12 +348,10 @@ export default function JobChecklistScreen(): React.ReactElement {
           <Text style={styles.headerTitle}>Service Checklist</Text>
           <View style={styles.placeholder} />
         </View>
-        <View style={[styles.progressWrap, { alignItems: 'center', paddingVertical: spacing.xl }]}>
-          <AlertCircle size={32} color={colors.error} />
-          <Text style={[styles.progressText, { marginTop: spacing.md, color: colors.error }]}>
-            {loadError}
-          </Text>
-        </View>
+        <ErrorState
+          message={loadError}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
       </SafeAreaView>
     );
   }

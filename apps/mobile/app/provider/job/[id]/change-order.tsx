@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, TextInput, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Image } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createChangeOrder, getBookingById } from '@/services/booking.service';
 import { useImagePicker } from '@/hooks/useImagePicker';
+import { showToast } from '@/lib/toast';
 import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Info } from '@/components/icons';
@@ -30,13 +31,13 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
       });
     },
     onSuccess: () => {
-      Alert.alert('Success', 'Change order submitted. Waiting for customer approval.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      // A7 — non-blocking toast then return to the job; was a modal Alert.
+      showToast('Change order submitted. Waiting for customer approval.', 'success');
+      router.back();
     },
     onError: (err: unknown) => {
-      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert('Error', getErrorMessage(err, 'Could not submit change order.'));
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper (A7: non-blocking toast).
+      showToast(getErrorMessage(err, 'Could not submit change order.'), 'error');
     },
   });
 

@@ -23,6 +23,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { getMyProfile } from '@/services/provider-api.service';
 import { getErrorMessage } from '@/utils/errors';
+import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useServiceAreaDefaults, FALLBACK_REGION } from '@/hooks/useServiceAreaDefaults';
 import { MapPin } from '@/components/icons';
@@ -111,14 +112,14 @@ export default function ProviderServiceAreaScreen(): React.ReactElement {
       // Refresh the cached profile so reopening this screen shows the new
       // coordinates/radius instead of stale values.
       void queryClient.invalidateQueries({ queryKey: ['providerProfile'] });
-      Alert.alert('Saved', 'Your service area has been updated.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      // A7 — non-blocking toast then return; was a modal Alert.
+      showToast('Your service area has been updated.', 'success');
+      router.back();
     } catch (err) {
-      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      Alert.alert(
-        'Save failed',
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper (A7: non-blocking toast).
+      showToast(
         getErrorMessage(err, 'Could not update service area. Please try again.'),
+        'error',
       );
     } finally {
       setSaving(false);
