@@ -6,6 +6,9 @@ node_modules/
 .env.local
 .env.production
 
+# E07 — server-only secret: admin Basic Auth hash (generated on the box, never committed)
+nginx/.htpasswd
+
 # Build outputs
 dist/
 build/

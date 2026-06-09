@@ -116,6 +116,10 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # E07 — HTTP Basic Auth gate for the admin back office (admin.onservice.ph).
+      # The hash file is generated on the server and is gitignored (never committed);
+      # only the auth_basic directive lives in nginx.conf. See escalation E07.
+      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
       - ./certbot/conf:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
       - ./apps/admin/dist:/usr/share/nginx/admin:ro
