@@ -85,7 +85,10 @@ describe('Phase E CRIT-108 — portfolio.tsx replaces paste-URL with real picker
     expect(PORTFOLIO).toMatch(/uploadImages\(\[pendingLocalUri\], ['"]onboarding['"]\)/);
   });
   it('CRIT-108 — picker UI exposes both camera and gallery', () => {
-    expect(PORTFOLIO).toMatch(/launchCameraAsync/);
+    // Camera capture goes through the web-aware helper (utils/image-capture)
+    // so the same button works in desktop/tablet browsers; gallery still
+    // calls expo-image-picker directly.
+    expect(PORTFOLIO).toMatch(/captureImageAsync/);
     expect(PORTFOLIO).toMatch(/launchImageLibraryAsync/);
   });
   it('CRIT-108 — uses canonical getErrorMessage (not raw err.message)', () => {
@@ -108,7 +111,10 @@ describe('Phase E CRIT-109 — certifications.tsx replaces paste-URL with real p
     expect(CERTIFICATIONS).toMatch(/uploadImages\(\[pendingLocalUri\], ['"]onboarding['"]\)/);
   });
   it('CRIT-109 — picker UI exposes both camera and gallery', () => {
-    expect(CERTIFICATIONS).toMatch(/launchCameraAsync/);
+    // Camera capture goes through the web-aware helper (utils/image-capture)
+    // so the same button works in desktop/tablet browsers; gallery still
+    // calls expo-image-picker directly.
+    expect(CERTIFICATIONS).toMatch(/captureImageAsync/);
     expect(CERTIFICATIONS).toMatch(/launchImageLibraryAsync/);
   });
   it('CRIT-109 — uses canonical getErrorMessage', () => {

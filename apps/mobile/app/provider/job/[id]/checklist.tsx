@@ -25,7 +25,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
+import { captureImageAsync } from '@/utils/image-capture';
 import api from '@/services/api';
 import { uploadBookingPhoto } from '@/services/booking-photo.service';
 import { getErrorMessage } from '@/utils/errors';
@@ -177,15 +177,12 @@ export default function JobChecklistScreen(): React.ReactElement {
   const capturePhoto = async (item: ChecklistItem): Promise<void> => {
     if (!id) return;
     try {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (perm.status !== 'granted') {
+      const capture = await captureImageAsync({ quality: 0.7 });
+      if (capture.status === 'denied') {
         Alert.alert('Camera permission', 'Please allow camera access to attach photos.');
         return;
       }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        quality: 0.7,
-      });
+      const { result } = capture;
       if (result.canceled || result.assets.length === 0) return;
       const asset = result.assets[0];
       if (!asset) return;

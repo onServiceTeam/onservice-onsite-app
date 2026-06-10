@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
+import { captureImageAsync, isCameraCaptureAvailable } from '@/utils/image-capture';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 import { uploadImages } from '@/services/upload.service';
 import { Button } from '@/components/ui';
@@ -17,18 +17,13 @@ export default function SelfieScreen(): React.ReactElement {
   const [uploading, setUploading] = useState(false);
 
   const takeSelfie = async (): Promise<void> => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
+    const capture = await captureImageAsync({ quality: 0.8, allowsEditing: false });
+    if (capture.status === 'denied') {
       Alert.alert('Permission Required', 'Camera access is needed to take a selfie.');
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-      allowsEditing: false,
-    });
-
+    const { result } = capture;
     if (result.canceled || result.assets.length === 0) return;
 
     setUploading(true);
@@ -96,7 +91,11 @@ export default function SelfieScreen(): React.ReactElement {
           activeOpacity={0.7}
           disabled={uploading}
         >
-          <Text style={styles.captureBtnText}>{selfieUri ? 'Retake Selfie' : 'Take Selfie'}</Text>
+          <Text style={styles.captureBtnText}>
+            {selfieUri
+              ? isCameraCaptureAvailable() ? 'Retake Selfie' : 'Replace Selfie'
+              : isCameraCaptureAvailable() ? 'Take Selfie' : 'Upload Selfie'}
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.tipsCard}>

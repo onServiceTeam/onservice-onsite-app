@@ -13,6 +13,7 @@
  */
 
 import api from './api';
+import { appendImageToFormData } from '../utils/multipart';
 
 export type PhotoType =
   | 'before'
@@ -47,29 +48,6 @@ export interface UploadedSignature {
   signedAt: string;
 }
 
-interface RNFormDataFile {
-  uri: string;
-  name: string;
-  type: string;
-}
-
-interface RNFormDataLike {
-  append(name: string, value: string | RNFormDataFile): void;
-}
-
-function inferImageMime(uri: string): string {
-  const path = (uri.split('?')[0] ?? uri).toLowerCase();
-  if (path.endsWith('.png')) return 'image/png';
-  if (path.endsWith('.webp')) return 'image/webp';
-  return 'image/jpeg';
-}
-
-function inferImageExtension(mimetype: string): string {
-  if (mimetype === 'image/png') return 'png';
-  if (mimetype === 'image/webp') return 'webp';
-  return 'jpg';
-}
-
 /**
  * Upload a booking photo. Mobile compresses + resizes the image (via
  * useImagePicker / expo-image-manipulator before calling this), then
@@ -85,21 +63,14 @@ export async function uploadBookingPhoto(args: {
   // Mobile must NEVER send a `file://` URI to a long-lived persistence
   // endpoint without converting it to a multipart blob first. The
   // server now rejects file:// values defensively (Bug 36/461 guard).
-  // expo-image-picker returns `file://` URIs and FormData can wrap them
-  // — that's expected; the server reads the binary, uploads to S3, and
-  // stores a real HTTPS storage_url.
+  // expo-image-picker returns `file://` URIs on native (FormData wraps
+  // them) and blob:/data: URIs on web (converted to a real File by
+  // appendImageToFormData); the server reads the binary, uploads to S3,
+  // and stores a real HTTPS storage_url.
   const formData = new FormData();
-  const rnForm: RNFormDataLike = formData;
-  const mimetype = inferImageMime(args.uri);
-  const ext = inferImageExtension(mimetype);
-  const file: RNFormDataFile = {
-    uri: args.uri,
-    name: `photo.${ext}`,
-    type: mimetype,
-  };
-  rnForm.append('photo', file);
-  rnForm.append('bookingId', args.bookingId);
-  rnForm.append('photoType', args.photoType);
+  await appendImageToFormData(formData, 'photo', args.uri, 'photo');
+  formData.append('bookingId', args.bookingId);
+  formData.append('photoType', args.photoType);
 
   const response = await api.post<{ success: boolean; data: UploadedBookingPhoto }>(
     '/api/v1/uploads/booking-photo',
@@ -141,19 +112,13 @@ export async function uploadSignature(args: {
   fullNameTyped?: string;
 }): Promise<UploadedSignature> {
   const formData = new FormData();
-  const rnForm: RNFormDataLike = formData;
-  const file: RNFormDataFile = {
-    uri: args.uri,
-    name: 'signature.png',
-    type: 'image/png',
-  };
-  rnForm.append('signature', file);
-  rnForm.append('signatureType', args.signatureType);
+  await appendImageToFormData(formData, 'signature', args.uri, 'signature', 'image/png');
+  formData.append('signatureType', args.signatureType);
   if (args.bookingId) {
-    rnForm.append('bookingId', args.bookingId);
+    formData.append('bookingId', args.bookingId);
   }
   if (args.fullNameTyped) {
-    rnForm.append('fullNameTyped', args.fullNameTyped);
+    formData.append('fullNameTyped', args.fullNameTyped);
   }
 
   const response = await api.post<{ success: boolean; data: UploadedSignature }>(

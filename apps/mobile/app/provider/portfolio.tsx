@@ -29,6 +29,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
+import { captureImageAsync, isCameraCaptureAvailable } from '@/utils/image-capture';
 import {
   getMyPortfolio,
   addPortfolioItem,
@@ -142,21 +143,24 @@ export default function PortfolioScreen(): React.ReactElement {
   }, []);
 
   const pickFromCamera = useCallback(async (): Promise<void> => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (perm.status !== 'granted') {
+    const capture = await captureImageAsync({ quality: 0.8 });
+    if (capture.status === 'denied') {
       showToast('Camera access is needed to take a photo.', 'warning');
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
+    const { result } = capture;
     if (!result.canceled && result.assets[0]) {
       setPendingLocalUri(result.assets[0].uri);
     }
   }, []);
 
   const showPickerOptions = useCallback((): void => {
+    if (!isCameraCaptureAvailable()) {
+      // Browsers offer camera vs file in the OS file sheet — the
+      // Camera/Library chooser would be two routes to the same picker.
+      void pickFromGallery();
+      return;
+    }
     Alert.alert('Add Photo', 'Choose a source', [
       { text: 'Camera', onPress: () => { void pickFromCamera(); } },
       { text: 'Photo Library', onPress: () => { void pickFromGallery(); } },
