@@ -69,6 +69,12 @@ export function OfflineBanner(): React.ReactElement | null {
       pointerEvents={isOffline ? 'auto' : 'none'}
       accessibilityRole="alert"
       accessibilityLabel="You are offline. Some features may not be available."
+      // The banner stays mounted at opacity 0 for the fade animation, which
+      // leaves an always-on "offline" alert in the accessibility tree (screen
+      // readers + the web aria snapshot announce it while online). Hide it
+      // from assistive tech whenever it is not actually showing.
+      accessibilityElementsHidden={!isOffline}
+      importantForAccessibility={isOffline ? 'auto' : 'no-hide-descendants'}
     >
       <View style={[styles.inner, { paddingTop: insets.top + spacing.xs }]}>
         <Text style={styles.icon}>📡</Text>

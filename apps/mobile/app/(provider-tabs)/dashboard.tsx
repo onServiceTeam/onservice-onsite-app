@@ -77,8 +77,14 @@ export default function ProviderDashboardScreen(): React.ReactElement {
     staleTime: 60 * 1000,
   });
 
+  // The 'dashboard-preview' discriminator is load-bearing: the Jobs tab runs
+  // useInfiniteQuery(['providerJobs', filter]) and with filter='active' this
+  // plain useQuery used to write a non-infinite shape into the IDENTICAL key,
+  // crashing the Jobs tab (query-core reads pages.length on whatever is in
+  // cache). Keeping the ['providerJobs'] prefix keeps the existing
+  // invalidateQueries(['providerJobs']) calls refreshing this preview too.
   const activeJobsQuery = useQuery({
-    queryKey: ['providerJobs', 'active'],
+    queryKey: ['providerJobs', 'active', 'dashboard-preview'],
     queryFn: () => getProviderBookings('active', 1, 5),
     staleTime: 30 * 1000,
   });

@@ -125,7 +125,10 @@ function RootLayout(): React.ReactElement {
               <Stack.Screen name="customer" />
               <Stack.Screen name="(provider-tabs)" />
               <Stack.Screen name="provider" />
-              <Stack.Screen name="staff" />
+              {/* No <Stack.Screen name="staff" /> — there is no app/staff/
+                  _layout.tsx, so the segments register as staff/invites,
+                  staff/jobs, staff/job/[id] and a "staff" entry only logs
+                  a "No route named staff" warning on every boot. */}
             </Stack>
           </WebAppFrame>
         </ErrorBoundary>
