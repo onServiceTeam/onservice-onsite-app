@@ -1,10 +1,56 @@
-# Native Android build — what it needs (blocks Appium + Maestro baselines)
+# Native Android build — status + what it needs (Appium + Maestro baselines)
 
-The app ships today as a **web build** (Expo web export) and is fully tested at
-the web/API layer. The **native** Android/iOS build does not currently compile,
-which blocks two device-level QA tracks: Appium native E2E and the F#3 Maestro
-visual baselines. This file records exactly what the native build needs so the
-migration can be done as one scoped, verified effort.
+The app ships as a **web build** (Expo web export), fully tested at the web/API
+layer. This file tracks the **native** Android/iOS build, which gates two
+device-level QA tracks: Appium native E2E and the F#3 Maestro visual baselines.
+
+## STATUS (2026-06-11): dependency migration DONE; native build PROVEN; full device run blocked by the Windows + OneDrive host
+
+The dependency migration described below was completed on branch
+**`native-build-sdk55-align`** (pushed to GitHub). With it:
+
+- **Every native module compiles** (reanimated 4, screens, all expo modules).
+- A **debug APK builds (217 MB), installs, and launches** on an Android emulator.
+  The native build genuinely works with the aligned dependency set.
+- **JS/web stay green** on that branch: `apps/mobile` jest 766 pass; `expo export
+  -p web` builds a correct bundle (app.onservice.ph, no dev placeholders). So the
+  alignment is safe for the deployed web path.
+
+What still blocks a full on-device test run, and why it's NOT a code problem —
+both are limitations of **this Windows machine with the repo in a deep
+OneDrive-synced folder**:
+
+1. **Windows 260-char path limit** on the C++/CMake codegen (e.g.
+   `react-native-mmkv:buildCMakeRelWithDebInfo`). A `C:\o` directory junction
+   helps the debug variant, but CMake canonicalizes the junction back to the long
+   `C:\Users\...\OneDrive\...` path, so the release variant still overflows.
+   `LongPathsEnabled` requires admin rights (not available here).
+2. **Metro dev-server resolution flakiness** under OneDrive: files that exist
+   (`pretty-format/build/index.js`, `react-refresh/cjs/...`) fail to resolve in
+   the dev bundle — the classic symptom of OneDrive cloud-placeholder files
+   defeating Metro's file watcher. (Release bundling avoids this but hits #1.)
+
+**Fastest path to finish on-device testing (operator choice):**
+- **EAS Build** (Expo's cloud build, Linux — no path or OneDrive issues): build
+  the APK in the cloud, then run Maestro/Appium against it locally. Recommended.
+- **Move the repo off OneDrive** to a short real path (e.g. `C:\dev\onservice`,
+  a real `git clone`, not a junction) and enable Windows long paths. Then the
+  local debug/release builds + Maestro/Appium run as scripted below.
+
+Maestro and Appium are **ready**: the 84 flows + `scripts/maestro/capture-baselines.sh`
+are committed; Appium 2 + uiautomator2 are installed and `qa-frameworks/appium/smoke.mjs`
+is written. They just need an APK that loads on a non-OneDrive/short-path host.
+
+**Merging the dependency alignment to master:** the branch is jest- and
+web-export-verified, but it changes the deployed web app's deps (reanimated 4,
+sentry 7, all expo modules). Land it deliberately: redeploy the branch's web
+build to staging, re-run the Playwright E2E (apps/admin live suite), and merge
+only if it stays 20/20 green — so the live tester isn't exposed to an
+un-runtime-validated dep change.
+
+---
+
+## Appendix — the migration (already done on the branch)
 
 ## Why it's blocked
 
