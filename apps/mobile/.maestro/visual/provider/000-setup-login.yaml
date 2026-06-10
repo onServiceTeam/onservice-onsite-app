@@ -1,0 +1,37 @@
+appId: ph.onservice.app
+---
+# F#3 — provider session bootstrap. Runs first (000- prefix) in this
+# directory; the per-screen flows reuse the session it creates.
+# Requires the local dev API (ALLOW_DEV_OTP=1, code 000000) and the
+# seeded test provider account passed as ${MAESTRO_PROVIDER_PHONE} (digits after +63).
+
+- launchApp:
+    clearState: true
+    stopApp: true
+- waitForAnimationToEnd:
+    timeout: 5000
+# First boot may show the onboarding carousel; skip it if present.
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+- runFlow:
+    when:
+      visible: "Get Started"
+    commands:
+      - tapOn: "Get Started"
+- waitForAnimationToEnd:
+    timeout: 3000
+# Login: phone + dev OTP.
+- tapOn: "Mobile Number"
+- inputText: ${MAESTRO_PROVIDER_PHONE}
+- tapOn: "Send Verification Code"
+- waitForAnimationToEnd:
+    timeout: 4000
+- tapOn: "Enter 6-digit code"
+- inputText: "000000"
+# Auto-verifies at 6 digits and lands on the provider home surface.
+- extendedWaitUntil:
+    visible: "Hello,"
+    timeout: 15000

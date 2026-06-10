@@ -1,33 +1,18 @@
-appId: com.onservice.app
+appId: ph.onservice.app
 ---
-# Phase 14 Remediation #3 - visual baseline flow for customer-provider-id
+# F#3 visual baseline — customer-provider-id
 # Screen: apps/mobile/app/customer/provider/[id].tsx
-#
-# Captures 4 states (loading, empty, error, success) at the device's
-# native viewport. Operator runs `maestro test --update-snapshots` to
-# capture baselines into apps/mobile/.maestro/visual/baselines/provider/.
+# Session comes from 000-setup-login.yaml (runs first in this directory);
+# deep link jumps straight to the target route via expo-router.
 
 - launchApp:
-    clearState: true
-    stopApp: true
-
-# Default render
-- takeScreenshot: provider/customer-provider-id/default
-
-# Loading state - API stalls so skeleton renders.
-# Uncomment when the operator wires a delay-fixture in scripts/maestro/.
-# - runScript: scripts/maestro/force-loading.sh
-# - takeScreenshot: provider/customer-provider-id/loading
-
-# Empty state - navigate with empty fixture (route-specific).
-# Uncomment when the operator wires an empty-fixture seeder.
-# - runScript: scripts/maestro/seed-empty.sh
-# - takeScreenshot: provider/customer-provider-id/empty
-
-# Error state - force network error.
-# - runScript: scripts/maestro/force-error.sh
-# - takeScreenshot: provider/customer-provider-id/error
-
-# Success state
-# - runScript: scripts/maestro/seed-success.sh
-# - takeScreenshot: provider/customer-provider-id/success
+    stopApp: false
+- openLink: onservice://customer/provider/${MAESTRO_PROVIDER_ID}
+- extendedWaitUntil:
+    notVisible:
+      id: "loading"
+    timeout: 2000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: .maestro/visual/baselines/provider/customer-provider-id/default
