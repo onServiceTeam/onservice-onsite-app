@@ -193,6 +193,9 @@ services:
       ALLOW_DEV_OTP: ${ALLOW_DEV_OTP:-1}
       DEV_OTP_CODE: ${DEV_OTP_CODE:-000000}
       ENABLE_TEST_FIXTURES: ${ENABLE_TEST_FIXTURES:-1}
+      # 8081 = Expo web dev server (npx expo start --web) — without it the
+      # browser app can't call the local API (CORS).
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:7382,http://localhost:8081}
     ports:
       - "${API_PORT:-7381}:7381"
     depends_on:

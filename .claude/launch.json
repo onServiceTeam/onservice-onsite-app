@@ -18,6 +18,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "mobile:start"],
       "port": 8081
+    },
+    {
+      "name": "mobile-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web", "--workspace=apps/mobile"],
+      "port": 8081
     }
   ]
 }
