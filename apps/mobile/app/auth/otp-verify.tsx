@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { showToast } from '@/lib/toast';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth.store';
@@ -57,8 +58,10 @@ export default function OTPVerifyScreen(): React.ReactElement {
     } catch (err: unknown) {
       setError(true);
       // Phase D CRIT-69 / K-MED-K04 fix — canonical error helper.
+      // A7 — toast + the OTP input's red error state instead of a modal.
       const msg = getErrorMessage(err, 'Invalid code. Please try again.');
-      Alert.alert('Verification Failed', msg);
+      showToast(msg, 'error');
+      setError(true);
       setCode('');
     } finally {
       setLoading(false);
@@ -81,7 +84,7 @@ export default function OTPVerifyScreen(): React.ReactElement {
       setCode('');
       setError(false);
     } catch {
-      Alert.alert('Error', 'Failed to resend code. Please try again.');
+      showToast('Failed to resend code. Please try again.', 'error');
     }
   };
 

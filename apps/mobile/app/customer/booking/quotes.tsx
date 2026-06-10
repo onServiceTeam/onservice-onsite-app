@@ -10,6 +10,7 @@ import { colors, spacing, borderRadius } from '@/config/theme';
 import { Star, ChevronLeft } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 
 function QuoteCard({ quote, onAccept, onDecline, isPending }: {
   quote: BookingQuote;
@@ -143,7 +144,7 @@ export default function QuotesScreen(): React.ReactElement {
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : 'Could not accept quote.';
-      Alert.alert('Error', message);
+      showToast(message, 'error');
     },
   });
 
@@ -151,11 +152,11 @@ export default function QuotesScreen(): React.ReactElement {
     mutationFn: (quoteId: string) => declineQuote(bookingId ?? '', quoteId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['bookingQuotes', bookingId] });
-      Alert.alert('Declined', 'Quote has been declined.');
+      showToast('Quote declined.', 'success');
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : 'Could not decline quote.';
-      Alert.alert('Error', message);
+      showToast(message, 'error');
     },
   });
 

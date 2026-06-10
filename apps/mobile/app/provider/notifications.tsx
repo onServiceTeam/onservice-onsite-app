@@ -27,6 +27,8 @@ import {
 } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
+import { getErrorMessage } from '@/utils/errors';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -96,6 +98,9 @@ export default function ProviderNotificationsScreen(): React.ReactElement {
   const markAllMutation = useMutation({
     mutationFn: markAllNotificationsRead,
     onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['notifications'] }); },
+    onError: (err: unknown) => {
+      showToast(getErrorMessage(err, 'Could not mark notifications as read.'), 'error');
+    },
   });
 
   const onRefresh = useCallback(() => { void refetch(); }, [refetch]);

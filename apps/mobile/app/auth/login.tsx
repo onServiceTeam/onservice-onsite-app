@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui';
@@ -42,8 +42,10 @@ export default function LoginScreen(): React.ReactElement {
       // wait 60 seconds.") actually display instead of being
       // swallowed by the legacy axios-shape parser that returned
       // undefined for ApiError instances.
+      // A7 — surface server errors inline (same affordance as the
+      // validation error above) instead of a modal alert.
       const msg = getErrorMessage(err, 'Failed to send verification code. Please try again.');
-      Alert.alert('Error', msg);
+      setError(msg);
     } finally {
       setLoading(false);
     }

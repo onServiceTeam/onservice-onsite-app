@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore, type User } from '@/stores/auth.store';
 import { Button, Input } from '@/components/ui';
+import { showToast } from '@/lib/toast';
 import api from '@/services/api';
 import type { ApiResponse } from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -74,9 +75,9 @@ export default function ProfileScreen(): React.ReactElement {
         setUser({ ...user, firstName: firstName.trim(), lastName: lastName.trim() });
       }
       setEditing(false);
-      Alert.alert('Saved', 'Profile updated successfully.');
+      showToast('Profile updated.', 'success');
     } catch {
-      Alert.alert('Error', 'Failed to update profile. Please try again.');
+      showToast('Failed to update profile. Please try again.', 'error');
     } finally {
       setSaving(false);
     }

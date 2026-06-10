@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { showToast } from '@/lib/toast';
 import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getErrorMessage } from '@/utils/errors';
@@ -48,8 +49,9 @@ export default function RegisterScreen(): React.ReactElement {
       });
     } catch (err: unknown) {
       // Phase D CRIT-69 / K-MED-K04 fix — canonical error helper.
+      // A7 — toast instead of a modal alert.
       const msg = getErrorMessage(err, 'Failed to send verification code. Please try again.');
-      Alert.alert('Error', msg);
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }

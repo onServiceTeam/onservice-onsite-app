@@ -18,16 +18,29 @@ globalThis.__DEV__ = true;
 jest.mock('react-native-webview', () => ({ WebView: () => null }));
 
 // Project-internal services.
-jest.mock('@/services/api', () => ({
-  __esModule: true,
-  default: {
-    get: jest.fn().mockResolvedValue({ data: {} }),
-    post: jest.fn().mockResolvedValue({ data: {} }),
-    put: jest.fn().mockResolvedValue({ data: {} }),
-    patch: jest.fn().mockResolvedValue({ data: {} }),
-    delete: jest.fn().mockResolvedValue({ data: {} }),
-  },
-}));
+jest.mock('@/services/api', () => {
+  // Minimal stand-in so utils/errors getErrorMessage's `instanceof ApiError`
+  // check works in tests that drive real error paths.
+  class ApiError extends Error {
+    constructor(message, status, body) {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+      this.body = body;
+    }
+  }
+  return {
+    __esModule: true,
+    ApiError,
+    default: {
+      get: jest.fn().mockResolvedValue({ data: {} }),
+      post: jest.fn().mockResolvedValue({ data: {} }),
+      put: jest.fn().mockResolvedValue({ data: {} }),
+      patch: jest.fn().mockResolvedValue({ data: {} }),
+      delete: jest.fn().mockResolvedValue({ data: {} }),
+    },
+  };
+});
 
 jest.mock('@/services/secure-storage', () => ({
   initSecureStorage: jest.fn().mockResolvedValue(undefined),
