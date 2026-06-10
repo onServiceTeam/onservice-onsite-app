@@ -14,8 +14,8 @@ describe('Booking State Machine', () => {
       expect(canTransition('requested', 'cancelled_by_customer')).toBe(true);
     });
 
-    it('should NOT allow requested → payment_pending directly (must go through matched)', () => {
-      expect(canTransition('requested', 'payment_pending')).toBe(false);
+    it('Bug E03 — requested → payment_pending allowed (fixed-price instant checkout pays before matching)', () => {
+      expect(canTransition('requested', 'payment_pending')).toBe(true);
     });
 
     it('should allow matched → payment_pending', () => {
@@ -123,9 +123,9 @@ describe('Booking State Machine', () => {
       }
     });
 
-    it('should follow the fixed-price path: requested → matched → payment_pending → paid_out', () => {
+    it('should follow the fixed-price instant-pay path: requested → payment_pending → paid_out (E03)', () => {
       const fixedPath: BookingStatus[] = [
-        'requested', 'matched', 'payment_pending', 'paid',
+        'requested', 'payment_pending', 'paid',
         'provider_en_route', 'provider_arrived', 'in_progress',
         'completed_by_provider', 'confirmed', 'payout_ready', 'paid_out',
       ];
