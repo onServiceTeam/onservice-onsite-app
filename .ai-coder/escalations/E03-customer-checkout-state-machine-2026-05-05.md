@@ -195,3 +195,28 @@ than a fresh architectural choice):
 Ken's call needed: was 86a2417's removal intentional or accidental? If
 intentional, the mobile UI needs Option B/C surgery instead. If
 accidental, this is a one-line revert.
+
+---
+
+## RESOLUTION (2026-06-10)
+
+Ken's direction (2026-06-10): "audit the repo and fix all of the problems in
+the admin panel, provider and customer side of the app" — blanket
+authorization to apply the recommended option, same precedent as E01.
+
+**Option A applied (regression revert):**
+- `payment_pending` restored to `VALID_TRANSITIONS.requested` in
+  `packages/api/src/types/booking.types.ts` with an explanatory comment.
+- The two tests that codified the regression reverted; the direct-transition
+  test is now `Bug E03 — requested → payment_pending allowed (fixed-price
+  instant checkout pays before matching)` and the fixed-price path test no
+  longer routes through `matched`.
+- No mobile change needed — checkout.tsx works as originally written.
+
+Evidence the removal was accidental (from the investigation above): commit
+86a2417's message lists no state-machine change, and the mobile checkout was
+never updated to match — the two halves of the product disagreed from that
+commit onward.
+
+Shipped via topic branch `fix/e03-checkout-state-machine` (money-path change,
+PR for visibility per CLAUDE.md).

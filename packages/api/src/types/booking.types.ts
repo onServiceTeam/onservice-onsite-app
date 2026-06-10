@@ -64,7 +64,11 @@ export interface Booking {
  * Invalid transitions return HTTP 409 Conflict.
  */
 export const VALID_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
-  requested: ['quoted', 'matched', 'cancelled_by_customer', 'cancelled_by_admin'],
+  // E03 fix (2026-06-10): 'payment_pending' restored. Commit 86a2417 removed it
+  // with no stated reason, breaking fixed-price instant checkout (the customer
+  // pays right after createBooking, before a provider is matched), so every
+  // fixed-price checkout got HTTP 409. See .ai-coder/escalations/E03.
+  requested: ['quoted', 'matched', 'payment_pending', 'cancelled_by_customer', 'cancelled_by_admin'],
   quoted: ['matched', 'cancelled_by_customer', 'cancelled_by_admin'],
   matched: ['payment_pending', 'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin'],
   payment_pending: ['paid', 'cancelled_by_customer', 'cancelled_by_admin'],
