@@ -1,6 +1,12 @@
 # F4 Handoff — Admin Playwright visual baseline capture
 
-**Status:** scaffolded (29 spec files committed) → awaiting baseline capture against a running admin app.
+**Status:** DONE (2026-06-10). 354 baselines (29 pages × 4 states × 3 widths)
+are committed under `apps/admin/tests/visual/*-snapshots/` and validated
+against a live admin dev server: 348 passed as-is; the 6 provider-detail
+baselines were re-captured after legitimate UI drift (Phase 200 era added
+Staff/Disputes/Activity/Notes tabs, a Selfie verification-document row, and
+the Service Areas sidebar entry) and now pass. Gate D promotion still waits
+on the F#3 mobile half per MODES.json.
 **Owner after handoff:** Ken / contractor / CI on hosted runner with Chromium.
 **Estimated time:** 1-2 operator-hours.
 **Estimated cost:** Free (your laptop is enough — Playwright runs in headless Chromium).

@@ -86,3 +86,6 @@ infra/terraform/.terraform.lock.hcl
 
 # Ad-hoc diagnostic scripts (one-off, may contain test creds) — never commit
 /scripts/diag-*.sh
+
+# Playwright run artifacts (admin visual suite)
+apps/admin/test-results/

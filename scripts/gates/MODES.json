@@ -116,7 +116,7 @@
     "mode": "REPORT",
     "owning_dispatch": "D14r-3",
     "promoted_in": null,
-    "rationale": "Will promote to BLOCKING when the F#3 handoff captures the 82 Maestro flows + 28 Playwright specs against a real device farm. The flows + specs are scaffolded in D14r-3 and D14r-4 (PR + handoff doc) but baselines require an iOS simulator + Android emulator, which is operator/contractor work. See .ai-coder/handoff/F3-maestro-baseline-capture.md and .ai-coder/handoff/F4-playwright-baseline-capture.md for the exact commands."
+    "rationale": "F#4 admin half is DONE: 354 Playwright baselines (29 pages x 4 states x 3 widths) are committed and validated against a live admin app on 2026-06-10 (348 passed as-is; provider-detail re-captured after legitimate Phase-200-era UI drift: Staff/Disputes/Activity/Notes tabs, Selfie verification row, Service Areas sidebar entry). Promote to BLOCKING when the F#3 mobile half lands: the 84 Maestro flows were nav-less scaffolds with the wrong appId (com.onservice.app vs the real ph.onservice.app) and are being rewritten with real login + deep-link navigation (scripts/maestro/generate-visual-flows.mjs + capture-baselines.sh); capture needs an Android emulator session. See the two handoff docs in .ai-coder/handoff/."
   },
 
   "gate_e_state": {

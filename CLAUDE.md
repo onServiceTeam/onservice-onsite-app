@@ -25,7 +25,7 @@ onService PH is a remote home-services marketplace for the Philippines, built **
 - **Phase 14 Audit Remediation is complete.** The audit found that several Phase 14 closeouts shipped fake-passing tests (file-existence checks dressed as behavioral tests). Four corrective actions landed: real jest harness (jsdom + RTL), real DOM-render tests for 113 screen surfaces, real behavior tests for the D11/D12 polish bugs, and real wiring of all 11 cross-cutting components into 3+ screens each. Tags `v0.14.1-r5b-jest-expo-preset`, `v0.14.1-r7-real`, `v0.14.1-r6-real`, `v0.14.1-r5-complete` on master. Rolled-up tag `v0.14.1-audit-clean`.
 - **Three things still pend before `v1.0.0-launch-ready`:**
   1. **F#3 baseline capture** — 84 Maestro YAML flows committed; the 84-336 baseline PNGs need an iOS simulator or Android emulator session. Handoff: `.ai-coder/handoff/F3-maestro-baseline-capture.md`.
-  2. **F#4 baseline capture** — 29 Playwright specs committed; baselines need a running admin app + headless Chromium. Handoff: `.ai-coder/handoff/F4-playwright-baseline-capture.md`.
+  2. **F#4 baseline capture — DONE (2026-06-10).** 354 admin Playwright baselines committed and validated against a live admin app (provider-detail re-captured after legitimate Phase-200 UI drift). Gate D promotion still waits on F#3. Handoff: `.ai-coder/handoff/F4-playwright-baseline-capture.md`.
   3. **F#10 final attorney-reviewed disclaimer wording** — interim wording in production; CI guard active. Decision: `.ai-coder/decisions/D14r-10-legal-disclaimer.md`.
 - **Then the 12 D14 operational items** — NPC DPO registration, BIR ATP, PayMongo live mode, S3 Object Lock, Postgres PITR, DNS+TLS, etc. Runbook: `docs/runbooks/launch-cutover.md`.
 - **Then apply `v1.0.0-launch-ready`.**
