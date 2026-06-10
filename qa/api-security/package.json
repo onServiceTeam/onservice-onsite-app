@@ -1,0 +1,9 @@
+{
+  "name": "onservice-api-security",
+  "private": true,
+  "type": "module",
+  "description": "Integration security tests (authz/IDOR/RBAC/token) against a running API.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
