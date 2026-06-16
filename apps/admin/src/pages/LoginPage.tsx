@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { useAuthStore, type AdminUser } from '@/stores/auth.store';
 import api, { getErrorMessage } from '@/lib/api';
 import { Label, Input } from '@/components/ui';
+import { DEMO_MODE, DEMO_ADMIN } from '@/config/demo';
 
 export default function LoginPage(): React.ReactElement {
   const navigate = useNavigate();
@@ -137,6 +138,45 @@ export default function LoginPage(): React.ReactElement {
       setLoading(false);
     }
   };
+
+  // Demo mode (staging UX testing) — one-tap admin entry using the build-time
+  // demo credentials. 2FA is off on staging, so this lands straight in.
+  const handleDemoLogin = async (): Promise<void> => {
+    setError('');
+    setLoading(true);
+    try {
+      const res = await api.post('/api/v1/auth/admin/login', {
+        email: DEMO_ADMIN.email,
+        password: DEMO_ADMIN.password,
+      });
+      const data = res.data.data;
+      if (data.requires2FA || data.requires2FASetup) {
+        setError('Demo entry unavailable while admin 2FA is enabled.');
+        setLoading(false);
+        return;
+      }
+      completeLogin(data.user, { mustRotatePassword: data.mustRotatePassword === true });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ?demo=1 deep link auto-signs-in as admin (demo build only). Once on mount.
+  const demoFired = useRef(false);
+  useEffect(() => {
+    if (
+      DEMO_MODE &&
+      !demoFired.current &&
+      !isAuthenticated &&
+      new URLSearchParams(window.location.search).get('demo') === '1'
+    ) {
+      demoFired.current = true;
+      void handleDemoLogin();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const completeLogin = (
     user: Record<string, unknown>,
@@ -390,6 +430,17 @@ export default function LoginPage(): React.ReactElement {
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
+
+          {DEMO_MODE && (
+            <button
+              type="button"
+              onClick={() => void handleDemoLogin()}
+              disabled={loading}
+              className="w-full mt-3 py-2.5 border border-[var(--color-border)] text-[var(--color-text)] text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'Entering…' : 'Enter as Admin (demo)'}
+            </button>
+          )}
         </form>
 
         <p className="text-center text-xs text-[var(--color-text-secondary)] mt-4">

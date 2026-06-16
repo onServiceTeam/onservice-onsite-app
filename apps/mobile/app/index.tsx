@@ -1,20 +1,40 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth.store';
 import { colors, typography, spacing } from '@/config/theme';
 import { storage } from '@/services/api';
+import { DEMO_MODE, demoLogin, isDemoRole } from '@/config/demo';
 
 import { Routes } from '@/config/navigation';
 export default function SplashScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isAuthenticated, isLoading, user } = useAuthStore();
+  // Demo deep-link: app.onservice.ph/?demo=customer|provider auto-signs-in to
+  // the matching seeded account (staging demo builds only). Fired once.
+  const params = useLocalSearchParams<{ demo?: string }>();
+  const demoFired = useRef(false);
 
   useEffect(() => {
     if (isLoading) return;
+
+    if (
+      DEMO_MODE &&
+      !isAuthenticated &&
+      !demoFired.current &&
+      isDemoRole(params.demo)
+    ) {
+      demoFired.current = true;
+      // On success the auth state flips and this effect re-runs to route by
+      // role; on failure, fall through to the normal login routing below.
+      demoLogin(params.demo).catch(() => {
+        demoFired.current = false;
+      });
+      return;
+    }
 
     const timer = setTimeout(() => {
       if (isAuthenticated) {
@@ -36,7 +56,7 @@ export default function SplashScreen(): React.ReactElement {
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [isLoading, isAuthenticated, user, router]);
+  }, [isLoading, isAuthenticated, user, router, params.demo]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

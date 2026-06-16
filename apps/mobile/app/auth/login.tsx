@@ -13,6 +13,8 @@ import { colors, spacing, typography } from '@/config/theme';
 // the PhoneInput component (which renders the +63 country code chip
 // + the formatted input + the validation error inline).
 import PhoneInput from '@/components/PhoneInput';
+import { Routes } from '@/config/navigation';
+import { DEMO_MODE, demoLogin, type DemoRole } from '@/config/demo';
 
 export default function LoginScreen(): React.ReactElement {
   const router = useRouter();
@@ -23,6 +25,21 @@ export default function LoginScreen(): React.ReactElement {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Demo mode (staging UX testing) — one-tap entry as a seeded account.
+  const [demoLoading, setDemoLoading] = useState<DemoRole | null>(null);
+
+  const handleDemo = async (role: DemoRole): Promise<void> => {
+    setError('');
+    setDemoLoading(role);
+    try {
+      await demoLogin(role);
+      router.replace(role === 'provider' ? Routes.PROVIDER_TABS.DASHBOARD : Routes.TABS.HOME);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Could not enter demo. Please try again.'));
+    } finally {
+      setDemoLoading(null);
+    }
+  };
 
   const handleSendOtp = async (): Promise<void> => {
     setError('');
@@ -87,6 +104,26 @@ export default function LoginScreen(): React.ReactElement {
           loading={loading}
           disabled={phone.length < 10}
         />
+
+        {DEMO_MODE && (
+          <View style={styles.demo}>
+            <Text style={styles.demoLabel}>Or jump straight in (demo)</Text>
+            <Button
+              title="Enter as Customer"
+              variant="secondary"
+              onPress={() => handleDemo('customer')}
+              loading={demoLoading === 'customer'}
+              disabled={demoLoading !== null}
+            />
+            <Button
+              title="Enter as Provider"
+              variant="outline"
+              onPress={() => handleDemo('provider')}
+              loading={demoLoading === 'provider'}
+              disabled={demoLoading !== null}
+            />
+          </View>
+        )}
       </View>
 
       <View style={styles.footer}>
@@ -135,6 +172,18 @@ const styles = StyleSheet.create({
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary },
   form: { gap: spacing.base },
+  demo: {
+    gap: spacing.sm,
+    marginTop: spacing.base,
+    paddingTop: spacing.base,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  demoLabel: {
+    ...typography.caption,
+    color: colors.textTertiary,
+    textAlign: 'center',
+  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
