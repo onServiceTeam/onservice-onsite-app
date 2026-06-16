@@ -30,6 +30,18 @@ Customer and provider are the **same app** at different links — that is how a
 tester reaches both without two accounts. Use the customer link for the customer
 experience and the provider link for the provider experience.
 
+## Leaving feedback
+
+After testing, testers go to the public feedback page (no login):
+
+- https://app.onservice.ph/feedback
+
+It has the instructions, the same demo links above, and the full questionnaire,
+and submits straight into our database. See
+[ux-testing/README.md](ux-testing/README.md) for the whole UX-testing pack and
+[ux-testing/INTAKE-TRIAGE.md](ux-testing/INTAKE-TRIAGE.md) for how to read the
+collected feedback back out.
+
 ## Step 3 (alternative) — the manual buttons
 
 If you are already on a login screen, you do not need the links:

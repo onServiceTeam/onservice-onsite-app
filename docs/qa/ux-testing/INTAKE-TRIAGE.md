@@ -10,12 +10,36 @@ Ken: you do not need to be technical to run this. The goal is to end each round
 with a clean list of "here's what to fix and why," in a form the AI coder can pick
 up cold.
 
+## Where the feedback lives
+
+Most feedback now comes through the live page at
+**https://app.onservice.ph/feedback** and lands in the database automatically.
+You don't have to chase files. There are three ways to read it back, all using
+the export key (`FEEDBACK_EXPORT_KEY` on the server, kept by Ken; hand it to the
+AI coder when you want a review):
+
+1. **In a browser** (humans): open
+   `https://app.onservice.ph/api/v1/feedback/export.csv?key=THEKEY` for a
+   spreadsheet, or `…/export.md?key=THEKEY` for a readable digest.
+2. **Into the repo** (AI coder): run `node scripts/feedback/pull.mjs` with
+   `FEEDBACK_EXPORT_KEY` set. It writes
+   [FEEDBACK-INBOX.md](FEEDBACK-INBOX.md) (readable) and `FEEDBACK-INBOX.json`
+   (machine) into this folder, so the AI coder can review feedback in-repo and
+   turn it into fixes.
+3. **Ask the AI coder** to "pull the latest tester feedback and triage it" — it
+   runs the pull and works through the steps below.
+
+The markdown files testers can fill by hand ([QUESTIONNAIRE.md](QUESTIONNAIRE.md),
+[FEEDBACK-LOG.md](FEEDBACK-LOG.md)) still apply for anyone off the web page; fold
+those into the same flow.
+
 ## Step 1 — Collect into one place
 
 Drop every tester's items into one spreadsheet, one row per item, with columns:
 `Tester`, `Area`, `Type`, `How bad`, `Where`, `What happened`, `What expected`,
 `Repro`, `Device`, `Screenshot`. (Most tester logs already use these labels, so
-it's copy-paste.)
+it's copy-paste.) If you used the live page, the export from "Where the feedback
+lives" already is this spreadsheet.
 
 If you used a Google Form for the questionnaire, the rating sections come out as a
 sheet automatically. Keep the free-text "ideas" and "prices" answers, those are

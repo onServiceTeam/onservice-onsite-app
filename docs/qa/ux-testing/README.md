@@ -7,6 +7,19 @@ and improvements.
 It works for the **customer** side, the **provider** side, and the **admin**
 panel. A tester can do one area or all three.
 
+## Fastest path: the live feedback page
+
+There is now a hosted page that does all of this in the browser, with no docs to
+download and nothing to email back:
+
+> **https://app.onservice.ph/feedback**
+
+It carries the instructions, the demo links, and the full questionnaire, and
+submits straight into our database. Send a tester that one link. The markdown
+files below still exist for anyone who prefers paper/Google Docs, and they
+describe the same questions the page asks. To pull what's been submitted, see
+[INTAKE-TRIAGE.md](INTAKE-TRIAGE.md) ("Where the feedback lives").
+
 ## What's in here
 
 | File | Who it's for | What it does |

@@ -27,7 +27,10 @@ function arg(name) {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
-const API = (arg('api') || process.env.FEEDBACK_API || 'https://api.onservice.ph').replace(/\/$/, '');
+// Default to the app vhost: api.onservice.ph is IP-locked to Ken's test network
+// (allow <ip>; deny all), but app.onservice.ph proxies /api/ ungated, so the
+// key-protected export is reachable from anywhere. Override with --api if needed.
+const API = (arg('api') || process.env.FEEDBACK_API || 'https://app.onservice.ph').replace(/\/$/, '');
 const KEY = arg('key') || process.env.FEEDBACK_EXPORT_KEY;
 
 if (!KEY) {
