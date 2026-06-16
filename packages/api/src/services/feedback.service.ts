@@ -34,6 +34,25 @@ export interface FeedbackItem {
   expected: string;
   repro: string;
   screenshot: string;
+  screenshots: string[];
+}
+
+// Screenshot URLs must point at our own feedback uploads (set by the upload
+// endpoint), never an arbitrary or javascript: URL — those get rendered as
+// links in the admin/inbox, so we whitelist the shape rather than trust input.
+// Only a relative /uploads/feedback/<file> or an onservice.ph-hosted one passes;
+// an external host (e.g. evil.com/uploads/feedback/x) is rejected.
+const SHOT_RE = /^(https?:\/\/([a-z0-9-]+\.)*onservice\.ph)?\/uploads\/feedback\/[A-Za-z0-9._-]+$/i;
+
+function cleanShots(v: unknown, max: number): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const s of v) {
+    const u = String(s).trim().slice(0, 500);
+    if (SHOT_RE.test(u)) out.push(u);
+    if (out.length >= max) break;
+  }
+  return out;
 }
 
 export interface NormalizedFeedback {
@@ -117,6 +136,7 @@ export function validateAndNormalize(body: unknown): ValidateResult {
   const answers = cleanRecord(b.answers, MAX.ratings, MAX.shortText);
   const prices = cleanRecord(b.prices, MAX.prices, 40);
   const ideas = str(b.ideas, MAX.longText);
+  const screenshots = cleanShots(b.screenshots, 20);
 
   const rawItems = Array.isArray(b.items) ? (b.items as unknown[]).slice(0, MAX.items) : [];
   const items: FeedbackItem[] = rawItems
@@ -133,10 +153,11 @@ export function validateAndNormalize(body: unknown): ValidateResult {
         expected: str(o.expected, MAX.itemField),
         repro: str(o.repro, MAX.itemField),
         screenshot: str(o.screenshot, 500),
+        screenshots: cleanShots(o.screenshots, 10),
       };
     })
     // Drop fully-empty item rows the form may submit.
-    .filter((it) => it.what || it.where || it.expected || it.repro);
+    .filter((it) => it.what || it.where || it.expected || it.repro || it.screenshot || it.screenshots.length);
 
   // Require at least *something*: a rating, an answer, an idea, an item, or an
   // NPS. An entirely empty form is almost certainly a misfire or a bot.
@@ -146,6 +167,7 @@ export function validateAndNormalize(body: unknown): ValidateResult {
     Object.values(prices).some((v) => v) ||
     ideas.length > 0 ||
     items.length > 0 ||
+    screenshots.length > 0 ||
     nps !== null;
   if (!hasContent) {
     return { ok: false, spam: false, reason: 'Please answer at least one question before submitting.' };
@@ -153,7 +175,7 @@ export function validateAndNormalize(body: unknown): ValidateResult {
 
   const summary = deriveSummary({ items, answers, ideas });
 
-  const payload: Record<string, unknown> = { ratings, answers, prices, ideas, items };
+  const payload: Record<string, unknown> = { ratings, answers, prices, ideas, items, screenshots };
 
   return {
     ok: true,
@@ -261,6 +283,7 @@ export function toMarkdown(rows: FeedbackRow[]): string {
       prices?: Record<string, string>;
       ideas?: string;
       items?: FeedbackItem[];
+      screenshots?: string[];
     };
     lines.push('---');
     lines.push('');
@@ -299,6 +322,13 @@ export function toMarkdown(rows: FeedbackRow[]): string {
       lines.push('');
     }
 
+    const shots = Array.isArray(p.screenshots) ? p.screenshots : [];
+    if (shots.length) {
+      lines.push('**Screenshots:**');
+      for (const url of shots) lines.push(`- ![screenshot](${url})`);
+      lines.push('');
+    }
+
     const items = Array.isArray(p.items) ? p.items : [];
     if (items.length) {
       lines.push('**Logged items:**');
@@ -310,7 +340,10 @@ export function toMarkdown(rows: FeedbackRow[]): string {
         if (it.where) lines.push(`    - Where: ${it.where}`);
         if (it.expected) lines.push(`    - Expected: ${it.expected}`);
         if (it.repro) lines.push(`    - To reproduce: ${it.repro}`);
-        if (it.screenshot) lines.push(`    - Screenshot: ${it.screenshot}`);
+        if (it.screenshot) lines.push(`    - Screenshot (note): ${it.screenshot}`);
+        if (Array.isArray(it.screenshots)) {
+          for (const url of it.screenshots) lines.push(`    - Screenshot: ${url}`);
+        }
       }
       lines.push('');
     }

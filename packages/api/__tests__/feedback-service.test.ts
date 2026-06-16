@@ -81,6 +81,31 @@ describe('validateAndNormalize', () => {
     expect(v.itemCount).toBe(50);
   });
 
+  it('keeps only whitelisted /uploads/feedback screenshot URLs', () => {
+    const v = ok({
+      screenshots: [
+        'https://app.onservice.ph/uploads/feedback/abc.jpg', // ok (our host)
+        '/uploads/feedback/def.png', // ok (relative)
+        'javascript:alert(1)', // rejected
+        'https://evil.com/uploads/feedback/x.jpg', // rejected (external host)
+        'https://app.onservice.ph/uploads/other/x.jpg', // rejected (not feedback)
+      ],
+    });
+    expect(v.payload.screenshots).toEqual([
+      'https://app.onservice.ph/uploads/feedback/abc.jpg',
+      '/uploads/feedback/def.png',
+    ]);
+  });
+
+  it('keeps per-item screenshots and counts an item that only has a screenshot', () => {
+    const v = ok({
+      items: [{ screenshots: ['/uploads/feedback/shot.png'] }],
+    });
+    expect(v.itemCount).toBe(1);
+    const items = v.payload.items as Array<Record<string, unknown>>;
+    expect(items[0].screenshots).toEqual(['/uploads/feedback/shot.png']);
+  });
+
   it('summary prefers a blocker/major item over other content', () => {
     const v = ok({
       answers: { 'customer:best': 'liked it' },
@@ -124,7 +149,7 @@ describe('toMarkdown', () => {
     expect(md).toContain('the service fee confused me');
     expect(md).toContain('add pest control');
     expect(md).toContain('Where: price screen');
-    expect(md).toContain('Screenshot: fee.png');
+    expect(md).toContain('Screenshot (note): fee.png');
   });
 
   it('handles an empty inbox', () => {

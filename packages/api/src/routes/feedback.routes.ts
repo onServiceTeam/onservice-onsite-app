@@ -16,6 +16,10 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
+import multer from 'multer';
+import { randomUUID } from 'node:crypto';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import {
   validateAndNormalize,
   createFeedback,
@@ -23,7 +27,16 @@ import {
   toMarkdown,
   toCsv,
 } from '../services/feedback.service';
+import { validateFileSync, assertImageMagicBytes, getUploadDir } from '../services/upload.service';
+import { platformConfig } from '../config/platform.config';
 import { logger } from '../utils/logger';
+
+interface MulterFile {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+}
 
 const router = Router();
 
@@ -36,6 +49,56 @@ const submitLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: 'Too many submissions from this connection. Please try again later.' },
+});
+
+// Public screenshot upload for the feedback page. Stored under
+// uploads/feedback/ (served ungated via the app-vhost /uploads/ location), so a
+// tester can attach a picture of a broken screen and the team/AI coder can view
+// it. Image-only, magic-byte verified, size-capped, rate-limited.
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 80,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many uploads from this connection. Please try again later.' },
+});
+
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: platformConfig.maxImageSizeMB * 1024 * 1024, files: 1 },
+});
+
+const MIME_EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+};
+
+router.post('/upload', uploadLimiter, imageUpload.single('file'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const file = (req as Request & { file?: MulterFile }).file;
+    if (!file) {
+      res.status(400).json({ success: false, error: 'No file provided.' });
+      return;
+    }
+    // Both checks throw a 400 AppError (handled by error.middleware) on bad input.
+    validateFileSync(file.originalname, file.mimetype, file.size);
+    assertImageMagicBytes(file.buffer, file.mimetype);
+
+    const ext = MIME_EXT[file.mimetype] ?? '.jpg';
+    const filename = `${randomUUID()}${ext}`;
+    const dir = path.join(getUploadDir(), 'feedback');
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, filename), file.buffer);
+
+    const host = (req.headers['x-forwarded-host'] ?? req.headers.host ?? '').toString();
+    const proto = (req.headers['x-forwarded-proto'] ?? 'https').toString();
+    const url = host ? `${proto}://${host}/uploads/feedback/${filename}` : `/uploads/feedback/${filename}`;
+    logger.info('feedback screenshot uploaded', { filename });
+    res.status(201).json({ success: true, url });
+  } catch (err) {
+    next(err);
+  }
 });
 
 function clientIp(req: Request): string | null {
