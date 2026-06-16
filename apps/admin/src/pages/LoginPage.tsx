@@ -40,6 +40,47 @@ export default function LoginPage(): React.ReactElement {
     return () => { cancelled = true; };
   }, [setupUri]);
 
+  // Demo mode (staging UX testing) — one-tap admin entry using the build-time
+  // demo credentials. 2FA is off on staging, so this lands straight in. Defined
+  // here (above the early return) so its hook (the deep-link effect below) is
+  // always called in the same order per React's Rules of Hooks.
+  const handleDemoLogin = async (): Promise<void> => {
+    setError('');
+    setLoading(true);
+    try {
+      const res = await api.post('/api/v1/auth/admin/login', {
+        email: DEMO_ADMIN.email,
+        password: DEMO_ADMIN.password,
+      });
+      const data = res.data.data;
+      if (data.requires2FA || data.requires2FASetup) {
+        setError('Demo entry unavailable while admin 2FA is enabled.');
+        setLoading(false);
+        return;
+      }
+      completeLogin(data.user, { mustRotatePassword: data.mustRotatePassword === true });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ?demo=1 deep link auto-signs-in as admin (demo build only). Once on mount.
+  const demoFired = useRef(false);
+  useEffect(() => {
+    if (
+      DEMO_MODE &&
+      !demoFired.current &&
+      !isAuthenticated &&
+      new URLSearchParams(window.location.search).get('demo') === '1'
+    ) {
+      demoFired.current = true;
+      void handleDemoLogin();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
   }
@@ -138,45 +179,6 @@ export default function LoginPage(): React.ReactElement {
       setLoading(false);
     }
   };
-
-  // Demo mode (staging UX testing) — one-tap admin entry using the build-time
-  // demo credentials. 2FA is off on staging, so this lands straight in.
-  const handleDemoLogin = async (): Promise<void> => {
-    setError('');
-    setLoading(true);
-    try {
-      const res = await api.post('/api/v1/auth/admin/login', {
-        email: DEMO_ADMIN.email,
-        password: DEMO_ADMIN.password,
-      });
-      const data = res.data.data;
-      if (data.requires2FA || data.requires2FASetup) {
-        setError('Demo entry unavailable while admin 2FA is enabled.');
-        setLoading(false);
-        return;
-      }
-      completeLogin(data.user, { mustRotatePassword: data.mustRotatePassword === true });
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ?demo=1 deep link auto-signs-in as admin (demo build only). Once on mount.
-  const demoFired = useRef(false);
-  useEffect(() => {
-    if (
-      DEMO_MODE &&
-      !demoFired.current &&
-      !isAuthenticated &&
-      new URLSearchParams(window.location.search).get('demo') === '1'
-    ) {
-      demoFired.current = true;
-      void handleDemoLogin();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const completeLogin = (
     user: Record<string, unknown>,
