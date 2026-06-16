@@ -259,7 +259,8 @@ let uploadActiveWindow: number = uploadCurrentWindow;
 function buildUploadLimiter(windowMs: number): RateLimitRequestHandler {
   return rateLimit({
     windowMs,
-    limit: () => uploadCurrentMax,
+    // Test-mode (staging only, never production) lifts the cap for QA testers.
+    limit: () => (platformConfig.rateLimitsRelaxed ? 1_000_000 : uploadCurrentMax),
     standardHeaders: true,
     legacyHeaders: false,
     store: buildRedisStore('rl:upload:'),

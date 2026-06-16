@@ -155,7 +155,11 @@ function buildAuthRoutesStore(): InstanceType<typeof RedisStore> {
 
 const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.RATE_LIMIT_AUTH_MAX_REQUESTS) || 10,
+  // Test-mode (staging only, never production) lifts the cap for QA testers.
+  limit: () =>
+    platformConfig.rateLimitsRelaxed
+      ? 1_000_000
+      : Number(process.env.RATE_LIMIT_AUTH_MAX_REQUESTS) || 10,
   standardHeaders: true,
   legacyHeaders: false,
   store: buildAuthRoutesStore(),
