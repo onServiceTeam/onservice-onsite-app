@@ -37,7 +37,9 @@ After testing, testers go to the public feedback page (no login):
 - https://app.onservice.ph/feedback
 
 It has the instructions, the same demo links above, and the full questionnaire,
-and submits straight into our database. See
+and submits straight into our database. In the "Bugs & rough spots" section a
+tester can attach a screenshot of a broken screen (JPG/PNG/WebP); the image is
+stored and its link travels with the report. See
 [ux-testing/README.md](ux-testing/README.md) for the whole UX-testing pack and
 [ux-testing/INTAKE-TRIAGE.md](ux-testing/INTAKE-TRIAGE.md) for how to read the
 collected feedback back out.
