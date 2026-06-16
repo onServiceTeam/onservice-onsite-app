@@ -69,7 +69,8 @@ let activeLimiter: RateLimitRequestHandler = buildLimiter(currentWindow);
 function buildLimiter(windowMs: number): RateLimitRequestHandler {
   return rateLimit({
     windowMs,
-    limit: () => currentMax,
+    // Test-mode (staging only, never production) lifts the cap for QA testers.
+    limit: () => (platformConfig.rateLimitsRelaxed ? 1_000_000 : currentMax),
     standardHeaders: true,
     legacyHeaders: false,
     store: buildRedisStore('rl:global:'),
@@ -174,7 +175,8 @@ let authActiveWindow: number = authCurrentWindow;
 function buildAuthLimiter(windowMs: number): RateLimitRequestHandler {
   return rateLimit({
     windowMs,
-    limit: () => authCurrentMax,
+    // Test-mode (staging only, never production) lifts the cap for QA testers.
+    limit: () => (platformConfig.rateLimitsRelaxed ? 1_000_000 : authCurrentMax),
     standardHeaders: true,
     legacyHeaders: false,
     store: buildRedisStore('rl:auth:'),

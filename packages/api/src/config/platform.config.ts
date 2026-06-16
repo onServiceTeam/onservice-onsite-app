@@ -83,6 +83,15 @@ export const platformConfig = {
   rateLimitWindowMs: 15 * 60 * 1000,  // 15 minutes
   rateLimitMaxRequests: 100,
 
+  // Test-mode switch — when on, the global + auth rate limiters and the OTP
+  // brute-force lockout are relaxed so QA testers don't get "Too many attempts"
+  // mid-test. HARD-GATED on NODE_ENV: it can NEVER take effect in production,
+  // so a stray RATE_LIMITS_RELAXED env on a real box cannot disable brute-force
+  // protection. Set RATE_LIMITS_RELAXED=1 only on a staging/test box. Remove at
+  // the production cutover.
+  rateLimitsRelaxed:
+    process.env.RATE_LIMITS_RELAXED === '1' && process.env.NODE_ENV !== 'production',
+
   // --- JWT ---
   jwtExpiresIn: '15m',              // Short-lived access token (15 minutes)
   jwtExpiresInByRole: {

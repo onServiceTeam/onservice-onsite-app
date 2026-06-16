@@ -80,6 +80,12 @@ export async function checkOtpLockout(phone: string, ipAddress: string): Promise
   lockoutEndsAt?: Date;
   captchaRequired: boolean;
 }> {
+  // Test-mode (staging only, never production): skip the OTP brute-force
+  // lockout so QA testers aren't blocked mid-test. See platformConfig.
+  if (platformConfig.rateLimitsRelaxed) {
+    return { locked: false, captchaRequired: false };
+  }
+
   const windowHours = 24;
   const failedResult = await db.query<{ count: string }>(
     `SELECT COUNT(*)::text AS count FROM login_attempts
