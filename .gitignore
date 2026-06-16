@@ -113,3 +113,4 @@ TESTER-LOGINS.txt
 # (real PII). Run the pull script to regenerate locally when you want to review.
 docs/qa/ux-testing/FEEDBACK-INBOX.json
 docs/qa/ux-testing/FEEDBACK-INBOX.md
+docs/qa/ux-testing/feedback-screenshots/
