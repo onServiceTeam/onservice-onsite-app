@@ -227,30 +227,36 @@ export async function sendOtp(phone: string): Promise<{ message: string }> {
     throw createAppError('Invalid Philippine phone number. Use +63 9XX XXX XXXX format.', 400);
   }
 
-  const cooldownCheck = await db.query<OtpRow>(
-    `SELECT id FROM otp_codes
-     WHERE phone = $1 AND is_used = FALSE
-       AND created_at > NOW() - INTERVAL '1 second' * $2
-     LIMIT 1`,
-    [phone, platformConfig.otpCooldownSeconds],
-  );
-
-  if (cooldownCheck.rows.length > 0) {
-    throw createAppError(
-      `Please wait ${platformConfig.otpCooldownSeconds} seconds before requesting a new code.`,
-      429,
+  // Test-mode (staging only, never production) — skip the OTP resend cooldown
+  // and the per-hour cap so QA testers can re-log into the same account
+  // repeatedly without "wait 60 seconds" / "try again in an hour". Gated via
+  // platformConfig.rateLimitsRelaxed (RATE_LIMITS_RELAXED=1 + NODE_ENV!=prod).
+  if (!platformConfig.rateLimitsRelaxed) {
+    const cooldownCheck = await db.query<OtpRow>(
+      `SELECT id FROM otp_codes
+       WHERE phone = $1 AND is_used = FALSE
+         AND created_at > NOW() - INTERVAL '1 second' * $2
+       LIMIT 1`,
+      [phone, platformConfig.otpCooldownSeconds],
     );
-  }
 
-  const hourlyLimit = Number(process.env.OTP_MAX_REQUESTS_PER_HOUR) || 5;
-  const hourlyCheck = await db.query<OtpCountRow>(
-    `SELECT COUNT(*)::text as count FROM otp_codes
-     WHERE phone = $1 AND created_at > NOW() - INTERVAL '1 hour'`,
-    [phone],
-  );
+    if (cooldownCheck.rows.length > 0) {
+      throw createAppError(
+        `Please wait ${platformConfig.otpCooldownSeconds} seconds before requesting a new code.`,
+        429,
+      );
+    }
 
-  if (Number(hourlyCheck.rows[0]?.count) >= hourlyLimit) {
-    throw createAppError('Too many OTP requests. Please try again in an hour.', 429);
+    const hourlyLimit = Number(process.env.OTP_MAX_REQUESTS_PER_HOUR) || 5;
+    const hourlyCheck = await db.query<OtpCountRow>(
+      `SELECT COUNT(*)::text as count FROM otp_codes
+       WHERE phone = $1 AND created_at > NOW() - INTERVAL '1 hour'`,
+      [phone],
+    );
+
+    if (Number(hourlyCheck.rows[0]?.count) >= hourlyLimit) {
+      throw createAppError('Too many OTP requests. Please try again in an hour.', 429);
+    }
   }
 
   // CRIT-N12 fix: invalidate prior OTPs and write the NEW row's hash in
