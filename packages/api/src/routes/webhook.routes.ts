@@ -13,6 +13,7 @@ import * as escrowService from '../services/escrow.service';
 import * as walletService from '../services/wallet.service';
 import * as notificationService from '../services/notification.service';
 import * as securityService from '../services/security.service';
+import * as bookingOfferService from '../services/booking-offer.service';
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import crypto from 'node:crypto';
@@ -335,6 +336,11 @@ router.post(
                 error: notifyErr instanceof Error ? notifyErr.message : 'Unknown',
               });
             }
+            // Instant-pay: the booking just became paid — ensure a provider is
+            // being matched (no-op if one is already assigned/pending). Only
+            // runs on a real paid transition, not idempotent re-deliveries
+            // (bookingForNotify is null when the UPDATE matched no rows).
+            await bookingOfferService.dispatchPaidBookingIfNeeded(bookingId);
           }
           break;
         }

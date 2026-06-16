@@ -14,8 +14,11 @@ describe('Booking State Machine', () => {
       expect(canTransition('requested', 'cancelled_by_customer')).toBe(true);
     });
 
-    it('should NOT allow requested → payment_pending directly (must go through matched)', () => {
-      expect(canTransition('requested', 'payment_pending')).toBe(false);
+    it('should allow requested → payment_pending (fixed-price instant-pay; E03, 2026-06-16)', () => {
+      // Instant-pay: the customer pays as soon as the booking is created
+      // (escrow holds the funds) and a provider is matched afterward. Quote-based
+      // bookings still go through quoted/matched first.
+      expect(canTransition('requested', 'payment_pending')).toBe(true);
     });
 
     it('should allow matched → payment_pending', () => {
@@ -132,6 +135,18 @@ describe('Booking State Machine', () => {
 
       for (let i = 0; i < fixedPath.length - 1; i++) {
         expect(canTransition(fixedPath[i]!, fixedPath[i + 1]!)).toBe(true);
+      }
+    });
+
+    it('should follow the fixed-price INSTANT-PAY path: requested → payment_pending → paid → … (E03)', () => {
+      const instantPay: BookingStatus[] = [
+        'requested', 'payment_pending', 'paid',
+        'provider_en_route', 'provider_arrived', 'in_progress',
+        'completed_by_provider', 'confirmed', 'payout_ready', 'paid_out',
+      ];
+
+      for (let i = 0; i < instantPay.length - 1; i++) {
+        expect(canTransition(instantPay[i]!, instantPay[i + 1]!)).toBe(true);
       }
     });
 

@@ -64,7 +64,13 @@ export interface Booking {
  * Invalid transitions return HTTP 409 Conflict.
  */
 export const VALID_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
-  requested: ['quoted', 'matched', 'cancelled_by_customer', 'cancelled_by_admin'],
+  // 'payment_pending' is allowed here for the fixed-price INSTANT-PAY flow: the
+  // customer pays as soon as they create the booking (escrow holds the funds),
+  // and the provider is matched afterward. This was the original design; it was
+  // removed by accident in commit 86a2417 and restored per E03 (Ken-approved,
+  // 2026-06-16). Quote-based bookings still go requested → quoted → matched →
+  // payment_pending. See .ai-coder/escalations/E03-customer-checkout-state-machine.
+  requested: ['quoted', 'matched', 'payment_pending', 'cancelled_by_customer', 'cancelled_by_admin'],
   quoted: ['matched', 'cancelled_by_customer', 'cancelled_by_admin'],
   matched: ['payment_pending', 'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin'],
   payment_pending: ['paid', 'cancelled_by_customer', 'cancelled_by_admin'],
