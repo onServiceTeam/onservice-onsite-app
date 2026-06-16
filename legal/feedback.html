@@ -105,6 +105,15 @@
   .peso input { padding-left: 24px; }
   .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
   .note { font-size: 13px; color: var(--muted); }
+  .how { counter-reset: s; list-style: none; margin: 8px 0 0; padding: 0; }
+  .how li { position: relative; padding: 10px 0 10px 44px; border-top: 1px solid #f1f5f9; font-size: 14.5px; }
+  .how li:first-child { border-top: 0; }
+  .how li::before {
+    counter-increment: s; content: counter(s); position: absolute; left: 0; top: 9px;
+    width: 28px; height: 28px; background: var(--teal); color: #fff; border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;
+  }
+  .how b { display: block; margin-bottom: 1px; }
   #status { margin-top: 14px; font-weight: 600; }
   #status.ok { color: var(--good); }
   #status.err { color: var(--bad); }
@@ -121,14 +130,24 @@
 <header class="hero">
   <div class="brand">on<span>Service</span></div>
   <h1>Help us make the app better</h1>
-  <p>You are one of our testers. Tell us what worked, what confused you, and what you wish was different. Takes about 20-30 minutes. Be honest, the problems help us most.</p>
+  <p>You are one of our testers. Tell us what worked, what confused you, and what you wish was different. Be honest, the problems help us most.</p>
 </header>
 
 <div class="wrap">
 
   <div class="card">
-    <span class="step">Step 1 — Get in</span>
-    <h2>Open the app, no account needed</h2>
+    <span class="step">How this works</span>
+    <h2>Three quick steps</h2>
+    <ol class="how">
+      <li><b>Open the app in a new tab and try it.</b> Use the links in Step 1 below. They open in a new tab, so this feedback page stays open.</li>
+      <li><b>Come back to this tab when you're done.</b> Your exploring is finished, now you tell us about it.</li>
+      <li><b>Fill in what applies and press Submit.</b> Skip anything you didn't test or have no opinion on. About 15-30 minutes, less if you only test one area.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <span class="step">Step 1 — Open the app</span>
+    <h2>No account needed</h2>
     <p class="hint">The first time you open a link, your browser shows a small box asking for a username and password. That is just our test door, not an account. Type exactly:</p>
     <div class="creds">
       Username: <code>tester</code> &nbsp;·&nbsp; Password: <code>OnServiceTest2026</code>
@@ -139,6 +158,7 @@
       <a href="https://app.onservice.ph/?demo=provider" target="_blank" rel="noopener">🛠️ Provider — I do the work <small>app.onservice.ph</small></a>
       <a href="https://admin.onservice.ph/login?demo=1" target="_blank" rel="noopener">🖥️ Admin — the office view <small>admin.onservice.ph (best on a laptop)</small></a>
     </div>
+    <p class="note" style="margin-top:10px">These open in a new tab. Try the app, then come back to this tab to leave your feedback below.</p>
     <details style="margin-top:12px">
       <summary>What should I try?</summary>
       <div class="note" style="margin-top:8px">
@@ -298,7 +318,7 @@
     <div class="card">
       <span class="step">Bugs & friction</span>
       <h2>Anything broken or confusing?</h2>
-      <p class="hint">Add one entry per thing you noticed. A screenshot helps a lot — email it with this, or note the filename.</p>
+      <p class="hint">Add one entry per thing you noticed, big or small. Describe it in your own words. If you took a screenshot, note its filename here and keep the image — we may ask you for it.</p>
       <div id="issues"></div>
       <button type="button" class="btn ghost" id="addIssue" style="margin-top:12px">+ Add another</button>
     </div>
