@@ -44,7 +44,7 @@ First, a one-time site gate (a browser username/password pop-up), entered once
 per address:
 
 - Username: `tester`
-- Password: `Bas--tgySCwfSknW`
+- Password: `OnServiceTest2026`
 
 Then the three entry links:
 
