@@ -74,6 +74,7 @@ import supportTicketRoutes from './routes/support-ticket.routes';
 import staffRoutes from './routes/staff.routes';
 import settingsRoutes from './routes/settings.routes';
 import cancellationPolicyPublicRoutes from './routes/cancellation-policy-public.routes';
+import feedbackRoutes from './routes/feedback.routes';
 import cancellationPolicyAdminRoutes from './routes/cancellation-policy-admin.routes';
 import * as settingsService from './services/settings.service';
 import { assertAdmin2faNotDisabledInProduction } from './config/boot-guards';
@@ -270,6 +271,10 @@ app.use('/api/v1/compliance', complianceRoutes);
 
 // Bug 1170 / 1198 (Phase 14 Dispatch 02) — public cancellation-policy read.
 app.use('/api/v1/settings', cancellationPolicyPublicRoutes);
+
+// UX tester feedback — public POST from the /feedback page; key-protected
+// JSON/Markdown/CSV exports for the dev/design team and the AI coder.
+app.use('/api/v1/feedback', feedbackRoutes);
 
 // Phase 03: public client config endpoint (no auth required).
 app.get('/api/v1/config', async (_req, res) => {
