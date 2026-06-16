@@ -11,7 +11,7 @@ Both sites sit behind a single shared gate (a browser username/password pop-up).
 Enter it once per site:
 
 - Username: `tester`
-- Password: `OnServiceTest2026`
+- Password: `12345`
 
 The app (`app.onservice.ph`) and admin (`admin.onservice.ph`) are separate
 addresses, so the pop-up appears once for each the first time you open them.

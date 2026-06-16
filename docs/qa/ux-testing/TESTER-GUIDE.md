@@ -29,7 +29,7 @@ open each address, a small box asks for a username and password. That is the tes
 gate, not your account:
 
 - Username: `tester`
-- Password: `OnServiceTest2026`
+- Password: `12345`
 
 Then open the link for the area you are testing:
 
