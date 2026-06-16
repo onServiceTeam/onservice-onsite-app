@@ -172,6 +172,16 @@ export function useImagePicker(options: UseImagePickerOptions): UseImagePickerRe
       Alert.alert('Limit Reached', `Maximum ${maxImages} photos allowed.`);
       return;
     }
+    // On web there is no real camera flow: expo-image-picker's launchCameraAsync
+    // builds an <input capture="camera">, which desktop browsers ignore and
+    // render as the ordinary file/library chooser. Offering a "Camera" option
+    // there just opens the photo library and confuses people (reported by a web
+    // tester, 2026-06-16). Skip the action sheet and go straight to the library,
+    // which is what the audited image-capture helper already does on web.
+    if (Platform.OS === 'web') {
+      void pickFromGallery();
+      return;
+    }
     Alert.alert('Add Photo', 'Choose a source', [
       { text: 'Camera', onPress: () => void pickFromCamera() },
       { text: 'Photo Library', onPress: () => void pickFromGallery() },

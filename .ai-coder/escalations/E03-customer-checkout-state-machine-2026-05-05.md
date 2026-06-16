@@ -195,3 +195,39 @@ than a fresh architectural choice):
 Ken's call needed: was 86a2417's removal intentional or accidental? If
 intentional, the mobile UI needs Option B/C surgery instead. If
 accidental, this is a one-line revert.
+
+## STILL OPEN — a real tester hit this on 2026-06-16
+
+This escalation was never resolved in code. I re-verified the current state of
+master today: `VALID_TRANSITIONS.requested` at
+[packages/api/src/types/booking.types.ts:67](packages/api/src/types/booking.types.ts:67)
+**still lacks `payment_pending`**, and the customer checkout at
+[apps/mobile/app/customer/booking/checkout.tsx](apps/mobile/app/customer/booking/checkout.tsx)
+**still pays immediately on a `requested` booking**. So the 409 is still live.
+
+UX tester **Jenico Polo De Leon** (submission #2 in the feedback DB, 2026-06-16)
+reported it in plain words without knowing the cause:
+
+> "Upon submitting a booking the page goes on error but when you logged back in
+> it will show that the booking went through."
+> "Upon tapping pay it wouldn't let me do it. It keeps giving me an error message
+> that its on request status."
+
+Her screenshot of the customer home confirms the bookings were created server-side
+(two "Looking for provider" Aircon Cleaning jobs + an in-progress Carpentry) even
+though the client showed an error — exactly the failure mode E03 predicted: the
+booking row is inserted as `requested`, the immediate payment-intent call 409s,
+and the customer is left with an un-paid booking and an error screen. No success
+confirmation and no SMS fire because the flow never reaches `paid`.
+
+Nothing else here changed; the analysis and the three options above still stand.
+The webhook already supports paying before a provider is matched (the `payment.paid`
+handler holds escrow with no `provider_id` requirement), which is consistent with
+Option A.
+
+**Recommendation unchanged: Option A** (re-add `requested → payment_pending`, a
+near one-line state-machine change + revert two state-machine test assertions).
+Because it touches the money path (escrow held on an unmatched booking), I am NOT
+landing it autonomously — this needs Ken's explicit go, and given the money path,
+it should land on a topic branch + PR per the operating-mode exception, not direct
+to master. Re-surfaced to Ken in chat 2026-06-16.

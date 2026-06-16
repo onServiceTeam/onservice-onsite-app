@@ -29,7 +29,12 @@ export const colors = {
 
   text: '#1A1A2E',
   textSecondary: '#6B7280',
-  textTertiary: '#9CA3AF',
+  // Darkened from #9CA3AF (only ~2.5:1 on white — failed WCAG AA) to #6E7480
+  // (~4.7:1, passes AA for normal text). Used for captions, placeholders, and
+  // fine print; a tester reported the light gray text was hard to read
+  // (2026-06-16). Kept a touch lighter/cooler than textSecondary so the
+  // de-emphasis hierarchy survives.
+  textTertiary: '#6E7480',
   border: '#E5E7EB',
   divider: '#F3F4F6',
   background: '#FFFFFF',

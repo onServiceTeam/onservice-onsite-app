@@ -12,6 +12,7 @@ import * as addressService from '@/services/address.service';
 import type { SavedAddress } from '@/services/address.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useServiceAreaDefaults } from '@/hooks/useServiceAreaDefaults';
+import { guessRegionFromCoordinates, matchRegionForQuery } from '@/utils/ph-regions';
 import type { ComponentType } from 'react';
 import { Home as HomeIcon, Building2, Pin, MapPin } from '@/components/icons';
 
@@ -31,57 +32,6 @@ interface GeoResult {
   longitude: number;
 }
 
-const PH_REGIONS: { lat: number; lng: number; city: string; province: string }[] = [
-  // Phase 200 — Metro Cebu launch market, listed first.
-  { lat: 10.3157, lng: 123.8854, city: 'Cebu City', province: 'Cebu' },
-  { lat: 10.3236, lng: 123.9223, city: 'Mandaue', province: 'Cebu' },
-  { lat: 10.3103, lng: 123.9494, city: 'Lapu-Lapu', province: 'Cebu' },
-  { lat: 10.2447, lng: 123.8494, city: 'Talisay', province: 'Cebu' },
-  { lat: 14.5995, lng: 120.9842, city: 'Manila', province: 'Metro Manila' },
-  { lat: 14.6507, lng: 121.0495, city: 'Quezon City', province: 'Metro Manila' },
-  { lat: 14.5547, lng: 121.0244, city: 'Makati', province: 'Metro Manila' },
-  { lat: 14.5764, lng: 121.0851, city: 'Pasig', province: 'Metro Manila' },
-  { lat: 14.5176, lng: 121.0509, city: 'Taguig', province: 'Metro Manila' },
-  { lat: 14.4793, lng: 121.0198, city: 'Parañaque', province: 'Metro Manila' },
-  { lat: 14.6570, lng: 120.9790, city: 'Caloocan', province: 'Metro Manila' },
-  { lat: 14.6042, lng: 120.9822, city: 'San Juan', province: 'Metro Manila' },
-  { lat: 14.5378, lng: 121.0014, city: 'Pasay', province: 'Metro Manila' },
-  { lat: 14.5832, lng: 120.9783, city: 'Mandaluyong', province: 'Metro Manila' },
-  { lat: 14.6588, lng: 121.1107, city: 'Marikina', province: 'Metro Manila' },
-  { lat: 14.4445, lng: 120.9940, city: 'Las Piñas', province: 'Metro Manila' },
-  { lat: 14.4163, lng: 121.0437, city: 'Muntinlupa', province: 'Metro Manila' },
-  { lat: 7.0732, lng: 125.6126, city: 'Davao City', province: 'Davao del Sur' },
-  { lat: 8.4542, lng: 124.6319, city: 'Cagayan de Oro', province: 'Misamis Oriental' },
-  { lat: 10.6918, lng: 122.5623, city: 'Iloilo City', province: 'Iloilo' },
-  { lat: 16.4023, lng: 120.5960, city: 'Baguio', province: 'Benguet' },
-  { lat: 14.8149, lng: 120.9640, city: 'Malolos', province: 'Bulacan' },
-  { lat: 14.2139, lng: 121.1652, city: 'Calamba', province: 'Laguna' },
-  { lat: 15.4857, lng: 120.9715, city: 'Angeles', province: 'Pampanga' },
-  { lat: 14.3494, lng: 120.9553, city: 'Bacoor', province: 'Cavite' },
-  // Phase 200 — Boracay is the v1.0 launch market (Malay, Aklan) but was
-  // entirely absent, so a map tap there resolved to a far-away city (or
-  // Manila) and confirm was blocked ("could not determine the city"). Add
-  // the island plus its jump-off/capital points so the nearest-region
-  // geocode resolves real Boracay-area addresses.
-  { lat: 11.9674, lng: 121.9248, city: 'Boracay', province: 'Aklan' },
-  { lat: 11.9543, lng: 121.9270, city: 'Boracay', province: 'Aklan' },
-  { lat: 11.9805, lng: 121.9180, city: 'Boracay', province: 'Aklan' },
-  { lat: 11.9116, lng: 121.9248, city: 'Malay', province: 'Aklan' },
-  { lat: 11.9305, lng: 121.9544, city: 'Caticlan', province: 'Aklan' },
-  { lat: 11.7086, lng: 122.3618, city: 'Kalibo', province: 'Aklan' },
-];
-
-function guessRegionFromCoordinates(lat: number, lng: number): { city: string; province: string } {
-  let closest = PH_REGIONS[0]!;
-  let minDist = Infinity;
-  for (const r of PH_REGIONS) {
-    const d = Math.sqrt((r.lat - lat) ** 2 + (r.lng - lng) ** 2);
-    if (d < minDist) { minDist = d; closest = r; }
-  }
-  if (minDist > 0.5) return { city: '', province: '' };
-  return { city: closest.city, province: closest.province };
-}
-
 const LABEL_ICONS: Record<string, IconComponent> = { Home: HomeIcon, Work: Building2, Other: Pin };
 
 export default function AddressPickerScreen(): React.ReactElement {
@@ -97,6 +47,7 @@ export default function AddressPickerScreen(): React.ReactElement {
   const [searchText, setSearchText] = useState('');
   const [selectedAddress, setSelectedAddress] = useState<GeoResult | null>(null);
   const [searchResults, setSearchResults] = useState<GeoResult[]>([]);
+  const [searchMessage, setSearchMessage] = useState('');
 
   const { data: savedAddresses } = useQuery({
     queryKey: ['saved-addresses'],
@@ -183,11 +134,9 @@ export default function AddressPickerScreen(): React.ReactElement {
 
   const handleSearch = useCallback(() => {
     if (!searchText.trim()) return;
-    const query = searchText.trim().toLowerCase();
-    const match = PH_REGIONS.find(
-      (r) => r.city.toLowerCase().includes(query) || r.province.toLowerCase().includes(query),
-    );
+    const match = matchRegionForQuery(searchText);
     if (match) {
+      setSearchMessage('');
       setSearchResults([{
         address: searchText.trim(),
         barangay: '',
@@ -197,14 +146,13 @@ export default function AddressPickerScreen(): React.ReactElement {
         longitude: match.lng,
       }]);
     } else {
-      setSearchResults([{
-        address: searchText.trim(),
-        barangay: '',
-        city: '',
-        province: '',
-        latitude: 10.3157,
-        longitude: 123.8854,
-      }]);
+      // No known city in the typed text. Don't fabricate an empty-city result
+      // that blocks Confirm two taps later with "Location Not Recognized" —
+      // tell the user how to succeed now.
+      setSearchResults([]);
+      setSearchMessage(
+        'We could not find that address. Try including the city name, for example "Cebu City".',
+      );
     }
   }, [searchText]);
 
@@ -212,6 +160,7 @@ export default function AddressPickerScreen(): React.ReactElement {
     setPin({ latitude: result.latitude, longitude: result.longitude });
     setSelectedAddress(result);
     setSearchResults([]);
+    setSearchMessage('');
     mapRef.current?.animateToRegion({
       ...result,
       latitudeDelta: 0.01,
@@ -252,7 +201,7 @@ export default function AddressPickerScreen(): React.ReactElement {
           placeholder="Search for an address..."
           placeholderTextColor={colors.textTertiary}
           value={searchText}
-          onChangeText={setSearchText}
+          onChangeText={(t) => { setSearchText(t); if (searchMessage) setSearchMessage(''); }}
           onSubmitEditing={handleSearch}
           returnKeyType="search"
         />
@@ -278,6 +227,12 @@ export default function AddressPickerScreen(): React.ReactElement {
             </TouchableOpacity>
           )}
         />
+      )}
+
+      {searchMessage.length > 0 && searchResults.length === 0 && (
+        <View style={styles.searchMessageBox}>
+          <Text style={styles.searchMessageText}>{searchMessage}</Text>
+        </View>
       )}
 
       {savedAddresses && savedAddresses.length > 0 && searchResults.length === 0 && (
@@ -400,6 +355,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     color: colors.text,
+  },
+  searchMessageBox: {
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
+    backgroundColor: colors.warningLight,
+    borderRadius: borderRadius.md,
+    zIndex: 10,
+  },
+  searchMessageText: {
+    ...typography.bodySmall,
+    color: colors.warningDark,
   },
   resultsList: {
     position: 'absolute',
