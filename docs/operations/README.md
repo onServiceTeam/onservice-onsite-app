@@ -66,7 +66,7 @@ These run through the whole handbook. Each is an editable default. If any is wro
 
   > **Set (editable):** Refunds, payouts, and escrow release always stay with super-admin staff. Super-admin accounts are Ken plus one Operations Lead only. Before launch, wire money actions behind a finance/super-admin gate so support agents get a limited admin login that cannot reach money buttons. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-- **The instant-pay model is the target** (customer pays first into escrow, the provider is matched after). It is fixed on a branch but not yet merged to master (see `00` and the open E03 booking-pay item).
+- **The instant-pay model is live** (customer pays first into escrow, the provider is matched after). Merged and deployed on 2026-06-19 (PR #44, E03 closed).
 
 ## How to keep this current
 

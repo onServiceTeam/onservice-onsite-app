@@ -10,7 +10,7 @@ Related docs: `06-customer-support-sop.md`, `07-provider-support-sop.md`, `09-tr
 
 A booking reaches dispatch already paid (instant-pay). The customer paid first into platform escrow, and the provider is matched after. So when you watch the Dispatch Console, you are not waiting on money. The money is already held. The only thing between the customer and a happy job is finding a provider fast. Treat every unmatched paid booking as a clock that is already running.
 
-> ACCURACY NOTE (read before training anyone on this): the full instant-pay money path is not merged to master yet. It lives on the branch `fix/e03-instant-pay-money-path` (E03). On master today, a brand-new booking is created in `requested` status and the customer cannot pay it directly, so the "pay first, match after" flow is the approved target, not the current live behavior. Until Ken merges E03, expect some bookings to be created and matched the old way (customer pays only after a provider is matched). This doc describes the target instant-pay operation. Where the live behavior differs, it is flagged. See `.ai-coder/escalations/E03-customer-checkout-state-machine-2026-05-05.md`.
+> ACCURACY NOTE: the instant-pay money path is live as of 2026-06-19 (merged and deployed, E03 closed). A new fixed-price booking is created and the customer pays it immediately (the money holds in escrow), then a provider is matched. This doc describes that live instant-pay operation. See `.ai-coder/escalations/E03-customer-checkout-state-machine-2026-05-05.md` for the history.
 
 ---
 

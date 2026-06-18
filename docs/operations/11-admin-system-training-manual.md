@@ -140,7 +140,7 @@ The all-bookings monitor. Search by booking ID or city. Filter by any of the ~18
 
 The booking lifecycle you will see (simplified): `requested` to `matched/quoted` to `payment_pending` to `paid` to `provider_en_route` to `provider_arrived` to `in_progress` to `completed_by_provider` to `confirmed` to `payout_ready` to `paid_out`. A dispute branches off after `completed_by_provider` into `disputed` to `resolved`. Cancellations end in `cancelled_by_customer` / `_provider` / `_admin`. See `10-money-and-compliance-ops.md` for the money meaning of each state.
 
-Note for support staff: the instant-pay money flow (customer pays first into escrow, provider matched after) is the intended design, but on the live system today the `requested` to `payment_pending` step is still blocked (the E03 issue). A customer can hit an error at checkout while the booking still exists server-side. If a customer reports "payment failed but I see a booking," that is the known issue. Do not tell them it is their fault. Log it and escalate per `06-customer-support-sop.md`.
+Note for support staff: the instant-pay money flow (customer pays first into escrow, provider matched after) is live as of 2026-06-19 (the E03 issue is fixed). Checkout no longer errors at the pay step. If an older "payment failed but I see a booking" report comes in, that was the pre-fix behavior. Confirm the customer is on the current app and retry, and escalate per `06-customer-support-sop.md` if it persists.
 
 ### 2.7 Booking detail / Booking 360 (`/bookings/:id`)
 

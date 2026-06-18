@@ -12,9 +12,9 @@ Related docs: `09-trust-safety-and-disputes.md` (dispute decisions), `07-provide
 
 The intended design is INSTANT-PAY: the customer pays first into escrow, then a provider is matched. The platform holds the money in a single escrow wallet, then releases it to the provider (minus our commission) once the customer confirms the job, or after auto-confirm. We never touch provider funds until the job is done.
 
-> **Set (editable):** instant-pay is NOT live on master today (launch blocker E03). _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** instant-pay is live as of 2026-06-19 (E03 fixed, merged and deployed). _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-On the current code a customer who reaches checkout creates a booking in `requested` status, then the payment step returns an error ("Cannot pay for a booking in 'requested' status"). The fix exists on branch `fix/e03-instant-pay-money-path` (commit `b6aaa1e`) but is not merged. Tester Jenico Polo De Leon confirmed the bug on 2026-06-16. Until Ken merges the fix, the smooth pay-first flow described here does not work end to end. See `.ai-coder/escalations/E03-customer-checkout-state-machine-2026-05-05.md`. Do not market instant-pay until merged.
+Instant-pay is live as of 2026-06-19 (E03 fixed, merged commit `865f55e`, deployed): a customer who reaches checkout creates a booking and pays it immediately, the money holds in escrow, and a provider is matched after. The pay-first flow described here works end to end. See `.ai-coder/escalations/E03-customer-checkout-state-machine-2026-05-05.md` for the history.
 
 ---
 

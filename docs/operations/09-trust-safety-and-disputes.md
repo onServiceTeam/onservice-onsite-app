@@ -10,9 +10,9 @@ This doc covers the resolution work. For the mechanics of how money moves (escro
 
 The customer pays first. Money goes into the platform escrow wallet and is held there. The intended flow is instant-pay: customer books and pays into escrow, then a provider is matched. The provider does the job, the customer confirms (or it auto-confirms after 24 hours), and only then does escrow release to the provider. Because the platform holds the money, a dispute is a fight over money we already have, not money we have to claw back. That is the whole reason disputes are winnable for the customer when a provider is in the wrong.
 
-> **Set (editable):** Ops must recognize the E03 checkout bug as a bug, not a dispute. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** An "I paid but it errored" report is a payment issue, not a dispute. The E03 checkout bug that caused it is now fixed and live (2026-06-19), so it should not recur on the current app. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-On master today the `requested -> payment_pending` checkout transition is still blocked (E03, tester-confirmed launch blocker). The instant-pay fix exists on branch `fix/e03-instant-pay-money-path` but is not merged. Until Ken merges it, some new bookings can get stuck before payment. When a customer reports "I paid but it errored," treat it as E03 and route it to the bug path, not the dispute SOP.
+Instant-pay is live as of 2026-06-19 (E03 fixed, merged and deployed): a customer pays right after creating the booking and the money holds in escrow. An "I paid but it errored" report should no longer happen on the current app. If one does come in referencing the old behavior, confirm the customer is on the current app and retry. It is a payment issue, not a dispute, so do not open the dispute SOP for it.
 
 ---
 
@@ -313,7 +313,7 @@ If a customer questions the amount, check which bracket the live path used befor
 
 ## Open decisions set in this doc
 
-- **E03 checkout bug is a bug, not a dispute** (editable): "I paid but it errored" reports route to the bug path until `fix/e03-instant-pay-money-path` merges.
+- **"I paid but it errored" is a payment issue, not a dispute** (editable): the E03 checkout bug is fixed and live (2026-06-19); any such report on the current app is a payment problem to retry or escalate, not a dispute.
 - **Extra evidence path** (editable): agent attaches over-cap evidence as admin-uploaded; confirm the upload path with engineering first.
 - **Refund sign-off threshold** (editable): super-admin / Ken reviews every refund over ₱10,000, every `refund_with_suspension`, and every damage or theft payout.
 - **In-app hours match the SOP** (editable): app copy must read Monday to Saturday, 8:00 AM to 6:00 PM PHT; wider windows are a pre-launch copy fix.

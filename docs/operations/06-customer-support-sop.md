@@ -174,7 +174,7 @@ Closers:
 
 Each playbook is numbered steps. The instant-pay model matters here: the customer pays first into escrow, and a provider is matched after. That order shapes several of these.
 
-ACCURACY NOTE for everyone: the clean instant-pay path (pay right after creating the booking) is fixed on a branch but NOT yet merged to master. On the live app today, a known bug (E03) can make checkout error out: the booking gets created but the payment step returns an error. If a customer says "I tried to pay and got an error but I think the booking went through," that is E03. See playbook 8.5. Do not tell customers instant-pay is smooth until Ken merges the fix.
+ACCURACY NOTE for everyone: the instant-pay path (pay right after creating the booking) is now live (merged and deployed 2026-06-19, E03 closed). Checkout no longer errors at the pay step. If an older report comes in where a customer says "I tried to pay and got an error but I think the booking went through," that was the pre-fix E03 behavior and is now resolved. Confirm the customer is on the current app and retry. See playbook 8.5.
 
 ### 8.1 Booking help (how do I book / I can't finish a booking)
 

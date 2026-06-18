@@ -11,7 +11,7 @@ How to read this doc:
 
 Money-flow note (important): onService runs an instant-pay escrow model. The customer pays first into the platform escrow wallet, then a provider is matched and dispatched. Money is held in escrow until the customer confirms completion or the 24-hour auto-confirm fires. So "completion" for quality purposes means the booking reached `confirmed` (or auto-confirmed), not just that the provider marked it done.
 
-> **Set (editable):** The quality targets in this doc assume the instant-pay path (`requested` to `payment_pending`) is live. That path is fixed on a branch but not yet merged to master (escalation E03); until Ken merges it, customers hitting checkout get a 409 error and bookings stall at `requested`, which makes "checkout success rate" and "time-to-match" meaningless. Treat the E03 merge as a launch blocker that must land before these KPIs mean anything. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** The quality targets in this doc assume the instant-pay path (`requested` to `payment_pending`) is live, which it now is (merged and deployed 2026-06-19, E03 closed). "Checkout success rate" and "time-to-match" are meaningful to track. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ---
 

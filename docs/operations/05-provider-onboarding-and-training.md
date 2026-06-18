@@ -94,7 +94,7 @@ Tell the provider plainly:
 
 ### 4.3 The money is already paid (instant-pay, escrow)
 
-> IMPORTANT: the fixed-price **instant-pay** model (customer pays first, provider matched after) is the intended design and is built on the branch `fix/e03-instant-pay-money-path`, but it is **NOT merged to master yet** (E03 is still an open launch blocker). Train providers on the instant-pay framing because that is where the product is going, but if you are testing on master today the pay-then-match flow may not fire. Confirm with Ken before telling a live provider "the job is always prepaid." See the open decision at the end of this doc.
+> NOTE: the fixed-price **instant-pay** model (customer pays first, provider matched after) is now live. It was merged to master and deployed on 2026-06-19 (E03 closed). Train providers on the instant-pay framing because that is how the product works: the job is paid into escrow before they are matched, so when a provider accepts an offer the money is already held.
 
 Under instant-pay, by the time you see the offer the customer has already paid the full amount into onService escrow. The platform holds that money. You are not chasing the customer for cash. When you finish and the customer confirms (or after 24 hours of auto-confirm), escrow releases your share to your wallet automatically. This is the trust pitch: no haggling, no "balik ko next week," the money is real and waiting.
 
@@ -302,7 +302,7 @@ These are recommended defaults. Ken can override any of them. To change one, edi
 
 > **Set (editable):** Provider TIN is collected **before first payout**, not at application. The app accepts it as optional today; it must be on file before the provider reaches ₱500,000 YTD platform income, when BIR withholding starts (Form 2307). _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-> **Set (editable):** Instant-pay (prepaid-into-escrow) is the framing we train on, but it is **not live on master** until the E03 fix is merged. Until Ken confirms the merge, do not promise live providers "always prepaid." _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** Instant-pay (prepaid-into-escrow) is the framing we train on, and it is now live (merged and deployed 2026-06-19, E03 closed). Providers can be told the job is already paid into escrow when they accept. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 > **Set (editable):** Ops sets the provider's **primary service area during onboarding**. The app does not force it at apply time; later area changes go through the approval queue (`service_area_change_requests`). _Recommended default. To change it, edit here and anywhere this value is referenced._
 
