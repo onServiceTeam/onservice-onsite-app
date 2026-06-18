@@ -6,7 +6,7 @@ import { useBookingStore, type BookingDraft } from '@/stores/booking.store';
 import { createBooking } from '@/services/booking.service';
 import { createPaymentIntent, getWalletBalance } from '@/services/payment.service';
 import { useQuery } from '@tanstack/react-query';
-import { Button } from '@/components/ui';
+import { Button, Card, TrustStrip } from '@/components/ui';
 // B2 — inline validation feedback (toast for screen-level, inline for field).
 import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
@@ -184,7 +184,7 @@ export default function CheckoutScreen(): React.ReactElement {
         showsVerticalScrollIndicator={false}
       >
         {/* Booking summary */}
-        <View style={styles.summaryCard}>
+        <Card style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>Booking Summary</Text>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Service</Text>
@@ -206,7 +206,7 @@ export default function CheckoutScreen(): React.ReactElement {
               {draft.address ?? '—'}
             </Text>
           </View>
-        </View>
+        </Card>
 
         {/* Payment methods */}
         <Text style={[styles.sectionTitle, methodError ? styles.sectionTitleError : null]}>
@@ -261,7 +261,7 @@ export default function CheckoutScreen(): React.ReactElement {
         </TouchableOpacity>
 
         {/* Price breakdown */}
-        <View style={styles.priceBreakdown}>
+        <Card style={styles.priceBreakdown}>
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Service Price</Text>
             <Text style={styles.priceValue}>{formatPHP(draft.basePrice)}</Text>
@@ -281,7 +281,9 @@ export default function CheckoutScreen(): React.ReactElement {
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>{formatPHP(total)}</Text>
           </View>
-        </View>
+        </Card>
+
+        <TrustStrip style={styles.trustStrip} />
 
         {/* Legal — BUG-PHASE63-01 fix: pre-fix Terms/Privacy were plain
             text on the screen where the user is about to PAY. Now both
@@ -327,7 +329,7 @@ export default function CheckoutScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -343,9 +345,6 @@ const styles = StyleSheet.create({
   scrollContent: { padding: spacing.base, paddingBottom: 120 },
 
   summaryCard: {
-    backgroundColor: colors.backgroundSecondary,
-    padding: spacing.base,
-    borderRadius: borderRadius.lg,
     marginBottom: spacing.lg,
   },
   summaryTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
@@ -375,11 +374,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.base,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
     marginBottom: spacing.sm,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.border,
   },
   methodSelected: {
     borderColor: colors.primary,
@@ -410,21 +409,21 @@ const styles = StyleSheet.create({
   escrowBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.successLight,
+    backgroundColor: colors.primaryLight,
     padding: spacing.base,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     marginTop: spacing.md,
     marginBottom: spacing.lg,
   },
   escrowIcon: { fontSize: 20, marginRight: spacing.sm },
   escrowIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },
-  escrowText: { ...typography.bodySmall, color: colors.success, flex: 1 },
+  escrowText: { ...typography.bodySmall, color: colors.primary, flex: 1 },
 
   priceBreakdown: {
-    backgroundColor: colors.backgroundSecondary,
-    padding: spacing.base,
-    borderRadius: borderRadius.lg,
     marginBottom: spacing.base,
+  },
+  trustStrip: {
+    marginBottom: spacing.lg,
   },
   priceRow: {
     flexDirection: 'row',

@@ -212,13 +212,14 @@ export default function ScheduleScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   centered: { alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -235,8 +236,10 @@ const styles = StyleSheet.create({
   },
 
   dayCard: {
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.sm,
   },
@@ -265,7 +268,7 @@ const styles = StyleSheet.create({
   },
   timeInput: {
     ...typography.body,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceMuted,
     borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -278,7 +281,7 @@ const styles = StyleSheet.create({
   timeSeparator: { ...typography.body, color: colors.textTertiary, marginHorizontal: spacing.md },
 
   bottomBar: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
     borderTopWidth: 1,

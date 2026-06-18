@@ -236,9 +236,10 @@ export default function PayoutSettingsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  // App design refresh — soft canvas so the white setting cards lift off the page.
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   content: { paddingBottom: spacing.xxl },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg, backgroundColor: colors.surfaceMuted },
   errorText: { ...typography.body, color: colors.error, textAlign: 'center' },
   retryBtn: { marginTop: spacing.base },
   retryText: { ...typography.body, color: colors.primary, fontWeight: '600' },
@@ -248,8 +249,11 @@ const styles = StyleSheet.create({
   backText: { ...typography.body, color: colors.primary },
   title: { ...typography.h2, color: colors.text },
 
+  // App design refresh — white surface card with a hairline border on the canvas.
   section: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     marginHorizontal: spacing.base,
     marginBottom: spacing.base,
     borderRadius: borderRadius.lg,

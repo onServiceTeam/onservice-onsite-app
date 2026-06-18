@@ -198,11 +198,11 @@ export default function ProviderPhotosScreen(): React.ReactElement {
 const THUMB_SIZE = 100;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
   placeholder: { width: 30 },
 
   tabRow: {
-    flexDirection: 'row', backgroundColor: colors.backgroundSecondary,
+    flexDirection: 'row', backgroundColor: colors.surface,
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   tab: {
@@ -230,7 +230,14 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md, marginBottom: spacing.base,
   },
 
-  existingSection: { marginBottom: spacing.base },
+  existingSection: {
+    marginBottom: spacing.base,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.base,
+  },
   existingLabel: { ...typography.caption, color: colors.textTertiary, fontWeight: '600', marginBottom: spacing.sm },
   existingScroll: { flexDirection: 'row' },
   existingThumb: {
@@ -257,16 +264,16 @@ const styles = StyleSheet.create({
 
   addPhotoBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: spacing.md, borderRadius: borderRadius.md,
+    paddingVertical: spacing.md, borderRadius: borderRadius.lg,
     borderWidth: 1.5, borderColor: colors.border, borderStyle: 'dashed',
-    backgroundColor: colors.backgroundSecondary, gap: spacing.sm,
+    backgroundColor: colors.surface, gap: spacing.sm,
     marginBottom: spacing.base,
   },
   addPhotoIcon: { fontSize: 20 },
   addPhotoText: { ...typography.body, color: colors.primary, fontWeight: '600' },
 
   uploadBtn: {
-    backgroundColor: colors.primary, borderRadius: borderRadius.md,
+    backgroundColor: colors.primary, borderRadius: borderRadius.lg,
     paddingVertical: spacing.md + 2, alignItems: 'center',
   },
   uploadBtnDisabled: { opacity: 0.6 },

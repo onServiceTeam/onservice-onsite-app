@@ -12,7 +12,7 @@ import type { SavedAddress } from '@/services/address.service';
 // A7 — adopt the shared UI kit (skeleton/empty/error/list) + toast feedback.
 import { Button, SkeletonCard, EmptyState, ErrorState, OptimizedList } from '@/components/ui';
 import { showToast } from '@/lib/toast';
-import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 // Phase 14 R5-complete — ConfirmModal for delete-address destructive flow.
 import ConfirmModal from '@/components/ConfirmModal';
 import type { ComponentType } from 'react';
@@ -164,10 +164,11 @@ export default function AddressesScreen(): React.ReactElement {
 
   const renderAddress = ({ item }: { item: SavedAddress }): React.ReactElement => {
     const ItemIcon = LABEL_OPTIONS.find((l) => l.value === item.label)?.icon ?? Pin;
+    const tint = getCategoryTint(item.label);
     return (
       <View style={[styles.addressCard, item.isDefault && styles.addressCardDefault]}>
         <View style={styles.addressHeader}>
-          <View style={styles.addressIconWrap}><ItemIcon size={22} color={colors.primary} /></View>
+          <View style={[styles.addressIconWrap, { backgroundColor: tint.bg }]}><ItemIcon size={22} color={tint.fg} /></View>
           <View style={styles.addressInfo}>
             <View style={styles.addressLabelRow}>
               <Text style={styles.addressLabel}>{item.label}</Text>
@@ -376,7 +377,7 @@ export default function AddressesScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -403,17 +404,25 @@ const styles = StyleSheet.create({
   },
   listContent: { padding: spacing.base },
   addressCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.md,
-    borderWidth: 1.5,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  addressCardDefault: { borderColor: colors.primary },
+  addressCardDefault: { borderWidth: 1.5, borderColor: colors.primary },
   addressHeader: { flexDirection: 'row', marginBottom: spacing.sm },
   addressIcon: { fontSize: 24, marginRight: spacing.base, marginTop: 2 },
-  addressIconWrap: { marginRight: spacing.base, marginTop: 2, width: 28, alignItems: 'center' as const },
+  addressIconWrap: {
+    marginRight: spacing.base,
+    marginTop: 2,
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.md,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
   addressInfo: { flex: 1 },
   addressLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   addressLabel: { ...typography.body, fontWeight: '700', color: colors.text, marginRight: spacing.sm },
@@ -438,8 +447,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.background,
-    borderWidth: 1,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   actionBtnText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
@@ -478,7 +487,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     borderWidth: 1.5,
     borderColor: colors.border,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     gap: spacing.xs,
   },
   labelChipActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
@@ -488,12 +497,12 @@ const styles = StyleSheet.create({
   labelChipTextActive: { color: colors.primary },
   input: {
     ...typography.body,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     color: colors.text,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     marginBottom: spacing.xs,
   },
@@ -510,7 +519,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 2,
     borderColor: colors.border,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },

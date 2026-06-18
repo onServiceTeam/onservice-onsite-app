@@ -23,7 +23,7 @@ import {
   type AvailabilityOverride,
 } from '@/services/provider-api.service';
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
-import { Button, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { Button, SkeletonCard, EmptyState, ErrorState, SectionHeader } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -202,12 +202,11 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
           />
         </View>
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Date Overrides</Text>
-          <TouchableOpacity onPress={(): void => { setShowAddForm(true); }} style={styles.addBtn}>
-            <Text style={styles.addBtnText}>+ Add</Text>
-          </TouchableOpacity>
-        </View>
+        <SectionHeader
+          title="Date Overrides"
+          actionLabel="+ Add"
+          onAction={(): void => { setShowAddForm(true); }}
+        />
         <Text style={styles.sectionDesc}>
           Block specific dates or set custom hours. Overrides take priority over your weekly schedule.
         </Text>
@@ -342,12 +341,13 @@ function formatDateLabel(dateStr: string): string {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -359,7 +359,9 @@ const styles = StyleSheet.create({
   scrollContent: { padding: spacing.base, paddingBottom: 100 },
 
   toggleCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     flexDirection: 'row',
@@ -390,7 +392,9 @@ const styles = StyleSheet.create({
   addBtnText: { ...typography.bodySmall, color: colors.white, fontWeight: '600' },
 
   formCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.base,
@@ -400,7 +404,7 @@ const styles = StyleSheet.create({
   input: {
     ...typography.body,
     color: colors.text,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
@@ -436,8 +440,10 @@ const styles = StyleSheet.create({
   emptyDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', paddingHorizontal: spacing.lg },
 
   overrideCard: {
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
     padding: spacing.base,
     flexDirection: 'row',
     alignItems: 'center',

@@ -341,13 +341,15 @@ export default function ProviderReviewsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  // App design refresh — soft canvas so the white review cards lift off the page.
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   centered: { alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -357,8 +359,11 @@ const styles = StyleSheet.create({
 
   list: { padding: spacing.base, paddingBottom: 80 },
 
+  // App design refresh — white surface card with a hairline border on the canvas.
   aggregateCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     marginBottom: spacing.lg,
@@ -381,8 +386,11 @@ const styles = StyleSheet.create({
   ratingBarFill: { height: 6, backgroundColor: colors.warning, borderRadius: 3 },
   ratingBarValue: { ...typography.caption, color: colors.text, fontWeight: '600', width: 26, textAlign: 'right' },
 
+  // App design refresh — white surface card with a hairline border on the canvas.
   reviewCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.md,
@@ -418,7 +426,7 @@ const styles = StyleSheet.create({
   respondForm: { marginTop: spacing.md },
   respondInput: {
     ...typography.body,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceMuted,
     borderRadius: borderRadius.md,
     padding: spacing.base,
     minHeight: 80,

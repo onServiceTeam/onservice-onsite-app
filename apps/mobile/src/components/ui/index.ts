@@ -1,5 +1,8 @@
 export { default as Badge } from './Badge';
 export { default as Button } from './Button';
+export { default as Card } from './Card';
+export { default as TrustStrip } from './TrustStrip';
+export { default as SectionHeader } from './SectionHeader';
 export { default as Input } from './Input';
 export { default as OTPInput } from './OTPInput';
 export { default as ScreenContainer } from './ScreenContainer';

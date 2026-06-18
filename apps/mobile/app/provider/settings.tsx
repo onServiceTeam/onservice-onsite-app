@@ -230,14 +230,15 @@ export default function ProviderSettingsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
@@ -255,8 +256,10 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   section: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   row: {
@@ -279,8 +282,10 @@ const styles = StyleSheet.create({
   logoutRow: {
     paddingVertical: spacing.md + 2,
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     marginBottom: spacing.sm,
   },
   logoutText: { ...typography.body, color: colors.error, fontWeight: '600' },

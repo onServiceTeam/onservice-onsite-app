@@ -266,8 +266,10 @@ export default function PayoutsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  // App design refresh — soft canvas so the white payout cards lift off the page.
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
+    backgroundColor: colors.surface,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
@@ -290,8 +292,11 @@ const styles = StyleSheet.create({
   headerCtaText: { color: colors.white, fontWeight: '600', fontSize: 14 },
 
   list: { padding: spacing.base, paddingBottom: 80 },
+  // App design refresh — white surface card with hairline border, lifts off canvas.
   card: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.md,

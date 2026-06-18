@@ -440,11 +440,11 @@ export default function DataRightsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
@@ -455,11 +455,13 @@ const styles = StyleSheet.create({
   bodyContent: { padding: spacing.base, paddingBottom: 60 },
 
   intro: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.lg,
     alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   introIcon: { marginBottom: spacing.sm },
   introTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs, textAlign: 'center' },
@@ -468,11 +470,11 @@ const styles = StyleSheet.create({
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.sm,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   optionIcon: { marginRight: spacing.md },
@@ -482,10 +484,10 @@ const styles = StyleSheet.create({
   optionChevron: { fontSize: 28, color: colors.textTertiary, marginLeft: spacing.xs },
 
   flowCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     marginBottom: spacing.lg,
   },
@@ -527,21 +529,21 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.5 },
 
   confirmCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     alignItems: 'center',
-    borderWidth: 1, borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
     marginBottom: spacing.lg,
   },
   confirmIconWrap: { marginBottom: spacing.md },
   confirmTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
   confirmSubtitle: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.base },
   refBlock: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceMuted,
     paddingVertical: spacing.sm, paddingHorizontal: spacing.base,
     borderRadius: borderRadius.md, marginBottom: spacing.base, alignItems: 'center',
-    borderWidth: 1, borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
   refLabel: { ...typography.caption, color: colors.textSecondary, marginBottom: 4 },
   refValue: { ...typography.h2, color: colors.primary, letterSpacing: 2, fontFamily: 'monospace' },

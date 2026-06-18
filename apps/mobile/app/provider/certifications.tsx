@@ -445,12 +445,13 @@ export default function CertificationsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -466,7 +467,9 @@ const styles = StyleSheet.create({
   addButtonText: { ...typography.bodySmall, color: colors.white, fontWeight: '600' },
 
   formCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     margin: spacing.base,
     padding: spacing.base,
     borderRadius: borderRadius.lg,
@@ -507,7 +510,9 @@ const styles = StyleSheet.create({
   },
 
   certCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
   },

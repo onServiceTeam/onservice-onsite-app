@@ -169,7 +169,7 @@ export default function ProviderNotificationsScreen(): React.ReactElement {
       onPress={() => void handlePress(item)}
       activeOpacity={0.7}
     >
-      <View style={styles.iconWrap}><Icon size={22} color={colors.secondary} /></View>
+      <View style={styles.iconWrap}><Icon size={22} color={colors.primary} /></View>
       <View style={styles.cardContent}>
         <Text style={[styles.cardTitle, !item.isRead && styles.cardTitleUnread]}>{item.title}</Text>
         <Text style={styles.cardBody} numberOfLines={2}>{item.body}</Text>
@@ -230,14 +230,15 @@ export default function ProviderNotificationsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
@@ -249,15 +250,23 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.background,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    padding: spacing.base,
+    borderRadius: borderRadius.lg,
     marginBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
-  cardUnread: { backgroundColor: colors.successLight },
-  iconWrap: { marginRight: spacing.md, marginTop: 2, width: 28, alignItems: 'center' as const },
+  cardUnread: { backgroundColor: colors.successLight, borderColor: colors.success },
+  iconWrap: {
+    marginRight: spacing.md,
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
   emptyIconWrap: { marginBottom: spacing.base },
   icon: { fontSize: 24, marginRight: spacing.md, marginTop: 2 },
   cardContent: { flex: 1 },

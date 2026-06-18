@@ -264,7 +264,7 @@ function TierCard({ tier, isCurrent }: { tier: TierRequirement; isCurrent: boole
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -281,8 +281,10 @@ const styles = StyleSheet.create({
   scrollContent: { padding: spacing.base, paddingBottom: 100 },
 
   currentCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: spacing.base,
     flexDirection: 'row',
     alignItems: 'center',
@@ -349,8 +351,10 @@ const styles = StyleSheet.create({
   },
 
   reqCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: spacing.base,
     marginBottom: spacing.base,
   },
@@ -404,11 +408,12 @@ const styles = StyleSheet.create({
 
   allTiersSection: { marginTop: spacing.base },
   tierCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.sm,
-    borderWidth: 0,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   tierCardCurrent: {
     borderWidth: 2,

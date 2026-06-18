@@ -300,7 +300,7 @@ export default function EarningsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.base },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.lg },
 
   earningsCard: {
@@ -325,8 +325,10 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
   infoCard: {
     flex: 1,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
     padding: spacing.base,
     alignItems: 'center',
   },
@@ -341,12 +343,24 @@ const styles = StyleSheet.create({
   txRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
+    paddingHorizontal: spacing.base,
+    marginBottom: spacing.sm,
   },
   txIcon: { fontSize: 24, marginRight: spacing.md },
-  txIconWrap: { marginRight: spacing.md, width: 28, alignItems: 'center' },
+  txIconWrap: {
+    marginRight: spacing.md,
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   txInfo: { flex: 1 },
   txDescription: { ...typography.body, color: colors.text },
   txDate: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },

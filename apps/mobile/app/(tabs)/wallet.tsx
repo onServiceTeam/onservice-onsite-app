@@ -227,7 +227,7 @@ export default function WalletScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.base },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.lg },
 
   balanceCard: {
@@ -255,12 +255,25 @@ const styles = StyleSheet.create({
   txRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.surface,
     paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
   txIcon: { fontSize: 24, marginRight: spacing.md },
-  txIconWrap: { marginRight: spacing.md, width: 28, alignItems: 'center' as const },
+  txIconWrap: {
+    marginRight: spacing.md,
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
   txInfo: { flex: 1 },
   txDescription: { ...typography.body, color: colors.text },
   txDate: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },

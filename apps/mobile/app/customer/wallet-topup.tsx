@@ -10,7 +10,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getWalletBalance, topUpWallet } from '@/services/payment.service';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
-import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
+import { SectionHeader, TrustStrip } from '@/components/ui';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
 import { Smartphone, CreditCard, ScanLine, ChevronLeft, Check } from '@/components/icons';
@@ -112,7 +113,7 @@ export default function WalletTopUpScreen(): React.ReactElement {
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>Select Amount</Text>
+        <SectionHeader title="Select Amount" />
         <View style={styles.quickGrid}>
           {QUICK_AMOUNTS.map((amount) => (
             <TouchableOpacity
@@ -145,16 +146,17 @@ export default function WalletTopUpScreen(): React.ReactElement {
           <Text style={styles.minWarn}>Maximum top-up: {formatPHP(platformConfig.maxTopUp)} per transaction</Text>
         )}
 
-        <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Payment Method</Text>
+        <SectionHeader title="Payment Method" style={{ marginTop: spacing.lg }} />
         {PAYMENT_METHODS.map((method) => {
           const MIcon = method.icon;
+          const tint = getCategoryTint(method.id);
           return (
           <TouchableOpacity
             key={method.id}
             style={[styles.methodOption, selectedMethod === method.id && styles.methodSelected]}
             onPress={() => setSelectedMethod(method.id)}
           >
-            <View style={styles.methodIconWrap}><MIcon size={20} color={colors.primary} /></View>
+            <View style={[styles.methodIconWrap, { backgroundColor: tint.bg }]}><MIcon size={20} color={tint.fg} /></View>
             <Text style={[styles.methodText, selectedMethod === method.id && styles.methodTextSelected]}>
               {method.label}
             </Text>
@@ -162,6 +164,8 @@ export default function WalletTopUpScreen(): React.ReactElement {
           </TouchableOpacity>
           );
         })}
+
+        <TrustStrip style={styles.trustStrip} />
 
         <View style={styles.footer}>
           {topUpMutation.isPending ? (
@@ -201,11 +205,11 @@ export default function WalletTopUpScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
   },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
@@ -227,7 +231,7 @@ const styles = StyleSheet.create({
   quickBtn: {
     width: '31%', paddingVertical: spacing.md, borderRadius: borderRadius.md,
     borderWidth: 1.5, borderColor: colors.border, alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
   },
   quickBtnSelected: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   quickBtnText: { ...typography.body, fontWeight: '600', color: colors.textSecondary },
@@ -236,7 +240,7 @@ const styles = StyleSheet.create({
   customRow: {
     flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: colors.border,
     borderRadius: borderRadius.md, paddingHorizontal: spacing.base,
-    backgroundColor: colors.backgroundSecondary, marginTop: spacing.md,
+    backgroundColor: colors.surface, marginTop: spacing.md,
   },
   customPrefix: { fontSize: 20, fontWeight: '700', color: colors.textSecondary, marginRight: spacing.xs },
   customInput: {
@@ -247,17 +251,25 @@ const styles = StyleSheet.create({
   methodOption: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md,
     paddingHorizontal: spacing.base, borderRadius: borderRadius.md,
-    borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface,
     marginBottom: spacing.sm,
   },
   methodSelected: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   methodIcon: { fontSize: 20, marginRight: spacing.md },
-  methodIconWrap: { marginRight: spacing.md, width: 28, alignItems: 'center' as const },
+  methodIconWrap: {
+    marginRight: spacing.md,
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.md,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
   methodText: { ...typography.body, color: colors.textSecondary, flex: 1 },
   methodTextSelected: { color: colors.primary, fontWeight: '600' },
   methodCheck: { fontSize: 16, color: colors.primary, fontWeight: '700' },
 
-  footer: { marginTop: spacing.lg },
+  trustStrip: { marginTop: spacing.lg },
+  footer: { marginTop: spacing.md },
   topUpBtn: {
     backgroundColor: colors.primary, borderRadius: borderRadius.md,
     paddingVertical: spacing.md + 2, alignItems: 'center',

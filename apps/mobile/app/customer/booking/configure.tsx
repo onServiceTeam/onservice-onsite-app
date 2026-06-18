@@ -8,9 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { useBookingStore, type SelectedAddon } from '@/stores/booking.store';
-import { Button, SkeletonCard } from '@/components/ui';
+import { Button, SkeletonCard, Card, SectionHeader } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
-import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { ChevronLeft, Check } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
 
@@ -57,6 +57,8 @@ export default function ConfigureScreen(): React.ReactElement {
     });
   }, []);
 
+  const tint = getCategoryTint(draft.categorySlug);
+
   const selectedAddons = Array.from(selected.values());
   const addonsSum = selectedAddons.reduce((s, a) => s + a.price, 0);
   const subtotal = draft.basePrice + addonsSum;
@@ -89,9 +91,9 @@ export default function ConfigureScreen(): React.ReactElement {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.serviceInfo}>
-          <Text style={styles.serviceName}>{draft.subcategoryName ?? 'Service'}</Text>
-          <Text style={styles.servicePrice}>{formatPHP(draft.basePrice)}</Text>
+        <View style={[styles.serviceInfo, { backgroundColor: tint.bg }]}>
+          <Text style={[styles.serviceName, { color: tint.fg }]}>{draft.subcategoryName ?? 'Service'}</Text>
+          <Text style={[styles.servicePrice, { color: tint.fg }]}>{formatPHP(draft.basePrice)}</Text>
         </View>
 
         {isLoading && (
@@ -115,7 +117,7 @@ export default function ConfigureScreen(): React.ReactElement {
 
         {addons && addons.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Available Add-ons</Text>
+            <SectionHeader title="Available Add-ons" />
             <Text style={styles.sectionDesc}>Select any extras you need</Text>
 
             {addons.map((addon) => {
@@ -148,7 +150,7 @@ export default function ConfigureScreen(): React.ReactElement {
         )}
 
         {selectedAddons.length > 0 && (
-          <View style={styles.breakdown}>
+          <Card style={styles.breakdown}>
             <Text style={styles.breakdownTitle}>Price Summary</Text>
             <View style={styles.breakdownRow}>
               <Text style={styles.breakdownLabel}>Base Service</Text>
@@ -169,7 +171,7 @@ export default function ConfigureScreen(): React.ReactElement {
               <Text style={styles.totalLabel}>Estimated Total</Text>
               <Text style={styles.totalValue}>{formatPHP(subtotal + localFee)}</Text>
             </View>
-          </View>
+          </Card>
         )}
       </ScrollView>
 
@@ -190,7 +192,7 @@ export default function ConfigureScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -254,11 +256,7 @@ const styles = StyleSheet.create({
   addonPrice: { ...typography.body, fontWeight: '700', color: colors.textSecondary },
   addonPriceActive: { color: colors.primary },
 
-  breakdown: {
-    backgroundColor: colors.backgroundSecondary,
-    padding: spacing.base,
-    borderRadius: borderRadius.lg,
-  },
+  breakdown: {},
   breakdownTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
   breakdownRow: {
     flexDirection: 'row',

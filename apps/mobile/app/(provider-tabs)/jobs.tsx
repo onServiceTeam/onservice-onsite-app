@@ -253,7 +253,7 @@ export default function ProviderJobsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.base },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
   titleRow: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
@@ -296,7 +296,9 @@ const styles = StyleSheet.create({
 
   list: { paddingBottom: 100 },
   jobCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.md,

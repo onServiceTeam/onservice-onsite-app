@@ -235,11 +235,11 @@ export default function ProviderTeamScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   headerTitle: { ...typography.h3, color: colors.text },
@@ -250,15 +250,15 @@ const styles = StyleSheet.create({
   intro: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.base },
 
   card: {
-    backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.md,
-    padding: spacing.base, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface, borderRadius: borderRadius.lg,
+    padding: spacing.base, marginBottom: spacing.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
   cardTitle: { ...typography.body, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
   label: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs, marginTop: spacing.sm },
   input: {
     borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm, ...typography.body, color: colors.text,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceMuted,
   },
   inviteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -275,8 +275,8 @@ const styles = StyleSheet.create({
 
   memberCard: {
     flexDirection: 'row', alignItems: 'flex-start',
-    backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.md,
-    padding: spacing.md, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface, borderRadius: borderRadius.lg,
+    padding: spacing.base, marginBottom: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
   memberMain: { flex: 1 },
   memberHeader: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },

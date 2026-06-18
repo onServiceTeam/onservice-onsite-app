@@ -385,13 +385,14 @@ export default function JobCompleteScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -458,10 +459,11 @@ const styles = StyleSheet.create({
   clearLink: { padding: spacing.xs },
   clearLinkText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
   notesInput: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
     minHeight: 100,
     color: colors.text,
     ...typography.body,
@@ -473,7 +475,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   primaryBtn: {
     backgroundColor: colors.primary,

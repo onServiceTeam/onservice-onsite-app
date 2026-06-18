@@ -408,13 +408,14 @@ export default function BookingDetailScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   centered: { alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -433,7 +434,14 @@ const styles = StyleSheet.create({
   },
   bookingId: { ...typography.caption, color: colors.textTertiary, fontWeight: '600' },
 
-  section: { marginBottom: spacing.lg },
+  section: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.base,
+  },
   sectionTitle: { ...typography.caption, color: colors.textTertiary, fontWeight: '600', marginBottom: spacing.xs, textTransform: 'uppercase', letterSpacing: 0.5 },
   serviceName: { ...typography.h3, color: colors.text },
   serviceDesc: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
@@ -442,9 +450,7 @@ const styles = StyleSheet.create({
   providerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
+    paddingTop: spacing.sm,
   },
   providerAvatar: {
     width: 40,
@@ -460,10 +466,12 @@ const styles = StyleSheet.create({
   providerArrow: { fontSize: 22, color: colors.textTertiary },
 
   receipt: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: spacing.base,
     borderRadius: borderRadius.lg,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.base,
   },
   receiptTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
   receiptRow: {
@@ -478,7 +486,7 @@ const styles = StyleSheet.create({
   receiptTotalValue: { ...typography.price, color: colors.primary },
 
   bottomBar: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
     borderTopWidth: 1,

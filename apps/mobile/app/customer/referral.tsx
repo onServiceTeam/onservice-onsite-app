@@ -11,7 +11,7 @@ import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import { ClipboardList, Gift, Send, ChevronLeft } from '@/components/icons';
 // A7 — shared UI kit for loading/error states + toast feedback.
-import { SkeletonCard, ErrorState } from '@/components/ui';
+import { SkeletonCard, ErrorState, SectionHeader } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 
 export default function ReferralScreen(): React.ReactElement {
@@ -145,7 +145,7 @@ export default function ReferralScreen(): React.ReactElement {
           </View>
 
           <View style={styles.redeemSection}>
-            <Text style={styles.sectionTitle}>Have a Referral Code?</Text>
+            <SectionHeader title="Have a Referral Code?" />
             <View style={styles.redeemRow}>
               <TextInput
                 style={styles.redeemInput}
@@ -172,7 +172,7 @@ export default function ReferralScreen(): React.ReactElement {
 
           {(referrals?.redemptions ?? []).length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Referral History</Text>
+              <SectionHeader title="Referral History" />
               {referrals?.redemptions.map((r) => (
                 <View key={r.id} style={styles.historyItem}>
                   <View style={{ flex: 1 }}>
@@ -192,7 +192,7 @@ export default function ReferralScreen(): React.ReactElement {
           )}
 
           <View style={styles.howItWorks}>
-            <Text style={styles.sectionTitle}>How It Works</Text>
+            <SectionHeader title="How It Works" />
             <View style={styles.step}>
               <Text style={styles.stepNum}>1</Text>
               <Text style={styles.stepText}>Share your unique referral code with friends</Text>
@@ -213,7 +213,7 @@ export default function ReferralScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   heroEmoji: { fontSize: 48, marginBottom: spacing.md },
   heroTitle: { fontSize: 20, fontWeight: '800', color: colors.white, marginBottom: spacing.sm, textAlign: 'center' },
   heroDesc: { fontSize: 14, color: colors.primaryLight, textAlign: 'center', lineHeight: 20 },
-  codeCard: { backgroundColor: colors.white, borderRadius: 16, padding: 20, alignItems: 'center', borderWidth: 2, borderColor: colors.info, borderStyle: 'dashed', marginBottom: spacing.base },
+  codeCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: 20, alignItems: 'center', borderWidth: 2, borderColor: colors.info, borderStyle: 'dashed', marginBottom: spacing.base },
   codeLabel: { fontSize: 12, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.sm },
   codeText: { fontSize: 32, fontWeight: '900', color: colors.text, letterSpacing: 4, marginBottom: spacing.base },
   codeActions: { flexDirection: 'row', gap: spacing.md },
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.md, backgroundColor: colors.info },
   shareBtnText: { fontSize: 14, fontWeight: '600', color: colors.white },
   statsRow: { flexDirection: 'row', gap: spacing.md, marginBottom: 20 },
-  statCard: { flex: 1, backgroundColor: colors.white, borderRadius: borderRadius.lg, padding: spacing.base, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  statCard: { flex: 1, backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   statValue: { fontSize: 22, fontWeight: '800', color: colors.text },
   statLabel: { fontSize: 12, color: colors.textSecondary, marginTop: spacing.xs },
   redeemSection: { marginBottom: spacing.lg },
@@ -247,12 +247,12 @@ const styles = StyleSheet.create({
   redeemBtnDisabled: { opacity: 0.5 },
   redeemBtnText: { fontSize: 14, fontWeight: '700', color: colors.white },
   section: { marginBottom: spacing.lg },
-  historyItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },
+  historyItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, marginBottom: spacing.sm },
   historyLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
   historyDate: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
   historyAmount: { fontSize: 14, fontWeight: '700', color: colors.warning },
   historyAmountGreen: { color: colors.success },
-  howItWorks: { backgroundColor: colors.white, borderRadius: 16, padding: spacing.base, borderWidth: 1, borderColor: colors.border },
+  howItWorks: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   step: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
   stepNum: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.info, color: colors.white, fontSize: 14, fontWeight: '700', textAlign: 'center', lineHeight: 28, overflow: 'hidden' },
   stepText: { flex: 1, fontSize: 14, color: colors.textSecondary, lineHeight: 20 },

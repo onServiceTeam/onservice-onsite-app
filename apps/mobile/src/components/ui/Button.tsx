@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
   base: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
   },
   fullWidth: { width: '100%' },
   primary: { backgroundColor: colors.primary },

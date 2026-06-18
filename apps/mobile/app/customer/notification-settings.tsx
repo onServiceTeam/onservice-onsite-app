@@ -204,9 +204,9 @@ export default function NotificationSettingsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   content: { paddingBottom: spacing.xxl },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backgroundSecondary },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMuted },
 
   header: { paddingHorizontal: spacing.base, paddingTop: spacing.base, paddingBottom: spacing.base },
   backBtn: { marginBottom: spacing.sm, paddingVertical: spacing.sm, minHeight: 44 },
@@ -222,20 +222,22 @@ const styles = StyleSheet.create({
   },
   quickBtn: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   quickBtnText: { ...typography.bodySmall, fontWeight: '600', color: colors.primary },
 
   section: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     marginHorizontal: spacing.base,
     marginBottom: spacing.base,
     borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   prefRow: {

@@ -294,12 +294,13 @@ function formatDateFull(dateStr: string): string {
 const CELL_SIZE = 48;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -315,6 +316,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
   },
   navBtn: { padding: spacing.sm, width: 40, alignItems: 'center' },
   navBtnText: { fontSize: 28, color: colors.secondary, fontWeight: '700' },
@@ -323,6 +325,7 @@ const styles = StyleSheet.create({
   dayHeaders: {
     flexDirection: 'row',
     paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surface,
   },
   dayHeaderText: {
     flex: 1,
@@ -337,6 +340,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   dayCell: {
     width: `${100 / 7}%` as DimensionValue,
@@ -406,7 +413,9 @@ const styles = StyleSheet.create({
   noJobsText: { ...typography.body, color: colors.textTertiary },
 
   jobCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     flexDirection: 'row',

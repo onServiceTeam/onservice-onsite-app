@@ -234,8 +234,8 @@ export default function QuotesScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   emptyEmoji: { fontSize: 48, marginBottom: spacing.md },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 6 },
   emptyDesc: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-  quoteCard: { backgroundColor: colors.white, borderRadius: 16, padding: spacing.base, marginBottom: spacing.base, borderWidth: 1, borderColor: colors.border },
+  quoteCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   quoteResolved: { opacity: 0.7 },
   quoteHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md },
   providerName: { fontSize: 16, fontWeight: '700', color: colors.text },

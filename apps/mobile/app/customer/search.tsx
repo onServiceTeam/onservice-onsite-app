@@ -18,7 +18,7 @@ import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Star, Clock, MapPin, Filter, ChevronLeft } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
-import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { SkeletonCard, EmptyState, ErrorState, SectionHeader } from '@/components/ui';
 // Phase 14 R5-complete — FilterModal for advanced search filters.
 import FilterModal from '@/components/FilterModal';
 import useDebouncedValue from '@/hooks/useDebouncedValue';
@@ -300,7 +300,7 @@ export default function SearchScreen(): React.ReactElement {
         sections={sections}
         renderItem={renderItem}
         renderSectionHeader={({ section }) => (
-          <Text style={styles.sectionTitle}>{section.title}</Text>
+          <SectionHeader title={section.title} style={styles.sectionHeaderRow} />
         )}
         keyExtractor={(item) => `${item.type}-${item.data.id}`}
         contentContainerStyle={styles.list}
@@ -344,12 +344,13 @@ export default function SearchScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -386,10 +387,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     marginTop: spacing.sm,
   },
+  sectionHeaderRow: { marginTop: spacing.sm },
 
   resultCard: {
     flexDirection: 'row',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.md,
@@ -406,7 +410,9 @@ const styles = StyleSheet.create({
   providerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.md,
@@ -445,8 +451,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.backgroundSecondary,
-    borderWidth: 1,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   suggestChipText: { ...typography.bodySmall, color: colors.text, fontWeight: '500' },

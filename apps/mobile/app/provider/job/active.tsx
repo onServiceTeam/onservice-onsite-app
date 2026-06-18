@@ -8,7 +8,7 @@ import MapView, { Marker, type Region } from 'react-native-maps';
 import { getBookingById } from '@/services/booking.service';
 import { updateBookingStatus } from '@/services/provider-api.service';
 import { getMyStaff, assignStaffToBooking } from '@/services/provider-staff.service';
-import { Badge, Button, SkeletonCard, ErrorState } from '@/components/ui';
+import { Button, SkeletonCard, ErrorState, StatusBadge } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { formatRelative } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
@@ -22,14 +22,6 @@ const STATUS_LABELS: Record<string, string> = {
   provider_arrived: 'You\'ve arrived',
   in_progress: 'Service in progress',
   completed_by_provider: 'Waiting for customer confirmation',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  paid: colors.statusConfirmed,
-  provider_en_route: colors.statusInProgress,
-  provider_arrived: colors.statusInProgress,
-  in_progress: colors.statusInProgress,
-  completed_by_provider: colors.statusCompleted,
 };
 
 const NEXT_ACTION: Record<string, { status: string; label: string }> = {
@@ -187,11 +179,7 @@ export default function ActiveJobScreen(): React.ReactElement {
 
       <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + spacing.base }]}>
         <View style={styles.statusRow}>
-            <Badge
-              label={booking.status.replace(/_/g, ' ').toUpperCase()}
-              backgroundColor={STATUS_COLORS[booking.status] ?? colors.statusInProgress}
-              size="md"
-            />
+          <StatusBadge status={booking.status} size="md" />
           <Text style={styles.timeText}>{formatRelative(booking.scheduledAt)}</Text>
         </View>
 
@@ -266,7 +254,7 @@ export default function ActiveJobScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   centered: { alignItems: 'center', justifyContent: 'center' },
   header: {
     position: 'absolute',
@@ -317,8 +305,8 @@ const styles = StyleSheet.create({
   navButton: {
     width: 50,
     height: 50,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -329,8 +317,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.md,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   chatIcon: { marginRight: spacing.sm },
   chatText: { ...typography.body, color: colors.secondary, fontWeight: '600' },

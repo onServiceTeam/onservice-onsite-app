@@ -368,7 +368,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.base },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
   errorCenter: { alignItems: 'center' },
   errorEmoji: { fontSize: 40, marginBottom: spacing.base },
   errorIcon: { marginBottom: spacing.base },
@@ -392,7 +392,14 @@ const styles = StyleSheet.create({
   userPhone: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.sm },
   tierProgressLink: { ...typography.caption, color: colors.primary, fontWeight: '600', marginTop: spacing.xs, textAlign: 'center' },
 
-  section: { marginBottom: spacing.xl },
+  section: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.lg,
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -417,7 +424,9 @@ const styles = StyleSheet.create({
 
   scheduleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   scheduleItem: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,

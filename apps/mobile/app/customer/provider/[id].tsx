@@ -262,14 +262,14 @@ export default function ProviderProfileScreen(): React.ReactElement {
         </View>
 
         {provider.bio && (
-          <View style={styles.section}>
+          <View style={[styles.section, styles.sectionCard]}>
             <Text style={styles.sectionTitle}>About</Text>
             <Text style={styles.bioText}>{provider.bio}</Text>
           </View>
         )}
 
         {provider.services.length > 0 && (
-          <View style={styles.section}>
+          <View style={[styles.section, styles.sectionCard]}>
             <Text style={styles.sectionTitle}>Services Offered</Text>
             <Text style={styles.sectionHint}>Tap a service to book it.</Text>
             {provider.services.map((svc) => (
@@ -296,7 +296,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
         )}
 
         {provider.schedule.length > 0 && (
-          <View style={styles.section}>
+          <View style={[styles.section, styles.sectionCard]}>
             <Text style={styles.sectionTitle}>Availability</Text>
             <View style={styles.scheduleGrid}>
               {provider.schedule
@@ -361,7 +361,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
         )}
 
         {aggregate && (
-          <View style={styles.section}>
+          <View style={[styles.section, styles.sectionCard]}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Reviews</Text>
               <Text style={styles.reviewCount}>{aggregate.totalReviews} reviews</Text>
@@ -428,7 +428,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   centered: { alignItems: 'center', justifyContent: 'center' },
   errorText: { ...typography.body, color: colors.error, marginBottom: spacing.lg },
   header: {
@@ -436,6 +436,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -464,7 +465,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: spacing.lg,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     width: '100%',
@@ -482,7 +485,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   infoBadge: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
@@ -492,6 +497,17 @@ const styles = StyleSheet.create({
   infoBadgeText: { ...typography.caption, color: colors.textSecondary },
 
   section: { marginBottom: spacing.xl },
+  // App design refresh (2026-06) — titled sections sit in a white card that
+  // lifts off the soft canvas. Applied to sections whose body is not already
+  // made of its own per-row cards (About, Services, Availability).
+  sectionCard: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.lg,
+  },
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
   sectionHint: { ...typography.bodySmall, color: colors.textTertiary, marginTop: -spacing.sm, marginBottom: spacing.sm },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -544,16 +560,18 @@ const styles = StyleSheet.create({
   certRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
     marginBottom: spacing.sm,
   },
   certIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
@@ -605,8 +623,10 @@ const styles = StyleSheet.create({
   ratingBarValue: { ...typography.caption, color: colors.text, fontWeight: '600', width: 26, textAlign: 'right' },
 
   reviewCard: {
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.md,
   },
@@ -651,7 +671,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.base,
     paddingTop: spacing.md,
     borderTopWidth: 1,

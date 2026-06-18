@@ -98,7 +98,7 @@ export default function JobCompletionScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.lg },
   content: { flex: 1, alignItems: 'center' },
 
   iconCircle: {
@@ -117,20 +117,20 @@ const styles = StyleSheet.create({
 
   infoCard: {
     flexDirection: 'row',
-    backgroundColor: colors.successLight,
+    backgroundColor: colors.primaryLight,
     padding: spacing.base,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     marginBottom: spacing.md,
   },
   infoIcon: { fontSize: 20, marginRight: spacing.sm },
   infoIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },
-  infoText: { ...typography.bodySmall, color: colors.success, flex: 1 },
+  infoText: { ...typography.bodySmall, color: colors.primary, flex: 1 },
 
   autoConfirmCard: {
     flexDirection: 'row',
     backgroundColor: colors.warningLight,
     padding: spacing.base,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
   },
   autoConfirmIcon: { fontSize: 20, marginRight: spacing.sm },
   autoConfirmText: { ...typography.bodySmall, color: colors.warning, flex: 1 },

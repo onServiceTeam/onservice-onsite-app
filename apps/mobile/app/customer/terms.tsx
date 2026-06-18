@@ -299,11 +299,11 @@ export default function TermsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row', paddingHorizontal: spacing.base,
     paddingTop: spacing.md, gap: spacing.sm,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   tab: {
@@ -337,9 +337,9 @@ const styles = StyleSheet.create({
   introDate: { ...typography.caption, color: colors.textTertiary },
 
   sectionCard: {
-    backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.lg,
+    backgroundColor: colors.surface, borderRadius: borderRadius.lg,
     padding: spacing.base, marginBottom: spacing.sm,
-    borderWidth: 1, borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
   sectionHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
-import { Button, SkeletonCard } from '@/components/ui';
+import { Button, SkeletonCard, Card, TrustStrip } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDate, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -61,7 +61,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
         )}
 
         {booking && (
-          <View style={styles.detailsCard}>
+          <Card style={styles.detailsCard}>
             {booking.categoryName && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Service</Text>
@@ -84,8 +84,10 @@ export default function BookingConfirmScreen(): React.ReactElement {
               <Text style={styles.detailLabel}>Total</Text>
               <Text style={[styles.detailValue, { fontWeight: '700' }]}>{formatPHP(booking.totalAmount)}</Text>
             </View>
-          </View>
+          </Card>
         )}
+
+        <TrustStrip style={styles.trustStrip} />
 
         {/* Bug 834 — Phase 14 D04 SiguradoShield pull. Strips trademark; */}
         {/* the escrow guarantee is verifiable on its own. Tap target leads */}
@@ -102,7 +104,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
           </Text>
         </TouchableOpacity>
 
-        <View style={styles.stepsCard}>
+        <Card style={styles.stepsCard}>
           <Text style={styles.stepsTitle}>What happens next?</Text>
           <View style={styles.step}>
             <View style={styles.stepDot} />
@@ -122,7 +124,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
               Track your provider's status in real-time on booking day
             </Text>
           </View>
-        </View>
+        </Card>
       </View>
 
       <View style={styles.actions}>
@@ -166,7 +168,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: spacing.lg,
   },
   content: { flex: 1, alignItems: 'center' },
@@ -217,9 +219,10 @@ const styles = StyleSheet.create({
   errorText: { ...typography.bodySmall, color: colors.error, textAlign: 'center' as const },
 
   detailsCard: {
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
-    padding: spacing.base,
+    width: '100%',
+    marginBottom: spacing.lg,
+  },
+  trustStrip: {
     width: '100%',
     marginBottom: spacing.lg,
   },
@@ -233,19 +236,16 @@ const styles = StyleSheet.create({
 
   infoCard: {
     flexDirection: 'row' as const,
-    backgroundColor: colors.successLight,
+    backgroundColor: colors.primaryLight,
     padding: spacing.base,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     marginBottom: spacing.lg,
   },
   infoIcon: { fontSize: 20, marginRight: spacing.sm },
   infoIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },
-  infoText: { ...typography.bodySmall, color: colors.success, flex: 1 },
+  infoText: { ...typography.bodySmall, color: colors.primary, flex: 1 },
 
   stepsCard: {
-    backgroundColor: colors.backgroundSecondary,
-    padding: spacing.base,
-    borderRadius: borderRadius.lg,
     width: '100%',
   },
   stepsTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },

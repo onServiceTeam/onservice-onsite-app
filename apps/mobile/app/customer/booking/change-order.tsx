@@ -13,7 +13,7 @@ import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft, Wallet, Check } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
-import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { SkeletonCard, EmptyState, ErrorState, TrustStrip } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 
 const PAYMENT_METHOD = { id: 'wallet', label: 'Wallet Balance' } as const;
@@ -143,6 +143,8 @@ export default function ChangeOrderScreen(): React.ReactElement {
                 </Text>
               )}
           </View>
+
+          <TrustStrip style={styles.trustStrip} />
 
           <View style={styles.paymentFooter}>
             {payMutation.isPending ? (
@@ -287,8 +289,8 @@ export default function ChangeOrderScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
@@ -301,7 +303,7 @@ const styles = StyleSheet.create({
   emptyEmojiWrap: { marginBottom: spacing.md, alignItems: 'center' as const },
   emptyTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   emptyDesc: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-  orderCard: { backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border },
+  orderCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   badge: { paddingVertical: 4, paddingHorizontal: spacing.sm, borderRadius: borderRadius.sm },
   approvedBadge: { backgroundColor: colors.successLight },
@@ -323,17 +325,18 @@ const styles = StyleSheet.create({
   approveBtn: { flex: 2, paddingVertical: spacing.md, borderRadius: borderRadius.md, backgroundColor: colors.success, alignItems: 'center' },
   approveText: { ...typography.body, fontWeight: '700', color: colors.white },
   paymentCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginBottom: spacing.base,
     borderWidth: 1,
     borderColor: colors.primary,
   },
+  trustStrip: { marginBottom: spacing.base },
   paymentTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   paymentDesc: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.lg },
   paymentBreakdown: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceMuted,
     borderRadius: borderRadius.md,
     padding: spacing.base,
     marginBottom: spacing.lg,

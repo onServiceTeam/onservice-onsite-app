@@ -26,10 +26,10 @@ import { getActiveBookings, getRecentBookings } from '@/services/booking.service
 import { getAddresses, type SavedAddress } from '@/services/address.service';
 import api from '@/services/api';
 // A7 — shared UI kit for the top-level loading + error states.
-import { StatusBadge, Skeleton, ErrorState } from '@/components/ui';
+import { StatusBadge, Skeleton, ErrorState, TrustStrip } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
-import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import type { ComponentType } from 'react';
 import { Routes } from '@/config/navigation';
 import {
@@ -298,6 +298,8 @@ export default function HomeScreen(): React.ReactElement {
         <Text style={styles.searchPlaceholder}>Search services or providers...</Text>
       </Pressable>
 
+      <TrustStrip style={styles.trustStrip} />
+
       {/* Promo Carousel */}
       {promosError && (
         <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginHorizontal: 16, marginBottom: 8 }}>
@@ -366,14 +368,15 @@ export default function HomeScreen(): React.ReactElement {
 
   const renderCategoryItem = ({ item }: { item: Category }): React.ReactElement => {
     const Icon = CATEGORY_ICONS[item.slug] ?? CATEGORY_ICONS[(item.name ?? '').toLowerCase()] ?? Hammer;
+    const tint = getCategoryTint(item.slug);
     return (
       <TouchableOpacity
         style={styles.categoryItem}
         onPress={() => handleCategoryPress(item)}
         activeOpacity={0.7}
       >
-        <View style={styles.categoryIconBg}>
-          <Icon size={28} color={colors.primary} />
+        <View style={[styles.categoryIconBg, { backgroundColor: tint.bg }]}>
+          <Icon size={28} color={tint.fg} />
         </View>
         <Text style={styles.categoryLabel} numberOfLines={1}>
           {item.name}
@@ -575,7 +578,7 @@ export default function HomeScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   listContent: { paddingBottom: 20 },
 
   headerBar: {
@@ -583,8 +586,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingBottom: spacing.base,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceMuted,
   },
+  trustStrip: { marginHorizontal: spacing.base, marginBottom: spacing.base },
   avatarContainer: { marginRight: spacing.md },
   avatar: {
     width: 40,
@@ -663,12 +667,14 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     marginHorizontal: spacing.base,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   searchIcon: { fontSize: 16, marginRight: spacing.sm },
   searchIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const, justifyContent: 'center' as const },

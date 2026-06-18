@@ -232,7 +232,7 @@ export default function ProviderServiceAreaScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -249,8 +249,10 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: spacing.xl },
   summaryCard: {
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: spacing.base,
     marginBottom: spacing.md,
   },

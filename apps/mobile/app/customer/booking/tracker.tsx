@@ -197,7 +197,7 @@ export default function BookingTrackerScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   centered: { alignItems: 'center', justifyContent: 'center' },
   errorText: { ...typography.body, color: colors.error, marginBottom: spacing.lg },
   header: {
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   map: { flex: 1 },
 
   bottomSheet: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     padding: spacing.base,
@@ -242,9 +242,11 @@ const styles = StyleSheet.create({
   providerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.base,
+    borderRadius: borderRadius.lg,
     marginBottom: spacing.base,
   },
   providerAvatar: {

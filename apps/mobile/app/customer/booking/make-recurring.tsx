@@ -230,7 +230,7 @@ export default function MakeRecurringScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.base },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
   centered: { alignItems: 'center', justifyContent: 'center' },
   content: { flex: 1, alignItems: 'center' },
 
@@ -271,6 +271,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     borderWidth: 1.5,
     borderColor: colors.border,
+    backgroundColor: colors.surface,
     marginBottom: spacing.sm,
   },
   optionChipActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
@@ -285,9 +286,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     alignItems: 'center',
     borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.border,
   },
   dayChipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
   dayText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '500' },

@@ -39,6 +39,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { SectionHeader } from '@/components/ui';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
 import { CheckCircle2, Lock, MapPin, Phone, MessageSquare, AlertTriangle, ChevronLeft } from '@/components/icons';
@@ -158,7 +159,7 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
 
         {/* How we keep you safe */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>How we keep you safe</Text>
+          <SectionHeader title="How we keep you safe" />
           <View style={styles.cardsGrid}>
             {SAFETY_ITEMS.map((card) => {
               const CardIcon = card.icon;
@@ -175,7 +176,7 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
 
         {/* If you need help */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>If you need help</Text>
+          <SectionHeader title="If you need help" />
 
           <TouchableOpacity onPress={handleEmergencyCall} style={styles.emergencyButton} activeOpacity={0.8}>
             <AlertTriangle size={24} color={colors.white} />
@@ -204,7 +205,7 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
 
         {/* Tips for safe bookings */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tips for safe bookings</Text>
+          <SectionHeader title="Tips for safe bookings" />
           {TIPS.map((tip) => (
             <Accordion key={tip.q} title={tip.q}>
               <Text style={styles.faqAnswer}>{tip.a}</Text>
@@ -217,14 +218,14 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -258,10 +259,10 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '48%',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    borderWidth: 1,
+    padding: spacing.base,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   cardIconWrap: { marginBottom: spacing.xs, alignItems: 'flex-start' as const },
@@ -286,10 +287,10 @@ const styles = StyleSheet.create({
   supportButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     marginBottom: spacing.sm,
   },
@@ -304,10 +305,10 @@ const styles = StyleSheet.create({
   reportButtonText: { ...typography.body, color: colors.primary, fontWeight: '600' },
 
   accordionContainer: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     marginBottom: spacing.sm,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     overflow: 'hidden',
   },

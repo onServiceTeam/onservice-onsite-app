@@ -312,12 +312,13 @@ export default function ReviewScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -343,7 +344,9 @@ const styles = StyleSheet.create({
   expandArrow: { fontSize: 12, color: colors.primary },
 
   subRatingsContainer: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.lg,
@@ -368,7 +371,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.full,
     borderWidth: 1.5,
     borderColor: colors.border,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
   },
   tagChipSelected: {
     borderColor: colors.primary,

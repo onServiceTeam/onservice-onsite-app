@@ -14,7 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getSubcategories, type Subcategory } from '@/services/catalog.service';
 import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
-import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { Clock, ChevronLeft } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
@@ -50,6 +50,8 @@ export default function SubcategoryListScreen(): React.ReactElement {
     }
   };
 
+  const tint = getCategoryTint(slug);
+
   const renderItem = ({ item }: { item: Subcategory }): React.ReactElement => {
     const quoteBased = isQuoteBased(item);
     return (
@@ -64,9 +66,9 @@ export default function SubcategoryListScreen(): React.ReactElement {
             {item.description}
           </Text>
           {item.estimatedDurationMinutes != null && (
-            <View style={styles.durationRow}>
-              <Clock size={12} color={colors.textTertiary} />
-              <Text style={styles.duration}>{item.estimatedDurationMinutes} min</Text>
+            <View style={[styles.durationRow, { backgroundColor: tint.bg }]}>
+              <Clock size={12} color={tint.fg} />
+              <Text style={[styles.duration, { color: tint.fg }]}>{item.estimatedDurationMinutes} min</Text>
             </View>
           )}
         </View>
@@ -133,12 +135,13 @@ export default function SubcategoryListScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -148,7 +151,9 @@ const styles = StyleSheet.create({
   list: { padding: spacing.base },
   card: {
     flexDirection: 'row',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.md,
@@ -156,7 +161,15 @@ const styles = StyleSheet.create({
   cardContent: { flex: 1, marginRight: spacing.base },
   serviceName: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   serviceDesc: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.sm },
-  durationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  durationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
   duration: { ...typography.caption, color: colors.textTertiary },
   priceContainer: { alignItems: 'flex-end', justifyContent: 'center' },
   priceLabel: { ...typography.caption, color: colors.textTertiary, marginBottom: 2 },

@@ -18,8 +18,8 @@ import { updateBookingStatus } from '@/services/provider-api.service';
 import { useLocation } from '@/hooks/useLocation';
 import { getErrorMessage } from '@/utils/errors';
 // A7 — shared UI kit for loading/error states.
-import { SkeletonCard, ErrorState } from '@/components/ui';
-import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { SkeletonCard, ErrorState, SectionHeader } from '@/components/ui';
+import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import {
   ArrowLeft,
   MapPin,
@@ -58,6 +58,9 @@ export default function NavigateToJobScreen(): React.ReactElement {
   // contact on the navigate screen. Server now returns customerName
   // from a JOIN on users by booking.customer_id. Use it directly.
   const customerName = booking?.customerName ?? '(customer)';
+  // App design refresh — soft per-category accent for the location pin chip;
+  // falls back to brand teal for unknown categories.
+  const tint = getCategoryTint(booking?.categoryName);
   const fullAddressParts = booking
     ? [booking.address, booking.barangay, booking.city, booking.province].filter(Boolean)
     : [];
@@ -143,8 +146,8 @@ export default function NavigateToJobScreen(): React.ReactElement {
         )}
         {!bookingQuery.isLoading && !bookingQuery.isError && (
           <View style={styles.addressCard}>
-            <View style={styles.addressIconWrap}>
-              <MapPin size={22} color={colors.primary} />
+            <View style={[styles.addressIconWrap, { backgroundColor: tint.bg }]}>
+              <MapPin size={22} color={tint.fg} />
             </View>
             <View style={styles.addressInfo}>
               <Text style={styles.customerName}>{customerName}</Text>
@@ -153,7 +156,7 @@ export default function NavigateToJobScreen(): React.ReactElement {
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>Open in maps app</Text>
+        <SectionHeader title="Open in maps app" />
 
         <TouchableOpacity
           style={styles.mapBtn}
@@ -203,13 +206,14 @@ export default function NavigateToJobScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -220,11 +224,11 @@ const styles = StyleSheet.create({
   addressCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   addressIconWrap: {
@@ -239,11 +243,6 @@ const styles = StyleSheet.create({
   addressInfo: { flex: 1 },
   customerName: { ...typography.body, fontWeight: '700', color: colors.text, marginBottom: 4 },
   addressText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20 },
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
   mapBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -259,6 +258,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },

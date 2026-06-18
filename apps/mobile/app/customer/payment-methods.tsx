@@ -4,7 +4,8 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
+import { Card, SectionHeader, TrustStrip } from '@/components/ui';
 import type { ComponentType } from 'react';
 import { Smartphone, CreditCard, ScanLine, Wallet, Coins } from '@/components/icons';
 
@@ -47,21 +48,24 @@ export default function PaymentMethodsScreen(): React.ReactElement {
         </Text>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Available Payment Options</Text>
+      <TrustStrip style={styles.trustStrip} />
+
+      <Card style={styles.section}>
+        <SectionHeader title="Available Payment Options" />
         <Text style={styles.sectionDesc}>
           Choose any of these methods during checkout. Payment is processed securely at the time of booking.
         </Text>
 
         {AVAILABLE_METHODS.map((m) => {
           const MIcon = m.icon;
+          const tint = getCategoryTint(m.type);
           return (
             <TouchableOpacity
               key={m.type}
               style={styles.methodCard}
               onPress={(): void => { handleMethodInfo(m.label); }}
             >
-              <View style={styles.methodIconWrap}><MIcon size={24} color={colors.primary} /></View>
+              <View style={[styles.methodIconWrap, { backgroundColor: tint.bg }]}><MIcon size={24} color={tint.fg} /></View>
               <View style={styles.methodInfo}>
                 <Text style={styles.methodLabel}>{m.label}</Text>
                 <Text style={styles.methodDesc}>{m.desc}</Text>
@@ -70,7 +74,7 @@ export default function PaymentMethodsScreen(): React.ReactElement {
             </TouchableOpacity>
           );
         })}
-      </View>
+      </Card>
 
       <View style={styles.infoBox}>
         <Text style={styles.infoTitle}>How Payments Work</Text>
@@ -97,7 +101,7 @@ export default function PaymentMethodsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   content: { paddingBottom: spacing.xxl },
 
   header: { paddingHorizontal: spacing.base, paddingTop: spacing.xxl, paddingBottom: spacing.base },
@@ -106,12 +110,11 @@ const styles = StyleSheet.create({
   title: { ...typography.h2, color: colors.text },
   subtitle: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
 
+  trustStrip: { marginHorizontal: spacing.base, marginBottom: spacing.base },
+
   section: {
-    backgroundColor: colors.white,
     marginHorizontal: spacing.base,
     marginBottom: spacing.base,
-    borderRadius: borderRadius.lg,
-    padding: spacing.base,
   },
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   sectionDesc: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.md },
@@ -121,13 +124,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing.md,
     borderRadius: borderRadius.md,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     marginBottom: spacing.sm,
     gap: spacing.md,
   },
   methodIcon: { fontSize: 24 },
-  methodIconWrap: { alignItems: 'center' as const, justifyContent: 'center' as const, width: 28 },
+  methodIconWrap: {
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+  },
   escrowTitleRow: { flexDirection: 'row' as const, alignItems: 'center' as const, marginBottom: spacing.xs },
   methodInfo: { flex: 1 },
   methodLabel: { ...typography.body, fontWeight: '600', color: colors.text },
@@ -145,13 +154,13 @@ const styles = StyleSheet.create({
   infoText: { ...typography.bodySmall, color: colors.infoDark, lineHeight: 20 },
 
   escrowBox: {
-    backgroundColor: colors.successLight,
+    backgroundColor: colors.primaryLight,
     marginHorizontal: spacing.base,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
   },
-  escrowTitle: { ...typography.body, fontWeight: '600', color: colors.success, marginBottom: spacing.xs },
-  escrowText: { ...typography.bodySmall, color: colors.success, lineHeight: 20 },
+  escrowTitle: { ...typography.body, fontWeight: '600', color: colors.primary, marginBottom: spacing.xs },
+  escrowText: { ...typography.bodySmall, color: colors.primary, lineHeight: 20 },
 
   bottomSpacer: { height: 40 },
 });

@@ -191,7 +191,7 @@ export default function ProfileScreen(): React.ReactElement {
               onPress={item.onPress}
               activeOpacity={0.6}
             >
-              <View style={styles.menuIconWrap}><ItemIcon size={20} color={colors.text} /></View>
+              <View style={styles.menuIconWrap}><ItemIcon size={20} color={colors.primary} /></View>
               <Text style={styles.menuLabel}>{item.label}</Text>
               <ChevronRight size={20} color={colors.textTertiary} />
             </TouchableOpacity>
@@ -213,13 +213,15 @@ export default function ProfileScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.base },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
   content: { paddingBottom: 100 },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.lg },
   userCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: spacing.base,
     borderRadius: borderRadius.lg,
     marginBottom: spacing.lg,
@@ -241,7 +243,15 @@ const styles = StyleSheet.create({
   editButtonText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
   editForm: { flex: 1 },
   editActions: { flexDirection: 'row', gap: spacing.sm },
-  menu: { marginBottom: spacing.lg },
+  menu: {
+    marginBottom: spacing.lg,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.base,
+    overflow: 'hidden',
+  },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -251,7 +261,15 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   menuIcon: { fontSize: 20, marginRight: spacing.md, width: 28 },
-  menuIconWrap: { marginRight: spacing.md, width: 28, alignItems: 'center' as const },
+  menuIconWrap: {
+    marginRight: spacing.md,
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
   menuLabel: { ...typography.body, color: colors.text, flex: 1 },
   menuArrow: { fontSize: 22, color: colors.textTertiary },
   logoutButton: { marginBottom: spacing.base },

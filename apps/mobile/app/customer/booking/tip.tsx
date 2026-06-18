@@ -286,7 +286,7 @@ export default function TipScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.lg },
   content: { flex: 1, alignItems: 'center' },
 
   emoji: { fontSize: 64, marginBottom: spacing.base },
@@ -310,10 +310,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: spacing.md,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.border,
   },
   presetChipSelected: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   presetPercent: { ...typography.body, fontWeight: '600', color: colors.text },
@@ -323,8 +323,10 @@ const styles = StyleSheet.create({
   customInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
     width: '100%',
@@ -342,8 +344,8 @@ const styles = StyleSheet.create({
   messageLabel: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.xs },
   messageInput: {
     ...typography.body,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     color: colors.text,

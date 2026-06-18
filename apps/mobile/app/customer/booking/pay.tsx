@@ -25,7 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import { createPaymentIntent, getWalletBalance } from '@/services/payment.service';
-import { Button } from '@/components/ui';
+import { Button, TrustStrip } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatBookingRef } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
@@ -224,12 +224,14 @@ export default function PayExistingBookingScreen(): React.ReactElement {
 
         <View style={styles.escrowCard}>
           <View style={styles.escrowRow}>
-            <Lock size={16} color={colors.success} />
+            <Lock size={16} color={colors.primary} />
             <Text style={styles.escrowText}>
               Your payment is held in secure escrow until the job is completed.
             </Text>
           </View>
         </View>
+
+        <TrustStrip style={styles.trustStrip} />
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
@@ -250,7 +252,7 @@ export default function PayExistingBookingScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   centered: { justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
@@ -267,7 +269,9 @@ const styles = StyleSheet.create({
   scrollContent: { padding: spacing.base, paddingBottom: 120 },
 
   summaryCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: spacing.base,
     borderRadius: borderRadius.lg,
     marginBottom: spacing.lg,
@@ -289,11 +293,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.base,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
     marginBottom: spacing.sm,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.border,
   },
   methodSelected: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   methodIconWrap: { marginRight: spacing.md, width: 28, alignItems: 'center' as const },
@@ -309,16 +313,18 @@ const styles = StyleSheet.create({
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
 
   escrowCard: {
-    backgroundColor: colors.successLight,
+    backgroundColor: colors.primaryLight,
     padding: spacing.md,
     borderRadius: borderRadius.md,
     marginTop: spacing.md,
   },
   escrowRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  escrowText: { ...typography.caption, color: colors.success, flex: 1, lineHeight: 18 },
+  escrowText: { ...typography.caption, color: colors.primary, flex: 1, lineHeight: 18 },
+
+  trustStrip: { marginTop: spacing.md },
 
   bottomBar: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
     borderTopWidth: 1,

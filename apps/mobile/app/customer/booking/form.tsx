@@ -10,11 +10,11 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBookingStore } from '@/stores/booking.store';
-import { Button, Input } from '@/components/ui';
+import { Button, Input, Card } from '@/components/ui';
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
-import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { ChevronLeft, ChevronRight, MapPin } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
@@ -49,6 +49,7 @@ export default function BookingFormScreen(): React.ReactElement {
   const [notes, setNotes] = useState(draft.description);
 
   const dates = generateDates();
+  const tint = getCategoryTint(draft.categorySlug);
 
   const handleDateSelect = (date: string): void => {
     setSelectedDate(date);
@@ -91,9 +92,9 @@ export default function BookingFormScreen(): React.ReactElement {
         keyboardShouldPersistTaps="handled"
       >
         {/* Service summary */}
-        <View style={styles.serviceSummary}>
-          <Text style={styles.serviceName}>{draft.subcategoryName ?? 'Service'}</Text>
-          <Text style={styles.servicePrice}>{formatPHP(draft.basePrice)}</Text>
+        <View style={[styles.serviceSummary, { backgroundColor: tint.bg }]}>
+          <Text style={[styles.serviceName, { color: tint.fg }]}>{draft.subcategoryName ?? 'Service'}</Text>
+          <Text style={[styles.servicePrice, { color: tint.fg }]}>{formatPHP(draft.basePrice)}</Text>
         </View>
 
         {/* Address */}
@@ -178,7 +179,7 @@ export default function BookingFormScreen(): React.ReactElement {
         </View>
 
         {/* Price breakdown */}
-        <View style={styles.priceBreakdown}>
+        <Card style={styles.priceBreakdown}>
           <Text style={styles.priceTitle}>Price Breakdown</Text>
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Service Price</Text>
@@ -205,7 +206,7 @@ export default function BookingFormScreen(): React.ReactElement {
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>{formatPHP(total)}</Text>
           </View>
-        </View>
+        </Card>
       </ScrollView>
 
       {/* Bottom CTA */}
@@ -221,7 +222,7 @@ export default function BookingFormScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -259,9 +260,11 @@ const styles = StyleSheet.create({
   addressButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     padding: spacing.base,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
   },
   addressIcon: { fontSize: 18, marginRight: spacing.sm },
   addressText: { ...typography.body, color: colors.text, flex: 1 },
@@ -273,9 +276,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm + 2,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.border,
   },
   dateChipSelected: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
   dateLabel: { ...typography.bodySmall, color: colors.textSecondary },
@@ -286,9 +289,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm + 2,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.border,
   },
   timeChipSelected: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
   timeLabel: { ...typography.bodySmall, color: colors.textSecondary },
@@ -296,11 +299,7 @@ const styles = StyleSheet.create({
 
   notesInput: { height: 80, textAlignVertical: 'top' },
 
-  priceBreakdown: {
-    backgroundColor: colors.backgroundSecondary,
-    padding: spacing.base,
-    borderRadius: borderRadius.lg,
-  },
+  priceBreakdown: {},
   priceTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
   priceRow: {
     flexDirection: 'row',

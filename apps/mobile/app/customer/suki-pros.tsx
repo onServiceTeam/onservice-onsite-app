@@ -11,7 +11,7 @@ import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
 import { Sparkle, Star, Award, Crown, Heart, ChevronLeft } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
-import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { SkeletonCard, EmptyState, ErrorState, SectionHeader } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 
 type IconProps = { size?: number; color?: string };
@@ -258,9 +258,7 @@ export default function SukiProsScreen(): React.ReactElement {
             />
           ) : (
             <>
-              <Text style={styles.sectionTitle}>
-                Your Providers ({memberships?.length ?? 0})
-              </Text>
+              <SectionHeader title={`Your Providers (${memberships?.length ?? 0})`} />
               {memberships?.map((m) => (
                 <MembershipCard
                   key={m.id}
@@ -279,7 +277,7 @@ export default function SukiProsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
@@ -293,13 +291,13 @@ const styles = StyleSheet.create({
   heroEmojiWrap: { marginBottom: spacing.sm, alignItems: 'center' as const },
   heroTitle: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 6 },
   heroDesc: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-  tiersCard: { backgroundColor: colors.white, borderRadius: 16, padding: spacing.base, borderWidth: 1, borderColor: colors.border, marginBottom: 20 },
+  tiersCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, marginBottom: 20 },
   tiersTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
   tierRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   tierName: { fontSize: 14, fontWeight: '600', color: colors.text },
   tierReq: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
-  memberCard: { backgroundColor: colors.white, borderRadius: 16, padding: spacing.base, borderWidth: 1, borderColor: colors.border, marginBottom: 14 },
+  memberCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, marginBottom: 14 },
   memberHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.md },
   providerName: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 6 },
   tierBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', paddingVertical: 3, paddingHorizontal: spacing.sm, borderRadius: borderRadius.sm, borderWidth: 1 },
@@ -318,7 +316,7 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', backgroundColor: colors.info, borderRadius: 3 },
   redeemSection: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md },
   redeemRow: { flexDirection: 'row', gap: spacing.sm },
-  redeemInput: { width: 80, backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.md, padding: 10, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, textAlign: 'center' },
+  redeemInput: { width: 80, backgroundColor: colors.surfaceMuted, borderRadius: borderRadius.md, padding: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, fontSize: 14, color: colors.text, textAlign: 'center' },
   redeemBtn: { flex: 1, borderRadius: borderRadius.md, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
   redeemBtnDisabled: { opacity: 0.5 },
   redeemBtnText: { fontSize: 13, fontWeight: '700', color: colors.white },

@@ -40,6 +40,10 @@ export const colors = {
   background: '#FFFFFF',
   backgroundSecondary: '#F9FAFB',
   surface: '#FFFFFF',
+  // App design refresh (2026-06) — the soft canvas a screen sits on so white
+  // cards lift off the page. Use as a screen-root background; cards stay
+  // `surface` (white) with a `border` hairline.
+  surfaceMuted: '#F3F5F8',
 
   // BUG-PHASE94-01 — `founding` is the invite-only launch-batch tier
   // (10% commission). It existed in platformConfig.commissionRates and
@@ -60,6 +64,31 @@ export const colors = {
   statusDisputed: '#EF4444',
   statusCancelled: '#9CA3AF',
 } as const;
+
+// App design refresh (2026-06) — soft per-category tints for service tiles,
+// icon chips, and accents. Each pair is a light fill + its own dark-enough text
+// color from the same family (passes contrast). Keyed by category slug; falls
+// back to the brand teal for unknown categories. See getCategoryTint().
+export const categoryTints: Record<string, { bg: string; fg: string }> = {
+  cleaning: { bg: '#E1F5EE', fg: '#0F6E56' },
+  aircon: { bg: '#E6F1FB', fg: '#185FA5' },
+  'aircon-services': { bg: '#E6F1FB', fg: '#185FA5' },
+  plumbing: { bg: '#FAEEDA', fg: '#854F0B' },
+  electrical: { bg: '#FBEAF0', fg: '#993556' },
+  carpentry: { bg: '#FAECE7', fg: '#993C1D' },
+  painting: { bg: '#EEEDFE', fg: '#534AB7' },
+  pest: { bg: '#EAF3DE', fg: '#3B6D11' },
+  'pest-control': { bg: '#EAF3DE', fg: '#3B6D11' },
+  appliance: { bg: '#E6F1FB', fg: '#185FA5' },
+  'appliance-repair': { bg: '#E6F1FB', fg: '#185FA5' },
+  moving: { bg: '#FAEEDA', fg: '#854F0B' },
+  'general-maintenance': { bg: '#F1EFE8', fg: '#5F5E5A' },
+};
+
+export function getCategoryTint(slug?: string | null): { bg: string; fg: string } {
+  const key = (slug ?? '').toLowerCase();
+  return categoryTints[key] ?? { bg: colors.primaryLight, fg: colors.primary };
+}
 
 export const spacing = {
   xs: 4,

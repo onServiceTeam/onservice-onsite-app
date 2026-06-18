@@ -254,12 +254,14 @@ export default function WithdrawScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  // App design refresh — soft canvas behind the white cards and inputs.
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -292,14 +294,16 @@ const styles = StyleSheet.create({
   maxText: { ...typography.bodySmall, color: colors.secondary, fontWeight: '600' },
 
   methodGrid: { flexDirection: 'row', gap: spacing.sm },
+  // App design refresh — white surface tiles with a hairline border so they
+  // lift off the soft canvas. The active state below overrides the border.
   methodCard: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: spacing.base,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.border,
   },
   methodCardActive: { borderColor: colors.secondary, backgroundColor: colors.successLight },
   methodIcon: { marginBottom: spacing.xs },
@@ -307,7 +311,7 @@ const styles = StyleSheet.create({
   methodLabelActive: { color: colors.secondary },
 
   bottomBar: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
     borderTopWidth: 1,

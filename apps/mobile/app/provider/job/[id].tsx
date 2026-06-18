@@ -17,14 +17,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import { updateBookingStatus } from '@/services/provider-api.service';
 // A7 — shared UI kit for loading + error states + toast feedback.
-import { Badge, Button, Skeleton, ErrorState } from '@/components/ui';
+import { Button, Skeleton, ErrorState, Card, SectionHeader, StatusBadge } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
 // Phase E CRIT-101 — commission table for tier-based net earnings.
 import { platformConfig } from '@/config/platform.config';
 import { formatDateTime, formatRelative, formatBookingRef } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
-import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { MapIcon, ChevronLeft } from '@/components/icons';
 import { useLocation } from '@/hooks/useLocation';
 
@@ -42,15 +42,6 @@ const STATUS_LABELS: Record<string, string> = {
   payout_ready: 'Payout Ready',
   paid_out: 'Paid Out',
 };
-
-function getStatusColor(status: string): string {
-  if (['matched', 'paid', 'payment_pending'].includes(status)) return colors.statusConfirmed;
-  if (['provider_en_route', 'provider_arrived', 'in_progress'].includes(status)) return colors.statusInProgress;
-  if (['completed_by_provider', 'confirmed', 'payout_ready', 'paid_out', 'resolved'].includes(status)) return colors.statusCompleted;
-  if (status.startsWith('cancelled')) return colors.statusCancelled;
-  if (status === 'disputed') return colors.statusDisputed;
-  return colors.statusPending;
-}
 
 const NEXT_STATUS: Record<string, { status: string; label: string; confirm?: string }> = {
   paid: { status: 'provider_en_route', label: 'Start Navigation', confirm: 'Are you heading to the job location?' },
@@ -227,6 +218,9 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   }
 
   const nextAction = NEXT_STATUS[booking.status];
+  // App design refresh — soft per-category accent for the "Open in Maps"
+  // action chip; falls back to brand teal for unknown categories.
+  const navTint = getCategoryTint(booking.categoryName);
   const canCancel = ['matched', 'paid', 'provider_en_route'].includes(booking.status);
   const isActiveJob = ['paid', 'provider_en_route', 'provider_arrived', 'in_progress'].includes(booking.status);
   const canSubmitQuote = booking.bookingType === 'quote_based' && booking.status === 'requested';
@@ -243,11 +237,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.statusCard}>
-          <Badge
-            label={STATUS_LABELS[booking.status] ?? booking.status.replace(/_/g, ' ')}
-            backgroundColor={getStatusColor(booking.status)}
-            size="md"
-          />
+          <StatusBadge status={booking.status} size="md" />
           <Text style={styles.bookingId}>#{formatBookingRef(booking.id, booking.createdAt)}</Text>
         </View>
 
@@ -255,11 +245,11 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           {STATUS_LABELS[booking.status] ?? booking.status.replace(/_/g, ' ')}
         </Text>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Service</Text>
+        <Card style={styles.card}>
+          <SectionHeader title="Service" />
           <Text style={styles.serviceName}>{booking.serviceName ?? booking.categoryName ?? 'Service'}</Text>
           {booking.description && <Text style={styles.serviceDesc}>{booking.description}</Text>}
-        </View>
+        </Card>
 
         {/* BUG-PHASE80-01 fix — pre-fix the provider job detail
             screen had no Customer section. Provider had to remember
@@ -268,30 +258,30 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
             booking response; surface it here as a top-of-mind
             section so the provider sees who the booking is for. */}
         {booking.customerName && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Customer</Text>
+          <Card style={styles.card}>
+            <SectionHeader title="Customer" />
             <Text style={styles.detailText}>{booking.customerName}</Text>
-          </View>
+          </Card>
         )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Schedule</Text>
+        <Card style={styles.card}>
+          <SectionHeader title="Schedule" />
           <Text style={styles.detailText}>{formatDateTime(booking.scheduledAt)}</Text>
           <Text style={styles.relativeText}>{formatRelative(booking.scheduledAt)}</Text>
-        </View>
+        </Card>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Location</Text>
+        <Card style={styles.card}>
+          <SectionHeader title="Location" />
           <Text style={styles.detailText}>
             {[booking.address, booking.barangay, booking.city].filter(Boolean).join(', ')}
           </Text>
           {booking.latitude && booking.longitude && (
-            <TouchableOpacity onPress={handleNavigate} style={styles.navigateButton}>
-              <View style={styles.navigateIconWrap}><MapIcon size={20} color={colors.primary} /></View>
-              <Text style={styles.navigateText}>Open in Maps</Text>
+            <TouchableOpacity onPress={handleNavigate} style={[styles.navigateButton, { backgroundColor: navTint.bg }]}>
+              <View style={styles.navigateIconWrap}><MapIcon size={20} color={navTint.fg} /></View>
+              <Text style={[styles.navigateText, { color: navTint.fg }]}>Open in Maps</Text>
             </TouchableOpacity>
           )}
-        </View>
+        </Card>
 
         {/* Phase E CRIT-101 fix — Earnings section now shows the
              real breakdown: gross Service Price → tier-specific
@@ -304,8 +294,8 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           const net = booking.servicePrice - commissionAmount;
           const tierPct = Math.round(tierRate * 100);
           return (
-            <View style={styles.earningsSection}>
-              <Text style={styles.sectionTitle}>Earnings</Text>
+            <Card style={styles.card}>
+              <SectionHeader title="Earnings" />
               <View style={styles.earningsRow}>
                 <Text style={styles.earningsLabel}>Service Price</Text>
                 <Text style={styles.earningsValue}>
@@ -328,7 +318,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
               <Text style={styles.earningsNote}>
                 {`${tierPct}% commission deducted automatically when payment is released. Earn higher tier for lower commission.`}
               </Text>
-            </View>
+            </Card>
           );
         })()}
       </ScrollView>
@@ -426,7 +416,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   centered: { alignItems: 'center', justifyContent: 'center' },
   errorText: { ...typography.body, color: colors.error, marginBottom: spacing.lg },
   header: {
@@ -452,15 +442,7 @@ const styles = StyleSheet.create({
   bookingId: { ...typography.caption, color: colors.textTertiary, fontWeight: '600' },
   statusMessage: { ...typography.h2, color: colors.text, marginBottom: spacing.lg },
 
-  section: { marginBottom: spacing.lg },
-  sectionTitle: {
-    ...typography.caption,
-    color: colors.textTertiary,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
+  card: { marginBottom: spacing.base },
   serviceName: { ...typography.h3, color: colors.text },
   serviceDesc: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
   detailText: { ...typography.body, color: colors.text },
@@ -471,19 +453,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.backgroundSecondary,
     padding: spacing.md,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     marginTop: spacing.sm,
   },
   navigateIcon: { fontSize: 20, marginRight: spacing.sm },
   navigateIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },
   navigateText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
 
-  earningsSection: {
-    backgroundColor: colors.backgroundSecondary,
-    padding: spacing.base,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.lg,
-  },
   earningsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

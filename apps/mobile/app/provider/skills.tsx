@@ -61,7 +61,7 @@ export default function ProviderSkillsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   body: {
     flex: 1,
     alignItems: 'center',

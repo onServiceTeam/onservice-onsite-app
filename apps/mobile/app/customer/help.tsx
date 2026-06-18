@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { SectionHeader } from '@/components/ui';
 import { Mail, Phone, MessageSquare, ChevronLeft } from '@/components/icons';
 import { fetchCancellationPolicy, policyToHelpAnswer } from '@/utils/cancellation-policy';
 import { platformConfig } from '@/config/platform.config';
@@ -148,7 +149,7 @@ export default function HelpScreen(): React.ReactElement {
              it through to render. */}
         {sections.map((section) => (
           <View key={section.title} style={styles.section}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <SectionHeader title={section.title} />
             {section.items.map((item, i) => {
               const key = `${section.title}-${i}`;
               const isOpen = expanded === key;
@@ -215,12 +216,13 @@ export default function HelpScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -242,11 +244,11 @@ const styles = StyleSheet.create({
   section: { marginBottom: spacing.lg },
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
   faqItem: {
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.sm,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   faqHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
@@ -265,10 +267,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.sm,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   contactBtnIcon: { fontSize: 22, marginRight: spacing.base },

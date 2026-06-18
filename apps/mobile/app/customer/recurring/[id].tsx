@@ -352,7 +352,7 @@ function DetailRow({ label, value }: { label: string; value: string }): React.Re
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   content: { paddingBottom: spacing.xxl },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   backBtn: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
@@ -379,11 +379,13 @@ const styles = StyleSheet.create({
   servicePrice: { ...typography.price, color: colors.primary },
 
   detailSection: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     marginHorizontal: spacing.base,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.base,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   detailRow: {
     flexDirection: 'row',
@@ -427,10 +429,12 @@ const styles = StyleSheet.create({
   toggleText: { ...typography.body, color: colors.primary, fontWeight: '600' },
 
   instancesSection: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     marginHorizontal: spacing.base,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   noInstances: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
   // BUG-PHASE182-01 fix — helper text under the empty history state.
@@ -457,7 +461,7 @@ const styles = StyleSheet.create({
   bottomSpacer: { height: 40 },
 
   cancelForm: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     marginHorizontal: spacing.base,
     marginBottom: spacing.base,
     borderRadius: borderRadius.lg,
@@ -469,7 +473,7 @@ const styles = StyleSheet.create({
   cancelFormSubtitle: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.md, lineHeight: 20 },
   cancelInput: {
     ...typography.body,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surfaceMuted,
     borderRadius: borderRadius.md,
     padding: spacing.md,
     minHeight: 80,
