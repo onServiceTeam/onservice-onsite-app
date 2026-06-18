@@ -6,6 +6,7 @@ import * as paymentService from '../services/payment.service';
 import * as walletService from '../services/wallet.service';
 import * as escrowService from '../services/escrow.service';
 import * as bookingService from '../services/booking.service';
+import * as bookingOfferService from '../services/booking-offer.service';
 import { createAppError } from '../middleware/error.middleware';
 import { canTransition, BookingStatus } from '../types/booking.types';
 import { db } from '../models/db';
@@ -81,6 +82,10 @@ router.post(
             Number(booking.total_amount),
           );
         });
+
+        // Instant-pay: now that the booking is paid, make sure it is being
+        // offered to a provider (no-op if one is already assigned/pending).
+        await bookingOfferService.dispatchPaidBookingIfNeeded(bookingId);
 
         res.status(201).json({
           success: true,

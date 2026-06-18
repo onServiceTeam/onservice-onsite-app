@@ -112,8 +112,11 @@ export async function kickOfferCycle(bookingId: string): Promise<OfferRow | null
   }
 
   // Status guard — only kick from these stages so we don't restart
-  // an offer cycle for a booking already past dispatch.
-  const validStartStatuses = new Set(['requested', 'matched']);
+  // an offer cycle for a booking already in service. 'payment_pending' and
+  // 'paid' are included for the fixed-price INSTANT-PAY flow, where the customer
+  // pays before a provider is matched, so the offer cycle has to be able to run
+  // (and the cron sweep to re-run) on an already-paid-but-unmatched booking.
+  const validStartStatuses = new Set(['requested', 'matched', 'payment_pending', 'paid']);
   if (!validStartStatuses.has(bk.status)) {
     throw createAppError(
       `Cannot start offer cycle from status "${bk.status}". Allowed: ${[...validStartStatuses].join(', ')}.`,
@@ -204,6 +207,38 @@ export async function kickOfferCycle(bookingId: string): Promise<OfferRow | null
 }
 
 /**
+ * Fixed-price INSTANT-PAY safety net: once a booking is paid, make sure it is
+ * actually being offered to a provider. Auto-dispatch normally kicks the offer
+ * cycle at booking creation (when auto_dispatch_enabled is on), but instant-pay
+ * has no "find me a provider" step, so a paid booking could otherwise sit
+ * unmatched if that toggle is off or the create-time dispatch found no one yet.
+ * Best-effort and idempotent: skips if a provider is already assigned, if an
+ * offer is already pending, or if the booking lacks coordinates. Never throws
+ * into the payment / webhook path.
+ */
+export async function dispatchPaidBookingIfNeeded(bookingId: string): Promise<void> {
+  try {
+    const row = (await db.query<{ provider_id: string | null; latitude: string | null; longitude: string | null }>(
+      `SELECT provider_id, latitude, longitude FROM bookings WHERE id = $1`,
+      [bookingId],
+    )).rows[0];
+    if (!row) return;
+    if (row.provider_id) return;                 // already matched to a provider
+    if (!row.latitude || !row.longitude) return; // can't offer without a location
+    const pending = await db.query(
+      `SELECT 1 FROM booking_offers WHERE booking_id = $1 AND status = 'pending' LIMIT 1`,
+      [bookingId],
+    );
+    if (pending.rows.length > 0) return;         // an offer is already out
+    await kickOfferCycle(bookingId);
+  } catch (err) {
+    logger.warn('dispatchPaidBookingIfNeeded failed (non-fatal)', {
+      bookingId, error: (err as Error).message,
+    });
+  }
+}
+
+/**
  * Provider accepts an offer. Atomically:
  *   1. Mark offer accepted
  *   2. Set bookings.provider_id + bookings.status='matched'
@@ -254,9 +289,17 @@ export async function acceptOffer(
         WHERE booking_id=$1 AND id<>$2 AND status='pending'`,
       [offer.booking_id, offerId]);
 
+    // Assign the provider. Advance to 'matched' ONLY if the booking hasn't been
+    // paid yet (quote-based / match-first flow). Under fixed-price INSTANT-PAY
+    // the customer may already have paid by the time a provider accepts, so the
+    // booking is 'payment_pending'/'paid'/beyond — in that case we must keep the
+    // existing status and just record the provider, never reset it to 'matched'
+    // (that would corrupt the money state and re-demand payment). E03, 2026-06-16.
     await client.query(
       `UPDATE bookings
-          SET provider_id=$1, status='matched', updated_at=NOW()
+          SET provider_id=$1,
+              status = CASE WHEN status IN ('requested','quoted') THEN 'matched' ELSE status END,
+              updated_at=NOW()
         WHERE id=$2`,
       [offer.provider_id, offer.booking_id]);
 
