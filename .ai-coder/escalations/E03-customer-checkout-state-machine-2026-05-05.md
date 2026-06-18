@@ -231,3 +231,15 @@ Because it touches the money path (escrow held on an unmatched booking), I am NO
 landing it autonomously — this needs Ken's explicit go, and given the money path,
 it should land on a topic branch + PR per the operating-mode exception, not direct
 to master. Re-surfaced to Ken in chat 2026-06-16.
+
+## RESOLVED — 2026-06-19
+
+Ken chose Option A (instant pay). Implemented and shipped: `requested ->
+payment_pending` restored, `acceptOffer` made payment-safe (never clobbers a paid
+booking back to `matched`), `kickOfferCycle` may start from payment_pending/paid,
+and a payment-time dispatch safety net (`dispatchPaidBookingIfNeeded`) added to the
+wallet path and the card webhook. Behavioral tests added (state machine, payment
+intent 201-not-409, accept-offer no-clobber). Full API suite green (266 suites /
+2922 tests). Merged via PR #44 (commit 865f55e) and deployed to the live server
+(verified `requested: [... 'payment_pending' ...]` in the running image). Checkout
+no longer 409s on "Pay." This escalation is closed.

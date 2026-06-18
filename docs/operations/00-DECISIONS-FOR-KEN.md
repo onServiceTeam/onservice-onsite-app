@@ -48,11 +48,11 @@ These came from checking the code while writing. I have not changed them yet. Tw
 - **F2. Guarantee-fund base — VERIFIED, NOT a money bug (cleared 2026-06-19).** Both `commission.service` and `escrow.service` fund the guarantee fund the same way (service fee times 1.5%), the actual escrow money movements conserve money exactly (proven by the money-conservation tests), and the admin financial reports read the real wallet balances, so the books do not drift. The only finding is cosmetic: the field `platformRetains` means "gross take (including the guarantee that gets reserved later)" in `commission.service` (used in the price preview) but "net of the guarantee" in `escrow.service` (the actual revenue credit). Same name, two consistent views. **No money fix needed. Optional, low priority: rename one of them for clarity.**
 - **F3. Granular admin roles do not restrict anything.** Any `admin` can reach refund and payout buttons. **Recommended disposition: wire the money actions behind a finance/super-admin gate before launch; support agents get a limited admin login.**
 - **F4. Placeholder support hotline in the app** (`+63 2 8123 4567`). **Recommended disposition: provision a real number, or remove the placeholder from the app before customers see it.**
-- **F5. Instant-pay (E03) not merged.** Fix is on branch `fix/e03-instant-pay-money-path` (PR #44), awaiting your go to merge and deploy. Until then checkout errors on "Pay."
+- **F5. Instant-pay (E03) — DONE (2026-06-19).** PR #44 merged to master and the API deployed to the live server (verified in the running image). Checkout no longer errors on "Pay"; a fixed-price booking is paid into escrow and a provider is matched after. E03 closed.
 
 ---
 
 ## What to do with this page
 
 - Skim sections A to C. Anything you would change, change it (here and in the named document). Everything left as-is is the working default.
-- For section D, tell me which items to act on. I will verify F1 and F2 in the code and report before changing anything on the money path. F3 and F4 I can prepare as pre-launch fixes. F5 just needs your merge approval.
+- Section D status: F2 cleared (not a bug), F5 done (instant-pay merged and deployed). F1 is verified real and needs your decision (which system is canonical + the final bracket numbers) before I build the fix. F3 (gate money actions behind a finance/super-admin role) and F4 (replace or remove the placeholder hotline) are pre-launch fixes I can do next on your word.
