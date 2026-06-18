@@ -2,17 +2,17 @@
 
 Purpose: a step-by-step playbook for sourcing and recruiting providers to launch and grow a service area, starting with Metro Cebu (Cebu City, Mandaue, Lapu-Lapu, Talisay).
 
-Related docs: hand applicants to `04-provider-vetting-and-filtering.md` once they apply. Onboarding and first-job support live in `05-provider-onboarding-and-training.md`. Recruiting targets feed the launch readiness tracked in `08-dispatch-and-live-operations.md`. KPIs in `12-quality-standards-and-kpis.md`. Message templates also live in `13-policies-codes-and-templates.md`.
+Related docs: hand applicants to `04-provider-vetting-and-filtering.md` once they apply. Onboarding and first-job support live in `05-provider-onboarding-and-training.md`. Recruiting targets feed the launch readiness tracked in `08-dispatch-and-live-operations.md`. KPIs live in `12-quality-standards-and-kpis.md`. Message templates also live in `13-policies-codes-and-templates.md`.
 
 ---
 
 ## 1. What recruiting has to deliver
 
-We win on trust, not on price. The pitch to every provider is: you join a platform that customers already trust because we ID-verify and NBI-check every pro, hold payment in escrow until the job is confirmed, and let ratings build your reputation. The provider gets steady, pre-paid jobs without chasing payment.
+We win on trust, not on price. The pitch to every provider is simple: you join a platform customers already trust because we ID-verify and NBI-check every pro, hold payment in escrow until the job is confirmed, and let ratings build your reputation. The provider gets steady, pre-paid jobs without chasing payment.
 
-Recruiting is done. Vetting is separate (see `04-provider-vetting-and-filtering.md`). Your job in recruiting is to get qualified people to submit a complete application in the mobile app. Approving them is not your call.
+Recruiting and vetting are separate jobs. Your job in recruiting is to get qualified people to submit a complete application in the mobile app. Approving them is not your call (see `04-provider-vetting-and-filtering.md`).
 
-### The INSTANT-PAY model (say this correctly to providers)
+### The pre-paid escrow model (say this correctly to providers)
 
 Customers pay first, into escrow, and a provider is matched after. A provider never has to collect cash or wait for the customer to pay. When you accept a job, the money is already held. After the job is confirmed (or auto-confirmed 24 hours after you mark it done), your share lands in your in-app wallet, and you withdraw to GCash, Maya, or bank.
 
@@ -41,7 +41,7 @@ Before you start outreach in a new area, confirm with the admin/ops lead:
 
 The platform floor is `min_providers_to_launch` (default 5) for the whole area. That is the minimum to turn the area `active`. It is not enough to give customers a real choice or to cover demand peaks. Use these working targets.
 
-ASSUMPTION (starting targets to tune, the app does not define per-category headcount):
+The app does not define per-category headcount, so these are starting targets to tune against real data.
 
 | Stage | Per launch category | Why |
 |---|---|---|
@@ -52,10 +52,12 @@ ASSUMPTION (starting targets to tune, the app does not define per-category headc
 Notes that come from how dispatch actually works:
 
 - Offers go out one provider at a time, 45 seconds each, up to 10 attempts before the customer is told "no provider available." Thin supply means dead air for the customer. Aim past the floor.
-- Only `approved` AND available (online) providers get offers. Recruiting 8 does not mean 8 online. Plan for roughly 60 to 70 percent online at any time. ASSUMPTION, tune against real availability data.
+- Only `approved` AND available (online) providers get offers. Recruiting 8 does not mean 8 online. Plan for roughly 60 to 70 percent online at any time (tune against real availability data).
 - Recruit a few extra above target because vetting will reject some. Budget for a 50 to 60 percent application-to-approval rate (see the funnel in section 6).
 
-DECIDE (Ken): do we hold an area at `soft_launch` until each launch category hits the healthy 8 to 12, or flip to `active` the moment the 5-floor is met area-wide. Recommendation: hold for at least 5 per category in each launch category, then soft-launch, then go active at 8 in the lead category.
+> **Set (editable):** hold an area at `soft_launch` until each launch category reaches at least 5 approved providers, then flip the area to `active` once the lead category reaches 8 approved. The 5-floor area-wide alone is not enough to go `active`. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+These go-live numbers (5 to soft-launch a category, 8 in the lead category to go active) mirror the area go-live rule used across the handbook. Keep them in sync.
 
 ---
 
@@ -65,7 +67,7 @@ Work these in roughly this order. The first three are highest trust and lowest c
 
 ### 4.1 Existing-provider referrals (highest quality, build this early)
 
-Once you have even five good providers, they are your best recruiters. Trusted tradespeople know other trusted tradespeople. Referral incentive structure is in section 8.
+Once you have even five good providers, they are your best recruiters. Trusted tradespeople know other trusted tradespeople. The referral incentive structure is in section 8.
 
 ### 4.2 Barangay and community referrals
 
@@ -140,8 +142,8 @@ Gusto mo bang mag-apply? Tutulungan kita.
 ```
 Hi [name], you've been doing great work on onService. We're looking for
 more good [category] pros in [city]. Kung may kakilala kang reliable,
-i-refer mo sa amin. May [DECIDE: amount] reward ka pag na-approve sila at
-natapos ang first [N] jobs. Reply REFER for details.
+i-refer mo sa amin. May ₱500 reward ka pag na-approve sila at natapos
+ang first 3 jobs. Reply REFER for details.
 ```
 
 ### 5.4 TESDA / trade-school info-session blurb
@@ -164,7 +166,7 @@ The application happens entirely in the mobile app. You guide people to it and h
 
 1. Role select (provider)
 2. Business name + service categories (1 to 10 categories)
-3. Documents: Government ID front, Government ID back, NBI clearance (must be within last 6 months)
+3. Documents: government ID front, government ID back, NBI clearance (must be within last 6 months)
 4. Selfie
 5. Terms (accepts the Independent Contractor agreement and submits)
 
@@ -184,7 +186,7 @@ Optional but helpful: NBI expiry date and government ID number.
 
 ### Funnel stages and starting conversion targets
 
-ASSUMPTION (no funnel rates are defined in the app; these are starting targets to tune against real data):
+No funnel rates are defined in the app, so these are starting targets to tune against real data.
 
 | Stage | What it means | Target rate |
 |---|---|---|
@@ -219,7 +221,7 @@ Run recruiting as a weekly loop per area. Numbers below are per recruiter per we
 
 ### Starting weekly targets per launch category (per recruiter)
 
-ASSUMPTION (starting targets, tune after two weeks):
+Starting targets, tune after two weeks of live numbers.
 
 | Activity | Weekly target |
 |---|---|
@@ -244,13 +246,13 @@ A single recruiter pushing one category at these rates clears the 5-floor in abo
 
 Existing-provider referrals are the cheapest, highest-quality channel. Reward on a real outcome, not just a signup, so people do not farm the bonus.
 
-DECIDE (Ken, set the peso amounts and rules):
+> **Set (editable):** ₱500 to the referrer plus a ₱300 welcome bonus to the new provider, both paid after the new provider completes 3 jobs, capped at 10 paid referrals per referrer per month. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-| Lever | Recommendation (PHP) | Notes |
+| Lever | Value (PHP) | Notes |
 |---|---|---|
-| Referrer reward | ₱500 | Paid after the referred provider is approved AND completes their first [N] jobs |
-| Referred-provider welcome bonus | ₱300 | Paid after their first [N] jobs; gives the referred person a reason to finish onboarding |
-| Qualifying jobs (N) | 3 jobs | Matches the strategic 3-job probation; proves the person is real and active |
+| Referrer reward | ₱500 | Paid after the referred provider is approved AND completes their first 3 jobs |
+| Referred-provider welcome bonus | ₱300 | Paid after their first 3 jobs; gives the referred person a reason to finish onboarding |
+| Qualifying jobs | 3 jobs | Matches the 3-job probation; proves the person is real and active |
 | Cap per referrer | 10 paid referrals per month | Stops farming; revisit as supply grows |
 | Payout method | Credited to provider wallet | Reuses the existing wallet/withdrawal path; no new money rail needed |
 
@@ -259,10 +261,10 @@ Why pay on completed jobs, not signup: a signup costs us nothing if the person n
 Recommended copy for the reward terms (provider-facing):
 
 ```
-Refer a pro, earn ₱[DECIDE]. When someone you refer gets approved and
-finishes their first [N] jobs on onService, you get ₱[DECIDE] in your
-wallet and they get ₱[DECIDE] too. Up to [cap] referrals a month. They
-must pass our ID and NBI checks like everyone else.
+Refer a pro, earn ₱500. When someone you refer gets approved and finishes
+their first 3 jobs on onService, you get ₱500 in your wallet and they get
+₱300 too. Up to 10 referrals a month. They must pass our ID and NBI checks
+like everyone else.
 ```
 
 Note: this provider-to-provider referral reward is a recruiting tool and is separate from any customer-side referral or the customer Suki loyalty program. Do not conflate them.
@@ -273,8 +275,8 @@ Note: this provider-to-provider referral reward is a recruiting tool and is sepa
 
 Use this in every channel. It is real and it is in the platform.
 
-- The first 50 providers per city can be placed in the **founding** tier: 10 percent commission (versus the standard 15 percent for new providers) for 12 months, featured launch placement, and priority support.
-- Founding is invite-only and set by an admin. You flag a strong applicant for founding placement; the admin assigns the tier. Do not promise the tier yourself, promise that you will recommend them for it.
+- The first 50 providers per city can be placed in the **Founding** tier: 10 percent commission (versus the standard 15 percent for new providers) for 12 months, featured launch placement, and priority support.
+- Founding is invite-only and set by an admin. You flag a strong applicant for founding placement; the admin assigns the tier. Do not promise the tier yourself; promise that you will recommend them for it.
 
 Standard tier and commission ladder, so you can answer questions honestly:
 
@@ -286,7 +288,7 @@ Standard tier and commission ladder, so you can answer questions honestly:
 | Pro | 11% | 25+ jobs, 4.5+ rating, no open disputes |
 | Elite | 9% | 100+ jobs, 4.7+ rating, verified TESDA certification, no open disputes |
 
-Plain-language pitch: start at New (15 percent), or get into the Founding batch at 10 percent if you are early. Do good work and your commission drops as you climb to Verified, Pro, and Elite. Commission is flat within a tier, it does not change job to job.
+Plain-language pitch: start at New (15 percent), or get into the Founding batch at 10 percent if you are early. Do good work and your commission drops as you climb to Verified, Pro, and Elite. Commission is flat within a tier; it does not change job to job.
 
 ---
 
@@ -326,9 +328,17 @@ If submitted-to-approved drops below 50 percent, the problem is upstream: you ar
 ## 12. Quick reference
 
 - Floor to launch an area: `min_providers_to_launch` (default 5), set in admin Service Areas.
-- Healthy launch per category: 8 to 12 approved (ASSUMPTION, tune).
+- Healthy launch per category: 8 to 12 approved (starting target, tune).
+- Go-live rule: 5 approved per launch category to soft-launch, 8 in the lead category to go active.
 - Required docs to submit: government ID front + back, NBI clearance (within 6 months), selfie.
 - Status after submit: `pending`. Approval is an admin action, not yours.
 - Founding tier: first 50 per city, 10 percent commission, 12 months, admin-assigned.
-- Referral reward: pay on approval + first 3 completed jobs (DECIDE amounts).
+- Referral reward: ₱500 to referrer + ₱300 to new provider, paid after the new provider's first 3 completed jobs, capped at 10/month.
 - Money model: customer pays into escrow first, provider matched after, payout to wallet then GCash/Maya/bank.
+
+---
+
+## Open decisions set in this doc
+
+- **Area go-live threshold (section 3):** hold at `soft_launch` until each launch category has 5 approved providers, then go `active` once the lead category reaches 8 approved. (editable)
+- **Referral incentive (section 8):** ₱500 to the referrer + ₱300 welcome bonus to the new provider, both paid after the new provider completes 3 jobs, capped at 10 paid referrals per referrer per month. (editable)

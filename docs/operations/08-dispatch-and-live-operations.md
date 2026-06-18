@@ -69,7 +69,7 @@ Super_admin row actions on the console:
 ### What to scan, in order, every time you look at the board
 
 1. Any booking stuck in `requested` (paid, no provider yet). These are your fires.
-2. Any "no_provider_available" alert in the alert tail.
+2. Any `no_provider_available` alert in the alert tail.
 3. Providers-online count vs active-bookings count. If online providers are near zero in an active city, you have a coverage problem, not a dispatch problem.
 4. Socket status. If it is disconnected, your board is stale. Refresh.
 
@@ -96,7 +96,7 @@ You manage by status. Here is the live state machine in plain terms, grouped by 
 
 Full booking monitor: **Bookings** page (`/bookings`). Search by booking ID or city, filter by status, see the escrow column. The list live-updates via `booking:status_changed`. Use Bookings for the full picture; use Dispatch for the live fight.
 
-ACTIVE bucket (what counts as "in flight" for metrics): requested, quoted, matched, payment_pending, paid, provider_en_route, provider_arrived, in_progress, disputed.
+ACTIVE bucket (what counts as "in flight" for metrics): `requested`, `quoted`, `matched`, `payment_pending`, `paid`, `provider_en_route`, `provider_arrived`, `in_progress`, `disputed`.
 
 ---
 
@@ -104,7 +104,7 @@ ACTIVE bucket (what counts as "in flight" for metrics): requested, quoted, match
 
 This is the core live-ops skill. The customer already paid. Your job is to get them a provider or, failing that, a clean refund and an honest message. Do not leave them silent.
 
-Trigger: a "no_provider_available" alert, or you spot a `requested` booking sitting with no movement and the offer cycle has stopped (out of candidates or hit the 10-attempt cap).
+Trigger: a `no_provider_available` alert, or you spot a `requested` booking sitting with no movement and the offer cycle has stopped (out of candidates or hit the 10-attempt cap).
 
 ### Decision tree
 
@@ -138,9 +138,11 @@ Go to step B (widen / notify / refund).
 
 ### B. Widen radius, notify, refund
 
-- [ ] **B1.** Check the provider's and area's radius. A provider carries their own `service_radius_km`, and the service area has its own `radius_km`. If the booking sits just outside coverage, widening the relevant provider's radius (via Providers detail, admin edit allows up to 200 km) can pull in a candidate. ASSUMPTION: widening radius is a judgment call per booking, not a standing policy. Do not permanently inflate a provider's radius just to clear one job. Note it and set it back, or flag for review.
+- [ ] **B1.** Check the provider's and area's radius. A provider carries their own `service_radius_km`, and the service area has its own `radius_km`. If the booking sits just outside coverage, widening the relevant provider's radius (via Providers detail, admin edit allows up to 200 km) can pull in a candidate. Widening radius is a judgment call per booking, not a standing policy. Do not permanently inflate a provider's radius just to clear one job. Note it and set it back, or flag for review.
 - [ ] **B2.** If still nothing, **message the customer** honestly from the console (5 to 2000 chars). Tell them what is happening and the next step. Template below.
-- [ ] **B3.** If no provider can be found in a reasonable window, **cancel with a full refund** rather than letting them wait. Use the console Cancel (reason 10+ chars) or the Booking detail refund path. Because they pre-paid, a no-provider outcome should be a clean 100% refund. ASSUMPTION: a platform-side no-provider failure is always a full refund. DECIDE: Ken, confirm 100% refund is the standing rule for no-provider cancellations, and confirm whether we also issue a goodwill credit (suggested ₱100 to ₱200) on top. The live cancellation-refund brackets are built for customer/provider-caused cancellations, not platform coverage failures, so this needs your call.
+- [ ] **B3.** If no provider can be found in a reasonable window, **cancel with a full refund** rather than letting them wait. Use the console Cancel (reason 10+ chars) or the Booking detail refund path. Because they pre-paid, a no-provider outcome is a clean 100% refund plus a goodwill credit (see the rule below). The live cancellation-refund brackets are built for customer/provider-caused cancellations, not platform coverage failures, so do not let those brackets reduce the refund here.
+
+> **Set (editable):** a platform-side no-provider failure is a 100% full refund plus a ₱150 goodwill credit on top. _Recommended default. To change it, edit here and anywhere this value is referenced (`06-customer-support-sop.md`, `09-trust-safety-and-disputes.md`, `10-money-and-compliance-ops.md`)._
 
 ### Starting SLA targets for no-provider handling (tune these)
 
@@ -176,22 +178,23 @@ Steps:
 
 ## 7. Peak-hours staffing
 
-Home services in Metro Cebu cluster around mornings, weekends, paydays (15th and 30th), and the start of hot season for aircon work. ASSUMPTION: these are sensible starting peak windows; replace with real booking-curve data after the first month live.
+Home services in Metro Cebu cluster around mornings, weekends, paydays (15th and 30th), and the start of hot season for aircon work.
+
+> **Set (editable):** treat the windows below as the starting peak guide. _Recommended default. Replace with real booking-curve data after the first month live._
 
 Starting staffing guide (tune with data):
 
 | Window | Coverage | Why |
 |---|---|---|
-| Weekday 8am to 12pm | At least 1 dispatcher + 1 super_admin reachable | Morning booking surge |
-| Weekday 12pm to 6pm | 1 dispatcher | Steady |
-| Weekday 6pm to 9pm | 1 dispatcher + super_admin reachable | After-work bookings |
-| Sat/Sun 8am to 6pm | 1 dispatcher + 1 super_admin | Weekend peak |
+| Weekday 8:00 AM to 12:00 PM | At least 1 dispatcher + 1 super_admin reachable | Morning booking surge |
+| Weekday 12:00 PM to 6:00 PM | 1 dispatcher | Steady |
+| Saturday 8:00 AM to 6:00 PM | 1 dispatcher + 1 super_admin | Weekend peak |
 | Payday days (15th, 30th) | Add 1 dispatcher to the busiest window | Demand spike |
-| Overnight | On-call only | Low volume; alerts route to on-call |
+| Outside support hours | On-call only | Low volume; alerts route to on-call |
 
 Hard rule: **every staffed window must have a super_admin who can actually push Reassign / Cancel / Message.** A plain admin alone cannot resolve a stuck paid job. If your only on-shift person is a plain admin, they escalate to the on-call super_admin.
 
-Support hours stated to customers are Mon to Sat, 8am to 8pm PHT (`06-customer-support-sop.md`). Dispatch coverage should at minimum match that, plus auto-dispatch and the cron sweeps keep running 24/7 on their own.
+Support hours stated to customers are Monday to Saturday, 8:00 AM to 6:00 PM PHT (`06-customer-support-sop.md`). Sunday is closed at launch; urgent safety issues still escalate via the on-call path. Dispatch coverage should at minimum match support hours, and auto-dispatch plus the cron sweeps keep running 24/7 on their own.
 
 ---
 
@@ -251,8 +254,9 @@ will update you within the next few minutes. Your payment is fully protected.
 ```
 Hi, this is onService support. We are sorry. We could not match an available pro
 for your booking at this time. We are cancelling it and refunding you in full to
-your original payment method. Nothing was lost from your side. Please rebook for
-a later slot and we will prioritize you. Salamat for your patience.
+your original payment method, plus a PHP 150 credit for the trouble. Nothing was
+lost from your side. Please rebook for a later slot and we will prioritize you.
+Salamat for your patience.
 ```
 
 **Reassigned to a new provider:**
@@ -276,8 +280,8 @@ Run at shift start and shift end.
 - [ ] Dispatch Console open, socket shows connected.
 - [ ] Filter to each active city; eyeball providers-online count per city.
 - [ ] No `requested` paid booking sitting unmatched beyond the SLA ceiling.
-- [ ] Alert tail clear of unaddressed "no_provider_available".
-- [ ] Any disputed bookings handed to trust & safety, not parked on the dispatch board.
+- [ ] Alert tail clear of unaddressed `no_provider_available`.
+- [ ] Any `disputed` bookings handed to trust & safety, not parked on the dispatch board.
 - [ ] Any suspended-mid-job bookings have a resolution plan (escrow is frozen on these).
 - [ ] `auto_dispatch_enabled` is ON (System Settings, category Dispatch & Map). If it is OFF, every booking needs manual dispatch. Confirm that is intentional.
 - [ ] Handover template posted (at shift end).
@@ -316,6 +320,15 @@ Run at shift start and shift end.
 - Auto-dispatch offers ONE provider at a time, 45 seconds each, up to 10 tries, then it stops and tells the customer once.
 - When it stops, YOU act: re-dispatch by hand, call providers, widen radius, or message + refund. Never go silent on the customer.
 - Reassign and Cancel and Message customer are super_admin only. Every shift needs one reachable.
+- A no-provider platform failure is a 100% refund plus a ₱150 goodwill credit. Do not apply the customer/provider cancellation brackets to it.
 - Suspending a provider mid-job freezes that job's escrow. Reassign or resolve it; do not abandon it.
 - Watch the board by status. `requested` with no provider is your fire. Disputes go to trust & safety.
 - Hand over cleanly. Drop nothing.
+
+---
+
+## Open decisions set in this doc
+
+- **No-provider refund + goodwill:** 100% full refund plus a ₱150 goodwill credit (editable). See section 5.
+- **Peak-hours staffing windows:** the table in section 7 is the starting guide (editable); replace with real booking-curve data after the first month live.
+- **Provider radius widening:** a per-booking judgment call, not a standing policy (editable). See step B1.

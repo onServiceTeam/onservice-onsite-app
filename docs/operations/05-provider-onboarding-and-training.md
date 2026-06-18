@@ -1,6 +1,6 @@
 # Provider Onboarding and Training
 
-Purpose: take an approved provider from "Approved" status to a confident first paid job, and set the rules they live by. Covers account activation, profile completion, the provider app walkthrough, payout setup, the buddy/QA check on job one, and the Provider Code of Conduct.
+Purpose: take an approved provider from "approved" status to a confident first paid job, and set the rules they live by. Covers account activation, profile completion, the provider app walkthrough, payout setup, the buddy/QA check on job one, and the Provider Code of Conduct.
 
 This doc picks up where `04-provider-vetting-and-filtering.md` ends (approval) and hands off to `07-provider-support-sop.md` (ongoing support). See `12-quality-standards-and-kpis.md` for the scorecards and `13-policies-codes-and-templates.md` for the full template library.
 
@@ -10,7 +10,7 @@ This doc picks up where `04-provider-vetting-and-filtering.md` ends (approval) a
 
 Onboarding begins the moment an admin clicks **Approve** on the provider in the admin **Providers** page (`/providers`). At that point:
 
-- The provider row flips `pending` to `approved`. Approval is refused unless the three KYC fields are already on file: NBI clearance, government ID front, and selfie. So a provider you are onboarding has already cleared document review.
+- The provider row flips from `pending` to `approved`. Approval is refused unless the three KYC fields are already on file: NBI clearance, government ID front, and selfie. So a provider you are onboarding has already cleared document review.
 - The system sends an **"Account Approved"** notification to the provider's app.
 - The provider lands on the standard tier **new** (15% commission) unless an admin set them to **founding** (10%, invite-only launch batch). Tier is shown in the admin Provider detail page (`/providers/:id`).
 
@@ -22,7 +22,7 @@ Approval does not make a provider visible to customers yet. A provider only ente
 
 Work top to bottom. Boxes are for the ops owner running the onboarding, not the provider.
 
-**Account + identity**
+**Account and identity**
 - [ ] Approval confirmed in admin; "Account Approved" notification fired
 - [ ] Provider logs in by phone number + OTP (no password). Confirm they can receive the 6-digit code
 - [ ] Tier confirmed (new vs founding). If founding-batch, confirm the invite is logged
@@ -33,16 +33,16 @@ Work top to bottom. Boxes are for the ops owner running the onboarding, not the 
 - [ ] Service categories set (1 to 10): cleaning, aircon, plumbing, electrical, etc.
 - [ ] Per-service base price set where the provider offers fixed-price work (validated against the subcategory min/max in the catalog)
 - [ ] Service radius set (onboarding caps at 50 km; admin can widen later up to 200 km)
-- [ ] Service area assigned and primary area flagged (e.g. Cebu City). ASSUMPTION: ops sets the primary area during onboarding; later area changes go through the approval queue (`service_area_change_requests`)
+- [ ] Service area assigned and primary area flagged (e.g. Cebu City). Ops sets the primary area during onboarding; later area changes go through the approval queue (`service_area_change_requests`). See the open decision at the end of this doc.
 - [ ] Profile photo and short bio added (helps acceptance and ratings)
 
 **Payout setup**
 - [ ] Payout method added: GCash, Maya, bank InstaPay, or bank PesoNet
 - [ ] Destination validated (GCash/Maya = 11-digit `09XXXXXXXXX`; bank = 8 to 16 digit account number)
-- [ ] Provider understands ₱100 minimum withdrawal and the 3-business-day processing target
-- [ ] TIN collected if available (format `999-999-999-NNN`). DECIDE: whether TIN is mandatory at onboarding or collected before first payout. The app accepts it as optional today; BIR withholding kicks in once a provider's YTD platform income crosses ₱500,000 (Form 2307), so we need it before that point
+- [ ] Provider understands the ₱100 minimum withdrawal and the 3-business-day processing target
+- [ ] TIN collected before first payout (format `999-999-999-NNN`). Not required at application; the app accepts it as optional. It is needed before the provider reaches ₱500,000 YTD platform income, when BIR withholding starts (Form 2307). See the open decision at the end of this doc.
 
-**Training + first job**
+**Training and first job**
 - [ ] App walkthrough completed (Section 4)
 - [ ] Code of Conduct read and acknowledged (Section 7)
 - [ ] Buddy/QA owner assigned for first job (Section 6)
@@ -53,13 +53,13 @@ Work top to bottom. Boxes are for the ops owner running the onboarding, not the 
 
 ## 3. The 7-day activation plan
 
-Starting targets, tune as the team learns what works.
+Starting targets. Tune as the team learns what works.
 
 | Day | Goal | Who | Done when |
 |---|---|---|---|
 | Day 0 | Approve, send welcome, confirm login | Recruiting/Ops | Provider logs in, sees "Approved" |
-| Day 1 | Profile + categories + radius + service area | Ops | Profile 100% complete |
-| Day 1 | Payout method added + validated | Ops | Test of destination format passes |
+| Day 1 | Profile, categories, radius, service area | Ops | Profile 100% complete |
+| Day 1 | Payout method added and validated | Ops | Test of destination format passes |
 | Day 2 | App walkthrough (offers, jobs, completion, wallet) | Ops/Trainer | Provider can explain the 45-second offer in their own words |
 | Day 2 | Code of Conduct acknowledged | Ops | Acknowledgement logged |
 | Day 3 | Go online for the first time, low-volume window | Provider | `is_available = TRUE`, provider present |
@@ -67,13 +67,13 @@ Starting targets, tune as the team learns what works.
 | Day 5 | First-job debrief, fix gaps | Buddy | Issues logged, retraining if needed |
 | Day 7 | Onboarding review, hand to normal ops | Ops | Checklist fully ticked |
 
-If a provider stalls (no first job by Day 7), flag in `07-provider-support-sop.md` follow-up. Do not leave half-onboarded providers online.
+If a provider stalls (no first job by Day 7), flag in `07-provider-support-sop.md` for follow-up. Do not leave half-onboarded providers online.
 
 ---
 
 ## 4. Provider app walkthrough
 
-Run this live with the provider, ideally screen-by-screen on their phone. Bisaya, Tagalog, or English, whatever they are comfortable with.
+Run this live with the provider, ideally screen by screen on their phone. Bisaya, Tagalog, or English, whatever they are comfortable with.
 
 ### 4.1 Going online (availability)
 
@@ -94,9 +94,9 @@ Tell the provider plainly:
 
 ### 4.3 The money is already paid (instant-pay, escrow)
 
-> IMPORTANT: the fixed-price **instant-pay** model (customer pays first, provider matched after) is the intended design and is built on the branch `fix/e03-instant-pay-money-path`, but it is **NOT merged to master yet** (E03 is still an open launch blocker). Train providers on the instant-pay framing because that is where the product is going, but if you are testing on master today the pay-then-match flow may not fire. Confirm with Ken before telling a live provider "the job is always prepaid."
+> IMPORTANT: the fixed-price **instant-pay** model (customer pays first, provider matched after) is the intended design and is built on the branch `fix/e03-instant-pay-money-path`, but it is **NOT merged to master yet** (E03 is still an open launch blocker). Train providers on the instant-pay framing because that is where the product is going, but if you are testing on master today the pay-then-match flow may not fire. Confirm with Ken before telling a live provider "the job is always prepaid." See the open decision at the end of this doc.
 
-Under instant-pay, by the time you see the offer the customer has already paid the full amount into onService escrow. The platform holds that money. You are not chasing the customer for cash. When you finish and the customer confirms (or after 24 hours auto-confirm), escrow releases your share to your wallet automatically. This is the trust pitch: no haggling, no "balik ko next week," the money is real and waiting.
+Under instant-pay, by the time you see the offer the customer has already paid the full amount into onService escrow. The platform holds that money. You are not chasing the customer for cash. When you finish and the customer confirms (or after 24 hours of auto-confirm), escrow releases your share to your wallet automatically. This is the trust pitch: no haggling, no "balik ko next week," the money is real and waiting.
 
 Key numbers to share:
 - Your commission is flat for your tier (see Section 5). Everything else is yours.
@@ -109,11 +109,11 @@ Walk them through the buttons in order. The provider advances these statuses fro
 
 | Step | Status | What the provider does |
 |---|---|---|
-| Accept offer | matched / paid | Tap Accept within 45s |
-| Head to site | provider_en_route | Tap when leaving |
-| Arrive | provider_arrived | Tap on site, GPS check-in |
-| Start work | in_progress | Take BEFORE photos first |
-| Finish | completed_by_provider | Take AFTER photos, then mark complete |
+| Accept offer | `matched` / `paid` | Tap Accept within 45s |
+| Head to site | `provider_en_route` | Tap when leaving |
+| Arrive | `provider_arrived` | Tap on site, GPS check-in |
+| Start work | `in_progress` | Take BEFORE photos first |
+| Finish | `completed_by_provider` | Take AFTER photos, then mark complete |
 
 After "completed by provider," it is the customer's move: they confirm (releases your money), or they file a dispute within 48 hours. If they do nothing for 24 hours, the system auto-confirms and pays you.
 
@@ -125,7 +125,7 @@ Off-platform deals attempted in chat are flagged by the system. Do not do it (Se
 
 ### 4.6 Photos (required, not optional)
 
-Before/after photos are mandatory on the 3-job probation and are your defense in a dispute. Provider takes photos in-app on the job:
+Before/after photos are mandatory on the 3-job probation and are your defense in a dispute. The provider takes photos in-app on the job:
 - BEFORE photos at `in_progress`
 - AFTER photos at `completed_by_provider`
 - Clear, well-lit, show the actual work area
@@ -170,17 +170,17 @@ Commission is flat per tier and comes off the service price. The provider keeps 
 | **new** | 15% | Default on signup |
 | **verified** | 13% | 5+ jobs and 4.0+ rating |
 | **pro** | 11% | 25+ jobs, 4.5+ rating, no open disputes |
-| **elite** | 9% | 100+ jobs, 4.7+ rating, a verified (e.g. TESDA) certification, no open disputes |
+| **elite** | 9% | 100+ jobs, 4.7+ rating, a verified certification (e.g. TESDA), no open disputes |
 
-Important to set expectations: tier promotion is **not automatic**. The app shows the provider their progress toward the next tier, but an admin makes the actual tier change. Tell providers what they are working toward and that ops reviews tier eligibility (cadence per `12-quality-standards-and-kpis.md`).
+Set expectations clearly: tier promotion is **not automatic**. The app shows the provider their progress toward the next tier, but an admin makes the actual tier change. Tell providers what they are working toward and that ops reviews tier eligibility (cadence per `12-quality-standards-and-kpis.md`).
 
-Service fee (charged to the customer, not deducted from the provider) and the guarantee-fund split are covered in `10-money-and-compliance-ops.md`.
+Service fee (charged to the customer, not deducted from the provider) and the guarantee-fund split are covered in `10-money-and-compliance-ops.md`. The guarantee-fund claim rules (cap, eligibility, clawback) are in `09-disputes-and-resolution.md`.
 
 ---
 
 ## 6. First-job buddy / QA check
 
-Every provider's first paid job gets a buddy. The buddy is an ops person (or a trusted senior provider) on standby, not on site.
+Every provider's first paid job gets a buddy. The buddy is an ops person (or a trusted senior provider) on standby, not on site. The platform has no "buddy" feature today; this is a human ops process. See the open decision at the end of this doc.
 
 **Before the job**
 - [ ] Buddy assigned and reachable during the booking window
@@ -207,7 +207,7 @@ Every provider's first paid job gets a buddy. The buddy is an ops person (or a t
 **After the job**
 - [ ] Debrief within 24 hours (what went well, what to fix)
 - [ ] If 2 or more QA items failed, schedule retraining before they take more jobs
-- [ ] Log result so `07-provider-support-sop.md` and tier reviews can see it
+- [ ] Log the result so `07-provider-support-sop.md` and tier reviews can see it
 
 Probation note: policy is a 3-job probation with mandatory before/after photos (DECISION-003). The buddy stays lightly involved through job 3, not just job 1.
 
@@ -245,7 +245,7 @@ Providers acknowledge this at onboarding (the Independent Contractor agreement i
 - If you truly cannot make a job, cancel as early as possible so the customer can be rematched. Late cancellations and no-shows are the fastest way to lose your account.
 
 **Honesty on extras**
-- Use change orders for any extra work, never side cash. Cap is 50% of the original price, customer must approve and pay first.
+- Use change orders for any extra work, never side cash. Cap is 50% of the original price; the customer must approve and pay first.
 
 Acknowledgement template (log this):
 
@@ -292,12 +292,18 @@ the app before then so you can keep getting jobs. Renewals can take time,
 so please start now.
 ```
 
+Support hours for any follow-up the provider needs: Monday to Saturday, 8:00 AM to 6:00 PM PHT. Urgent safety issues escalate via the on-call path even outside those hours.
+
 ---
 
-## 9. Things to flag (do not silently guess)
+## 9. Open decisions set in this doc
 
-- **DECIDE - TIN timing:** the app treats provider TIN as optional. Decide whether to require it at onboarding or before first payout. We need it before a provider hits ₱500,000 YTD (BIR withholding / Form 2307).
-- **DECIDE - instant-pay go-live:** the prepaid-into-escrow framing assumes the E03 instant-pay fix is merged. On master today the `requested -> payment_pending` step is still blocked. Do not promise live providers "always prepaid" until Ken merges it.
-- **ASSUMPTION - primary service area:** ops sets the provider's primary service area during onboarding; this doc assumes that, the app does not force it at apply time.
-- **ASSUMPTION - buddy can be a senior provider:** the platform has no "buddy" feature; this is a human ops process. Adjust to your team size.
-- Tier promotions are manual (admin action), not automatic. Set provider expectations accordingly.
+These are recommended defaults. Ken can override any of them. To change one, edit here and anywhere this value is referenced.
+
+> **Set (editable):** Provider TIN is collected **before first payout**, not at application. The app accepts it as optional today; it must be on file before the provider reaches ₱500,000 YTD platform income, when BIR withholding starts (Form 2307). _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+> **Set (editable):** Instant-pay (prepaid-into-escrow) is the framing we train on, but it is **not live on master** until the E03 fix is merged. Until Ken confirms the merge, do not promise live providers "always prepaid." _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+> **Set (editable):** Ops sets the provider's **primary service area during onboarding**. The app does not force it at apply time; later area changes go through the approval queue (`service_area_change_requests`). _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+> **Set (editable):** The first-job **buddy is a human ops process**, run by an ops person or a trusted senior provider on standby. There is no "buddy" feature in the platform. Adjust the role to your team size. _Recommended default. To change it, edit here and anywhere this value is referenced._

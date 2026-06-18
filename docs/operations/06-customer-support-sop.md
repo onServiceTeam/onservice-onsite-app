@@ -8,16 +8,16 @@ This doc covers customer-side support. Provider payouts, account, and job suppor
 
 ## 1. What support actually runs on (read this first)
 
-There is no in-app support ticket screen for customers. The app does not let a customer open or view a ticket. Customers reach us by email or phone, and a human agent creates the ticket in the admin app on the customer's behalf. The Support Tickets page in admin (`/support-tickets`) is the agent's workspace. The customer never sees it.
+There is no in-app support ticket screen for customers. The app does not let a customer open or view a ticket. Customers reach us by email or Facebook Messenger, and a human agent creates the ticket in the admin app on the customer's behalf. The Support Tickets page in admin (`/support-tickets`) is the agent's workspace. The customer never sees it.
 
 Two things follow from this:
 
-1. Every contact starts outside the app (email, FB, SMS) and gets logged by us inside admin. Nothing self-serves into the queue.
+1. Every contact starts outside the app (email, FB, later SMS) and gets logged by us inside admin. Nothing self-serves into the queue.
 2. There is no live chat with support. The only chat in the app is per-booking customer-to-provider chat. The one way we can push a message to a customer inside the app is the super-admin "Message customer" action on the Dispatch Console, which lands as a notification titled "Message from onService support."
 
 Also true today and worth knowing before you promise anything:
 
-- The in-app support hotline number `+63 2 8123 4567` is a placeholder. It is not provisioned yet. DECIDE: provision a real hotline number (and decide voice vs SMS-only) before launch. Until then, do not tell customers to call that number expecting a pickup.
+- The in-app support hotline number `+63 2 8123 4567` is a placeholder. It is not provisioned. Remove it from the app as a pre-launch fix, then provision a real number before public launch (see the hotline decision in section 2). Until a real number is live, do not tell customers to call expecting a pickup.
 - There is no masked-number calling between customer and provider, even though one safety screen says there is. Customers reach providers by in-app chat only. Do not tell a customer to "call the provider."
 
 ---
@@ -28,20 +28,24 @@ Also true today and worth knowing before you promise anything:
 
 | Channel | Address / surface | Who watches it | Notes |
 |---|---|---|---|
-| Email (customer) | support@onservice.ph | Support agents | Hardcoded in-app. Primary written channel. |
-| Email (provider) | providers@onservice.ph | Provider support | Routed to provider team (see `07-provider-support-sop.md`). |
-| Facebook Messenger | onService PH page | Support agents | ASSUMPTION: FB is a launch channel. Filipino customers expect Messenger. Confirm the page is set up. |
-| Phone / SMS hotline | TBD | Support agents | DECIDE: provision number, set voice vs SMS-only. |
+| Email (customer) | `support@onservice.ph` | Support agents | Hardcoded in-app. Primary written channel. |
+| Email (provider) | `providers@onservice.ph` | Provider support | Routed to provider team (see `07-provider-support-sop.md`). |
+| Facebook Messenger | onService PH page | Support agents | Launch channel. Filipino customers expect Messenger. Confirm the page is set up. |
+| Phone / SMS hotline | TBD (provision before launch) | Support agents | No real number yet. Remove the placeholder from the app first, then provision. |
 | In-app push (outbound only) | Dispatch Console "Message customer" | Super-admin | Lands as "Message from onService support" notification. Not a two-way channel. |
-| DPO / privacy requests | dpo@onservice.ph, privacy@onservice.ph | DPO / compliance | Data requests go here, not to general support. See section 9. |
+| DPO / privacy requests | `dpo@onservice.ph`, `privacy@onservice.ph` | DPO / compliance | Data requests go here, not to general support. See section 9. |
 
-DECIDE: which of FB Messenger, email, and phone/SMS is the primary channel we staff first. Recommendation: start with email + FB Messenger (low cost, async, fits a small team), add a real phone/SMS hotline once we have the volume to staff it.
+> **Set (editable):** staff email plus Facebook Messenger first (low cost, async, fits a small team), and add a real phone/SMS hotline once volume warrants the staffing. Email is the primary written channel. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+> **Set (editable):** provision a real hotline number before public launch and decide voice vs SMS-only at that time; until then remove the placeholder `+63 2 8123 4567` from the app. Treat the placeholder as a pre-launch fix, not a real number. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ### Hours
 
-The app tells customers we are open Monday to Saturday, 8:00 AM to 8:00 PM PHT. Match that. These are starting hours to tune.
+> **Set (editable):** support hours are Monday to Saturday, 8:00 AM to 6:00 PM PHT (regular Philippine business hours). Sunday is closed at launch; urgent safety issues still escalate via the on-call path. Tighten to 5:00 PM or extend evening coverage as the booking curve shows. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-- Staffed hours: Mon-Sat, 8:00 AM - 8:00 PM (Asia/Manila).
+The app must show the same hours to customers. Match the line above exactly.
+
+- Staffed hours: Monday to Saturday, 8:00 AM to 6:00 PM PHT (Asia/Manila).
 - Outside hours: auto-reply that sets the next-response expectation, plus the safety routing below.
 - Safety and emergencies are 24/7 self-serve in the app: the safety screen has a "Call 911" button. We do not handle 911-type emergencies. We route to 911 and log an incident (see `09-trust-safety-and-disputes.md`).
 
@@ -90,10 +94,10 @@ Set priority the moment you read the ticket. Priority drives SLA. The admin prio
 
 | Level | Admin priority | What it means | Examples |
 |---|---|---|---|
-| P1 | urgent | Safety, money moving wrong, or many customers blocked | Safety incident reported by a customer; payment taken but no booking; escrow released to the wrong party; a city-wide "no provider available" wave; suspected fraud on an account. |
-| P2 | high | One customer blocked, money or live job at stake | Provider no-show on a live booking; payment failed and customer cannot book; double charge; quality complaint that needs a dispute; can't log in (OTP) before a scheduled job. |
-| P3 | medium | Real problem, not time-critical | Reschedule request; cancellation + refund question; "where is my refund"; change-order confusion; app bug that has a workaround. |
-| P4 | low | Question, no blockage | How does escrow work; how do I tip; how to add an address; general how-to. |
+| P1 | `urgent` | Safety, money moving wrong, or many customers blocked | Safety incident reported by a customer; payment taken but no booking; escrow released to the wrong party; a city-wide "no provider available" wave; suspected fraud on an account. |
+| P2 | `high` | One customer blocked, money or live job at stake | Provider no-show on a live booking; payment failed and customer cannot book; double charge; quality complaint that needs a dispute; cannot log in (OTP) before a scheduled job. |
+| P3 | `medium` | Real problem, not time-critical | Reschedule request; cancellation + refund question; "where is my refund"; change-order confusion; app bug that has a workaround. |
+| P4 | `low` | Question, no blockage | How does escrow work; how do I tip; how to add an address; general how-to. |
 
 When unsure, round up one level. A P3 that involves money in motion is a P2.
 
@@ -103,14 +107,14 @@ Safety always wins. Anything with injury, threat, theft in progress, or a custom
 
 ## 5. SLA targets
 
-Starting targets, measured in staffed hours (Mon-Sat 8-20 PHT). Tune with real data after launch.
+Starting targets, measured in staffed hours (Monday to Saturday, 8:00 AM to 6:00 PM PHT). Tune with real data after launch.
 
 | Priority | First response | Resolution target |
 |---|---|---|
-| P1 urgent | 15 minutes | 4 hours (or active updates every hour until closed) |
-| P2 high | 1 hour | Same business day |
-| P3 medium | 4 hours | 2 business days |
-| P4 low | 1 business day | 3 business days |
+| P1 `urgent` | 15 minutes | 4 hours (or active updates every hour until closed) |
+| P2 `high` | 1 hour | Same business day |
+| P3 `medium` | 4 hours | 2 business days |
+| P4 `low` | 1 business day | 3 business days |
 
 Notes:
 
@@ -124,15 +128,17 @@ Notes:
 
 Support agents cannot move money or change account state. Those actions are super-admin only in the admin app and every one writes an audited reason. Know what you can do and what you must hand up.
 
+> **Set (editable):** money actions (refund, payout, escrow release) stay with super-admin/finance staff and never reach a support agent. Before launch, wire the money buttons behind a finance/super-admin gate and give support agents a limited admin login that cannot reach those buttons. Record this as a pre-launch work item. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
 | Situation | Support agent does | Escalate to | Why |
 |---|---|---|---|
 | Refund inside policy, escrow still held | Explain policy, file/guide the dispute or cancellation | Super-admin (refund/escrow release) | Escrow release, refund, and force-complete are super-admin only. |
-| Refund outside policy / goodwill credit | Recommend with reason | Ops lead / super-admin | Money out needs an audited super-admin action. |
+| Refund outside policy / goodwill credit | Recommend with reason | Ops Lead / super-admin | Money out needs an audited super-admin action. |
 | Dispute needs a decision | Gather evidence, set context | Super-admin (resolve dispute) | Dispute resolution is super-admin only, decision note min 20 chars. |
 | Provider behavior: rude, late pattern, suspicious | Document, flag | Trust & Safety / super-admin (suspend) | Suspend is super-admin and freezes that provider's in-flight escrow. |
 | Fraud suspicion on a customer | Document, flag | Trust & Safety / super-admin | "Flag for fraud review" is super-admin on the customer detail page. |
-| Data request (download, correct, delete) | Point to in-app flow, log | DPO (dpo@onservice.ph) | 15-day NPC SLA, DPO-owned. See section 9. |
-| App is broken (bug) | Reproduce, capture screenshots | Engineering via app_bug ticket | Code change, not a support fix. |
+| Data request (download, correct, delete) | Point to in-app flow, log | DPO (`dpo@onservice.ph`) | NPC data-subject SLA, DPO-owned. See section 9. |
+| App is broken (bug) | Reproduce, capture screenshots | Engineering via `app_bug` ticket | Code change, not a support fix. |
 | Legal / insurance question | Use approved wording only | Do not freelance | "Marketplace, not an insurer." Do not improvise legal language. |
 
 ---
@@ -173,9 +179,9 @@ ACCURACY NOTE for everyone: the clean instant-pay path (pay right after creating
 ### 8.1 Booking help (how do I book / I can't finish a booking)
 
 1. Confirm what they are trying to do: book a service, or finish a booking that stalled.
-2. For a fresh booking: confirm their city is a live service area. If their area is not active, there is no provider to match. Tell them honestly and offer to log them on the waitlist (note it on the ticket; ASSUMPTION: we run the area waitlist manually until self-serve is confirmed).
+2. For a fresh booking: confirm their city is a live service area. If their area is not active, there is no provider to match. Tell them honestly and offer to log them on the waitlist (note it on the ticket; the area waitlist is run manually until self-serve is confirmed).
 3. Confirm the service category exists in their area (cleaning, aircon, plumbing, electrical, etc.).
-4. Reminder of how it works, in plain words: pick the service, confirm the price shown (the price is set by us, not typed in by the customer), pay, then we match a vetted provider to you.
+4. Remind them how it works, in plain words: pick the service, confirm the price shown (the price is set by us, not typed in by the customer), pay, then we match a vetted provider to you.
 5. If they cannot finish at the pay step, treat it as a payment issue (8.5).
 6. Log a `booking_issue` ticket if anything is unresolved.
 
@@ -193,9 +199,11 @@ ACCURACY NOTE for everyone: the clean instant-pay path (pay right after creating
 
 ### 8.3 Rescheduling
 
+> **Set (editable):** cancel-and-rebook is the standard at launch. There is no separate reschedule flow that changes a confirmed booking's time. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
 1. Confirm the new date/time the customer wants.
-2. ASSUMPTION: there is no self-serve reschedule button that changes a confirmed booking's time. Treat a reschedule as cancel-and-rebook unless engineering confirms a reschedule path. DECIDE: build a true reschedule flow, or keep cancel-and-rebook as the standard.
-3. If it is cancel-and-rebook, the refund follows the cancellation brackets (8.4). Time the cancellation to land the customer in the best bracket they honestly qualify for, but do not coach fraud.
+2. There is no self-serve reschedule button that changes a confirmed booking's time. Treat a reschedule as cancel-and-rebook.
+3. For cancel-and-rebook, the refund follows the cancellation brackets (8.4). Time the cancellation to land the customer in the best bracket they honestly qualify for, but do not coach fraud.
 4. If the provider agreed to the new time directly in chat and nothing about money changes, note it on the ticket and let it ride. Confirm the provider actually agreed.
 5. Log a `booking_issue` ticket.
 
@@ -203,7 +211,7 @@ ACCURACY NOTE for everyone: the clean instant-pay path (pay right after creating
 
 Important: two cancellation systems exist and they disagree. Flag this and follow the right one.
 
-- The numbers that actually move money are the live settings brackets below. This is what fires when an escrow-held booking is cancelled.
+- The numbers that actually move money are the live settings brackets below. This is what fires when an escrow-held booking is cancelled. Until the two systems are reconciled (a known open issue), quote these live numbers, not the policy page.
 - The customer-facing policy page shows a different versioned tier table. The displayed page is NOT the one applied to the refund. Full detail and the policy summary live in `13-policies-codes-and-templates.md`. When a customer quotes the policy page back at you and it does not match what they got, this mismatch is why. Be honest, apologize for the confusion, and escalate if the gap cost them money.
 
 Live refund brackets (customer cancels, percentage of service price; the service fee is returned in full except on a no-show). These are admin-tunable starting values:
@@ -243,7 +251,7 @@ Steps:
 
 1. Hear them out and capture specifics: what was wrong, when the job finished, photos if any.
 2. Check the clock. A dispute can be filed only within 48 hours of job completion, and only when the booking is `completed_by_provider` or `confirmed`. If they are outside 48 hours, the dispute path is closed and this becomes a goodwill judgment call (escalate).
-3. Tell them disputes are self-serve in the app and walk them to it: their booking, then file a dispute. Dispute types: no-show, incomplete, substandard, damage, theft, overcharge, other.
+3. Tell them disputes are self-serve in the app and walk them to it: their booking, then file a dispute. Dispute types: `no_show`, `incomplete`, `substandard`, `damage`, `theft`, `overcharge`, `other`.
 4. Evidence: description must be at least 50 characters. Photos are required for damage and theft, optional otherwise (up to 10).
 5. Set expectations honestly: the provider has 48 hours to respond. If the provider accepts, the refund is automatic. If the provider does not respond at all, the dispute resolves in the customer's favor. If contested, our team reviews.
 6. If the customer cannot or will not use the in-app flow, we can capture it, but resolution and any refund are super-admin actions. Escalate with the evidence attached.
@@ -257,7 +265,10 @@ Steps:
    - Resend has a cooldown and an hourly cap (5 requests/hour by default). If they have hammered resend, they may be rate-limited. Have them wait and try once.
    - After repeated failures the app shows a captcha (Cloudflare Turnstile) before letting them request another code. Walk them through completing it. This is anti-bot, not a punishment.
 3. "Code says expired / too many attempts": the code invalidates after the max attempts or on timeout. Have them request a fresh code and enter it carefully; the app auto-submits on the sixth digit.
-4. "I changed my number": this is an account change, not a code fix. ASSUMPTION: number changes are handled by support, not self-serve. Verify identity (recent booking IDs, registered name) before doing anything, and escalate if it touches account access. DECIDE: define the identity-proof checklist for number changes.
+4. "I changed my number": this is an account change, not a code fix. Number changes are handled by support, not self-serve. Verify identity before doing anything (see the identity-proof rule below), and escalate if it touches account access.
+
+   > **Set (editable):** to change the number on file, require the most recent booking reference plus the registered full name plus an OTP to the number currently on file when possible. If the old number is lost and no OTP can be sent, escalate to super-admin. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
 5. Never read, ask for, or accept an OTP code from a customer. We never need it. The code is hashed server-side and we cannot see it. Anyone asking a customer for their code is running a scam; tell the customer that.
 6. Tag the ticket `account_issue`.
 
@@ -265,11 +276,11 @@ Steps:
 
 ## 9. Data and privacy requests (route, do not handle)
 
-If a customer asks to download, correct, or delete their data, that is an NPC data-subject request under RA 10173, owned by the DPO, with a 15-day SLA.
+If a customer asks to download, correct, or delete their data, that is an NPC data-subject request under RA 10173, owned by the DPO.
 
 1. Point them to the in-app flow first: the Data & Privacy screen lets them download data, correct info, or delete their account self-serve (delete requires typing "DELETE"). There is also a separate "Account & Data" screen with export (JSON/CSV) and a 30-day cooling-off account deletion they can cancel themselves.
-2. If they want a human to handle it, route to dpo@onservice.ph. Do not action it from a support seat.
-3. Set the expectation: 15 days. Note that some records (BIR financial receipts, kept ~10 years) survive deletion by law; personal identifiers are removed.
+2. If they want a human to handle it, route to `dpo@onservice.ph`. Do not action it from a support seat.
+3. Set the expectation: we acknowledge a data-subject request within 2 days and fulfill it within the NPC-required window (see `10-money-and-compliance-ops.md`). Note that some records (BIR financial receipts, kept about 10 years) survive deletion by law; personal identifiers are removed.
 4. Never resolve a data request by closing the support ticket as if support handled it. Log that it was routed to the DPO.
 
 ---
@@ -280,7 +291,7 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 
 ### M1 - Auto-acknowledgement (after hours)
 
-> Thanks for reaching onService PH. We received your message. Our support hours are Monday to Saturday, 8 AM to 8 PM (PHT), and we will get back to you within those hours. If this is a safety emergency, please call 911.
+> Thanks for reaching onService PH. We received your message. Our support hours are Monday to Saturday, 8:00 AM to 6:00 PM PHT, and we will get back to you within those hours. If this is a safety emergency, please call 911.
 
 ### M2 - Provider running late
 
@@ -312,7 +323,7 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 
 ### M9 - Data / privacy request routing
 
-> Hi [name], you can handle this yourself in the app under Account & Data: download your data, correct it, or delete your account. If you would rather we process it, email dpo@onservice.ph and our Data Protection Officer will action it within 15 days.
+> Hi [name], you can handle this yourself in the app under Account & Data: download your data, correct it, or delete your account. If you would rather we process it, email dpo@onservice.ph and our Data Protection Officer will action it within the required window.
 
 ### M10 - No-insurance / liability (use exact approved wording only)
 
@@ -327,7 +338,19 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 - [ ] No P1 ticket older than 15 minutes without a human reply.
 - [ ] No P2 ticket sitting past first-response SLA.
 - [ ] Anything money-moving or account-changing is escalated, not sat on.
-- [ ] `waiting_on_customer` tickets followed up if quiet for [24h] (DECIDE: auto-close window).
+- [ ] `waiting_on_customer` tickets get two reminders, then auto-close after 5 days with no reply.
 - [ ] Resolved tickets have a real resolution note (min 10 chars), not "fixed."
 - [ ] Safety and fraud flags logged and escalated same shift.
 - [ ] Hand off open P1/P2 at shift change with a one-line status each.
+
+---
+
+## Open decisions set in this doc
+
+- **Channels staffed first:** email plus Facebook Messenger first, add a phone/SMS hotline as volume warrants. (editable)
+- **Support hotline:** provision a real number before public launch (decide voice vs SMS-only then); remove the placeholder `+63 2 8123 4567` from the app now. (editable)
+- **Support hours:** Monday to Saturday, 8:00 AM to 6:00 PM PHT; Sunday closed at launch with safety escalation only. (editable)
+- **Money-action gating:** wire refund/payout/escrow-release behind a finance/super-admin gate before launch; support agents get a limited admin login. (editable)
+- **Reschedule:** cancel-and-rebook is the standard at launch; no separate reschedule flow. (editable)
+- **Phone-number-change identity proof:** most recent booking reference + registered full name + OTP to the number on file; escalate to super-admin if the old number is lost. (editable)
+- **`waiting_on_customer` auto-close:** auto-close after 5 days with no reply, two reminders first. (editable)

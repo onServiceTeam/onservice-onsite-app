@@ -10,22 +10,23 @@ All money in this doc is Philippine pesos (₱). Timezone is Asia/Manila (PHT). 
 
 ## 1. Channels and hours
 
-There is no in-app support ticket screen for providers yet. A `support_tickets` table and admin Support Tickets page exist, but the mobile app does not surface them. So providers reach us by email or hotline, and the agent creates the ticket in admin on the provider's behalf.
+There is no in-app support ticket screen for providers yet. A `support_tickets` table and admin Support Tickets page exist, but the mobile app does not surface them. So providers reach us by email or Messenger, and the agent creates the ticket in admin on the provider's behalf.
 
 | Channel | Address | Notes |
 |---|---|---|
 | Provider email | providers@onservice.ph | Primary written channel. Hardcoded in the app. |
-| Hotline | +63 2 8123 4567 | PLACEHOLDER number, not provisioned yet. See DECIDE below. |
+| Facebook Messenger | onService PH page | Second staffed channel at launch. |
+| Hotline | (not provisioned) | Placeholder number removed from the app pre-launch. See the decision below. |
 | In-app provider chat | per-booking only | Provider chats the customer, not support. Not a support channel. |
 | Admin Support Tickets page | `/support-tickets` | Where agents log and work every provider issue. |
 
-Stated hours in the app: Monday to Saturday, 8 AM to 8 PM PHT.
+Support hours: Monday to Saturday, 8:00 AM to 6:00 PM PHT. Sunday is closed at launch; urgent safety issues still escalate through the on-call path.
 
-ASSUMPTION: starting staffing is one provider-support agent covering those hours, with Finance and Trust & Safety reachable async during the same window. Tune as provider count grows.
+> **Set (editable):** Provider support is staffed first on email and Facebook Messenger, Monday to Saturday, 8:00 AM to 6:00 PM PHT, with Finance and Trust & Safety reachable async during the same window. Starting staffing is one provider-support agent; grow headcount as provider count rises. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-DECIDE: the hotline number +63 2 8123 4567 is a placeholder in the app code (customer and provider help screens, safety screen). Ken must provision a real number or remove the hotline copy before launch. Until then, treat phone support as not live and route everything to email.
+> **Set (editable):** The hotline placeholder `+63 2 8123 4567` is removed from the app (customer and provider help screens, safety screen) before launch and treated as a pre-launch fix, not a real number. Provision a real number before public launch; until then phone support is not live and everything routes to email and Messenger. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-DECIDE: the provider Help/FAQ text is hardcoded in the mobile app, so fixing wrong FAQ copy needs a code change and an app release. Decide whether to batch FAQ corrections into the next release or move FAQ to an admin-editable source post-launch.
+> **Set (editable):** The provider Help/FAQ text is hardcoded in the mobile app, so wrong FAQ copy needs a code change and an app release. At launch, batch FAQ corrections into app releases; move FAQ to an admin-editable source post-launch (backlog item). _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ---
 
@@ -62,9 +63,11 @@ Map these to the admin ticket priority field (low/medium/high/urgent) and ticket
 |---|---|---|
 | Finance (super_admin) | Payout approve/reject/complete, AML-hold release, wallet adjustment, commission correction, any money movement | Booking 360 / Payouts page / Provider 360 Financials. All money actions are super_admin-only and write audit rows. |
 | Trust & Safety (super_admin) | Dispute resolution, suspension or reactivation, fraud flag, rating fraud claim, safety incident | Disputes page, Providers page actions. See `09-trust-safety-and-disputes.md`. |
-| Ken | Money or compliance risk, two-system policy conflict (cancellation), anything a hard stop names | Escalation file + chat. |
+| Ken | Money or compliance risk, two-system policy conflict (cancellation), any refund over ₱10,000, any refund-with-suspension, any damage or theft payout, anything a hard stop names | Escalation file + chat. |
 
-Plain support agents have read-only access to money and destructive actions. They gather facts, attach evidence, and hand to a super_admin to execute. Do not promise an outcome you cannot perform.
+Money actions (refund, payout, escrow release) always stay with super-admin staff. Support agents get a limited admin login that cannot reach money buttons; they gather facts, attach evidence, and hand to a super_admin to execute. Do not promise an outcome you cannot perform.
+
+> **Set (editable):** Super-admin/Ken reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout before it goes out. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ---
 
@@ -84,7 +87,7 @@ Money lands in the provider wallet only after escrow releases on a finished job.
 
 Payout playbook:
 1. Confirm provider is approved and amount is at least ₱100.
-2. Provider 360 → Financials: check wallet available vs pending, and recent payouts.
+2. Provider 360 then Financials: check wallet available vs pending, and recent payouts.
 3. Match the symptom:
    - Available balance is ₱0 but a job just finished: explain escrow release timing (customer confirm or 24h auto-confirm). Not a payout issue.
    - Payout shows pending/approved and it has been under 3 business days: normal, give the timeline.
@@ -94,6 +97,7 @@ Payout playbook:
 4. For any approve/reject/complete action, escalate to Finance. You cannot move payouts yourself.
 
 Macro: payout timing
+
 ```
 Hi [name], salamat sa pasensya. Here's where your withdrawal stands:
 - Status: [pending/approved/processing/completed]
@@ -121,6 +125,7 @@ Notes for accurate answers:
 - Do not confuse provider tiers with the customer Suki loyalty tiers. Different thing.
 
 Macro: commission explainer
+
 ```
 Hi [name], your tier is [tier] so your commission is [X]% on the service price. That means on a ₱[price] job, ₱[commission] is the platform commission and you receive ₱[price-commission]. The customer pays a separate service fee on top, which is not part of your commission. Your next tier is [next tier] at [Y]%, which needs [N jobs / rating / cert]. You're at [current jobs] jobs and a [rating] rating. Once you hit the bar we'll review and update your tier.
 ```
@@ -133,7 +138,7 @@ Providers add charges during a job via change orders. Facts:
 - Provider can create a change order only when the booking is `in_progress`.
 - Needs a description, an additional amount, and photos.
 - Capped at 50% of the original service price, with a hard schema cap near ₱10,000. Minimum ₱1.
-- Flow: provider creates it (status pending) → customer approves or declines → if approved, the customer pays the extra (additional amount plus an additional service fee) → payment finalizes and the booking totals update.
+- Flow: provider creates it (status pending), customer approves or declines, if approved the customer pays the extra (additional amount plus an additional service fee), payment finalizes and the booking totals update.
 - An approved-but-unpaid change order auto-expires after 24 hours. Both parties are told not to do the extra work.
 
 Change-order playbook:
@@ -148,14 +153,16 @@ Change-order playbook:
 Useful booking facts:
 - Auto-dispatch sends one offer at a time. The provider has 45 seconds to Accept or Decline. A missed or declined offer cascades to the next provider. Max 10 attempts per booking.
 - Only approved AND available providers get offers. If a provider is offline (`is_available=false`) or suspended, they get nothing.
-- Provider job lifecycle on a paid booking: en route → arrived → in progress → completed by provider → (customer confirms) confirmed → payout ready → paid out.
+- Provider job lifecycle on a paid booking: en route, arrived, in progress, completed by provider, (customer confirms) confirmed, payout ready, paid out.
 - A provider cannot move a booking from `provider_arrived` to `in_progress` and beyond on the customer's behalf in odd ways; the status machine enforces order. If a status looks stuck, check Booking 360 timeline.
 
 Playbook:
 1. "I'm not getting any job offers": check provider is approved, `is_available` is on, has the right service categories, and is inside a service area that is active. Few or zero providers can also mean the area is in soft_launch. Check the Service Areas page.
 2. "I accepted but the app says someone else got it": offers are exclusive and time-boxed at 45 seconds. If it expired or a sibling offer was accepted, the job is gone. Normal.
-3. "Booking stuck, I can't mark the next step": open Booking 360 → Timeline. Confirm current status. If genuinely stuck (rare), a super_admin can force-complete (reason 20+ chars) or reassign. Escalate.
-4. "I need to cancel a job I accepted": providers can cancel from `matched`, `paid`, or `provider_en_route`. Warn them about cancellation tracking: a warning fires after 3 cancellations in 30 days, and auto-suspend signal after 5 in 30 days. See section 13.
+3. "Booking stuck, I can't mark the next step": open Booking 360 then Timeline. Confirm current status. If genuinely stuck (rare), a super_admin can force-complete (reason 20+ chars) or reassign. Escalate.
+4. "I need to cancel a job I accepted": providers can cancel from `matched`, `paid`, or `provider_en_route`. Warn them about cancellation tracking: a warning fires after 3 cancellations in 30 days, and an auto-suspend signal after 5 in 30 days. See section 13.
+
+When the platform itself cannot match any provider (no-provider failure), the customer is owed a 100% full refund plus a ₱150 goodwill credit. That is a dispatch and money matter handled per `08-dispatch-and-area-operations.md`; it is not a penalty against the provider.
 
 ---
 
@@ -163,10 +170,13 @@ Playbook:
 
 When the provider arrives and the customer is not there:
 1. Tell the provider to message the customer in the booking chat first (text plus a photo of arrival if useful). There is no in-app calling despite some app copy mentioning masked numbers; that feature is not built. Chat is the live channel.
-2. Provider should wait a reasonable window. ASSUMPTION: 15 minutes is the starting wait before reporting a no-show. Tune this.
+2. Provider should wait a reasonable window. Starting wait is 15 minutes before reporting a no-show.
+
+> **Set (editable):** A provider waits 15 minutes after arriving before reporting a customer no-show. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
 3. If the customer still does not appear, the provider reports it to support. Log this as ticket type `booking_issue` with a clear note "customer no-show at site." (The `provider_no_show` ticket type is for the opposite case, when the provider fails to show.)
 4. A customer no-show affects the refund split. On the live cancellation path, a customer no-show gives the customer a 0% refund, which means the provider is compensated for the trip. Confirm the booking is handled so the provider is not penalized.
-5. Gather evidence: arrival photo, GPS check-in (visible in Booking 360 → Evidence), chat showing the provider tried to reach the customer.
+5. Gather evidence: arrival photo, GPS check-in (visible in Booking 360 then Evidence), chat showing the provider tried to reach the customer.
 6. Escalate to Trust & Safety / super_admin to cancel or resolve with the no-show flag so the money splits correctly. Do not leave the provider out of pocket for a confirmed customer no-show.
 
 Note the mirror case: if the PROVIDER no-shows, the customer gets a 100% refund plus a platform-funded apology credit (default ₱200), and the provider's reliability takes a hit. That is a Trust & Safety and quality matter, covered in `09-trust-safety-and-disputes.md`.
@@ -184,7 +194,7 @@ Provider login is phone number plus OTP. No passwords.
 Playbook:
 1. "I'm not getting my OTP": confirm the number is correct and PH format. If they hit the hourly cap, they wait. SMS delays happen on the carrier side; advise waiting a few minutes before resending.
 2. "I'm locked out / captcha keeps showing": too many failed attempts. Have them complete the captcha and retry. If still stuck, confirm the phone number on the account matches the SIM they are using.
-3. "I changed my phone number": this is an account-identity change. Verify identity (match against KYC on file) before any change, and escalate, since phone is the login identity.
+3. "I changed my phone number": this is an account-identity change. Verify identity (most recent booking reference plus the registered full name plus an OTP to the number on file when possible) before any change, and escalate, since phone is the login identity. If the old number is lost, escalate to super-admin.
 4. App bug or crash: log ticket type `app_bug` with device, OS, app version, and steps. Route to engineering via the ticket. Do not guess a fix.
 
 ---
@@ -198,7 +208,7 @@ Approval rule: a super_admin cannot approve a provider unless `nbi_clearance_url
 NBI expiry:
 - The provider row carries `nbi_expiry_date`. A background job warns providers whose NBI expires within 30 days (default) and notifies again when expired.
 - The mobile NBI status banner classifies as missing, expiring, expired, or valid.
-- An expired NBI does not auto-suspend, but it is a trust gap. Push the provider to renew and re-upload.
+- An expired NBI does not auto-suspend. Support chases the renewal manually, and only manually suspends if the provider ignores the chase. Push the provider to renew and re-upload.
 
 Re-upload playbook:
 1. "My NBI is expiring / expired": tell them to get a fresh NBI (must be recent, the app hints within the last 6 months) and re-upload through the app. KYC documents go to a private bucket; admins view them through an authenticated proxy, never raw URLs.
@@ -207,9 +217,10 @@ Re-upload playbook:
 4. Certifications (for Elite tier): providers self-add certifications; `is_verified` is set by an admin. Elite needs a verified certification. If a provider expects Elite but their cert is not verified yet, that is the blocker. Route the cert for verification.
 
 Macro: document re-upload
+
 ```
 Hi [name], we need a clearer [NBI clearance / government ID / selfie]. The issue: [reason from rejection]. Please:
-1. Open the app → Account & Verification → re-upload [document].
+1. Open the app then Account & Verification then re-upload [document].
 2. Make sure the photo is sharp, well lit, and shows the whole document.
 For NBI, it should be issued within the last 6 months.
 Once you've re-uploaded, reply here and we'll review within [SLA]. Your documents are stored privately and only our verification team can see them.
@@ -222,7 +233,7 @@ Once you've re-uploaded, reply here and we'll review within [SLA]. Your document
 Facts:
 - Provider rating is the average of customer reviews on completed bookings.
 - A provider can reply to a review publicly in the app (Reply to Review, max 500 characters, posts immediately).
-- A provider cannot delete a review themselves. Admins can hide or show a review (visibility toggle) and add an admin response, on Provider 360 → Reviews.
+- A provider cannot delete a review themselves. Admins can hide or show a review (visibility toggle) and add an admin response, on Provider 360 then Reviews.
 - Auto-dispatch only excludes a provider for low rating once they have at least 5 reviews AND their rating is below the floor (default 2.5). New providers with few reviews are never excluded for being new.
 
 Rating dispute playbook:
@@ -233,6 +244,7 @@ Rating dispute playbook:
 5. Watch for a pattern: repeated one-star reviews trigger an internal admin alert (`provider_consecutive_one_star`). Repeated genuine complaints are a quality issue, see `12-quality-standards-and-kpis.md`, not a review to hide.
 
 Macro: rating reply coaching
+
 ```
 Hi [name], a customer left a [N]-star review. Two options:
 1. You can reply publicly in the app (Reply to Review, up to 500 characters). A calm, professional reply that owns what you can and explains your side often helps future customers more than the review hurts.
@@ -265,6 +277,7 @@ Suspension appeal playbook:
 6. Record the decision and reason. Reactivation and any tier change are audited.
 
 Decision tree for an appeal:
+
 ```
 Suspension reason?
 ├─ Cancellations (3 warn / 5 auto-signal)
@@ -279,6 +292,7 @@ Suspension reason?
 ```
 
 Macro: suspension explained
+
 ```
 Hi [name], your provider account is currently suspended. Reason: [exact reason]. While suspended you won't receive job offers. Here's what happens next:
 1. [If applicable] We need to resolve [N] in-progress booking(s) first.
@@ -297,7 +311,23 @@ Playbook: confirm the provider's requested area exists and is active or in soft_
 
 ---
 
-## 15. Quick reference card
+## 15. Cancellation numbers (quote the live money path)
+
+When a provider asks "what do I get if a customer cancels," the live cancellation/refund money path and the displayed cancellation policy currently use different brackets. This is a known open issue pending reconciliation.
+
+> **Set (editable):** Until the two systems are reconciled, support quotes the LIVE refund money-path numbers, not the policy page, when answering a provider's cancellation question. Flag the mismatch on the ticket so it is tracked. See `09-trust-safety-and-disputes.md` and `10-money-and-compliance-ops.md`. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+---
+
+## 16. Provider ticket intake
+
+There is no provider-facing ticket screen yet.
+
+> **Set (editable):** Provider ticket intake is email-to-agent (and Facebook Messenger): the agent logs the ticket in admin on the provider's behalf. Keep this at launch rather than building a provider-facing ticket screen; revisit post-launch if volume warrants it. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+---
+
+## 17. Quick reference card
 
 | Provider says | First check | Likely answer |
 |---|---|---|
@@ -308,16 +338,18 @@ Playbook: confirm the provider's requested area exists and is active or in soft_
 | "No job offers" | Approved + available + area | 45s exclusive offers; check availability and service area |
 | "Customer not at site" | Booking 360 Evidence | 15-min wait, then no-show handling, provider compensated |
 | "Not getting OTP" | Phone format + hourly cap | Format `+63 9XX...`, 5/hour cap, carrier delay |
-| "NBI expiring" | NBI status banner | Renew and re-upload; private bucket |
+| "NBI expiring" | NBI status banner | Renew and re-upload; private bucket; manual chase, manual suspend if ignored |
 | "Bad review" | Booking 360 | Reply publicly; remove only if fake/abusive |
 | "Suspended" | Provider 360 Activity | Read reason; appeal path in section 13 |
 
 ---
 
-## Open items for Ken
+## Open decisions set in this doc
 
-DECIDE: provision a real support hotline or remove the placeholder number +63 2 8123 4567 from the app before launch.
-
-DECIDE: the live cancellation/refund money path and the displayed cancellation policy use different brackets. When a provider asks "what do I get if a customer cancels," the live money path is the accurate answer, not the policy page. Confirm which numbers support should quote to providers and whether the two systems should be reconciled. See `09-trust-safety-and-disputes.md` and `10-money-and-compliance-ops.md`.
-
-DECIDE: whether to build a provider-facing support ticket screen, or keep email-to-agent as the intake while agents log tickets in admin.
+- Provider support is staffed first on email and Facebook Messenger, Monday to Saturday, 8:00 AM to 6:00 PM PHT, one agent to start. (editable)
+- Hotline placeholder `+63 2 8123 4567` removed from the app pre-launch; phone support not live until a real number is provisioned. (editable)
+- FAQ corrections batched into app releases at launch; FAQ moves to an admin-editable source post-launch. (editable)
+- Super-admin/Ken reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout. (editable)
+- Customer no-show wait window is 15 minutes before the provider reports it. (editable)
+- Support quotes the live refund money-path numbers (not the policy page) on cancellation questions until the two systems are reconciled. (editable)
+- Provider ticket intake stays email/Messenger-to-agent at launch; no provider-facing ticket screen yet. (editable)

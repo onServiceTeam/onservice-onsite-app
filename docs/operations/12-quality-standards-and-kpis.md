@@ -3,14 +3,15 @@
 Purpose: define what "good" means for onService PH (service, providers, support, operations), the numbers that prove it, and where to pull those numbers in the admin app.
 
 How to read this doc:
-- Every target below is a STARTING target. Tune it after 4 to 6 weeks of real Cebu data. Targets marked "tune-able" should be reviewed in the weekly ops review.
+
+- Every target below is a starting target. Tune it after 4 to 6 weeks of real Cebu data. Targets marked "tune-able" should be reviewed in the weekly ops review.
 - Numbers come from the admin app unless noted. Money is stored in centavos and shown in PHP (₱). Timezone is Asia/Manila.
 - Provider tiers and commission rates are admin-tunable in Settings (`commission_rate_<tier>`). The tier rules below are the current defaults from the tier ladder.
 - Related docs: `06-customer-support-sop.md` (support workflow), `07-provider-support-sop.md`, `08-dispatch-and-live-operations.md`, `09-trust-safety-and-disputes.md`, `04-provider-vetting-and-filtering.md`, `11-admin-system-training-manual.md`.
 
-IMPORTANT money-flow note: onService runs an instant-pay escrow model. The customer pays first into the platform escrow wallet, then a provider is matched and dispatched. Money is held in escrow until the customer confirms completion or the 24-hour auto-confirm fires. So "completion" for quality purposes means the booking reached `confirmed` (or auto-confirmed), not just that the provider marked it done.
+Money-flow note (important): onService runs an instant-pay escrow model. The customer pays first into the platform escrow wallet, then a provider is matched and dispatched. Money is held in escrow until the customer confirms completion or the 24-hour auto-confirm fires. So "completion" for quality purposes means the booking reached `confirmed` (or auto-confirmed), not just that the provider marked it done.
 
-DECIDE: The instant-pay path (`requested` to `payment_pending`) is fixed on a branch but NOT merged to master yet (E03). Until Ken merges it, customers hitting checkout get a 409 error. The quality targets below assume instant-pay is live. If launch happens before the merge, the "checkout success rate" and "time-to-match" numbers will be wrong because bookings stall at `requested`. Ken must decide the merge timing before these KPIs mean anything.
+> **Set (editable):** The quality targets in this doc assume the instant-pay path (`requested` to `payment_pending`) is live. That path is fixed on a branch but not yet merged to master (escalation E03); until Ken merges it, customers hitting checkout get a 409 error and bookings stall at `requested`, which makes "checkout success rate" and "time-to-match" meaningless. Treat the E03 merge as a launch blocker that must land before these KPIs mean anything. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ---
 
@@ -20,41 +21,47 @@ These describe a single completed job. Pull most of these from the provider's Jo
 
 | Standard | What it means | Starting target (tune-able) | Where to see it |
 |---|---|---|---|
-| On-time arrival | Provider reaches `provider_arrived` at or before the scheduled window | 90% within +/- 15 min of scheduled_at | Booking detail Timeline tab; GPS check-ins on Evidence tab |
+| On-time arrival | Provider reaches `provider_arrived` at or before the scheduled window | 90% within +/- 15 min of `scheduled_at` | Booking detail Timeline tab; GPS check-ins on Evidence tab |
 | Completion rate | Of dispatched-and-paid jobs, share that reach `confirmed` or `resolved` without a customer-side cancel | 92% | Bookings monitor filtered by status |
 | Rating threshold | Job rating left by customer | Average 4.5+, no 1-star without a logged reason | Provider Jobs tab (rating column); Reviews tab |
 | Re-do / complaint rate | Jobs that produce a dispute OR a `free_redo` resolution | Under 5% of completed jobs | Disputes queue; Dispute detail resolution type |
 | Evidence captured | Before/after photos present (probation policy requires them for first 3 jobs) | 100% for probation jobs | Booking detail Evidence tab |
 
 Notes:
+
 - The 3-job probation with mandatory before/after photos is policy (DECISION-003), not blocked in code. Support and dispatch must spot-check that probation providers actually uploaded photos. See `05-provider-onboarding-and-training.md`.
-- ASSUMPTION: "on-time" uses a +/- 15 minute window. The app does not define an on-time SLA, so this is a recommendation to tune.
+
+> **Set (editable):** "On-time" uses a +/- 15 minute window around `scheduled_at`. The app does not define an on-time SLA, so this is an ops target, not a code rule. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ---
 
 ## 2. Provider quality standards by tier
 
-Tiers are the quality ladder. The rating, job-count, and dispute thresholds below are the tier-progression requirements built into the app. Commission is the reward for moving up. Tier changes are done by a super_admin on the Providers page (Change Tier, reason 10+ chars). There is no automatic promotion writeback today, so an admin must act on the signals.
+Tiers are the quality ladder. The rating, job-count, and dispute thresholds below are the tier-progression requirements built into the app. Commission is the reward for moving up. Tier changes are done by a super-admin on the Providers page (Change Tier, reason 10+ chars). There is no automatic promotion writeback today, so an admin must act on the signals.
 
 | Tier | Commission | Min jobs | Min rating | Other gates |
 |---|---|---|---|---|
 | Founding | 10% | 0 | 0 | Invite-only launch batch. Terminal, parallel to the ladder, not a step. |
 | New | 15% | 0 | 0 | Default on signup |
-| Verified | 13% | 5 | 4.0 | none |
+| Verified | 13% | 5 | 4.0 | None |
 | Pro | 11% | 25 | 4.5 | Zero open disputes |
 | Elite | 9% | 100 | 4.7 | Verified TESDA certification + zero open disputes |
 
 (An "open" dispute is any dispute not in status `resolved`.)
 
 ### Rating floor and auto-dispatch exclusion
+
 A provider is pulled out of auto-dispatch only once they have enough reviews to judge them: `total_reviews >= 5` AND `rating < 2.5` (both admin-tunable as `matching_min_rating` and `matching_min_rating_reviews`). New providers with few reviews are never excluded just for being new. This floor is separate from the tier rating gates above.
 
 ### What drops or lifts a tier (operations rules)
+
 LIFTS (an admin promotes after confirming the provider clears the next tier's gates):
+
 - [ ] Job count, rating, dispute count, and (for Elite) verified certification all meet the next tier.
 - [ ] No suspension in the last 30 days.
 
 DROPS / suspension signals (act through the Providers page):
+
 - [ ] Cancellations: warn at 3 cancellations in 30 days (`providerCancellationWarningThreshold`), auto-suspend signal at 5 in 30 days (`providerCancellationSuspendThreshold`). Counts live on the providers row.
 - [ ] A `refund_with_suspension` dispute resolution suspends the provider automatically.
 - [ ] Repeated 1-star ratings trigger the `provider_consecutive_one_star` admin alert. Review and consider a tier drop or coaching.
@@ -66,19 +73,19 @@ Suspending a provider immediately removes them from dispatch (matching only cons
 
 | Metric | Weight | Green | Amber | Red |
 |---|---|---|---|---|
-| Average rating | 35% | 4.7+ | 4.3 to 4.69 | under 4.3 |
-| Acceptance rate | 20% | 80%+ | 60 to 79% | under 60% |
+| Average rating | 35% | 4.7+ | 4.3 to 4.69 | Under 4.3 |
+| Acceptance rate | 20% | 80%+ | 60 to 79% | Under 60% |
 | Cancellation rate (30d) | 20% | 0 to 1 | 2 to 3 | 4+ |
-| Dispute rate | 15% | 0% | up to 5% | over 5% |
-| On-time rate | 10% | 90%+ | 75 to 89% | under 75% |
+| Dispute rate | 15% | 0% | Up to 5% | Over 5% |
+| On-time rate | 10% | 90%+ | 75 to 89% | Under 75% |
 
-ASSUMPTION: acceptance-rate and on-time bands are recommendations. The app tracks `acceptance_rate` and `response_time_minutes` on the providers row and uses acceptance/reliability at weight 0.2 in the dispatch score, but does not set a pass/fail band.
+> **Set (editable):** The acceptance-rate and on-time bands above are ops targets, not code rules. The app tracks `acceptance_rate` and `response_time_minutes` on the providers row and weights acceptance/reliability at 0.2 in the dispatch score, but it does not enforce a pass/fail band. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ---
 
 ## 3. Support quality standards
 
-Support runs out of the admin Support Tickets page (`/support-tickets`). There is no in-app ticket screen for customers or providers today, so tickets come in by email (support@onservice.ph for customers, providers@onservice.ph for providers) and an agent creates the ticket on the user's behalf. Hours are Mon to Sat, 8am to 8pm PHT. See `06-customer-support-sop.md` and `10-money-and-compliance-ops.md` for the channel and data-handling detail.
+Support runs out of the admin Support Tickets page (`/support-tickets`). There is no in-app ticket screen for customers or providers today, so tickets come in by email (`support@onservice.ph` for customers, `providers@onservice.ph` for providers) and Facebook Messenger, and an agent creates the ticket on the user's behalf. Support hours are Monday to Saturday, 8:00 AM to 6:00 PM PHT. See `06-customer-support-sop.md` and `10-money-and-compliance-ops.md` for the channel and data-handling detail.
 
 ### Support SLA targets (tune-able)
 
@@ -90,10 +97,16 @@ Support runs out of the admin Support Tickets page (`/support-tickets`). There i
 | Low (general inquiry) | 1 business day | 3 business days |
 
 Other support quality targets:
-- CSAT: 90%+ satisfied. ASSUMPTION: there is no CSAT capture built in the app yet. Until one exists, run a short post-resolution survey by email or SMS and log results in a sheet. DECIDE: whether to build CSAT capture into support tickets, or keep it manual for launch.
+
 - Reopen rate: under 8% of resolved tickets reopened within 7 days.
-- Ticket statuses to watch: a ticket sitting in `waiting_on_customer` or `waiting_on_provider` does not count against resolution time, but auto-close it after 5 days of no reply (manual for now).
-- Resolution notes are mandatory (10+ char minimum enforced) when moving a ticket to resolved or closed. No empty closes.
+- Ticket statuses to watch: a ticket sitting in `waiting_on_customer` or `waiting_on_provider` does not count against resolution time, but auto-close it after 5 days of no reply (two reminders first). Manual for now.
+- Resolution notes are mandatory (10+ char minimum enforced) when moving a ticket to `resolved` or `closed`. No empty closes.
+
+### CSAT
+
+- Target: 90%+ satisfied.
+
+> **Set (editable):** CSAT is captured manually at launch. There is no CSAT field built into the ticket system yet, so run a short post-resolution survey by email or SMS and log results in a sheet. Build CSAT capture into Support Tickets later (backlog item), then retire the manual sheet. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ### Support QA scorecard (grade 5 to 10 tickets per agent per week)
 
@@ -101,14 +114,14 @@ Score each closed ticket 0 to 2 on each line. Pass = 8 of 12 or higher.
 
 | Item | 0 | 1 | 2 |
 |---|---|---|---|
-| Correct triage (type + priority right) | wrong | mostly | correct |
-| First response within SLA | missed | close | met |
-| Followed the SOP / decision tree | no | partly | yes |
-| Money/refund handled correctly (escrow, policy) | wrong | minor slip | correct |
-| Tone (plain, calm, no jargon; Bisaya/Tagalog/English as fits) | poor | ok | good |
-| Resolution note clear + audit-ready | missing | thin | clear |
+| Correct triage (type + priority right) | Wrong | Mostly | Correct |
+| First response within SLA | Missed | Close | Met |
+| Followed the SOP / decision tree | No | Partly | Yes |
+| Money/refund handled correctly (escrow, policy) | Wrong | Minor slip | Correct |
+| Tone (plain, calm, no jargon; Bisaya/Tagalog/English as fits) | Poor | OK | Good |
+| Resolution note clear + audit-ready | Missing | Thin | Clear |
 
-Anything touching escrow, refunds, payouts, or provider suspension must be checked against `09-trust-safety-and-disputes.md` and `10-money-and-compliance-ops.md`. Those actions are super_admin-only and write paired audit rows.
+Anything touching escrow, refunds, payouts, or provider suspension must be checked against `09-trust-safety-and-disputes.md` and `10-money-and-compliance-ops.md`. Those actions are super-admin only and write paired audit rows.
 
 ---
 
@@ -121,7 +134,7 @@ These are the platform health numbers. Most come from the Dashboard (`/`), Finan
 | Match rate | Paid bookings that get a provider (`matched` or further) | 90%+ | Bookings monitor; Dispatch Console counters |
 | Time-to-match | Booking paid to provider accepts an offer | Median under 3 min | Booking Timeline; offers run on a 45s cycle, max 10 attempts |
 | No-provider rate | Bookings that hit `no_provider_available` | Under 8% | Dashboard alerts; notification type `no_provider_available` |
-| Checkout success rate | Bookings that reach `paid` vs created | 95%+ | Bookings monitor (see E03 DECIDE above) |
+| Checkout success rate | Bookings that reach `paid` vs created | 95%+ | Bookings monitor (depends on the E03 merge, see the money-flow note above) |
 | Dispute rate | Disputes filed per 100 confirmed bookings | Under 5 | Disputes queue; Dashboard Pending Disputes |
 | Refund rate | Refunded amount as share of GMV | Under 4% | Financials Overview (refunds, net revenue) |
 | Escrow aging | Funds stuck in `held` past 48h | Near zero past 168h | Financials Escrow tab (aging buckets) |
@@ -131,10 +144,12 @@ These are the platform health numbers. Most come from the Dashboard (`/`), Finan
 Why these matter for an instant-pay model: the customer has already paid before a provider exists. A high no-provider rate means we are holding money for jobs we cannot fill, which forces refunds and burns trust. Time-to-match and match rate are the early-warning lights for that.
 
 Dispatch-specific watch items (live, from the Dispatch Console):
+
 - Providers online count vs active bookings. If bookings climb while online providers stay flat, expect no-provider events.
 - The 45-second offer cycle: each unanswered offer cascades to the next provider, capped at 10 attempts, then the customer is notified once. Watch the live alert tail for repeated cascades in one city. See `08-dispatch-and-live-operations.md`.
 
 City-level health (Dashboard Cities grid, one row per service area):
+
 - [ ] Each active city has providers online during peak hours.
 - [ ] `city_low_provider_count` alert is clear. If it fires, that city is at no-provider risk and recruiting needs a push (`03-provider-recruiting-sop.md`).
 
@@ -150,17 +165,22 @@ Escrow and the guarantee fund are part of the trust promise. Pull from Financial
 | Reconciliation discrepancies | Zero unacknowledged | Financials Reconciliation tab |
 | Failed payouts | Zero left unresolved | Financials Payouts tab; Payouts queue |
 | PayMongo webhook failures | Zero | `paymongo_webhook_failure` admin alert |
-| DSR on-time rate | 100% within the 15-day NPC SLA | Compliance DSR queue; Dashboard overdue/near-due rows |
+| DSR on-time rate | 100% within the NPC-required window | Compliance DSR queue; Dashboard overdue/near-due rows |
 
-The guarantee fund is funded by about 1.5% of every service fee and covers up to ₱25,000 per claim. It is a service guarantee, not insurance. Do not describe it as insurance anywhere customer-facing. See `09-trust-safety-and-disputes.md` and `10-money-and-compliance-ops.md`.
+The guarantee fund is funded by about 1.5% of every service fee. It is a service guarantee, not insurance. Do not describe it as insurance anywhere customer-facing.
+
+> **Set (editable):** Guarantee-fund claim cap of ₱20,000 per claim. Eligible claims are provider-caused property damage or theft, with photo evidence filed inside the 48-hour dispute window; the payout is clawed back from the provider's future payouts, and anything above the cap escalates to Ken. This figure needs legal and accountant sign-off, and it must match the claim rule in `09-trust-safety-and-disputes.md`. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+See `09-trust-safety-and-disputes.md` and `10-money-and-compliance-ops.md`.
 
 ---
 
 ## 6. Weekly ops review
 
-Run this once a week, 45 minutes, whole ops team. Owner: the ops lead (see `02-org-structure-and-roles.md`).
+Run this once a week, 45 minutes, whole ops team. Owner: the Operations Lead (see `02-org-structure-and-roles.md`).
 
 Agenda:
+
 1. Pull last 7 days on the Dashboard (set range to 7d).
 2. Walk the operational KPIs in section 4. Note any red.
 3. Provider health: new approvals, suspensions, tier moves, cancellation warnings, NBI expiries due in 30 days.
@@ -213,7 +233,7 @@ Attendees:
 | Support | Support Tickets `/support-tickets` | Status, priority, assignment |
 | Quality analytics | Analytics `/analytics` | Quality Scores, Cohort, Churn, Commission tabs |
 | Compliance / DSR | Compliance `/compliance` | DSR queue, audit, BIR calendar |
-| Who did what | Audit Log `/audit-log` | request + admin-op rows |
+| Who did what | Audit Log `/audit-log` | Request + admin-op rows |
 
 Note: the Analytics page has a "Quality Scores" tab and a "Churn Prediction" tab. Confirm with engineering which are live vs feature-flagged before you rely on them in a review. The Dashboard, Financials, Disputes, and Bookings pages are the dependable sources for the KPIs above.
 
@@ -222,7 +242,18 @@ Note: the Analytics page has a "Quality Scores" tab and a "Churn Prediction" tab
 ## 8. Review and tune cadence
 
 - Weekly: section 6 review, support QA scorecards.
-- Monthly: provider scorecards (section 2), tier promotions/demotions, re-check every "starting target" against real data and adjust.
+- Monthly: provider scorecards (section 2), tier promotions/demotions, re-check every starting target against real data and adjust.
 - Quarterly: revisit the standards themselves. As Cebu matures and new cities turn on, what counted as green in month 1 should tighten.
 
 When you change a target, write the new number here and note the date and reason. Do not let stale targets sit unchallenged.
+
+---
+
+## Open decisions set in this doc
+
+- E03 / instant-pay assumption for the KPIs: treat the E03 merge as a launch blocker before these targets mean anything (editable).
+- On-time window: +/- 15 minutes around `scheduled_at` (editable).
+- Provider scorecard acceptance and on-time bands: ops targets only, not code-enforced (editable).
+- CSAT capture: manual post-resolution survey at launch, build into Support Tickets later (editable).
+- Guarantee-fund claim cap: ₱20,000 per claim, must match `09-trust-safety-and-disputes.md`, needs legal and accountant sign-off (editable).
+- Support hours: Monday to Saturday, 8:00 AM to 6:00 PM PHT (editable).

@@ -2,7 +2,7 @@
 
 Purpose: the end-to-end playbook for resolving disputes, deciding refunds and escrow releases, and handling fraud and safety incidents on onService PH.
 
-This doc covers the resolution work. For the mechanics of how money actually moves (escrow hold/release/refund, PayMongo, wallet ledger), see `10-money-and-compliance-ops.md`. For provider suspension steps, see `07-provider-support-sop.md`. For support channels and triage, see `06-customer-support-sop.md`. For the admin pages named below, see `11-admin-system-training-manual.md`.
+This doc covers the resolution work. For the mechanics of how money moves (escrow hold/release/refund, PayMongo, wallet ledger), see `10-money-and-compliance-ops.md`. For provider suspension steps, see `07-provider-support-sop.md`. For support channels and triage, see `06-customer-support-sop.md`. For the admin pages named below, see `11-admin-system-training-manual.md`.
 
 ---
 
@@ -10,7 +10,9 @@ This doc covers the resolution work. For the mechanics of how money actually mov
 
 The customer pays first. Money goes into the platform escrow wallet and is held there. The intended flow is instant-pay: customer books and pays into escrow, then a provider is matched. The provider does the job, the customer confirms (or it auto-confirms after 24 hours), and only then does escrow release to the provider. Because the platform holds the money, a dispute is a fight over money we already have, not money we have to claw back. That is the whole reason disputes are winnable for the customer when a provider is in the wrong.
 
-DECIDE: On master today the `requested -> payment_pending` checkout transition is still blocked (E03, tester-confirmed launch blocker). The instant-pay fix exists on branch `fix/e03-instant-pay-money-path` but is not merged. Until Ken merges it, some new bookings can get stuck before payment. Ops needs to know this so a "I paid but it errored" report is recognized as E03, not a dispute.
+> **Set (editable):** Ops must recognize the E03 checkout bug as a bug, not a dispute. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+On master today the `requested -> payment_pending` checkout transition is still blocked (E03, tester-confirmed launch blocker). The instant-pay fix exists on branch `fix/e03-instant-pay-money-path` but is not merged. Until Ken merges it, some new bookings can get stuck before payment. When a customer reports "I paid but it errored," treat it as E03 and route it to the bug path, not the dispute SOP.
 
 ---
 
@@ -31,11 +33,11 @@ Filing flips the booking to `disputed` and sets escrow to `held`, which freezes 
 
 `no_show`, `incomplete`, `substandard`, `damage`, `theft`, `overcharge`, `other`.
 
-Photo evidence is required in-app for `damage` and `theft` (the app blocks submission without it). For the others it is optional but always ask for it. Description is 50-2000 characters.
+Photo evidence is required in-app for `damage` and `theft` (the app blocks submission without it). For the others it is optional, but always ask for it. Description is 50-2000 characters.
 
 ### 2.3 The resolution states (ground truth)
 
-A dispute moves through these statuses: **`open`** (just filed) -> **`under_review`** (assigned to an agent, or provider contested) -> **`escalated`** (tier 2 or 3) -> **`resolved`** (terminal). Tier is 1, 2 or 3 and only goes up.
+A dispute moves through these statuses: `open` (just filed) -> `under_review` (assigned to an agent, or provider contested) -> `escalated` (tier 2 or 3) -> `resolved` (terminal). Tier is 1, 2 or 3 and only goes up.
 
 Two things resolve a dispute without an admin lifting a finger:
 
@@ -54,13 +56,13 @@ When notified, the provider has 48 hours to do one of:
 
 1. Dispute lands in the **Disputes** admin page (`/disputes`) via socket. Tickets sort by tier and age.
 2. **Triage within target SLA** (see section 6). Open the **Dispute detail** page (`/disputes/:id`, "Dispute 360"). Read the customer claim and provider response side by side.
-3. **Collect and review evidence** (section 3). Check the customer and provider 90-day history cards for the risk pattern flag (OK / REVIEW_REQUIRED / AT_RISK).
-4. If you need more time or a specialist, **Assign to admin** (by UUID) and/or **Escalate** (reason ≥10 chars, only when tier < 3).
+3. **Collect and review evidence** (section 3). Check the customer and provider 90-day history cards for the risk pattern flag (`OK` / `REVIEW_REQUIRED` / `AT_RISK`).
+4. If you need more time or a specialist, **Assign to admin** (by UUID) and/or **Escalate** (reason 10+ chars, only when tier < 3).
 5. **Message parties** if facts are missing (customer / provider / both, 5-2000 chars). Give a clear deadline.
 6. **Decide** using the escrow/refund decision tree (section 4).
-7. **Resolve & notify** (super-admin only). Pick the resolution type, set refund % for partial/split, write decision notes (≥20 chars). The page shows an estimated-refund preview and a confirm step.
-8. The system flips the booking to `resolved`, sets escrow to refunded / partially_refunded / released, pushes the refund back through PayMongo, releases any remainder to the provider, and notifies both parties. If a refund or release fails, it lands in the `gateway_retry_queue` and retries (it is not silently dropped).
-9. If new facts surface after a resolution, a super-admin can **Reopen** (reason ≥20 chars).
+7. **Resolve and notify** (super-admin only). Pick the resolution type, set refund % for partial/split, write decision notes (20+ chars). The page shows an estimated-refund preview and a confirm step.
+8. The system flips the booking to `resolved`, sets escrow to `refunded` / `partially_refunded` / `released`, pushes the refund back through PayMongo, releases any remainder to the provider, and notifies both parties. If a refund or release fails, it lands in the `gateway_retry_queue` and retries (it is not silently dropped).
+9. If new facts surface after a resolution, a super-admin can **Reopen** (reason 20+ chars).
 
 ### 2.6 Resolution types (ground truth) and what each does to the money
 
@@ -69,8 +71,8 @@ When notified, the provider has 48 hours to do one of:
 | `full_refund` | 100% | nothing | |
 | `refund_with_warning` | 100% | nothing | logs a warning on the provider |
 | `refund_with_suspension` | 100% | nothing | also suspends the provider |
-| `partial_refund` | refundPercent (0-100) | the remainder, via partial release | you set the % |
-| `split_decision` | refundPercent (0-100) | the remainder | you set the % |
+| `partial_refund` | `refundPercent` (0-100) | the remainder, via partial release | you set the % |
+| `split_decision` | `refundPercent` (0-100) | the remainder | you set the % |
 | `no_refund` | nothing | full escrow released | provider was in the right |
 | `free_redo` | redo, no cash refund | escrow stays held for the redo | provider re-does the job |
 
@@ -85,16 +87,18 @@ Evidence is `dispute_evidence` rows: photo, video or document, up to 10 per fili
 Pull together before deciding:
 
 - [ ] Customer's written claim (50+ chars, already required)
-- [ ] Customer photos/videos (required for damage and theft)
+- [ ] Customer photos/videos (required for `damage` and `theft`)
 - [ ] Provider's written response
 - [ ] Provider photos (before/after job photos are mandatory during 3-job probation, lean on them)
-- [ ] Booking timeline: GPS check-ins, provider_en_route / arrived / in_progress timestamps (Booking 360 -> Evidence + Timeline tabs)
+- [ ] Booking timeline: GPS check-ins, `provider_en_route` / `arrived` / `in_progress` timestamps (Booking 360 -> Evidence + Timeline tabs)
 - [ ] In-app chat for that booking (one thread per booking; look for `is_flagged` off-platform-bypass messages)
 - [ ] Any change orders on the job (could explain an "overcharge" claim)
 - [ ] 90-day history + risk pattern flag for both parties
 - [ ] For payment claims, the Money tab on Booking 360 (service price, fee, total, linked dispute)
 
-ASSUMPTION: there is no in-app way for either party to upload extra evidence after filing beyond the 10-photo cap, so for complex cases collect anything else over email/chat and the agent attaches it as admin-uploaded evidence. Confirm the exact admin-upload path with engineering before relying on it.
+> **Set (editable):** For evidence beyond the 10-photo cap, the agent collects it over email/chat and attaches it as admin-uploaded evidence; confirm the exact admin-upload path with engineering before relying on it. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+There is no in-app way for either party to upload extra evidence after filing beyond the 10-photo cap. For complex cases, gather anything else over email or chat and attach it as admin-uploaded evidence.
 
 ---
 
@@ -126,8 +130,8 @@ START: dispute filed, escrow = held
   |           Damage value above the job price is a guarantee-fund / liability
   |           question, NOT a refund-% question. Escalate (section 7).
   |
-  +-- OVERCHANGE / billing dispute?
-  |        -> Was there an approved change order? 
+  +-- OVERCHARGE / billing dispute?
+  |        -> Was there an approved change order?
   |              yes, valid -> no_refund (charge was legitimate)
   |              no / not approved -> partial_refund of the disputed amount
   |
@@ -157,12 +161,14 @@ These are starting targets, adjust as you see real cases:
 |---|---|
 | Auto no-show full refund | system (verify only) |
 | Provider accept / partial offer accepted by customer | system (no admin needed) |
-| Any admin-set resolution (full/partial/split/no/free_redo) | **super_admin** |
-| `refund_with_suspension` | **super_admin** (suspends provider too) |
-| Reopen a resolved dispute | **super_admin** (reason ≥20) |
-| Out-of-band goodwill credit to a customer wallet | **super_admin** (Customer detail page) |
+| Any admin-set resolution (full/partial/split/no/free_redo) | super_admin |
+| `refund_with_suspension` | super_admin (suspends provider too) |
+| Reopen a resolved dispute | super_admin (reason 20+ chars) |
+| Out-of-band goodwill credit to a customer wallet | super_admin (Customer detail page) |
 
-DECIDE: there is no peso-amount threshold above which a refund needs Ken's personal sign-off. Recommend a starting rule: any single refund over ₱10,000, any `refund_with_suspension`, and any damage/theft payout get Ken-or-designated-super-admin eyes before resolving. Ken to confirm the threshold.
+> **Set (editable):** Super-admin / Ken reviews every refund over ₱10,000, every `refund_with_suspension`, and every damage or theft payout before it is resolved. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+There is no peso-amount threshold baked into the app, so this is a process rule, not a code gate. Agents stage the resolution and hand it to a super-admin to confirm. Anything below ₱10,000 that is not a suspension or a damage/theft payout can be resolved by a super-admin on shift without pulling in Ken.
 
 ---
 
@@ -210,7 +216,9 @@ Communication rules:
 | Customer dispute filing window | 48 hours after completion (fixed) |
 | Auto-escalate if provider silent | 48 hours (system worker) |
 
-Support hours backing these: Monday to Saturday, 8 AM to 8 PM PHT (the hours stated in-app). After-hours disputes wait for the next window unless they are a safety incident (section 7), which pages on-call.
+Support hours backing these: Monday to Saturday, 8:00 AM to 6:00 PM PHT. After-hours disputes wait for the next window unless they are a safety incident (section 7), which pages on-call. Sunday is closed at launch; urgent safety issues still escalate via the on-call path. (See `06-customer-support-sop.md` for the staffed hours and channels.)
+
+> **Note (editable):** The in-app hours copy must match these support hours. If the app still shows a wider window (for example "8 AM to 8 PM"), treat it as a pre-launch copy fix.
 
 ---
 
@@ -223,7 +231,7 @@ Support hours backing these: Monday to Saturday, 8 AM to 8 PM PHT (the hours sta
 | Off-platform collusion | chat pushes to "pay GCash directly", "cancel and book me privately"; flagged `is_flagged` messages | warn both parties; repeat = provider suspension; the deal stays on-platform so it stays covered |
 | Fake bookings | bookings that cancel right after match, same device/number, no real address, wash payouts | flag customer for fraud review (Customer detail); hold provider payout; check `login_attempts` and history |
 | Payment fraud | webhook amount mismatch (already auto-blocked as tampering, logged to `security_events`), stolen-card chargebacks, top-up then instant payout | do not release escrow; escalate to super-admin; let the reconciliation tab catch PayMongo mismatches |
-| Dispute abuse (customer) | chronic disputes across providers, AT_RISK risk flag, "free job" pattern | the `customer_chronic_disputes` alert fires; weight no_refund/split on weak claims; flag for fraud review |
+| Dispute abuse (customer) | chronic disputes across providers, `AT_RISK` risk flag, "free job" pattern | the `customer_chronic_disputes` alert fires; weight `no_refund`/`split_decision` on weak claims; flag for fraud review |
 | Provider review gaming | clusters of suspicious 5-stars, self-bookings | hide reviews (Provider 360 Reviews tab); investigate |
 | Cancellation gaming (provider) | many cancels to dodge bad jobs | system warns at 3 cancels/30 days, auto-suspends at 5 |
 
@@ -233,15 +241,19 @@ Useful built-in alerts (admin notifications): `provider_consecutive_one_star`, `
 
 These are not disputes. A dispute is about money; a safety incident is about a person being hurt, property being damaged beyond the job, or someone being threatened or harassed. A safety incident can also have a dispute attached, handle the safety part first.
 
-What the app gives the customer: a "Call 911" button and a "Call onService support" button on the Safety & Support screen. Note the masked-phone calling described in that screen's copy is not actually built yet, and the support hotline number in the app is a placeholder. Do not promise masked calling.
+What the app gives the customer: a "Call 911" button and a "Call onService support" button on the Safety and Support screen.
+
+> **Set (editable):** Provision a real support hotline number before public launch, and until then remove the placeholder `+63 2 8123 4567` from the app. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+Two app limits to know: the masked-phone calling described in the Safety screen copy is not built yet, and the support hotline number in the app is a placeholder, not a working line. Do not promise masked calling, and do not give out the placeholder number as if it rings.
 
 Severity levels and response:
 
 | Sev | Definition | First response | Owner |
 |---|---|---|---|
-| **SEV-1** | Active danger: injury needing medical help, violence, threat, assault, sexual harassment | Immediate. Tell the customer to call 911 if anyone is in danger. Page on-call. | Ken / on-call super-admin |
-| **SEV-2** | Property damage beyond the job, theft accusation, harassment that has stopped, provider intoxicated on site | Same business day | Super-admin |
-| **SEV-3** | Rude conduct, no-show with no safety angle, minor property issue | Next business day | Support agent |
+| SEV-1 | Active danger: injury needing medical help, violence, threat, assault, sexual harassment | Immediate. Tell the customer to call 911 if anyone is in danger. Page on-call. | Ken / on-call super-admin |
+| SEV-2 | Property damage beyond the job, theft accusation, harassment that has stopped, provider intoxicated on site | Same business day | Super-admin |
+| SEV-3 | Rude conduct, no-show with no safety angle, minor property issue | Next business day | Support agent |
 
 ### 7.3 Incident-response runbook
 
@@ -258,11 +270,13 @@ Severity levels and response:
 
 If a provider causes damage worth more than the booking, the refund tools only cover the job amount. The rest is a liability question.
 
-- onService is a marketplace, not an insurer. The finalized "no insurance" disclaimer is live in Terms §8, the FAQ, and the Safety screen. Do not tell a customer "we are insured." We are not.
-- Providers are independent contractors and are responsible for damage they cause. The customer's own homeowner's/renter's insurance covers losses beyond platform protections.
-- There is a self-funded **guarantee fund** (a service guarantee, not insurance), funded by 1.5% of every service fee, framed as covering up to ₱25,000 per claim. Any payout from it is a Ken / super-admin decision, not a front-line agent decision.
+- onService is a marketplace, not an insurer. The finalized "no insurance" disclaimer is live in Terms section 8, the FAQ, and the Safety screen. Do not tell a customer "we are insured." We are not.
+- Providers are independent contractors and are responsible for damage they cause. The customer's own homeowner's or renter's insurance covers losses beyond platform protections.
+- There is a self-funded **guarantee fund** (a service guarantee, not insurance), funded by 1.5% of every service fee. The in-app copy frames it as covering up to ₱25,000 per claim. Any payout from it is a Ken / super-admin decision, not a front-line agent decision.
 
-DECIDE: there is no written SOP yet for when the guarantee fund pays a damage claim, how much, and what proof is required. This needs Ken's rules (cap per claim, eligible damage types, required evidence, provider clawback). Until then, treat every above-job damage claim as an escalation, not a self-serve refund.
+> **Set (editable):** Guarantee-fund claim rule, pending legal and accountant sign-off: cap at ₱20,000 per claim; eligible cases are provider-caused property damage or theft with photo evidence filed inside the 48-hour dispute window; the payout is clawed back from the provider's future payouts; anything above the cap is an escalation to Ken. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+Two numbers to keep straight: the app copy says the fund covers up to ₱25,000 per claim, while the operational payout cap above is ₱20,000 per claim. The ₱20,000 cap is the rule agents work to; flag the gap to Ken so the app copy and the payout rule get reconciled before launch. Until the rule is signed off, treat every above-job damage claim as an escalation, not a self-serve refund.
 
 ---
 
@@ -273,18 +287,36 @@ This will bite an agent who quotes the wrong number, so know it.
 - The **money that actually moves** on a held-escrow cancellation uses the live settings brackets: 100% over 24h, 100% at 2-24h, 90% at 1-2h, 80% at 30min-1h, 70% under 30min, 50% if the provider already arrived, 0% on customer no-show. The service fee comes back too, except on a no-show.
 - The **policy the app displays** to customers (and the admin Cancellation Policy editor) is a different, versioned tier table: 100% at 24h+, 75% at 4-24h, 50% under 4h, 0% after scheduled. Plus a provider-no-show rule that gives the customer 100% back plus a ~₱200 apology credit.
 
-These two do not match. When you explain a cancellation refund, the customer will see the displayed policy, but the live path is what actually paid them. If they question the amount, check which bracket the live path used before promising anything, and flag the mismatch to Ken. Refund mechanics live in `10-money-and-compliance-ops.md`.
+These two do not match. When you explain a cancellation refund, the customer will see the displayed policy, but the live path is what actually paid them.
+
+> **Set (editable):** Until the two systems are reconciled (a known open issue), support quotes the LIVE refund money-path numbers, not the displayed policy table. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+If a customer questions the amount, check which bracket the live path used before promising anything, and flag the mismatch to Ken. Refund mechanics live in `10-money-and-compliance-ops.md`.
 
 ---
 
 ## 9. Quick reference card
 
 - **Dispute window:** 48h after completion. **Provider response:** 48h. **No response = customer wins.**
-- **Auto no-show refund:** provider "completed" within 30 min of schedule on a no_show -> auto full refund.
+- **Auto no-show refund:** provider "completed" within 30 min of schedule on a `no_show` -> auto full refund.
 - **Who resolves money:** super_admin only. Plain admin / dpo are read-only on disputes.
-- **Statuses:** open -> under_review -> escalated -> resolved (tiers 1-3).
-- **Resolution types:** full_refund, partial_refund, no_refund, free_redo, refund_with_warning, refund_with_suspension, split_decision.
-- **Escrow on a dispute:** held until resolution, then refunded / partially_refunded / released.
+- **Statuses:** `open` -> `under_review` -> `escalated` -> `resolved` (tiers 1-3).
+- **Resolution types:** `full_refund`, `partial_refund`, `no_refund`, `free_redo`, `refund_with_warning`, `refund_with_suspension`, `split_decision`.
+- **Escrow on a dispute:** held until resolution, then `refunded` / `partially_refunded` / `released`.
 - **Suspend a bad provider:** Providers page, reason required, freezes their in-flight escrow.
-- **No insurance.** Guarantee fund (up to ₱25,000/claim) is a Ken-approved service guarantee, not insurance.
+- **Extra sign-off:** any refund over ₱10,000, any `refund_with_suspension`, and any damage/theft payout get super-admin / Ken eyes before resolving.
+- **No insurance.** Guarantee fund (app copy says up to ₱25,000/claim; operational cap ₱20,000/claim) is a Ken-approved service guarantee, not insurance.
 - **Safety first.** SEV-1 = page on-call, tell them to call 911, do not investigate before safety.
+- **Support hours:** Monday to Saturday, 8:00 AM to 6:00 PM PHT.
+
+---
+
+## Open decisions set in this doc
+
+- **E03 checkout bug is a bug, not a dispute** (editable): "I paid but it errored" reports route to the bug path until `fix/e03-instant-pay-money-path` merges.
+- **Extra evidence path** (editable): agent attaches over-cap evidence as admin-uploaded; confirm the upload path with engineering first.
+- **Refund sign-off threshold** (editable): super-admin / Ken reviews every refund over ₱10,000, every `refund_with_suspension`, and every damage or theft payout.
+- **In-app hours match the SOP** (editable): app copy must read Monday to Saturday, 8:00 AM to 6:00 PM PHT; wider windows are a pre-launch copy fix.
+- **Support hotline placeholder** (editable): provision a real number before public launch; remove `+63 2 8123 4567` until then.
+- **Guarantee-fund claim rule** (editable): ₱20,000 cap per claim, provider-caused damage/theft with photo evidence inside the 48-hour window, payout clawed back from future payouts, above-cap goes to Ken; pending legal and accountant sign-off.
+- **Cancellation numbers** (editable): support quotes the LIVE refund money-path numbers until the displayed-policy and live-path systems are reconciled.

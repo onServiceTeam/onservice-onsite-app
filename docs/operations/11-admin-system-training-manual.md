@@ -13,6 +13,8 @@ This doc is the page-by-page guide. For the deeper SOPs behind the work (recruit
 
 The admin app lives at https://admin.onservice.ph. It is a browser app (works in Chrome on a laptop). All money is handled in centavos under the hood and shown to you in pesos (₱). Times show in Asia/Manila.
 
+Support hours for the team using this manual are Monday to Saturday, 8:00 AM to 6:00 PM PHT. Sunday is closed at launch; urgent safety issues still escalate through the on-call path.
+
 ---
 
 ## 1. Login and access
@@ -28,7 +30,7 @@ Only three account roles can enter the admin app at all: `super_admin`, `admin`,
 
 If the app sends you straight to a "Change Password" screen, your password was flagged for forced rotation. Set a new one before you can do anything else.
 
-DECIDE: who holds the `super_admin` accounts and how many there are. Recommendation as a starting point: Ken plus one operations lead hold super_admin; everyone else is `admin`, `support_agent`-style, or `dpo`. Keep super_admin count low because those accounts can move money.
+> **Set (editable):** Super-admin accounts are Ken plus one Operations Lead only. Everyone else is `admin`, a support-agent-style limited login, or `dpo`. Keep the super_admin count low because those accounts can move money. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ### The role map (read this before you touch anything)
 
@@ -48,7 +50,9 @@ There is also a second, finer permission system in the database (`admin_roles` /
 - `finance` - dashboard, financials, payouts (view + manage), analytics, audit.
 - `moderator` - dashboard, disputes (view + manage), customers (view), providers (view).
 
-ASSUMPTION: those finer roles function today as organizational metadata for how we describe a person's job. They do NOT by themselves grant or block API access, because the live gate reads the single `users.role` value. So when this manual says "super_admin only," it means the single account role, not the named DB role. Do not assume that giving someone the `finance` named role lets them approve payouts. It does not unless their account role is `super_admin`.
+Those finer named roles function today as organizational metadata for how we describe a person's job. They do NOT by themselves grant or block API access, because the live gate reads the single `users.role` value. So when this manual says "super_admin only," it means the single account role, not the named DB role. Giving someone the `finance` named role does not let them approve payouts unless their account role is `super_admin`.
+
+> **Set (editable):** Before public launch, wire the money actions (refund, payout, escrow release) behind a finance/super-admin gate, and give support agents a limited admin login that cannot reach the money buttons. Today those named roles do not gate routes, so this is a tracked pre-launch work item, not current behavior. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 Bottom line for a new admin: if a button is greyed out or you see a "requires a super-admin account" banner, that is expected. Ask a super_admin to do that step, or escalate per the SOP.
 
@@ -72,7 +76,7 @@ How to start a shift:
 
 ### 2.2 Providers (`/providers`)
 
-The provider list. Search by business name / phone / email. Filter by status (pending, approved, rejected, suspended, deactivated) and tier (founding, new, verified, pro, elite).
+The provider list. Search by business name / phone / email. Filter by status (`pending`, `approved`, `rejected`, `suspended`, `deactivated`) and tier (`founding`, `new`, `verified`, `pro`, `elite`).
 
 Row actions depend on status: a pending provider shows Approve / Reject; an approved one shows Suspend; a suspended one shows Reactivate; Change Tier is available in any state. Status badges: green = approved, amber = pending, red = rejected/suspended/deactivated.
 
@@ -80,30 +84,30 @@ How to approve a provider:
 1. Open the provider's detail page first (click the row). Do not approve from the list without reviewing the documents.
 2. Confirm the three required documents are present and readable: NBI clearance, government ID front, selfie. The system refuses approval and lists what is missing if any are absent.
 3. Back on the list (or from detail), click Approve.
-4. The provider flips pending → approved, gets an "Account Approved" notification, and the action is written to the audit log.
+4. The provider flips `pending` to `approved`, gets an "Account Approved" notification, and the action is written to the audit log.
 
 How to reject a provider:
 1. Click Reject on a pending provider.
 2. Type a reason of at least 10 characters. The provider sees this reason, so write it plainly (for example, "NBI clearance image is blurry and unreadable, please re-upload").
-3. The provider flips to rejected and gets an "Application Declined" notice with your reason.
+3. The provider flips to `rejected` and gets an "Application Declined" notice with your reason.
 
 How to suspend a provider (use carefully):
-1. Click Suspend on an approved provider, give a reason (≥10 chars).
-2. The provider is removed from dispatch immediately. Any in-flight jobs are flagged so escrow will not pay out until a super_admin resolves them. Reactivate restores them to approved.
+1. Click Suspend on an approved provider, give a reason (at least 10 chars).
+2. The provider is removed from dispatch immediately. Any in-flight jobs are flagged so escrow will not pay out until a super_admin resolves them. Reactivate restores them to `approved`.
 
-There is no "delete provider" button. Removal from operation is done by Suspend or the deactivated status. See `04-provider-vetting-and-filtering.md` for the full vetting scorecard and tier rules.
+There is no "delete provider" button. Removal from operation is done by Suspend or the `deactivated` status. See `04-provider-vetting-and-filtering.md` for the full vetting scorecard and tier rules.
 
 Provider tiers and commission (for reference while changing tiers):
 
 | Tier | Commission | Requirements (auto-eligibility signal) |
 |---|---|---|
-| founding | 10% | Invite-only launch batch. Parallel tier, not a step in the ladder. |
-| new | 15% | Default on signup. |
-| verified | 13% | 5+ jobs, 4.0+ rating. |
-| pro | 11% | 25+ jobs, 4.5+ rating, no open disputes. |
-| elite | 9% | 100+ jobs, 4.7+ rating, TESDA-verified cert, no open disputes. |
+| `founding` | 10% | Invite-only launch batch. Parallel tier, not a step in the ladder. |
+| `new` | 15% | Default on signup. |
+| `verified` | 13% | 5+ jobs, 4.0+ rating. |
+| `pro` | 11% | 25+ jobs, 4.5+ rating, no open disputes. |
+| `elite` | 9% | 100+ jobs, 4.7+ rating, TESDA-verified cert, no open disputes. |
 
-Tier promotion is NOT automatic. A super_admin changes a tier with Change Tier (reason ≥10 chars).
+Tier promotion is NOT automatic. A super_admin changes a tier with Change Tier (reason at least 10 chars).
 
 ### 2.3 Provider detail / Provider 360 (`/providers/:id`)
 
@@ -111,9 +115,9 @@ Everything about one provider, in 8 tabs:
 
 - Profile - KYC documents (NBI with expiry, gov ID front/back, selfie, avatar), service categories with prices, service areas, account info. KYC images load through an admin-only proxy, so you see them but raw file links are never exposed.
 - Jobs - that provider's bookings with status, totals, fees, ratings, dispute flags.
-- Financials - total earned, commission paid, wallet balances, recent payouts. Super_admin can Adjust Wallet (writes an audited ledger entry, reason ≥5 chars).
+- Financials - total earned, commission paid, wallet balances, recent payouts. Super_admin can Adjust Wallet (writes an audited ledger entry, reason at least 5 chars).
 - Reviews - show/hide individual reviews.
-- Staff - the provider's team members. Approve / Send back / Reject (with reason) the ones in pending_review; suspend or reactivate approved ones.
+- Staff - the provider's team members. Approve / Send back / Reject (with reason) the ones in `pending_review`; suspend or reactivate approved ones.
 - Disputes - disputes involving this provider.
 - Activity - audit trail plus login history (IP and user-agent are masked for junior admins).
 - Notes - internal notes by category (general/quality/financial/legal), pin or delete. The provider never sees these.
@@ -122,7 +126,7 @@ How to read a KYC document during vetting: open Profile, click the NBI / ID / se
 
 ### 2.4 Customers (`/customers`)
 
-Customer list. Search by name/phone/email. Filter by status (active, inactive, suspended, flag_fraud). Columns show total bookings, total spent, total disputes (red when above zero). This list is read-only; drill into a customer for actions.
+Customer list. Search by name/phone/email. Filter by status (`active`, `inactive`, `suspended`, `flag_fraud`). Columns show total bookings, total spent, total disputes (red when above zero). This list is read-only; drill into a customer for actions.
 
 ### 2.5 Customer detail (`/customers/:id`)
 
@@ -134,23 +138,23 @@ Super_admin actions: Suspend customer account, Flag for fraud review, and a wall
 
 The all-bookings monitor. Search by booking ID or city. Filter by any of the ~18 statuses. There is an escrow status column. The list live-updates as bookings change. Read-only; open a booking for actions.
 
-The booking lifecycle you will see (simplified): requested → matched/quoted → payment_pending → paid → provider_en_route → provider_arrived → in_progress → completed_by_provider → confirmed → payout_ready → paid_out. A dispute branches off after completed_by_provider into disputed → resolved. Cancellations end in cancelled_by_customer / _provider / _admin. See `10-money-and-compliance-ops.md` for the money meaning of each state.
+The booking lifecycle you will see (simplified): `requested` to `matched/quoted` to `payment_pending` to `paid` to `provider_en_route` to `provider_arrived` to `in_progress` to `completed_by_provider` to `confirmed` to `payout_ready` to `paid_out`. A dispute branches off after `completed_by_provider` into `disputed` to `resolved`. Cancellations end in `cancelled_by_customer` / `_provider` / `_admin`. See `10-money-and-compliance-ops.md` for the money meaning of each state.
 
-Note for support staff: the instant-pay money flow (customer pays first into escrow, provider matched after) is the intended design, but on the live system today the requested → payment_pending step is still blocked (the E03 issue). A customer can hit an error at checkout while the booking still exists server-side. If a customer reports "payment failed but I see a booking," that is the known issue. Do not tell them it is their fault. Log it and escalate per `06-customer-support-sop.md`.
+Note for support staff: the instant-pay money flow (customer pays first into escrow, provider matched after) is the intended design, but on the live system today the `requested` to `payment_pending` step is still blocked (the E03 issue). A customer can hit an error at checkout while the booking still exists server-side. If a customer reports "payment failed but I see a booking," that is the known issue. Do not tell them it is their fault. Log it and escalate per `06-customer-support-sop.md`.
 
 ### 2.7 Booking detail / Booking 360 (`/bookings/:id`)
 
 One booking, 5 tabs: Overview (customer/provider blocks, address), Timeline, Evidence (photos, GPS check-ins, chat count, receipts), Money (price/fee/total, linked dispute), Audit.
 
-Super_admin action panel: Manual escrow release, Refund (peso amount), Reassign provider (by UUID), Cancel (with hours-until-scheduled, provider-arrived, customer-no-show flags), Force-complete. Reason minimums are enforced: most actions ≥10 chars, force-complete ≥20 chars.
+Super_admin action panel: Manual escrow release, Refund (peso amount), Reassign provider (by UUID), Cancel (with hours-until-scheduled, provider-arrived, customer-no-show flags), Force-complete. Reason minimums are enforced: most actions at least 10 chars, force-complete at least 20 chars.
 
-How to do a manual escrow release (super_admin): open the booking, go to the action panel, click Manual escrow release, type a reason. Use this only when a booking is stuck in confirmed but did not auto-release. See `09-trust-safety-and-disputes.md` before touching the money panel.
+How to do a manual escrow release (super_admin): open the booking, go to the action panel, click Manual escrow release, type a reason. Use this only when a booking is stuck in `confirmed` but did not auto-release. See `09-trust-safety-and-disputes.md` before touching the money panel.
 
 ### 2.8 Dispatch Console (`/dispatch`)
 
 The live operations console. Three panels: a map (Leaflet/OSM) with booking and online-provider markers, the active bookings list (capped at 50), and a live alert tail (last 20). Header shows live counters (active bookings, providers online), socket connection status, and filters (city/status/service).
 
-Super_admin row actions: Reassign (pick an online provider, reason ≥5), Cancel (reason ≥10, triggers a refund per the cancellation policy), Message customer (5-2000 chars, shows up to the customer as "Message from onService support").
+Super_admin row actions: Reassign (pick an online provider, reason at least 5), Cancel (reason at least 10, triggers a refund per the cancellation policy), Message customer (5-2000 chars, shows up to the customer as "Message from onService support").
 
 How to watch the dispatch console during a shift:
 1. Confirm the socket status shows connected.
@@ -161,45 +165,47 @@ Known quirk: the default map center is still hardcoded to old Boracay coordinate
 
 ### 2.9 Catalog / Service Catalog (`/catalog`)
 
-Manage the service taxonomy: Categories (name, description, icon, order), Subcategories/services (pricing type fixed/range/quote/hourly; base/min/max price in pesos; estimated duration; order), and Add-ons (name, price, order). Prices are stored as centavos.
+Manage the service taxonomy: Categories (name, description, icon, order), Subcategories/services (pricing type `fixed`/`range`/`quote`/`hourly`; base/min/max price in pesos; estimated duration; order), and Add-ons (name, price, order). Prices are stored as centavos.
 
 How to add a service: open the right Category, add a Subcategory, set its pricing type and base price, set a sensible min/max so per-provider prices can not drift out of range, save.
 
 ### 2.10 Pricing Rules (`/pricing-rules`)
 
-Surge/multiplier rules of three types: rush, holiday, peak_hours. Each has a multiplier, optional scope (category or service area), priority, platform surge share, and an active toggle. DECIDE: starting surge multipliers and which holidays count. Recommendation: launch with surge off, turn on a modest peak-hours rule only after you see demand patterns.
+Surge/multiplier rules of three types: `rush`, `holiday`, `peak_hours`. Each has a multiplier, optional scope (category or service area), priority, platform surge share, and an active toggle.
+
+> **Set (editable):** Surge pricing is off at launch. Turn on a modest `peak_hours` rule only after the live booking curve shows a real demand pattern, and decide which holidays count at that point. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ### 2.11 Disputes (`/disputes`)
 
-The dispute queue. Search by dispute or booking ID. Filter by status (open, under_review, escalated, resolved) and tier (1/2/3). Live-updates when a dispute is filed.
+The dispute queue. Search by dispute or booking ID. Filter by status (`open`, `under_review`, `escalated`, `resolved`) and tier (1/2/3). Live-updates when a dispute is filed.
 
-Super_admin actions: Resolve (choose a resolution type) and Escalate (reason ≥10, only when tier < 3). Plain admins see a read-only banner.
+Super_admin actions: Resolve (choose a resolution type) and Escalate (reason at least 10, only when tier < 3). Plain admins see a read-only banner.
 
 Resolution types and what they mean:
 
 | Resolution | Refund | Side effect |
 |---|---|---|
-| full_refund | 100% | Customer fully refunded. |
-| refund_with_warning | 100% | Customer refunded, provider warned. |
-| refund_with_suspension | 100% | Customer refunded, provider suspended. |
-| partial_refund | choose 0-100% | Remainder released to provider. |
-| split_decision | choose 0-100% | As above, framed as shared fault. |
-| no_refund | 0% | Full escrow released to provider. |
-| free_redo | 0% | No refund; provider redoes the job. |
+| `full_refund` | 100% | Customer fully refunded. |
+| `refund_with_warning` | 100% | Customer refunded, provider warned. |
+| `refund_with_suspension` | 100% | Customer refunded, provider suspended. |
+| `partial_refund` | choose 0-100% | Remainder released to provider. |
+| `split_decision` | choose 0-100% | As above, framed as shared fault. |
+| `no_refund` | 0% | Full escrow released to provider. |
+| `free_redo` | 0% | No refund; provider redoes the job. |
 
 Resolution decision notes must be at least 20 characters. Follow the decision tree in `09-trust-safety-and-disputes.md`. Do not improvise refund percentages.
 
 ### 2.12 Dispute detail / Dispute 360 (`/disputes/:id`)
 
-One dispute. Header shows tier, age, priority score. Side-by-side customer claim and provider response. Evidence grouped by who uploaded it. Customer and provider 90-day history with a risk flag (OK / REVIEW_REQUIRED / AT_RISK).
+One dispute. Header shows tier, age, priority score. Side-by-side customer claim and provider response. Evidence grouped by who uploaded it. Customer and provider 90-day history with a risk flag (`OK` / `REVIEW_REQUIRED` / `AT_RISK`).
 
-Admin actions: Assign to admin (by UUID), Resolve & notify (shows an estimated-refund preview and a confirm step, super_admin), Escalate (≥10 chars), Message parties (customer/provider/both, 5-2000), Reopen a resolved dispute (super_admin, reason ≥20).
+Admin actions: Assign to admin (by UUID), Resolve & notify (shows an estimated-refund preview and a confirm step, super_admin), Escalate (at least 10 chars), Message parties (customer/provider/both, 5-2000), Reopen a resolved dispute (super_admin, reason at least 20).
 
 How to resolve a dispute:
 1. Read both sides and all evidence.
-2. Check both parties' 90-day risk flags. AT_RISK on the complainer matters.
+2. Check both parties' 90-day risk flags. `AT_RISK` on the complainer matters.
 3. Apply the decision tree from `09-trust-safety-and-disputes.md`.
-4. Click Resolve & notify, pick the resolution type, write decision notes (≥20 chars), check the refund preview, confirm. Both parties are notified.
+4. Click Resolve & notify, pick the resolution type, write decision notes (at least 20 chars), check the refund preview, confirm. Both parties are notified.
 
 ### 2.13 Financials (`/financials`)
 
@@ -209,13 +215,13 @@ Most of this is read-only for plain admins. The Run reconciliation, Generate, an
 
 ### 2.14 Payouts (`/payouts`)
 
-The provider payout request queue. Filter by provider ID and status (pending, approved, processing, completed, rejected, failed). Each row shows method and destination account and any failure reason.
+The provider payout request queue. Filter by provider ID and status (`pending`, `approved`, `processing`, `completed`, `rejected`, `failed`). Each row shows method and destination account and any failure reason.
 
-Super_admin actions: Approve / Reject (reason ≥10) on pending requests, Complete (with optional PayMongo transfer ID) on approved ones. Plain admins are read-only.
+Super_admin actions: Approve / Reject (reason at least 10) on pending requests, Complete (with optional PayMongo transfer ID) on approved ones. Plain admins are read-only.
 
 How to run a payout (super_admin):
 1. Open a pending request. Confirm the provider is approved and the destination account looks right (GCash/Maya is an 11-digit 09xxxxxxxxx number; bank is 8-16 digits).
-2. Click Approve (reason ≥10). The provider is notified.
+2. Click Approve (reason at least 10). The provider is notified.
 3. After the money is actually sent through PayMongo/bank, click Complete and paste the transfer ID. The provider gets "Payout Sent."
 4. If something is wrong, Reject with a clear reason; the funds go back to the provider's available balance.
 
@@ -223,7 +229,7 @@ Note: a payout at or above the AML threshold (default ₱500,000) lands in `aml_
 
 ### 2.15 Notification Templates (`/notification-templates`)
 
-Edit the message templates (push, SMS, email, in-app) by type (booking_update, payment, dispute_update, tier_upgrade, payout, referral, suki, promo, system). Each has a title and body template with `{{variable}}` placeholders and an active toggle. Delete is super_admin only.
+Edit the message templates (push, SMS, email, in-app) by type (`booking_update`, `payment`, `dispute_update`, `tier_upgrade`, `payout`, `referral`, `suki`, `promo`, `system`). Each has a title and body template with `{{variable}}` placeholders and an active toggle. Delete is super_admin only.
 
 How to change a message customers receive: find the template by slug, edit the body, keep the `{{variable}}` placeholders intact, save. (Reminder: the in-app Help/FAQ text is NOT here, it is hardcoded and needs a code release to change.)
 
@@ -233,11 +239,11 @@ How to change a message customers receive: find the template by slug, edit the b
 
 ### 2.17 Recurring (`/recurring`)
 
-Recurring-booking subscriptions. Filter by status (active, paused, cancelled). Shows frequency (weekly/bi-weekly/monthly), preferred day/time, next booking date, total instances, amount. Read-only monitoring page.
+Recurring-booking subscriptions. Filter by status (`active`, `paused`, `cancelled`). Shows frequency (weekly/bi-weekly/monthly), preferred day/time, next booking date, total instances, amount. Read-only monitoring page.
 
 ### 2.18 Business Accounts (`/business-accounts`, detail `/business-accounts/:id`)
 
-B2B accounts (office, condo, restaurant, hotel, retail, school, hospital, other). Filter by status (pending, active, suspended, closed). Fields include company, contact details, payment terms, volume discount, monthly credit limit. The detail page manages the account.
+B2B accounts (office, condo, restaurant, hotel, retail, school, hospital, other). Filter by status (`pending`, `active`, `suspended`, `closed`). Fields include company, contact details, payment terms, volume discount, monthly credit limit. The detail page manages the account.
 
 ### 2.19 Service Areas (`/service-areas`)
 
@@ -251,9 +257,9 @@ How to add a service area (a new city):
 5. Set a target launch date. Save. The area starts in `planned`.
 
 How to launch / pause / set default a city:
-- Activate: a planned/recruiting/soft_launch area → active.
-- Pause: an active area → paused (stops new work without deleting it).
-- Set default: makes that area the app's default. The mobile apps center their map and default the location pickers here. Only available for active/soft_launch areas, and only one area can be the default.
+- Activate: a `planned`/`recruiting`/`soft_launch` area to `active`.
+- Pause: an `active` area to `paused` (stops new work without deleting it).
+- Set default: makes that area the app's default. The mobile apps center their map and default the location pickers here. Only available for `active`/`soft_launch` areas, and only one area can be the default.
 
 Default market today is Metro Cebu (Cebu City, Mandaue, Lapu-Lapu, Talisay). Markets Ken has in mind to add later: Boracay, General Santos, Davao, Metro Manila, Bacolod, and others.
 
@@ -267,13 +273,13 @@ The unified read-only log. It combines request-level entries (badge "request") a
 
 ### 2.22 Compliance (`/compliance`)
 
-5 tabs: NPC Compliance (the Data Subject Request queue; filter by status and overdue-only; open a DSR to change status, add notes, set the response URL, or reject; Consent Records search is restricted to super_admin/dpo), BIR Calendar (filings with due dates and status), Audit Log (same data as the Audit Log page plus CSV export), Tax Documents (redirects to Financials → BIR Reports), Regulatory Reports (a v1.1+ stub).
+5 tabs: NPC Compliance (the Data Subject Request queue; filter by status and overdue-only; open a DSR to change status, add notes, set the response URL, or reject; Consent Records search is restricted to super_admin/dpo), BIR Calendar (filings with due dates and status), Audit Log (same data as the Audit Log page plus CSV export), Tax Documents (redirects to Financials, BIR Reports), Regulatory Reports (a v1.1+ stub).
 
 DSRs have a 15-day SLA. Overdue ones show on the Dashboard alerts too. The DPO owns this work. See `10-money-and-compliance-ops.md`.
 
 ### 2.23 Data Protection Log (`/data-protection-log`)
 
-A DPO surface over Data Subject Requests: Mark complete (with a response URL), Request more info, Reject (reason ≥20, super_admin), Escalate to NPC (with an NPC reference, super_admin).
+A DPO surface over Data Subject Requests: Mark complete (with a response URL), Request more info, Reject (reason at least 20, super_admin), Escalate to NPC (with an NPC reference, super_admin).
 
 ### 2.24 Consent Versions (`/consent-versions`)
 
@@ -281,16 +287,16 @@ A DPO surface listing current consent types and versions with active-user counts
 
 ### 2.25 Support Tickets (`/support-tickets`)
 
-The ticket queue. Types: booking_issue, payment_issue, provider_no_show, app_bug, account_issue, general_inquiry. Statuses: open, in_progress, waiting_on_customer, waiting_on_provider, escalated, resolved, closed. Priorities: low/medium/high/urgent.
+The ticket queue. Types: `booking_issue`, `payment_issue`, `provider_no_show`, `app_bug`, `account_issue`, `general_inquiry`. Statuses: `open`, `in_progress`, `waiting_on_customer`, `waiting_on_provider`, `escalated`, `resolved`, `closed`. Priorities: low/medium/high/urgent.
 
 Important: customers and providers can NOT open tickets inside the mobile app today. Tickets reach us by email (support@onservice.ph for customers, providers@onservice.ph for providers) and you create the ticket here on their behalf, or you reply to an existing one.
 
 How to work a ticket:
 1. Open it, set priority, assign it to an agent.
 2. Reply to the user, or post an internal note (internal notes are admin-only).
-3. Update status as you go. To mark resolved or closed you must add resolution notes of at least 10 characters.
+3. Update status as you go. To mark `resolved` or `closed` you must add resolution notes of at least 10 characters.
 
-See `06-customer-support-sop.md` and `07-provider-support-sop.md` for triage and SLA targets.
+A ticket sitting in `waiting_on_customer` auto-closes after 5 days with no reply (two reminders go out first). See `06-customer-support-sop.md` and `07-provider-support-sop.md` for triage and SLA targets.
 
 ### 2.26 Staff & Roles (`/staff`)
 
@@ -300,15 +306,15 @@ Super_admin only. Plain admins get an "access required" notice. 2 tabs: Staff (a
 
 The runtime knobs, grouped (Commissions, Fees, Escrow, Cancellation, Protection, Auth, Provider, Security, Cache, Dispatch & Map). Each setting shows its value, allowed range, unit, whether it is customized vs default, and its change history.
 
-Super_admin can Edit (reason ≥10), Reset to default (confirm modal, reason ≥10), and Flush cache (changes take effect within about 60 seconds). Plain admins are read-only.
+Super_admin can Edit (reason at least 10), Reset to default (confirm modal, reason at least 10), and Flush cache (changes take effect within about 60 seconds). Plain admins are read-only.
 
-How to change a setting (super_admin): find it by category, click Edit, set the new value within the allowed range, type a reason, save. If you need it live immediately, Flush cache. Common ones you might be asked to change: commission rate per tier, service fee rate, escrow auto-confirm hours (default 24), dispute window hours (default 48), auto_dispatch_enabled, AML threshold. Never change a money setting without Ken's go-ahead. See `10-money-and-compliance-ops.md`.
+How to change a setting (super_admin): find it by category, click Edit, set the new value within the allowed range, type a reason, save. If you need it live immediately, Flush cache. Common ones you might be asked to change: commission rate per tier, service fee rate, escrow auto-confirm hours (default 24), dispute window hours (default 48), `auto_dispatch_enabled`, AML threshold. Never change a money setting without Ken's go-ahead. See `10-money-and-compliance-ops.md`.
 
 ### 2.28 Cancellation Policy (`/settings/cancellation-policy`)
 
 Super_admin only. Edits the customer-facing cancellation policy (refund tiers, intro text, legal disclaimer, provider-no-show credit), with versioning. The mobile app's Help screen and Terms read this live.
 
-Honest caveat to flag in support: this displayed policy is NOT the same set of numbers that actually moves the refund money. The live refund math runs off the `cancel_refund_*` knobs in Settings, and the brackets differ from what this page shows. If a customer quotes the policy page back at you and the refund does not match, that is a known inconsistency, escalate it rather than arguing. See `09-trust-safety-and-disputes.md` and `13-policies-codes-and-templates.md`.
+Honest caveat to flag in support: this displayed policy is NOT the same set of numbers that actually moves the refund money. The live refund math runs off the `cancel_refund_*` knobs in Settings, and the brackets differ from what this page shows. Until the two systems are reconciled (a known open issue), quote the live refund money-path numbers to customers, not the policy page. If a customer quotes the policy page back at you and the refund does not match, do not argue, escalate it. See `09-trust-safety-and-disputes.md` and `13-policies-codes-and-templates.md`.
 
 ### 2.29 Change Password (`/change-password`) and 404
 
@@ -345,7 +351,7 @@ Providers
 - [ ] Can open a Provider 360 and view KYC docs through the proxy.
 - [ ] Can state the three required KYC documents (NBI, gov ID front, selfie) and why approval fails without them.
 - [ ] Can name the five tiers and their commission rates from memory.
-- [ ] Knows there is no delete; removal is Suspend or deactivated.
+- [ ] Knows there is no delete; removal is Suspend or `deactivated`.
 
 Bookings and dispatch
 - [ ] Can read the booking status flow and explain escrow hold vs release.
@@ -354,8 +360,8 @@ Bookings and dispatch
 
 Support and disputes
 - [ ] Can create a support ticket on a user's behalf and set priority/assignment.
-- [ ] Can walk the dispute decision tree and write defensible decision notes (≥20 chars).
-- [ ] Knows the displayed cancellation policy can differ from the actual refund math, and to escalate the mismatch.
+- [ ] Can walk the dispute decision tree and write defensible decision notes (at least 20 chars).
+- [ ] Knows the displayed cancellation policy can differ from the actual refund math, quotes the live numbers, and escalates the mismatch.
 
 Money and compliance (awareness, not access)
 - [ ] Can locate Escrow aging, the Payouts queue, and the DSR queue.
@@ -364,15 +370,28 @@ Money and compliance (awareness, not access)
 
 Sign-off: ___________________________ (super_admin)    Date: ____________
 
-DECIDE: how long the read-only period lasts before full access, and whether new admins ever get super_admin at all or stay at admin tier indefinitely. Recommendation: minimum 2 weeks read-only, full `admin` tier after the checklist passes, and `super_admin` only by Ken's explicit approval for a named individual.
+> **Set (editable):** New admins stay read-only for a minimum of 2 weeks. They move to full `admin` tier after this checklist passes. `super_admin` is granted only by Ken's named approval for a specific individual; new admins do not reach super_admin by default. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ---
 
 ## 5. Quick-reference card
 
-- All times Asia/Manila. All money in pesos (centavos under the hood).
-- Reason fields are permanent and public-to-audit. Most need ≥10 chars; dispute resolve, reopen, and force-complete need ≥20.
+- All times Asia/Manila. Support hours are Monday to Saturday, 8:00 AM to 6:00 PM PHT. All money in pesos (centavos under the hood).
+- Reason fields are permanent and public-to-audit. Most need at least 10 chars; dispute resolve, reopen, and force-complete need at least 20.
 - "Online" provider = approved AND available. Suspension removes a provider from dispatch instantly.
 - Escrow auto-confirms and releases after 24h if the customer does nothing. Dispute window is 48h after completion. DSR SLA is 15 days.
+- A ticket in `waiting_on_customer` auto-closes after 5 days of no reply (two reminders first).
 - If you are not super_admin and a money/destructive button is locked, that is correct. Escalate, do not work around it.
 - When unsure, stop and ask. The audit log remembers everything.
+
+---
+
+## Open decisions set in this doc
+
+Each is a recommended default that Ken can override. Edit the value here and anywhere it is referenced.
+
+- **Super-admin accounts (Section 1):** Ken plus one Operations Lead only. (editable)
+- **Granular admin role gating (Section 1):** wire money actions behind a finance/super-admin gate before launch; support agents get a limited login that cannot reach money buttons. Tracked pre-launch work item. (editable)
+- **Surge pricing (Section 2.10):** off at launch; enable a modest `peak_hours` rule only after the live demand curve justifies it. (editable)
+- **Cancellation numbers in support (Section 2.28):** quote the live refund money-path numbers until the policy page and the money path are reconciled. (editable)
+- **Read-only period and tier (Section 4):** minimum 2 weeks read-only, then full `admin` tier after the checklist; `super_admin` only by Ken's named approval. (editable)

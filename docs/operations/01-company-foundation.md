@@ -23,31 +23,33 @@ The build is city-agnostic. Cities are data in the `service_areas` table and are
 
 ---
 
-## 2. Mission (Ken decides)
+## 2. Mission
 
-The mission is one sentence on why we exist. Below are three candidates. Each is grounded in what the app actually does. Ken picks one.
+The mission is one sentence on why we exist. It is the line we use in recruiting decks, the About page, and provider onboarding.
 
-> **DECIDE (mission):** Choose one of the three below, edit the wording, or write your own. Whichever lands here becomes the line we use in recruiting decks, the About page, and provider onboarding.
+> **Set (editable):** "To replace the risk of hiring a stranger with ID-verified pros, held payments, and real accountability." _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+Why this one: it states the problem (hiring a stranger is risky) and the answer (verification, escrow, accountability) in one breath, and it matches the strategy line "Trust is the product."
+
+Two alternates kept on record in case Ken wants to swap:
 
 1. "To make hiring a trusted home-services pro in the Philippines as safe and simple as ordering food." (Plain, consumer-facing, leans on a habit Filipinos already have.)
-2. "To replace the risk of hiring a stranger with ID-verified pros, held payments, and real accountability." (Leads with the trust problem we solve. Closest to the strategy docs.)
-3. "To give Filipino home-service workers steady, fair-paid jobs and give households a pro they can trust." (Two-sided. Names both the provider and the customer.)
-
-**Recommendation: #2.** It states the problem (hiring a stranger is risky) and the answer (verification, escrow, accountability) in one breath. It also matches the strategy line "Trust is the product."
+2. "To give Filipino home-service workers steady, fair-paid jobs and give households a pro they can trust." (Two-sided. Names both the provider and the customer.)
 
 ---
 
-## 3. Vision (Ken decides)
+## 3. Vision
 
-The vision is where we are going in 3 to 5 years if it works. Three candidates:
+The vision is where we are going in 3 to 5 years if it works. It sets the tone for fundraising and hiring.
 
-> **DECIDE (vision):** Pick one, edit, or replace. This sets the tone for fundraising and hiring.
+> **Set (editable):** "The default way Filipino households book home services, starting in Metro Cebu and reaching every major city." _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-1. "The default way Filipino households book home services, starting in Metro Cebu and reaching every major city." (Geographic, ambitious, simple.)
-2. "A Philippines where no one has to gamble on a stranger to fix their home, and where skilled workers earn a fair, steady living doing it." (Outcome-focused, two-sided, emotional.)
-3. "The trust layer for home services across Southeast Asia." (Biggest swing. Beyond the Philippines.)
+Why this one: it is honest about where we are (Cebu first) and where we are going (every major city) without overpromising a region we have not entered.
 
-**Recommendation: #1.** It is honest about where we are (Cebu first) and where we are going (every major city) without overpromising a region we have not entered. #3 is a good "someday" line but premature for a pre-launch team.
+Two alternates kept on record:
+
+1. "A Philippines where no one has to gamble on a stranger to fix their home, and where skilled workers earn a fair, steady living doing it." (Outcome-focused, two-sided, emotional.)
+2. "The trust layer for home services across Southeast Asia." (Biggest swing. A good "someday" line, premature for a pre-launch team.)
 
 ---
 
@@ -55,7 +57,7 @@ The vision is where we are going in 3 to 5 years if it works. Three candidates:
 
 Mission and vision are aspirational. Purpose is the steady reason the company exists, in plain terms:
 
-**We exist so that a household can hire help for their home without fear, and a skilled worker can earn a fair living without a boss.**
+> **Set (editable):** "We exist so that a household can hire help for their home without fear, and a skilled worker can earn a fair living without a boss." _Recommended default (confirmed). To change it, edit here and anywhere this value is referenced._
 
 Everything in operations ladders up to that. When a decision is unclear, ask: does this make the customer safer or the provider's living fairer? If it does neither, it is probably not worth doing.
 
@@ -63,7 +65,9 @@ Everything in operations ladders up to that. When a decision is unclear, ask: do
 
 ## 5. Core values
 
-Five values. Each has a one-line "in practice" so it is testable, not a poster.
+Six values. Each has a one-line "in practice" so it is testable, not a poster.
+
+> **Set (editable):** the six values below are the confirmed value set. _Recommended default. To change it, edit here and anywhere this value is referenced. Keep it at five to seven so people remember them._
 
 | Value | In practice |
 |---|---|
@@ -72,8 +76,9 @@ Five values. Each has a one-line "in practice" so it is testable, not a poster.
 | **Lead with the bad news** | When a job fails, a payout is late, or we made a mistake, say so first and fix it. No burying problems in a long reply. |
 | **One booking, one truth** | The app's booking status and escrow state are the source of truth. Don't tell a customer something the system contradicts. If the system is wrong, escalate it, don't talk around it. |
 | **Filipino-first, plainly** | Speak the customer's language (Bisaya, Tagalog, English). No jargon, no corporate filler. A tita in Mandaue should understand every word we send. |
+| **Safety is non-negotiable** | Every provider is vetted, every home visit is a real person's home. We never trade safety for speed. |
 
-> **ASSUMPTION:** The app does not define a values list anywhere in code. These five are drawn from the strategy docs ("Trust is the product"), the CLAUDE.md communication norms ("lead with the bad news," "speak in human English"), and the money model. Ken can add a sixth or seventh (for example "Safety is non-negotiable") if he wants. Keep it at 5 to 7 so people remember them.
+Note on origin: the app does not define a values list anywhere in code. These six are drawn from the strategy docs ("Trust is the product"), the CLAUDE.md communication norms ("lead with the bad news," "speak in human English"), and the money and safety model.
 
 ---
 
@@ -136,7 +141,7 @@ This is the most important thing to get right, because getting it wrong is a leg
 2. **Escrow.** Customer pays first. The money sits in the platform escrow wallet until the customer confirms the job is done, or auto-confirm releases it after 24 hours. If the provider is suspended mid-job, escrow is frozen until an admin resolves it.
 3. **48-hour dispute window.** After a job is marked complete, the customer has 48 hours to dispute. Damage or theft claims require photo evidence.
 4. **Rating accountability.** Low-rated providers (below the rating floor, once they have enough reviews) drop out of auto-dispatch. Chronic cancellers get warned then auto-suspended.
-5. **A self-funded guarantee fund.** We set aside 1.5% of every service fee into a guarantee fund wallet. This is a **service guarantee, not insurance.** It is our own money used to make a customer whole in specific cases, capped per claim. It needs no Insurance Commission license because it is not an insurance product.
+5. **A self-funded guarantee fund.** We set aside 1.5% of every service fee into a guarantee fund wallet. This is a **service guarantee, not insurance.** It is our own money used to make a customer whole in specific cases, capped per claim. It needs no Insurance Commission license because it is not an insurance product. The starting claim rules live in `09-trust-safety-and-disputes.md`.
 
 ### What we do NOT offer, and why it matters
 
@@ -153,7 +158,7 @@ The exact approved disclaimer wording lives in the customer Terms §8 and the He
 ## 9. Market strategy: Cebu first, every city eventually
 
 - **Default and first market is Metro Cebu**: Cebu City, Mandaue, Lapu-Lapu, Talisay. The app centers its map and default pickers on the default service area (seeded to Cebu City).
-- **The platform is city-agnostic.** A market is a row in `service_areas` with a status (planned, recruiting, soft_launch, active, paused, retired). We turn a city on from the admin Service Areas page when it has enough providers (default minimum 5 to launch). No code change, no app release.
+- **The platform is city-agnostic.** A market is a row in `service_areas` with a status (planned, recruiting, soft_launch, active, paused, retired). We turn a city on from the admin Service Areas page when it has enough providers (default minimum 5 approved providers per launch category to move to soft_launch). No code change, no app release. See `03-provider-recruiting-sop.md` for the full go-live thresholds.
 - **Future markets Ken has in mind:** Boracay, General Santos, Davao, Metro Manila, Bacolod, and others. We add and activate them in admin when each one is recruited and ready. Which cities we actively market is a marketing call, not a platform limit.
 - **History note:** an earlier plan led with Boracay. That was superseded by the Cebu-first, multi-city direction on 2026-06-04. Some older strategy files and test fixtures still mention Boracay; treat those as point-in-time history, not current direction.
 
@@ -163,10 +168,10 @@ This is the foundation-level view. The full recruiting and launch SOP is in `03-
 
 - [ ] Create the area in admin Service Areas (name, city, province, region, center lat/lng, radius, min providers to launch).
 - [ ] Set status to `recruiting` and start sourcing providers (`03-provider-recruiting-sop.md`).
-- [ ] Vet and approve providers until you hit the minimum (default 5) (`04-provider-vetting-and-filtering.md`).
+- [ ] Vet and approve providers until you hit the soft-launch minimum (5 approved per launch category) (`04-provider-vetting-and-filtering.md`).
 - [ ] Confirm the LGU permit for that city is filed (Mayor's / business permit per city). See `10-money-and-compliance-ops.md`.
 - [ ] Move status to `soft_launch`, run a few real bookings, watch dispatch.
-- [ ] Move to `active` and, if it should be the home market, `set default`.
+- [ ] Reach 8 approved providers in the lead category, then move to `active` and, if it should be the home market, `set default`.
 
 ---
 
@@ -189,10 +194,11 @@ This is the foundation-level view. The full recruiting and launch SOP is in `03-
 
 ---
 
-## 11. Open decisions captured in this doc
+## 11. Open decisions set in this doc
 
-- **DECIDE (mission):** pick one of the three mission statements in Section 2. Recommendation: #2.
-- **DECIDE (vision):** pick one of the three vision statements in Section 3. Recommendation: #1.
-- **ASSUMPTION (values):** the five core values in Section 5 are proposed, not defined in the app. Confirm or adjust.
+Each value below is a recommended default that Ken can override. Edit the value in its section and anywhere it is referenced.
 
-Once Ken sets the mission, vision, and values, update Sections 2, 3, and 5 in place and remove the DECIDE callouts.
+- **Mission (Section 2):** "To replace the risk of hiring a stranger with ID-verified pros, held payments, and real accountability." (editable)
+- **Vision (Section 3):** "The default way Filipino households book home services, starting in Metro Cebu and reaching every major city." (editable)
+- **Purpose (Section 4):** "We exist so that a household can hire help for their home without fear, and a skilled worker can earn a fair living without a boss." (confirmed) (editable)
+- **Core values (Section 5):** the six values listed (Trust is the product; The provider eats; Lead with the bad news; One booking, one truth; Filipino-first, plainly; Safety is non-negotiable). (editable)
