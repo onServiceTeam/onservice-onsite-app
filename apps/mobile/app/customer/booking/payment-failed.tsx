@@ -154,7 +154,7 @@ export default function PaymentFailedScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
