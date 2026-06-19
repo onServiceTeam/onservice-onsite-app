@@ -93,6 +93,18 @@ const CATEGORY_ICONS: Record<string, IconComponent> = {
   'general-maintenance': Hammer,
 };
 
+// App design refresh — rough completion % per booking status, drives the slim
+// progress bar on the home active-booking card. Falls back to 40% for any
+// unmapped status.
+const STATUS_PROGRESS: Record<string, number> = {
+  requested: 12, quoted: 18, payment_pending: 28, matched: 35, paid: 45,
+  provider_en_route: 65, provider_arrived: 80, in_progress: 92,
+  completed_by_provider: 98, confirmed: 100,
+};
+function statusProgress(status: string): number {
+  return STATUS_PROGRESS[status] ?? 40;
+}
+
 // Booking status is rendered via the canonical <StatusBadge/> component, which
 // maps each backend status to a friendly, properly-cased label and on-brand
 // colors (replaces the old raw ALL-CAPS Badge that showed e.g. "PROVIDER EN
@@ -280,6 +292,9 @@ export default function HomeScreen(): React.ReactElement {
                   Provider: {booking.providerName}
                 </Text>
               )}
+              <View style={styles.activeProgressTrack}>
+                <View style={[styles.activeProgressFill, { width: `${statusProgress(booking.status)}%` }]} />
+              </View>
               <View style={styles.activeCardCta}>
                 <Text style={styles.trackText}>Track Status</Text>
                 <ArrowRight size={14} color={colors.white} />
@@ -371,14 +386,14 @@ export default function HomeScreen(): React.ReactElement {
     const tint = getCategoryTint(item.slug);
     return (
       <TouchableOpacity
-        style={styles.categoryItem}
+        style={[styles.categoryCard, { backgroundColor: tint.bg }]}
         onPress={() => handleCategoryPress(item)}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
-        <View style={[styles.categoryIconBg, { backgroundColor: tint.bg }]}>
-          <Icon size={28} color={tint.fg} />
+        <View style={styles.categoryChip}>
+          <Icon size={22} color={tint.fg} />
         </View>
-        <Text style={styles.categoryLabel} numberOfLines={1}>
+        <Text style={[styles.categoryCardLabel, { color: tint.fg }]} numberOfLines={2}>
           {item.name}
         </Text>
       </TouchableOpacity>
@@ -559,7 +574,7 @@ export default function HomeScreen(): React.ReactElement {
       data={categories}
       renderItem={renderCategoryItem}
       keyExtractor={(item) => item.id}
-      numColumns={4}
+      numColumns={2}
       ListHeaderComponent={renderHeader}
       ListFooterComponent={renderFooter}
       columnWrapperStyle={styles.categoryRow}
@@ -663,6 +678,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.white,
   },
+  activeProgressTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    overflow: 'hidden',
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  activeProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: colors.secondary,
+  },
 
   searchBar: {
     flexDirection: 'row',
@@ -682,29 +710,31 @@ const styles = StyleSheet.create({
 
   categoryRow: {
     paddingHorizontal: spacing.base,
-    gap: spacing.sm,
+    gap: spacing.md,
     marginBottom: spacing.md,
   },
-  categoryItem: {
+  categoryCard: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    maxWidth: '25%',
-  },
-  categoryIconBg: {
-    width: 56,
-    height: 56,
+    gap: spacing.md,
     borderRadius: borderRadius.lg,
-    backgroundColor: colors.backgroundSecondary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+    minHeight: 64,
+  },
+  categoryChip: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.md,
+    backgroundColor: 'rgba(255,255,255,0.7)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.xs,
   },
-  categoryIcon: { fontSize: 28 },
-  categoryLabel: {
-    ...typography.caption,
-    color: colors.text,
-    textAlign: 'center',
-    fontWeight: '500',
+  categoryCardLabel: {
+    ...typography.bodySmall,
+    fontWeight: '600',
+    flex: 1,
   },
 
   sectionHeaderRow: {
