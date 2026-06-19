@@ -196,7 +196,7 @@ export default function DocumentsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -227,11 +227,11 @@ const styles = StyleSheet.create({
   docSlot: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.md,
-    borderWidth: 1.5,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   docSlotDone: { borderColor: colors.success },
@@ -263,8 +263,8 @@ const styles = StyleSheet.create({
   input: {
     ...typography.body,
     color: colors.text,
-    backgroundColor: colors.backgroundSecondary,
-    borderWidth: 1,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.base,

@@ -1,10 +1,20 @@
 import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { Stack } from 'expo-router';
+import { colors } from '@/config/theme';
 
 export default function CustomerLayout(): React.ReactElement {
   return (
-    <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+        headerStyle: { backgroundColor: colors.surfaceMuted },
+        headerTintColor: colors.text,
+        headerTitleStyle: { color: colors.text },
+        headerShadowVisible: false,
+      }}
+    >
       <Stack.Screen name="category/[id]" />
       <Stack.Screen name="address-picker" options={{ presentation: 'modal' }} />
       <Stack.Screen name="booking/form" />

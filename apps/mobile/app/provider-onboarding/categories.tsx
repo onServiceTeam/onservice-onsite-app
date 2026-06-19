@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getCategories, type Category } from '@/services/catalog.service';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 import { Input, Button } from '@/components/ui';
-import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import type { ComponentType } from 'react';
 import { Sparkles, Wrench, Zap, Paintbrush2, Snowflake, Bug, Package, Hammer, Plug, AlertTriangle } from '@/components/icons';
 
@@ -61,13 +61,14 @@ export default function CategoriesScreen(): React.ReactElement {
   const renderCategory = ({ item }: { item: Category }): React.ReactElement => {
     const isSelected = selected.has(item.id);
     const Icon = CATEGORY_ICONS[item.slug] ?? Hammer;
+    const tint = getCategoryTint(item.slug);
     return (
       <TouchableOpacity
         style={[styles.catItem, isSelected && styles.catItemSelected]}
         onPress={() => toggleCategory(item.id)}
         activeOpacity={0.7}
       >
-        <View style={styles.catIconWrap}><Icon size={28} color={isSelected ? colors.primary : colors.text} /></View>
+        <View style={[styles.catIconWrap, { backgroundColor: tint.bg }]}><Icon size={28} color={isSelected ? colors.primary : tint.fg} /></View>
         <Text style={[styles.catLabel, isSelected && styles.catLabelSelected]} numberOfLines={2}>
           {item.name}
         </Text>
@@ -143,7 +144,7 @@ export default function CategoriesScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -170,20 +171,28 @@ const styles = StyleSheet.create({
   catItem: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xs,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     position: 'relative' as const,
   },
   catItemSelected: {
+    borderWidth: 2,
     borderColor: colors.primary,
     backgroundColor: colors.primaryLight,
   },
   catIcon: { fontSize: 28, marginBottom: spacing.xs },
-  catIconWrap: { marginBottom: spacing.xs, alignItems: 'center' as const },
+  catIconWrap: {
+    marginBottom: spacing.xs,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.md,
+  },
   catLabel: { ...typography.caption, color: colors.text, textAlign: 'center', fontWeight: '500' },
   catLabelSelected: { color: colors.primary, fontWeight: '700' },
   catCheck: {

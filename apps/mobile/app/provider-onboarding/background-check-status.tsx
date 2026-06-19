@@ -267,7 +267,7 @@ export default function BackgroundCheckStatusScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -322,7 +322,15 @@ const styles = StyleSheet.create({
   },
   reasonText: { ...typography.bodySmall, color: colors.error, lineHeight: 20 },
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
-  stepRow: { flexDirection: 'row', marginBottom: spacing.md },
+  stepRow: {
+    flexDirection: 'row',
+    marginBottom: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+  },
   stepNumber: {
     width: 28,
     height: 28,
@@ -347,8 +355,10 @@ const styles = StyleSheet.create({
   },
   expandableTitle: { ...typography.body, fontWeight: '600', color: colors.text },
   expandableBody: {
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.lg,
   },

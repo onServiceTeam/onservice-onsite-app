@@ -113,22 +113,24 @@ export default function StaffJobDetailScreen(): React.ReactElement {
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-        <View style={styles.statusPill}>
-          <Text style={styles.statusPillText}>{STATUS_LABELS[booking.status] ?? booking.status.replace(/_/g, ' ')}</Text>
-        </View>
+        <View style={styles.infoCard}>
+          <View style={styles.statusPill}>
+            <Text style={styles.statusPillText}>{STATUS_LABELS[booking.status] ?? booking.status.replace(/_/g, ' ')}</Text>
+          </View>
 
-        <Text style={styles.service}>{booking.serviceName ?? 'Service'}</Text>
-        {booking.customerName ? <Text style={styles.customer}>{booking.customerName}</Text> : null}
+          <Text style={styles.service}>{booking.serviceName ?? 'Service'}</Text>
+          {booking.customerName ? <Text style={styles.customer}>{booking.customerName}</Text> : null}
 
-        <View style={styles.metaRow}>
-          <Clock size={14} color={colors.textTertiary} />
-          <Text style={styles.metaText}>
-            {booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Not scheduled'}
-          </Text>
-        </View>
-        <View style={styles.metaRow}>
-          <MapPin size={14} color={colors.textTertiary} />
-          <Text style={styles.metaText}>{[booking.address, booking.barangay, booking.city].filter(Boolean).join(', ') || '—'}</Text>
+          <View style={styles.metaRow}>
+            <Clock size={14} color={colors.textTertiary} />
+            <Text style={styles.metaText}>
+              {booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Not scheduled'}
+            </Text>
+          </View>
+          <View style={styles.metaRow}>
+            <MapPin size={14} color={colors.textTertiary} />
+            <Text style={styles.metaText}>{[booking.address, booking.barangay, booking.city].filter(Boolean).join(', ') || '—'}</Text>
+          </View>
         </View>
 
         {booking.description ? (
@@ -174,7 +176,7 @@ export default function StaffJobDetailScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   centered: { alignItems: 'center', justifyContent: 'center' },
   errorText: { ...typography.body, color: colors.textSecondary },
   linkBtn: { marginTop: spacing.md },
@@ -182,7 +184,11 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
+  },
+  infoCard: {
+    backgroundColor: colors.surface, borderRadius: borderRadius.lg,
+    padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   headerTitle: { ...typography.h3, color: colors.text },
@@ -195,13 +201,13 @@ const styles = StyleSheet.create({
   customer: { ...typography.body, color: colors.textSecondary, marginTop: 2, marginBottom: spacing.base },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: spacing.sm },
   metaText: { ...typography.bodySmall, color: colors.textSecondary, flex: 1 },
-  notesBox: { marginTop: spacing.base, backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.md, padding: spacing.base, borderWidth: 1, borderColor: colors.border },
+  notesBox: { marginTop: spacing.base, backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   notesLabel: { ...typography.caption, color: colors.textTertiary, fontWeight: '600', marginBottom: spacing.xs },
   notesText: { ...typography.bodySmall, color: colors.text, lineHeight: 20 },
   actionBtn: { backgroundColor: colors.primary, borderRadius: borderRadius.md, paddingVertical: spacing.md + 2, alignItems: 'center', marginTop: spacing.lg },
   btnDisabled: { opacity: 0.6 },
   actionBtnText: { ...typography.body, fontWeight: '700', color: colors.white },
   doneHint: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.lg, lineHeight: 20 },
-  chatRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.md, backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.md, marginTop: spacing.lg },
+  chatRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.md, backgroundColor: colors.surface, borderRadius: borderRadius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, marginTop: spacing.lg },
   chatText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
 });

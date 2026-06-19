@@ -109,11 +109,11 @@ export default function StaffInvitesScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
   },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   headerTitle: { ...typography.h3, color: colors.text },
@@ -129,8 +129,8 @@ const styles = StyleSheet.create({
   emptyText: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center' },
 
   card: {
-    backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.md,
-    padding: spacing.base, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface, borderRadius: borderRadius.lg,
+    padding: spacing.base, marginBottom: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
   provider: { ...typography.body, fontWeight: '700', color: colors.text },
   role: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2, marginBottom: spacing.md },

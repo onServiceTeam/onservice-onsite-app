@@ -88,7 +88,7 @@ export default function ReviewPendingScreen(): React.ReactElement {
         </Text>
 
         {!isRejected && (
-          <View style={styles.timeline}>
+          <View style={[styles.card, styles.timeline]}>
             <View style={styles.timelineItem}>
               <View style={[styles.timelineDot, styles.timelineDotDone]} />
               <View style={styles.timelineContent}>
@@ -142,7 +142,14 @@ export default function ReviewPendingScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.base,
+  },
   content: {
     flex: 1,
     paddingHorizontal: spacing.lg,

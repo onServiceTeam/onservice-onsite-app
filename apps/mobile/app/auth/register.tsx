@@ -5,9 +5,9 @@ import { showToast } from '@/lib/toast';
 import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getErrorMessage } from '@/utils/errors';
-import { Button, Input } from '@/components/ui';
+import { Button, Input, Card } from '@/components/ui';
 import { validatePHPhone, normalizePHPhone } from '@/utils/phone';
-import { colors, spacing, typography } from '@/config/theme';
+import { colors, spacing, typography, borderRadius } from '@/config/theme';
 // Phase 14 R5-complete — PhoneInput component for register form.
 import PhoneInput from '@/components/PhoneInput';
 import { useCaptchaOtp } from '@/hooks/useCaptchaOtp';
@@ -77,7 +77,7 @@ export default function RegisterScreen(): React.ReactElement {
         {/* BUG-PHASE147-01 fix — pre-fix First/Last Name inputs had
             no maxLength. Server's auth.validators.ts:76-77 caps both
             at max(100). Same fix shape as Phase 145/146. */}
-        <View style={styles.form}>
+        <Card style={styles.form}>
           <Input
             label="First Name"
             placeholder="Juan"
@@ -116,7 +116,7 @@ export default function RegisterScreen(): React.ReactElement {
             onPress={handleSubmit}
             loading={loading}
           />
-        </View>
+        </Card>
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Already have an account? </Text>
@@ -155,12 +155,12 @@ export default function RegisterScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
   header: { marginBottom: spacing.xl },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary },
-  form: { gap: spacing.xs },
+  form: { gap: spacing.xs, borderRadius: borderRadius.lg },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',

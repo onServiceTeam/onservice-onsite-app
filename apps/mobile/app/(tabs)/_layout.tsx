@@ -58,8 +58,9 @@ export default function TabLayout(): React.ReactElement {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: colors.background,
-    borderTopColor: colors.divider,
+    backgroundColor: colors.surface,
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
     height: 80,
     paddingTop: 8,
   },

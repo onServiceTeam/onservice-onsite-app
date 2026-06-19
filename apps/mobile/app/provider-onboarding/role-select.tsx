@@ -64,7 +64,7 @@ export default function RoleSelectScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   content: {
     flex: 1,
     paddingHorizontal: spacing.lg,
@@ -75,11 +75,11 @@ const styles = StyleSheet.create({
   roleCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginBottom: spacing.base,
-    borderWidth: 2,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   providerCard: {

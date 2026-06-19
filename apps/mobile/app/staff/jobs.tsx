@@ -117,11 +117,11 @@ export default function StaffJobsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.base, paddingVertical: spacing.md,
-    backgroundColor: colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
   },
   headerTitle: { ...typography.h2, color: colors.text },
   headerSub: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
@@ -137,8 +137,8 @@ const styles = StyleSheet.create({
   emptyText: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center' },
 
   jobCard: {
-    backgroundColor: colors.backgroundSecondary, borderRadius: borderRadius.md,
-    padding: spacing.base, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface, borderRadius: borderRadius.lg,
+    padding: spacing.base, marginBottom: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
   jobTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   jobService: { ...typography.body, fontWeight: '700', color: colors.text, flex: 1 },

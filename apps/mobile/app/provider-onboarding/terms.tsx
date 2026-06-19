@@ -227,13 +227,14 @@ export default function TermsScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   backBtn: { padding: spacing.xs, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
@@ -255,11 +256,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   agreementCard: {
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   agreementTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
@@ -288,7 +289,8 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
-    borderTopWidth: 1,
+    backgroundColor: colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
   submitting: {

@@ -10,10 +10,20 @@ import React from 'react';
 // that doesn't exist on the backend. The orphan file is documented
 // as deprecated in its header comment.
 import { Stack } from 'expo-router';
+import { colors } from '@/config/theme';
 
 export default function ProviderOnboardingLayout(): React.ReactElement {
   return (
-    <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+        headerStyle: { backgroundColor: colors.surfaceMuted },
+        headerTintColor: colors.text,
+        headerTitleStyle: { color: colors.text },
+        headerShadowVisible: false,
+      }}
+    >
       <Stack.Screen name="role-select" />
       <Stack.Screen name="categories" />
       <Stack.Screen name="service-area" />

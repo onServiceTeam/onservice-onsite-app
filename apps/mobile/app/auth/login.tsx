@@ -3,11 +3,11 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button } from '@/components/ui';
+import { Button, Card } from '@/components/ui';
 import { validatePHPhone, normalizePHPhone } from '@/utils/phone';
 import { getErrorMessage } from '@/utils/errors';
 import { useCaptchaOtp } from '@/hooks/useCaptchaOtp';
-import { colors, spacing, typography } from '@/config/theme';
+import { colors, spacing, typography, borderRadius } from '@/config/theme';
 // Phase 14 R5-complete — PhoneInput cross-cutting component wired
 // into the login flow. Replaces the inline <Input> phone field with
 // the PhoneInput component (which renders the +63 country code chip
@@ -80,7 +80,7 @@ export default function LoginScreen(): React.ReactElement {
         </Text>
       </View>
 
-      <View style={styles.form}>
+      <Card style={styles.form}>
         {/* Phase 14 R5-complete — PhoneInput component */}
         <PhoneInput
           value={phone}
@@ -124,7 +124,7 @@ export default function LoginScreen(): React.ReactElement {
             />
           </View>
         )}
-      </View>
+      </Card>
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>Don't have an account? </Text>
@@ -165,13 +165,13 @@ export default function LoginScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: spacing.lg,
   },
   header: { marginBottom: spacing.xl },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary },
-  form: { gap: spacing.base },
+  form: { gap: spacing.base, borderRadius: borderRadius.lg },
   demo: {
     gap: spacing.sm,
     marginTop: spacing.base,

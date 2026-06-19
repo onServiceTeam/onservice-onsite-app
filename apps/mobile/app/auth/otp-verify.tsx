@@ -6,10 +6,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth.store';
 import { getErrorMessage } from '@/utils/errors';
-import { Button, OTPInput } from '@/components/ui';
+import { Button, OTPInput, Card } from '@/components/ui';
 import { formatPHPhone } from '@/utils/phone';
 import { platformConfig } from '@/config/platform.config';
-import { colors, spacing, typography } from '@/config/theme';
+import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 import { Routes } from '@/config/navigation';
 export default function OTPVerifyScreen(): React.ReactElement {
@@ -98,34 +98,36 @@ export default function OTPVerifyScreen(): React.ReactElement {
         </Text>
       </View>
 
-      <View style={styles.otpContainer}>
-        <OTPInput
-          value={code}
-          onChange={handleCodeChange}
-          error={error}
-          length={platformConfig.otpLength}
-        />
-      </View>
-
-      <Button
-        title="Verify"
-        onPress={() => handleVerify(code)}
-        loading={loading}
-        disabled={code.length !== platformConfig.otpLength}
-        style={styles.verifyButton}
-      />
-
-      <View style={styles.resendContainer}>
-        {resendCooldown > 0 ? (
-          <Text style={styles.resendText}>Resend in {resendCooldown}s</Text>
-        ) : (
-          <Button
-            title="Resend Code"
-            onPress={handleResend}
-            variant="ghost"
+      <Card style={styles.card}>
+        <View style={styles.otpContainer}>
+          <OTPInput
+            value={code}
+            onChange={handleCodeChange}
+            error={error}
+            length={platformConfig.otpLength}
           />
-        )}
-      </View>
+        </View>
+
+        <Button
+          title="Verify"
+          onPress={() => handleVerify(code)}
+          loading={loading}
+          disabled={code.length !== platformConfig.otpLength}
+          style={styles.verifyButton}
+        />
+
+        <View style={styles.resendContainer}>
+          {resendCooldown > 0 ? (
+            <Text style={styles.resendText}>Resend in {resendCooldown}s</Text>
+          ) : (
+            <Button
+              title="Resend Code"
+              onPress={handleResend}
+              variant="ghost"
+            />
+          )}
+        </View>
+      </Card>
     </View>
   );
 }
@@ -133,9 +135,10 @@ export default function OTPVerifyScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: spacing.lg,
   },
+  card: { borderRadius: borderRadius.lg },
   header: { alignItems: 'center', marginBottom: spacing.xl },
   title: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
