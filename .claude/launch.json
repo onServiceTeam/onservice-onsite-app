@@ -24,6 +24,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "web", "--workspace=apps/mobile"],
       "port": 8081
+    },
+    {
+      "name": "mobile-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "serve", "-s", "apps/mobile/dist-web", "-l", "8090"],
+      "port": 8090
     }
   ]
 }
