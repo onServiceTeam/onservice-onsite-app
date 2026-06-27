@@ -141,6 +141,49 @@ export async function listTickets(
   return { tickets: result.rows, total: parseInt(countResult.rows[0]?.count ?? '0', 10) };
 }
 
+// Owner-scoped list — a customer/provider seeing only their OWN tickets.
+// Pre-fix the app had no way to do this: the admin list at GET / is
+// rbac-gated, so a user could create a ticket but never see it again. This
+// powers the in-app "My support requests" inbox. message_count excludes
+// internal notes (the customer must never see the admin's private count).
+export async function listMyTickets(params: {
+  userId: string;
+  page: number;
+  limit: number;
+  status?: string;
+}): Promise<{ tickets: SupportTicket[]; total: number }> {
+  const { userId, page, limit, status } = params;
+  const offset = (page - 1) * limit;
+  const conditions: string[] = ['st.user_id = $1'];
+  const values: unknown[] = [userId];
+  let idx = 2;
+  if (status) {
+    conditions.push(`st.status = $${idx++}`);
+    values.push(status);
+  }
+  const where = `WHERE ${conditions.join(' AND ')}`;
+
+  const countResult = await db.query<{ count: string }>(
+    `SELECT COUNT(*) AS count FROM support_tickets st ${where}`,
+    values,
+  );
+
+  const result = await db.query<SupportTicket>(
+    `SELECT st.*,
+            ag.first_name AS agent_first_name, ag.last_name AS agent_last_name,
+            (SELECT COUNT(*) FROM support_ticket_messages stm
+               WHERE stm.ticket_id = st.id AND stm.is_internal_note = false) AS message_count
+     FROM support_tickets st
+     LEFT JOIN users ag ON st.assigned_agent_id = ag.id
+     ${where}
+     ORDER BY st.updated_at DESC
+     LIMIT $${idx} OFFSET $${idx + 1}`,
+    [...values, limit, offset],
+  );
+
+  return { tickets: result.rows, total: parseInt(countResult.rows[0]?.count ?? '0', 10) };
+}
+
 export async function getTicketById(ticketId: string): Promise<SupportTicket | null> {
   const result = await db.query<SupportTicket>(
     `SELECT st.*,

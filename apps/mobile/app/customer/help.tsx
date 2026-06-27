@@ -1,11 +1,31 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { SectionHeader } from '@/components/ui';
-import { Mail, Phone, MessageSquare, ChevronLeft } from '@/components/icons';
+import { Mail, Phone, MessageSquare, ChevronLeft, ChevronRight } from '@/components/icons';
+
+const SUPPORT_EMAIL = 'support@onservice.ph';
+const SUPPORT_PHONE = '+63 2 8123 4567';
+
+// Bug (Jenico feedback): on the web build, Linking.openURL('mailto:…') /
+// 'tel:…' navigated the whole tab to a blank page. On web we surface the
+// address in a dialog the user can copy instead; native still deep-links.
+function openContact(kind: 'email' | 'call'): void {
+  if (Platform.OS === 'web') {
+    Alert.alert(
+      kind === 'email' ? 'Email support' : 'Call support',
+      kind === 'email' ? SUPPORT_EMAIL : SUPPORT_PHONE,
+    );
+    return;
+  }
+  const url = kind === 'email' ? `mailto:${SUPPORT_EMAIL}` : `tel:${SUPPORT_PHONE.replace(/\s/g, '')}`;
+  Linking.openURL(url).catch(() => {
+    Alert.alert('Could not open', kind === 'email' ? SUPPORT_EMAIL : SUPPORT_PHONE);
+  });
+}
 import { fetchCancellationPolicy, policyToHelpAnswer } from '@/utils/cancellation-policy';
 import { platformConfig } from '@/config/platform.config';
 
@@ -174,28 +194,46 @@ export default function HelpScreen(): React.ReactElement {
         <View style={styles.contactSection}>
           <Text style={styles.contactTitle}>Still need help?</Text>
           <Text style={styles.contactSubtitle}>
-            Our support team is available Monday to Saturday, 8 AM to 8 PM (PHT).
+            Our support team is available Monday to Saturday, 8 AM to 8 PM (PHT). Messaging us in the app is the fastest way to get help, and it keeps a record tied to your booking.
           </Text>
 
           <TouchableOpacity
+            style={[styles.contactBtn, styles.contactBtnPrimary]}
+            onPress={() => router.push('/support')}
+            accessibilityRole="button"
+            accessibilityLabel="Message support in the app"
+          >
+            <View style={styles.contactBtnIconWrap}><MessageSquare size={22} color={colors.white} /></View>
+            <View style={styles.contactBtnInfo}>
+              <Text style={[styles.contactBtnLabel, styles.contactBtnLabelOnPrimary]}>Message support</Text>
+              <Text style={[styles.contactBtnValue, styles.contactBtnValueOnPrimary]}>Chat with our team in the app</Text>
+            </View>
+            <ChevronRight size={20} color={colors.white} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.contactBtn}
-            onPress={() => Linking.openURL('mailto:support@onservice.ph')}
+            onPress={() => openContact('email')}
+            accessibilityRole="button"
+            accessibilityLabel={`Email support at ${SUPPORT_EMAIL}`}
           >
             <View style={styles.contactBtnIconWrap}><Mail size={22} color={colors.primary} /></View>
             <View style={styles.contactBtnInfo}>
-              <Text style={styles.contactBtnLabel}>Email Support</Text>
-              <Text style={styles.contactBtnValue}>support@onservice.ph</Text>
+              <Text style={styles.contactBtnLabel}>Email support</Text>
+              <Text style={styles.contactBtnValue}>{SUPPORT_EMAIL}</Text>
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.contactBtn}
-            onPress={() => Linking.openURL('tel:+63281234567')}
+            onPress={() => openContact('call')}
+            accessibilityRole="button"
+            accessibilityLabel={`Call support at ${SUPPORT_PHONE}`}
           >
             <View style={styles.contactBtnIconWrap}><Phone size={22} color={colors.primary} /></View>
             <View style={styles.contactBtnInfo}>
-              <Text style={styles.contactBtnLabel}>Call Us</Text>
-              <Text style={styles.contactBtnValue}>+63 2 8123 4567</Text>
+              <Text style={styles.contactBtnLabel}>Call us</Text>
+              <Text style={styles.contactBtnValue}>{SUPPORT_PHONE}</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -278,6 +316,9 @@ const styles = StyleSheet.create({
   contactBtnInfo: { flex: 1 },
   contactBtnLabel: { ...typography.body, fontWeight: '600', color: colors.text },
   contactBtnValue: { ...typography.caption, color: colors.primary },
+  contactBtnPrimary: { backgroundColor: colors.primary, borderColor: colors.primary },
+  contactBtnLabelOnPrimary: { color: colors.white },
+  contactBtnValueOnPrimary: { color: 'rgba(255,255,255,0.85)' },
   versionInfo: { alignItems: 'center', paddingVertical: spacing.xl },
   versionText: { ...typography.caption, color: colors.textTertiary },
 });

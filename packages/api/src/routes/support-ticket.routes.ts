@@ -31,6 +31,49 @@ router.get(
   },
 );
 
+// ── Owner-scoped routes (any authenticated user, their OWN tickets) ──
+// Registered BEFORE '/:id' so the literal '/mine' segment is not captured
+// as an :id param by the admin route below.
+
+// List the caller's own tickets (in-app "My support requests" inbox)
+router.get(
+  '/mine',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const page = parseInt(req.query.page as string, 10) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string, 10) || platformConfig.defaultPageSize, platformConfig.maxPageSize);
+      const { status } = req.query as Record<string, string | undefined>;
+      const result = await supportTicketService.listMyTickets({ userId: req.user!.userId, page, limit, status });
+      res.json({ success: true, data: result.tickets, meta: { total: result.total, page, limit } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// Get one of the caller's own tickets + its customer-visible messages
+router.get(
+  '/mine/:id',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = getParamId(req);
+      const ticket = await supportTicketService.getTicketById(id);
+      // 404 (not 403) when the ticket is missing OR belongs to someone else —
+      // never confirm the existence of another user's ticket.
+      if (!ticket || ticket.user_id !== req.user!.userId) {
+        throw createAppError('Ticket not found.', 404);
+      }
+      // includeInternal = false: hide admin internal notes from the customer.
+      const messages = await supportTicketService.getTicketMessages(id, false);
+      res.json({ success: true, data: { ...ticket, messages } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 // Get single ticket with messages
 router.get(
   '/:id',

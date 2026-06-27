@@ -125,6 +125,10 @@ function RootLayout(): React.ReactElement {
               <Stack.Screen name="customer" />
               <Stack.Screen name="(provider-tabs)" />
               <Stack.Screen name="provider" />
+              {/* Shared in-app support inbox/thread, reachable by both customer
+                  and provider via router.push('/support'). Declared here so the
+                  group does not log a "No route named support" warning on boot. */}
+              <Stack.Screen name="support" />
               {/* No <Stack.Screen name="staff" /> — there is no app/staff/
                   _layout.tsx, so the segments register as staff/invites,
                   staff/jobs, staff/job/[id] and a "staff" entry only logs
