@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft, ChevronRight, Plus } from '@/components/icons';
 import { EmptyState } from '@/components/ui';
+import { Routes, buildRoute } from '@/config/navigation';
 import {
   listMyTickets,
   SUPPORT_TYPE_LABELS,
@@ -63,7 +64,7 @@ export default function SupportInboxScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.newBtn}
-          onPress={() => router.push('/support/new')}
+          onPress={() => router.push(Routes.SUPPORT.NEW)}
           accessibilityRole="button"
           accessibilityLabel="Start a new support request"
         >
@@ -94,7 +95,7 @@ export default function SupportInboxScreen(): React.ReactElement {
               <TouchableOpacity
                 key={t.id}
                 style={styles.ticketCard}
-                onPress={() => router.push(`/support/${t.id}`)}
+                onPress={() => router.push(buildRoute(Routes.SUPPORT.THREAD, { id: t.id }))}
                 activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel={`Open support request ${t.ticket_number}`}

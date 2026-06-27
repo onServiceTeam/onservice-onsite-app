@@ -13,22 +13,18 @@ import {
   VALID_TRANSITIONS,
 } from '../src/types/booking.types';
 
-const CATALOG_ROUTES = readFileSync(
-  resolve(__dirname, '../src/routes/catalog.routes.ts'),
-  'utf8',
-);
-const NOTIF_TEMPLATE_ROUTES = readFileSync(
-  resolve(__dirname, '../src/routes/notification-template.routes.ts'),
-  'utf8',
-);
-const SERVICE_AREA_ROUTES = readFileSync(
-  resolve(__dirname, '../src/routes/service-area.routes.ts'),
-  'utf8',
-);
-const WEBHOOK_ROUTES = readFileSync(
-  resolve(__dirname, '../src/routes/webhook.routes.ts'),
-  'utf8',
-);
+// Normalize CRLF→LF so the indexOf("router.post(\n  '/x'") probes below
+// match regardless of the working-tree's checkout line endings (a Windows
+// dev tree uses CRLF; these probes hardcode \n). The route files genuinely
+// carry the middleware — without this, the probe slices the wrong span on
+// CRLF checkouts and the test fails locally while passing in CI (LF).
+const readSrc = (rel: string): string =>
+  readFileSync(resolve(__dirname, rel), 'utf8').replace(/\r\n/g, '\n');
+
+const CATALOG_ROUTES = readSrc('../src/routes/catalog.routes.ts');
+const NOTIF_TEMPLATE_ROUTES = readSrc('../src/routes/notification-template.routes.ts');
+const SERVICE_AREA_ROUTES = readSrc('../src/routes/service-area.routes.ts');
+const WEBHOOK_ROUTES = readSrc('../src/routes/webhook.routes.ts');
 
 describe('MED-N145 — booking status partition invariant', () => {
   it('MED-N145 — every BookingStatus appears in exactly one bucket', () => {

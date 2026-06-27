@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft } from '@/components/icons';
 import { Button } from '@/components/ui';
+import { Routes, buildRoute } from '@/config/navigation';
 import {
   createTicket,
   SUPPORT_TYPE_LABELS,
@@ -40,7 +41,7 @@ export default function NewSupportRequestScreen(): React.ReactElement {
     onSuccess: (ticket) => {
       void queryClient.invalidateQueries({ queryKey: ['support', 'mine'] });
       // Replace so Back from the thread returns to the inbox, not this form.
-      router.replace(`/support/${ticket.id}`);
+      router.replace(buildRoute(Routes.SUPPORT.THREAD, { id: ticket.id }));
     },
     onError: () => {
       Alert.alert('Could not send', 'Something went wrong sending your request. Please try again.');

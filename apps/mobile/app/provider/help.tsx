@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
+import { Routes } from '@/config/navigation';
 import { Wrench, Mail, Phone, MessageSquare, ChevronRight } from '@/components/icons';
 
 const SUPPORT_EMAIL = 'providers@onservice.ph';
@@ -188,7 +189,7 @@ export default function ProviderHelpScreen(): React.ReactElement {
 
           <TouchableOpacity
             style={[styles.contactBtn, styles.contactBtnPrimary]}
-            onPress={() => router.push('/support')}
+            onPress={() => router.push(Routes.SUPPORT.INBOX)}
             accessibilityRole="button"
             accessibilityLabel="Message provider support in the app"
           >

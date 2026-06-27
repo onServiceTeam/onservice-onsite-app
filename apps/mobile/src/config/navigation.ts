@@ -141,6 +141,15 @@ export const Routes = {
     // PROVIDER_TABS.PROVIDER_PROFILE — both tabs, not standalone screens.
   },
 
+  // Shared in-app support inbox/thread, reachable by both customer and
+  // provider (app/support group). Added with the screens, per the
+  // "add the route entry at the same time as the screen" rule above.
+  SUPPORT: {
+    INBOX: '/support',
+    NEW: '/support/new',
+    THREAD: '/support/[id]',
+  },
+
   // D23 — team member ("provider_staff") scoped area.
   STAFF: {
     JOBS: '/staff/jobs',

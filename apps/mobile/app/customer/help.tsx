@@ -28,6 +28,7 @@ function openContact(kind: 'email' | 'call'): void {
 }
 import { fetchCancellationPolicy, policyToHelpAnswer } from '@/utils/cancellation-policy';
 import { platformConfig } from '@/config/platform.config';
+import { Routes } from '@/config/navigation';
 
 interface FAQItem {
   q: string;
@@ -199,7 +200,7 @@ export default function HelpScreen(): React.ReactElement {
 
           <TouchableOpacity
             style={[styles.contactBtn, styles.contactBtnPrimary]}
-            onPress={() => router.push('/support')}
+            onPress={() => router.push(Routes.SUPPORT.INBOX)}
             accessibilityRole="button"
             accessibilityLabel="Message support in the app"
           >
