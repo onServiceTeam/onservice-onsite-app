@@ -172,6 +172,14 @@ router.patch(
       if (typeof newStatus !== 'string') {
         throw createAppError('newStatus is required.', 400);
       }
+      // Segregation of duties (NPC RA 10173): terminal DSR decisions
+      // (completed / rejected) are super_admin-only, matching the dedicated
+      // /dsr/:id/{complete,reject,escalate} endpoints. Pre-fix a base admin
+      // blocked from those endpoints could reach the same terminal state
+      // through this generic PATCH — closing that bypass.
+      if (newStatus === 'completed' || newStatus === 'rejected') {
+        requireSuperAdmin(req);
+      }
       const data = await compliance.updateDsrStatus({
         id: req.params.id as string,
         adminId: req.user!.userId,

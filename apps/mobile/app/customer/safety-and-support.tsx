@@ -42,9 +42,8 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { SectionHeader } from '@/components/ui';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
-import { CheckCircle2, Lock, MapPin, Phone, MessageSquare, AlertTriangle, ChevronLeft } from '@/components/icons';
+import { CheckCircle2, Lock, MapPin, MessageSquare, AlertTriangle, ChevronLeft } from '@/components/icons';
 
-import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
@@ -130,11 +129,6 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
     Linking.openURL('tel:911');
   }, []);
 
-  const handleSupportCall = useCallback(() => {
-    // Replace with the real onService PH support hotline once provisioned.
-    Linking.openURL('tel:+63281234567');
-  }, []);
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -186,16 +180,16 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleSupportCall} style={styles.supportButton} activeOpacity={0.8}>
-            <Phone size={24} color={colors.primary} />
+          <TouchableOpacity onPress={() => router.push('/support')} style={styles.supportButton} activeOpacity={0.8}>
+            <MessageSquare size={24} color={colors.primary} />
             <View style={styles.supportTextBlock}>
-              <Text style={styles.supportTitle}>Call onService support</Text>
-              <Text style={styles.supportSubtitle}>For active job concerns</Text>
+              <Text style={styles.supportTitle}>Message onService support</Text>
+              <Text style={styles.supportSubtitle}>Reach our team about an active job</Text>
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.push(Routes.CUSTOMER.HELP)}
+            onPress={() => router.push('/support/new')}
             style={styles.reportButton}
             activeOpacity={0.7}
           >

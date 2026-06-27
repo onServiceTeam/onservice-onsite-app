@@ -351,6 +351,10 @@ function DsrDetailPanel(props: {
 }): React.ReactElement {
   const { dsr, onClose, onUpdated } = props;
   const queryClient = useQueryClient();
+  // Terminal DSR decisions (completed/rejected) are super_admin-only on the
+  // server (matching the dedicated /reject + /complete endpoints). Hide those
+  // options from a base admin so the UI never offers an action that 403s.
+  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
   const [newStatus, setNewStatus] = useState<DsrStatus>(dsr.status);
   const [adminNotes, setAdminNotes] = useState(dsr.adminNotes ?? '');
   const [rejectionReason, setRejectionReason] = useState(dsr.rejectionReason ?? '');
@@ -420,10 +424,15 @@ function DsrDetailPanel(props: {
               <SelectContent>
                 <SelectItem value="received">Received</SelectItem>
                 <SelectItem value="in_progress">In progress</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
+                {isSuperAdmin && <SelectItem value="completed">Completed</SelectItem>}
+                {isSuperAdmin && <SelectItem value="rejected">Rejected</SelectItem>}
               </SelectContent>
             </Select>
+            {!isSuperAdmin && (
+              <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+                Completing or rejecting a data-subject request requires a super admin.
+              </p>
+            )}
           </div>
           <div>
             <Label htmlFor="dsr-notes">Admin notes</Label>

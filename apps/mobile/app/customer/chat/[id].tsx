@@ -328,11 +328,20 @@ export default function ChatScreen(): React.ReactElement {
           />
         }
         ListHeaderComponent={
-          messagesQuery.isError ? (
-            <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, margin: 16, marginBottom: 0 }}>
-              <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load messages. Pull down to refresh.</Text>
+          <>
+            {messagesQuery.isError ? (
+              <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, margin: 16, marginBottom: 0 }}>
+                <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load messages. Pull down to refresh.</Text>
+              </View>
+            ) : null}
+            {/* Keep-it-on-the-app nudge: framed as a benefit (guarantee +
+                dispute record + fast support), not a restriction. */}
+            <View style={styles.keepOnAppStrip}>
+              <Text style={styles.keepOnAppText}>
+                Keep your conversation here. On-app chat lets support step in fast, backs your service guarantee, and stays on record if there is ever a dispute.
+              </Text>
             </View>
-          ) : null
+          </>
         }
         ListEmptyComponent={
           <View style={styles.emptyChat}>
@@ -398,6 +407,8 @@ const styles = StyleSheet.create({
   typingText: { ...typography.caption, color: colors.primary, fontStyle: 'italic' },
 
   messageList: { padding: spacing.base, paddingBottom: spacing.lg },
+  keepOnAppStrip: { backgroundColor: colors.infoLight, borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.sm, marginHorizontal: spacing.base, marginBottom: spacing.sm },
+  keepOnAppText: { ...typography.caption, color: colors.infoDark, lineHeight: 17, textAlign: 'center' },
 
   messageBubble: {
     maxWidth: '75%',

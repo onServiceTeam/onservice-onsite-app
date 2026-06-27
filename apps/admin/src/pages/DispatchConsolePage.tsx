@@ -150,21 +150,19 @@ interface BookingGpsUpdatePayload {
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-// BUG-PHASE97-01 fix — pre-fix the dispatch map was centered on
-// Metro Manila at zoom 11. The platform's launch market is Boracay
-// (Aklan); mobile customer/booking/tracker.tsx + provider/job/
-// active.tsx + provider/service-area.tsx all default to the Boracay
-// coords used below per Phase D CRIT-77. Admins opening the
-// dispatch console at launch saw an empty Manila map and had to
-// manually pan every shift. Now the default matches the rest of
-// the platform; zoom is tighter because Boracay is a 7km island
-// where the wider Manila zoom would render mostly empty water.
+// Default dispatch-map viewport. The platform is city-agnostic; the
+// default / first launch market is Metro Cebu (Cebu City, Mandaue,
+// Lapu-Lapu, Talisay) per CLAUDE.md, so the map opens on Cebu City
+// rather than the old Boracay coords (superseded by the Cebu-default,
+// multi-city direction — Ken, 2026-06-04). Real bookings/providers with
+// coordinates pan the map on load; this is only the empty-state center.
 //
-// Once the launch expands beyond Boracay, replace this with the
-// active service-area's center (admin/service-areas API exposes
-// centerLat/centerLng + status).
-const DEFAULT_MAP_CENTER: [number, number] = [11.9685, 121.9162];
-const DEFAULT_ZOOM = 13;
+// TODO(service-areas): derive this from the active/default service_areas
+// row (admin/service-areas API exposes centerLat/centerLng + status) so
+// the empty-state viewport follows whichever market is active, instead of
+// a hardcoded city literal.
+const DEFAULT_MAP_CENTER: [number, number] = [10.3157, 123.8854]; // Cebu City
+const DEFAULT_ZOOM = 12;
 
 const STATUS_COLORS: Record<string, string> = {
   pending: '#f59e0b',

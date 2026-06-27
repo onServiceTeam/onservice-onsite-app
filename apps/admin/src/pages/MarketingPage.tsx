@@ -257,6 +257,11 @@ function OverviewTab(): React.ReactElement {
     totalSignups: oRaw.totalSignups ?? 0,
     totalRevenueCentavos: oRaw.totalRevenueCentavos ?? 0,
     aggregateCpaCentavos: oRaw.aggregateCpaCentavos ?? 0,
+    // Same defensive defaults for the remaining two overview fields: a
+    // partial response otherwise renders "undefined%" for ROI and crashes
+    // the channel-breakdown DataTable (.map on undefined).
+    aggregateRoiPercent: oRaw.aggregateRoiPercent ?? 0,
+    channelBreakdown: oRaw.channelBreakdown ?? [],
   };
 
   return (
