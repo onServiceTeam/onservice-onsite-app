@@ -15,6 +15,7 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { neutralizeCsvFormula } from '../utils/csv';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -738,7 +739,8 @@ const CSV_HEADER = 'id,createdAt,userEmail,userRole,action,entityType,entityId,i
 
 function csvEscape(value: unknown): string {
   if (value === null || value === undefined) return '';
-  const s = typeof value === 'string' ? value : String(value);
+  // Neutralize formula triggers before the comma/quote/newline quoting.
+  const s = neutralizeCsvFormula(typeof value === 'string' ? value : String(value));
   if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
     return `"${s.replace(/"/g, '""')}"`;
   }

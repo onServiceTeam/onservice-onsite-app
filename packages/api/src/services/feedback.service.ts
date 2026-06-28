@@ -9,6 +9,7 @@
 // they can be unit-tested without a database.
 
 import { pool } from '../config/database.config';
+import { neutralizeCsvFormula } from '../utils/csv';
 
 const MAX = {
   name: 200,
@@ -357,7 +358,8 @@ export function toCsv(rows: FeedbackRow[]): string {
     'id', 'created_at', 'tester_name', 'role', 'device', 'areas', 'nps', 'item_count', 'status', 'summary', 'ideas',
   ];
   const esc = (v: unknown): string => {
-    const s = v === null || v === undefined ? '' : String(v);
+    // Neutralize formula triggers before the comma/quote/newline quoting.
+    const s = neutralizeCsvFormula(v === null || v === undefined ? '' : String(v));
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const out = [headers.join(',')];

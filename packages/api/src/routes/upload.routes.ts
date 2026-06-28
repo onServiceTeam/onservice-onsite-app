@@ -167,9 +167,16 @@ router.get(
         // call uploadBookingPhoto's auth path via a tiny SELECT here.
         const { db } = await import('../models/db');
         const access = await db.query(
+          // Mirror bookingService.getBookingById's access check: the approved
+          // staff performer (provider_staff) can read photos for their own job.
           `SELECT 1 FROM bookings b
            LEFT JOIN providers p ON p.id = b.provider_id
-           WHERE b.id = $1 AND (b.customer_id = $2 OR p.user_id = $2)`,
+           LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+           WHERE b.id = $1 AND (
+             b.customer_id = $2
+             OR p.user_id = $2
+             OR (ps.user_id = $2 AND ps.status = 'approved')
+           )`,
           [bookingId, req.user!.userId],
         );
         if (access.rows.length === 0) {

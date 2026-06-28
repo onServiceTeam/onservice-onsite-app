@@ -3,6 +3,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
+import { neutralizeCsvFormula } from '../utils/csv';
 
 // --- Interfaces ---
 
@@ -229,18 +230,22 @@ function convertToCsv(data: Record<string, unknown>): string {
 
     const rows = value as Record<string, unknown>[];
     const headers = Object.keys(rows[0]!);
+    const escapeCell = (raw: string): string => {
+      // Neutralize formula triggers before the comma/quote/newline quoting.
+      const str = neutralizeCsvFormula(raw);
+      return str.includes(',') || str.includes('"') || str.includes('\n')
+        ? `"${str.replace(/"/g, '""')}"`
+        : str;
+    };
     const csvRows = rows.map((row) =>
       headers.map((h) => {
         const val = row[h];
-        const str = val === null || val === undefined ? '' : String(val);
-        return str.includes(',') || str.includes('"') || str.includes('\n')
-          ? `"${str.replace(/"/g, '""')}"`
-          : str;
+        return escapeCell(val === null || val === undefined ? '' : String(val));
       }).join(','),
     );
 
     sections.push(`--- ${key} ---`);
-    sections.push(headers.join(','));
+    sections.push(headers.map(escapeCell).join(','));
     sections.push(...csvRows);
     sections.push('');
   }

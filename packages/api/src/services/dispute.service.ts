@@ -300,14 +300,19 @@ export async function addProviderResponse(
   if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
   const bk = booking.rows[0]!;
 
-  if (bk.provider_id) {
-    const provider = await db.query<ProviderLookupRow>(
-      `SELECT user_id FROM providers WHERE id = $1`,
-      [bk.provider_id],
-    );
-    if (!provider.rows[0] || provider.rows[0].user_id !== providerUserId) {
-      throw createAppError('You are not the provider for this booking.', 403);
-    }
+  // Make the absence of a provider an explicit denial instead of an implicit
+  // pass. Without this, a provider-less booking skipped the ownership guard
+  // and fell through to the resolve/contest/partial-offer transaction.
+  if (!bk.provider_id) {
+    throw createAppError('No provider is assigned to this booking.', 403);
+  }
+
+  const provider = await db.query<ProviderLookupRow>(
+    `SELECT user_id FROM providers WHERE id = $1`,
+    [bk.provider_id],
+  );
+  if (!provider.rows[0] || provider.rows[0].user_id !== providerUserId) {
+    throw createAppError('You are not the provider for this booking.', 403);
   }
 
   const result = await db.transaction(async (client) => {

@@ -204,8 +204,13 @@ export async function verifyCaptchaToken(token: string): Promise<boolean> {
   const captchaSecret = process.env.CAPTCHA_SECRET_KEY || process.env.TURNSTILE_SECRET_KEY;
 
   if (!captchaSecret) {
-    if (process.env.NODE_ENV !== 'production') {
-      logger.info('[DEV] CAPTCHA verification skipped — no secret key');
+    // Gate the dev bypass on the relaxed-test flag (same condition that skips
+    // OTP lockout), NOT NODE_ENV. Otherwise the CAPTCHA challenge that the OTP
+    // lockout escalates to is a no-op on any non-prod box even when an operator
+    // turns relaxation OFF to exercise the anti-abuse path. Fail closed when
+    // relaxation is off and no secret is configured.
+    if (platformConfig.rateLimitsRelaxed) {
+      logger.info('[DEV] CAPTCHA verification skipped — relaxed test mode, no secret key');
       return true;
     }
     logger.warn('CAPTCHA secret (CAPTCHA_SECRET_KEY / TURNSTILE_SECRET_KEY) not configured — failing closed');

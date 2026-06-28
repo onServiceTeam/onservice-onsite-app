@@ -486,6 +486,38 @@ router.post(
       const clientIp = getClientIp(req);
       const { email, password } = req.body;
 
+      // Account-scoped brute-force lockout, independent of source IP. The IP
+      // limiter + IP auto-block do nothing against an attacker rotating source
+      // IPs (botnet / proxy pool) at one admin email. checkOtpLockout only
+      // covers attempt_type IN ('otp_send','otp_verify'), so admin_login needs
+      // its own per-account counter. Failed rows are already written via
+      // recordLoginAttempt below; here we only read/enforce. Respect the
+      // relaxed-test flag the same way checkOtpLockout does so QA isn't blocked.
+      const ADMIN_LOGIN_LOCKOUT_THRESHOLD = 8;
+      if (!platformConfig.rateLimitsRelaxed) {
+        const accountEmail = email.toLowerCase().trim();
+        const failed = await db.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM login_attempts
+           WHERE phone = $1 AND attempt_type = 'admin_login' AND success = FALSE
+             AND created_at > NOW() - INTERVAL '15 minutes'`,
+          [accountEmail],
+        );
+        if (Number(failed.rows[0]?.count ?? 0) >= ADMIN_LOGIN_LOCKOUT_THRESHOLD) {
+          // Reuse the whitelisted admin_login_failed event type (the
+          // security_events.event_type CHECK constraint doesn't allow a new
+          // value without a migration); the lockout is flagged in metadata.
+          await securityService.logSecurityEvent({
+            eventType: 'admin_login_failed',
+            ipAddress: clientIp,
+            metadata: { email: accountEmail, reason: 'account_lockout', scope: 'account' },
+          });
+          throw createAppError(
+            'Too many failed login attempts for this account. Please try again later.',
+            429,
+          );
+        }
+      }
+
       // E01 / D15 — admin login flow accepts admin, super_admin, AND dpo.
       // The DPO is a real role with NPC RA 10173 §21 segregation; they
       // log in via the admin tier and reach DPO-scope routes via

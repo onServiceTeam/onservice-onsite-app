@@ -16,10 +16,12 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
+import RedisStore from 'rate-limit-redis';
 import multer from 'multer';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { redis } from '../config/redis.config';
 import {
   validateAndNormalize,
   createFeedback,
@@ -40,6 +42,23 @@ interface MulterFile {
 
 const router = Router();
 
+// Redis-backed store so the per-IP flood counters survive container restarts
+// and are shared across API replicas (a MemoryStore resets to zero on every
+// redeploy and is per-replica, multiplying the effective limit). Mirrors the
+// buildAuthRoutesStore pattern in auth.routes.ts; ioredis queues commands while
+// reconnecting per its retryStrategy, so the limiter degrades gracefully if
+// Redis is briefly unavailable. Distinct prefix per limiter keeps counters
+// separate from the global `rl:global:` and auth `rl:auth-routes:` namespaces.
+type RedisStoreOpts = ConstructorParameters<typeof RedisStore>[0];
+function buildFeedbackStore(prefix: string): InstanceType<typeof RedisStore> {
+  const opts = {
+    prefix,
+    sendCommand: (...args: string[]): Promise<unknown> =>
+      (redis as unknown as { call: (...a: string[]) => Promise<unknown> }).call(...args),
+  } as unknown as RedisStoreOpts;
+  return new RedisStore(opts);
+}
+
 // Stay on even when RATE_LIMITS_RELAXED is set: this is bot/flood protection for
 // an open endpoint, not an auth/OTP throttle. 40 submissions per hour per IP is
 // far above any real tester and well below what a script needs to flood the DB.
@@ -48,6 +67,7 @@ const submitLimiter = rateLimit({
   limit: 40,
   standardHeaders: true,
   legacyHeaders: false,
+  store: buildFeedbackStore('rl:feedback-submit:'),
   message: { success: false, error: 'Too many submissions from this connection. Please try again later.' },
 });
 
@@ -60,6 +80,7 @@ const uploadLimiter = rateLimit({
   limit: 80,
   standardHeaders: true,
   legacyHeaders: false,
+  store: buildFeedbackStore('rl:feedback-upload:'),
   message: { success: false, error: 'Too many uploads from this connection. Please try again later.' },
 });
 
@@ -137,8 +158,12 @@ function keyOk(req: Request): boolean {
   const expected = process.env.FEEDBACK_EXPORT_KEY;
   if (!expected) return false;
   const given = (req.query.key ?? req.headers['x-feedback-key'] ?? '').toString();
-  // length check first avoids a trivially different-length compare path
-  return given.length === expected.length && given === expected;
+  // Constant-time compare to avoid leaking the key byte-by-byte via a timing
+  // side-channel. timingSafeEqual requires equal-length buffers, so the length
+  // check stays as a (non-secret) precondition.
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 async function guardedExport(

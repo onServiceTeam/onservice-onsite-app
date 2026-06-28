@@ -208,6 +208,19 @@ router.post(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
+      // The `/api/v1/admin` mount only carries CSRF protection, not role
+      // enforcement, so each route must gate itself. Without this an
+      // authenticated customer/provider could write rows into the
+      // privileged admin_backup_codes / admin_actions tables via the
+      // self-regen path. Require the admin tier before the self/cross branch.
+      if (
+        req.user!.role !== 'admin' &&
+        req.user!.role !== 'super_admin' &&
+        req.user!.role !== 'dpo'
+      ) {
+        throw createAppError('Admin access required.', 403);
+      }
+
       // Super-admins regenerate their own backup codes — and may regen
       // codes for other admins via :adminUserId. Self-regen is the
       // common case (lost the old codes); cross-regen is the recovery
