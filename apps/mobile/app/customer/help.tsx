@@ -5,26 +5,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { SectionHeader } from '@/components/ui';
-import { Mail, Phone, MessageSquare, ChevronLeft, ChevronRight } from '@/components/icons';
+import { Mail, MessageSquare, ChevronLeft, ChevronRight } from '@/components/icons';
 
 const SUPPORT_EMAIL = 'support@onservice.ph';
-const SUPPORT_PHONE = '+63 2 8123 4567';
 
-// Bug (Jenico feedback): on the web build, Linking.openURL('mailto:…') /
-// 'tel:…' navigated the whole tab to a blank page. On web we surface the
+// Bug (Jenico feedback): on the web build, Linking.openURL('mailto:…')
+// navigated the whole tab to a blank page. On web we surface the
 // address in a dialog the user can copy instead; native still deep-links.
-function openContact(kind: 'email' | 'call'): void {
-  if (Platform.OS === 'web') {
-    Alert.alert(
-      kind === 'email' ? 'Email support' : 'Call support',
-      kind === 'email' ? SUPPORT_EMAIL : SUPPORT_PHONE,
-    );
-    return;
-  }
-  const url = kind === 'email' ? `mailto:${SUPPORT_EMAIL}` : `tel:${SUPPORT_PHONE.replace(/\s/g, '')}`;
-  Linking.openURL(url).catch(() => {
-    Alert.alert('Could not open', kind === 'email' ? SUPPORT_EMAIL : SUPPORT_PHONE);
-  });
+function openEmail(): void {
+  if (Platform.OS === 'web') { Alert.alert('Email support', SUPPORT_EMAIL); return; }
+  Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => { Alert.alert('Could not open', SUPPORT_EMAIL); });
 }
 import { fetchCancellationPolicy, policyToHelpAnswer } from '@/utils/cancellation-policy';
 import { platformConfig } from '@/config/platform.config';
@@ -214,7 +204,7 @@ export default function HelpScreen(): React.ReactElement {
 
           <TouchableOpacity
             style={styles.contactBtn}
-            onPress={() => openContact('email')}
+            onPress={() => openEmail()}
             accessibilityRole="button"
             accessibilityLabel={`Email support at ${SUPPORT_EMAIL}`}
           >
@@ -222,19 +212,6 @@ export default function HelpScreen(): React.ReactElement {
             <View style={styles.contactBtnInfo}>
               <Text style={styles.contactBtnLabel}>Email support</Text>
               <Text style={styles.contactBtnValue}>{SUPPORT_EMAIL}</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.contactBtn}
-            onPress={() => openContact('call')}
-            accessibilityRole="button"
-            accessibilityLabel={`Call support at ${SUPPORT_PHONE}`}
-          >
-            <View style={styles.contactBtnIconWrap}><Phone size={22} color={colors.primary} /></View>
-            <View style={styles.contactBtnInfo}>
-              <Text style={styles.contactBtnLabel}>Call us</Text>
-              <Text style={styles.contactBtnValue}>{SUPPORT_PHONE}</Text>
             </View>
           </TouchableOpacity>
         </View>

@@ -270,9 +270,11 @@ export default function ProvidersPage(): React.ReactElement {
         </div>
       )}
 
-      <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No providers found." />
+      {!isError && (
+        <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No providers found." />
+      )}
 
-      {data && data.pagination.totalPages > 1 && (
+      {!isError && data && data.pagination.totalPages > 1 && (
         <Pagination {...data.pagination} onPageChange={setPage} />
       )}
 

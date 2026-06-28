@@ -397,6 +397,8 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
   // 20-char floor.
   const reasonOk = reason.trim().length >= 10;
   const reasonOkForce = reason.trim().length >= 20;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const providerIdOk = UUID_RE.test(providerId.trim());
   const refundAmtCentavos = (() => {
     const n = parseFloat(amountPesos);
     return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
@@ -454,7 +456,7 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
       </div>
 
       {open && (
-        <div className="mt-4 p-4 border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-secondary)]/50 space-y-3">
+        <div className="mt-4 p-4 border border-[var(--color-border)] rounded-lg bg-[var(--color-surface-hover)]/50 space-y-3">
           <p className="text-sm font-medium text-[var(--color-text)]">
             {open === 'release' && 'Manual escrow release'}
             {open === 'refund' && 'Refund from escrow'}
@@ -493,6 +495,9 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
                 placeholder="00000000-0000-0000-0000-000000000000"
                 className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm font-mono"
               />
+              {providerId.trim().length > 0 && !providerIdOk && (
+                <p className="text-xs text-[var(--color-error)] mt-1">Enter a valid provider ID (UUID format)</p>
+              )}
             </div>
           )}
 
@@ -577,7 +582,7 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
             {open === 'reassign' && (
               <Button
                 size="sm"
-                disabled={!reasonOk || providerId.trim().length === 0 || reassignMut.isPending}
+                disabled={!reasonOk || !providerIdOk || reassignMut.isPending}
                 onClick={() =>
                   window.confirm('Reassign this booking to the entered provider ID?')
                     ? reassignMut.mutate({ newProviderId: providerId.trim(), reason })
@@ -748,7 +753,7 @@ function PartyBlock({
 }): React.ReactElement {
   return (
     <div className="flex items-start gap-3">
-      <div className="w-12 h-12 rounded-full bg-[var(--color-bg-secondary)] flex items-center justify-center overflow-hidden shrink-0">
+      <div className="w-12 h-12 rounded-full bg-[var(--color-surface-hover)] flex items-center justify-center overflow-hidden shrink-0">
         {avatarUrl ? (
           <img src={avatarUrl} alt={fullName} className="w-full h-full object-cover" />
         ) : (

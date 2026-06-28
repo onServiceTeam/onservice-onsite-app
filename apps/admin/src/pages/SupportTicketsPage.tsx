@@ -372,7 +372,7 @@ export default function SupportTicketsPage(): React.ReactElement {
             {(ticket.messages ?? []).map((msg) => (
               <div
                 key={msg.id}
-                className={`p-3 rounded-lg ${msg.is_internal_note ? 'bg-yellow-50 border border-yellow-200' : 'bg-[var(--color-bg-secondary)]'}`}
+                className={`p-3 rounded-lg ${msg.is_internal_note ? 'bg-yellow-50 border border-yellow-200' : 'bg-[var(--color-surface-hover)]'}`}
               >
                 <div className="flex justify-between text-xs text-[var(--color-text-secondary)] mb-1">
                   <span className="font-medium">

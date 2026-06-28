@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { colors, spacing, borderRadius, typography } from '@/config/theme';
+import { MIN_TOUCH_TARGET } from '@/config/accessibility';
 
 export interface FilterChipOption {
   value: string;
@@ -80,7 +81,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chip: {
-    minHeight: 36,
+    minHeight: MIN_TOUCH_TARGET,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,

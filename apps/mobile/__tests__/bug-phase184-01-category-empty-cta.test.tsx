@@ -8,7 +8,7 @@ import { render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 jest.mock('@/services/catalog.service', () => ({
-  getSubcategories: jest.fn().mockResolvedValue([]),
+  getSubcategories: jest.fn().mockResolvedValue({ categoryName: 'Cleaning', subcategories: [] }),
 }));
 
 import SubcategoryListScreen from '../app/customer/category/[id]';

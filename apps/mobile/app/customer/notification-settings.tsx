@@ -141,7 +141,7 @@ export default function NotificationSettingsScreen(): React.ReactElement {
         </View>
       )}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityLabel="Go back" accessibilityRole="button">
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Notification Settings</Text>
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMuted },
 
   header: { paddingHorizontal: spacing.base, paddingTop: spacing.base, paddingBottom: spacing.base },
-  backBtn: { marginBottom: spacing.sm, paddingVertical: spacing.sm, minHeight: 44 },
+  backBtn: { marginBottom: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { ...typography.body, color: colors.primary },
   title: { ...typography.h2, color: colors.text },
   subtitle: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },

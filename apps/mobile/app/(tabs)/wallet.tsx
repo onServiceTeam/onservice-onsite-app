@@ -161,7 +161,7 @@ export default function WalletScreen(): React.ReactElement {
           <Text style={styles.txDate}>{formatDateTime(item.createdAt)}</Text>
         </View>
         <Text style={[styles.txAmount, item.amount >= 0 ? styles.txCredit : styles.txDebit]}>
-          {item.amount >= 0 ? '+' : ''}{formatPHP(Math.abs(item.amount))}
+          {item.amount >= 0 ? '+' : '-'}{formatPHP(Math.abs(item.amount))}
         </Text>
       </View>
     );

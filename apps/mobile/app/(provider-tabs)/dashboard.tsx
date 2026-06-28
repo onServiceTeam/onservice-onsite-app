@@ -169,6 +169,8 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         <TouchableOpacity
           style={styles.notifButton}
           onPress={() => router.push(Routes.PROVIDER.NOTIFICATIONS)}
+          accessibilityRole="button"
+          accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         >
           <Bell size={22} color={colors.text} />
           {unreadCount > 0 && (

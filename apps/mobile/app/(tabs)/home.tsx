@@ -236,6 +236,8 @@ export default function HomeScreen(): React.ReactElement {
         <TouchableOpacity
           style={styles.notifButton}
           onPress={() => router.push(Routes.CUSTOMER.NOTIFICATIONS)}
+          accessibilityRole="button"
+          accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         >
           <Bell size={22} color={colors.text} />
           {unreadCount > 0 && (

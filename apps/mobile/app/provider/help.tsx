@@ -6,25 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import { Routes } from '@/config/navigation';
-import { Wrench, Mail, Phone, MessageSquare, ChevronRight } from '@/components/icons';
+import { Wrench, Mail, MessageSquare, ChevronRight } from '@/components/icons';
 
 const SUPPORT_EMAIL = 'providers@onservice.ph';
-const SUPPORT_PHONE = '+63 2 8123 4567';
 
-// Same web-safe contact handling as the customer Help screen: mailto/tel
+// Same web-safe contact handling as the customer Help screen: mailto
 // blank-paged the web build, so on web we surface the address in a dialog.
-function openContact(kind: 'email' | 'call'): void {
-  if (Platform.OS === 'web') {
-    Alert.alert(
-      kind === 'email' ? 'Email provider support' : 'Call support',
-      kind === 'email' ? SUPPORT_EMAIL : SUPPORT_PHONE,
-    );
-    return;
-  }
-  const url = kind === 'email' ? `mailto:${SUPPORT_EMAIL}` : `tel:${SUPPORT_PHONE.replace(/\s/g, '')}`;
-  Linking.openURL(url).catch(() => {
-    Alert.alert('Could not open', kind === 'email' ? SUPPORT_EMAIL : SUPPORT_PHONE);
-  });
+function openEmail(): void {
+  if (Platform.OS === 'web') { Alert.alert('Email provider support', SUPPORT_EMAIL); return; }
+  Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => { Alert.alert('Could not open', SUPPORT_EMAIL); });
 }
 
 interface FAQItem {
@@ -50,7 +40,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'How do I manage my availability?',
-        a: 'Go to Settings > Manage Schedule to set your weekly availability. You can also block specific dates for holidays or time off.',
+        a: 'Go to Settings > Weekly Schedule to set your weekly availability. You can also block specific dates for holidays or time off.',
       },
     ],
   },
@@ -203,7 +193,7 @@ export default function ProviderHelpScreen(): React.ReactElement {
 
           <TouchableOpacity
             style={styles.contactBtn}
-            onPress={() => openContact('email')}
+            onPress={() => openEmail()}
             accessibilityRole="button"
             accessibilityLabel={`Email provider support at ${SUPPORT_EMAIL}`}
           >
@@ -211,19 +201,6 @@ export default function ProviderHelpScreen(): React.ReactElement {
             <View style={styles.contactBtnInfo}>
               <Text style={styles.contactBtnLabel}>Email provider support</Text>
               <Text style={styles.contactBtnValue}>{SUPPORT_EMAIL}</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.contactBtn}
-            onPress={() => openContact('call')}
-            accessibilityRole="button"
-            accessibilityLabel={`Call support at ${SUPPORT_PHONE}`}
-          >
-            <View style={styles.contactBtnIconWrap}><Phone size={22} color={colors.primary} /></View>
-            <View style={styles.contactBtnInfo}>
-              <Text style={styles.contactBtnLabel}>Call us</Text>
-              <Text style={styles.contactBtnValue}>{SUPPORT_PHONE}</Text>
             </View>
           </TouchableOpacity>
         </View>

@@ -35,9 +35,14 @@ export async function getCategories(): Promise<Category[]> {
   return res.data.data;
 }
 
-export async function getSubcategories(categorySlug: string): Promise<Subcategory[]> {
-  const res = await api.get<ApiResponse<CategoryWithSubcategories>>(`/api/v1/catalog/${categorySlug}`);
-  return res.data.data.subcategories;
+export interface SubcategoryListResult {
+  categoryName: string;
+  subcategories: Subcategory[];
+}
+
+export async function getSubcategories(categorySlug: string): Promise<SubcategoryListResult> {
+  const res = await api.get<ApiResponse<CategoryWithSubcategories & { name: string }>>(`/api/v1/catalog/${categorySlug}`);
+  return { categoryName: res.data.data.name, subcategories: res.data.data.subcategories };
 }
 
 export interface Promotion {

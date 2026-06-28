@@ -45,11 +45,11 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 function StarDisplay({ rating }: { rating: number | null }): React.ReactElement {
-  if (rating == null) return <Text style={styles.noRating}>New</Text>;
+  if (rating == null) return <Text style={styles.statValue}>New</Text>;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
       <Star size={14} color={colors.warning} />
-      <Text style={styles.ratingStars}>{rating.toFixed(1)}</Text>
+      <Text style={styles.statValue}>{rating.toFixed(1)}</Text>
     </View>
   );
 }
@@ -180,7 +180,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Provider Profile</Text>
@@ -209,9 +209,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
           </View>
           <View style={styles.statsRow}>
             <View style={styles.stat}>
-              <Text style={styles.statValue}>
-                <StarDisplay rating={provider.rating} />
-              </Text>
+              <StarDisplay rating={provider.rating} />
               <Text style={styles.statLabel}>Rating</Text>
             </View>
             <View style={styles.statDivider} />

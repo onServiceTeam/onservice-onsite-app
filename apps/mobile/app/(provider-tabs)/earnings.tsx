@@ -192,12 +192,28 @@ export default function EarningsScreen(): React.ReactElement {
       {/* Phase K CRIT-K08 fix — EarningsChart driven by REAL backend
            data (provider/me/earnings/trends?period=daily&days=7). */}
       <View style={{ marginBottom: spacing.base }}>
-        <EarningsChart
-          data={(trendsQuery.data ?? []).map((row) => ({
-            date: row.period.split('T')[0] ?? row.period,
-            amount: row.netEarned,
-          }))}
-        />
+        {trendsQuery.isLoading ? (
+          <SkeletonCard />
+        ) : trendsQuery.isError ? (
+          <EmptyState
+            icon="📉"
+            title="Couldn't load earnings trend"
+            description="Pull to refresh to try again."
+          />
+        ) : trendsQuery.data && trendsQuery.data.length > 0 ? (
+          <EarningsChart
+            data={trendsQuery.data.map((row) => ({
+              date: row.period.split('T')[0] ?? row.period,
+              amount: row.netEarned,
+            }))}
+          />
+        ) : (
+          <EmptyState
+            icon="📊"
+            title="No earnings trend yet"
+            description="Complete jobs to see your daily earnings here."
+          />
+        )}
       </View>
 
       {/* Phase K CRIT-K09 fix — CommissionBreakdown uses the provider's

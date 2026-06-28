@@ -177,6 +177,8 @@ export default function BookingTrackerScreen(): React.ReactElement {
                 <TouchableOpacity
                   style={styles.chatButton}
                   onPress={() => router.push(`/customer/chat/${booking.id}`)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Chat with provider"
                 >
                   <MessageSquare size={20} color={colors.primary} />
                 </TouchableOpacity>

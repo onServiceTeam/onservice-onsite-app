@@ -316,7 +316,7 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
   return (
     <Card className="p-5">
       <div className="flex items-start gap-5 flex-wrap">
-        <div className="w-16 h-16 rounded-full bg-[var(--color-bg-secondary)] flex items-center justify-center overflow-hidden">
+        <div className="w-16 h-16 rounded-full bg-[var(--color-surface-hover)] flex items-center justify-center overflow-hidden">
           {profile.avatarUrl ? (
             <img src={profile.avatarUrl} alt={profile.fullName} className="w-full h-full object-cover" />
           ) : (
@@ -380,7 +380,7 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
       </div>
 
       {showStatus && isSuperAdmin && (
-        <div className="mt-4 p-4 border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-secondary)]/50 space-y-3">
+        <div className="mt-4 p-4 border border-[var(--color-border)] rounded-lg bg-[var(--color-surface-hover)] space-y-3">
           <p className="text-sm font-medium text-[var(--color-text)]">Status action</p>
           <Textarea
             aria-label="Status action reason"

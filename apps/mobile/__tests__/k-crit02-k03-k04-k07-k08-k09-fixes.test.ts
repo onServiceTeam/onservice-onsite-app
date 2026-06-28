@@ -86,8 +86,13 @@ describe('Phase K CRIT-K08 — earnings chart uses real /trends endpoint', () =>
     expect(EARNINGS).toMatch(/'\/api\/v1\/providers\/me\/earnings\/trends\?period=daily&days=7'/);
   });
   it('CRIT-K08 — EarningsChart fed from trendsQuery.data (NOT wallet/7 fake)', () => {
-    expect(EARNINGS).toMatch(/data=\{\(trendsQuery\.data \?\? \[\]\)\.map/);
+    // The chart is now state-gated (loading skeleton / error + empty states)
+    // and the data-present branch feeds EarningsChart from trendsQuery.data.map.
+    // Intent unchanged: real /trends data drives the chart, never the wallet/7 fake.
+    expect(EARNINGS).toMatch(/data=\{trendsQuery\.data\.map/);
     expect(EARNINGS).not.toMatch(/Math\.round\(wallet\.availableBalance \/ 7\)/);
+    // and the chart only renders once real trend data exists
+    expect(EARNINGS).toMatch(/trendsQuery\.data && trendsQuery\.data\.length > 0/);
   });
 });
 

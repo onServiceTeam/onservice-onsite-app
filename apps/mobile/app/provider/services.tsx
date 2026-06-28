@@ -104,7 +104,7 @@ export default function ManageServicesScreen(): React.ReactElement {
 
   const services = servicesQuery.data ?? [];
   const categories = categoriesQuery.data ?? [];
-  const subcategories = subcategoriesQuery.data ?? [];
+  const subcategories = subcategoriesQuery.data?.subcategories ?? [];
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

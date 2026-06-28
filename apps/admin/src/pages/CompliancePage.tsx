@@ -558,9 +558,17 @@ function ConsentSearchCard(): React.ReactElement {
         ) : consentQuery.isError ? (
           <ErrorState title="Consent search failed" description={getErrorMessage(consentQuery.error)} />
         ) : (consentQuery.data?.rows ?? []).length === 0 ? (
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Enter at least one filter and click Search.
-          </p>
+          applied.userId || applied.consentType || applied.version ? (
+            <EmptyState
+              title="No matching consent records"
+              description="No consent records match these filters."
+              icon={<Shield size={28} className="text-slate-400" />}
+            />
+          ) : (
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Enter at least one filter and click Search.
+            </p>
+          )
         ) : (
           <div className="overflow-hidden rounded-lg border border-[var(--color-border)]">
             <table className="w-full text-sm">
@@ -654,6 +662,12 @@ function BirTab(): React.ReactElement {
           <LoadingState label="Loading calendar..." />
         ) : calQuery.isError ? (
           <ErrorState title="Failed to load BIR calendar" description={getErrorMessage(calQuery.error)} />
+        ) : grouped.length === 0 ? (
+          <EmptyState
+            title="No filings for this year"
+            description={`No BIR filing deadlines are scheduled for ${year}.`}
+            icon={<Calendar size={28} className="text-slate-400" />}
+          />
         ) : (
           <div className="space-y-4">
             {grouped.map(([month, items]) => (

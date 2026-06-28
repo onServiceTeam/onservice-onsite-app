@@ -26,12 +26,13 @@ export default function SubcategoryListScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const { draft, setCategory, setSubcategory } = useBookingStore();
 
-  const { data: subcategories, isLoading, error, refetch, isRefetching } = useQuery({
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['subcategories', slug],
     queryFn: () => getSubcategories(slug),
     staleTime: 24 * 60 * 60 * 1000,
     enabled: !!slug,
   });
+  const subcategories = data?.subcategories;
 
   const onRefresh = useCallback(() => { refetch(); }, [refetch]);
 
@@ -93,7 +94,7 @@ export default function SubcategoryListScreen(): React.ReactElement {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>{draft.categoryName ?? 'Services'}</Text>
+        <Text style={styles.title}>{data?.categoryName ?? draft.categoryName ?? 'Services'}</Text>
       </View>
 
       {isLoading ? (

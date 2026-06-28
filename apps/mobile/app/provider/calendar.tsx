@@ -149,17 +149,19 @@ export default function ProviderCalendarScreen(): React.ReactElement {
         <TouchableOpacity
           onPress={(): void => { router.push(Routes.PROVIDER.AVAILABILITY); }}
           style={styles.settingsBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Manage availability"
         >
           <Settings size={22} color={colors.text} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.monthNav}>
-        <TouchableOpacity onPress={(): void => { navigateMonth(-1); }} style={styles.navBtn}>
+        <TouchableOpacity onPress={(): void => { navigateMonth(-1); }} style={styles.navBtn} accessibilityRole="button" accessibilityLabel="Previous month">
           <Text style={styles.navBtnText}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.monthLabel}>{MONTHS[viewMonth]} {viewYear}</Text>
-        <TouchableOpacity onPress={(): void => { navigateMonth(1); }} style={styles.navBtn}>
+        <TouchableOpacity onPress={(): void => { navigateMonth(1); }} style={styles.navBtn} accessibilityRole="button" accessibilityLabel="Next month">
           <Text style={styles.navBtnText}>›</Text>
         </TouchableOpacity>
       </View>

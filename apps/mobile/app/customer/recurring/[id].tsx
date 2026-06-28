@@ -153,7 +153,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
 
   const handleSkipNext = useCallback(() => {
     if (!recurring?.nextScheduledDate) return;
-    Alert.alert('Skip Next Instance?', `Skip the booking on ${recurring.nextScheduledDate}?`, [
+    Alert.alert('Skip Next Instance?', `Skip the booking on ${new Date(recurring.nextScheduledDate).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' })}?`, [
       { text: 'No', style: 'cancel' },
       { text: 'Skip', onPress: () => skipMutation.mutate(recurring.nextScheduledDate!) },
     ]);

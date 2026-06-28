@@ -176,7 +176,7 @@ export default function CatalogPage(): React.ReactElement {
 
   const [expandedAddons, setExpandedAddons] = useState<string | null>(null);
 
-  const { data: addonsData, isError: isAddonsError } = useQuery({
+  const { data: addonsData, isLoading: isAddonsLoading, isError: isAddonsError } = useQuery({
     queryKey: ['adminAddons', expandedAddons],
     queryFn: async () => {
       if (!expandedAddons) return [];
@@ -493,10 +493,11 @@ export default function CatalogPage(): React.ReactElement {
                                   + Add-on
                                 </button>
                               </div>
-                              {isAddonsError && (
+                              {isAddonsLoading ? (
+                                <p className="text-xs text-[var(--color-text-secondary)]">Loading add-ons…</p>
+                              ) : isAddonsError ? (
                                 <p role="alert" className="text-xs text-red-600">Failed to load add-ons. Please try again.</p>
-                              )}
-                              {!isAddonsError && (addonsData ?? []).length === 0 ? (
+                              ) : (addonsData ?? []).length === 0 ? (
                                 <p className="text-xs text-[var(--color-text-secondary)]">No add-ons yet.</p>
                               ) : (
                                 <div className="space-y-1">

@@ -268,7 +268,7 @@ export default function SystemSettingsPage(): React.ReactElement {
   }
 
   if (allQuery.isLoading) {
-    return <div className="p-6 text-gray-600">Loading settings…</div>;
+    return <div className="p-6 text-[var(--color-text-secondary)]">Loading settings…</div>;
   }
   if (allQuery.isError) {
     return (
@@ -284,11 +284,11 @@ export default function SystemSettingsPage(): React.ReactElement {
     <div className="p-6 max-w-7xl mx-auto">
       <header className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
-            <Settings className="w-6 h-6 text-blue-600" />
+          <h1 className="text-2xl font-semibold text-[var(--color-text)] flex items-center gap-2">
+            <Settings className="w-6 h-6 text-[var(--color-primary)]" />
             Platform Settings
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-[var(--color-text-secondary)] mt-1">
             Tune commissions, fees, and runtime knobs. Changes take effect within 60 seconds (cache TTL).
           </p>
           {!isSuperAdmin && (
@@ -305,7 +305,7 @@ export default function SystemSettingsPage(): React.ReactElement {
               cacheFlushMutation.mutate();
             }}
             disabled={cacheFlushMutation.isPending}
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded border border-gray-300 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-[var(--color-surface-hover)] hover:bg-[var(--color-border)] text-[var(--color-text-secondary)] rounded border border-[var(--color-border)] disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${cacheFlushMutation.isPending ? 'animate-spin' : ''}`} />
             Flush cache
@@ -342,13 +342,13 @@ export default function SystemSettingsPage(): React.ReactElement {
                     onClick={() => selectCategory(c.category)}
                     className={`w-full flex items-center gap-2 px-3 py-2 rounded text-sm transition ${
                       active
-                        ? 'bg-blue-50 text-blue-700 font-medium border border-blue-200'
-                        : 'text-gray-700 hover:bg-gray-50 border border-transparent'
+                        ? 'bg-[var(--color-info-bg)] text-[var(--color-primary)] font-medium border border-[var(--color-secondary)]'
+                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] border border-transparent'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
                     <span className="flex-1 text-left capitalize">{meta.label}</span>
-                    <span className="text-xs text-gray-400">{c.count}</span>
+                    <span className="text-xs text-[var(--color-text-tertiary)]">{c.count}</span>
                   </button>
                 </li>
               );
@@ -358,31 +358,31 @@ export default function SystemSettingsPage(): React.ReactElement {
 
         {/* Settings panel */}
         <section className="col-span-12 md:col-span-9 lg:col-span-10">
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-              {currentCategory && React.createElement(metaFor(currentCategory).Icon, { className: 'w-4 h-4 text-gray-500' })}
-              <h2 className="font-semibold text-gray-800 capitalize">
+          <div className="bg-[var(--color-surface)] rounded-lg border border-[var(--color-border)] overflow-hidden">
+            <div className="bg-[var(--color-bg)] px-4 py-3 border-b border-[var(--color-border)] flex items-center gap-2">
+              {currentCategory && React.createElement(metaFor(currentCategory).Icon, { className: 'w-4 h-4 text-[var(--color-text-secondary)]' })}
+              <h2 className="font-semibold text-[var(--color-text)] capitalize">
                 {currentCategory ? metaFor(currentCategory).label : 'Settings'}
               </h2>
             </div>
 
             {currentSettings.length === 0 ? (
-              <div className="p-6 text-gray-500 text-sm">No settings in this category.</div>
+              <div className="p-6 text-[var(--color-text-secondary)] text-sm">No settings in this category.</div>
             ) : (
-              <ul className="divide-y divide-gray-100">
+              <ul className="divide-y divide-[var(--color-border)]">
                 {currentSettings.map((s) => {
                   const isEditing = editingKey === s.key;
                   return (
                     <li key={s.id} className="px-4 py-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 text-sm">{s.label}</p>
-                          <p className="text-xs text-gray-500 font-mono">{s.key}</p>
+                          <p className="font-medium text-[var(--color-text)] text-sm">{s.label}</p>
+                          <p className="text-xs text-[var(--color-text-secondary)] font-mono">{s.key}</p>
                           {s.description && (
-                            <p className="text-xs text-gray-500 mt-1">{s.description}</p>
+                            <p className="text-xs text-[var(--color-text-secondary)] mt-1">{s.description}</p>
                           )}
                           {(s.minValue !== null || s.maxValue !== null) && (
-                            <p className="text-xs text-gray-400 mt-1">
+                            <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
                               Range: {s.minValue ?? '—'} – {s.maxValue ?? '—'}
                               {s.unit ? ` ${s.unit}` : ''}
                             </p>
@@ -398,14 +398,14 @@ export default function SystemSettingsPage(): React.ReactElement {
                                 type="text"
                                 value={editValue}
                                 onChange={(e) => setEditValue(e.target.value)}
-                                className="w-40 px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-40 px-2 py-1 border border-[var(--color-primary)] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                                 autoFocus
                               />
                               <button
                                 type="button"
                                 onClick={() => saveEdit(s)}
                                 disabled={updateMutation.isPending}
-                                className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm disabled:opacity-50"
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-[var(--color-primary)] hover:opacity-90 text-white rounded text-sm disabled:opacity-50"
                               >
                                 <Save className="w-3.5 h-3.5" />
                                 Save
@@ -413,7 +413,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                               <button
                                 type="button"
                                 onClick={cancelEdit}
-                                className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm"
+                                className="px-3 py-1 bg-[var(--color-surface-hover)] hover:bg-[var(--color-border)] text-[var(--color-text-secondary)] rounded text-sm"
                               >
                                 Cancel
                               </button>
@@ -425,12 +425,12 @@ export default function SystemSettingsPage(): React.ReactElement {
                               onChange={(e) => setEditReason(e.target.value)}
                               placeholder="Change reason (required, audited)"
                               aria-label={`Audit reason for ${s.key}`}
-                              className="w-72 px-2 py-1 border border-gray-200 rounded text-xs"
+                              className="w-72 px-2 py-1 border border-[var(--color-border)] rounded text-xs"
                             />
                           </div>
                         ) : (
                           <div className="flex items-center gap-3 shrink-0">
-                            <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
+                            <span className="font-mono text-sm bg-[var(--color-surface-hover)] px-2 py-1 rounded">
                               {formatValue(s)}
                             </span>
                             {!s.isDefault && (
@@ -442,7 +442,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                                 onClick={() => startEdit(s)}
                                 title="Edit"
                                 aria-label={`Edit setting ${s.key}`}
-                                className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
+                                className="p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] rounded"
                               >
                                 <Pencil className="w-4 h-4" />
                               </button>
@@ -452,7 +452,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                               onClick={() => setHistoryKey(historyKey === s.key ? null : s.key)}
                               title="History"
                               aria-label={`View change history for ${s.key}`}
-                              className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
+                              className="p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] rounded"
                             >
                               <History className="w-4 h-4" />
                             </button>
@@ -463,7 +463,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                                 onClick={() => { setPendingReset(s); setResetReason(''); }}
                                 title="Reset to default"
                                 aria-label={`Reset ${s.key} to default`}
-                                className="p-1.5 text-gray-500 hover:bg-gray-100 rounded disabled:opacity-30 disabled:hover:bg-transparent"
+                                className="p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] rounded disabled:opacity-30 disabled:hover:bg-transparent"
                               >
                                 <RotateCcw className="w-4 h-4" />
                               </button>
@@ -473,22 +473,22 @@ export default function SystemSettingsPage(): React.ReactElement {
                       </div>
 
                       {historyKey === s.key && (
-                        <div className="mt-3 ml-4 border-l-2 border-gray-200 pl-3">
-                          <p className="text-xs font-semibold text-gray-600 mb-1">Recent changes</p>
+                        <div className="mt-3 ml-4 border-l-2 border-[var(--color-border)] pl-3">
+                          <p className="text-xs font-semibold text-[var(--color-text-secondary)] mb-1">Recent changes</p>
                           {historyQuery.isLoading && (
-                            <p className="text-xs text-gray-500">Loading…</p>
+                            <p className="text-xs text-[var(--color-text-secondary)]">Loading…</p>
                           )}
                           {historyQuery.data && historyQuery.data.length === 0 && (
-                            <p className="text-xs text-gray-500">No prior changes recorded.</p>
+                            <p className="text-xs text-[var(--color-text-secondary)]">No prior changes recorded.</p>
                           )}
                           {historyQuery.data && historyQuery.data.length > 0 && (
                             <ul className="space-y-1">
                               {historyQuery.data.slice(0, 10).map((h) => (
-                                <li key={h.id} className="text-xs text-gray-600">
+                                <li key={h.id} className="text-xs text-[var(--color-text-secondary)]">
                                   <span className="font-mono">{h.old_value ?? '∅'}</span>
                                   {' → '}
                                   <span className="font-mono">{h.new_value}</span>
-                                  <span className="text-gray-400">
+                                  <span className="text-[var(--color-text-tertiary)]">
                                     {' · '}{new Date(h.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}
                                     {' · '}{h.change_reason ?? 'no reason'}
                                   </span>
@@ -515,26 +515,26 @@ export default function SystemSettingsPage(): React.ReactElement {
           aria-modal="true"
           aria-labelledby="reset-confirm-title"
         >
-          <div className="bg-white rounded-lg max-w-md w-full p-5">
-            <h3 id="reset-confirm-title" className="text-lg font-semibold text-gray-900 mb-1">
+          <div className="bg-[var(--color-surface)] rounded-lg max-w-md w-full p-5">
+            <h3 id="reset-confirm-title" className="text-lg font-semibold text-[var(--color-text)] mb-1">
               Reset to default?
             </h3>
-            <p className="text-sm text-gray-600 mb-3">
-              This will overwrite the current value of <code className="font-mono bg-gray-100 px-1 rounded">{pendingReset.key}</code> with its built-in default. Production money knobs propagate within 60s of save.
+            <p className="text-sm text-[var(--color-text-secondary)] mb-3">
+              This will overwrite the current value of <code className="font-mono bg-[var(--color-surface-hover)] px-1 rounded">{pendingReset.key}</code> with its built-in default. Production money knobs propagate within 60s of save.
             </p>
-            <div className="bg-gray-50 border border-gray-200 rounded p-3 mb-3 text-sm">
+            <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded p-3 mb-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500">Current</span>
+                <span className="text-[var(--color-text-secondary)]">Current</span>
                 <span className="font-mono">{formatValue(pendingReset)}</span>
               </div>
               <div className="flex justify-between mt-1">
-                <span className="text-gray-500">Default</span>
+                <span className="text-[var(--color-text-secondary)]">Default</span>
                 <span className="font-mono">
                   {formatValue({ ...pendingReset, value: pendingReset.defaultValue })}
                 </span>
               </div>
             </div>
-            <label htmlFor="reset-reason" className="block text-xs font-medium text-gray-700 mb-1">
+            <label htmlFor="reset-reason" className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
               Reason (audited)
             </label>
             <input
@@ -543,7 +543,7 @@ export default function SystemSettingsPage(): React.ReactElement {
               value={resetReason}
               onChange={(e) => setResetReason(e.target.value)}
               placeholder="Why are you resetting this?"
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-4"
+              className="w-full px-3 py-2 border border-[var(--color-border)] rounded text-sm mb-4"
               autoFocus
             />
             <div className="flex justify-end gap-2">
@@ -551,7 +551,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                 type="button"
                 onClick={() => { setPendingReset(null); setResetReason(''); }}
                 disabled={resetMutation.isPending}
-                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm disabled:opacity-50"
+                className="px-3 py-2 bg-[var(--color-surface-hover)] hover:bg-[var(--color-border)] text-[var(--color-text-secondary)] rounded text-sm disabled:opacity-50"
               >
                 Cancel
               </button>

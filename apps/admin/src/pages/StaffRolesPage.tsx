@@ -44,7 +44,7 @@ function formatLabel(s: string): string {
 function PermissionBadge({ perm }: { perm: string }): React.ReactElement {
   const [scope, action] = perm.split('.');
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[var(--color-surface-hover)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
       {scope}.{action}
     </span>
   );

@@ -258,7 +258,7 @@ function AccountHeader({ account }: { account: BusinessAccount }): React.ReactEl
   return (
     <Card className="p-5">
       <div className="flex items-start gap-5 flex-wrap">
-        <div className="w-16 h-16 rounded-full bg-[var(--color-bg-secondary)] flex items-center justify-center">
+        <div className="w-16 h-16 rounded-full bg-[var(--color-surface-hover)] flex items-center justify-center">
           <Building2 size={26} className="text-[var(--color-text-secondary)]" />
         </div>
 

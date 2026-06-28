@@ -184,7 +184,7 @@ export default function ProviderServiceAreaScreen(): React.ReactElement {
               center={{ latitude: centerLat, longitude: centerLng }}
               radius={radiusKm * 1000}
               strokeColor={colors.primary}
-              fillColor="rgba(0,102,255,0.12)"
+              fillColor="rgba(27,58,75,0.12)"
               strokeWidth={2}
             />
           </MapView>

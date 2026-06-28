@@ -29,7 +29,11 @@ export default function KpiCard({ title, value, icon, change, changeType = 'neut
   return (
     <div className="bg-white rounded-xl border border-[var(--color-border)] p-5 hover:shadow-sm transition-shadow">
       <div className="flex items-center justify-between mb-3">
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#E6EEF1] text-[var(--color-primary)]">{icon}</span>
+        {icon ? (
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#E6EEF1] text-[var(--color-primary)]">{icon}</span>
+        ) : (
+          <span />
+        )}
         {change && (
           <span className={`text-xs font-medium ${changeColor}`}>{change}</span>
         )}

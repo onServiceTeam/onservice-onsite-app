@@ -27,6 +27,7 @@ import PulsingDot from '@/components/PulsingDot';
 import NbiStatusBanner from '@/components/provider/NbiStatusBanner';
 import { formatRelative, formatDateTime, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Routes } from '@/config/navigation';
 
 const STATUS_FILTERS = [
   { key: 'active', label: 'Active' },
@@ -132,7 +133,7 @@ export default function ProviderJobsScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
       {/* Phase 14 R5-complete — NbiStatusBanner above the jobs list */}
-      <NbiStatusBanner />
+      <NbiStatusBanner onTap={() => router.push(Routes.PROVIDER.ACCOUNT_MANAGEMENT)} />
       <View style={styles.titleRow}>
         <Text style={styles.title}>My Jobs</Text>
         {/* BUG-PHASE64-03 fix — actual trigger for FilterModal. */}

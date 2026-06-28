@@ -12,6 +12,8 @@ interface DataTableProps<T> {
   data: T[];
   keyExtractor: (row: T) => string;
   isLoading?: boolean;
+  isError?: boolean;
+  errorMessage?: string;
   emptyMessage?: string;
   onRowClick?: (row: T) => void;
 }
@@ -21,6 +23,8 @@ export default function DataTable<T>({
   data,
   keyExtractor,
   isLoading,
+  isError,
+  errorMessage = 'Failed to load data. Please try again.',
   emptyMessage = 'No results found.',
   onRowClick,
 }: DataTableProps<T>): React.ReactElement {
@@ -52,7 +56,13 @@ export default function DataTable<T>({
           <tbody>
             {/* Phase L MED-L04 fix — guard against undefined `data` so
                  a partial/loading parent doesn't throw on .length. */}
-            {(data ?? []).length === 0 ? (
+            {isError ? (
+              <tr>
+                <td colSpan={columns.length} className="text-center py-12 text-sm text-[var(--color-error)]">
+                  {errorMessage}
+                </td>
+              </tr>
+            ) : (data ?? []).length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="text-center py-12 text-sm text-[var(--color-text-secondary)]">
                   {emptyMessage}
@@ -63,6 +73,18 @@ export default function DataTable<T>({
                 <tr
                   key={keyExtractor(row)}
                   onClick={() => onRowClick?.(row)}
+                  tabIndex={onRowClick ? 0 : undefined}
+                  role={onRowClick ? 'button' : undefined}
+                  onKeyDown={
+                    onRowClick
+                      ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onRowClick(row);
+                          }
+                        }
+                      : undefined
+                  }
                   className={`border-b border-[var(--color-border)] last:border-0 ${
                     onRowClick ? 'cursor-pointer hover:bg-slate-50' : ''
                   }`}

@@ -176,7 +176,10 @@ export default function PayoutSettingsScreen(): React.ReactElement {
               style={[styles.methodChip, method === m.value && styles.methodChipActive]}
               onPress={() => { setMethod(m.value); setDirty(true); }}
             >
-              <Text style={[styles.methodText, method === m.value && styles.methodTextActive]}>
+              <Text
+                style={[styles.methodText, method === m.value && styles.methodTextActive]}
+                numberOfLines={1}
+              >
                 {m.label}
               </Text>
             </TouchableOpacity>
@@ -289,10 +292,12 @@ const styles = StyleSheet.create({
   optionLabelActive: { color: colors.primary },
   optionDesc: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
 
-  methodRow: { flexDirection: 'row', gap: spacing.sm },
+  methodRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   methodChip: {
-    flex: 1,
+    minWidth: '47%',
+    flexGrow: 1,
     paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
     borderRadius: borderRadius.md,
     borderWidth: 1.5,
     borderColor: colors.border,

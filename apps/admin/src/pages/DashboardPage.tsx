@@ -85,9 +85,36 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.data.data;
 }
 
+function rangeToDays(range: DateRange): number {
+  switch (range) {
+    case 'today': return 1;
+    case '7d': return 7;
+    case '30d': return 30;
+    case '90d': return 90;
+    case 'ytd': {
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      return Math.max(1, Math.ceil((now.getTime() - startOfYear.getTime()) / 86_400_000));
+    }
+    default: return 30;
+  }
+}
+
+function rangeLabel(range: DateRange): string {
+  switch (range) {
+    case 'today': return 'Today';
+    case '7d': return '7d';
+    case '30d': return '30d';
+    case '90d': return '90d';
+    case 'ytd': return 'YTD';
+    default: return '30d';
+  }
+}
+
 export default function DashboardPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const [range, setRange] = useState<DateRange>('today');
+  const rangeDays = rangeToDays(range);
 
   useAdminSocketEvent<{ id: string }>('alert:new', () => {
     void queryClient.invalidateQueries({ queryKey: ['dashboard-alerts'] });
@@ -100,20 +127,20 @@ export default function DashboardPage(): React.ReactElement {
   });
 
   const revenueTrend = useQuery({
-    queryKey: ['dashboard-revenue-trend'],
-    queryFn: () => fetchJson<RevenueTrendPoint[]>('/api/v1/admin/dashboard/revenue-trend?days=30'),
+    queryKey: ['dashboard-revenue-trend', range],
+    queryFn: () => fetchJson<RevenueTrendPoint[]>(`/api/v1/admin/dashboard/revenue-trend?days=${rangeDays}`),
     refetchInterval: 60_000,
   });
 
   const bookingVolume = useQuery({
-    queryKey: ['dashboard-booking-volume'],
-    queryFn: () => fetchJson<BookingVolumePoint[]>('/api/v1/admin/dashboard/booking-volume?days=7'),
+    queryKey: ['dashboard-booking-volume', range],
+    queryFn: () => fetchJson<BookingVolumePoint[]>(`/api/v1/admin/dashboard/booking-volume?days=${rangeDays}`),
     refetchInterval: 60_000,
   });
 
   const funnel = useQuery({
-    queryKey: ['dashboard-funnel'],
-    queryFn: () => fetchJson<AcquisitionFunnel>('/api/v1/admin/dashboard/acquisition-funnel?days=30'),
+    queryKey: ['dashboard-funnel', range],
+    queryFn: () => fetchJson<AcquisitionFunnel>(`/api/v1/admin/dashboard/acquisition-funnel?days=${rangeDays}`),
     refetchInterval: 300_000,
   });
 
@@ -272,7 +299,7 @@ export default function DashboardPage(): React.ReactElement {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>Revenue Trend (30d)</CardTitle>
+            <CardTitle>Revenue Trend ({rangeLabel(range)})</CardTitle>
           </CardHeader>
           <CardContent>
             {/* BUG-PHASE38-01 fix — pre-fix this rendered an empty
@@ -304,7 +331,7 @@ export default function DashboardPage(): React.ReactElement {
 
         <Card>
           <CardHeader>
-            <CardTitle>Booking Volume (7d)</CardTitle>
+            <CardTitle>Booking Volume ({rangeLabel(range)})</CardTitle>
           </CardHeader>
           <CardContent>
             {/* BUG-PHASE38-01 fix — same empty-state guard as Revenue Trend. */}
@@ -330,10 +357,15 @@ export default function DashboardPage(): React.ReactElement {
 
         <Card>
           <CardHeader>
-            <CardTitle>Acquisition Funnel (30d)</CardTitle>
+            <CardTitle>Acquisition Funnel ({rangeLabel(range)})</CardTitle>
           </CardHeader>
           <CardContent>
-            {funnel.data ? (
+            {funnel.isError ? (
+              <div className="py-4 text-center">
+                <p className="text-sm text-red-600">Failed to load funnel.</p>
+                <Button variant="outline" size="sm" className="mt-2" onClick={() => void funnel.refetch()}>Retry</Button>
+              </div>
+            ) : funnel.data ? (
               <div className="space-y-3 py-4">
                 <FunnelStep label="Registered" value={funnel.data.registered} percent={100} />
                 <FunnelStep

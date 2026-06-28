@@ -71,7 +71,7 @@ export function PhoneInput({
           keyboardType="phone-pad"
           autoComplete="tel"
           textContentType="telephoneNumber"
-          maxLength={11}
+          maxLength={13}
           accessibilityLabel={label ?? 'Phone number'}
           accessibilityHint={hint}
         />

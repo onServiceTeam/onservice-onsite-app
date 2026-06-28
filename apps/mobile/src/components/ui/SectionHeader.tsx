@@ -21,7 +21,7 @@ export default function SectionHeader({
     <View style={[styles.row, style]}>
       <Text style={styles.title}>{title}</Text>
       {actionLabel && onAction ? (
-        <TouchableOpacity onPress={onAction} accessibilityRole="button" accessibilityLabel={actionLabel}>
+        <TouchableOpacity onPress={onAction} accessibilityRole="button" accessibilityLabel={actionLabel} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}>
           <Text style={styles.action}>{actionLabel}</Text>
         </TouchableOpacity>
       ) : null}

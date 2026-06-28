@@ -9,7 +9,7 @@ interface PaginationProps {
 }
 
 export default function Pagination({ page, totalPages, total, pageSize, onPageChange }: PaginationProps): React.ReactElement {
-  const from = (page - 1) * pageSize + 1;
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
 
   return (

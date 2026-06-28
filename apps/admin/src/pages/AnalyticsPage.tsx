@@ -183,6 +183,10 @@ function AbTestsTab(): React.ReactElement {
         </table>
       </div>
 
+      {data?.data.length === 0 && (
+        <p className="text-sm text-slate-500 text-center py-8">No A/B tests yet. Click &ldquo;+ New Test&rdquo; to create one.</p>
+      )}
+
       {isResultsError && selectedTestId && <p role="alert" className="text-sm text-red-600">Failed to load test results.</p>}
 
       {resultsData && selectedTestId && (
@@ -259,7 +263,9 @@ function CohortTab(): React.ReactElement {
         </select>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load cohort data. Please try again.</p> : (
+      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load cohort data. Please try again.</p> : (data?.length ?? 0) === 0 ? (
+        <p className="text-sm text-slate-500 py-4">No cohort data for this period.</p>
+      ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">
             <thead>

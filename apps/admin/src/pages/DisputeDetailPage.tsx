@@ -654,9 +654,10 @@ function DisputeActions({
 
   const decisionOk = decisionNotes.trim().length >= 20;
   const refundPercentValue = Number(refundPercent);
-  const refundPercentOk = resolutionType !== 'partial_refund' || (
-    Number.isFinite(refundPercentValue) && refundPercentValue >= 1 && refundPercentValue <= 100
-  );
+  const refundPercentOk =
+    (resolutionType !== 'partial_refund' && resolutionType !== 'split_decision') || (
+      Number.isFinite(refundPercentValue) && refundPercentValue >= 1 && refundPercentValue <= 100
+    );
   const canResolve = decisionOk && refundPercentOk;
   const canSendMessage = message.trim().length >= 5 && message.trim().length <= 2000;
   const totalAmount = detail.booking?.totalAmount ?? 0;
@@ -728,7 +729,7 @@ function DisputeActions({
             {RESOLUTION_OPTIONS.map((opt) => (
               <label
                 key={opt.value}
-                className="flex items-center gap-2 text-sm border border-[var(--color-border)] rounded-md px-3 py-2 cursor-pointer hover:bg-[var(--color-bg-secondary)]/50"
+                className="flex items-center gap-2 text-sm border border-[var(--color-border)] rounded-md px-3 py-2 cursor-pointer hover:bg-[var(--color-surface-hover)]/50"
               >
                 <input
                   type="radio"
@@ -742,7 +743,7 @@ function DisputeActions({
             ))}
           </div>
 
-          {resolutionType === 'partial_refund' && (
+          {(resolutionType === 'partial_refund' || resolutionType === 'split_decision') && (
             <div>
               <label htmlFor="detail-refund-percent" className="text-xs text-[var(--color-text-secondary)]">
                 Refund percent (1–100)
@@ -836,7 +837,7 @@ function DisputeActions({
                     resolveMut.mutate({
                       resolutionType,
                       refundPercent:
-                        resolutionType === 'partial_refund'
+                        resolutionType === 'partial_refund' || resolutionType === 'split_decision'
                           ? refundPercentValue
                           : undefined,
                       decisionNotes,

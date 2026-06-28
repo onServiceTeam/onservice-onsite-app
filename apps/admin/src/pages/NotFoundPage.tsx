@@ -18,15 +18,15 @@ export default function NotFoundPage(): React.ReactElement {
   const location = useLocation();
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-8 text-center">
-      <h1 className="text-4xl font-bold text-foreground">404</h1>
-      <p className="text-xl font-semibold text-foreground">Page not found</p>
-      <p className="text-muted-foreground">
-        We couldn&apos;t find <code className="px-1 py-0.5 bg-muted rounded text-sm">{location.pathname}</code>.
+      <h1 className="text-4xl font-bold text-[var(--color-text)]">404</h1>
+      <p className="text-xl font-semibold text-[var(--color-text)]">Page not found</p>
+      <p className="text-[var(--color-text-secondary)]">
+        We couldn&apos;t find <code className="px-1 py-0.5 bg-[var(--color-bg)] rounded text-sm">{location.pathname}</code>.
         It may have moved, or the link might be out of date.
       </p>
       <Link
         to="/"
-        className="mt-4 inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition"
+        className="mt-4 inline-flex items-center px-4 py-2 rounded-md bg-[var(--color-primary)] text-white hover:opacity-90 transition"
       >
         Back to dashboard
       </Link>

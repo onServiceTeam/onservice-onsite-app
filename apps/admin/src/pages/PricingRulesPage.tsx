@@ -584,7 +584,7 @@ export default function PricingRulesPage(): React.ReactElement {
       ) : (
         <div className="bg-white border border-[var(--color-border)] rounded-xl overflow-hidden shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)]">
+            <thead className="bg-[var(--color-surface-hover)] border-b border-[var(--color-border)]">
               <tr>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Name</th>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Type</th>
@@ -603,7 +603,7 @@ export default function PricingRulesPage(): React.ReactElement {
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
               {rules.map((rule) => (
-                <tr key={rule.id} className="hover:bg-[var(--color-bg-secondary)] transition-colors">
+                <tr key={rule.id} className="hover:bg-[var(--color-surface-hover)] transition-colors">
                   <td className="px-4 py-3">
                     <p className="font-medium text-[var(--color-text)]">{rule.name}</p>
                     {rule.description && (
