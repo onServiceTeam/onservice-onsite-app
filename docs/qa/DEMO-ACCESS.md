@@ -1,79 +1,75 @@
 # Demo access — no-login testing (customer, provider, admin)
 
-Demo mode lets testers land directly in each area with **no login typing**. It is
-turned on only in the staging/demo builds now live on the server. Production
-builds do not set the demo flags, so demo entry is absent there and normal
-login (phone + OTP for the app, email + password + 2FA for admin) is the default.
+Updated 2026-06-28. The staging site is now **open for testing**: the old
+username/password pop-up (the nginx gate) is gone, and the links below land you
+**straight inside each area with no login at all**. This is on purpose so the
+whole app can be walked through to find GUI and UX problems. Production builds
+will simply omit the demo flags, so real login (phone + OTP for the app, email +
+password + 2FA for admin) returns at cutover with no code change.
 
-## Step 1 — the site gate (one-time per area)
+## The three straight-in links
 
-Both sites sit behind a single shared gate (a browser username/password pop-up).
-Enter it once per site:
-
-- Username: `tester`
-- Password: `12345`
-
-The app (`app.onservice.ph`) and admin (`admin.onservice.ph`) are separate
-addresses, so the pop-up appears once for each the first time you open them.
-
-## Step 2 — the three demo links
-
-Open these after passing the gate:
+Open any of these and you are dropped directly into the app — no pop-up, no
+login screen:
 
 | Area | Link | Lands on |
 | --- | --- | --- |
 | Customer | https://app.onservice.ph/?demo=customer | Customer home (active bookings + services) |
 | Provider | https://app.onservice.ph/?demo=provider | Provider dashboard (online toggle, jobs, earnings) |
-| Admin | https://admin.onservice.ph/login?demo=1 | Admin dashboard |
+| Admin | https://admin.onservice.ph/login?demo=1 | Admin dashboard (full super-admin access) |
 
-Customer and provider are the **same app** at different links — that is how a
-tester reaches both without two accounts. Use the customer link for the customer
-experience and the provider link for the provider experience.
+Customer and provider are the **same app** at different links — that is how one
+person reaches both experiences without juggling two accounts.
+
+## Mobile view vs desktop view
+
+The customer/provider app runs in the browser in two layouts. Add `?view=` to
+either app link:
+
+| View | Link example | What you get |
+| --- | --- | --- |
+| Mobile (default) | https://app.onservice.ph/?demo=customer | The app centered in a phone-width column — the phone experience |
+| Desktop | https://app.onservice.ph/?demo=customer&view=desktop | The app widened to a desktop content width; service grids reflow to more columns |
+
+The view choice sticks while you navigate (it is remembered in the browser), so
+you can set it once with `&view=desktop` and keep testing. Switch back any time
+with `&view=mobile`. The **admin** area (`admin.onservice.ph`) is a desktop web
+app already — open it on a full browser window.
 
 ## Leaving feedback
 
-After testing, testers go to the public feedback page (no login):
+After testing, go to the public feedback page (no login):
 
 - https://app.onservice.ph/feedback
 
-It has the instructions, the same demo links above, and the full questionnaire,
-and submits straight into our database. In the "Bugs & rough spots" section a
-tester can attach a screenshot of a broken screen (JPG/PNG/WebP); the image is
-stored and its link travels with the report. See
+It has the instructions, the same demo links, and the full questionnaire, and
+submits straight into our database. In "Bugs & rough spots" you can attach a
+screenshot of a broken screen (JPG/PNG/WebP). See
 [ux-testing/README.md](ux-testing/README.md) for the whole UX-testing pack and
-[ux-testing/INTAKE-TRIAGE.md](ux-testing/INTAKE-TRIAGE.md) for how to read the
+[ux-testing/INTAKE-TRIAGE.md](ux-testing/INTAKE-TRIAGE.md) for reading the
 collected feedback back out.
-
-## Step 3 (alternative) — the manual buttons
-
-If you are already on a login screen, you do not need the links:
-
-- App login screen: **Enter as Customer** / **Enter as Provider** buttons under
-  the "Send Verification Code" button.
-- Admin login screen: **Enter as Admin (demo)** button under "Sign In".
 
 ## The seeded demo accounts
 
-- Customer: Makati customer with two active bookings (Carpentry, General Cleaning)
-- Provider: "Roberto", verified, online, with an active Plumbing job and a service list
-- Admin: "QA Tester" with full admin access (Dashboard, Providers, Customers,
-  Bookings, Dispatch, Disputes, Financials, etc.)
+- Customer: Metro Cebu customer with active bookings and a populated home screen
+- Provider: "Roberto", verified, online, with an active job and a service list
+- Admin: super-admin with full access (Dashboard, Providers, Customers,
+  Bookings, Dispatch, Disputes, Financials, Service Areas, etc.)
 
-## Normal login still works (for testing the real flow)
+## Manual buttons (if you ever land on a login screen)
 
-Demo mode is additive. The normal flows are unchanged:
+The login screens also carry one-tap demo buttons:
 
-- App: enter a phone number, then OTP. On staging the dev OTP is `000000`.
-- Admin: email + password (+ 2FA). Tester admin is `tester@onservice.ph`.
+- App login screen: **Enter as Customer** / **Enter as Provider**.
+- Admin login screen: **Enter as Admin (demo)**.
 
-## Turning demo OFF for launch
+## Turning demo + open access OFF for launch
 
-Nothing to delete. Production builds simply omit the demo env vars:
+No code to delete. At the production cutover:
 
-- Mobile: build without `EXPO_PUBLIC_DEMO_MODE=1`
-- Admin: build without `VITE_DEMO_MODE=1`
+- Mobile: build without `EXPO_PUBLIC_DEMO_MODE=1`.
+- Admin: build without `VITE_DEMO_MODE=1` (and rotate the demo admin password).
+- nginx: restore the private gate (or rely on real SMS OTP + admin 2FA being on).
 
-With the flags unset, `DEMO_MODE` is `false`, so the auto-login on `?demo=...`,
-the `?demo=1` admin handler, and all three demo buttons are gone, and only normal
-login remains. No code change is needed to ship the production (login-required)
-version.
+With the demo flags unset, the `?demo` auto-logins and the demo buttons are gone
+and only normal login remains.
