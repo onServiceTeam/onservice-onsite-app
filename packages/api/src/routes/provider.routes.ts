@@ -38,14 +38,12 @@ router.post(
         // Phase K MED-K07: optional fields, dropped when undefined.
         nbiExpiryDate: req.body.nbiExpiryDate,
         governmentIdNumber: req.body.governmentIdNumber,
-        // 2026-06-28: forward the onboarding vetting questionnaire. The
-        // validator + service + providers.vetting_answers JSONB (mig 136)
-        // already accept these; only this route hand-off was missing, which
-        // silently dropped every applicant's answers.
+        // 2026-06-28: forward the onboarding vetting questionnaire so the
+        // service persists years_experience + the vetting_answers JSONB
+        // (mig 136). The route hand-off must list these explicitly (there is
+        // no ...req.body spread).
         yearsExperience: req.body.yearsExperience,
-        mainSkills: req.body.mainSkills,
-        hasOwnTools: req.body.hasOwnTools,
-        reference: req.body.reference,
+        vettingAnswers: req.body.vettingAnswers,
       });
       res.status(201).json({
         success: true,

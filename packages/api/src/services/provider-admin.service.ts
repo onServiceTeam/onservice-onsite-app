@@ -20,6 +20,25 @@ import * as kycDocumentService from './kyc-document.service';
 
 export type NoteCategory = 'general' | 'quality' | 'financial' | 'legal';
 
+// The provider vetting questionnaire blob (providers.vetting_answers JSONB).
+// Stored verbatim from onboarding; every field optional so the shape can grow
+// without a migration. The admin provider-detail page renders these.
+export interface VettingAnswers {
+  mainSkills?: string;
+  hasOwnTools?: boolean;
+  businessType?: string;
+  yearStarted?: string;
+  teamSize?: string;
+  fullAddress?: string;
+  website?: string;
+  facebook?: string;
+  socialOther?: string;
+  credentials?: string;
+  registrations?: string;
+  resumeUrl?: string;
+  references?: Array<{ name: string; contact: string; relation?: string }>;
+}
+
 export interface ProviderProfile {
   id: string;
   userId: string;
@@ -32,11 +51,7 @@ export interface ProviderProfile {
   totalJobsCompleted: number;
   serviceRadiusKm: number;
   yearsExperience: number | null;
-  vettingAnswers: {
-    mainSkills: string | null;
-    hasOwnTools: boolean | null;
-    reference: { name: string; contact: string } | null;
-  } | null;
+  vettingAnswers: VettingAnswers | null;
   city: string | null;
   province: string | null;
   latitude: number | null;
@@ -176,7 +191,7 @@ export async function getProviderProfile(providerId: string): Promise<ProviderPr
     nbi_expiry_notified: boolean;
     service_radius_km: number;
     years_experience: number | null;
-    vetting_answers: { mainSkills: string | null; hasOwnTools: boolean | null; reference: { name: string; contact: string } | null } | null;
+    vetting_answers: VettingAnswers | null;
     rating: string;
     total_reviews: number;
     total_jobs: number;

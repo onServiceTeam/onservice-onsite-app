@@ -42,20 +42,35 @@ export default function TermsScreen(): React.ReactElement {
         ...(store.nbiExpiryDate ? { nbiExpiryDate: store.nbiExpiryDate } : {}),
         ...(store.governmentIdNumber ? { governmentIdNumber: store.governmentIdNumber } : {}),
         // Vetting questionnaire (collected on the new vetting step). The apply
-        // route now forwards these and the service persists them:
-        // yearsExperience -> providers.years_experience, the rest ->
-        // providers.vetting_answers JSONB (mig 136).
+        // route forwards these and the service persists them: yearsExperience ->
+        // providers.years_experience; vettingAnswers -> providers.vetting_answers
+        // JSONB (mig 136). Empty fields are dropped so the blob stays tidy.
         ...(store.yearsExperience != null ? { yearsExperience: store.yearsExperience } : {}),
-        ...(store.mainSkills.trim() ? { mainSkills: store.mainSkills.trim() } : {}),
-        hasOwnTools: store.hasOwnTools,
-        ...(store.referenceName.trim()
-          ? {
-              reference: {
-                name: store.referenceName.trim(),
-                contact: store.referenceContact.trim(),
-              },
-            }
-          : {}),
+        vettingAnswers: ((): Record<string, unknown> => {
+          const a = store.vetting;
+          const out: Record<string, unknown> = { hasOwnTools: a.hasOwnTools };
+          const put = (k: string, val: string): void => { if (val.trim()) out[k] = val.trim(); };
+          put('mainSkills', a.mainSkills);
+          put('businessType', a.businessType);
+          put('yearStarted', a.yearStarted);
+          put('teamSize', a.teamSize);
+          put('fullAddress', a.fullAddress);
+          put('website', a.website);
+          put('facebook', a.facebook);
+          put('socialOther', a.socialOther);
+          put('credentials', a.credentials);
+          put('registrations', a.registrations);
+          put('resumeUrl', a.resumeUrl);
+          const refs = a.references
+            .filter((r) => r.name.trim() && r.contact.trim())
+            .map((r) => ({
+              name: r.name.trim(),
+              contact: r.contact.trim(),
+              ...(r.relation.trim() ? { relation: r.relation.trim() } : {}),
+            }));
+          if (refs.length) out.references = refs;
+          return out;
+        })(),
       });
       return res.data;
     },

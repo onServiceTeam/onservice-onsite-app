@@ -53,9 +53,19 @@ interface ProviderProfile {
   serviceRadiusKm: number;
   yearsExperience: number | null;
   vettingAnswers: {
-    mainSkills: string | null;
-    hasOwnTools: boolean | null;
-    reference: { name: string; contact: string } | null;
+    mainSkills?: string;
+    hasOwnTools?: boolean;
+    businessType?: string;
+    yearStarted?: string;
+    teamSize?: string;
+    fullAddress?: string;
+    website?: string;
+    facebook?: string;
+    socialOther?: string;
+    credentials?: string;
+    registrations?: string;
+    resumeUrl?: string;
+    references?: Array<{ name: string; contact: string; relation?: string }>;
   } | null;
   city: string | null;
   province: string | null;
@@ -517,33 +527,48 @@ function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactEleme
           <p className="text-sm text-[var(--color-text-secondary)]">
             No questionnaire on file (applied before this was added, or skipped).
           </p>
-        ) : (
-          <>
-            <DefRow
-              k="Years of experience"
-              v={profile.yearsExperience != null ? String(profile.yearsExperience) : '—'}
-            />
-            <DefRow k="Main skills / specialties" v={profile.vettingAnswers?.mainSkills || '—'} />
-            <DefRow
-              k="Own tools / equipment"
-              v={
-                profile.vettingAnswers?.hasOwnTools == null
-                  ? '—'
-                  : profile.vettingAnswers.hasOwnTools
-                    ? 'Yes'
-                    : 'No'
-              }
-            />
-            <DefRow
-              k="Reference"
-              v={
-                profile.vettingAnswers?.reference
-                  ? `${profile.vettingAnswers.reference.name} — ${profile.vettingAnswers.reference.contact}`
-                  : '—'
-              }
-            />
-          </>
-        )}
+        ) : (() => {
+          const va = profile.vettingAnswers ?? {};
+          const link = (raw?: string): React.ReactNode => {
+            if (!raw) return '—';
+            const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+            return (
+              <a href={href} target="_blank" rel="noopener noreferrer" className="text-[var(--color-secondary)] underline">
+                {raw}
+              </a>
+            );
+          };
+          const refs = va.references ?? [];
+          return (
+            <>
+              <DefRow k="Years of experience" v={profile.yearsExperience != null ? String(profile.yearsExperience) : '—'} />
+              <DefRow k="Main skills / specialties" v={va.mainSkills || '—'} />
+              <DefRow k="Own tools / equipment" v={va.hasOwnTools == null ? '—' : va.hasOwnTools ? 'Yes' : 'No'} />
+              <DefRow k="Business type" v={va.businessType || '—'} />
+              <DefRow k="Year started" v={va.yearStarted || '—'} />
+              <DefRow k="Team size" v={va.teamSize || '—'} />
+              <DefRow k="Full address" v={va.fullAddress || '—'} />
+              <DefRow k="Website" v={link(va.website)} />
+              <DefRow k="Facebook" v={link(va.facebook)} />
+              <DefRow k="Other links" v={va.socialOther || '—'} />
+              <DefRow k="Certifications / licenses" v={va.credentials || '—'} />
+              <DefRow k="Registrations" v={va.registrations || '—'} />
+              <DefRow k="Resume / portfolio" v={link(va.resumeUrl)} />
+              {refs.length > 0 ? (
+                <div className="mt-3 pt-2 border-t border-slate-100">
+                  <div className="text-xs font-semibold text-[var(--color-text-secondary)] mb-1">References ({refs.length})</div>
+                  {refs.map((r, i) => (
+                    <div key={i} className="text-sm text-[var(--color-text)] py-0.5">
+                      {r.name} — {r.contact}{r.relation ? ` (${r.relation})` : ''}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <DefRow k="References" v="—" />
+              )}
+            </>
+          );
+        })()}
       </Card>
     </div>
   );

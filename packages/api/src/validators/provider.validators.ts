@@ -38,15 +38,35 @@ export const providerApplicationSchema = z.object({
   governmentIdNumber: z.string().min(1).max(64).optional(),
   // 2026-06-28: optional vetting questionnaire captured in onboarding (after the
   // service-area step). All optional so older app builds still apply cleanly.
-  // yearsExperience maps to providers.years_experience; the rest persist as the
-  // providers.vetting_answers JSONB blob (mig 136) for admin review at approval.
+  // yearsExperience maps to providers.years_experience; vettingAnswers is stored
+  // as the providers.vetting_answers JSONB blob (mig 136) for admin review at
+  // approval. URL-ish fields are kept as plain strings (providers may paste a
+  // bare domain) and length-capped; the admin UI normalizes them to links.
   yearsExperience: z.number().int().min(0).max(60).optional(),
-  mainSkills: z.string().max(500).optional(),
-  hasOwnTools: z.boolean().optional(),
-  reference: z
+  vettingAnswers: z
     .object({
-      name: z.string().min(1).max(120),
-      contact: z.string().min(1).max(60),
+      mainSkills: z.string().max(500).optional(),
+      hasOwnTools: z.boolean().optional(),
+      businessType: z.string().max(40).optional(),
+      yearStarted: z.string().max(8).optional(),
+      teamSize: z.string().max(40).optional(),
+      fullAddress: z.string().max(300).optional(),
+      website: z.string().max(200).optional(),
+      facebook: z.string().max(200).optional(),
+      socialOther: z.string().max(300).optional(),
+      credentials: z.string().max(1000).optional(),
+      registrations: z.string().max(1000).optional(),
+      resumeUrl: z.string().max(300).optional(),
+      references: z
+        .array(
+          z.object({
+            name: z.string().min(1).max(120),
+            contact: z.string().min(1).max(60),
+            relation: z.string().max(60).optional(),
+          }),
+        )
+        .max(3)
+        .optional(),
     })
     .optional(),
 });

@@ -302,10 +302,24 @@ export interface ProviderApplicationInput {
   nbiExpiryDate?: string;
   governmentIdNumber?: string;
   // 2026-06-28: optional onboarding vetting questionnaire (mig 136).
+  // yearsExperience -> providers.years_experience; vettingAnswers -> the
+  // providers.vetting_answers JSONB blob (stored verbatim for admin review).
   yearsExperience?: number;
-  mainSkills?: string;
-  hasOwnTools?: boolean;
-  reference?: { name: string; contact: string };
+  vettingAnswers?: {
+    mainSkills?: string;
+    hasOwnTools?: boolean;
+    businessType?: string;
+    yearStarted?: string;
+    teamSize?: string;
+    fullAddress?: string;
+    website?: string;
+    facebook?: string;
+    socialOther?: string;
+    credentials?: string;
+    registrations?: string;
+    resumeUrl?: string;
+    references?: Array<{ name: string; contact: string; relation?: string }>;
+  };
 }
 
 export async function createProviderApplication(
@@ -331,15 +345,11 @@ export async function createProviderApplication(
     // later) still work. The 42703 fallback handles deployments where
     // mig 115 hasn't been applied yet — we drop the new column from
     // the INSERT and retry with the legacy 11-column shape.
-    // Vetting questionnaire blob (mig 136). null when the applying client did
-    // not send any of the optional answers (older app build).
+    // Vetting questionnaire blob (mig 136). Stored verbatim as JSONB; null when
+    // the applying client sent no answers (older app build).
     const vettingAnswers =
-      input.mainSkills != null || input.hasOwnTools != null || input.reference != null
-        ? JSON.stringify({
-            mainSkills: input.mainSkills ?? null,
-            hasOwnTools: input.hasOwnTools ?? null,
-            reference: input.reference ?? null,
-          })
+      input.vettingAnswers && Object.keys(input.vettingAnswers).length > 0
+        ? JSON.stringify(input.vettingAnswers)
         : null;
 
     let providerResult;

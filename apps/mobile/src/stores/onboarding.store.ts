@@ -1,5 +1,46 @@
 import { create } from 'zustand';
 
+export interface VettingReference {
+  name: string;
+  contact: string;
+  relation: string;
+}
+
+// The expanded provider vetting questionnaire. Everything except yearsExperience
+// rides in providers.vetting_answers (JSONB) so we can keep adding fields with
+// no migration. All optional at submit time except skills + the first reference.
+export interface VettingData {
+  mainSkills: string;
+  hasOwnTools: boolean;
+  businessType: string;   // Solo / Team / Registered company
+  yearStarted: string;
+  teamSize: string;
+  fullAddress: string;
+  website: string;
+  facebook: string;
+  socialOther: string;    // IG / TikTok / portfolio, etc.
+  credentials: string;    // TESDA / PRC / licenses / certifications
+  registrations: string;  // DTI / SEC / BIR TIN / business permit numbers
+  resumeUrl: string;      // link to a CV / portfolio
+  references: VettingReference[];
+}
+
+export const emptyVetting: VettingData = {
+  mainSkills: '',
+  hasOwnTools: false,
+  businessType: '',
+  yearStarted: '',
+  teamSize: '',
+  fullAddress: '',
+  website: '',
+  facebook: '',
+  socialOther: '',
+  credentials: '',
+  registrations: '',
+  resumeUrl: '',
+  references: [],
+};
+
 export interface OnboardingState {
   selectedRole: 'customer' | 'provider' | null;
   businessName: string;
@@ -24,10 +65,7 @@ export interface OnboardingState {
   // yearsExperience maps to providers.years_experience when the apply
   // endpoint supports it; the rest travel in the submission snapshot.
   yearsExperience: number | null;
-  mainSkills: string;
-  hasOwnTools: boolean;
-  referenceName: string;
-  referenceContact: string;
+  vetting: VettingData;
 
   setRole: (role: 'customer' | 'provider') => void;
   setBusinessName: (name: string) => void;
@@ -37,13 +75,7 @@ export interface OnboardingState {
   setIcAgreed: (agreed: boolean) => void;
   setNbiExpiryDate: (date: string | null) => void;
   setGovernmentIdNumber: (idNumber: string | null) => void;
-  setVetting: (vetting: {
-    yearsExperience: number | null;
-    mainSkills: string;
-    hasOwnTools: boolean;
-    referenceName: string;
-    referenceContact: string;
-  }) => void;
+  setVetting: (data: { yearsExperience: number | null; vetting: VettingData }) => void;
   reset: () => void;
 }
 
@@ -66,10 +98,7 @@ const initialState = {
   governmentIdNumber: null as string | null,
   // Vetting questionnaire defaults.
   yearsExperience: null as number | null,
-  mainSkills: '',
-  hasOwnTools: false,
-  referenceName: '',
-  referenceContact: '',
+  vetting: { ...emptyVetting } as VettingData,
 };
 
 export const useOnboardingStore = create<OnboardingState>((set) => ({
@@ -90,12 +119,6 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   // Phase K MED-K07 setters.
   setNbiExpiryDate: (date) => set({ nbiExpiryDate: date }),
   setGovernmentIdNumber: (idNumber) => set({ governmentIdNumber: idNumber }),
-  setVetting: (vetting) => set({
-    yearsExperience: vetting.yearsExperience,
-    mainSkills: vetting.mainSkills,
-    hasOwnTools: vetting.hasOwnTools,
-    referenceName: vetting.referenceName,
-    referenceContact: vetting.referenceContact,
-  }),
+  setVetting: (data) => set({ yearsExperience: data.yearsExperience, vetting: data.vetting }),
   reset: () => set(initialState),
 }));
