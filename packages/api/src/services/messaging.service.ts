@@ -22,6 +22,9 @@ interface MessageRow {
   is_read: boolean;
   is_flagged: boolean;
   created_at: Date;
+  // D26 moderation — present after migration 138; participant-facing reads
+  // hide the content of a redacted message.
+  redacted_at?: Date | null;
 }
 
 interface CountRow { count: string }
@@ -213,16 +216,58 @@ export async function getUnreadCount(userId: string): Promise<number> {
 }
 
 export function formatMessage(m: MessageRow): Record<string, unknown> {
+  // D26 — a message an admin redacted is hidden from the participants. We keep
+  // the original row (the admin moderation view still shows it) but blank the
+  // content + image here so neither customer nor provider can read it.
+  const redacted = !!m.redacted_at;
   return {
     id: m.id,
     conversationId: m.conversation_id,
     senderId: m.sender_id,
-    content: m.content,
-    messageType: m.message_type,
-    imageUrl: m.image_url,
+    content: redacted ? 'This message was removed by a moderator.' : m.content,
+    messageType: redacted ? 'system' : m.message_type,
+    imageUrl: redacted ? null : m.image_url,
     isRead: m.is_read,
+    redacted,
     createdAt: m.created_at,
   };
+}
+
+/**
+ * D26 — a participant reports a message in their own conversation. Flags it and
+ * records the report so it surfaces in the admin moderation queue. Re-opens the
+ * flag (flag_reviewed_at = NULL) so a freshly reported message is reviewed again
+ * even if a prior auto-flag on it was already cleared.
+ */
+export async function reportMessage(
+  messageId: string,
+  reporterUserId: string,
+  reason: string,
+): Promise<void> {
+  const result = await db.query<{ customer_id: string; provider_id: string }>(
+    `SELECT c.customer_id, c.provider_id
+       FROM messages m JOIN conversations c ON c.id = m.conversation_id
+      WHERE m.id = $1`,
+    [messageId],
+  );
+  const row = result.rows[0];
+  if (!row) throw createAppError('Message not found.', 404);
+  if (row.customer_id !== reporterUserId && row.provider_id !== reporterUserId) {
+    throw createAppError('You are not part of this conversation.', 403);
+  }
+
+  await db.query(
+    `UPDATE messages
+        SET reported_at = COALESCE(reported_at, NOW()),
+            reported_by = COALESCE(reported_by, $2),
+            report_reason = $3,
+            is_flagged = TRUE,
+            flag_reviewed_at = NULL
+      WHERE id = $1`,
+    [messageId, reporterUserId, (reason ?? '').trim().slice(0, 500)],
+  );
+
+  logger.warn('Message reported by participant', { messageId, reporterUserId });
 }
 
 export function formatConversation(c: ConversationRow): Record<string, unknown> {

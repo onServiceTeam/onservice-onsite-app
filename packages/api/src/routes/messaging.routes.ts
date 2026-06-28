@@ -199,4 +199,24 @@ router.get(
   },
 );
 
+// D26 — a participant reports a message; it surfaces in the admin moderation
+// queue. Path is /messages/:messageId/report (distinct from /:id/messages).
+router.post(
+  '/messages/:messageId/report',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const messageId = getParamId(req, 'messageId');
+      await messagingService.reportMessage(
+        messageId,
+        req.user!.userId,
+        String(req.body?.reason ?? ''),
+      );
+      res.json({ success: true, data: { reported: true } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 export default router;

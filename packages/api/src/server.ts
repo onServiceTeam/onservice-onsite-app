@@ -44,6 +44,7 @@ import paymentRoutes from './routes/payment.routes';
 import adminRoutes from './routes/admin.routes';
 import providerAdminRoutes from './routes/provider-admin.routes';
 import customerAdminRoutes from './routes/customer-admin.routes';
+import messagingAdminRoutes from './routes/messaging-admin.routes';
 import bookingAdminRoutes from './routes/booking-admin.routes';
 import disputeAdminRoutes from './routes/dispute-admin.routes';
 import financialAdminRoutes from './routes/financial-admin.routes';
@@ -286,6 +287,10 @@ app.use('/api/v1/admin/providers', providerAdminRoutes);
 // Phase 06: customer 360 sub-routes mounted BEFORE generic admin routes so
 // `/admin/customers/:id/...` match before any `/admin/customers` (list) fallthrough.
 app.use('/api/v1/admin/customers', customerAdminRoutes);
+// D26 step 1: admin chat moderation (list/read conversations, flagged+reported
+// review queue, redact, resolve flag) — mounted before generic /admin/* so the
+// specific /admin/conversations/* paths win.
+app.use('/api/v1/admin/conversations', messagingAdminRoutes);
 // Phase 07: booking 360 + dispute detail sub-routes mounted BEFORE generic
 // admin routes so `/admin/bookings/:id/...` and `/admin/disputes/:id/...` match
 // before any `/admin/bookings` or `/admin/disputes` (list) fallthrough.

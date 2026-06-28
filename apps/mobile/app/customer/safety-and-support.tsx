@@ -9,7 +9,11 @@
 //   - NBI clearance (verifiable — providers must pass an NBI background check).
 //   - Escrow payment (verifiable — payment held until job confirmation).
 //   - Real-time tracking (verifiable — maps integration).
-//   - Masked phone numbers (verifiable — Twilio integration).
+//   - In-app chat keeps your number private (verifiable — messaging is in-app;
+//     phone numbers are never exchanged). NOTE: an earlier version claimed
+//     "masked phone numbers (Twilio)"; that was never built (no Twilio/voice
+//     integration exists). Corrected to the real, shipped capability. In-app
+//     voice/video is planned — see .ai-coder/decisions/D26-calls-video-provider.md.
 //
 // Notably absent (do NOT reintroduce without lifting LAUNCH-LIMITATIONS §23
 // and securing an Insurance Commission license OR a licensed-insurer
@@ -74,8 +78,8 @@ const SAFETY_ITEMS: Array<{ icon: IconComponent; iconColor: string; title: strin
   {
     icon: MessageSquare,
     iconColor: colors.primary,
-    title: 'Masked phone numbers',
-    desc: 'Tap the call button on any active booking to reach the provider through a masked number — your real number stays private.',
+    title: 'Your number stays private',
+    desc: 'Chat with your provider inside the app. Your real phone number is never shared, so everything stays on the platform where support can help if anything goes wrong.',
   },
 ];
 
