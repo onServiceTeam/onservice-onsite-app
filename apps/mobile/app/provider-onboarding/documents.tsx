@@ -109,11 +109,12 @@ export default function DocumentsScreen(): React.ReactElement {
         <View style={styles.progress}>
           <View style={[styles.progressDot, styles.progressDone]} />
           <View style={[styles.progressDot, styles.progressDone]} />
+          <View style={[styles.progressDot, styles.progressDone]} />
           <View style={[styles.progressDot, styles.progressActive]} />
           <View style={styles.progressDot} />
           <View style={styles.progressDot} />
         </View>
-        <Text style={styles.step}>3 / 5</Text>
+        <Text style={styles.step}>4 / 6</Text>
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: spacing.lg }} showsVerticalScrollIndicator={false}>

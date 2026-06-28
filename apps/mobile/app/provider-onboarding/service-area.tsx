@@ -127,7 +127,7 @@ export default function ServiceAreaScreen(): React.ReactElement {
       city: city.trim(),
       province: province.trim(),
     });
-    router.push(Routes.PROVIDER_ONBOARDING.DOCUMENTS);
+    router.push(Routes.PROVIDER_ONBOARDING.VETTING);
   };
 
   return (
@@ -142,8 +142,9 @@ export default function ServiceAreaScreen(): React.ReactElement {
           <View style={styles.progressDot} />
           <View style={styles.progressDot} />
           <View style={styles.progressDot} />
+          <View style={styles.progressDot} />
         </View>
-        <Text style={styles.step}>2 / 5</Text>
+        <Text style={styles.step}>2 / 6</Text>
       </View>
 
       <View style={styles.body}>

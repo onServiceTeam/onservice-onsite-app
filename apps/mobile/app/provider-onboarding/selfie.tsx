@@ -56,10 +56,11 @@ export default function SelfieScreen(): React.ReactElement {
           <View style={[styles.progressDot, styles.progressDone]} />
           <View style={[styles.progressDot, styles.progressDone]} />
           <View style={[styles.progressDot, styles.progressDone]} />
+          <View style={[styles.progressDot, styles.progressDone]} />
           <View style={[styles.progressDot, styles.progressActive]} />
           <View style={styles.progressDot} />
         </View>
-        <Text style={styles.step}>4 / 5</Text>
+        <Text style={styles.step}>5 / 6</Text>
       </View>
 
       <View style={styles.body}>

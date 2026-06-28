@@ -31,6 +31,12 @@ export interface ProviderProfile {
   totalReviews: number;
   totalJobsCompleted: number;
   serviceRadiusKm: number;
+  yearsExperience: number | null;
+  vettingAnswers: {
+    mainSkills: string | null;
+    hasOwnTools: boolean | null;
+    reference: { name: string; contact: string } | null;
+  } | null;
   city: string | null;
   province: string | null;
   latitude: number | null;
@@ -169,6 +175,8 @@ export async function getProviderProfile(providerId: string): Promise<ProviderPr
     nbi_expiry_date: Date | null;
     nbi_expiry_notified: boolean;
     service_radius_km: number;
+    years_experience: number | null;
+    vetting_answers: { mainSkills: string | null; hasOwnTools: boolean | null; reference: { name: string; contact: string } | null } | null;
     average_rating: string;
     total_reviews: number;
     total_jobs_completed: number;
@@ -229,6 +237,8 @@ export async function getProviderProfile(providerId: string): Promise<ProviderPr
     totalReviews: p.total_reviews,
     totalJobsCompleted: p.total_jobs_completed,
     serviceRadiusKm: p.service_radius_km,
+    yearsExperience: p.years_experience,
+    vettingAnswers: p.vetting_answers,
     city: p.city,
     province: p.province,
     latitude: p.latitude !== null ? Number(p.latitude) : null,

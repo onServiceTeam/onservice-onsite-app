@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { VettingChecklist, buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
 
 interface Provider {
   id: string;
@@ -63,6 +64,8 @@ export default function ProvidersPage(): React.ReactElement {
   const [actionReason, setActionReason] = useState('');
   const [actionTier, setActionTier] = useState('');
   const [actionError, setActionError] = useState('');
+  // Vetting checklist state for the approve flow (rationale + all-items-ticked).
+  const [vetting, setVetting] = useState<VettingState>({ isComplete: false, rationale: '' });
 
   useEffect(() => {
     const nextSearch = searchParams.get('search') ?? '';
@@ -100,6 +103,19 @@ export default function ProvidersPage(): React.ReactElement {
       const { type, provider } = actionModal;
       if (type === 'approve') {
         await api.put(`/api/v1/admin/providers/${provider.id}/approve`);
+        // Record the vetting rationale + checklist summary as an internal
+        // 'quality' note via the existing provider notes API. Best-effort:
+        // the approval already committed, so a note failure shouldn't surface
+        // as an approval failure.
+        try {
+          await api.post(`/api/v1/admin/providers/${provider.id}/notes`, {
+            body: `Approval rationale: ${vetting.rationale}\n\n${buildChecklistSummary()}`,
+            category: 'quality',
+            pinned: false,
+          });
+        } catch {
+          // swallow — approval succeeded; the note is a secondary record.
+        }
       } else if (type === 'reject') {
         await api.put(`/api/v1/admin/providers/${provider.id}/reject`, { reason: actionReason });
       } else if (type === 'suspend') {
@@ -116,6 +132,7 @@ export default function ProvidersPage(): React.ReactElement {
       setActionReason('');
       setActionTier('');
       setActionError('');
+      setVetting({ isComplete: false, rationale: '' });
     },
     onError: (err) => {
       setActionError(getErrorMessage(err));
@@ -316,6 +333,12 @@ export default function ProvidersPage(): React.ReactElement {
               </div>
             )}
 
+            {actionModal.type === 'approve' && (
+              <div className="mb-4">
+                <VettingChecklist onChange={setVetting} />
+              </div>
+            )}
+
             {actionModal.type === 'tier' && (
               <div className="mb-4">
                 <label htmlFor="provider-action-tier" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">New Tier</label>
@@ -337,14 +360,18 @@ export default function ProvidersPage(): React.ReactElement {
 
             <div className="flex gap-2 justify-end">
               <button
-                onClick={() => { setActionModal(null); setActionReason(''); setActionError(''); }}
+                onClick={() => { setActionModal(null); setActionReason(''); setActionError(''); setVetting({ isComplete: false, rationale: '' }); }}
                 className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => actionMutation.mutate()}
-                disabled={actionMutation.isPending || ((actionModal.type === 'suspend' || actionModal.type === 'reject' || actionModal.type === 'tier') && actionReason.trim().length < 10)}
+                disabled={
+                  actionMutation.isPending ||
+                  ((actionModal.type === 'suspend' || actionModal.type === 'reject' || actionModal.type === 'tier') && actionReason.trim().length < 10) ||
+                  (actionModal.type === 'approve' && !vetting.isComplete)
+                }
                 className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
               >
                 {actionMutation.isPending ? 'Processing...' : 'Confirm'}

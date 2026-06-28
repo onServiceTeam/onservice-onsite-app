@@ -309,11 +309,16 @@ export default function BookingDetailScreen(): React.ReactElement {
           />
         )}
         {canViewChangeOrders && (
-          <Button
-            title="View Change Orders"
-            onPress={() => router.push(`/customer/booking/change-order?bookingId=${id}`)}
-            variant="outline"
-          />
+          <>
+            <Button
+              title="Parts & Materials / Change Orders"
+              onPress={() => router.push(`/customer/booking/change-order?bookingId=${id}`)}
+              variant="outline"
+            />
+            <Text style={styles.changeOrderNote}>
+              Extra parts or materials are handled here as a change order. Nothing extra is charged until you approve it in the app, and it stays protected by escrow.
+            </Text>
+          </>
         )}
         {hasPhotos && (
           <Button
@@ -494,6 +499,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   chatButton: { marginTop: 0 },
+  changeOrderNote: { ...typography.caption, color: colors.textTertiary, lineHeight: 16, marginTop: -spacing.xs },
   completedActions: { gap: spacing.sm },
 
   cancelButton: { marginTop: spacing.xs },

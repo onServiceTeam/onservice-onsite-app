@@ -339,11 +339,16 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           />
         )}
         {canSubmitChangeOrder && (
-          <Button
-            title="Submit Change Order"
-            onPress={() => router.push(`/provider/job/${booking.id}/change-order`)}
-            variant="outline"
-          />
+          <>
+            <Button
+              title="Submit Change Order (Parts / Materials)"
+              onPress={() => router.push(`/provider/job/${booking.id}/change-order`)}
+              variant="outline"
+            />
+            <Text style={styles.changeOrderNote}>
+              Need extra parts or materials? Send a change order here so the customer approves the added cost in the app before you buy or do extra work. It stays on the record and protected by escrow.
+            </Text>
+          </>
         )}
         {['in_progress', 'provider_arrived', 'provider_en_route'].includes(booking.status) && (
           <>
@@ -480,6 +485,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.divider,
     gap: spacing.sm,
   },
+  changeOrderNote: { ...typography.caption, color: colors.textTertiary, lineHeight: 16, marginTop: -spacing.xs },
 
   // BUG-PHASE67-01 fix — cancel reason form styles (mirrors customer
   // booking/[id].tsx).

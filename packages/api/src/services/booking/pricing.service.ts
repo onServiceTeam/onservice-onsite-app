@@ -196,7 +196,11 @@ export async function resolvePricing(input: BookingPricingInput): Promise<Resolv
     ...(promoDiscountCents > 0
       ? [{ label: 'Promo discount', amountCents: -promoDiscountCents }]
       : []),
-    { label: 'Service fee', amountCents: serviceFeeCents },
+    // No customer platform fee (Ken, 2026-06-28): the customer pays no app-usage
+    // fee — the platform earns from provider commission instead. The service-fee
+    // setting drives this (service_fee_rate=0), and we only show a fee line when
+    // a fee is actually charged, so the customer never sees a "Service fee ₱0.00".
+    ...(serviceFeeCents > 0 ? [{ label: 'Service fee', amountCents: serviceFeeCents }] : []),
   ];
 
   return {

@@ -20,7 +20,7 @@ Everything here is grounded in how the app actually works (real booking statuses
 | 01 | `01-company-foundation.md`            | Mission, vision, purpose, values, brand promise, trust model, market strategy   |
 | 02 | `02-org-structure-and-roles.md`       | Org chart, roles, RACI, hiring order, scaling plan                              |
 | 03 | `03-provider-recruiting-sop.md`       | Sourcing and signing up providers in a new area                                 |
-| 04 | `04-provider-vetting-and-filtering.md`| KYC, the vetting scorecard, tiering, approve/reject rules                       |
+| 04 | `04-provider-vetting-and-filtering.md`| The quality bar, differentiation strategy, KYC, the scored funnel + interview script, tiering, approve/reject, post-approval monitoring |
 | 05 | `05-provider-onboarding-and-training.md`| Activation, training, first-job support, code of conduct                      |
 | 06 | `06-customer-support-sop.md`          | Channels, SLAs, triage, scenario playbooks, macros                              |
 | 07 | `07-provider-support-sop.md`          | Payouts, jobs, accounts, change orders, suspensions                             |

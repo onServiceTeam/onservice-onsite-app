@@ -35,6 +35,7 @@ import KpiCard from '@/components/ui/KpiCard';
 import Pagination from '@/components/ui/Pagination';
 import { Textarea } from '@/components/ui/Textarea';
 import { Checkbox } from '@/components/ui/Checkbox';
+import { VettingChecklist, buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
 import { useAuthStore } from '@/stores/auth.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -50,6 +51,12 @@ interface ProviderProfile {
   totalReviews: number;
   totalJobsCompleted: number;
   serviceRadiusKm: number;
+  yearsExperience: number | null;
+  vettingAnswers: {
+    mainSkills: string | null;
+    hasOwnTools: boolean | null;
+    reference: { name: string; contact: string } | null;
+  } | null;
   city: string | null;
   province: string | null;
   latitude: number | null;
@@ -302,46 +309,126 @@ function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactE
   // the user sub-object was still undefined from the API.
   const user = profile.user ?? { avatarUrl: null, fullName: '' };
   return (
-    <Card className="p-5 flex items-start gap-4">
-      <div className="w-16 h-16 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center text-slate-500 text-xl font-semibold flex-shrink-0">
-        {user.avatarUrl ? (
-          <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
-        ) : (
-          (user.fullName || '?').charAt(0).toUpperCase()
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-xl font-bold text-[var(--color-text)] truncate">
-            {profile.businessName || user.fullName || '—'}
-          </h1>
-          <Badge label={profile.status} variant={STATUS_BADGE[profile.status] ?? 'default'} />
-          <Badge label={profile.tier} variant={TIER_BADGE[profile.tier] ?? 'default'} />
-        </div>
-        <p className="text-sm text-[var(--color-text-secondary)] mt-1">{user.fullName || '—'}</p>
-        <div className="flex items-center gap-4 text-xs text-[var(--color-text-secondary)] mt-2 flex-wrap">
-          <span className="inline-flex items-center gap-1">
-            {/* Phase L MED-L04 fix — coalesce missing rating/review counts. */}
-            <Star size={12} /> {(profile.averageRating ?? 0).toFixed(2)} ({profile.totalReviews ?? 0} reviews)
-          </span>
-          <span>{profile.totalJobsCompleted ?? 0} jobs completed</span>
-          <span className="inline-flex items-center gap-1">
-            <Phone size={12} /> {('phone' in user ? (user as { phone?: string }).phone : '') || '—'}
-          </span>
-          {('email' in user) && (user as { email?: string }).email && (
-            <span className="inline-flex items-center gap-1">
-              <Mail size={12} /> {(user as { email?: string }).email}
-            </span>
-          )}
-          {profile.city && (
-            <span className="inline-flex items-center gap-1">
-              <MapPin size={12} /> {profile.city}
-              {profile.province ? `, ${profile.province}` : ''}
-            </span>
+    <Card className="p-5 space-y-4">
+      <div className="flex items-start gap-4">
+        <div className="w-16 h-16 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center text-slate-500 text-xl font-semibold flex-shrink-0">
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            (user.fullName || '?').charAt(0).toUpperCase()
           )}
         </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-bold text-[var(--color-text)] truncate">
+              {profile.businessName || user.fullName || '—'}
+            </h1>
+            <Badge label={profile.status} variant={STATUS_BADGE[profile.status] ?? 'default'} />
+            <Badge label={profile.tier} variant={TIER_BADGE[profile.tier] ?? 'default'} />
+          </div>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-1">{user.fullName || '—'}</p>
+          <div className="flex items-center gap-4 text-xs text-[var(--color-text-secondary)] mt-2 flex-wrap">
+            <span className="inline-flex items-center gap-1">
+              {/* Phase L MED-L04 fix — coalesce missing rating/review counts. */}
+              <Star size={12} /> {(profile.averageRating ?? 0).toFixed(2)} ({profile.totalReviews ?? 0} reviews)
+            </span>
+            <span>{profile.totalJobsCompleted ?? 0} jobs completed</span>
+            <span className="inline-flex items-center gap-1">
+              <Phone size={12} /> {('phone' in user ? (user as { phone?: string }).phone : '') || '—'}
+            </span>
+            {('email' in user) && (user as { email?: string }).email && (
+              <span className="inline-flex items-center gap-1">
+                <Mail size={12} /> {(user as { email?: string }).email}
+              </span>
+            )}
+            {profile.city && (
+              <span className="inline-flex items-center gap-1">
+                <MapPin size={12} /> {profile.city}
+                {profile.province ? `, ${profile.province}` : ''}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
+
+      {profile.status === 'pending' && <ApprovalPanel profile={profile} />}
     </Card>
+  );
+}
+
+// ─── Approval panel (vetting checklist gate) ────────────────────────────────
+//
+// For pending providers the admin reviews the documents on the Profile tab,
+// then confirms the vetting rubric here. The Approve button stays disabled
+// until every checklist item is ticked AND the rationale is filled. On
+// approve we call the existing approve endpoint, then record the rationale +
+// a one-line checklist summary as a 'quality' provider note via the existing
+// notes API.
+
+function ApprovalPanel({ profile }: { profile: ProviderProfile }): React.ReactElement {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [vetting, setVetting] = useState<VettingState>({ isComplete: false, rationale: '' });
+  const [error, setError] = useState('');
+
+  const approve = useMutation({
+    mutationFn: async () => {
+      await api.put(`/api/v1/admin/providers/${profile.id}/approve`);
+      // Record the vetting rationale + checklist summary as an internal
+      // 'quality' note. Best-effort: the approval already committed, so a
+      // note failure shouldn't surface as an approval failure.
+      try {
+        await api.post(`/api/v1/admin/providers/${profile.id}/notes`, {
+          body: `Approval rationale: ${vetting.rationale}\n\n${buildChecklistSummary()}`,
+          category: 'quality',
+          pinned: false,
+        });
+      } catch {
+        // swallow — approval succeeded; the note is a secondary record.
+      }
+    },
+    onSuccess: () => {
+      setError('');
+      setOpen(false);
+      setVetting({ isComplete: false, rationale: '' });
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-profile', profile.id] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-notes', profile.id] });
+    },
+    onError: (err) => setError(getErrorMessage(err)),
+  });
+
+  if (!open) {
+    return (
+      <div className="border-t border-slate-100 pt-4 flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          This provider is pending. Review the documents below, then run the vetting checklist to approve.
+        </p>
+        <Button size="sm" onClick={() => setOpen(true)}>Review &amp; approve</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-slate-100 pt-4 space-y-3">
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      <VettingChecklist onChange={setVetting} />
+      <div className="flex gap-2 justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => { setOpen(false); setError(''); setVetting({ isComplete: false, rationale: '' }); }}
+        >
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => approve.mutate()}
+          disabled={approve.isPending || !vetting.isComplete}
+        >
+          {approve.isPending ? 'Approving…' : 'Approve provider'}
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -420,6 +507,43 @@ function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactEleme
         <DefRow k="Last Login" v={formatDate((profile.user as { lastLoginAt?: string })?.lastLoginAt ?? null)} />
         <DefRow k="Service Radius" v={`${profile.serviceRadiusKm ?? 0} km`} />
         <DefRow k="Joined" v={formatDateOnly(profile.createdAt)} />
+      </Card>
+
+      {/* Vetting questionnaire answers (onboarding). Review these against the
+          vetting checklist before approving — see docs/operations/04. */}
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Vetting questionnaire</h3>
+        {profile.yearsExperience == null && !profile.vettingAnswers ? (
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            No questionnaire on file (applied before this was added, or skipped).
+          </p>
+        ) : (
+          <>
+            <DefRow
+              k="Years of experience"
+              v={profile.yearsExperience != null ? String(profile.yearsExperience) : '—'}
+            />
+            <DefRow k="Main skills / specialties" v={profile.vettingAnswers?.mainSkills || '—'} />
+            <DefRow
+              k="Own tools / equipment"
+              v={
+                profile.vettingAnswers?.hasOwnTools == null
+                  ? '—'
+                  : profile.vettingAnswers.hasOwnTools
+                    ? 'Yes'
+                    : 'No'
+              }
+            />
+            <DefRow
+              k="Reference"
+              v={
+                profile.vettingAnswers?.reference
+                  ? `${profile.vettingAnswers.reference.name} — ${profile.vettingAnswers.reference.contact}`
+                  : '—'
+              }
+            />
+          </>
+        )}
       </Card>
     </div>
   );

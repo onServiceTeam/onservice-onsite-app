@@ -46,6 +46,10 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
         q: 'What is a change order?',
         a: 'If the provider discovers additional work is needed during a job, they can submit a change order with the extra amount. You must approve it before they proceed with the additional work.',
       },
+      {
+        q: 'What if the job needs extra parts or materials?',
+        a: 'If a job needs extra parts or materials, the provider sends you a change order in the app (or a custom quote up front) with the added cost. You review and approve it in the app before any extra work or spend happens. Nothing extra is charged until you approve, the whole record stays in the app, and the amount is held in escrow like the rest of your payment, so you stay protected.',
+      },
     ],
   },
   {

@@ -19,6 +19,15 @@ export interface OnboardingState {
   // them as optional fields on /providers/apply.
   nbiExpiryDate: string | null;
   governmentIdNumber: string | null;
+  // Vetting questionnaire (onboarding step between service-area and
+  // documents). Captured into the snapshot the application submits.
+  // yearsExperience maps to providers.years_experience when the apply
+  // endpoint supports it; the rest travel in the submission snapshot.
+  yearsExperience: number | null;
+  mainSkills: string;
+  hasOwnTools: boolean;
+  referenceName: string;
+  referenceContact: string;
 
   setRole: (role: 'customer' | 'provider') => void;
   setBusinessName: (name: string) => void;
@@ -28,6 +37,13 @@ export interface OnboardingState {
   setIcAgreed: (agreed: boolean) => void;
   setNbiExpiryDate: (date: string | null) => void;
   setGovernmentIdNumber: (idNumber: string | null) => void;
+  setVetting: (vetting: {
+    yearsExperience: number | null;
+    mainSkills: string;
+    hasOwnTools: boolean;
+    referenceName: string;
+    referenceContact: string;
+  }) => void;
   reset: () => void;
 }
 
@@ -48,6 +64,12 @@ const initialState = {
   // Phase K MED-K07
   nbiExpiryDate: null as string | null,
   governmentIdNumber: null as string | null,
+  // Vetting questionnaire defaults.
+  yearsExperience: null as number | null,
+  mainSkills: '',
+  hasOwnTools: false,
+  referenceName: '',
+  referenceContact: '',
 };
 
 export const useOnboardingStore = create<OnboardingState>((set) => ({
@@ -68,5 +90,12 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   // Phase K MED-K07 setters.
   setNbiExpiryDate: (date) => set({ nbiExpiryDate: date }),
   setGovernmentIdNumber: (idNumber) => set({ governmentIdNumber: idNumber }),
+  setVetting: (vetting) => set({
+    yearsExperience: vetting.yearsExperience,
+    mainSkills: vetting.mainSkills,
+    hasOwnTools: vetting.hasOwnTools,
+    referenceName: vetting.referenceName,
+    referenceContact: vetting.referenceContact,
+  }),
   reset: () => set(initialState),
 }));

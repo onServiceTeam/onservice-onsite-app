@@ -79,6 +79,11 @@ interface CityPerformance {
   activeProviders: number;
   todayBookings: number;
 }
+interface QualityWatchProvider {
+  providerId: string;
+  businessName: string;
+  reason: string;
+}
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await api.get<{ success: boolean; data: T }>(url);
@@ -191,6 +196,12 @@ export default function DashboardPage(): React.ReactElement {
     refetchInterval: 60_000,
   });
 
+  const qualityWatch = useQuery({
+    queryKey: ['dashboard-quality-watch'],
+    queryFn: () => fetchJson<QualityWatchProvider[]>('/api/v1/admin/analytics/quality-watch'),
+    refetchInterval: 60_000,
+  });
+
   const refreshAll = (): void => {
     void kpis.refetch();
     void revenueTrend.refetch();
@@ -199,6 +210,7 @@ export default function DashboardPage(): React.ReactElement {
     void alerts.refetch();
     void dsrAlerts.refetch();
     void cities.refetch();
+    void qualityWatch.refetch();
   };
 
   if (kpis.isLoading) {
@@ -461,6 +473,48 @@ export default function DashboardPage(): React.ReactElement {
           </CardContent>
         </Card>
       </div>
+
+      {/* Quality Watch */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quality watch</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {qualityWatch.isLoading ? (
+            <LoadingState label="Loading quality watch..." />
+          ) : qualityWatch.isError ? (
+            <div className="py-4 text-center">
+              <p className="text-sm text-red-600">Failed to load quality watch.</p>
+              <Button variant="outline" size="sm" className="mt-2" onClick={() => void qualityWatch.refetch()}>
+                Retry
+              </Button>
+            </div>
+          ) : (qualityWatch.data ?? []).length === 0 ? (
+            <EmptyState
+              title="No quality issues right now"
+              description="No providers are flagged for low ratings, expiring NBI clearance, or dispute spikes."
+              icon={<AlertTriangle size={28} className="text-slate-400" />}
+            />
+          ) : (
+            <ul className="divide-y divide-[var(--color-border)]">
+              {(qualityWatch.data ?? []).map((p) => (
+                <li key={`${p.providerId}-${p.reason}`} className="py-3 flex items-start gap-3">
+                  <AlertTriangle className="text-amber-600" size={18} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[var(--color-text)]">{p.businessName}</p>
+                    <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{p.reason}</p>
+                  </div>
+                  <Link to={`/providers/${p.providerId}`}>
+                    <Button variant="ghost" size="sm">
+                      View <ChevronRight size={14} />
+                    </Button>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Wallets Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

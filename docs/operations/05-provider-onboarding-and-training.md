@@ -209,7 +209,7 @@ Every provider's first paid job gets a buddy. The buddy is an ops person (or a t
 - [ ] If 2 or more QA items failed, schedule retraining before they take more jobs
 - [ ] Log the result so `07-provider-support-sop.md` and tier reviews can see it
 
-Probation note: policy is a 3-job probation with mandatory before/after photos (DECISION-003). The buddy stays lightly involved through job 3, not just job 1.
+Probation note: policy is a 3-job probation with mandatory before/after photos (DECISION-003). The buddy stays lightly involved through job 3, not just job 1. The full post-approval monitoring SOP (what clearing probation means, the strike rule, and the signals that trigger a provider review) lives in `04-provider-vetting-and-filtering.md` Section 12. Log probation outcomes there in admin Notes so the tier and quality reviews can see them.
 
 ---
 

@@ -47,9 +47,13 @@ export const platformConfig = {
     elite: 0.09,
   } as Record<string, number>,
 
-  serviceFeeRate: 0.10,
+  // No customer platform fee (Ken, 2026-06-28). The live value still comes from
+  // /api/v1/config (service_fee_rate setting, currently 0), so this is only the
+  // cold-start / offline default — set to 0 so the customer never sees a fee
+  // flash before config loads. Re-enabling a fee is an admin Settings change.
+  serviceFeeRate: 0,
   guaranteeFundRate: 0.015,
-  minimumServiceFee: 2500,
+  minimumServiceFee: 0,
   maximumServiceFee: 50000,
 
   // Cancellation policy (Bug 1170/1198 fix, Phase 14 Dispatch 02): the tier

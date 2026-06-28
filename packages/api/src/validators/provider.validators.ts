@@ -36,6 +36,19 @@ export const providerApplicationSchema = z.object({
   // K-MED-K07: optional NBI expiry + ID number fields.
   nbiExpiryDate: isoDateString.optional(),
   governmentIdNumber: z.string().min(1).max(64).optional(),
+  // 2026-06-28: optional vetting questionnaire captured in onboarding (after the
+  // service-area step). All optional so older app builds still apply cleanly.
+  // yearsExperience maps to providers.years_experience; the rest persist as the
+  // providers.vetting_answers JSONB blob (mig 136) for admin review at approval.
+  yearsExperience: z.number().int().min(0).max(60).optional(),
+  mainSkills: z.string().max(500).optional(),
+  hasOwnTools: z.boolean().optional(),
+  reference: z
+    .object({
+      name: z.string().min(1).max(120),
+      contact: z.string().min(1).max(60),
+    })
+    .optional(),
 });
 
 export const updateProfileSchema = z.object({

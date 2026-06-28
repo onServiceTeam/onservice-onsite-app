@@ -15,6 +15,20 @@ Money-flow note (important): onService runs an instant-pay escrow model. The cus
 
 ---
 
+## 0. What "good" means here (the quality bar in one place)
+
+Before the per-job standards, anchor on what we are aiming for. "Good" is not a feeling, it is three checkable bars that the whole handbook shares. These match Section 0 of `04-provider-vetting-and-filtering.md`; keep them in sync.
+
+| Bar | What it is | The checkable threshold (starting target) |
+|---|---|---|
+| **Approval bar** | What it takes to get onto the platform | Vetting scorecard 80/100, all hard KYC requirements met, no auto-fail, skills check passed with no safety miss |
+| **Staying bar** | What keeps a provider in good standing | 4.5+ average rating, under 2 cancellations in any rolling 30 days, zero confirmed safety incidents, current NBI |
+| **Great bar** | The providers we promote, feature, and protect | 4.7+ average rating, 80%+ acceptance, 90%+ on-time, zero open disputes (this is the Pro/Elite gate and the green band below) |
+
+Why this matters for quality: the differentiation strategy (vetting rigor, escrow, the service guarantee, suki loyalty, the on-app record, all in `01-company-foundation.md` and `04-provider-vetting-and-filtering.md`) only holds if the people behind it actually clear and hold these bars. The KPIs in this doc are the instruments that tell us whether they do. A red number here is a trust problem, not just a metric.
+
+---
+
 ## 1. Service quality standards
 
 These describe a single completed job. Pull most of these from the provider's Jobs tab (`/providers/:id` Jobs tab) and the Bookings monitor (`/bookings`).
@@ -68,6 +82,16 @@ DROPS / suspension signals (act through the Providers page):
 - [ ] NBI clearance expired (provider drops out of trust standard until renewed; the `nbi_expiring` / expired worker warns 30 days out).
 
 Suspending a provider immediately removes them from dispatch (matching only considers `status='approved' AND is_available=TRUE`) and flags any in-flight bookings so escrow cannot release until an admin resolves it. See `07-provider-support-sop.md`.
+
+### Post-approval monitoring: probation, strikes, and review triggers
+
+Approval is the start of the trust relationship. `04-provider-vetting-and-filtering.md` Section 12 owns the full post-approval monitoring SOP; this is the quality-side summary so the weekly and monthly reviews catch the right signals.
+
+- **3-job probation.** A newly approved provider is on probation for their first 3 jobs, with mandatory before/after photos on each (DECISION-003, not code-enforced). Spot-check the Evidence tab. A no-show, dispute, off-platform attempt, or safety lapse on a probation job stops them from taking more jobs until ops decides retrain-or-remove.
+- **Strike rule (editable default):** three logged, confirmed conduct or quality problems in a rolling 90 days triggers a suspension review by the Operations Lead. Strike 1 is coaching, strike 2 a formal warning, strike 3 the review. Confirmed safety or trust incidents skip the count and go straight to suspension. Log strikes in admin Notes (category `quality`).
+- **Review triggers (open a provider review when any fires):** a confirmed safety/trust incident; the `provider_consecutive_one_star` alert; the cancellation warning (3/30 days) or suspend signal (5/30 days); any dispute, especially a `refund_with_suspension`; dropping below the dispatch rating floor; a probation job that went wrong; NBI expired and ignored; a third strike in 90 days; or a flagged off-platform pattern in chat (`messages.is_flagged`).
+
+A review means: read the provider's recent jobs, ratings, disputes, and Notes, decide coach / warn / suspend / no action, and log the decision. Try coaching before removal for fixable, non-safety issues; recruiting and vetting a replacement costs more than a coaching call.
 
 ### Provider quality scorecard (use in monthly reviews)
 
@@ -251,6 +275,8 @@ When you change a target, write the new number here and note the date and reason
 
 ## Open decisions set in this doc
 
+- Quality bars (Section 0): approval 80/100; staying 4.5+ rating, under 2 cancellations/30 days, zero safety incidents, current NBI; great 4.7+ rating, 80%+ acceptance, 90%+ on-time, zero open disputes. Mirrors `04-provider-vetting-and-filtering.md` Section 0 (editable).
+- Post-approval monitoring (Section 2): 3-job probation with mandatory photos; 3-strikes-in-90-days suspension review; safety incidents skip the strike count. Full SOP in `04-provider-vetting-and-filtering.md` Section 12 (editable).
 - E03 / instant-pay assumption for the KPIs: treat the E03 merge as a launch blocker before these targets mean anything (editable).
 - On-time window: +/- 15 minutes around `scheduled_at` (editable).
 - Provider scorecard acceptance and on-time bands: ops targets only, not code-enforced (editable).

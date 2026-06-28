@@ -27,6 +27,7 @@ export default function ProviderOnboardingLayout(): React.ReactElement {
       <Stack.Screen name="role-select" />
       <Stack.Screen name="categories" />
       <Stack.Screen name="service-area" />
+      <Stack.Screen name="vetting" />
       <Stack.Screen name="documents" />
       <Stack.Screen name="selfie" />
       <Stack.Screen name="terms" />

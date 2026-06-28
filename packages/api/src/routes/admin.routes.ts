@@ -1669,6 +1669,24 @@ router.post(
   },
 );
 
+// --- Quality Watch (read-only) ---
+//
+// Providers needing attention: low rating, NBI expiring, or a dispute spike.
+// Same admin RBAC as the other /analytics routes. Read-only.
+router.get(
+  '/analytics/quality-watch',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const data = await adminAnalyticsService.getQualityWatch();
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 // --- Commission Optimization ---
 
 router.get(

@@ -301,6 +301,11 @@ export interface ProviderApplicationInput {
   // application time (mig 115 + provider.validators.ts update).
   nbiExpiryDate?: string;
   governmentIdNumber?: string;
+  // 2026-06-28: optional onboarding vetting questionnaire (mig 136).
+  yearsExperience?: number;
+  mainSkills?: string;
+  hasOwnTools?: boolean;
+  reference?: { name: string; contact: string };
 }
 
 export async function createProviderApplication(
@@ -326,6 +331,17 @@ export async function createProviderApplication(
     // later) still work. The 42703 fallback handles deployments where
     // mig 115 hasn't been applied yet — we drop the new column from
     // the INSERT and retry with the legacy 11-column shape.
+    // Vetting questionnaire blob (mig 136). null when the applying client did
+    // not send any of the optional answers (older app build).
+    const vettingAnswers =
+      input.mainSkills != null || input.hasOwnTools != null || input.reference != null
+        ? JSON.stringify({
+            mainSkills: input.mainSkills ?? null,
+            hasOwnTools: input.hasOwnTools ?? null,
+            reference: input.reference ?? null,
+          })
+        : null;
+
     let providerResult;
     try {
       providerResult = await client.query<ProviderRow>(
@@ -333,8 +349,9 @@ export async function createProviderApplication(
           user_id, business_name, service_radius_km, latitude, longitude,
           city, province, government_id_front_url, government_id_back_url,
           nbi_clearance_url, selfie_url, nbi_expiry_date, government_id_number,
+          years_experience, vetting_answers,
           ic_agreement_accepted_at, applied_at, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW(), 'pending')
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, NOW(), NOW(), 'pending')
         RETURNING *`,
         [
           userId, input.businessName, input.serviceRadiusKm,
@@ -343,6 +360,8 @@ export async function createProviderApplication(
           input.nbiClearanceUrl, input.selfieUrl,
           input.nbiExpiryDate ?? null,
           input.governmentIdNumber ?? null,
+          input.yearsExperience ?? null,
+          vettingAnswers,
         ],
       );
     } catch (err: unknown) {

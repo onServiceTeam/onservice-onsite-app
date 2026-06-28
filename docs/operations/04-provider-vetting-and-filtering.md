@@ -6,6 +6,57 @@ Related docs: `03-provider-recruiting-sop.md` (where applicants come from), `05-
 
 ---
 
+## 0. What a great onService provider is (the quality bar)
+
+Before the checklists and scores, agree on what we are filtering FOR. The funnel below exists to find this person and to keep everyone else off the platform. If a step does not help us tell these two apart, cut it.
+
+A great onService provider is someone we would be happy to send to our own mother's home. In concrete, checkable terms, they are:
+
+- **A real, traceable person.** Government ID and selfie match the same face and the same name on the application. NBI clearance is current (issued within 6 months) and clean of anything that touches a stranger-in-your-home risk (theft, violence, sexual offenses). No identity gaps we cannot explain.
+- **Genuinely skilled in the category they claim.** They can answer the per-category skills questions in `13-policies-codes-and-templates.md` correctly, including the safety question, and they can show evidence of past work (photos, a short video, a TESDA or PRC certificate where the trade calls for one). They picked categories they can actually do well, not a long list to catch more jobs.
+- **Reliable.** They understand that a job is paid before they are matched, that 45 seconds means decide fast, and that no-shows leave a paying customer stranded. They have a working phone, charged, with notifications on. References describe someone who shows up.
+- **Professional and safe.** Clear communicator in chat, respects a customer's home, wears the shirt and shows the ID, uses change orders instead of side cash, and stops when a job is beyond their competence. On the electrical and aircon trades, they never give a wrong safety answer.
+- **On the platform to stay on the platform.** They get the trust model: escrow, ratings, the dispute window, on-app communication. They are not looking to peel customers off into cash deals.
+
+Make this concrete with three checkable thresholds the team can hold to (each an editable starting target):
+
+> **Set (editable):** the **approval bar** is a vetting scorecard of **80 of 100** (Section 3), every hard requirement in Section 1 met, no auto-fail triggered, and the per-category skills check passed with no safety-question miss. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+> **Set (editable):** the **staying bar** (what keeps a provider in good standing after approval) is an average rating of **4.5+**, fewer than **2** cancellations in any rolling 30 days, **zero** confirmed safety or trust incidents, and a current NBI clearance. Falling below this is what triggers the review and probation rules in Section 12. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+> **Set (editable):** the **great bar** (the providers we promote, feature, and protect) is an average rating of **4.7+**, an acceptance rate of **80%+**, on-time arrival **90%+**, and zero open disputes. This lines up with the Pro and Elite tier gates in Section 5 and the green bands in `12-quality-standards-and-kpis.md`. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+These three bars are the spine of this document. Section 1 to Section 8 are about clearing the approval bar. Section 12 is about holding the staying bar. The tier ladder in Section 5 is about rewarding the great bar.
+
+---
+
+## 0a. How we win on trust and quality (market differentiation)
+
+We do not compete on being the cheapest place to find a tradesperson. We compete on being the place a customer can trust without knowing the person. This section is the strategy, not slogans. Every line below is something the app actually does, so the vetting team can hold the bar knowing it is backed by the product.
+
+Who we are beating, and how:
+
+| We beat... | by... |
+|---|---|
+| The Facebook-group / word-of-mouth informal economy (a stranger who may not show, may not be who they say, takes cash, leaves no record) | ID + NBI verification on every approved provider, money held in escrow until the job is confirmed, a 48-hour dispute window, and a full on-app record of who did what |
+| Other booking apps that sign up anyone and let ratings sort it out later | A real vetting gate BEFORE the first job: scored scorecard, identity match, skills check, references, and a 3-job probation with mandatory before/after photos |
+| Off-platform cash deals (the thing even a good provider drifts toward) | The trust the customer loses the moment they leave the app: escrow, the dispute path, the guarantee fund, the suki history. Off-platform attempts are flagged and are grounds for suspension |
+
+The five things that are ours to defend, and what each does for the customer:
+
+1. **Vetting rigor (the front door).** We reject before we admit. A customer never has to be the one who finds out a provider was a fraud, because the scorecard, identity match, NBI check, skills check, and references did it first. This is the single biggest difference from the informal economy and from sign-up-anyone apps. The rest of this document is how we keep this rigorous and honest.
+2. **Escrow (the customer's money is safe).** The customer pays into the platform first; the money sits in escrow until they confirm the job or auto-confirm fires after 24 hours. The provider never has to chase payment and the customer never pays for nothing. If a provider is suspended mid-job, escrow freezes until an admin resolves it.
+3. **The ₱10,000 service guarantee (the safety net, NOT insurance).** We set aside about 1.5% of every service fee into a self-funded guarantee fund. For a provider-caused property-damage or theft claim with photo evidence filed inside the 48-hour window, we make the customer whole up to the cap, then claw it back from the provider's future payouts. This is a service guarantee, not an insurance product. We never say "insured," "insurance," "coverage," or quote it as insurance. See `09-trust-safety-and-disputes.md` for the claim rules and `01-company-foundation.md` Section 8 for why the wording matters legally.
+
+   > **Set (editable):** the customer-facing service-guarantee figure is **₱10,000 per claim**. Note this must be reconciled with `12-quality-standards-and-kpis.md` and `09-trust-safety-and-disputes.md`, which currently carry a ₱20,000 starting cap pending legal and accountant sign-off. Pick one number across all three docs before it goes in front of customers. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+4. **Suki loyalty (repeat trust, both sides).** Customers build a suki history (`new` / `regular` / `suki` / `super_suki`) the more they book. A vetted provider who does good work gets requested again and climbs the provider tier ladder (lower commission as they prove themselves). Trust compounds: the customer trusts the platform, then trusts a specific provider, then keeps coming back. The informal economy cannot offer a verified, rated, repeatable relationship with recourse behind it.
+5. **The on-app communication record (accountability).** Every booking has one chat thread, kept on-platform, with read receipts and photo evidence. If anything goes wrong, there is a record: who said what, when the provider arrived (GPS check-in), the before/after photos. This is the evidence that makes the dispute window and the guarantee fund work, and it is exactly what a cash deal in a Facebook DM does not have.
+
+What this means for the vetting team: you are the front door for all five. The escrow, the guarantee, suki, and the record only matter because the person on the doorstep was actually vetted. Do not wave someone through to hit a recruiting number. A bad approval does more damage to the brand than a slow queue, because it breaks the one promise the whole product is built on.
+
+---
+
 ## 1. The eligibility bar (must-haves)
 
 A provider does not get approved unless every line below is true. The first three are enforced in the admin app itself: the Approve button refuses to fire unless `nbi_clearance_url`, `government_id_front_url`, and `selfie_url` are all on file. The rest are policy we enforce by eye in the review queue.
@@ -35,59 +86,114 @@ Optional at application (nice to have, not blocking):
 - [ ] TESDA or other certification uploaded (required only for Elite tier).
 - [ ] Proof of address, business permit, tax certificate (the `provider_documents` store supports these kinds; collect when the category or city needs them).
 
+### Documents and checks required before you click Approve (the full list in one place)
+
+Use this as the pre-approval checklist. The first three are enforced by the app (the Approve button refuses without them). The rest you enforce by eye and by note.
+
+| Item | Required? | What good looks like | What disqualifies |
+|---|---|---|---|
+| Government ID, front and back | Yes (app-enforced front) | National ID, Passport, Driver's License, or UMID. Readable, not expired, name matches the application | Unreadable, expired, name mismatch, only one side |
+| Selfie / face check | Yes (app-enforced) | Clear face that matches the ID by eye. A live video selfie in the interview if the upload was poor | Different person from the ID, hidden face, refusal to do a live check when the upload was unclear |
+| NBI clearance | Yes (app-enforced) | Issued within the last 6 months, name matches, no disqualifying hit | Older than 6 months, name mismatch, theft/violence/sexual-offense hit, forged |
+| Proof of skill / certification | Where the trade needs it | Photos or short video of past work for all trades; a TESDA or PRC certificate for electrical work and for Elite tier | No evidence of any past work; a claimed cert that cannot be verified |
+| 2 references | Yes (policy) | 2 collected, at least 1 reached and positive, not relatives | Both unreachable, negative, or a relative posing as a customer |
+| Skills check passed | Yes (policy) | 4 of 6 per-category questions correct, no safety-question miss | A wrong safety answer, or fewer than 4 correct |
+| Inside a service area | Yes | Lat/lng inside a configured market, realistic radius | Outside every operating market with no launch planned |
+| IC agreement accepted | Yes (app-enforced) | `icAgreementAccepted: true`, timestamped server-side | Not accepted (cannot submit) |
+
+Selfie/liveness note: there is no automated liveness or face-match in v1.0. The selfie is reviewed by eye against the ID in the Provider Review queue. If the uploaded selfie is at all unclear, do a live face check during the interview (Section 4a, Group 1) before approving. Onfido/Persona automated liveness is a v1.1+ item.
+
+### Red flags (stop and do not approve)
+
+Any one of these is a hard stop. Reject (with the matching reason code from Section 8) or, where it is a document-quality problem, HOLD for a clean re-upload. These are also the auto-fails in Section 3.
+
+- The selfie and the government ID are clearly different people.
+- The NBI clearance shows a serious unresolved hit relevant to home-services safety: theft, violence, sexual offenses.
+- Any document looks forged, edited, or tampered with (mismatched fonts, altered dates, a recycled image).
+- The applicant lies about or hides an NBI record, then it shows up on the clearance.
+- A wrong answer on a safety question in the skills check (electrical and aircon especially).
+- The applicant pushes for cash up front or for taking customers off-platform during the interview.
+- A duplicate application, or an application using someone else's identity or documents.
+- References cannot be confirmed, or turn out to be relatives posing as customers, or are negative on honesty/safety.
+
+Softer flags (not an automatic reject, but lower the score and probe harder): a long list of claimed categories with evidence for only one, a casual attitude toward cancelling, a borrowed or shared phone, an address that does not line up with the service area, no proof of any past work.
+
 ---
 
 ## 2. The vetting funnel (stages)
 
+An applicant moves through these stages in order. Each stage is a gate: if a stage fails hard (an auto-fail), stop and reject. If a stage is just incomplete or unclear, HOLD and request the missing item. Only an applicant who clears every stage gets scored and approved.
+
 ```
 Application submitted (status = pending, applied_at set)
         |
-   [ Stage A ] Document completeness   -> missing? HOLD, request docs
+   [ Stage A ] Application + document completeness  -> missing? HOLD, request docs
         |
-   [ Stage B ] Identity match          -> ID vs selfie, ID number, name
+   [ Stage B ] Document / identity check            -> ID vs selfie, ID number, name match
         |
-   [ Stage C ] NBI clearance check     -> issued <6 months, name match, no disqualifying hit
+   [ Stage C ] NBI clearance check                  -> issued <6 months, name match, no disqualifying hit
         |
-   [ Stage D ] Service area + radius    -> inside an operating market
+   [ Stage D ] Skills + experience evidence         -> per-category skills check, proof of past work, certs
         |
-   [ Stage E ] Skills + references      -> skills test, 2 references (policy)
+   [ Stage E ] Interview + references               -> interview script (Section 4a), 2 references, 1+ confirmed
         |
-   [ Stage F ] Score the scorecard      -> Section 3, pass threshold
+   [ Stage F ] Service area + radius                -> inside an operating market, realistic radius
         |
-   APPROVE  /  REJECT  /  HOLD
+   [ Stage G ] Score the scorecard                  -> Section 3, pass threshold 80/100
+        |
+   APPROVE -> 3-job probation (Section 12) -> full standing
+   REJECT  (reason code R01-R10, Section 8)
+   HOLD    (leave at pending, message for the missing item, log in Notes)
 ```
 
-An applicant lands in the **Providers** page filtered to `status = pending` (the Dashboard has a "pending providers" link straight to `/providers?status=pending`). Work the queue oldest-first by `applied_at`.
+What is checked at each stage, in one place:
+
+| Stage | What you are checking | Pass condition | Where it scores |
+|---|---|---|---|
+| **A. Application + documents** | All required fields filled; gov ID front + back, NBI, selfie all uploaded and readable | Nothing missing; images clear enough to judge | Gates the rest. Missing = HOLD |
+| **B. Document / identity** | Selfie face matches the ID face (by eye); name on ID matches application; ID not expired; ID number recorded | Same person, same name, valid ID | Criterion 1 (25 pts) |
+| **C. NBI clearance** | Issued within 6 months; name matches; no disqualifying hit (theft, violence, sexual offenses) | Current, name matches, clean or explainable | Criterion 2 (25 pts) |
+| **D. Skills + experience** | Per-category skills questions from doc 13 answered; proof of past work (photos/video); TESDA/PRC cert where the trade needs it | 4 of 6 skills questions correct, no safety miss; some real evidence of past work | Criterion 3 (20 pts) |
+| **E. Interview + references** | Short interview using the Section 4a script; 2 references collected, at least 1 reached and positive | Interview answers consistent and sensible; 1+ reference confirms reliability | Criteria 4 + 6 (10 + 10 pts) |
+| **F. Service area + radius** | Provider lat/lng inside a configured market; service radius 1 to 50 km and realistic for where they are | Inside an active or recruiting market | Criterion 5 (10 pts) |
+| **G. Score** | Add up the scorecard, apply the pass marks and auto-fails | 80+ and no auto-fail | Section 3 |
+
+An applicant lands in the **Providers** page filtered to `status = pending` (the Dashboard has a "pending providers" link straight to `/providers?status=pending`). Work the queue oldest-first by `applied_at`. The interview and reference calls (Stage E) happen outside the app; schedule them once Stages A to D look clean, so you do not spend time interviewing someone who fails a document check.
 
 ---
 
-## 3. Vetting scorecard
+## 3. Vetting scorecard (the scored approval rubric)
 
-Score each applicant out of 100. These weights and the pass mark are starting targets; tune them after the first 50 providers.
+Score each applicant out of 100. This is the rubric that turns the funnel stages into a pass/fail you can defend. Each criterion maps to a stage in Section 2. These weights and the pass mark are starting targets; tune them after the first 50 providers.
 
-| # | Criterion | Weight | How to score |
+| # | Criterion (and the stage it comes from) | Weight | How to score |
 |---|---|---|---|
-| 1 | Identity verified (ID readable, not expired, selfie matches face) | 25 | 25 full match, 12 partial/blurry, 0 mismatch |
-| 2 | NBI clearance valid (issued <6 months, name matches, clean or explainable) | 25 | 25 clean, 10 minor/explained hit, 0 missing or serious hit |
-| 3 | Skills evidence for claimed categories (skills test, photos of past work, certification) | 20 | 20 strong, 10 some, 0 none |
-| 4 | References (2 collected, at least 1 confirmed positive) | 10 | 10 both confirmed, 5 one confirmed, 0 none |
-| 5 | Service area fit (inside an active/soft-launch market, realistic radius) | 10 | 10 inside active market, 5 inside recruiting market, 0 outside |
-| 6 | Professionalism signals (complete profile, clear bio, responsive during application, equipment owned) | 10 | 10 strong, 5 thin, 0 red flags |
+| 1 | Identity verified (Stage B): ID readable, not expired, name matches, selfie matches face | 25 | 25 full match, 12 partial/blurry, 0 mismatch |
+| 2 | NBI clearance valid (Stage C): issued <6 months, name matches, clean or explainable | 25 | 25 clean, 10 minor/explained hit, 0 missing or serious hit |
+| 3 | Skills + experience evidence (Stage D): skills questions passed, photos/video of past work, certification | 20 | 20 strong (passed skills check + real evidence), 10 some, 0 none or a safety miss |
+| 4 | References (Stage E): 2 collected, at least 1 confirmed positive | 10 | 10 both confirmed, 5 one confirmed, 0 none |
+| 5 | Service area fit (Stage F): inside an active/soft-launch market, realistic radius | 10 | 10 inside active market, 5 inside recruiting market, 0 outside |
+| 6 | Professionalism + reliability signals (Stages E and interview): clear interview answers, complete profile, responsive during application, on-platform mindset, equipment owned | 10 | 10 strong, 5 thin, 0 red flags |
 
 Pass marks (starting targets):
 
-- **80 to 100** - Approve.
-- **60 to 79** - Hold, ask for one more thing (better photo, a reference, a clearer NBI), then re-score.
+- **80 to 100** - Approve (provided no auto-fail triggered and the skills check had no safety miss). The provider then enters the 3-job probation (Section 12).
+- **60 to 79** - Hold, ask for one more thing (better photo, a reference, a clearer NBI, a missing skills answer), then re-score. Holding is not a status; leave them at `pending` and log the reason in Notes.
 - **Below 60** - Reject, with a reason code from Section 8.
 
-Auto-fail overrides (any one of these = reject regardless of total score):
+> **Set (editable):** the approval pass mark is **80 of 100**. This matches the approval bar in Section 0. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+Auto-fail overrides (any one = reject regardless of total score; these are the Section 1 red flags):
 
 - ID and selfie are clearly different people.
 - NBI clearance shows a serious unresolved hit relevant to home-services safety (theft, violence, sexual offenses).
 - Document is forged or tampered.
+- A wrong answer on a safety question in the skills check.
+- The applicant pushed for cash up front or for off-platform deals in the interview.
+- Duplicate or identity-fraud application.
 - Provider is outside every operating service area and no launch is planned there.
 
-Record the score and the reason in admin Notes before you act, so the decision is auditable.
+Record the score, the criterion breakdown, and the reason in admin Notes before you act, so the decision is auditable. A one-line note like "Score 84: ID 25, NBI 25, skills 20, refs 5, area 5, prof 4. 1 reference confirmed, other unreachable. Approved." is enough.
 
 ---
 
@@ -105,6 +211,73 @@ We do not have an automated skills test in the app. Run this manually and log th
 > **Set (editable):** yes, we keep a fixed per-category skills question bank (cleaning, aircon, plumbing, electrical), maintained as a real section in `13-policies-codes-and-templates.md`. The table above stays as the in-context quick reference; the full questions live in doc 13 so they are version-controlled in one place. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 Certifications: providers can self-add certifications in the mobile app (name, issuing body, default TESDA, certificate number, expiry). The certification stays unverified until an admin marks `is_verified`. A verified certification is mandatory for Elite tier.
+
+---
+
+## 4a. The interview script and application questionnaire (the exact questions to ask)
+
+The application in the app collects documents and categories. It does not tell you who the person is. A short interview does. Run it by phone or video once Stages A to D look clean (do not interview someone who already failed a document check). Keep it to 15 to 20 minutes. Record the answers in the provider's admin Notes (category `general` or `quality`).
+
+The questions below are grouped by what they reveal, so you know what you are listening for, not just what to ask. You do not have to read them word for word, but cover every group. Bisaya, Tagalog, or English, whatever the applicant is comfortable in.
+
+> **Set (editable):** the interview is a required vetting step (it feeds Stage E and Criteria 4 and 6 on the scorecard). At launch it is a phone or video call by the vetting owner; there is no in-app interview feature. Record answers in admin Notes until a dedicated field exists. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+### Group 1 - Identity and traceability (confirm they are who the documents say)
+
+1. Please state your full name and your birthday. (Cross-check against the government ID.)
+2. What is the address where you currently live, and how long have you been there? (A real, stable address; cross-check against the service area.)
+3. Is the phone number you applied with the one you use every day? Do you keep notifications on? (The whole dispatch model depends on this.)
+4. Can you do a quick video selfie now, or hold your ID next to your face? (Only if the uploaded selfie was unclear. A live face-match is the strongest signal we have without automated liveness.)
+
+Red flags: name or birthday does not match the ID, evasive about address, a borrowed or shared phone, refusal to do a live face check when the selfie was poor.
+
+### Group 2 - Skills and experience (confirm they can actually do the work)
+
+5. How long have you been doing [category] work, and where did you learn it? (Apprenticeship, TESDA, on the job, family trade. Any honest answer is fine; vagueness is not.)
+6. Walk me through the last [aircon clean / outlet repair / deep clean / leak fix] you did. What did you find, what did you do? (You are listening for someone who has actually done the work, not memorized a checklist.)
+7. Do you have photos or a short video of past jobs you can send? (Feeds the skills-evidence score.)
+8. [Ask 2 to 3 of the per-category skills questions from `13-policies-codes-and-templates.md`, including one safety question.] (The full skills check; a wrong safety answer is a fail.)
+9. Which categories did you apply for, and which one are you strongest in? (Listen for someone who picked categories they can do well versus someone casting a wide net.)
+
+Red flags: cannot describe a real recent job, no proof of any past work, wrong answer on a safety question, claims many categories but can only speak to one.
+
+### Group 3 - Reliability (confirm they will show up)
+
+10. How do you decide whether to accept a job? (You want someone who only accepts what they can reach on time, not someone who accepts everything.)
+11. A customer booked you for 9:00 AM and you are running 30 minutes late. What do you do? (Right answer: message the customer immediately with a real ETA, through the app.)
+12. What would make you cancel a job you already accepted? (Listen for genuine reasons versus a casual attitude to cancelling.)
+13. How many jobs a week are you hoping to do, and what other work do you have going on? (Sets expectations and surfaces anyone who cannot realistically be available.)
+
+Red flags: treats cancelling lightly, no plan for being reachable, overcommitted elsewhere, expects to pick and choose far more than accept.
+
+### Group 4 - Professionalism and the platform model (confirm they will represent us well and stay on-platform)
+
+14. A customer pays onService first, the money is held safely, and you get paid after the job is confirmed. How does that sound to you? (You want comfort with escrow, not someone who insists on cash up front.)
+15. A happy customer says "next time just contact me directly, skip the app." What do you say? (Right answer: keep it on the app. This is the off-platform test. A wrong answer here is a serious flag.)
+16. The job needs extra work beyond what was booked. How should that be handled? (Right answer: a change order in the app, customer approves and pays first, never side cash.)
+17. What do you wear and bring to a job? (Looking for: the onService shirt, visible ID, own basic tools and supplies.)
+18. A customer is unhappy with part of the work. What do you do? (Looking for: stay calm, re-do or fix it, escalate through the app if needed, not argue.)
+
+Red flags: wants cash up front, comfortable taking customers off-platform, plans to charge side cash for extras, dismissive about uniform and ID, gets defensive about a complaint.
+
+### Group 5 - Safety and conduct (the non-negotiables)
+
+19. Tell me about a time a job turned out to be unsafe or beyond what you could do. What did you do? (Right answer: stopped, did not improvise, escalated or referred. "I just figured it out" on an unsafe job is a flag.)
+20. Is there anything in your NBI record we should know about before we check it? (Gives an honest applicant the chance to explain a minor, unrelated hit. Listen for honesty; a surprise on the NBI after they said "nothing" is its own red flag.)
+21. Are you comfortable working in a customer's home, and following their house rules (no smoking inside, ask before moving things, clean up after)? (Sets the baseline of respect for the home.)
+
+Red flags: improvises on unsafe work, hides or lies about an NBI hit, casual about respecting a customer's home or belongings.
+
+### Reference questions (call at least 1 of the 2 references)
+
+Ask a former customer or employer, not a relative. Keep it to four questions:
+
+1. How do you know [applicant], and for how long?
+2. What kind of work did they do for you?
+3. Did they show up on time and finish the job? Would you hire them again?
+4. Was there ever a problem with honesty, safety, or your property?
+
+A reference who hesitates on question 3 or 4, or who turns out to be a relative posing as a customer, does not count as confirmed. Log who you reached and what they said.
 
 ---
 
@@ -286,10 +459,79 @@ Monthly:
 
 ---
 
-## 12. Open decisions set in this doc
+## 12. Post-approval quality monitoring (probation, strikes, offboarding)
 
+Approval is the start of the trust relationship, not the end of vetting. A provider holds the **staying bar** from Section 0 (4.5+ average rating, fewer than 2 cancellations in any 30 days, zero confirmed safety incidents, current NBI) to stay in good standing. This section is how we watch for it and what we do when it slips. Most of these signals are visible on the provider's admin detail page and on the Dashboard; the quality KPIs and the monthly scorecard live in `12-quality-standards-and-kpis.md`.
+
+### 12.1 The 3-job probation (the most important early filter)
+
+Every newly approved provider is on probation for their first 3 jobs. This is policy (DECISION-003), not enforced in code, so ops watches it deliberately. See `05-provider-onboarding-and-training.md` for the buddy/QA process.
+
+- [ ] Before/after photos are **mandatory** on all 3 probation jobs. Spot-check that they were actually uploaded (Booking detail, Evidence tab). No photos is a probation fail to address before more jobs.
+- [ ] A buddy/QA owner is on standby for the first job and lightly involved through job 3.
+- [ ] A serious problem on a probation job (no-show, a dispute, an off-platform attempt, a safety lapse) means stop, do not let them take more jobs, and decide between retraining and removal.
+
+> **Set (editable):** probation is the first **3 completed jobs**, with mandatory before/after photos and a buddy on standby. Clearing probation means all 3 done with photos, no dispute, no safety or off-platform incident. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+### 12.2 Rating and reliability thresholds (the ongoing watch)
+
+| Signal | Green (good standing) | Watch (review + coach) | Act (suspension decision) |
+|---|---|---|---|
+| Average rating (after 5+ reviews) | 4.5+ | 4.3 to 4.49, or any 1-star without a logged reason | Below 4.3, or below the 2.5 dispatch floor |
+| Cancellations (rolling 30 days) | 0 to 1 | 3 (the warning threshold) | 5 (the auto-suspend signal) |
+| Disputes | 0 open | 1 open, or a `free_redo` resolution | A `refund_with_suspension` resolution (auto-suspends) |
+| Repeated 1-star ratings | none | the `provider_consecutive_one_star` alert fires | a pattern with confirmed cause |
+| NBI clearance | `valid` | `expiring` (30-day warning) | `expired` and ignoring the chase |
+| On-time arrival | 90%+ | 75 to 89% | under 75% with complaints |
+
+The numbers above are the same ones used by the app's config and by `12-quality-standards-and-kpis.md`. The dispatch rating floor (`total_reviews >= 5` AND `rating < 2.5`) is automatic and silently drops a provider from offers; treat it as a trigger to review for a manual suspension, not as the whole response.
+
+### 12.3 The strike rule (how to be fair and consistent)
+
+Cancellations and ratings already have built-in thresholds. For everything else (rudeness, a minor off-platform nudge that was not a full bypass, sloppy work that did not reach a dispute, repeatedly ignoring the photo rule), use a simple, logged strike rule so the team is consistent and the provider is treated fairly.
+
+> **Set (editable):** **three strikes in a rolling 90 days = suspension review.** A strike is a logged, confirmed conduct or quality problem that is below the bar for an immediate suspension. Strike 1 is a coaching message, strike 2 is a formal warning with a note that the next one triggers review, strike 3 is a suspension review by the Operations Lead. Confirmed safety or trust incidents (theft, harassment, a no-show that stranded a customer, a real off-platform deal) skip the strike count and go straight to suspension. Log every strike in admin Notes (category `quality`) with the date and what happened. _Recommended default. To change it, edit here and anywhere this value is referenced._
+
+### 12.4 What triggers an admin review (the signal list)
+
+Open a provider review when any of these fire. A review means: read the provider's recent jobs, ratings, disputes, and Notes, then decide coach / warn / suspend / no action, and log the decision.
+
+- A confirmed safety or trust incident (always, immediately).
+- The `provider_consecutive_one_star` alert.
+- Hitting the cancellation warning (3 in 30 days) or suspend signal (5 in 30 days).
+- Any dispute filed against them, and especially a `refund_with_suspension` resolution (which auto-suspends).
+- Dropping below the dispatch rating floor (5+ reviews, under 2.5).
+- A probation job that went wrong (Section 12.1).
+- NBI flipped to `expired` and the provider is ignoring the renewal chase.
+- A third strike in 90 days (Section 12.3).
+- A pattern flagged in chat: repeated off-platform attempts (`messages.is_flagged`).
+
+### 12.5 Offboarding (when to remove someone for good)
+
+There is no hard delete; removal is Suspend-and-leave-suspended (Section 9). Offboard a provider for good when:
+
+- A confirmed serious safety or trust incident (theft, violence, harassment, sexual misconduct).
+- A forged document or identity fraud discovered after approval (also a reason to flag for fraud review).
+- A real, repeated off-platform-deal pattern after a warning.
+- They reach the suspension threshold on cancellations or ratings and do not improve after a warning and a coaching window.
+
+Offboarding steps: suspend with a specific, audited reason (Section 9), resolve any frozen in-flight bookings deliberately so no customer money is stuck, and leave them suspended. Do not re-approve a provider offboarded for a safety, fraud, or theft reason. A provider offboarded for a fixable reason (lapsed NBI, fixable reliability) can be reconsidered later as a fresh review.
+
+### 12.6 Coaching before removal (keep the good ones)
+
+A provider who is genuinely skilled but slipping is worth saving; recruiting and vetting a replacement costs more than a coaching call. Before a suspension review for a non-safety issue, try a coaching message: name the specific problem (late twice this week, two re-dos, photos missing), point to the standard, and offer a fix (retraining on the app flow, a refresher on the skills standard). Log it as the strike-1 coaching step. This does not apply to safety, fraud, or off-platform-deal cases, which skip straight to suspension.
+
+---
+
+## 13. Open decisions set in this doc
+
+- **Quality bars (Section 0):** approval bar 80/100 + all hard requirements + no auto-fail; staying bar 4.5+ rating, under 2 cancellations/30 days, zero safety incidents, current NBI; great bar 4.7+ rating, 80%+ acceptance, 90%+ on-time, zero open disputes. (editable)
+- **Service-guarantee figure (Section 0a):** ₱10,000 per claim customer-facing; reconcile with the ₱20,000 starting cap in docs 09 and 12 before it goes in front of customers. (editable)
+- **Interview is a required vetting step (Section 4a):** phone/video call by the vetting owner, answers logged in admin Notes. (editable)
 - **References and skills-test storage:** keep both in the provider's admin Notes for launch (no dedicated `references` or `skills_test_result` field). (editable)
 - **Per-category skills question bank:** yes, a fixed bank per category, maintained as a real section in `13-policies-codes-and-templates.md`. (editable)
+- **Probation (Section 12.1):** first 3 completed jobs, mandatory before/after photos, buddy on standby. (editable)
+- **Strike rule (Section 12.3):** 3 strikes in a rolling 90 days = suspension review; safety/trust incidents skip the count. (editable)
 - **NBI expiry handling:** no auto-suspend; manual chase by support, then manual suspend if ignored. (editable)
 - **Rejection reason codes:** adopt the R01-R10 taxonomy in Section 8. (editable)
 

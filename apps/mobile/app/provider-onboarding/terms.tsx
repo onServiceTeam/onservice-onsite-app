@@ -41,6 +41,21 @@ export default function TermsScreen(): React.ReactElement {
         // Phase K MED-K07 — optional fields, dropped server-side when undefined.
         ...(store.nbiExpiryDate ? { nbiExpiryDate: store.nbiExpiryDate } : {}),
         ...(store.governmentIdNumber ? { governmentIdNumber: store.governmentIdNumber } : {}),
+        // Vetting questionnaire (collected on the new vetting step). The
+        // apply schema strips unknown keys today, so these ride along
+        // harmlessly and are ready to persist once the apply endpoint
+        // reads them. yearsExperience maps to providers.years_experience.
+        ...(store.yearsExperience != null ? { yearsExperience: store.yearsExperience } : {}),
+        ...(store.mainSkills.trim() ? { mainSkills: store.mainSkills.trim() } : {}),
+        hasOwnTools: store.hasOwnTools,
+        ...(store.referenceName.trim()
+          ? {
+              reference: {
+                name: store.referenceName.trim(),
+                contact: store.referenceContact.trim(),
+              },
+            }
+          : {}),
       });
       return res.data;
     },
@@ -90,9 +105,10 @@ export default function TermsScreen(): React.ReactElement {
           <View style={[styles.progressDot, styles.progressDone]} />
           <View style={[styles.progressDot, styles.progressDone]} />
           <View style={[styles.progressDot, styles.progressDone]} />
+          <View style={[styles.progressDot, styles.progressDone]} />
           <View style={[styles.progressDot, styles.progressActive]} />
         </View>
-        <Text style={styles.step}>5 / 5</Text>
+        <Text style={styles.step}>6 / 6</Text>
       </View>
 
       <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>

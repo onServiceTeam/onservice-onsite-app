@@ -161,6 +161,7 @@ export const Routes = {
     ROLE_SELECT: '/provider-onboarding/role-select',
     CATEGORIES: '/provider-onboarding/categories',
     SERVICE_AREA: '/provider-onboarding/service-area',
+    VETTING: '/provider-onboarding/vetting',
     DOCUMENTS: '/provider-onboarding/documents',
     SELFIE: '/provider-onboarding/selfie',
     TERMS: '/provider-onboarding/terms',

@@ -1452,6 +1452,63 @@ export async function getOperationalAlerts(): Promise<DashboardAlert[]> {
   }));
 }
 
+// ────────────────────────────────────────────────────────────────────
+// QUALITY WATCH — providers needing attention (read-only)
+// ────────────────────────────────────────────────────────────────────
+//
+// Surfaces approved providers that match any of three attention rules:
+//   1. Low rating       — status='approved' AND rating < 3.5 AND total_reviews >= 3
+//   2. NBI expired/expiring — nbi_expiry_date < now() + 30 days
+//   3. Dispute spike    — >= 2 disputes in the last 30 days (disputes → bookings → provider)
+//
+// A provider can match more than one rule; each match is emitted as its own
+// row so the admin sees every reason. Read-only — no money or status mutations.
+
+export interface QualityWatchProvider {
+  providerId: string;
+  businessName: string;
+  reason: string;
+}
+
+export async function getQualityWatch(): Promise<QualityWatchProvider[]> {
+  const rows = await db.query<{ provider_id: string; business_name: string; reason: string }>(
+    `WITH low_rating AS (
+       SELECT p.id AS provider_id, p.business_name, 'Low rating' AS reason
+         FROM providers p
+        WHERE p.status = 'approved'
+          AND p.rating < 3.5
+          AND p.total_reviews >= 3
+     ),
+     nbi_expiring AS (
+       SELECT p.id AS provider_id, p.business_name, 'NBI expired/expiring' AS reason
+         FROM providers p
+        WHERE p.nbi_expiry_date IS NOT NULL
+          AND p.nbi_expiry_date < (NOW() + INTERVAL '30 days')
+     ),
+     dispute_spike AS (
+       SELECT p.id AS provider_id, p.business_name, 'Dispute spike' AS reason
+         FROM providers p
+         JOIN bookings b ON b.provider_id = p.id
+         JOIN disputes d ON d.booking_id = b.id
+        WHERE d.created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY p.id, p.business_name
+       HAVING COUNT(d.id) >= 2
+     )
+     SELECT provider_id, business_name, reason FROM low_rating
+     UNION ALL
+     SELECT provider_id, business_name, reason FROM nbi_expiring
+     UNION ALL
+     SELECT provider_id, business_name, reason FROM dispute_spike
+     ORDER BY business_name ASC, reason ASC`,
+  );
+
+  return rows.rows.map((r) => ({ // SAFE-N+1: in-memory row-to-DTO projection of unioned result; no DB calls inside map.
+    providerId: r.provider_id,
+    businessName: r.business_name,
+    reason: r.reason,
+  }));
+}
+
 export async function getCitiesPerformance(): Promise<CityPerformance[]> {
   const rows = await db.query<{
     id: string;

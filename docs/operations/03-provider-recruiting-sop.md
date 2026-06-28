@@ -296,6 +296,8 @@ Plain-language pitch: start at New (15 percent), or get into the Founding batch 
 
 The moment an applicant submits (status `pending`), recruiting is done and screening begins. Do not coach anyone on how to pass a check, and never accept or photograph documents yourself. The mobile app collects them directly and securely.
 
+Recruit toward the approval bar, not just toward a submission. The vetting team approves only applicants who clear a scored scorecard (80 of 100), an identity and NBI check, a per-category skills check, an interview, and 2 references, then complete a 3-job probation. The full bar and the interview script are in `04-provider-vetting-and-filtering.md` (Sections 0, 3, and 4a). The practical recruiting takeaway: target genuinely skilled, NBI-cleared, reliable tradespeople. Sending volume that cannot pass the skills or NBI check just drops your submitted-to-approved rate (Section 11).
+
 Hand-off checklist:
 
 - [ ] Applicant submitted in-app (status `pending`)

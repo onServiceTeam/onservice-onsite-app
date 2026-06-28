@@ -273,8 +273,12 @@ export default function CheckoutScreen(): React.ReactElement {
             </View>
           )}
           <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Platform Fee</Text>
-            <Text style={styles.priceValue}>{formatPHP(serviceFee)}</Text>
+            <Text style={styles.priceLabel}>Platform fee</Text>
+            {serviceFee > 0 ? (
+              <Text style={styles.priceValue}>{formatPHP(serviceFee)}</Text>
+            ) : (
+              <Text style={styles.priceFree}>Free</Text>
+            )}
           </View>
           <View style={styles.priceDivider} />
           <View style={styles.priceRow}>
@@ -282,6 +286,16 @@ export default function CheckoutScreen(): React.ReactElement {
             <Text style={styles.totalValue}>{formatPHP(total)}</Text>
           </View>
         </Card>
+
+        {/* Customer benefits (Ken, 2026-06-28): no app-usage fees; the price you
+            see is the price you pay. Suki points + the escrow + ₱10,000 service
+            guarantee are surfaced so the value is clear at the pay screen. */}
+        <View style={styles.benefitsCard}>
+          <Text style={styles.benefitLine}>✓  No platform fees — you only pay for the service</Text>
+          <Text style={styles.benefitLine}>✓  Held in escrow, released only when you confirm the job</Text>
+          <Text style={styles.benefitLine}>✓  Eligible jobs backed by our Service Guarantee, up to ₱10,000 (subject to terms)</Text>
+          <Text style={styles.benefitLine}>✓  Earn Suki points on this booking</Text>
+        </View>
 
         <TrustStrip style={styles.trustStrip} />
 
@@ -432,6 +446,15 @@ const styles = StyleSheet.create({
   },
   priceLabel: { ...typography.body, color: colors.textSecondary },
   priceValue: { ...typography.body, color: colors.text, fontWeight: '500' },
+  priceFree: { ...typography.body, color: colors.success, fontWeight: '700' },
+  benefitsCard: {
+    backgroundColor: colors.successLight ?? '#E8F5EC',
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.md,
+    gap: 6,
+  },
+  benefitLine: { ...typography.bodySmall, color: colors.text, lineHeight: 20 },
   priceDivider: {
     height: 1,
     backgroundColor: colors.border,

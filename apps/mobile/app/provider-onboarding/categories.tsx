@@ -89,8 +89,9 @@ export default function CategoriesScreen(): React.ReactElement {
           <View style={styles.progressDot} />
           <View style={styles.progressDot} />
           <View style={styles.progressDot} />
+          <View style={styles.progressDot} />
         </View>
-        <Text style={styles.step}>1 / 5</Text>
+        <Text style={styles.step}>1 / 6</Text>
       </View>
 
       <Text style={styles.title}>Your Services</Text>
