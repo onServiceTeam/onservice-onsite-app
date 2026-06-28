@@ -16,7 +16,9 @@ export interface Message {
   conversationId: string;
   senderId: string;
   content: string;
-  messageType: 'text' | 'image' | 'location';
+  // 'system' is sent by the server for admin/system notices and for a message
+  // that a moderator redacted (the content becomes a system notice).
+  messageType: 'text' | 'image' | 'location' | 'system';
   imageUrl: string | null;
   isRead: boolean;
   createdAt: string;
@@ -62,6 +64,11 @@ export async function sendMessage(
 
 export async function markConversationRead(conversationId: string): Promise<void> {
   await api.post(`/api/v1/conversations/${conversationId}/read`);
+}
+
+/** Report a message to the moderation team; it surfaces in the admin queue. */
+export async function reportMessage(messageId: string, reason: string): Promise<void> {
+  await api.post(`/api/v1/conversations/messages/${messageId}/report`, { reason });
 }
 
 export async function getUnreadCount(): Promise<number> {

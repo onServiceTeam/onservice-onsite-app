@@ -119,6 +119,8 @@ export const Routes = {
     // future code that calls Routes.PROVIDER.SERVICE_AREAS expecting
     // it to work. Renamed key to SERVICE_AREA to match the file.
     SERVICE_AREA: '/provider/service-area',
+    // In-app quality standards / community guidelines.
+    STANDARDS: '/provider/standards',
     NOTIFICATIONS: '/provider/notifications',
     SERVICES: '/provider/services',
     CALENDAR: '/provider/calendar',

@@ -51,6 +51,8 @@ export type NotificationType =
   // Provider-side
   | 'new_job_available' | 'job_accepted'
   | 'rating_received' | 'tier_upgrade' | 'nbi_expiring'
+  // Provider-facing quality-standing nudge (emitted on a low review rating).
+  | 'quality_standing'
   | 'provider_approved' | 'provider_rejected' | 'provider_suspended'
   | 'provider_reactivated' | 'provider_tier_changed'
   // D23 — provider is told when back-office decides on a team member they added.

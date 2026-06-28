@@ -197,6 +197,20 @@ export default function ProviderHelpScreen(): React.ReactElement {
 
           <TouchableOpacity
             style={styles.contactBtn}
+            onPress={() => router.push(Routes.PROVIDER.STANDARDS)}
+            accessibilityRole="button"
+            accessibilityLabel="Read the provider standards and guidelines"
+          >
+            <View style={styles.contactBtnIconWrap}><Wrench size={22} color={colors.primary} /></View>
+            <View style={styles.contactBtnInfo}>
+              <Text style={styles.contactBtnLabel}>Provider standards</Text>
+              <Text style={styles.contactBtnValue}>Quality, conduct, and how your standing works</Text>
+            </View>
+            <ChevronRight size={20} color={colors.textTertiary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.contactBtn}
             onPress={() => openEmail()}
             accessibilityRole="button"
             accessibilityLabel={`Email provider support at ${SUPPORT_EMAIL}`}

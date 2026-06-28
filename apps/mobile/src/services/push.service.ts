@@ -170,6 +170,12 @@ function resolveDeepLink(data: NotificationData): string | null {
     case 'nbi_expiring':
       return '/provider/settings';
 
+    case 'rating_received':
+      return '/provider/reviews';
+
+    case 'quality_standing':
+      return '/provider/standards';
+
     case 'business_update':
       return '/(provider-tabs)/dashboard';
 

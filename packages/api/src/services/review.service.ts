@@ -198,6 +198,19 @@ export async function createReview(
             : `${stars} — Tap to read in your Reviews tab.`,
           data: { reviewId: review.id, bookingId, rating: data.rating },
         });
+
+        // Provider-facing quality-standing nudge on a low rating: constructive,
+        // not punitive — points the provider at the in-app standards/tips so
+        // they can improve. Complements the admin Quality Watch alerts.
+        if (data.rating <= 2) {
+          await notificationService.createNotification({
+            userId: providerUserId,
+            type: 'quality_standing',
+            title: 'A customer rated this job low',
+            body: 'Every job counts toward your standing on onService. Tap to see our quality standards and tips to bounce back.',
+            data: { reviewId: review.id, bookingId, rating: data.rating, route: '/provider/standards' },
+          });
+        }
       }
     } catch (notifyErr) {
       logger.error('rating_received notification failed (non-fatal)', {

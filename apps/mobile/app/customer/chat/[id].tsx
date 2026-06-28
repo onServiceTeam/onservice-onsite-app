@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +27,7 @@ import {
   getMessages,
   sendMessage as sendMessageApi,
   markConversationRead,
+  reportMessage,
   type Message,
 } from '@/services/messaging.service';
 import {
@@ -230,10 +232,32 @@ export default function ChatScreen(): React.ReactElement {
     }
   };
 
+  const handleReport = useCallback((messageId: string) => {
+    const submit = (reason: string): void => {
+      void reportMessage(messageId, reason)
+        .then(() => showToast('Reported. Our team will review it.', 'success'))
+        .catch(() => showToast('Could not report this message. Please try again.', 'error'));
+    };
+    Alert.alert('Report message', 'Why are you reporting this message?', [
+      { text: 'Spam', onPress: () => submit('spam') },
+      { text: 'Harassment or abuse', onPress: () => submit('harassment') },
+      { text: 'Scam / asking to pay off the app', onPress: () => submit('scam_or_off_platform') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, []);
+
   const renderMessage = ({ item }: { item: Message }): React.ReactElement => {
     const isMine = item.senderId === userId;
+    // You can report the other party's real messages (not your own, not system).
+    const canReport = !isMine && item.messageType !== 'system';
     return (
-      <View style={[styles.messageBubble, isMine ? styles.myBubble : styles.theirBubble]}>
+      <TouchableOpacity
+        activeOpacity={canReport ? 0.7 : 1}
+        onLongPress={canReport ? () => handleReport(item.id) : undefined}
+        delayLongPress={350}
+        style={[styles.messageBubble, isMine ? styles.myBubble : styles.theirBubble]}
+        accessibilityHint={canReport ? 'Long press to report this message' : undefined}
+      >
         {item.messageType === 'image' && item.imageUrl && (
           <LazyImage source={item.imageUrl} style={styles.chatImage} contentFit="cover" accessibilityLabel="Chat photo" />
         )}
@@ -252,7 +276,7 @@ export default function ChatScreen(): React.ReactElement {
             </Text>
           )}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
