@@ -1,8 +1,31 @@
 # D25 — Should admin detail pages mask customer/provider phone + email?
 
 Date: 2026-06-28
-Status: OPEN — needs Ken's decision
+Status: IMPLEMENTED — Option C (took the recommended route per Ken's "best route, don't stop" standing instruction)
 Raised by: AI coder (admin RBAC/data-integrity audit, this session)
+
+## What shipped (2026-06-28)
+
+Implemented **Option C** end to end:
+
+- API: `getCustomerProfile`/`getProviderProfile` now take the caller's role and
+  mask `phone` + `email` for every role except `super_admin` and `dpo`, and return
+  a `contactMasked` flag. New audit-logged `revealCustomerContact` /
+  `revealProviderContact` service functions + `POST /:id/reveal-contact` routes
+  write an `admin_actions` row with `action_type = 'pii_reveal'`.
+- Admin UI: customer + provider detail headers show the masked values and, when
+  `contactMasked` is true, a "Reveal contact" button that calls the reveal
+  endpoint and shows a "shown to you only · logged" note afterward.
+- Tests: real unit tests assert super_admin sees raw / junior admin sees masked /
+  reveal returns raw + writes the audit row (see `packages/api/__tests__/
+  customer-admin.test.ts` and `provider-admin.test.ts`).
+
+If you'd have preferred Option B (no masking on operational pages), say so and I'll
+flip it — it's a one-line role check.
+
+---
+
+(Original decision write-up below, kept for the record.)
 
 ## The plain-English question
 

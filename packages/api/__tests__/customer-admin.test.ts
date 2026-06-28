@@ -60,7 +60,7 @@ const ADMIN_ID = '33333333-3333-3333-3333-333333333333';
 describe('getCustomerProfile', () => {
   it('returns 404 when customer missing', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([]));
-    await expect(svc.getCustomerProfile(CUSTOMER_ID)).rejects.toMatchObject({
+    await expect(svc.getCustomerProfile(CUSTOMER_ID, 'super_admin')).rejects.toMatchObject({
       statusCode: 404,
     });
   });
@@ -121,7 +121,7 @@ describe('getCustomerProfile', () => {
         ]),
       );
 
-    const out = await svc.getCustomerProfile(CUSTOMER_ID);
+    const out = await svc.getCustomerProfile(CUSTOMER_ID, 'super_admin');
     expect(out.fullName).toBe('Joe Cust');
     expect(out.lifetimeBookings).toBe(10);
     expect(out.lifetimeSpent).toBe(500000);
@@ -165,11 +165,88 @@ describe('getCustomerProfile', () => {
       )
       .mockResolvedValueOnce(rows([]))
       .mockResolvedValueOnce(rows([]));
-    const out = await svc.getCustomerProfile(CUSTOMER_ID);
+    const out = await svc.getCustomerProfile(CUSTOMER_ID, 'super_admin');
     expect(out.averageRatingGiven).toBeNull();
     expect(out.lastLoginAt).toBeNull();
     expect(out.addresses).toEqual([]);
     expect(out.sukiProviders).toEqual([]);
+  });
+
+  // D25 — PII masking. Reuses the standard projection mock shape.
+  function mockProfileQueries(email: string | null = 'joe@example.com') {
+    dbQueryMock
+      .mockResolvedValueOnce(
+        rows([
+          {
+            id: CUSTOMER_ID,
+            first_name: 'Joe',
+            last_name: 'Cust',
+            phone: '+639171234567',
+            email,
+            avatar_url: null,
+            is_verified: true,
+            is_active: true,
+            last_login_at: null,
+            created_at: new Date('2024-01-01T00:00:00Z'),
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        rows([{ lifetime_bookings: '0', lifetime_spent: '0', avg_rating: null, total_reviews: '0' }]),
+      )
+      .mockResolvedValueOnce(rows([]))
+      .mockResolvedValueOnce(rows([]));
+  }
+
+  it('D25 — super_admin sees raw phone + email (contactMasked false)', async () => {
+    mockProfileQueries();
+    const out = await svc.getCustomerProfile(CUSTOMER_ID, 'super_admin');
+    expect(out.phone).toBe('+639171234567');
+    expect(out.email).toBe('joe@example.com');
+    expect(out.contactMasked).toBe(false);
+  });
+
+  it('D25 — junior admin sees masked phone + email (contactMasked true)', async () => {
+    mockProfileQueries();
+    const out = await svc.getCustomerProfile(CUSTOMER_ID, 'admin');
+    expect(out.phone).not.toBe('+639171234567');
+    expect(out.phone).toContain('4567');
+    expect(out.email).not.toBe('joe@example.com');
+    expect(out.email).toContain('@example.com');
+    expect(out.contactMasked).toBe(true);
+  });
+
+  it('D25 — masked email stays null when the customer has no email', async () => {
+    mockProfileQueries(null);
+    const out = await svc.getCustomerProfile(CUSTOMER_ID, 'admin');
+    expect(out.email).toBeNull();
+    expect(out.contactMasked).toBe(true);
+  });
+});
+
+// ─── revealCustomerContact ──────────────────────────────────────────────────
+
+describe('revealCustomerContact', () => {
+  it('returns raw contact and writes a pii_reveal audit row', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ phone: '+639171234567', email: 'joe@example.com' }]))
+      .mockResolvedValueOnce(rows([])); // INSERT into admin_actions
+
+    const out = await svc.revealCustomerContact(CUSTOMER_ID, ADMIN_ID);
+    expect(out).toEqual({ phone: '+639171234567', email: 'joe@example.com' });
+
+    const insertCall = dbQueryMock.mock.calls[1];
+    expect(insertCall[0]).toMatch(/INSERT INTO admin_actions/);
+    expect(insertCall[0]).toMatch(/pii_reveal/);
+    expect(insertCall[1][0]).toBe(ADMIN_ID);
+    expect(insertCall[1][1]).toBe(CUSTOMER_ID);
+  });
+
+  it('returns 404 when customer missing', async () => {
+    dbQueryMock.mockResolvedValueOnce(rows([]));
+    await expect(svc.revealCustomerContact(CUSTOMER_ID, ADMIN_ID)).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 });
 

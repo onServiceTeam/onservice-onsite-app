@@ -13,6 +13,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as settingsService from './settings.service';
+import { maskPhilippinePhone, maskEmail } from '../utils/pii-mask';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -25,6 +26,9 @@ export interface CustomerProfile {
   fullName: string;
   phone: string;
   email: string | null;
+  // D25: phone/email are masked for every role except super_admin. contactMasked
+  // tells the UI to offer an audit-logged "reveal" (POST /:id/reveal-contact).
+  contactMasked: boolean;
   avatarUrl: string | null;
   isVerified: boolean;
   isActive: boolean;
@@ -174,7 +178,7 @@ export type CustomerStatusAction = 'suspend' | 'reactivate' | 'flag_fraud';
 // Profile
 // ─────────────────────────────────────────────────────────────────
 
-export async function getCustomerProfile(customerId: string): Promise<CustomerProfile> {
+export async function getCustomerProfile(customerId: string, actorRole: string): Promise<CustomerProfile> {
   const userResult = await db.query<{
     id: string;
     first_name: string;
@@ -256,13 +260,18 @@ export async function getCustomerProfile(customerId: string): Promise<CustomerPr
   ]);
 
   const s = stats.rows[0];
+  // D25: data-minimization — super_admin and dpo see raw contact by default;
+  // everyone else gets masked values plus an audit-logged reveal. Matches the
+  // existing activity IP/UA masking precedent (super_admin + dpo = raw).
+  const contactMasked = actorRole !== 'super_admin' && actorRole !== 'dpo';
   return {
     id: u.id,
     firstName: u.first_name,
     lastName: u.last_name,
     fullName: `${u.first_name} ${u.last_name}`.trim(),
-    phone: u.phone,
-    email: u.email,
+    phone: contactMasked ? maskPhilippinePhone(u.phone) : u.phone,
+    email: contactMasked ? (u.email ? maskEmail(u.email) : null) : u.email,
+    contactMasked,
     avatarUrl: u.avatar_url,
     isVerified: u.is_verified,
     isActive: u.is_active,
@@ -292,6 +301,32 @@ export async function getCustomerProfile(customerId: string): Promise<CustomerPr
       lastBookingAt: r.last_booking_at ? r.last_booking_at.toISOString() : null,
     })),
   };
+}
+
+/**
+ * D25 — audit-logged reveal of a customer's raw phone + email. Any admin may
+ * reveal (e.g. support needs to call a customer), but the reveal is recorded in
+ * admin_actions (action_type='pii_reveal') so there is a trail of who looked at
+ * whose contact info and when — exactly what NPC registration expects.
+ */
+export async function revealCustomerContact(
+  customerId: string,
+  adminId: string,
+): Promise<{ phone: string; email: string | null }> {
+  const result = await db.query<{ phone: string; email: string | null }>(
+    `SELECT phone, email FROM users WHERE id = $1 AND role = 'customer'`,
+    [customerId],
+  );
+  const row = result.rows[0];
+  if (!row) throw createAppError('Customer not found.', 404);
+
+  await db.query(
+    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
+     VALUES ($1, 'pii_reveal', 'customer', $2, $3::jsonb)`,
+    [adminId, customerId, JSON.stringify({ fields: ['phone', 'email'] })],
+  );
+  logger.info('Customer contact revealed', { adminId, customerId });
+  return { phone: row.phone, email: row.email };
 }
 
 // ─────────────────────────────────────────────────────────────────

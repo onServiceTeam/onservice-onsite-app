@@ -78,6 +78,8 @@ interface ProviderProfile {
     fullName: string;
     phone: string;
     email: string | null;
+    // D25 — true when the API masked phone/email for this admin role.
+    contactMasked: boolean;
     avatarUrl: string | null;
     isVerified: boolean;
     isActive: boolean;
@@ -318,6 +320,24 @@ function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactE
   // during initial render. Pre-fix profile.user.avatarUrl threw when
   // the user sub-object was still undefined from the API.
   const user = profile.user ?? { avatarUrl: null, fullName: '' };
+
+  // D25 — reveal raw contact. Audit-logged server-side; raw values kept in
+  // local state only (never re-cached in the query result).
+  const contactMasked = ('contactMasked' in user) && (user as { contactMasked?: boolean }).contactMasked === true;
+  const [revealed, setRevealed] = useState<{ phone: string; email: string | null } | null>(null);
+  const revealMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post<{ success: boolean; data: { phone: string; email: string | null } }>(
+        `/api/v1/admin/providers/${profile.id}/reveal-contact`,
+        {},
+      );
+      return res.data.data;
+    },
+    onSuccess: (data) => setRevealed(data),
+  });
+  const shownPhone = revealed?.phone ?? (('phone' in user ? (user as { phone?: string }).phone : '') || '—');
+  const shownEmail = revealed ? revealed.email : (('email' in user) ? (user as { email?: string }).email : null);
+
   return (
     <Card className="p-5 space-y-4">
       <div className="flex items-start gap-4">
@@ -344,11 +364,27 @@ function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactE
             </span>
             <span>{profile.totalJobsCompleted ?? 0} jobs completed</span>
             <span className="inline-flex items-center gap-1">
-              <Phone size={12} /> {('phone' in user ? (user as { phone?: string }).phone : '') || '—'}
+              <Phone size={12} /> {shownPhone}
             </span>
-            {('email' in user) && (user as { email?: string }).email && (
+            {shownEmail && (
               <span className="inline-flex items-center gap-1">
-                <Mail size={12} /> {(user as { email?: string }).email}
+                <Mail size={12} /> {shownEmail}
+              </span>
+            )}
+            {/* D25 — masked contact + audit-logged reveal. */}
+            {contactMasked && !revealed && (
+              <button
+                type="button"
+                onClick={() => revealMutation.mutate()}
+                disabled={revealMutation.isPending}
+                className="inline-flex items-center gap-1 text-[var(--color-secondary)] hover:underline disabled:opacity-50"
+              >
+                <Eye size={12} /> {revealMutation.isPending ? 'Revealing…' : 'Reveal contact'}
+              </button>
+            )}
+            {revealed && (
+              <span className="inline-flex items-center gap-1 text-[var(--color-text-tertiary)]">
+                shown to you only · logged
               </span>
             )}
             {profile.city && (

@@ -55,51 +55,56 @@ describe('isNoteCategory', () => {
 describe('getProviderProfile', () => {
   it('returns 404 when provider missing', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([]));
-    await expect(svc.getProviderProfile(PROVIDER_ID)).rejects.toMatchObject({
+    await expect(svc.getProviderProfile(PROVIDER_ID, 'super_admin')).rejects.toMatchObject({
       statusCode: 404,
     });
   });
 
-  it('joins user row and projects nested shape', async () => {
+  // A representative provider row, reused across the projection + masking tests.
+  function providerRow() {
+    return {
+      id: PROVIDER_ID,
+      user_id: USER_ID,
+      business_name: 'Acme',
+      description: 'desc',
+      tier: 'pro',
+      status: 'approved',
+      nbi_clearance_url: 'https://x/y.pdf',
+      nbi_expiry_date: new Date('2030-01-01T00:00:00Z'),
+      nbi_expiry_notified: false,
+      service_radius_km: 12,
+      rating: '4.50',
+      total_reviews: 10,
+      total_jobs: 30,
+      latitude: '14.5',
+      longitude: '120.9',
+      city: 'Manila',
+      province: 'NCR',
+      created_at: new Date('2024-01-01T00:00:00Z'),
+      updated_at: new Date('2024-02-01T00:00:00Z'),
+      u_id: USER_ID,
+      first_name: 'Jane',
+      last_name: 'Doe',
+      phone: '+639171234567',
+      email: 'jane@example.com',
+      avatar_url: 'https://x/a.png',
+      is_verified: true,
+      is_active: true,
+      last_login_at: new Date('2024-03-01T00:00:00Z'),
+    };
+  }
+
+  function mockProfileQueries() {
     dbQueryMock
-      .mockResolvedValueOnce(
-        rows([
-          {
-            id: PROVIDER_ID,
-            user_id: USER_ID,
-            business_name: 'Acme',
-            description: 'desc',
-            tier: 'pro',
-            status: 'approved',
-            nbi_clearance_url: 'https://x/y.pdf',
-            nbi_expiry_date: new Date('2030-01-01T00:00:00Z'),
-            nbi_expiry_notified: false,
-            service_radius_km: 12,
-            rating: '4.50',
-            total_reviews: 10,
-            total_jobs: 30,
-            latitude: '14.5',
-            longitude: '120.9',
-            city: 'Manila',
-            province: 'NCR',
-            created_at: new Date('2024-01-01T00:00:00Z'),
-            updated_at: new Date('2024-02-01T00:00:00Z'),
-            u_id: USER_ID,
-            first_name: 'Jane',
-            last_name: 'Doe',
-            phone: '+639170000000',
-            email: 'jane@example.com',
-            avatar_url: 'https://x/a.png',
-            is_verified: true,
-            is_active: true,
-            last_login_at: new Date('2024-03-01T00:00:00Z'),
-          },
-        ]),
-      )
+      .mockResolvedValueOnce(rows([providerRow()]))
       .mockResolvedValueOnce(rows([{ id: 'c1', name: 'Plumbing', base_price: 50000 }]))
       .mockResolvedValueOnce(rows([{ id: 'a1', name: 'Makati', is_primary: true }]));
+  }
 
-    const out = await svc.getProviderProfile(PROVIDER_ID);
+  it('joins user row and projects nested shape', async () => {
+    mockProfileQueries();
+
+    const out = await svc.getProviderProfile(PROVIDER_ID, 'super_admin');
     expect(out.businessName).toBe('Acme');
     expect(out.user.fullName).toBe('Jane Doe');
     expect(out.documents.governmentIdUrl).toBeNull();
@@ -108,6 +113,52 @@ describe('getProviderProfile', () => {
     expect(out.serviceAreas).toEqual([{ id: 'a1', name: 'Makati', isPrimary: true }]);
     expect(out.averageRating).toBe(4.5);
     expect(out.latitude).toBe(14.5);
+  });
+
+  it('D25 — super_admin sees raw phone + email (contactMasked false)', async () => {
+    mockProfileQueries();
+    const out = await svc.getProviderProfile(PROVIDER_ID, 'super_admin');
+    expect(out.user.phone).toBe('+639171234567');
+    expect(out.user.email).toBe('jane@example.com');
+    expect(out.user.contactMasked).toBe(false);
+  });
+
+  it('D25 — junior admin sees masked phone + email (contactMasked true)', async () => {
+    mockProfileQueries();
+    const out = await svc.getProviderProfile(PROVIDER_ID, 'admin');
+    // Masked phone keeps only the last 4 digits; masked email hides the local part.
+    expect(out.user.phone).not.toBe('+639171234567');
+    expect(out.user.phone).toContain('4567');
+    expect(out.user.email).not.toBe('jane@example.com');
+    expect(out.user.email).toContain('@example.com');
+    expect(out.user.contactMasked).toBe(true);
+  });
+});
+
+// ─── revealProviderContact ──────────────────────────────────────────────────
+
+describe('revealProviderContact', () => {
+  it('returns raw contact and writes a pii_reveal audit row', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ phone: '+639171234567', email: 'jane@example.com' }]))
+      .mockResolvedValueOnce(rows([])); // the INSERT into admin_actions
+
+    const out = await svc.revealProviderContact(PROVIDER_ID, ADMIN_ID);
+    expect(out).toEqual({ phone: '+639171234567', email: 'jane@example.com' });
+
+    // Second call is the audit insert with action_type 'pii_reveal'.
+    const insertCall = dbQueryMock.mock.calls[1];
+    expect(insertCall[0]).toMatch(/INSERT INTO admin_actions/);
+    expect(insertCall[0]).toMatch(/pii_reveal/);
+    expect(insertCall[1][0]).toBe(ADMIN_ID);
+    expect(insertCall[1][1]).toBe(PROVIDER_ID);
+  });
+
+  it('returns 404 when provider missing', async () => {
+    dbQueryMock.mockResolvedValueOnce(rows([]));
+    await expect(svc.revealProviderContact(PROVIDER_ID, ADMIN_ID)).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 });
 

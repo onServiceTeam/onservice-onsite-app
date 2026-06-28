@@ -35,7 +35,24 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const data = await customerAdminService.getCustomerProfile((req.params.id as string));
+      // D25: pass the role so the service masks contact for non-super_admin.
+      const data = await customerAdminService.getCustomerProfile(req.params.id as string, req.user!.role);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// D25 — audit-logged reveal of the customer's raw phone + email. Any admin may
+// call it (the reveal is the recorded action).
+router.post(
+  '/:id/reveal-contact',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const data = await customerAdminService.revealCustomerContact(req.params.id as string, req.user!.userId);
       res.json({ success: true, data });
     } catch (error) {
       next(error);

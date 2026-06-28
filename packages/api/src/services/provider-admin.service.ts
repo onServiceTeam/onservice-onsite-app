@@ -13,6 +13,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as kycDocumentService from './kyc-document.service';
+import { maskPhilippinePhone, maskEmail } from '../utils/pii-mask';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -65,6 +66,8 @@ export interface ProviderProfile {
     fullName: string;
     phone: string;
     email: string | null;
+    // D25: masked for non-super_admin; contactMasked drives the reveal affordance.
+    contactMasked: boolean;
     avatarUrl: string | null;
     isVerified: boolean;
     isActive: boolean;
@@ -175,7 +178,7 @@ export function isNoteCategory(v: unknown): v is NoteCategory {
 // Profile
 // ─────────────────────────────────────────────────────────────────
 
-export async function getProviderProfile(providerId: string): Promise<ProviderProfile> {
+export async function getProviderProfile(providerId: string, actorRole: string): Promise<ProviderProfile> {
   const providerResult = await db.query<{
     id: string;
     user_id: string;
@@ -241,6 +244,10 @@ export async function getProviderProfile(providerId: string): Promise<ProviderPr
     ),
   ]);
 
+  // D25: super_admin (and DPO) see raw contact; everyone else gets masked
+  // values plus a reveal affordance that writes an audit row.
+  const contactMasked = actorRole !== 'super_admin' && actorRole !== 'dpo';
+
   return {
     id: p.id,
     userId: p.user_id,
@@ -265,8 +272,9 @@ export async function getProviderProfile(providerId: string): Promise<ProviderPr
       firstName: p.first_name,
       lastName: p.last_name,
       fullName: `${p.first_name} ${p.last_name}`.trim(),
-      phone: p.phone,
-      email: p.email,
+      phone: contactMasked ? maskPhilippinePhone(p.phone) : p.phone,
+      email: contactMasked ? (p.email ? maskEmail(p.email) : null) : p.email,
+      contactMasked,
       avatarUrl: p.avatar_url,
       isVerified: p.is_verified,
       isActive: p.is_active,
@@ -300,6 +308,34 @@ export async function getProviderProfile(providerId: string): Promise<ProviderPr
       isPrimary: r.is_primary,
     })),
   };
+}
+
+/**
+ * D25 — audit-logged reveal of a provider's raw phone + email.
+ * Any admin may call it; the reveal itself is the recorded action
+ * (admin_actions.action_type = 'pii_reveal'). super_admin already sees raw
+ * values, so this is mainly for junior admins who need a one-off lookup.
+ */
+export async function revealProviderContact(
+  providerId: string,
+  adminId: string,
+): Promise<{ phone: string; email: string | null }> {
+  const result = await db.query<{ phone: string; email: string | null }>(
+    `SELECT u.phone, u.email
+       FROM providers pr
+       JOIN users u ON u.id = pr.user_id
+      WHERE pr.id = $1`,
+    [providerId],
+  );
+  const row = result.rows[0];
+  if (!row) throw createAppError('Provider not found.', 404);
+  await db.query(
+    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
+     VALUES ($1, 'pii_reveal', 'provider', $2, $3::jsonb)`,
+    [adminId, providerId, JSON.stringify({ fields: ['phone', 'email'] })],
+  );
+  logger.info('Provider contact revealed', { adminId, providerId });
+  return { phone: row.phone, email: row.email };
 }
 
 // ─────────────────────────────────────────────────────────────────

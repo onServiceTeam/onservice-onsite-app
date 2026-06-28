@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Phone,
   Mail,
+  Eye,
   MapPin,
   Calendar,
   Star,
@@ -54,6 +55,9 @@ interface CustomerProfile {
   fullName: string;
   phone: string;
   email: string | null;
+  // D25 — true when the API masked phone/email for this admin role. Drives the
+  // "Reveal contact" affordance in the header.
+  contactMasked: boolean;
   avatarUrl: string | null;
   isVerified: boolean;
   isActive: boolean;
@@ -313,6 +317,22 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
     },
   });
 
+  // D25 — reveal raw contact. The reveal is audit-logged server-side; we keep
+  // the raw values in local state only (never re-cached in the query).
+  const [revealed, setRevealed] = useState<{ phone: string; email: string | null } | null>(null);
+  const revealMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post<{ success: boolean; data: { phone: string; email: string | null } }>(
+        `/api/v1/admin/customers/${profile.id}/reveal-contact`,
+        {},
+      );
+      return res.data.data;
+    },
+    onSuccess: (data) => setRevealed(data),
+  });
+  const shownPhone = revealed?.phone ?? profile.phone;
+  const shownEmail = revealed ? revealed.email : profile.email;
+
   return (
     <Card className="p-5">
       <div className="flex items-start gap-5 flex-wrap">
@@ -337,11 +357,28 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
 
           <div className="flex items-center gap-4 mt-2 text-sm text-[var(--color-text-secondary)] flex-wrap">
             <span className="inline-flex items-center gap-1">
-              <Phone size={14} /> {profile.phone}
+              <Phone size={14} /> {shownPhone}
             </span>
-            {profile.email && (
+            {shownEmail && (
               <span className="inline-flex items-center gap-1">
-                <Mail size={14} /> {profile.email}
+                <Mail size={14} /> {shownEmail}
+              </span>
+            )}
+            {/* D25 — masked contact + audit-logged reveal. Once revealed the
+                 button disappears and a note explains the lookup was logged. */}
+            {profile.contactMasked && !revealed && (
+              <button
+                type="button"
+                onClick={() => revealMutation.mutate()}
+                disabled={revealMutation.isPending}
+                className="inline-flex items-center gap-1 text-[var(--color-secondary)] hover:underline disabled:opacity-50"
+              >
+                <Eye size={14} /> {revealMutation.isPending ? 'Revealing…' : 'Reveal contact'}
+              </button>
+            )}
+            {revealed && (
+              <span className="inline-flex items-center gap-1 text-xs text-[var(--color-text-tertiary)]">
+                shown to you only · this lookup was logged
               </span>
             )}
             <span className="inline-flex items-center gap-1">
