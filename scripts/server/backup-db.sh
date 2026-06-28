@@ -38,14 +38,34 @@ docker run --rm \
   alpine tar czf "/backup/uploads-${TS}.tgz" -C /data . 2>/dev/null || true
 # An empty uploads volume yields a tiny-but-valid tar; that's fine pre-launch.
 
-# 3) Optional off-site copy.
+# 2b) Critical config + secrets NOT in git that you need to rebuild the box:
+#     .env (DB/JWT/PayMongo secrets), nginx config + .htpasswd, the Let's Encrypt
+#     certs, and the compose file. Stays on-box (no worse than the files already
+#     on disk); off-sited below when configured. Without this, a host loss means
+#     re-issuing every secret + cert by hand (the E08 lesson).
+CONFIG_OUT="backups/config-${TS}.tgz"
+CONFIG_ITEMS=".env docker-compose.prod.yml nginx/nginx.conf certbot/conf"
+[ -f nginx/.htpasswd ] && CONFIG_ITEMS="$CONFIG_ITEMS nginx/.htpasswd"
+tar czf "$CONFIG_OUT" -C /opt/onservice $CONFIG_ITEMS 2>/dev/null || true
+chmod 600 "$CONFIG_OUT" 2>/dev/null || true  # holds secrets — owner-only
+
+# 2c) Full git history snapshot — one restorable bundle of every branch + tag
+#     (belt-and-suspenders beyond the GitHub remote).
+GIT_OUT="backups/git-${TS}.bundle"
+git bundle create "$GIT_OUT" --all >/dev/null 2>&1 || echo "WARN: git bundle failed" >&2
+
+# 3) Optional off-site copy — the only thing that survives a TOTAL host loss.
+#    Set BACKUP_RCLONE_REMOTE + install rclone to push every artifact off the box.
 if [ -n "${BACKUP_RCLONE_REMOTE:-}" ] && command -v rclone >/dev/null 2>&1; then
-  rclone copy "$DB_OUT" "$BACKUP_RCLONE_REMOTE" 2>&1 || echo "WARN: rclone DB copy failed" >&2
-  rclone copy "$UPLOADS_OUT" "$BACKUP_RCLONE_REMOTE" 2>&1 || echo "WARN: rclone uploads copy failed" >&2
+  for f in "$DB_OUT" "$UPLOADS_OUT" "$CONFIG_OUT" "$GIT_OUT"; do
+    [ -s "$f" ] && { rclone copy "$f" "$BACKUP_RCLONE_REMOTE" 2>&1 || echo "WARN: rclone copy failed: $f" >&2; }
+  done
 fi
 
-# 4) Retain 7 days of each.
-find backups -name 'onservice-*.sql.gz' -mtime +7 -delete 2>/dev/null || true
-find backups -name 'uploads-*.tgz'      -mtime +7 -delete 2>/dev/null || true
+# 4) Retain 14 days of each.
+find backups -name 'onservice-*.sql.gz' -mtime +14 -delete 2>/dev/null || true
+find backups -name 'uploads-*.tgz'      -mtime +14 -delete 2>/dev/null || true
+find backups -name 'config-*.tgz'       -mtime +14 -delete 2>/dev/null || true
+find backups -name 'git-*.bundle'       -mtime +14 -delete 2>/dev/null || true
 
-echo "$(date -Iseconds) backup OK: ${DB_OUT} ($(du -h "$DB_OUT" | cut -f1)), ${UPLOADS_OUT} ($(du -h "$UPLOADS_OUT" 2>/dev/null | cut -f1 || echo n/a))"
+echo "$(date -Iseconds) backup OK: db=${DB_OUT} ($(du -h "$DB_OUT" | cut -f1)), uploads=$(du -h "$UPLOADS_OUT" 2>/dev/null | cut -f1 || echo n/a), config=$(du -h "$CONFIG_OUT" 2>/dev/null | cut -f1 || echo n/a), git=$(du -h "$GIT_OUT" 2>/dev/null | cut -f1 || echo n/a)"
