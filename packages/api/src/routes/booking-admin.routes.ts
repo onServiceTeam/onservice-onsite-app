@@ -13,6 +13,7 @@ import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import * as bookingAdminService from '../services/booking-admin.service';
+import * as bookingService from '../services/booking.service';
 
 const router = Router();
 
@@ -50,6 +51,26 @@ router.get(
       requireAdmin(req);
       const data = await bookingAdminService.getBookingTimeline((req.params.id as string));
       res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+// D27 Phase 1 — admin visibility into the custom-quote money trail: every quote
+// (with its labor/materials line items) plus every change order on a booking.
+// Read-only; support/finance previously could not see why a quote-based booking
+// was priced as it is or audit a disputed change order.
+router.get(
+  '/:id/quotes',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const bookingId = req.params.id as string;
+      const [quotes, changeOrders] = await Promise.all([
+        bookingService.getBookingQuotes(bookingId),
+        bookingService.getChangeOrders(bookingId),
+      ]);
+      res.json({ success: true, data: { quotes, changeOrders } });
     } catch (error) { next(error); }
   },
 );

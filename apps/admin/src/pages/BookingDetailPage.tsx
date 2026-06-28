@@ -142,7 +142,7 @@ function statusVariant(status: string | undefined | null): 'success' | 'danger' 
   return 'info';
 }
 
-type TabId = 'overview' | 'timeline' | 'evidence' | 'money' | 'audit';
+type TabId = 'overview' | 'timeline' | 'evidence' | 'quotes' | 'money' | 'audit';
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 
@@ -205,6 +205,7 @@ export default function BookingDetailPage(): React.ReactElement {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="evidence">Evidence</TabsTrigger>
+          <TabsTrigger value="quotes">Quotes</TabsTrigger>
           <TabsTrigger value="money">Money</TabsTrigger>
           <TabsTrigger value="audit">Audit</TabsTrigger>
         </TabsList>
@@ -217,6 +218,9 @@ export default function BookingDetailPage(): React.ReactElement {
         </TabsContent>
         <TabsContent value="evidence">
           <EvidenceTab bookingId={bookingId} />
+        </TabsContent>
+        <TabsContent value="quotes">
+          <QuotesTab bookingId={bookingId} />
         </TabsContent>
         <TabsContent value="money">
           <MoneyTab bookingId={bookingId} detail={detail} />
@@ -1119,5 +1123,134 @@ function AuditTab({ bookingId }: { bookingId: string }): React.ReactElement {
         </table>
       </div>
     </Card>
+  );
+}
+
+// ─── Quotes & change orders (D27 Phase 1 — admin visibility) ────────────────
+
+interface AdminQuoteLineItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  lineTotal: number;
+  itemType: string;
+}
+interface AdminQuote {
+  id: string;
+  providerId: string;
+  providerName: string | null;
+  providerRating: number | null;
+  quotedPrice: number;
+  description: string;
+  status: string;
+  laborAmount: number;
+  materialsAmount: number;
+  estimatedDays: number | null;
+  notes: string;
+  expiresAt: string | null;
+  createdAt: string;
+  lineItems: AdminQuoteLineItem[];
+}
+interface AdminChangeOrder {
+  id: string;
+  providerId: string;
+  description: string;
+  additionalAmount: number;
+  photos: string[];
+  status: string;
+  createdAt: string;
+}
+
+function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
+  const q = useQuery({
+    queryKey: ['admin-booking-quotes', bookingId],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: { quotes: AdminQuote[]; changeOrders: AdminChangeOrder[] } }>(
+        `/api/v1/admin/bookings/${bookingId}/quotes`,
+      );
+      return res.data.data;
+    },
+  });
+
+  if (q.isLoading) return <LoadingState />;
+  if (q.isError || !q.data) return <ErrorState title="Failed to load quotes" description={getErrorMessage(q.error)} />;
+
+  const { quotes, changeOrders } = q.data;
+
+  return (
+    <div className="space-y-5">
+      <Card className="p-5">
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Quotes ({quotes.length})</h3>
+        {quotes.length === 0 ? (
+          <EmptyState title="No quotes" description="No provider has quoted this request." />
+        ) : (
+          <div className="space-y-4">
+            {quotes.map((quote) => (
+              <div key={quote.id} className="rounded-lg border border-[var(--color-border)] p-4">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-[var(--color-text)]">
+                    {quote.providerName ?? 'Provider'}
+                    {quote.providerRating != null ? ` · ★ ${quote.providerRating.toFixed(2)}` : ''}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Badge label={quote.status} variant={quote.status === 'accepted' ? 'success' : quote.status === 'declined' ? 'danger' : 'info'} />
+                    <span className="text-sm font-semibold text-[var(--color-text)]">{fmtCentavos(quote.quotedPrice)}</span>
+                  </div>
+                </div>
+                <div className="flex gap-4 mt-1 text-xs text-[var(--color-text-secondary)]">
+                  <span>Labor {fmtCentavos(quote.laborAmount)}</span>
+                  <span>Materials {fmtCentavos(quote.materialsAmount)}</span>
+                  {quote.estimatedDays != null ? <span>{quote.estimatedDays} day(s)</span> : null}
+                </div>
+                {quote.description ? <p className="text-sm text-[var(--color-text-secondary)] mt-2">{quote.description}</p> : null}
+                {quote.lineItems.length > 0 && (
+                  <table className="w-full mt-3 text-xs">
+                    <thead>
+                      <tr className="text-left text-[var(--color-text-tertiary)]">
+                        <th className="py-1">Item</th><th>Type</th><th className="text-right">Qty</th><th className="text-right">Unit</th><th className="text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quote.lineItems.map((li) => (
+                        <tr key={li.id} className="border-t border-[var(--color-border)]">
+                          <td className="py-1 text-[var(--color-text)]">{li.description}</td>
+                          <td className="text-[var(--color-text-secondary)]">{li.itemType}</td>
+                          <td className="text-right">{li.quantity} {li.unit}</td>
+                          <td className="text-right">{fmtCentavos(li.unitPrice)}</td>
+                          <td className="text-right text-[var(--color-text)]">{fmtCentavos(li.lineTotal)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {quote.notes ? <p className="text-xs text-[var(--color-text-tertiary)] mt-2">Notes: {quote.notes}</p> : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Change orders ({changeOrders.length})</h3>
+        {changeOrders.length === 0 ? (
+          <EmptyState title="No change orders" description="No mid-job change orders on this booking." />
+        ) : (
+          <div className="space-y-3">
+            {changeOrders.map((co) => (
+              <div key={co.id} className="rounded-lg border border-[var(--color-border)] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Badge label={co.status} variant={co.status === 'paid' ? 'success' : co.status === 'declined' || co.status === 'expired' ? 'danger' : 'info'} />
+                  <span className="text-sm font-semibold text-[var(--color-text)]">{fmtCentavos(co.additionalAmount)}</span>
+                </div>
+                <p className="text-sm text-[var(--color-text-secondary)] mt-1">{co.description}</p>
+                {co.photos.length > 0 ? <p className="text-xs text-[var(--color-text-tertiary)] mt-1">{co.photos.length} photo(s)</p> : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }
