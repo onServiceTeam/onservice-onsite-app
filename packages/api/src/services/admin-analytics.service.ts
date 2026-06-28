@@ -1460,6 +1460,7 @@ export async function getOperationalAlerts(): Promise<DashboardAlert[]> {
 //   1. Low rating       — status='approved' AND rating < 3.5 AND total_reviews >= 3
 //   2. NBI expired/expiring — nbi_expiry_date < now() + 30 days
 //   3. Dispute spike    — >= 2 disputes in the last 30 days (disputes → bookings → provider)
+//   4. Recent low review — a visible 1-2 star review in the last 7 days
 //
 // A provider can match more than one rule; each match is emitted as its own
 // row so the admin sees every reason. Read-only — no money or status mutations.
@@ -1493,12 +1494,25 @@ export async function getQualityWatch(): Promise<QualityWatchProvider[]> {
         WHERE d.created_at >= NOW() - INTERVAL '30 days'
         GROUP BY p.id, p.business_name
        HAVING COUNT(d.id) >= 2
+     ),
+     recent_low_review AS (
+       -- A fresh 1-2 star review is a faster quality signal than the rolling
+       -- average (which needs >=3 reviews to trip low_rating). Surfaces the
+       -- provider so an admin can read the review + reach out same-week.
+       SELECT DISTINCT p.id AS provider_id, p.business_name, 'Recent low review' AS reason
+         FROM providers p
+         JOIN reviews r ON r.provider_id = p.id
+        WHERE r.rating <= 2
+          AND r.is_visible = TRUE
+          AND r.created_at >= NOW() - INTERVAL '7 days'
      )
      SELECT provider_id, business_name, reason FROM low_rating
      UNION ALL
      SELECT provider_id, business_name, reason FROM nbi_expiring
      UNION ALL
      SELECT provider_id, business_name, reason FROM dispute_spike
+     UNION ALL
+     SELECT provider_id, business_name, reason FROM recent_low_review
      ORDER BY business_name ASC, reason ASC`,
   );
 
