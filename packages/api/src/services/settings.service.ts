@@ -666,8 +666,12 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     currency: 'PHP',
     currencySymbol: '\u20B1',
     timezone: 'Asia/Manila',
-    serviceFeeRate: lookupPercent('service_fee_rate', 15),
-    serviceFeeMin: lookupNum('service_fee_min', 5000),
+    // Customer service fee is 0 (Ken, 2026-06-28). These last-resort fallbacks
+    // are unreachable today (SETTING_DEFAULTS already returns '0'), but set them
+    // to 0 too so a future defaults change can't silently re-introduce a 15% fee
+    // in the client config.
+    serviceFeeRate: lookupPercent('service_fee_rate', 0),
+    serviceFeeMin: lookupNum('service_fee_min', 0),
     serviceFeeMax: lookupNum('service_fee_max', 50000),
     escrowAutoConfirmHours: lookupInt('escrow_auto_confirm_hours', 72),
     escrowDisputeWindowHours: lookupInt('escrow_dispute_window_hours', 48),
