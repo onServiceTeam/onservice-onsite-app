@@ -36,7 +36,12 @@ export default function SubcategoryListScreen(): React.ReactElement {
 
   const onRefresh = useCallback(() => { refetch(); }, [refetch]);
 
-  const isQuoteBased = (sub: Subcategory): boolean => sub.pricingType === 'quote_based' || sub.basePrice == null;
+  // The catalog/serializer value is 'quote' (DB CHECK in migration 003), not
+  // 'quote_based' (that is the bookings.booking_type value). The old check
+  // compared against 'quote_based' and only worked via the basePrice==null
+  // fallback, so a quote subcategory with a base_price set mis-routed to the
+  // fixed-price configure screen. Match the real value.
+  const isQuoteBased = (sub: Subcategory): boolean => sub.pricingType === 'quote' || sub.basePrice == null;
 
   const handleSelect = (sub: Subcategory): void => {
     if (sub.categoryId) {

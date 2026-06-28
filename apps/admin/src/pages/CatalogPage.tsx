@@ -661,7 +661,11 @@ export default function CatalogPage(): React.ReactElement {
                         className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                       >
                         <option value="fixed">Fixed</option>
-                        <option value="range">Range</option>
+                        {/* 'range' removed: the DB pricing_type CHECK (migration 003)
+                            only allows fixed/quote/hourly, so saving a 'range'
+                            subcategory threw a raw constraint violation. Range
+                            (price band + custom quote) is a future pricing model
+                            tracked in the variable-pricing design (D27). */}
                         <option value="quote">Quote</option>
                         <option value="hourly">Hourly</option>
                       </select>
