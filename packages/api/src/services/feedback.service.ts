@@ -19,6 +19,11 @@ const MAX = {
   items: 50,
   itemField: 3_000,
   ratings: 60,
+  // Free-text answers get their own (much higher) cap. The feedback page already
+  // ships 65+ answer fields and is growing; reusing the 60 ratings cap silently
+  // dropped the overflow (cleanRecord stops at maxKeys). 200 leaves generous room
+  // so no tester answer is ever discarded.
+  answers: 200,
   prices: 30,
 };
 
@@ -134,7 +139,7 @@ export function validateAndNormalize(body: unknown): ValidateResult {
   }
 
   const ratings = cleanRecord(b.ratings, MAX.ratings, 10);
-  const answers = cleanRecord(b.answers, MAX.ratings, MAX.shortText);
+  const answers = cleanRecord(b.answers, MAX.answers, MAX.shortText);
   const prices = cleanRecord(b.prices, MAX.prices, 40);
   const ideas = str(b.ideas, MAX.longText);
   const screenshots = cleanShots(b.screenshots, 20);
