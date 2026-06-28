@@ -177,9 +177,9 @@ export async function getProviderProfile(providerId: string): Promise<ProviderPr
     service_radius_km: number;
     years_experience: number | null;
     vetting_answers: { mainSkills: string | null; hasOwnTools: boolean | null; reference: { name: string; contact: string } | null } | null;
-    average_rating: string;
+    rating: string;
     total_reviews: number;
-    total_jobs_completed: number;
+    total_jobs: number;
     latitude: string | null;
     longitude: string | null;
     city: string | null;
@@ -233,9 +233,9 @@ export async function getProviderProfile(providerId: string): Promise<ProviderPr
     description: p.description,
     tier: p.tier,
     status: p.status,
-    averageRating: Number(p.average_rating),
+    averageRating: Number(p.rating),
     totalReviews: p.total_reviews,
-    totalJobsCompleted: p.total_jobs_completed,
+    totalJobsCompleted: p.total_jobs,
     serviceRadiusKm: p.service_radius_km,
     yearsExperience: p.years_experience,
     vettingAnswers: p.vetting_answers,

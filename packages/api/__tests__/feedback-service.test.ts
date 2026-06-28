@@ -33,6 +33,21 @@ describe('validateAndNormalize', () => {
     if (r.ok === false && !r.spam) expect(r.reason).toMatch(/at least one/i);
   });
 
+  it('retains many answers without dropping (cap is above the live page field count)', () => {
+    // The feedback page ships 70+ answer fields. Regression guard for the bug
+    // where the answers map reused the 60-key ratings cap and silently dropped
+    // overflow. 80 answers must all survive.
+    const answers = Object.fromEntries(
+      Array.from({ length: 80 }, (_, i) => ['k' + i, 'value ' + i]),
+    );
+    const r = validateAndNormalize({ answers });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const stored = (r.value.payload as { answers: Record<string, string> }).answers;
+      expect(Object.keys(stored).length).toBe(80);
+    }
+  });
+
   it('accepts a minimal submission with a single answer', () => {
     const v = ok({ answers: { 'customer:best': 'the booking flow was smooth' } });
     expect((v.payload.answers as Record<string, string>)['customer:best']).toBe('the booking flow was smooth');

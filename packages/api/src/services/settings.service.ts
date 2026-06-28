@@ -25,9 +25,11 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   commission_rate_pro: '11',
   commission_rate_elite: '9',
 
-  // Fees
-  service_fee_rate: '10',
-  service_fee_min: '2500',
+  // Fees — no customer service fee (Ken, 2026-06-28; mig 137). Defaults are the
+  // DB-outage fallback, so they must also be 0 or a settings read failure would
+  // re-charge the customer at 10%/₱25. Platform earns from provider commission.
+  service_fee_rate: '0',
+  service_fee_min: '0',
   service_fee_max: '50000',
   guarantee_fund_rate: '1.5',
   vat_rate: '12',

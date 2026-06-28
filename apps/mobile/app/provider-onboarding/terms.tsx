@@ -41,10 +41,10 @@ export default function TermsScreen(): React.ReactElement {
         // Phase K MED-K07 — optional fields, dropped server-side when undefined.
         ...(store.nbiExpiryDate ? { nbiExpiryDate: store.nbiExpiryDate } : {}),
         ...(store.governmentIdNumber ? { governmentIdNumber: store.governmentIdNumber } : {}),
-        // Vetting questionnaire (collected on the new vetting step). The
-        // apply schema strips unknown keys today, so these ride along
-        // harmlessly and are ready to persist once the apply endpoint
-        // reads them. yearsExperience maps to providers.years_experience.
+        // Vetting questionnaire (collected on the new vetting step). The apply
+        // route now forwards these and the service persists them:
+        // yearsExperience -> providers.years_experience, the rest ->
+        // providers.vetting_answers JSONB (mig 136).
         ...(store.yearsExperience != null ? { yearsExperience: store.yearsExperience } : {}),
         ...(store.mainSkills.trim() ? { mainSkills: store.mainSkills.trim() } : {}),
         hasOwnTools: store.hasOwnTools,

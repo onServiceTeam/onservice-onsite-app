@@ -36,7 +36,7 @@ export default function CustomerLayout(): React.ReactElement {
       <Stack.Screen name="booking/photos" />
       <Stack.Screen name="referral" />
       <Stack.Screen name="suki-pros" />
-      <Stack.Screen name="safety" />
+      <Stack.Screen name="safety-and-support" />
       <Stack.Screen name="addresses" />
       <Stack.Screen name="help" />
       <Stack.Screen name="wallet-topup" />

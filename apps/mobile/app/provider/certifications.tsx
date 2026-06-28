@@ -22,6 +22,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Routes } from '@/config/navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
@@ -284,7 +285,7 @@ export default function CertificationsScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Phase 14 R5-complete — NbiStatusBanner (auto-hides when valid) */}
-      <NbiStatusBanner />
+      <NbiStatusBanner onTap={() => router.push(Routes.PROVIDER.ACCOUNT_MANAGEMENT)} />
       <View style={styles.header}>
         <TouchableOpacity onPress={(): void => { router.back(); }} style={styles.backButton}>
           <Text style={styles.backIcon}>←</Text>

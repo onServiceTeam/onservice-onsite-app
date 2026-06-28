@@ -51,7 +51,7 @@ export const Routes = {
     BOOKING_JOB_REQUEST: '/customer/booking/job-request',
     BOOKING_QUOTES: '/customer/booking/quotes',
     BOOKING_MAKE_RECURRING: '/customer/booking/make-recurring',
-    CHAT: '/customer/chat/[bookingId]',
+    CHAT: '/customer/chat/[id]',
     // BUG-PHASE81-01 fix (same dead-route pattern as CRIT-80) — pre-fix
     // this pointed at '/customer/wallet' which has no corresponding
     // file. The (tabs)/wallet.tsx "+ Top Up" button uses this route

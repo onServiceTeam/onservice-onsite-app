@@ -83,8 +83,8 @@ describe('SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants)',
     commission_rate_verified: '13',
     commission_rate_pro: '11',
     commission_rate_elite: '9',
-    service_fee_rate: '10',
-    service_fee_min: '2500',
+    service_fee_rate: '0',
+    service_fee_min: '0',
     service_fee_max: '50000',
     guarantee_fund_rate: '1.5',
     vat_rate: '12',
@@ -193,7 +193,7 @@ describe('getSetting fallback chain — extra branches', () => {
     redisGetMock.mockResolvedValueOnce(null);
     dbQueryMock.mockRejectedValueOnce(new Error('db down'));
     const v = await settingsService.getSetting('service_fee_rate');
-    expect(v).toBe('10');
+    expect(v).toBe('0'); // customer service fee removed (mig 137); default is now 0
   });
 
   it('throws 404 when key has no DB row and no default', async () => {

@@ -25,9 +25,11 @@ export const platformConfig = {
   } as Record<string, number>,
 
   // --- Service Fees ---
-  serviceFeeRate: 0.10,           // 10% service fee charged to customer
-  guaranteeFundRate: 0.015,       // 1.5% of service fee to guarantee fund
-  minimumServiceFee: 2500,        // ₱25.00 minimum (stored in centavos)
+  // No customer service fee (Ken, 2026-06-28; mig 137). This is the sync
+  // fallback used when a settings read fails, so it must be 0 too.
+  serviceFeeRate: 0,              // no customer service fee
+  guaranteeFundRate: 0.015,       // 1.5% to guarantee fund
+  minimumServiceFee: 0,           // no customer service fee floor
   maximumServiceFee: 50000,       // ₱500.00 maximum (stored in centavos)
 
   // --- Cancellation policy ---

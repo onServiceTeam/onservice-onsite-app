@@ -99,6 +99,7 @@ interface CreateBookingParams {
  * the in-memory defaults.
  */
 export function calculateServiceFeeSync(servicePrice: number): number {
+  if (platformConfig.serviceFeeRate === 0) return 0; // no customer fee; min floor must not re-add one
   const fee = Math.round(servicePrice * platformConfig.serviceFeeRate);
   return Math.max(
     platformConfig.minimumServiceFee,
@@ -122,7 +123,8 @@ export async function calculateServiceFee(servicePrice: number): Promise<number>
       return calculateServiceFeeSync(servicePrice);
     }
     const fee = Math.round(servicePrice * Number(rate));
-    return Math.max(Number(min), Math.min(fee, Number(max)));
+    // A zero rate = no customer fee; the min floor must not re-add one.
+    return Number(rate) === 0 ? 0 : Math.max(Number(min), Math.min(fee, Number(max)));
   } catch {
     return calculateServiceFeeSync(servicePrice);
   }

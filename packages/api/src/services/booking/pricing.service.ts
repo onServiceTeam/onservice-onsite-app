@@ -182,7 +182,9 @@ export async function resolvePricing(input: BookingPricingInput): Promise<Resolv
   const feeMin = await getSettingNumber('service_fee_min');
   const feeMax = await getSettingNumber('service_fee_max');
   const computedFee = Math.round(subtotalForFee * (feeRatePercent / 100));
-  const serviceFeeCents = Math.max(feeMin, Math.min(computedFee, feeMax));
+  // A zero rate means no customer fee at all — the min floor must NOT re-add one
+  // (Ken, 2026-06-28). Only apply the min/max band when a fee is actually charged.
+  const serviceFeeCents = feeRatePercent === 0 ? 0 : Math.max(feeMin, Math.min(computedFee, feeMax));
 
   const totalAmountCents = subtotalForFee + serviceFeeCents;
   if (!Number.isFinite(totalAmountCents) || totalAmountCents <= 0) {
