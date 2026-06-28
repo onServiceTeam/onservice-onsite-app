@@ -3,6 +3,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { providerApplicationSchema, updateProfileSchema, addServiceSchema, setScheduleSchema, availabilityOverrideSchema } from '../validators/provider.validators';
 import * as providerService from '../services/provider.service';
+import * as jobLeadsService from '../services/job-leads.service';
 import * as reviewService from '../services/review.service';
 import * as providerToolsService from '../services/provider-tools.service';
 import * as providerStaffService from '../services/provider-staff.service';
@@ -797,6 +798,25 @@ router.get(
       }
       const receipt = await providerToolsService.generateReceipt(provider.id, bookingId);
       res.json({ success: true, data: receipt });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- D27 Phase 1: open custom-quote requests (leads) this provider can quote ---
+
+router.get(
+  '/me/job-requests',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const data = await jobLeadsService.getOpenJobRequestsForProvider(req.user!.userId, {
+        page: Number(req.query.page ?? 1),
+        pageSize: Number(req.query.pageSize ?? 20),
+      });
+      res.json({ success: true, ...data });
     } catch (error) {
       next(error);
     }

@@ -1,7 +1,7 @@
 # D27 — Variable pricing, custom quotes, projects, remote help, and the provider CRM
 
 Date: 2026-06-29
-Status: DESIGN + decisions for Ken. Three verified bugs already fixed this session (see end). The bigger capabilities below need Ken's money/architecture calls before building.
+Status: APPROVED by Ken 2026-06-29 — "build it all in order, don't stop until done." Building the §4 phases in sequence. The §5 money/architecture/external-dep decisions are still Ken's to make; per CLAUDE.md hard-stops, each is surfaced at the point its phase is reached rather than guessed. Three verified bugs already fixed this session (see end). Phase 1 (lead discovery) is in progress.
 Raised by: AI coder, from Ken's request to support contractor/handyman/painting/design/construction-scale work, remote help, and a provider business-management system.
 
 Grounded in a code audit of quoting, pricing, parts, job lifecycle, media, provider tools, remote help, and catalog (2026-06-29, parallel-agent workflow). The headline: **the custom-quote engine is ~80% built and genuinely good, but it has a dead middle and no project layer.**

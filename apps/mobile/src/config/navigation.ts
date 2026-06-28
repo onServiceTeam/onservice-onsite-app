@@ -99,6 +99,8 @@ export const Routes = {
 
   PROVIDER: {
     JOB_DETAIL: '/provider/job/[id]',
+    // D27 Phase 1 — open custom-quote requests (leads) the provider can quote.
+    LEADS: '/provider/leads',
     JOB_COMPLETE: '/provider/job/[id]/complete',
     QUOTE_BUILDER: '/provider/job/[id]/quote',
     // BUG-PHASE82-01 fix — pre-fix the path was '/provider/job/[id]/active'

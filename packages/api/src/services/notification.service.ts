@@ -59,6 +59,9 @@ export type NotificationType =
   | 'new_message' | 'chat_started' | 'chat_last_message'
   // Quotes
   | 'new_quote' | 'quote_accepted' | 'quote_expired'
+  // D27 Phase 1 — provider is notified when a custom-quote job request lands in
+  // their category + service area (pull-based lead, provider chooses to quote).
+  | 'new_job_request'
   // MED-N70 — change-order auto-expiry worker
   | 'change_order_expired'
   // Recurring + business

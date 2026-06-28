@@ -12,6 +12,7 @@ import {
 } from '../validators/booking.validators';
 import { db } from '../models/db';
 import * as bookingService from '../services/booking.service';
+import * as jobLeadsService from '../services/job-leads.service';
 import * as matchingService from '../services/matching.service';
 import * as notificationService from '../services/notification.service';
 import * as escrowService from '../services/escrow.service';
@@ -133,6 +134,12 @@ function formatBookingResponse(b: BookingRow): Record<string, unknown> {
     provider_name?: string;
     customer_name?: string;
     performer_staff_id?: string | null;
+    // D27 Phase 1 — quote-request fields the serializer previously dropped, so a
+    // provider could not see the customer's budget/urgency/video when quoting.
+    urgency?: string | null;
+    budget_min?: number | null;
+    budget_max?: number | null;
+    job_video_url?: string | null;
   };
   return {
     id: row.id,
@@ -166,6 +173,10 @@ function formatBookingResponse(b: BookingRow): Record<string, unknown> {
     rebookedFromId: row.rebooked_from_id ?? null,
     sukiDiscount: row.suki_discount ?? 0,
     jobPhotos: row.job_photos ?? [],
+    jobVideoUrl: row.job_video_url ?? null,
+    urgency: row.urgency ?? null,
+    budgetMin: row.budget_min ?? null,
+    budgetMax: row.budget_max ?? null,
     providerBeforePhotos: row.provider_before_photos ?? [],
     providerAfterPhotos: row.provider_after_photos ?? [],
     createdAt: row.created_at,
@@ -256,6 +267,19 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const booking = await bookingService.createJobRequest(req.user!.userId, req.body);
+      // D27 Phase 1 — fan the new request out to category + service-area matched
+      // providers so it actually reaches someone who can quote. Best-effort and
+      // non-blocking: the request is already saved; a notify failure must not
+      // fail the customer's request.
+      void jobLeadsService
+        .notifyProvidersOfJobRequest({
+          id: booking.id,
+          category_id: booking.category_id,
+          latitude: booking.latitude,
+          longitude: booking.longitude,
+          city: booking.city,
+        })
+        .catch((err) => logger.warn('job-request lead fan-out failed', { bookingId: booking.id, err: String(err) }));
       res.status(201).json({ success: true, data: formatBookingResponse(booking as BookingRow) });
     } catch (error) {
       next(error);

@@ -226,6 +226,20 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         </View>
       )}
 
+      {/* D27 Phase 1 — entry to the new Job Requests (leads) inbox. Custom-quote
+          requests now reach matched providers; this is where they browse + quote. */}
+      <TouchableOpacity
+        style={styles.leadsCard}
+        activeOpacity={0.85}
+        onPress={() => router.push(Routes.PROVIDER.LEADS)}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.leadsTitle}>Job Requests</Text>
+          <Text style={styles.leadsSubtitle}>Browse open custom-quote requests in your area and send a quote.</Text>
+        </View>
+        <Text style={styles.leadsArrow}>›</Text>
+      </TouchableOpacity>
+
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Active Jobs</Text>
@@ -395,6 +409,18 @@ const styles = StyleSheet.create({
   statLabel: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
 
   section: { marginBottom: spacing.lg },
+  // D27 Phase 1 — Job Requests (leads) entry card.
+  leadsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  leadsTitle: { ...typography.h3, color: colors.white },
+  leadsSubtitle: { ...typography.bodySmall, color: '#CBD5E1', marginTop: 2 },
+  leadsArrow: { fontSize: 28, color: colors.white, marginLeft: spacing.sm },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
