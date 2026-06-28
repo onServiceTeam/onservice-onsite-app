@@ -14,12 +14,19 @@ export interface VettingItem {
   label: string;
 }
 
+// Mirrors the company vetting rubric in docs/operations/04. Items that depend on
+// optional application data say "or noted as none" so an admin can still confirm
+// they reviewed it for a legit solo worker who has no website/registration.
 export const VETTING_ITEMS: VettingItem[] = [
   { key: 'gov_id', label: 'Government ID reviewed and legible' },
   { key: 'selfie_match', label: 'Selfie matches the ID' },
   { key: 'nbi', label: 'NBI clearance present and not expired' },
-  { key: 'area_categories', label: 'Service area + categories are sensible' },
-  { key: 'experience', label: 'Experience/skills are plausible for the categories' },
+  { key: 'address', label: 'Business / home address looks real and local' },
+  { key: 'area_categories', label: 'Service area + chosen services are sensible' },
+  { key: 'experience', label: 'Experience, skills, and credentials are plausible' },
+  { key: 'registrations', label: 'Business registrations / certifications reviewed (or noted as none)' },
+  { key: 'references', label: 'At least one reference reviewed and looks contactable' },
+  { key: 'online', label: 'Website / social links checked (or noted as none)' },
   { key: 'no_fraud', label: 'No duplicate-account or fraud red flags' },
 ];
 
