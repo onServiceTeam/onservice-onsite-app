@@ -381,6 +381,11 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
                 shown to you only · this lookup was logged
               </span>
             )}
+            {revealMutation.isError && (
+              <span role="alert" className="text-xs text-[var(--color-danger)]">
+                {getErrorMessage(revealMutation.error)}
+              </span>
+            )}
             <span className="inline-flex items-center gap-1">
               <Calendar size={14} /> joined {new Date(profile.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })}
             </span>

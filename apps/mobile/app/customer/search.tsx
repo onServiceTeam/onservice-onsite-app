@@ -115,7 +115,11 @@ export default function SearchScreen(): React.ReactElement {
 
   const handleSelectService = (item: Subcategory): void => {
     setCategory(item.categoryId, item.categoryName ?? '', item.categorySlug ?? '');
-    const isQuoteBased = item.pricingType === 'quote_based' || item.basePrice == null;
+    // The catalog serializer value is 'quote' (DB CHECK migration 003), not
+    // 'quote_based' (that is the bookings.booking_type value). Same fix as
+    // customer/category/[id].tsx — a quote subcategory with a base_price set was
+    // mis-routing from search into the fixed-price flow.
+    const isQuoteBased = item.pricingType === 'quote' || item.basePrice == null;
     setSubcategory(item.id, item.name, item.basePrice ?? 0);
     if (isQuoteBased) {
       router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);

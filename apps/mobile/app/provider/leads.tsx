@@ -5,7 +5,7 @@
 // GET /api/v1/providers/me/job-requests. Tapping a lead opens the job, where
 // the provider builds a quote. Before this screen, custom-quote requests never
 // reached a provider at all.
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
+import { getSocket } from '@/services/socket.service';
 
 interface JobRequestLead {
   id: string;
@@ -68,6 +69,19 @@ export default function ProviderLeadsScreen(): React.ReactElement {
   const router = useRouter();
   const q = useQuery({ queryKey: ['provider-leads'], queryFn: fetchLeads, staleTime: 30 * 1000 });
 
+  // Live refresh: the server emits 'new:job_request' to matched providers when a
+  // new custom-quote request lands. While the Leads screen is open, refetch so a
+  // new lead appears without a manual pull-to-refresh. (refetch is referentially
+  // stable in react-query, so this subscribes once.)
+  const refetch = q.refetch;
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const handler = (): void => { void refetch(); };
+    socket.on('new:job_request', handler);
+    return () => { socket.off('new:job_request', handler); };
+  }, [refetch]);
+
   const renderItem = useCallback(
     ({ item }: { item: JobRequestLead }) => {
       const budget = budgetLabel(item);
@@ -93,7 +107,14 @@ export default function ProviderLeadsScreen(): React.ReactElement {
               {location || 'Location shared after you quote'}
               {item.distanceKm != null ? ` · ${item.distanceKm} km away` : ''}
             </Text>
-            {media > 0 ? <Text style={styles.media}>{media} photo{media > 1 ? 's' : ''}/video</Text> : null}
+            {media > 0 ? (
+              <Text style={styles.media}>
+                {[
+                  item.jobPhotos.length ? `${item.jobPhotos.length} photo${item.jobPhotos.length > 1 ? 's' : ''}` : null,
+                  item.jobVideoUrl ? 'video' : null,
+                ].filter(Boolean).join(' + ')}
+              </Text>
+            ) : null}
           </View>
           <Text style={styles.cta}>Send a quote ›</Text>
         </TouchableOpacity>

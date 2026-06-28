@@ -260,10 +260,12 @@ export async function getCustomerProfile(customerId: string, actorRole: string):
   ]);
 
   const s = stats.rows[0];
-  // D25: data-minimization — super_admin and dpo see raw contact by default;
-  // everyone else gets masked values plus an audit-logged reveal. Matches the
-  // existing activity IP/UA masking precedent (super_admin + dpo = raw).
-  const contactMasked = actorRole !== 'super_admin' && actorRole !== 'dpo';
+  // D25: data-minimization — only super_admin sees raw contact by default;
+  // everyone else (INCLUDING dpo) gets masked values plus an audit-logged
+  // reveal. This is CONTACT masking; the separate activity IP/UA masking treats
+  // dpo like super_admin (raw IP) per pii-mask.ts, but contact stays masked for
+  // dpo to match maskPiiForRole's convention (dpo: masked phone/email).
+  const contactMasked = actorRole !== 'super_admin';
   return {
     id: u.id,
     firstName: u.first_name,

@@ -135,10 +135,9 @@ export default function CatalogPage(): React.ReactElement {
     if ((pricingType === 'fixed' || pricingType === 'hourly') && basePrice === '') {
       return 'Base price is required for fixed and hourly services.';
     }
-    if (pricingType === 'range') {
-      if (minPrice === '' || maxPrice === '') return 'Min and max price are required for range services.';
-      if (Number(minPrice) > Number(maxPrice)) return 'Min price cannot be greater than max price.';
-    }
+    // 'range' is no longer a selectable/saveable pricing type (DB CHECK in
+    // migration 003 allows only fixed/quote/hourly); its dead validation branch
+    // was removed. Legacy 'range' rows (none on prod) are coerced on edit below.
     return null;
   };
 
@@ -265,7 +264,9 @@ export default function CatalogPage(): React.ReactElement {
     setTargetCategoryId(sub.categoryId);
     setName(sub.name);
     setDescription(sub.description);
-    setPricingType(sub.pricingType);
+    // Coerce any legacy/unsupported pricing type (e.g. an old 'range' row) to a
+    // valid, selectable one so re-saving can't send a value the DB CHECK rejects.
+    setPricingType(['fixed', 'quote', 'hourly'].includes(sub.pricingType) ? sub.pricingType : 'quote');
     // Phase 200 zero-price fix — a legitimate 0-centavo price is falsy and
     // wrongly showed blank; check null/undefined explicitly instead.
     setBasePrice(sub.basePrice != null ? String(sub.basePrice / 100) : '');

@@ -387,6 +387,11 @@ function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactE
                 shown to you only · logged
               </span>
             )}
+            {revealMutation.isError && (
+              <span role="alert" className="text-[var(--color-danger)]">
+                {getErrorMessage(revealMutation.error)}
+              </span>
+            )}
             {profile.city && (
               <span className="inline-flex items-center gap-1">
                 <MapPin size={12} /> {profile.city}

@@ -67,6 +67,8 @@ describe('notifyProvidersOfJobRequest', () => {
     expect(sql).toMatch(/provider_services/);
     expect(sql).toMatch(/p\.status = 'approved'/);
     expect(sql).toMatch(/service_radius_km/);
+    // Subcategory-only providers (category_id NULL, migration 013) must still match.
+    expect(sql).toMatch(/service_subcategories WHERE category_id = \$1/);
   });
 });
 

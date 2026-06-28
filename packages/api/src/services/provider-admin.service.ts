@@ -244,9 +244,11 @@ export async function getProviderProfile(providerId: string, actorRole: string):
     ),
   ]);
 
-  // D25: super_admin (and DPO) see raw contact; everyone else gets masked
-  // values plus a reveal affordance that writes an audit row.
-  const contactMasked = actorRole !== 'super_admin' && actorRole !== 'dpo';
+  // D25: only super_admin sees raw contact by default; everyone else (INCLUDING
+  // dpo) gets masked values plus an audit-logged reveal, matching pii-mask.ts
+  // maskPiiForRole (dpo: masked phone/email). The separate activity IP/UA
+  // masking is what treats dpo like super_admin, not contact.
+  const contactMasked = actorRole !== 'super_admin';
 
   return {
     id: p.id,

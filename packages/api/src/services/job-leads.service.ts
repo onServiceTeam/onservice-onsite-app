@@ -42,10 +42,16 @@ export async function notifyProvidersOfJobRequest(booking: {
 }): Promise<number> {
   const dist = haversineSQL('$2', '$3', 'p.latitude', 'p.longitude');
   const providers = await db.query<{ user_id: string }>(
+    // provider_services.category_id is nullable (migration 013): a provider can
+    // register a service by subcategory only. Match either the category directly
+    // OR a subcategory that rolls up to this category, so subcategory-only
+    // providers still receive the lead.
     `SELECT DISTINCT p.user_id
        FROM providers p
        JOIN provider_services ps
-         ON ps.provider_id = p.id AND ps.is_active = TRUE AND ps.category_id = $1
+         ON ps.provider_id = p.id AND ps.is_active = TRUE
+        AND ( ps.category_id = $1
+              OR ps.subcategory_id IN (SELECT id FROM service_subcategories WHERE category_id = $1) )
       WHERE p.status = 'approved'
         AND (
           $2::numeric IS NULL OR $3::numeric IS NULL
@@ -133,7 +139,13 @@ export async function getOpenJobRequestsForProvider(
        b.booking_type = 'quote_based'
        AND b.status = 'requested'
        AND b.category_id IN (
+         -- categories the provider serves directly...
          SELECT ps.category_id FROM provider_services ps
+          WHERE ps.provider_id = $1 AND ps.is_active = TRUE AND ps.category_id IS NOT NULL
+         UNION
+         -- ...plus categories resolved from subcategory-only registrations.
+         SELECT ssc.category_id FROM provider_services ps
+           JOIN service_subcategories ssc ON ssc.id = ps.subcategory_id
           WHERE ps.provider_id = $1 AND ps.is_active = TRUE
        )
        AND NOT EXISTS (SELECT 1 FROM booking_quotes q WHERE q.booking_id = b.id AND q.provider_id = $1)
