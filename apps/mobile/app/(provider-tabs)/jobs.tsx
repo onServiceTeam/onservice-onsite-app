@@ -28,6 +28,7 @@ import NbiStatusBanner from '@/components/provider/NbiStatusBanner';
 import { formatRelative, formatDateTime, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Routes } from '@/config/navigation';
+import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
 
 const STATUS_FILTERS = [
   { key: 'active', label: 'Active' },
@@ -38,6 +39,8 @@ const STATUS_FILTERS = [
 export default function ProviderJobsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { breakpoint } = useResponsive();
+  const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 2 });
   const [filter, setFilter] = useState<string>('active');
   // Phase 14 R5-complete — FilterModal for advanced job filters.
   const [advancedFiltersVisible, setAdvancedFiltersVisible] = useState(false);
@@ -102,7 +105,7 @@ export default function ProviderJobsScreen(): React.ReactElement {
 
   const renderJob = ({ item }: { item: Booking }): React.ReactElement => (
     <TouchableOpacity
-      style={styles.jobCard}
+      style={[styles.jobCard, numColumns > 1 && styles.cardGrid]}
       onPress={() => router.push(`/provider/job/${item.id}`)}
       activeOpacity={0.7}
     >
@@ -169,6 +172,9 @@ export default function ProviderJobsScreen(): React.ReactElement {
           data={jobs}
           renderItem={renderJob}
           keyExtractor={(item) => item.id}
+          key={`jobs-${numColumns}`}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           initialNumToRender={10}
@@ -296,6 +302,8 @@ const styles = StyleSheet.create({
   filterTextActive: { color: colors.white },
 
   list: { paddingBottom: 100 },
+  gridRow: { gap: spacing.md },
+  cardGrid: { flex: 1 },
   jobCard: {
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,

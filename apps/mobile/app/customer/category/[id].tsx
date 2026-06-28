@@ -15,6 +15,7 @@ import { getSubcategories, type Subcategory } from '@/services/catalog.service';
 import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
+import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
 import { Clock, ChevronLeft } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
@@ -58,11 +59,14 @@ export default function SubcategoryListScreen(): React.ReactElement {
 
   const tint = getCategoryTint(slug);
 
+  const { breakpoint } = useResponsive();
+  const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 2 });
+
   const renderItem = ({ item }: { item: Subcategory }): React.ReactElement => {
     const quoteBased = isQuoteBased(item);
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, numColumns > 1 && styles.cardGrid]}
         onPress={() => handleSelect(item)}
         activeOpacity={0.7}
       >
@@ -118,6 +122,9 @@ export default function SubcategoryListScreen(): React.ReactElement {
           data={subcategories}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
+          key={`subcats-${numColumns}`}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -155,6 +162,8 @@ const styles = StyleSheet.create({
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text, flex: 1 },
   list: { padding: spacing.base },
+  gridRow: { gap: spacing.md },
+  cardGrid: { flex: 1 },
   card: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
