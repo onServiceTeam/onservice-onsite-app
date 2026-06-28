@@ -25,6 +25,7 @@ import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { getSocket } from '@/services/socket.service';
+import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
 
 interface JobRequestLead {
   id: string;
@@ -82,6 +83,10 @@ export default function ProviderLeadsScreen(): React.ReactElement {
     return () => { socket.off('new:job_request', handler); };
   }, [refetch]);
 
+  // Reflow the leads into 2 columns on tablet/desktop.
+  const { breakpoint } = useResponsive();
+  const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 2 });
+
   const renderItem = useCallback(
     ({ item }: { item: JobRequestLead }) => {
       const budget = budgetLabel(item);
@@ -89,7 +94,7 @@ export default function ProviderLeadsScreen(): React.ReactElement {
       const media = item.jobPhotos.length + (item.jobVideoUrl ? 1 : 0);
       return (
         <TouchableOpacity
-          style={styles.card}
+          style={[styles.card, numColumns > 1 && styles.cardGrid]}
           activeOpacity={0.7}
           onPress={() => router.push(`/provider/job/${item.id}`)}
         >
@@ -120,7 +125,7 @@ export default function ProviderLeadsScreen(): React.ReactElement {
         </TouchableOpacity>
       );
     },
-    [router],
+    [router, numColumns],
   );
 
   return (
@@ -145,6 +150,9 @@ export default function ProviderLeadsScreen(): React.ReactElement {
       ) : (
         <FlatList
           data={q.data?.requests ?? []}
+          key={`leads-${numColumns}`}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.body}
@@ -190,6 +198,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     marginBottom: spacing.sm,
   },
+  // Tablet/desktop: 2-up grid.
+  gridRow: { gap: spacing.sm },
+  cardGrid: { flex: 1 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   category: { ...typography.body, fontWeight: '600', color: colors.text },
   time: { ...typography.caption, color: colors.textTertiary },

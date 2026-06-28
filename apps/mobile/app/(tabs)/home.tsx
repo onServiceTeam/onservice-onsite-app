@@ -30,6 +30,7 @@ import { StatusBadge, Skeleton, ErrorState, TrustStrip } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
+import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
 import type { ComponentType } from 'react';
 import { Routes } from '@/config/navigation';
 import {
@@ -114,6 +115,9 @@ export default function HomeScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
+  // Category grid widens to more columns on tablet/desktop (cards are flex:1).
+  const { breakpoint } = useResponsive();
+  const categoryColumns = byBreakpoint(breakpoint, { phone: 2, tablet: 3, desktop: 4 });
   const setCategory = useBookingStore((s) => s.setCategory);
 
   const categoriesQuery = useQuery({
@@ -576,7 +580,8 @@ export default function HomeScreen(): React.ReactElement {
       data={categories}
       renderItem={renderCategoryItem}
       keyExtractor={(item) => item.id}
-      numColumns={2}
+      key={`cats-${categoryColumns}`}
+      numColumns={categoryColumns}
       ListHeaderComponent={renderHeader}
       ListFooterComponent={renderFooter}
       columnWrapperStyle={styles.categoryRow}
