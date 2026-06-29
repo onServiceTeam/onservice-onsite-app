@@ -71,11 +71,37 @@ strategy that was superseded — leave them as point-in-time history.)
   with `docker compose stop` — **never** run a `down.sh`/`rm` that wipes volumes.
 
 ### 2.2 GitHub
-- Repo: **https://github.com/onServiceTeam/onservice-onsite-app** (private)
-- The local clone's `origin` remote is already authenticated on Ken's machine
-  (`git push origin master` works). Use the `gh` CLI for PRs/issues/CI status
-  (`gh run list --branch master`). If you run in a different environment, you'll
-  need Ken to provide a GitHub token/credential — do not assume one.
+- Repo: **https://github.com/onServiceTeam/onservice-onsite-app** (PRIVATE).
+- **Local machine:** the local clone's `origin` is HTTPS and already authenticated
+  on Ken's machine (`git push origin master` works). Use the `gh` CLI for
+  PRs/issues/CI status (`gh run list --branch master`). If you run in a *different*
+  environment (e.g. a cloud agent, not Ken's box), you will need Ken to provide a
+  GitHub token/credential — do not assume one.
+- **Server (`/opt/onservice`):** authenticates to GitHub with a **read-only deploy
+  key** (set up 2026-06-29). The server's git remote is **SSH**
+  (`git@github.com:onServiceTeam/onservice-onsite-app.git`), and the repo is wired
+  to the key via `git config core.sshCommand "ssh -i ~/.ssh/github_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"`.
+  The private key is `/root/.ssh/github_deploy` on the server (never copy it); the
+  public key (`github_deploy.pub`) is registered under the repo's GitHub
+  **Settings → Deploy keys** (read-only, no write access). So the server can
+  `git fetch origin && git reset --hard origin/master` on its own during deploys.
+  - **Verify it works:** `ssh -i ~/.ssh/github_deploy -o IdentitiesOnly=yes -T git@github.com`
+    should print "Hi onServiceTeam/onservice-onsite-app! You've successfully
+    authenticated".
+  - **If the server can't fetch GitHub** (e.g. `could not read Username for
+    'https://github.com'`): the remote got reset to HTTPS or the deploy key was
+    removed/rotated. Fix: `cd /opt/onservice && git remote set-url origin git@github.com:onServiceTeam/onservice-onsite-app.git && git config core.sshCommand "ssh -i ~/.ssh/github_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"`,
+    then test the ssh line above. If the key itself is gone/revoked, generate a new
+    one on the server (`ssh-keygen -t ed25519 -f ~/.ssh/github_deploy -N "" -C "onservice-server-deploy"`),
+    print `~/.ssh/github_deploy.pub`, and have **Ken** add it as a read-only deploy
+    key at GitHub repo → Settings → Deploy keys → Add deploy key (adding a deploy
+    key is a repo-access change — only Ken/an owner does that in the GitHub web UI,
+    not the agent).
+  - **Fallback if you cannot fix auth and need to ship code to the server:** create
+    a git bundle of the missing commits locally and apply it on the server (this
+    transfers the exact commit hashes without GitHub auth):
+    `git bundle create /tmp/sync.bundle <serverHEAD>..master` → scp to the server →
+    `git fetch /tmp/sync.bundle master && git reset --hard FETCH_HEAD`.
 - Git author for commits: `Phase13 Agent`. End commit messages with a
   `Co-Authored-By:` line.
 
@@ -111,6 +137,11 @@ strategy that was superseded — leave them as point-in-time history.)
   `docker exec -i "$DBC" psql -U onservice_user -d onservice -v ON_ERROR_STOP=1 < packages/api/migrations/NNN_name.sql`
 - Highest applied migration is **145** (`145_hourly_pricing.sql`). Next free
   number is **146**.
+- The `pgmigrations` tracking table is accurate through **145** (migrations 135–145
+  were hand-applied via psql and the tracker was backfilled 2026-06-29 so it
+  matches the live schema). Every migration 001–145 is reflected in the live DB.
+  If you hand-apply a new migration, add a tracker row so it stays accurate:
+  `INSERT INTO pgmigrations (name, run_on) SELECT '146_xxx', NOW() WHERE NOT EXISTS (SELECT 1 FROM pgmigrations WHERE name='146_xxx');`
 
 ### 2.5 Redis cache gotcha (you WILL hit this)
 - `/api/v1/catalog/full` (and other catalog GETs) are cached in Redis for **1
