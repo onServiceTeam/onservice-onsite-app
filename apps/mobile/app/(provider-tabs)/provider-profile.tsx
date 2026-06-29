@@ -328,6 +328,12 @@ export default function ProviderProfileScreen(): React.ReactElement {
           <Text style={styles.menuLabel}>Certifications</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
+        {/* D27 Phase 7 — provider CRM: the client book. */}
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.CLIENTS)}>
+          <Users size={22} color={colors.primary} style={styles.menuIconImg} />
+          <Text style={styles.menuLabel}>My Clients</Text>
+          <Text style={styles.menuArrow}>›</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.REVIEWS)}>
           <Star size={22} color={colors.warning} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>My Reviews</Text>

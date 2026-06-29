@@ -3,6 +3,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { providerApplicationSchema, updateProfileSchema, addServiceSchema, setScheduleSchema, availabilityOverrideSchema } from '../validators/provider.validators';
 import * as providerService from '../services/provider.service';
+import * as providerCrmService from '../services/provider-crm.service';
 import * as jobLeadsService from '../services/job-leads.service';
 import * as reviewService from '../services/review.service';
 import * as providerToolsService from '../services/provider-tools.service';
@@ -202,6 +203,23 @@ router.get(
       const provider = await providerService.getProviderByUserId(req.user!.userId);
       const status = await providerService.getProviderNbiStatus(provider.id);
       res.json({ success: true, data: status });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// D27 Phase 7 — provider CRM (clients book). The provider's own customers
+// aggregated by repeat business, most recently served first.
+router.get(
+  '/me/clients',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const clients = await providerCrmService.getProviderClients(provider.id);
+      res.json({ success: true, data: clients });
     } catch (error) {
       next(error);
     }

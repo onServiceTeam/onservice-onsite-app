@@ -125,6 +125,8 @@ export const Routes = {
     SERVICE_AREA: '/provider/service-area',
     // In-app quality standards / community guidelines.
     STANDARDS: '/provider/standards',
+    // D27 Phase 7 — provider CRM: the provider's client book.
+    CLIENTS: '/provider/clients',
     NOTIFICATIONS: '/provider/notifications',
     SERVICES: '/provider/services',
     CALENDAR: '/provider/calendar',
