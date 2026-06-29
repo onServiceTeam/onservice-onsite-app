@@ -76,6 +76,7 @@ import staffRoutes from './routes/staff.routes';
 import settingsRoutes from './routes/settings.routes';
 import cancellationPolicyPublicRoutes from './routes/cancellation-policy-public.routes';
 import feedbackRoutes from './routes/feedback.routes';
+import projectRoutes from './routes/project.routes';
 import cancellationPolicyAdminRoutes from './routes/cancellation-policy-admin.routes';
 import * as settingsService from './services/settings.service';
 import { assertAdmin2faNotDisabledInProduction } from './config/boot-guards';
@@ -363,6 +364,7 @@ app.use('/api/v1/conversations', messagingRoutes);
 app.use('/api/v1/addresses', addressRoutes);
 app.use('/api/v1/referrals', referralRoutes);
 app.use('/api/v1/recurring', recurringRoutes);
+app.use('/api/v1/projects', projectRoutes);
 app.use('/api/v1/suki', sukiRoutes);
 app.use('/api/v1/uploads', uploadRoutes);
 // Phase 14 Dispatch 07 — Bug 460 + 463 server-driven checklists.

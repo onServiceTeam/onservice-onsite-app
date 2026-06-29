@@ -26,6 +26,7 @@ import {
   Lock,
   FileText,
   MessageSquare,
+  Hammer,
 } from '@/components/icons';
 
 type NavItem = {
@@ -43,6 +44,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/dispatch', Icon: Activity, label: 'Dispatch' },
   { to: '/communications', Icon: MessageSquare, label: 'Communications' },
   { to: '/catalog', Icon: Package, label: 'Catalog' },
+  { to: '/projects', Icon: Hammer, label: 'Projects' },
   { to: '/pricing-rules', Icon: TrendingUp, label: 'Pricing Rules' },
   { to: '/disputes', Icon: Scale, label: 'Disputes' },
   { to: '/financials', Icon: Coins, label: 'Financials' },

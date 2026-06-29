@@ -70,6 +70,10 @@ export const Routes = {
     PROVIDER_PROFILE: '/customer/provider/[id]',
     RECURRING_BOOKINGS: '/customer/recurring',
     RECURRING_DETAIL: '/customer/recurring/[id]',
+    // D27 Phase 5 — projects (big multi-stage jobs).
+    PROJECTS: '/customer/projects',
+    PROJECT_DETAIL: '/customer/projects/[id]',
+    PROJECT_NEW: '/customer/projects/new',
     SAFETY: '/customer/safety-and-support',
     SUKI_PROS: '/customer/suki-pros',
     ADDRESS_PICKER: '/customer/address-picker',
