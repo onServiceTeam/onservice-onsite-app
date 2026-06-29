@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
 import { MapPin, ChevronRight } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
@@ -61,11 +62,14 @@ export default function RecurringListScreen(): React.ReactElement {
 
   const items = data?.data ?? [];
 
+  const { breakpoint } = useResponsive();
+  const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 2 });
+
   const renderItem = ({ item }: { item: RecurringBooking }): React.ReactElement => {
     const statusStyle = STATUS_COLORS[item.status] ?? STATUS_COLORS.active!;
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, numColumns > 1 && styles.cardGrid]}
         onPress={() => router.push(`/customer/recurring/${item.id}`)}
         activeOpacity={0.7}
       >
@@ -136,6 +140,9 @@ export default function RecurringListScreen(): React.ReactElement {
           data={items}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
+          key={`recurring-${numColumns}`}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -175,6 +182,8 @@ const styles = StyleSheet.create({
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { padding: spacing.base, paddingBottom: 80 },
+  gridRow: { gap: spacing.md },
+  cardGrid: { flex: 1 },
 
   card: {
     backgroundColor: colors.surface,
