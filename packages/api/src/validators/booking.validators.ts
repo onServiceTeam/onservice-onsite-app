@@ -41,6 +41,9 @@ export const createBookingSchema = z.object({
     addonId: z.string().uuid('Invalid addon ID'),
     quantity: z.number().int().min(1).max(100),
   }).strict()).max(20).optional(),
+  // D27 Phase 4b — required for hourly subcategories. The server re-clamps to
+  // the subcategory's max_estimated_hours; this is only a coarse sanity bound.
+  estimatedHours: z.number().positive().max(24).optional(),
 }).strict();
 
 // MED-N91 fix — POST /bookings/pricing-preview used to do manual
@@ -52,6 +55,8 @@ export const pricingPreviewSchema = z.object({
   scheduledAt: z.string().datetime('scheduledAt must be a valid ISO date'),
   categoryId: z.string().uuid('categoryId must be a valid UUID'),
   city: z.string().min(1).max(100).optional(),
+  // D27 Phase 4b — hourly preview passes the estimate so the preview matches.
+  estimatedHours: z.number().positive().max(24).optional(),
 }).strict();
 
 export const updateBookingStatusSchema = z.object({

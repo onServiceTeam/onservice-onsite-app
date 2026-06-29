@@ -42,6 +42,7 @@ interface PreTransitionRow {
   escrow_status: string;
   latitude: string | null;
   longitude: string | null;
+  is_hourly?: boolean;
 }
 
 function haversineDistanceMeters(
@@ -189,6 +190,13 @@ function formatBookingResponse(b: BookingRow): Record<string, unknown> {
     customerName: row.customer_name ?? null,
     // D23 — which team member (if any) is assigned to perform this job.
     performerStaffId: row.performer_staff_id ?? null,
+    // D27 Phase 4b — hourly fields so the customer receipt + provider job screen
+    // can show "billed X of Y hrs" and the refunded remainder.
+    isHourly: (row as { is_hourly?: boolean }).is_hourly ?? false,
+    estimatedHours: (row as { estimated_hours?: number | string | null }).estimated_hours ?? null,
+    hourlyRate: (row as { hourly_rate?: number | null }).hourly_rate ?? null,
+    billedHours: (row as { billed_hours?: number | string | null }).billed_hours ?? null,
+    workStartedAt: (row as { work_started_at?: Date | null }).work_started_at ?? null,
   };
 }
 
@@ -491,11 +499,12 @@ router.patch(
       const newStatus = req.body.status as BookingStatus;
 
       const preTransitionRow = await db.query<PreTransitionRow>(
-        `SELECT status, escrow_status, latitude, longitude FROM bookings WHERE id = $1`,
+        `SELECT status, escrow_status, latitude, longitude, is_hourly FROM bookings WHERE id = $1`,
         [id],
       );
       const oldStatus = preTransitionRow.rows[0]?.status;
       const oldEscrowStatus = preTransitionRow.rows[0]?.escrow_status;
+      const isHourlyBooking = preTransitionRow.rows[0]?.is_hourly === true;
 
       if (newStatus === 'provider_arrived') {
         const bookingCoordinates = preTransitionRow.rows[0];
@@ -574,7 +583,12 @@ router.patch(
         let breakdown: Awaited<ReturnType<typeof escrowService.releaseEscrowInTransaction>> | null = null;
         try {
           breakdown = await db.transaction(async (client) => {
-            const b = await escrowService.releaseEscrowInTransaction(client, id);
+            // D27 Phase 4b — hourly bookings settle to ACTUAL hours (capped at
+            // the authorization) and refund the unused remainder before paying
+            // the provider; fixed bookings release the full held amount.
+            const b = isHourlyBooking
+              ? await escrowService.settleHourlyAndReleaseInTransaction(client, id)
+              : await escrowService.releaseEscrowInTransaction(client, id);
             await client.query(
               `UPDATE bookings SET status = 'payout_ready', updated_at = NOW() WHERE id = $1`,
               [id],

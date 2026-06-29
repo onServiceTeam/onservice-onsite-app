@@ -8,6 +8,7 @@ import * as slotWaitlistService from './slot-waitlist.service';
 import * as sukiService from './suki.service';
 import * as socketService from './socket.service';
 import { resolvePromo, recordPromoRedemption } from './booking/promo.service';
+import { resolveHourlyCap, roundBillableHours, type HourlyConfig } from './booking/pricing.service';
 import * as businessService from './business.service';
 
 interface BookingRow {
@@ -79,6 +80,9 @@ interface CreateBookingParams {
   // contract's agreed_rate prices the booking. Null/absent for every normal
   // consumer booking, so default behavior is unchanged.
   businessAccountId?: string;
+  // D27 Phase 4b — required for hourly subcategories. The customer's estimate;
+  // the server re-clamps to the subcategory's max and rounds to the increment.
+  estimatedHours?: number;
 }
 
 /**
@@ -136,23 +140,29 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
   // base_price in service_subcategories. There is no fallback to a
   // client-supplied servicePrice (the validator no longer accepts it).
   let baseServicePrice = 0;
+  // D27 Phase 4b — hourly state stamped onto the booking (server-canonical).
+  let isHourly = false;
+  let estimatedHoursCapped: number | null = null;
+  let hourlyRateSnapshot: number | null = null;
 
   if (params.bookingType === 'fixed_price') {
     if (!params.subcategoryId) {
       throw createAppError('Fixed-price bookings require subcategoryId.', 400);
     }
-    const subcatResult = await db.query<{ base_price: string | null; pricing_type: string }>(
-      `SELECT base_price, pricing_type FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
+    const subcatResult = await db.query<{
+      base_price: string | null; pricing_type: string;
+      hourly_rate: string | null; min_billable_minutes: string | null;
+      billing_increment_minutes: string | null; max_estimated_hours: string | null;
+    }>(
+      `SELECT base_price, pricing_type, hourly_rate, min_billable_minutes,
+              billing_increment_minutes, max_estimated_hours
+         FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
       [params.subcategoryId],
     );
     if (subcatResult.rows.length === 0) {
       throw createAppError('Subcategory not found or inactive.', 404);
     }
     const subcat = subcatResult.rows[0]!;
-    if (subcat.pricing_type === 'hourly') {
-      // LAUNCH-LIMITATIONS §24 — hourly deferred to v1.1+.
-      throw createAppError('subcategory_pricing_type_unsupported', 400);
-    }
     if (subcat.pricing_type === 'quote') {
       throw createAppError('Quote-based subcategory cannot be booked as fixed_price.', 400);
     }
@@ -162,10 +172,27 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
     if (subcat.pricing_type === 'per_unit') {
       throw createAppError('Per-unit subcategory must be booked through the custom-quote flow.', 400);
     }
-    if (subcat.base_price == null) {
-      throw createAppError('Service price could not be determined for this subcategory.', 400);
+    if (subcat.pricing_type === 'hourly') {
+      // D27 Phase 4b — capped pre-authorization. baseServicePrice = rounded
+      // estimatedHours x hourly_rate, computed by the SHARED resolveHourlyCap
+      // so it can never diverge from the preview/settlement paths.
+      const cfg: HourlyConfig = {
+        hourlyRate: Number(subcat.hourly_rate),
+        minBillableMinutes: Number(subcat.min_billable_minutes ?? 60),
+        billingIncrementMinutes: Number(subcat.billing_increment_minutes ?? 30),
+        maxEstimatedHours: Number(subcat.max_estimated_hours ?? 8),
+      };
+      const cap = resolveHourlyCap(Number(params.estimatedHours), cfg);
+      baseServicePrice = cap.amountCents;
+      isHourly = true;
+      estimatedHoursCapped = cap.cappedHours;
+      hourlyRateSnapshot = cfg.hourlyRate;
+    } else {
+      if (subcat.base_price == null) {
+        throw createAppError('Service price could not be determined for this subcategory.', 400);
+      }
+      baseServicePrice = Number(subcat.base_price);
     }
-    baseServicePrice = Number(subcat.base_price);
   }
 
   // Phase 200 — B2B contract pricing. When the booking is explicitly placed
@@ -301,8 +328,9 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
         latitude, longitude, scheduled_at,
         service_price, service_fee, total_amount,
         surge_multiplier, surge_amount, pricing_rule_id, rebooked_from_id,
-        status, business_account_id, contract_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        status, business_account_id, contract_id,
+        is_hourly, estimated_hours, hourly_rate
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
       RETURNING *`,
       [
         params.customerId,
@@ -327,6 +355,9 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
         initialStatus,
         businessAccountId,
         contractId,
+        isHourly,
+        estimatedHoursCapped,
+        hourlyRateSnapshot,
       ],
     );
     const booking = result.rows[0]!;
@@ -628,11 +659,19 @@ export async function transitionBookingStatus(
 
     if (newStatus === 'completed_by_provider') {
       updates.push(`completed_at = NOW()`);
+      // D27 Phase 4b — stamp the server-clock work-complete time. Only hourly
+      // settlement reads it; harmless on fixed bookings. The cap means the
+      // customer is never charged for elapsed time beyond the authorization.
+      updates.push(`work_completed_at = COALESCE(work_completed_at, NOW())`);
       // BUG-PHASE151-01 fix — persist completion_notes if supplied.
       if (completionNotes && completionNotes.trim().length > 0) {
         updates.push(`completion_notes = $${paramIdx}`);
         params.push(completionNotes.trim());
       }
+    } else if (newStatus === 'in_progress') {
+      // D27 Phase 4b — start the billable clock from the SERVER (never a client
+      // value). COALESCE so a re-entered transition can't reset the start time.
+      updates.push(`work_started_at = COALESCE(work_started_at, NOW())`);
     } else if (newStatus === 'confirmed') {
       updates.push(`confirmed_at = NOW()`);
     } else if (newStatus.startsWith('cancelled_')) {

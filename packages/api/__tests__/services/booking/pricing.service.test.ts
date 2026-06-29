@@ -62,8 +62,13 @@ const SUBCAT_QUOTE = {
 const SUBCAT_HOURLY = {
   id: SUBCAT_HOURLY_ID,
   pricing_type: 'hourly' as const,
-  base_price: 50000,
+  base_price: null,
   is_active: true,
+  // D27 Phase 4b — hourly config: ₱250/hr, 60-min min, 30-min increments.
+  hourly_rate: 25000,
+  min_billable_minutes: 60,
+  billing_increment_minutes: 30,
+  max_estimated_hours: 8,
 };
 
 const ADDON_A = {
@@ -243,12 +248,25 @@ describe('Bug 175 — pricing.service resolvePricing (quote-based subcat must us
   });
 });
 
-describe('Bug d05-hourly-deferred — pricing.service resolvePricing (LAUNCH-LIMITATIONS §24)', () => {
-  it('bug-d05-hourly-deferred: throws subcategory_pricing_type_unsupported for hourly', async () => {
+describe('D27 Phase 4b — hourly resolvePricing (capped pre-authorization)', () => {
+  it('requires an estimate for an hourly subcategory', async () => {
     setupQueries({ match: /service_subcategories/i, rows: [SUBCAT_HOURLY] });
     await expect(
       resolvePricing({ ...baseInput, subcategoryId: SUBCAT_HOURLY_ID }),
-    ).rejects.toThrow(/subcategory_pricing_type_unsupported/);
+    ).rejects.toThrow(/hourly_estimate_required/);
+  });
+
+  it('resolves the service price to the capped estimate x rate (₱250/hr x 3h = ₱750)', async () => {
+    setupQueries({ match: /service_subcategories/i, rows: [SUBCAT_HOURLY] });
+    const out = await resolvePricing({ ...baseInput, subcategoryId: SUBCAT_HOURLY_ID, estimatedHours: 3 });
+    expect(out.servicePriceCents).toBe(75000);
+  });
+
+  it('rejects an estimate over the subcategory max', async () => {
+    setupQueries({ match: /service_subcategories/i, rows: [SUBCAT_HOURLY] });
+    await expect(
+      resolvePricing({ ...baseInput, subcategoryId: SUBCAT_HOURLY_ID, estimatedHours: 99 }),
+    ).rejects.toThrow(/hourly_estimate_exceeds_max/);
   });
 });
 

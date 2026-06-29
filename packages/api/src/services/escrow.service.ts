@@ -6,6 +6,7 @@ import * as commissionService from './commission.service';
 import * as paymentService from './payment.service';
 import * as settingsService from './settings.service';
 import * as orService from './or.service';
+import { computeHourlySettlement } from './booking/pricing.service';
 
 interface BookingAmountRow {
   id: string;
@@ -747,6 +748,107 @@ export async function releaseEscrowInTransaction(
     providerReceives,
     platformRetains,
   };
+}
+
+/**
+ * D27 Phase 4b — settle an hourly booking on confirmation, then release.
+ *
+ * Bills min(actual, estimated) hours where actual is derived ONLY from the
+ * server-clocked work_started_at/work_completed_at (never a client value),
+ * rewrites the booking's service_price/service_fee/total_amount DOWN
+ * proportionally, refunds the unused remainder from escrow to the customer
+ * wallet, then runs the existing releaseEscrowInTransaction so the provider +
+ * platform are paid on the ACTUAL hours. The cap (min with estimated) means the
+ * customer is never charged above what they authorized; the money-conservation
+ * guard inside releaseEscrowInTransaction still validates the final split.
+ */
+export async function settleHourlyAndReleaseInTransaction(
+  client: PgClient,
+  bookingId: string,
+): Promise<commissionService.CommissionBreakdown> {
+  const row = await client.query<{
+    is_hourly: boolean;
+    estimated_hours: string | null;
+    work_started_at: Date | null;
+    work_completed_at: Date | null;
+    service_price: string;
+    service_fee: string;
+    total_amount: string;
+    customer_id: string;
+    min_billable_minutes: number | string | null;
+    billing_increment_minutes: number | string | null;
+  }>(
+    `SELECT b.is_hourly, b.estimated_hours, b.work_started_at, b.work_completed_at,
+            b.service_price, b.service_fee, b.total_amount, b.customer_id,
+            ss.min_billable_minutes, ss.billing_increment_minutes
+       FROM bookings b
+       LEFT JOIN service_subcategories ss ON ss.id = b.subcategory_id
+      WHERE b.id = $1 FOR UPDATE OF b`,
+    [bookingId],
+  );
+  if (row.rows.length === 0) throw createAppError('Booking not found.', 404);
+  const bk = row.rows[0]!;
+
+  // Non-hourly (or un-priceable) bookings just take the standard release path.
+  const estimatedHours = Number(bk.estimated_hours);
+  const servicePrice = Number(bk.service_price);
+  if (!bk.is_hourly || !(estimatedHours > 0) || !(servicePrice > 0)) {
+    return releaseEscrowInTransaction(client, bookingId);
+  }
+
+  const { billedHours, newServicePrice, newServiceFee, newTotal, refundRemainder } =
+    computeHourlySettlement({
+      workStartedAt: bk.work_started_at,
+      workCompletedAt: bk.work_completed_at,
+      estimatedHours,
+      servicePrice,
+      serviceFee: Number(bk.service_fee),
+      totalAmount: Number(bk.total_amount),
+      minBillableMinutes: Number(bk.min_billable_minutes ?? 60) || 60,
+      billingIncrementMinutes: Number(bk.billing_increment_minutes ?? 30) || 30,
+    });
+
+  // Rewrite the booking DOWN before release so the release + its conservation
+  // guard see the reduced figures and pay out on ACTUAL hours.
+  await client.query(
+    `UPDATE bookings SET service_price = $2, service_fee = $3, total_amount = $4, billed_hours = $5, updated_at = NOW()
+      WHERE id = $1`,
+    [bookingId, newServicePrice, newServiceFee, newTotal, billedHours],
+  );
+
+  if (refundRemainder > 0) {
+    const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+    const customerWallet = await walletService.getUserWallet(bk.customer_id, 'customer');
+    await walletService.lockWalletsForUpdate(client, [escrowWallet.id, customerWallet.id]);
+    const locked = await client.query<{ pending_balance: string }>(
+      `SELECT pending_balance FROM wallets WHERE id = $1`, [escrowWallet.id],
+    );
+    if (Number(locked.rows[0]?.pending_balance ?? 0) < refundRemainder) {
+      throw createAppError('Insufficient escrow balance for hourly refund.', 409);
+    }
+    await client.query(
+      `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+      [refundRemainder, escrowWallet.id],
+    );
+    await client.query(
+      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+       VALUES ($1, $2, 'refund', $3, (SELECT pending_balance FROM wallets WHERE id = $1), $4)`,
+      [escrowWallet.id, bookingId, -refundRemainder, `Hourly unused-time release (${billedHours}h of ${estimatedHours}h)`],
+    );
+    await client.query(
+      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+      [refundRemainder, customerWallet.id],
+    );
+    await client.query(
+      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+       VALUES ($1, $2, 'refund', $3, (SELECT available_balance FROM wallets WHERE id = $1), 'Refund for unused time on hourly booking')`,
+      [customerWallet.id, bookingId, refundRemainder],
+    );
+    logger.info('Hourly under-run refunded to customer', { bookingId, refundRemainder, billedHours, estimatedHours });
+  }
+
+  // Release the (reduced) escrow to the provider on actual hours.
+  return releaseEscrowInTransaction(client, bookingId);
 }
 
 /**

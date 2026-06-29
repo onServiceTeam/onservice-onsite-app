@@ -27,7 +27,7 @@ interface Addon {
 export default function ConfigureScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { draft, setAddons } = useBookingStore();
+  const { draft, setAddons, setEstimatedHours } = useBookingStore();
 
   const [selected, setSelected] = useState<Map<string, SelectedAddon>>(
     new Map(draft.addons.map((a) => [a.id, a])),
@@ -94,7 +94,39 @@ export default function ConfigureScreen(): React.ReactElement {
         <View style={[styles.serviceInfo, { backgroundColor: tint.bg }]}>
           <Text style={[styles.serviceName, { color: tint.fg }]}>{draft.subcategoryName ?? 'Service'}</Text>
           <Text style={[styles.servicePrice, { color: tint.fg }]}>{formatPHP(draft.basePrice)}</Text>
+          {draft.isHourly ? (
+            <Text style={[styles.hourlyRateNote, { color: tint.fg }]}>{formatPHP(draft.hourlyRate)}/hr</Text>
+          ) : null}
         </View>
+
+        {/* D27 Phase 4b — hourly estimate stepper. The amount above is the
+            authorization (estimate x rate); the customer is billed for actual
+            time and refunded the rest. */}
+        {draft.isHourly && (
+          <View style={styles.hourlyBox}>
+            <Text style={styles.hourlyTitle}>How many hours do you estimate?</Text>
+            <View style={styles.stepperRow}>
+              <TouchableOpacity
+                style={styles.stepBtn}
+                onPress={() => setEstimatedHours(Math.max(1, draft.estimatedHours - 0.5))}
+                disabled={draft.estimatedHours <= 1}
+              >
+                <Text style={styles.stepBtnText}>−</Text>
+              </TouchableOpacity>
+              <Text style={styles.stepValue}>{draft.estimatedHours} hr{draft.estimatedHours !== 1 ? 's' : ''}</Text>
+              <TouchableOpacity
+                style={styles.stepBtn}
+                onPress={() => setEstimatedHours(draft.estimatedHours + 0.5)}
+              >
+                <Text style={styles.stepBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.hourlyHelp}>
+              You authorize up to {formatPHP(draft.basePrice)}. You're only charged for the actual time worked
+              (capped at your estimate) — the rest is refunded to your wallet.
+            </Text>
+          </View>
+        )}
 
         {isLoading && (
           <View style={styles.loadingBox}>
@@ -193,6 +225,14 @@ export default function ConfigureScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
+  hourlyRateNote: { fontSize: 13, fontWeight: '600', marginTop: 2, opacity: 0.85 },
+  hourlyBox: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  hourlyTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
+  stepBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  stepBtnText: { fontSize: 24, color: colors.text, fontWeight: '700', lineHeight: 26 },
+  stepValue: { fontSize: 20, fontWeight: '800', color: colors.text, minWidth: 90, textAlign: 'center' },
+  hourlyHelp: { fontSize: 12, color: colors.textSecondary, lineHeight: 17, marginTop: spacing.md },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

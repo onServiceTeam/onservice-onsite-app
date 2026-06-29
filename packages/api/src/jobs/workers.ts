@@ -23,6 +23,7 @@ interface StaleBookingRow {
   id: string;
   customer_id: string;
   provider_id: string | null;
+  is_hourly?: boolean;
 }
 
 interface ExpiredQuoteRow {
@@ -49,7 +50,7 @@ async function autoConfirmBookings(): Promise<number> {
   const windowHours = platformConfig.escrowAutoConfirmHours ?? 24;
 
   const stale = await db.query<StaleBookingRow>(
-    `SELECT id, customer_id, provider_id FROM bookings
+    `SELECT id, customer_id, provider_id, is_hourly FROM bookings
      WHERE status = 'completed_by_provider'
        AND completed_at < NOW() - INTERVAL '1 hour' * $1`,
     [windowHours],
@@ -80,7 +81,15 @@ async function autoConfirmBookings(): Promise<number> {
           // Another worker won the race or the booking moved.
           throw new Error('booking_already_advanced');
         }
-        await escrowService.releaseEscrowInTransaction(client, booking.id);
+        // D27 Phase 4b — auto-confirm must settle hourly bookings on ACTUAL
+        // hours too. Without this branch an auto-confirmed hourly booking would
+        // pay the provider the full capped/estimated amount and never refund
+        // the customer (a money-correctness bug flagged by the design synthesis).
+        if (booking.is_hourly) {
+          await escrowService.settleHourlyAndReleaseInTransaction(client, booking.id);
+        } else {
+          await escrowService.releaseEscrowInTransaction(client, booking.id);
+        }
         await client.query(
           `UPDATE bookings SET status = 'payout_ready', updated_at = NOW()
            WHERE id = $1 AND status = 'confirmed'`,

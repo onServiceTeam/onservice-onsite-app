@@ -122,6 +122,8 @@ export default function CheckoutScreen(): React.ReactElement {
           addons: draft.addons.length > 0
             ? draft.addons.map((a) => ({ addonId: a.id, quantity: 1 }))
             : undefined,
+          // D27 Phase 4b — hourly bookings authorize estimatedHours x rate.
+          estimatedHours: draft.isHourly ? draft.estimatedHours : undefined,
         });
         bookingId = booking.id;
         createdBookingIdRef.current = bookingId;

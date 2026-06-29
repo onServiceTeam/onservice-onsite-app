@@ -87,6 +87,8 @@ export interface CreateBookingPayload {
   // resolves the canonical discount via promo.service.
   promoCode?: string;
   addons?: Array<{ addonId: string; quantity: number }>;
+  // D27 Phase 4b — required for hourly subcategories (the customer's estimate).
+  estimatedHours?: number;
 }
 
 export async function createBooking(data: CreateBookingPayload): Promise<Booking> {

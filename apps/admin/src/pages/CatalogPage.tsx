@@ -23,6 +23,8 @@ interface Subcategory {
   // D27 Phase 4 — per-unit rate (unitPrice is centavos per unitLabel).
   unitLabel: string | null;
   unitPrice: number | null;
+  // D27 Phase 4b — hourly rate (centavos per hour).
+  hourlyRate: number | null;
   displayOrder: number;
 }
 
@@ -75,6 +77,8 @@ export default function CatalogPage(): React.ReactElement {
   // D27 Phase 4 — per-unit rate.
   const [unitLabel, setUnitLabel] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
+  // D27 Phase 4b — hourly rate.
+  const [hourlyRate, setHourlyRate] = useState('');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['adminCatalog'],
@@ -149,6 +153,12 @@ export default function CatalogPage(): React.ReactElement {
         return 'Per-unit services need a valid unit price.';
       }
     }
+    // D27 Phase 4b — hourly services need an hourly rate.
+    if (pricingType === 'hourly') {
+      if (hourlyRate === '' || !Number.isFinite(Number(hourlyRate)) || Number(hourlyRate) <= 0) {
+        return 'Hourly services need a valid hourly rate.';
+      }
+    }
     // 'range' is no longer a selectable/saveable pricing type (DB CHECK in
     // migration 003 allows only fixed/quote/hourly); its dead validation branch
     // was removed. Legacy 'range' rows (none on prod) are coerced on edit below.
@@ -168,6 +178,7 @@ export default function CatalogPage(): React.ReactElement {
         estimatedDurationMinutes: estimatedDuration ? Number(estimatedDuration) : null,
         unitLabel: pricingType === 'per_unit' ? (unitLabel.trim() || null) : null,
         unitPrice: pricingType === 'per_unit' ? toCentavos(unitPrice) : null,
+        hourlyRate: pricingType === 'hourly' ? toCentavos(hourlyRate) : null,
         displayOrder: Number(displayOrder),
       };
       if (modal === 'addSubcategory') {
@@ -251,6 +262,7 @@ export default function CatalogPage(): React.ReactElement {
     setEstimatedDuration('');
     setUnitLabel('');
     setUnitPrice('');
+    setHourlyRate('');
     setAddonName('');
     setAddonDesc('');
     setAddonPrice('');
@@ -295,6 +307,7 @@ export default function CatalogPage(): React.ReactElement {
     setEstimatedDuration(sub.estimatedDurationMinutes ? String(sub.estimatedDurationMinutes) : '');
     setUnitLabel(sub.unitLabel ?? '');
     setUnitPrice(sub.unitPrice != null ? String(sub.unitPrice / 100) : '');
+    setHourlyRate(sub.hourlyRate != null ? String(sub.hourlyRate / 100) : '');
     setDisplayOrder(String(sub.displayOrder));
     setModal('editSubcategory');
   }
@@ -464,6 +477,10 @@ export default function CatalogPage(): React.ReactElement {
                             ) : sub.pricingType === 'per_unit' && sub.unitPrice != null ? (
                               <span className="ml-2 text-sm font-medium text-[var(--color-text)]">
                                 {formatCurrency(sub.unitPrice)}<span className="text-[var(--color-text-secondary)]">/{sub.unitLabel ?? 'unit'}</span>
+                              </span>
+                            ) : sub.pricingType === 'hourly' && sub.hourlyRate != null ? (
+                              <span className="ml-2 text-sm font-medium text-[var(--color-text)]">
+                                {formatCurrency(sub.hourlyRate)}<span className="text-[var(--color-text-secondary)]">/hr</span>
                               </span>
                             ) : sub.basePrice != null ? (
                               <span className="ml-2 text-sm font-medium text-[var(--color-text)]">
@@ -790,6 +807,25 @@ export default function CatalogPage(): React.ReactElement {
                       <p className="col-span-2 text-xs text-[var(--color-text-secondary)]">
                         Shown to customers as a rate (e.g. ₱50 / sqm) with an estimate. The final price is
                         confirmed by the provider's quote, not auto-charged.
+                      </p>
+                    </div>
+                  )}
+
+                  {pricingType === 'hourly' && (
+                    <div className="rounded-lg bg-sky-50/50 p-3 border border-sky-100">
+                      <Label htmlFor="cat-hourly-rate" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Hourly rate ({CURRENCY_SYMBOL} / hour)</Label>
+                      <Input
+                        id="cat-hourly-rate"
+                        type="number"
+                        step="0.01"
+                        value={hourlyRate}
+                        onChange={(e) => setHourlyRate(e.target.value)}
+                        placeholder="0.00"
+                      />
+                      <p className="mt-2 text-xs text-[var(--color-text-secondary)]">
+                        The customer authorizes estimated hours × this rate up front; they're billed only for
+                        actual time worked (capped at the estimate) and the rest is refunded. Minimum 1 hour,
+                        rounded to 30-minute increments.
                       </p>
                     </div>
                   )}

@@ -1,6 +1,14 @@
 # D27 Phase 4 — Hourly pricing: keep deferred, or build it now?
 
-Status: OPEN — needs Ken
+Status: DECIDED + BUILT — Ken delegated ("do what is best", 2026-06-29). Chose
+Option B (capped pre-authorization) and shipped it: migration 145 + booking/
+escrow/worker wiring + admin rate config + mobile booking flow. Lifts
+LAUNCH-LIMITATIONS §24. Money: customer authorizes roundUp(estimatedHours) x
+rate into escrow; billed min(actual, estimated) from the server clock; unused
+remainder refunded; provider paid on actual hours. Overage beyond the cap is
+unpaid unless a change order is raised. Remaining for Ken (defaults chosen, safe
+to keep): confirm the overage rule, the 1h-min / 30-min-increment defaults, and
+proportional surge/promo on under-run.
 Date: 2026-06-29
 Author: AI coder
 

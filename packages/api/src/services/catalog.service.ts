@@ -61,6 +61,8 @@ export interface SubcategoryMutationRow {
   // D27 Phase 4 — per-unit pricing (unit_price is centavos per unit_label).
   unit_label: string | null;
   unit_price: number | null;
+  // D27 Phase 4b — hourly rate (centavos per hour).
+  hourly_rate: number | null;
   display_order: number;
   is_active: boolean;
   created_at: Date;
@@ -256,6 +258,16 @@ function assertUnitPricing(
   }
 }
 
+// D27 Phase 4b — an hourly service must have a positive hourly_rate (centavos).
+function assertHourlyPricing(pricingType: string | undefined, hourlyRate: number | null | undefined): void {
+  if (hourlyRate != null && (!Number.isInteger(hourlyRate) || hourlyRate < 0)) {
+    throw createAppError('Hourly rate must be a non-negative whole number of centavos.', 400);
+  }
+  if (pricingType === 'hourly' && (hourlyRate == null || hourlyRate <= 0)) {
+    throw createAppError('Hourly services need an hourly rate.', 400);
+  }
+}
+
 export async function createSubcategory(
   input: {
     categoryId: string;
@@ -268,6 +280,7 @@ export async function createSubcategory(
     estimatedDurationMinutes?: number | null;
     unitLabel?: string | null;
     unitPrice?: number | null;
+    hourlyRate?: number | null;
     displayOrder?: number;
   },
   adminUserId: string,
@@ -281,13 +294,14 @@ export async function createSubcategory(
   // D27 Phase 4 — per-unit rate must be a non-negative integer (centavos) and a
   // per_unit subcategory needs a rate to be meaningful.
   assertUnitPricing(input.pricingType, input.unitLabel, input.unitPrice);
+  assertHourlyPricing(input.pricingType, input.hourlyRate);
   const slug = slugify(input.name);
 
   return db.transaction(async (client) => {
     const result = await client.query<SubcategoryMutationRow>(
       `INSERT INTO service_subcategories
-         (category_id, name, slug, description, pricing_type, base_price, min_price, max_price, estimated_duration_minutes, unit_label, unit_price, display_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         (category_id, name, slug, description, pricing_type, base_price, min_price, max_price, estimated_duration_minutes, unit_label, unit_price, hourly_rate, display_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         input.categoryId,
@@ -301,6 +315,7 @@ export async function createSubcategory(
         input.estimatedDurationMinutes ?? null,
         input.unitLabel?.trim() || null,
         input.unitPrice ?? null,
+        input.hourlyRate ?? null,
         input.displayOrder ?? 0,
       ],
     );
@@ -342,6 +357,7 @@ export async function updateSubcategory(
     estimatedDurationMinutes?: number | null;
     unitLabel?: string | null;
     unitPrice?: number | null;
+    hourlyRate?: number | null;
     displayOrder?: number;
     isActive?: boolean;
   },
@@ -367,20 +383,22 @@ export async function updateSubcategory(
     );
   }
 
-  // D27 Phase 4 — validate per-unit pricing against the MERGED result so a
-  // patch that switches pricing_type to per_unit without a rate is rejected.
-  if (patch.unitLabel !== undefined || patch.unitPrice !== undefined || patch.pricingType !== undefined) {
-    const existing = await db.query<{ pricing_type: string; unit_label: string | null; unit_price: number | null }>(
-      `SELECT pricing_type, unit_label, unit_price FROM service_subcategories WHERE id = $1`,
+  // D27 Phase 4 / 4b — validate per-unit + hourly pricing against the MERGED
+  // result so a patch that switches pricing_type without the needed rate fails.
+  if (patch.unitLabel !== undefined || patch.unitPrice !== undefined || patch.hourlyRate !== undefined || patch.pricingType !== undefined) {
+    const existing = await db.query<{ pricing_type: string; unit_label: string | null; unit_price: number | null; hourly_rate: number | null }>(
+      `SELECT pricing_type, unit_label, unit_price, hourly_rate FROM service_subcategories WHERE id = $1`,
       [subcategoryId],
     );
     if (existing.rows.length === 0) throw createAppError('Subcategory not found.', 404);
     const cur = existing.rows[0]!;
+    const mergedType = patch.pricingType !== undefined ? patch.pricingType : cur.pricing_type;
     assertUnitPricing(
-      patch.pricingType !== undefined ? patch.pricingType : cur.pricing_type,
+      mergedType,
       patch.unitLabel !== undefined ? patch.unitLabel : cur.unit_label,
       patch.unitPrice !== undefined ? patch.unitPrice : cur.unit_price,
     );
+    assertHourlyPricing(mergedType, patch.hourlyRate !== undefined ? patch.hourlyRate : cur.hourly_rate);
   }
 
   const sets: string[] = [];
@@ -433,6 +451,11 @@ export async function updateSubcategory(
     sets.push(`unit_price = $${sets.length + 1}`);
     values.push(patch.unitPrice);
     auditPatch.unitPrice = patch.unitPrice;
+  }
+  if (patch.hourlyRate !== undefined) {
+    sets.push(`hourly_rate = $${sets.length + 1}`);
+    values.push(patch.hourlyRate);
+    auditPatch.hourlyRate = patch.hourlyRate;
   }
   if (patch.displayOrder !== undefined) {
     sets.push(`display_order = $${sets.length + 1}`);
@@ -747,6 +770,7 @@ interface SubcategoryRow {
   estimated_duration_minutes: number | null;
   unit_label: string | null;
   unit_price: number | null;
+  hourly_rate: number | null;
   display_order: number;
   is_active: boolean;
   created_at: Date;

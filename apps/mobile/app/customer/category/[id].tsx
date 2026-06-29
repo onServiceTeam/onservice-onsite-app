@@ -43,9 +43,12 @@ export default function SubcategoryListScreen(): React.ReactElement {
   // fallback, so a quote subcategory with a base_price set mis-routed to the
   // fixed-price configure screen. Match the real value.
   // D27 Phase 4 — per_unit services route through the quote flow too (the
-  // provider measures and confirms; the rate is only an estimate).
+  // provider measures and confirms; the rate is only an estimate). D27 Phase 4b
+  // — hourly is NOT quote-based: it books fixed-price with an estimate via the
+  // configure flow, so it must be excluded even though base_price is null.
+  const isHourly = (sub: Subcategory): boolean => sub.pricingType === 'hourly';
   const isQuoteBased = (sub: Subcategory): boolean =>
-    sub.pricingType === 'quote' || sub.pricingType === 'per_unit' || sub.basePrice == null;
+    !isHourly(sub) && (sub.pricingType === 'quote' || sub.pricingType === 'per_unit' || sub.basePrice == null);
 
   const handleSelect = (sub: Subcategory): void => {
     if (sub.categoryId) {
@@ -54,6 +57,9 @@ export default function SubcategoryListScreen(): React.ReactElement {
     if (isQuoteBased(sub)) {
       setSubcategory(sub.id, sub.name, 0);
       router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);
+    } else if (isHourly(sub)) {
+      setSubcategory(sub.id, sub.name, 0, { hourlyRate: sub.hourlyRate ?? 0 });
+      router.push(Routes.CUSTOMER.BOOKING_CONFIGURE);
     } else {
       setSubcategory(sub.id, sub.name, sub.basePrice ?? 0);
       router.push(Routes.CUSTOMER.BOOKING_CONFIGURE);
@@ -86,7 +92,13 @@ export default function SubcategoryListScreen(): React.ReactElement {
           )}
         </View>
         <View style={styles.priceContainer}>
-          {item.pricingType === 'per_unit' && item.unitPrice != null ? (
+          {item.pricingType === 'hourly' && item.hourlyRate != null ? (
+            // D27 Phase 4b — hourly rate; billed for actual time worked.
+            <>
+              <Text style={styles.price}>{formatPHP(item.hourlyRate)}</Text>
+              <Text style={styles.priceLabel}>per hour</Text>
+            </>
+          ) : item.pricingType === 'per_unit' && item.unitPrice != null ? (
             // D27 Phase 4 — show the per-unit rate; the final price is quoted.
             <>
               <Text style={styles.price}>{formatPHP(item.unitPrice)}</Text>

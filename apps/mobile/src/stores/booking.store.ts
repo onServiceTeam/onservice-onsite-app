@@ -14,6 +14,12 @@ export interface BookingDraft {
   subcategoryId: string | null;
   subcategoryName: string | null;
   basePrice: number;
+  // D27 Phase 4b — hourly bookings. basePrice tracks the capped authorization
+  // (rounded estimatedHours x hourlyRate); the customer is billed for actual
+  // time and refunded the rest.
+  isHourly: boolean;
+  hourlyRate: number; // centavos per hour
+  estimatedHours: number;
   addons: SelectedAddon[];
   scheduledDate: string | null;
   scheduledTime: string | null;
@@ -34,7 +40,8 @@ interface BookingState {
   addonsTotal: number;
 
   setCategory: (id: string, name: string, slug: string) => void;
-  setSubcategory: (id: string, name: string, basePrice: number) => void;
+  setSubcategory: (id: string, name: string, basePrice: number, hourly?: { hourlyRate: number }) => void;
+  setEstimatedHours: (hours: number) => void;
   setAddons: (addons: SelectedAddon[]) => void;
   setSchedule: (date: string, time: string) => void;
   setAddress: (addr: {
@@ -57,6 +64,9 @@ const initialDraft: BookingDraft = {
   subcategoryId: null,
   subcategoryName: null,
   basePrice: 0,
+  isHourly: false,
+  hourlyRate: 0,
+  estimatedHours: 1,
   addons: [],
   scheduledDate: null,
   scheduledTime: null,
@@ -73,6 +83,13 @@ const initialDraft: BookingDraft = {
 function computeFee(price: number): number {
   const fee = Math.round(price * platformConfig.serviceFeeRate);
   return Math.max(platformConfig.minimumServiceFee, Math.min(platformConfig.maximumServiceFee, fee));
+}
+
+// D27 Phase 4b — capped authorization estimate, matching the server's rounding
+// (1-hour minimum, 30-minute increments).
+function roundHourlyAmount(hours: number, hourlyRate: number): number {
+  const minutes = Math.max(Math.ceil((hours * 60) / 30) * 30, 60);
+  return Math.round((minutes / 60) * hourlyRate);
 }
 
 export const useBookingStore = create<BookingState>((set) => ({
@@ -98,15 +115,23 @@ export const useBookingStore = create<BookingState>((set) => ({
       addonsTotal: 0,
     })),
 
-  setSubcategory: (id, name, basePrice) =>
+  setSubcategory: (id, name, basePrice, hourly) =>
     set((s) => {
-      const fee = computeFee(basePrice);
+      const isHourly = !!hourly;
+      const hourlyRate = hourly?.hourlyRate ?? 0;
+      // Hourly starts at the 1-hour minimum authorization.
+      const estimatedHours = isHourly ? 1 : 1;
+      const effectiveBase = isHourly ? roundHourlyAmount(estimatedHours, hourlyRate) : basePrice;
+      const fee = computeFee(effectiveBase);
       return {
         draft: {
           ...s.draft,
           subcategoryId: id,
           subcategoryName: name,
-          basePrice,
+          basePrice: effectiveBase,
+          isHourly,
+          hourlyRate,
+          estimatedHours,
           addons: [],
           scheduledDate: null,
           scheduledTime: null,
@@ -120,8 +145,23 @@ export const useBookingStore = create<BookingState>((set) => ({
           paymentMethod: null,
         },
         serviceFee: fee,
-        total: basePrice + fee,
+        total: effectiveBase + fee,
         addonsTotal: 0,
+      };
+    }),
+
+  // D27 Phase 4b — recompute the capped authorization as the customer adjusts
+  // the estimate. Mirrors the server's 1-hour min + 30-min rounding so the
+  // displayed total matches what's actually held.
+  setEstimatedHours: (hours) =>
+    set((s) => {
+      const estimatedHours = Math.max(1, hours);
+      const base = roundHourlyAmount(estimatedHours, s.draft.hourlyRate);
+      const fee = computeFee(base);
+      return {
+        draft: { ...s.draft, estimatedHours, basePrice: base },
+        serviceFee: fee,
+        total: base + fee,
       };
     }),
 

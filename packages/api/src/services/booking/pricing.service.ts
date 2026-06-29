@@ -27,6 +27,93 @@ export interface BookingPricingInput {
   scheduledAt: string;
   city?: string;
   promoCode?: string;
+  // D27 Phase 4b — required for hourly subcategories; the customer's estimate.
+  estimatedHours?: number;
+}
+
+// D27 Phase 4b — hourly config snapshot for a subcategory.
+export interface HourlyConfig {
+  hourlyRate: number; // centavos per hour
+  minBillableMinutes: number;
+  billingIncrementMinutes: number;
+  maxEstimatedHours: number;
+}
+
+export interface HourlyCap {
+  cappedHours: number; // rounded, authorized hours (also stored as estimated_hours)
+  amountCents: number; // cappedHours x hourlyRate (the pre-authorized base)
+}
+
+/**
+ * Round an hours value UP to the billing increment, floor it at the minimum
+ * billable, and (for the customer's estimate) clamp to the subcategory max.
+ * Pure + shared by the booking-create path, the preview path, and settlement so
+ * they can never diverge (the Bug 175/176 server-canonical lesson).
+ */
+export function roundBillableHours(hours: number, cfg: HourlyConfig): number {
+  const incr = cfg.billingIncrementMinutes > 0 ? cfg.billingIncrementMinutes : 30;
+  const minMin = cfg.minBillableMinutes > 0 ? cfg.minBillableMinutes : 60;
+  const minutes = Math.max(Math.ceil((hours * 60) / incr) * incr, minMin);
+  return minutes / 60;
+}
+
+// D27 Phase 4b — pure settlement math (extracted so the money rules are unit-
+// testable without the wallet machinery). Bills min(actual, estimated) hours
+// where actual comes ONLY from the server-clocked timestamps, then scales the
+// booking amount proportionally and returns the unused remainder to refund.
+export interface HourlySettlementInput {
+  workStartedAt: Date | null;
+  workCompletedAt: Date | null;
+  estimatedHours: number;
+  servicePrice: number;
+  serviceFee: number;
+  totalAmount: number;
+  minBillableMinutes: number;
+  billingIncrementMinutes: number;
+}
+
+export interface HourlySettlement {
+  actualHours: number;
+  billedHours: number;
+  newServicePrice: number;
+  newServiceFee: number;
+  newTotal: number;
+  refundRemainder: number;
+}
+
+export function computeHourlySettlement(i: HourlySettlementInput): HourlySettlement {
+  const incr = i.billingIncrementMinutes > 0 ? i.billingIncrementMinutes : 30;
+  const minMin = i.minBillableMinutes > 0 ? i.minBillableMinutes : 60;
+  let actualHours: number;
+  if (i.workStartedAt && i.workCompletedAt) {
+    const elapsedMin = Math.max(0, (i.workCompletedAt.getTime() - i.workStartedAt.getTime()) / 60000);
+    actualHours = (Math.max(Math.ceil(elapsedMin / incr) * incr, minMin)) / 60;
+  } else {
+    // Provider never started the clock — bill only the minimum.
+    actualHours = minMin / 60;
+  }
+  // THE CAP — never bill beyond the customer's authorization.
+  const billedHours = Math.min(actualHours, i.estimatedHours);
+  const proportion = i.estimatedHours > 0 ? billedHours / i.estimatedHours : 0;
+  const newServicePrice = Math.round(i.servicePrice * proportion);
+  const newServiceFee = Math.round(i.serviceFee * proportion);
+  const newTotal = newServicePrice + newServiceFee;
+  const refundRemainder = Math.max(0, i.totalAmount - newTotal);
+  return { actualHours, billedHours, newServicePrice, newServiceFee, newTotal, refundRemainder };
+}
+
+export function resolveHourlyCap(estimatedHours: number, cfg: HourlyConfig): HourlyCap {
+  if (!Number.isFinite(estimatedHours) || estimatedHours <= 0) {
+    throw createAppError('hourly_estimate_required', 400);
+  }
+  if (estimatedHours > cfg.maxEstimatedHours) {
+    throw createAppError('hourly_estimate_exceeds_max', 400);
+  }
+  if (!Number.isFinite(cfg.hourlyRate) || cfg.hourlyRate <= 0) {
+    throw createAppError('hourly_rate_not_configured', 400);
+  }
+  const cappedHours = roundBillableHours(estimatedHours, cfg);
+  return { cappedHours, amountCents: Math.round(cappedHours * cfg.hourlyRate) };
 }
 
 export interface ResolvedPricing {
@@ -45,6 +132,10 @@ interface SubcategoryRow {
   pricing_type: 'fixed' | 'quote' | 'hourly' | 'per_unit';
   base_price: number | string | null;
   is_active: boolean;
+  hourly_rate: number | string | null;
+  min_billable_minutes: number | string | null;
+  billing_increment_minutes: number | string | null;
+  max_estimated_hours: number | string | null;
 }
 
 interface AddonRow {
@@ -70,7 +161,9 @@ export const PRICING_ERRORS = {
 
 export async function resolvePricing(input: BookingPricingInput): Promise<ResolvedPricing> {
   const subcatRes = await db.query<SubcategoryRow>(
-    `SELECT id, pricing_type, base_price, is_active FROM service_subcategories WHERE id = $1`,
+    `SELECT id, pricing_type, base_price, is_active,
+            hourly_rate, min_billable_minutes, billing_increment_minutes, max_estimated_hours
+       FROM service_subcategories WHERE id = $1`,
     [input.subcategoryId],
   );
 
@@ -81,9 +174,6 @@ export async function resolvePricing(input: BookingPricingInput): Promise<Resolv
   if (!subcat.is_active) {
     throw createAppError(PRICING_ERRORS.subcategoryInactive, 400);
   }
-  if (subcat.pricing_type === 'hourly') {
-    throw createAppError(PRICING_ERRORS.subcategoryPricingTypeUnsupported, 400);
-  }
   if (subcat.pricing_type === 'quote') {
     throw createAppError(PRICING_ERRORS.subcategoryQuoteRequired, 400);
   }
@@ -92,12 +182,26 @@ export async function resolvePricing(input: BookingPricingInput): Promise<Resolv
   if (subcat.pricing_type === 'per_unit') {
     throw createAppError(PRICING_ERRORS.subcategoryQuoteRequired, 400);
   }
-  if (subcat.base_price === null || subcat.base_price === undefined) {
-    throw createAppError(PRICING_ERRORS.subcategoryNoBasePrice, 400);
-  }
-  const servicePriceCents = Number(subcat.base_price);
-  if (!Number.isFinite(servicePriceCents) || servicePriceCents < 0) {
-    throw createAppError(PRICING_ERRORS.subcategoryNoBasePrice, 400);
+  // D27 Phase 4b — hourly: the base is the capped pre-authorization
+  // (rounded estimatedHours x hourly_rate). Shared resolveHourlyCap keeps the
+  // preview and the booking-create path identical.
+  let servicePriceCents: number;
+  if (subcat.pricing_type === 'hourly') {
+    const cap = resolveHourlyCap(Number(input.estimatedHours), {
+      hourlyRate: Number(subcat.hourly_rate),
+      minBillableMinutes: Number(subcat.min_billable_minutes ?? 60),
+      billingIncrementMinutes: Number(subcat.billing_increment_minutes ?? 30),
+      maxEstimatedHours: Number(subcat.max_estimated_hours ?? 8),
+    });
+    servicePriceCents = cap.amountCents;
+  } else {
+    if (subcat.base_price === null || subcat.base_price === undefined) {
+      throw createAppError(PRICING_ERRORS.subcategoryNoBasePrice, 400);
+    }
+    servicePriceCents = Number(subcat.base_price);
+    if (!Number.isFinite(servicePriceCents) || servicePriceCents < 0) {
+      throw createAppError(PRICING_ERRORS.subcategoryNoBasePrice, 400);
+    }
   }
 
   let addonsCents = 0;
