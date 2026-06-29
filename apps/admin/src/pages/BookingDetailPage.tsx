@@ -1158,6 +1158,8 @@ interface AdminChangeOrder {
   providerId: string;
   description: string;
   additionalAmount: number;
+  // D27 Phase 3 — itemized parts/materials breakdown (empty for lump-sum orders).
+  lineItems: AdminQuoteLineItem[];
   photos: string[];
   status: string;
   createdAt: string;
@@ -1245,6 +1247,26 @@ function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
                   <span className="text-sm font-semibold text-[var(--color-text)]">{fmtCentavos(co.additionalAmount)}</span>
                 </div>
                 <p className="text-sm text-[var(--color-text-secondary)] mt-1">{co.description}</p>
+                {co.lineItems && co.lineItems.length > 0 && (
+                  <table className="w-full mt-2 text-xs">
+                    <thead>
+                      <tr className="text-left text-[var(--color-text-tertiary)]">
+                        <th className="py-1">Item</th><th>Type</th><th className="text-right">Qty</th><th className="text-right">Unit</th><th className="text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {co.lineItems.map((li) => (
+                        <tr key={li.id} className="border-t border-[var(--color-border)]">
+                          <td className="py-1 text-[var(--color-text)]">{li.description}</td>
+                          <td className="text-[var(--color-text-secondary)]">{li.itemType}</td>
+                          <td className="text-right">{li.quantity} {li.unit}</td>
+                          <td className="text-right">{fmtCentavos(li.unitPrice)}</td>
+                          <td className="text-right text-[var(--color-text)]">{fmtCentavos(li.lineTotal)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
                 {co.photos.length > 0 ? <p className="text-xs text-[var(--color-text-tertiary)] mt-1">{co.photos.length} photo(s)</p> : null}
               </div>
             ))}

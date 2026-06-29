@@ -14,6 +14,23 @@ import { platformConfig } from '@/config/platform.config';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 
+// D27 Phase 3 — a parts/materials/labor line the provider adds to itemize a
+// change order. unitPrice is centavos; the row's total is qty × unitPrice.
+interface DraftLineItem {
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number; // centavos
+  itemType: 'materials' | 'labor' | 'equipment' | 'other';
+}
+
+const ITEM_TYPES: { value: DraftLineItem['itemType']; label: string }[] = [
+  { value: 'materials', label: 'Materials' },
+  { value: 'labor', label: 'Labor' },
+  { value: 'equipment', label: 'Equipment' },
+  { value: 'other', label: 'Other' },
+];
+
 export default function ChangeOrderFormScreen(): React.ReactElement {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -21,9 +38,57 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
   const [amount, setAmount] = useState('');
   const imagePicker = useImagePicker({ context: 'change-order', maxImages: 10 });
 
+  // D27 Phase 3 — itemized parts/materials breakdown. When the provider adds at
+  // least one line item, the additional amount is computed from the items
+  // (server-canonical) and the manual amount field is replaced by the total.
+  const [itemized, setItemized] = useState(false);
+  const [lineItems, setLineItems] = useState<DraftLineItem[]>([]);
+  const [liDesc, setLiDesc] = useState('');
+  const [liQty, setLiQty] = useState('1');
+  const [liUnit, setLiUnit] = useState('unit');
+  const [liPrice, setLiPrice] = useState('');
+  const [liType, setLiType] = useState<DraftLineItem['itemType']>('materials');
+
+  const liQtyNum = Number(liQty) || 0;
+  const liPriceCentavos = Math.round((Number(liPrice) || 0) * 100);
+  const canAddLineItem = liDesc.trim().length > 0 && liQtyNum > 0 && liPriceCentavos > 0 && liUnit.trim().length > 0;
+
+  function addLineItem(): void {
+    if (!canAddLineItem) return;
+    setLineItems((prev) => [
+      ...prev,
+      { description: liDesc.trim(), quantity: liQtyNum, unit: liUnit.trim(), unitPrice: liPriceCentavos, itemType: liType },
+    ]);
+    setLiDesc('');
+    setLiQty('1');
+    setLiUnit('unit');
+    setLiPrice('');
+    setLiType('materials');
+  }
+
+  function removeLineItem(index: number): void {
+    setLineItems((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  const itemizedTotalCentavos = lineItems.reduce((s, i) => s + Math.round(i.quantity * i.unitPrice), 0);
+  const useItemized = itemized && lineItems.length > 0;
+
   const mutation = useMutation({
     mutationFn: async () => {
       const uploadedUrls = await imagePicker.uploadAll();
+      if (useItemized) {
+        return createChangeOrder(bookingId ?? '', {
+          description,
+          lineItems: lineItems.map((i) => ({
+            description: i.description,
+            quantity: i.quantity,
+            unit: i.unit,
+            unitPrice: i.unitPrice,
+            itemType: i.itemType,
+          })),
+          photos: uploadedUrls.length > 0 ? uploadedUrls : undefined,
+        });
+      }
       return createChangeOrder(bookingId ?? '', {
         description,
         additionalAmount: Math.round((Number(amount) || 0) * 100),
@@ -60,12 +125,15 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
   const servicePrice = bookingQuery.data?.servicePrice ?? 0;
   const fiftyPercentCap = Math.floor(servicePrice * 0.5);
 
-  const amountCentavos = Math.round((Number(amount) || 0) * 100);
+  // In itemized mode the amount is the computed line-item total; otherwise the
+  // manually entered amount. The cap/min/commission logic below is shared.
+  const amountCentavos = useItemized ? itemizedTotalCentavos : Math.round((Number(amount) || 0) * 100);
   const exceedsCap = fiftyPercentCap > 0 && amountCentavos > fiftyPercentCap;
   const isValid =
     description.length >= 10
     && amountCentavos >= platformConfig.minimumChangeOrderAmount
-    && !exceedsCap;
+    && !exceedsCap
+    && (!itemized || lineItems.length > 0);
 
   // BUG-PHASE59-01 fix — pre-fix the screen showed only the gross
   // additional amount with no preview of the provider's net after
@@ -124,8 +192,118 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
           </Text>
         </View>
 
+        {/* D27 Phase 3 — itemize parts/materials. Off by default (legacy lump
+            sum). When on, the provider adds line items and the additional
+            amount is the computed total. */}
+        <View style={styles.section}>
+          <View style={styles.itemizeToggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Itemize parts & materials</Text>
+              <Text style={styles.hint}>Break the cost into parts, materials, and labor so the customer sees what they're paying for.</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.toggle, itemized && styles.toggleOn]}
+              onPress={() => setItemized((v) => !v)}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: itemized }}
+            >
+              <View style={[styles.toggleKnob, itemized && styles.toggleKnobOn]} />
+            </TouchableOpacity>
+          </View>
+
+          {itemized && (
+            <View>
+              {lineItems.map((li, idx) => (
+                <View key={`${li.description}-${idx}`} style={styles.liRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.liDesc}>{li.description}</Text>
+                    <Text style={styles.liMeta}>
+                      {li.quantity} {li.unit} × {formatPHP(li.unitPrice)} · {li.itemType}
+                    </Text>
+                  </View>
+                  <Text style={styles.liTotal}>{formatPHP(Math.round(li.quantity * li.unitPrice))}</Text>
+                  <TouchableOpacity
+                    onPress={() => removeLineItem(idx)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel={`Remove ${li.description}`}
+                  >
+                    <Text style={styles.liRemove}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              <View style={styles.liForm}>
+                <TextInput
+                  style={styles.liInput}
+                  value={liDesc}
+                  onChangeText={setLiDesc}
+                  placeholder="Item (e.g. Replacement faucet)"
+                  placeholderTextColor={colors.textTertiary}
+                  maxLength={500}
+                />
+                <View style={styles.liFormRow}>
+                  <TextInput
+                    style={[styles.liInput, styles.liInputSmall]}
+                    keyboardType="numeric"
+                    value={liQty}
+                    onChangeText={setLiQty}
+                    placeholder="Qty"
+                    placeholderTextColor={colors.textTertiary}
+                  />
+                  <TextInput
+                    style={[styles.liInput, styles.liInputSmall]}
+                    value={liUnit}
+                    onChangeText={setLiUnit}
+                    placeholder="unit"
+                    placeholderTextColor={colors.textTertiary}
+                    maxLength={30}
+                  />
+                  <View style={[styles.liInput, styles.liInputSmall, styles.liPriceField]}>
+                    <Text style={styles.liPrefix}>{platformConfig.currencySymbol}</Text>
+                    <TextInput
+                      style={styles.liPriceInput}
+                      keyboardType="numeric"
+                      value={liPrice}
+                      onChangeText={setLiPrice}
+                      placeholder="Price"
+                      placeholderTextColor={colors.textTertiary}
+                    />
+                  </View>
+                </View>
+                <View style={styles.liTypeRow}>
+                  {ITEM_TYPES.map((t) => (
+                    <TouchableOpacity
+                      key={t.value}
+                      style={[styles.liChip, liType === t.value && styles.liChipOn]}
+                      onPress={() => setLiType(t.value)}
+                    >
+                      <Text style={[styles.liChipText, liType === t.value && styles.liChipTextOn]}>{t.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TouchableOpacity
+                  style={[styles.liAddBtn, !canAddLineItem && styles.submitDisabled]}
+                  onPress={addLineItem}
+                  disabled={!canAddLineItem}
+                >
+                  <Text style={styles.liAddText}>+ Add item</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Additional Amount *</Text>
+          {useItemized ? (
+            <View style={styles.amountField}>
+              <Text style={styles.prefix}>{platformConfig.currencySymbol}</Text>
+              <Text style={[styles.amountInput, { paddingVertical: spacing.md + 2 }]}>
+                {(itemizedTotalCentavos / 100).toFixed(2)}
+              </Text>
+              <Text style={styles.computedTag}>from {lineItems.length} item{lineItems.length !== 1 ? 's' : ''}</Text>
+            </View>
+          ) : (
           <View style={styles.amountField}>
             <Text style={styles.prefix}>{platformConfig.currencySymbol}</Text>
             <TextInput
@@ -137,6 +315,7 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
               placeholderTextColor={colors.textTertiary}
             />
           </View>
+          )}
           {amountCentavos > 0 && amountCentavos < platformConfig.minimumChangeOrderAmount && (
             <Text style={styles.minWarn}>
               Minimum amount: {formatPHP(platformConfig.minimumChangeOrderAmount)}
@@ -252,6 +431,31 @@ const styles = StyleSheet.create({
   prefix: { fontSize: 18, fontWeight: '600', color: colors.textSecondary, marginRight: spacing.xs + 2 },
   amountInput: { flex: 1, paddingVertical: spacing.md + 2, fontSize: 24, fontWeight: '700', color: colors.text },
   minWarn: { fontSize: 12, color: colors.error, marginTop: spacing.xs },
+  computedTag: { fontSize: 11, color: colors.textSecondary, marginLeft: spacing.sm },
+  itemizeToggleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  toggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: colors.border, padding: 2, justifyContent: 'center' },
+  toggleOn: { backgroundColor: colors.primary },
+  toggleKnob: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.white },
+  toggleKnobOn: { alignSelf: 'flex-end' as const },
+  liRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: borderRadius.md, padding: spacing.sm + 2, marginTop: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  liDesc: { fontSize: 13, fontWeight: '600', color: colors.text },
+  liMeta: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
+  liTotal: { fontSize: 13, fontWeight: '700', color: colors.text },
+  liRemove: { fontSize: 20, color: colors.error, paddingHorizontal: 4, fontWeight: '700' },
+  liForm: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.md, marginTop: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, gap: spacing.sm },
+  liInput: { backgroundColor: colors.surfaceMuted, borderRadius: borderRadius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, fontSize: 14, color: colors.text },
+  liFormRow: { flexDirection: 'row', gap: spacing.sm },
+  liInputSmall: { flex: 1 },
+  liPriceField: { flexDirection: 'row', alignItems: 'center', paddingVertical: 0 },
+  liPrefix: { fontSize: 14, color: colors.textSecondary, marginRight: 4 },
+  liPriceInput: { flex: 1, paddingVertical: spacing.sm + 2, fontSize: 14, color: colors.text },
+  liTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  liChip: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderRadius: borderRadius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
+  liChipOn: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+  liChipText: { fontSize: 12, color: colors.text },
+  liChipTextOn: { color: colors.primary, fontWeight: '600' },
+  liAddBtn: { backgroundColor: colors.text, borderRadius: borderRadius.md, paddingVertical: spacing.sm + 2, alignItems: 'center' },
+  liAddText: { fontSize: 14, fontWeight: '700', color: colors.white },
   commissionBox: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, marginTop: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   commissionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   commissionLabel: { fontSize: 12, color: colors.textSecondary, flex: 1 },

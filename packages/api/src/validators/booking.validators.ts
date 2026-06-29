@@ -136,6 +136,10 @@ export const createChangeOrderSchema = z
       .string()
       .min(10, 'Description must be at least 10 characters')
       .max(2000),
+    // D27 Phase 3 — additionalAmount is now optional: a change order can be a
+    // lump sum (this field) OR an itemized list (lineItems). When lineItems are
+    // present the server recomputes the canonical total from them and ignores
+    // any client-sent additionalAmount (server-canonical, same as quotes).
     additionalAmount: z
       .number()
       .int()
@@ -143,7 +147,28 @@ export const createChangeOrderSchema = z
         platformConfig.minimumChangeOrderAmount,
         `Minimum additional amount is ${formatPHP(platformConfig.minimumChangeOrderAmount)}`,
       )
-      .max(CHANGE_ORDER_HARD_CAP_CENTAVOS, 'Change-order amount exceeds platform sanity cap'),
+      .max(CHANGE_ORDER_HARD_CAP_CENTAVOS, 'Change-order amount exceeds platform sanity cap')
+      .optional(),
+    // Parts/materials/labor breakdown. unitPrice is centavos, mirroring
+    // quote line items. The server validates that the summed total still meets
+    // the minimum and stays under the hard + 50%-of-service caps.
+    lineItems: z
+      .array(
+        z.object({
+          description: z.string().min(1).max(500),
+          quantity: z.number().min(0.01).max(99999),
+          unit: z.string().min(1).max(30),
+          unitPrice: z.number().int().min(1).max(CHANGE_ORDER_HARD_CAP_CENTAVOS),
+          itemType: z.enum(['labor', 'materials', 'equipment', 'other']).optional(),
+        }),
+      )
+      .min(1)
+      .max(20)
+      .optional(),
     photos: z.array(z.string().url()).max(10).optional(),
   })
-  .strict();
+  .strict()
+  .refine((d) => d.additionalAmount != null || (d.lineItems != null && d.lineItems.length > 0), {
+    message: 'Provide an additional amount or at least one line item.',
+    path: ['additionalAmount'],
+  });

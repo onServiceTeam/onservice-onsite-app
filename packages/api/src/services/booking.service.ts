@@ -1219,10 +1219,28 @@ interface ChangeOrderRow {
   updated_at: Date;
 }
 
+// D27 Phase 3 — same ₱10,000 hard sanity cap as the validator, enforced here
+// too because the resolved total from line items can't be bounded at the schema
+// layer (the schema only sees the per-item prices, not their sum).
+const CHANGE_ORDER_HARD_CAP_CENTAVOS = 1_000_000;
+
+interface ChangeOrderLineItemInput {
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  itemType?: 'labor' | 'materials' | 'equipment' | 'other';
+}
+
 export async function createChangeOrder(
   bookingId: string,
   providerUserId: string,
-  data: { description: string; additionalAmount: number; photos?: string[] },
+  data: {
+    description: string;
+    additionalAmount?: number;
+    photos?: string[];
+    lineItems?: ChangeOrderLineItemInput[];
+  },
 ): Promise<Record<string, unknown>> {
   interface ProviderIdRow { id: string }
   const providerResult = await db.query<ProviderIdRow>(
@@ -1242,29 +1260,78 @@ export async function createChangeOrder(
     throw createAppError('Change orders can only be submitted during active jobs.', 409);
   }
 
+  // D27 Phase 3 — when line items are present the canonical additional amount is
+  // their summed total; the client-sent additionalAmount is ignored (server-
+  // canonical, same as quotes). Otherwise fall back to the lump-sum amount.
+  const lineItems = data.lineItems ?? [];
+  const lineItemTotals = lineItems.map((i) => ({ ...i, lineTotal: Math.round(i.quantity * i.unitPrice) }));
+  const resolvedAmount =
+    lineItems.length > 0
+      ? lineItemTotals.reduce((s, i) => s + i.lineTotal, 0)
+      : (data.additionalAmount ?? 0);
+
+  // Re-validate the resolved total against the same bounds the schema enforces
+  // on a lump-sum amount (the schema can't see the summed line-item total).
+  if (resolvedAmount < platformConfig.minimumChangeOrderAmount) {
+    throw createAppError(
+      `Change order total must be at least ${Math.floor(platformConfig.minimumChangeOrderAmount)} centavos.`,
+      400,
+    );
+  }
+  if (resolvedAmount > CHANGE_ORDER_HARD_CAP_CENTAVOS) {
+    throw createAppError('Change-order amount exceeds platform sanity cap.', 400);
+  }
+
   // Phase 14 Dispatch 05 — Bug 1219.
   // Enforce 50% relative cap (was previously a warn-only log, allowing
   // a malicious or compromised provider to submit, e.g., ₱5,000 above
-  // a ₱500 booking). Combined with the schema's hard ₱10K sanity cap,
-  // this bounds the change-order amount to a realistic fraction of
-  // the original service price.
+  // a ₱500 booking). Combined with the hard ₱10K sanity cap above, this
+  // bounds the change-order amount to a realistic fraction of the
+  // original service price.
   const FIFTY_PERCENT_OF_SERVICE = booking.service_price * 0.5;
-  if (data.additionalAmount > FIFTY_PERCENT_OF_SERVICE) {
+  if (resolvedAmount > FIFTY_PERCENT_OF_SERVICE) {
     throw createAppError(
       `Change order cannot exceed 50% of the original service price (max ${Math.floor(FIFTY_PERCENT_OF_SERVICE)} centavos).`,
       400,
     );
   }
 
-  const result = await db.query<ChangeOrderRow>(
-    `INSERT INTO change_orders (booking_id, provider_id, description, additional_amount, photos)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
-    [bookingId, providerId, data.description, data.additionalAmount, data.photos ?? []],
-  );
+  // Insert the change order and its line items atomically.
+  const created = await db.transaction(async (client) => {
+    const coResult = await client.query<ChangeOrderRow>(
+      `INSERT INTO change_orders (booking_id, provider_id, description, additional_amount, photos)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [bookingId, providerId, data.description, resolvedAmount, data.photos ?? []],
+    );
+    const co = coResult.rows[0]!;
 
-  logger.info('Change order created', { bookingId, changeOrderId: result.rows[0]!.id });
-  return formatChangeOrder(result.rows[0]!);
+    if (lineItemTotals.length > 0) {
+      const values: unknown[] = [];
+      const placeholders: string[] = [];
+      let idx = 1;
+      for (const item of lineItemTotals) {
+        placeholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`);
+        values.push(co.id, item.description, item.quantity, item.unit, item.unitPrice, item.lineTotal, item.itemType ?? 'materials');
+      }
+      await client.query(
+        `INSERT INTO change_order_line_items (change_order_id, description, quantity, unit, unit_price, line_total, item_type)
+         VALUES ${placeholders.join(', ')}`,
+        values,
+      );
+    }
+    return co;
+  });
+
+  logger.info('Change order created', { bookingId, changeOrderId: created.id, lineItems: lineItemTotals.length });
+  return formatChangeOrder(created, null, null, lineItemTotals.map((i) => ({
+    description: i.description,
+    quantity: i.quantity,
+    unit: i.unit,
+    unitPrice: i.unitPrice,
+    lineTotal: i.lineTotal,
+    itemType: i.itemType ?? 'materials',
+  })));
 }
 
 export async function respondToChangeOrder(
@@ -1621,11 +1688,49 @@ export async function finalizeChangeOrderPayment(
   });
 }
 
+interface ChangeOrderLineItemRow {
+  id: string;
+  change_order_id: string;
+  description: string;
+  quantity: string;
+  unit: string;
+  unit_price: number;
+  line_total: number;
+  item_type: string;
+}
+
+function formatChangeOrderLineItem(r: ChangeOrderLineItemRow): Record<string, unknown> {
+  return {
+    id: r.id,
+    description: r.description,
+    quantity: Number(r.quantity),
+    unit: r.unit,
+    unitPrice: r.unit_price,
+    lineTotal: r.line_total,
+    itemType: r.item_type,
+  };
+}
+
 export async function getChangeOrders(bookingId: string): Promise<Record<string, unknown>[]> {
   const result = await db.query<ChangeOrderRow>(
     `SELECT * FROM change_orders WHERE booking_id = $1 ORDER BY created_at ASC`,
     [bookingId],
   );
+
+  // D27 Phase 3 — fetch line items for all change orders on this booking in one
+  // query and group them by change_order_id (mirrors getBookingQuotes).
+  const coIds = result.rows.map((co) => co.id);
+  let lineItemsMap: Record<string, Record<string, unknown>[]> = {};
+  if (coIds.length > 0) {
+    const li = await db.query<ChangeOrderLineItemRow>(
+      `SELECT * FROM change_order_line_items WHERE change_order_id = ANY($1) ORDER BY created_at ASC`,
+      [coIds],
+    );
+    lineItemsMap = li.rows.reduce<Record<string, Record<string, unknown>[]>>((acc, r) => {
+      (acc[r.change_order_id] ??= []).push(formatChangeOrderLineItem(r));
+      return acc;
+    }, {});
+  }
 
   // Phase 200 — include the marginal service fee + total for each order so
   // the customer's "pay additional amount" screen can show the real total
@@ -1652,7 +1757,7 @@ export async function getChangeOrders(bookingId: string): Promise<Record<string,
         additionalTotal = (newServicePrice + newServiceFee) - baseline.total_amount;
         additionalServiceFee = additionalTotal - co.additional_amount;
       }
-      return formatChangeOrder(co, additionalServiceFee, additionalTotal);
+      return formatChangeOrder(co, additionalServiceFee, additionalTotal, lineItemsMap[co.id] ?? []);
     }),
   );
 }
@@ -1661,6 +1766,7 @@ function formatChangeOrder(
   co: ChangeOrderRow,
   additionalServiceFee: number | null = null,
   additionalTotal: number | null = null,
+  lineItems: Record<string, unknown>[] = [],
 ): Record<string, unknown> {
   return {
     id: co.id,
@@ -1670,6 +1776,7 @@ function formatChangeOrder(
     additionalAmount: co.additional_amount,
     additionalServiceFee,
     additionalTotal,
+    lineItems,
     photos: co.photos ?? [],
     status: co.status,
     customerRespondedAt: co.customer_responded_at,

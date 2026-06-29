@@ -42,7 +42,9 @@ describe('Phase 200 — getChangeOrders returns marginal fee + total', () => {
         customer_responded_at: null, created_at: new Date('2026-05-01'),
       }],
     });
-    // 2nd query: booking baseline (₱1000 service + ₱100 fee = ₱1100 total).
+    // 2nd query (D27 Phase 3): change_order_line_items — none here.
+    dbQueryMock.mockResolvedValueOnce({ rows: [] });
+    // 3rd query: booking baseline (₱1000 service + ₱100 fee = ₱1100 total).
     dbQueryMock.mockResolvedValueOnce({
       rows: [{ service_price: 100000, total_amount: 110000 }],
     });
@@ -59,6 +61,34 @@ describe('Phase 200 — getChangeOrders returns marginal fee + total', () => {
     expect(co.additionalTotal).toBe(55000);
     // Real photo URLs are preserved (rendered as images on the client).
     expect(co.photos).toEqual(['https://s3/justify-1.jpg']);
+    // Lump-sum order has an empty line-item list.
+    expect(co.lineItems).toEqual([]);
+  });
+
+  it('D27 Phase 3 — groups change_order_line_items onto their change order', async () => {
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [{
+        id: 'co-1', booking_id: BOOKING_ID, provider_id: 'prov-1',
+        description: 'Replace faucet + labor', additional_amount: 45000,
+        photos: [], status: 'pending',
+        customer_responded_at: null, created_at: new Date('2026-05-01'),
+      }],
+    });
+    // change_order_line_items for co-1.
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [
+        { id: 'li-1', change_order_id: 'co-1', description: 'Faucet', quantity: '1', unit: 'unit', unit_price: 30000, line_total: 30000, item_type: 'materials' },
+        { id: 'li-2', change_order_id: 'co-1', description: 'Labor', quantity: '1', unit: 'hour', unit_price: 15000, line_total: 15000, item_type: 'labor' },
+      ],
+    });
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ service_price: 100000, total_amount: 110000 }] });
+
+    const orders = await getChangeOrders(BOOKING_ID);
+    const co = orders[0]!;
+    const items = co.lineItems as Array<Record<string, unknown>>;
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({ description: 'Faucet', quantity: 1, unitPrice: 30000, lineTotal: 30000, itemType: 'materials' });
+    expect(items[1]).toMatchObject({ description: 'Labor', itemType: 'labor' });
   });
 
   it('leaves fee/total null when the parent booking cannot be read', async () => {
@@ -69,6 +99,7 @@ describe('Phase 200 — getChangeOrders returns marginal fee + total', () => {
         customer_responded_at: null, created_at: new Date('2026-05-01'),
       }],
     });
+    dbQueryMock.mockResolvedValueOnce({ rows: [] }); // change_order_line_items (none)
     dbQueryMock.mockResolvedValueOnce({ rows: [] }); // booking missing
 
     const orders = await getChangeOrders(BOOKING_ID);

@@ -239,6 +239,17 @@ export async function declineOffer(offerId: string, reason = 'Not available'): P
   return res.data.data;
 }
 
+// D27 Phase 3 — a parts/materials/labor line on an itemized change order.
+export interface ChangeOrderLineItem {
+  id?: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number; // centavos
+  lineTotal: number; // centavos
+  itemType: string; // 'labor' | 'materials' | 'equipment' | 'other'
+}
+
 export interface ChangeOrder {
   id: string;
   bookingId: string;
@@ -250,6 +261,8 @@ export interface ChangeOrder {
   // balance. Null only if the parent booking could not be read.
   additionalServiceFee: number | null;
   additionalTotal: number | null;
+  // D27 Phase 3 — itemized breakdown (empty for legacy lump-sum change orders).
+  lineItems: ChangeOrderLineItem[];
   photos: string[];
   status: string;
   customerRespondedAt: string | null;
@@ -258,7 +271,14 @@ export interface ChangeOrder {
 
 export async function createChangeOrder(
   bookingId: string,
-  data: { description: string; additionalAmount: number; photos?: string[] },
+  data: {
+    description: string;
+    additionalAmount?: number;
+    photos?: string[];
+    // When provided, the server computes the canonical total from these and
+    // ignores additionalAmount. unitPrice is centavos.
+    lineItems?: Omit<ChangeOrderLineItem, 'id' | 'lineTotal'>[];
+  },
 ): Promise<ChangeOrder> {
   const res = await api.post<ApiResponse<ChangeOrder>>(`/api/v1/bookings/${bookingId}/change-orders`, data);
   return res.data.data;

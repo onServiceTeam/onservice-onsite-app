@@ -224,6 +224,24 @@ export default function ChangeOrderScreen(): React.ReactElement {
 
                 <Text style={styles.orderDesc}>{order.description}</Text>
 
+                {/* D27 Phase 3 — itemized parts/materials breakdown so the
+                    customer sees exactly what they're being charged for. */}
+                {order.lineItems && order.lineItems.length > 0 && (
+                  <View style={styles.liBox}>
+                    {order.lineItems.map((li, i) => (
+                      <View key={li.id ?? i} style={styles.liBoxRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.liBoxDesc}>{li.description}</Text>
+                          <Text style={styles.liBoxMeta}>
+                            {li.quantity} {li.unit} × {formatPHP(li.unitPrice)} · {li.itemType}
+                          </Text>
+                        </View>
+                        <Text style={styles.liBoxTotal}>{formatPHP(li.lineTotal)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
                 {order.photos.length > 0 && (
                   <View style={styles.photoRow}>
                     {/* Phase 200 — render the provider's actual justification
@@ -315,6 +333,11 @@ const styles = StyleSheet.create({
   pendingText: { color: colors.warning },
   orderAmount: { fontSize: 18, fontWeight: '800', color: colors.text },
   orderDesc: { ...typography.body, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.sm },
+  liBox: { backgroundColor: colors.surfaceMuted, borderRadius: borderRadius.md, padding: spacing.sm + 2, marginBottom: spacing.sm, gap: spacing.xs },
+  liBoxRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  liBoxDesc: { ...typography.bodySmall, color: colors.text, fontWeight: '600' },
+  liBoxMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
+  liBoxTotal: { ...typography.bodySmall, color: colors.text, fontWeight: '700' },
   photoRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   photoThumb: { width: 60, height: 60, borderRadius: borderRadius.md, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
   photoIcon: { fontSize: 20 },

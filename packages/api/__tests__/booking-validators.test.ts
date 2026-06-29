@@ -309,5 +309,40 @@ describe('Booking Validators', () => {
       });
       expect(result.success).toBe(false);
     });
+
+    // D27 Phase 3 — itemized change orders.
+    it('accepts a change order with line items and no explicit amount', () => {
+      const result = createChangeOrderSchema.safeParse({
+        description: 'Replace faucet and pipe section.',
+        lineItems: [
+          { description: 'Faucet', quantity: 1, unit: 'unit', unitPrice: 30000, itemType: 'materials' },
+          { description: 'Labor', quantity: 1, unit: 'hour', unitPrice: 15000, itemType: 'labor' },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a change order with neither an amount nor line items', () => {
+      const result = createChangeOrderSchema.safeParse({
+        description: 'No money and no items at all here.',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a line item with a zero unit price', () => {
+      const result = createChangeOrderSchema.safeParse({
+        description: 'Replace faucet and pipe section.',
+        lineItems: [{ description: 'Faucet', quantity: 1, unit: 'unit', unitPrice: 0, itemType: 'materials' }],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects an invalid line-item type', () => {
+      const result = createChangeOrderSchema.safeParse({
+        description: 'Replace faucet and pipe section.',
+        lineItems: [{ description: 'Faucet', quantity: 1, unit: 'unit', unitPrice: 30000, itemType: 'gadget' }],
+      } as unknown);
+      expect(result.success).toBe(false);
+    });
   });
 });
