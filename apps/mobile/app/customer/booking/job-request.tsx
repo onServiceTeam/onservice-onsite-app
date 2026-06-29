@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBookingStore } from '@/stores/booking.store';
-import { createJobRequest } from '@/services/booking.service';
+import { createJobRequest, getSubcategoryIntakeFields, type IntakeField } from '@/services/booking.service';
 import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, borderRadius } from '@/config/theme';
@@ -32,6 +32,119 @@ export default function JobRequestScreen(): React.ReactElement {
   const [budgetMax, setBudgetMax] = useState('');
   const imagePicker = useImagePicker({ context: 'job-request', maxImages: 10 });
 
+  // D27 Phase 2 — per-subcategory structured intake. Fields are configured by
+  // admins per service subcategory; the customer answers them so providers can
+  // quote accurately (area in sqm, material, # of rooms, etc.). `intakeAnswers`
+  // holds typed values keyed by field_key; `numberText` holds the raw display
+  // string for number fields so partial typing ("12.") doesn't get clobbered.
+  const [intakeAnswers, setIntakeAnswers] = useState<Record<string, string | number | boolean>>({});
+  const [numberText, setNumberText] = useState<Record<string, string>>({});
+
+  const fieldsQuery = useQuery({
+    queryKey: ['intake-fields', draft.subcategoryId],
+    queryFn: () => getSubcategoryIntakeFields(draft.subcategoryId as string),
+    enabled: !!draft.subcategoryId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const intakeFields: IntakeField[] = fieldsQuery.data ?? [];
+
+  const setAnswer = (key: string, value: string | number | boolean | undefined) => {
+    setIntakeAnswers((prev) => {
+      const next = { ...prev };
+      if (value === undefined || value === '') delete next[key];
+      else next[key] = value;
+      return next;
+    });
+  };
+
+  const onNumberChange = (key: string, text: string) => {
+    // allow digits and a single decimal point only
+    const cleaned = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+    setNumberText((prev) => ({ ...prev, [key]: cleaned }));
+    const n = Number(cleaned);
+    setIntakeAnswers((prev) => {
+      const next = { ...prev };
+      if (cleaned === '' || !Number.isFinite(n)) delete next[key];
+      else next[key] = n;
+      return next;
+    });
+  };
+
+  // Every required field must have a usable answer before submit is allowed.
+  const intakeComplete = intakeFields.every((f) => {
+    if (!f.isRequired) return true;
+    const v = intakeAnswers[f.fieldKey];
+    if (f.fieldType === 'number') return typeof v === 'number' && Number.isFinite(v);
+    if (f.fieldType === 'boolean') return typeof v === 'boolean';
+    return typeof v === 'string' && v.trim().length > 0;
+  });
+
+  const renderIntakeInput = (f: IntakeField): React.ReactElement => {
+    if (f.fieldType === 'number') {
+      return (
+        <View style={styles.intakeNumberRow}>
+          <TextInput
+            style={[styles.intakeInput, { flex: 1 }]}
+            keyboardType="numeric"
+            value={numberText[f.fieldKey] ?? ''}
+            onChangeText={(t) => onNumberChange(f.fieldKey, t)}
+            placeholder={f.placeholder ?? 'Enter a number'}
+            placeholderTextColor={colors.textTertiary}
+          />
+          {f.unit ? <Text style={styles.intakeUnit}>{f.unit}</Text> : null}
+        </View>
+      );
+    }
+    if (f.fieldType === 'text') {
+      const v = intakeAnswers[f.fieldKey];
+      return (
+        <TextInput
+          style={styles.intakeInput}
+          value={typeof v === 'string' ? v : ''}
+          onChangeText={(t) => setAnswer(f.fieldKey, t)}
+          placeholder={f.placeholder ?? ''}
+          placeholderTextColor={colors.textTertiary}
+          maxLength={200}
+        />
+      );
+    }
+    if (f.fieldType === 'choice') {
+      return (
+        <View style={styles.chipRow}>
+          {(f.options ?? []).map((opt) => {
+            const selected = intakeAnswers[f.fieldKey] === opt;
+            return (
+              <TouchableOpacity
+                key={opt}
+                style={[styles.chip, selected && styles.chipSelected]}
+                onPress={() => setAnswer(f.fieldKey, opt)}
+              >
+                <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{opt}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      );
+    }
+    // boolean
+    return (
+      <View style={styles.chipRow}>
+        {[{ label: 'Yes', val: true }, { label: 'No', val: false }].map((o) => {
+          const selected = intakeAnswers[f.fieldKey] === o.val;
+          return (
+            <TouchableOpacity
+              key={o.label}
+              style={[styles.chip, selected && styles.chipSelected]}
+              onPress={() => setAnswer(f.fieldKey, o.val)}
+            >
+              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{o.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
+
   const mutation = useMutation({
     mutationFn: async () => {
       if (!draft.categoryId || !draft.address) {
@@ -52,6 +165,7 @@ export default function JobRequestScreen(): React.ReactElement {
         budgetMin: budgetMin ? Math.round(Number(budgetMin) * 100) : undefined,
         budgetMax: budgetMax ? Math.round(Number(budgetMax) * 100) : undefined,
         jobPhotos: uploadedUrls.length > 0 ? uploadedUrls : undefined,
+        intakeAnswers: Object.keys(intakeAnswers).length > 0 ? intakeAnswers : undefined,
       });
     },
     onSuccess: (booking) => {
@@ -79,7 +193,8 @@ export default function JobRequestScreen(): React.ReactElement {
     draft.categoryId &&
     draft.address &&
     hasMinPhotos &&
-    budgetValid;
+    budgetValid &&
+    intakeComplete;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -120,6 +235,30 @@ export default function JobRequestScreen(): React.ReactElement {
             {description.length}/50 min
           </Text>
         </View>
+
+        {/* D27 Phase 2 — structured job details, configured per subcategory in
+            admin. Renders nothing when the subcategory has no intake fields. */}
+        {fieldsQuery.isLoading && !!draft.subcategoryId && (
+          <View style={styles.section}>
+            <ActivityIndicator size="small" color={colors.info} />
+          </View>
+        )}
+        {intakeFields.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Job Details</Text>
+            <Text style={styles.hint}>These help providers send you an accurate quote.</Text>
+            {intakeFields.map((f) => (
+              <View key={f.id} style={styles.intakeField}>
+                <Text style={styles.intakeLabel}>
+                  {f.label}
+                  {f.isRequired ? ' *' : ''}
+                </Text>
+                {f.helpText ? <Text style={styles.intakeHelp}>{f.helpText}</Text> : null}
+                {renderIntakeInput(f)}
+              </View>
+            ))}
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Photos *</Text>
@@ -237,6 +376,14 @@ export default function JobRequestScreen(): React.ReactElement {
           </View>
         )}
 
+        {!intakeComplete && intakeFields.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.hint, { color: colors.error }]}>
+              Please answer all required job-detail fields (marked *).
+            </Text>
+          </View>
+        )}
+
         <TouchableOpacity
           style={[styles.submitBtn, !isValid && styles.submitBtnDisabled]}
           onPress={() => mutation.mutate()}
@@ -299,6 +446,17 @@ const styles = StyleSheet.create({
   budgetPrefix: { fontSize: 14, color: colors.textSecondary, marginRight: spacing.xs },
   budgetInput: { flex: 1, paddingVertical: spacing.md, fontSize: 14, color: colors.text },
   budgetDash: { fontSize: 16, color: colors.textTertiary },
+  intakeField: { marginBottom: spacing.md },
+  intakeLabel: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 4 },
+  intakeHelp: { fontSize: 12, color: colors.textSecondary, marginBottom: 6 },
+  intakeInput: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, paddingHorizontal: spacing.base, paddingVertical: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, fontSize: 14, color: colors.text },
+  intakeNumberRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  intakeUnit: { fontSize: 14, color: colors.textSecondary, minWidth: 36 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chip: { paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderRadius: borderRadius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  chipSelected: { borderColor: colors.info, backgroundColor: colors.primaryLight },
+  chipText: { fontSize: 13, color: colors.text },
+  chipTextSelected: { color: colors.info, fontWeight: '600' },
   addressCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, flexDirection: 'row' as const, alignItems: 'center' as const, gap: spacing.sm },
   addressText: { fontSize: 14, color: colors.text, flex: 1 },
   addressArrow: { fontSize: 20, color: colors.textTertiary },

@@ -43,6 +43,18 @@ const STATUS_LABELS: Record<string, string> = {
   paid_out: 'Paid Out',
 };
 
+// D27 Phase 2 — render a stored intake answer. Booking JSON only keeps the
+// field_key, so turn `area_sqm` into `Area sqm` and booleans into Yes/No.
+function humanizeKey(key: string): string {
+  const s = key.replace(/[_-]+/g, ' ').trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function formatIntakeValue(value: string | number | boolean): string {
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  return String(value);
+}
+
 const NEXT_STATUS: Record<string, { status: string; label: string; confirm?: string }> = {
   paid: { status: 'provider_en_route', label: 'Start Navigation', confirm: 'Are you heading to the job location?' },
   provider_en_route: { status: 'provider_arrived', label: 'I\'ve Arrived', confirm: 'Confirm you\'ve arrived at the location?' },
@@ -251,6 +263,21 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           {booking.description && <Text style={styles.serviceDesc}>{booking.description}</Text>}
         </Card>
 
+        {/* D27 Phase 2 — structured job details the customer answered on the
+            custom-quote intake form. Keyed by field_key; the readable label is
+            derived from the key. Helps the provider quote accurately. */}
+        {booking.intakeAnswers && Object.keys(booking.intakeAnswers).length > 0 && (
+          <Card style={styles.card}>
+            <SectionHeader title="Job details" />
+            {Object.entries(booking.intakeAnswers).map(([key, value]) => (
+              <View key={key} style={styles.intakeRow}>
+                <Text style={styles.intakeKey}>{humanizeKey(key)}</Text>
+                <Text style={styles.intakeValue}>{formatIntakeValue(value)}</Text>
+              </View>
+            ))}
+          </Card>
+        )}
+
         {/* BUG-PHASE80-01 fix — pre-fix the provider job detail
             screen had no Customer section. Provider had to remember
             who they were serving from a different screen (or open
@@ -450,6 +477,9 @@ const styles = StyleSheet.create({
   card: { marginBottom: spacing.base },
   serviceName: { ...typography.h3, color: colors.text },
   serviceDesc: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
+  intakeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md, paddingVertical: spacing.xs },
+  intakeKey: { ...typography.bodySmall, color: colors.textSecondary, flexShrink: 1 },
+  intakeValue: { ...typography.body, color: colors.text, fontWeight: '600', textAlign: 'right', flexShrink: 1 },
   detailText: { ...typography.body, color: colors.text },
   relativeText: { ...typography.bodySmall, color: colors.textTertiary, marginTop: 2 },
 

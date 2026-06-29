@@ -59,6 +59,10 @@ export interface Booking {
   // D23 — the team member assigned to perform this job (null = the provider
   // owner does it themselves).
   performerStaffId?: string | null;
+  // D27 Phase 2 — structured intake answers the customer gave when requesting a
+  // custom quote, keyed by the subcategory's field_key. Null for bookings made
+  // before the subcategory had intake fields. Providers read these to quote.
+  intakeAnswers?: Record<string, string | number | boolean> | null;
 }
 
 // Phase 14 Dispatch 05 — Bug 175 + Bug 176.
@@ -124,10 +128,39 @@ export interface JobRequestPayload {
   budgetMax?: number;
   jobPhotos?: string[];
   jobVideoUrl?: string;
+  // D27 Phase 2 — structured answers to the subcategory's intake fields,
+  // keyed by field_key. Collected by the dynamic intake form on job-request.tsx.
+  intakeAnswers?: Record<string, string | number | boolean>;
 }
 
 export async function createJobRequest(data: JobRequestPayload): Promise<Booking> {
   const res = await api.post<ApiResponse<Booking>>('/api/v1/bookings/job-request', data);
+  return res.data.data;
+}
+
+// D27 Phase 2 — per-subcategory structured intake fields the customer fills in
+// when requesting a custom quote (e.g. area in sqm, door material, # of rooms).
+export type IntakeFieldType = 'number' | 'text' | 'choice' | 'boolean';
+
+export interface IntakeField {
+  id: string;
+  subcategoryId: string;
+  fieldKey: string;
+  label: string;
+  helpText: string | null;
+  fieldType: IntakeFieldType;
+  unit: string | null;
+  options: string[] | null;
+  placeholder: string | null;
+  isRequired: boolean;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export async function getSubcategoryIntakeFields(subcategoryId: string): Promise<IntakeField[]> {
+  const res = await api.get<ApiResponse<IntakeField[]>>(
+    `/api/v1/catalog/subcategories/${subcategoryId}/intake-fields`,
+  );
   return res.data.data;
 }
 

@@ -5,6 +5,7 @@ import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { Badge, Label, Input, Textarea } from '@/components/ui';
 import { Package } from '@/components/icons';
+import { IntakeFieldsManager } from '@/components/IntakeFieldsManager';
 
 const CURRENCY_SYMBOL = '₱';
 
@@ -174,6 +175,8 @@ export default function CatalogPage(): React.ReactElement {
   });
 
   const [expandedAddons, setExpandedAddons] = useState<string | null>(null);
+  // D27 Phase 2 — which subcategory's intake-field editor is open.
+  const [expandedIntake, setExpandedIntake] = useState<string | null>(null);
 
   const { data: addonsData, isLoading: isAddonsLoading, isError: isAddonsError } = useQuery({
     queryKey: ['adminAddons', expandedAddons],
@@ -462,6 +465,14 @@ export default function CatalogPage(): React.ReactElement {
                               Add-ons
                             </button>
                             <button
+                              onClick={() => setExpandedIntake(expandedIntake === sub.id ? null : sub.id)}
+                              aria-expanded={expandedIntake === sub.id}
+                              aria-label={`${expandedIntake === sub.id ? 'Hide' : 'Show'} intake fields for ${sub.name}`}
+                              className="px-2 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors mr-1"
+                            >
+                              Intake
+                            </button>
+                            <button
                               onClick={() => openEditSubcategory(sub)}
                               aria-label={`Edit service ${sub.name}`}
                               className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors mr-1"
@@ -532,6 +543,13 @@ export default function CatalogPage(): React.ReactElement {
                                   ))}
                                 </div>
                               )}
+                            </td>
+                          </tr>
+                        )}
+                        {expandedIntake === sub.id && (
+                          <tr>
+                            <td colSpan={5} className="p-0">
+                              <IntakeFieldsManager subcategoryId={sub.id} subcategoryName={sub.name} />
                             </td>
                           </tr>
                         )}
