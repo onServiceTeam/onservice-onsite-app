@@ -159,6 +159,10 @@ const Dimensions = {
   addEventListener: () => ({ remove: () => {} }),
 };
 
+// Hook form of Dimensions used by useResponsive(). Phone-width by default so
+// screens render their phone layout in tests.
+const useWindowDimensions = () => ({ width: 390, height: 844, scale: 3, fontScale: 1 });
+
 const StyleSheet = {
   create: (styles) => styles,
   flatten: (style) => {
@@ -261,6 +265,7 @@ module.exports = {
   Linking,
   Platform,
   Dimensions,
+  useWindowDimensions,
   StyleSheet,
   Animated,
   Easing,
