@@ -1,0 +1,5 @@
+{
+  "name": "onservice-onsite-app",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "postStartCommand": "bash scripts/dev/restore-ssh.sh"
+}
