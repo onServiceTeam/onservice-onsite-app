@@ -12,6 +12,44 @@ to continue. A new feature to build is at the end.
 
 ---
 
+## PREFLIGHT — verify EVERY connection before you do anything else
+
+Before reading further or touching code, confirm you can actually reach all four
+things. Run these and report PASS/FAIL for each. If any fail, STOP and tell Ken
+exactly which one and the error — do not guess or proceed on a broken connection.
+(Paths/commands assume you run on Ken's Windows machine via Git Bash; adjust the
+shell as needed. Full detail on each is in §2.)
+
+```
+# 1) LOCAL repo + toolchain
+cd C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app && git status && git rev-parse --short HEAD
+node -v && npm -v          # expect Node 24
+# (optional sanity) cd packages/api && npx tsc --noEmit
+
+# 2) GITHUB (read access to the private repo)
+git ls-remote origin -h refs/heads/master     # prints the master sha if auth works
+gh auth status                                 # should show logged in to onServiceTeam
+
+# 3) SERVER (SSH)
+ssh -i ~/.ssh/onservice_hetzner -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new root@5.78.143.185 'echo SERVER_OK; cd /opt/onservice && git rev-parse --short HEAD'
+
+# 4) DATABASE (Postgres, inside the server's docker)
+ssh -i ~/.ssh/onservice_hetzner -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new root@5.78.143.185 \
+  'cd /opt/onservice; DBC=$(docker compose -f docker-compose.prod.yml ps -q postgres); docker exec -i "$DBC" psql -U onservice_user -d onservice -tAc "select '"'"'DB_OK '"'"' || count(*) from pgmigrations;"'
+
+# 5) SERVER -> GITHUB (deploy key, so the server can self-update on deploys)
+ssh -i ~/.ssh/onservice_hetzner -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new root@5.78.143.185 \
+  'ssh -i ~/.ssh/github_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -T git@github.com'
+# expect: "Hi onServiceTeam/onservice-onsite-app! You've successfully authenticated"
+```
+
+Expected results right now: local/GitHub/server all on the SAME commit (currently
+`8493b28`), `DB_OK 134` (134 tracked migrations), and the deploy-key auth message.
+If GitHub or the server-deploy-key check fails, see §2.2 for the fix (and the
+git-bundle fallback for shipping code without GitHub auth).
+
+---
+
 ## 0. Golden rules (from CLAUDE.md — do not violate)
 
 - **Ken is the founder and your only reviewer. He is a non-developer.** Speak in
@@ -179,10 +217,12 @@ links by reading `apps/mobile/app/index.tsx` and `apps/mobile/app/auth/login.tsx
 
 ---
 
-## 4. Current state (as of commit 94f3139, 2026-06-29)
+## 4. Current state (as of commit 8493b28, 2026-06-29)
 
-**Local = GitHub = server are all in sync at commit `94f3139` on `master`.** Clean
-working tree. Apply this as the source of truth and re-verify (see audit below).
+**Local = GitHub = server are all in sync at commit `8493b28` on `master`.** Clean
+working tree everywhere; the live database has all migrations 001–145 applied and
+the `pgmigrations` tracker is accurate (134 rows, latest `145_hourly_pricing`).
+Apply this as the source of truth and re-verify (run the PREFLIGHT + §5 audit).
 
 Test suites (all green at this commit):
 - API: ~278 jest suites / ~3025 tests. Run: `cd packages/api && npx jest`
@@ -369,7 +409,7 @@ escalated. **Do not take "done" on faith — verify.**
    7-agent audit ran; findings fixed. Worth re-running a fresh audit (this is part
    of §5).
 10. **Keep local = GitHub = server in sync, ready for users** — currently true at
-    `94f3139`. Maintain this after every change.
+    `8493b28`. Maintain this after every change.
 
 ---
 
