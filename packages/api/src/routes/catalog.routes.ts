@@ -4,6 +4,8 @@ import { validationMiddleware } from '../middleware/validation.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import { db } from '../models/db';
 import * as catalogService from '../services/catalog.service';
+import * as intakeService from '../services/intake.service';
+import { intakeFieldSchema, updateIntakeFieldSchema } from '../validators/intake.validators';
 import { cacheMiddleware } from '../middleware/cache.middleware';
 import { cacheDeletePattern, CacheTTL } from '../services/cache.service';
 import { createAddonSchema, updateAddonSchema } from '../validators/admin-catalog.validators';
@@ -469,6 +471,88 @@ router.delete(
       // gate-c-allowed: post-commit-cache-invalidation
       await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
       res.json({ success: true, data: { message: 'Subcategory deactivated.' } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// ─── D27 Phase 2: per-subcategory structured intake fields ──────────────────
+
+function getId(req: AuthenticatedRequest, name: string): string {
+  const v = req.params[name];
+  if (typeof v !== 'string' || !v) throw createAppError(`${name} is required.`, 400);
+  return v;
+}
+
+// Public — active intake fields for a subcategory (the customer job-request form).
+router.get(
+  '/subcategories/:id/intake-fields',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params.id;
+      if (typeof id !== 'string' || !id) throw createAppError('id is required.', 400);
+      const fields = await intakeService.listIntakeFields(id, { activeOnly: true });
+      res.json({ success: true, data: fields });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// Admin — all intake fields (incl. inactive) for the catalog editor.
+router.get(
+  '/admin/subcategories/:id/intake-fields',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const fields = await intakeService.listIntakeFields(getId(req, 'id'));
+      res.json({ success: true, data: fields });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/admin/subcategories/:id/intake-fields',
+  authMiddleware,
+  validationMiddleware(intakeFieldSchema),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const field = await intakeService.createIntakeField(getId(req, 'id'), req.body);
+      res.status(201).json({ success: true, data: field });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.patch(
+  '/admin/intake-fields/:fieldId',
+  authMiddleware,
+  validationMiddleware(updateIntakeFieldSchema),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const field = await intakeService.updateIntakeField(getId(req, 'fieldId'), req.body);
+      res.json({ success: true, data: field });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.delete(
+  '/admin/intake-fields/:fieldId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      await intakeService.deleteIntakeField(getId(req, 'fieldId'));
+      res.json({ success: true });
     } catch (error) {
       next(error);
     }

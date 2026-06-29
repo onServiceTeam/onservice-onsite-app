@@ -140,6 +140,7 @@ function formatBookingResponse(b: BookingRow): Record<string, unknown> {
     budget_min?: number | null;
     budget_max?: number | null;
     job_video_url?: string | null;
+    intake_answers?: Record<string, unknown> | null;
   };
   return {
     id: row.id,
@@ -177,6 +178,7 @@ function formatBookingResponse(b: BookingRow): Record<string, unknown> {
     urgency: row.urgency ?? null,
     budgetMin: row.budget_min ?? null,
     budgetMax: row.budget_max ?? null,
+    intakeAnswers: row.intake_answers ?? null,
     providerBeforePhotos: row.provider_before_photos ?? [],
     providerAfterPhotos: row.provider_after_photos ?? [],
     createdAt: row.created_at,

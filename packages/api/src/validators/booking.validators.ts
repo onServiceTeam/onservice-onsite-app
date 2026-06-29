@@ -109,6 +109,10 @@ export const createJobRequestSchema = z.object({
   budgetMax: z.number().int().min(0).optional(),
   jobPhotos: z.array(z.string().url()).min(2, 'At least 2 photos are required for custom quote requests').max(10),
   jobVideoUrl: z.string().url().optional(),
+  // D27 Phase 2 — structured answers to the subcategory's intake fields,
+  // keyed by field_key. Validated against the field set on the client; stored
+  // as-is (a bounded JSON object) for the provider to read.
+  intakeAnswers: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
 }).refine(
   (data) => {
     if (data.budgetMin != null && data.budgetMax != null) {

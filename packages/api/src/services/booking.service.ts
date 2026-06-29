@@ -1162,6 +1162,8 @@ export async function createJobRequest(
     budgetMax?: number;
     jobPhotos?: string[];
     jobVideoUrl?: string;
+    // D27 Phase 2 — structured per-subcategory intake answers keyed by field_key.
+    intakeAnswers?: Record<string, unknown>;
   },
 ): Promise<BookingRow> {
   const scheduledAt = new Date();
@@ -1179,8 +1181,9 @@ export async function createJobRequest(
     `INSERT INTO bookings
        (customer_id, category_id, subcategory_id, booking_type, description,
         address, barangay, city, province, latitude, longitude,
-        scheduled_at, urgency, budget_min, budget_max, job_photos, job_video_url)
-     VALUES ($1, $2, $3, 'quote_based', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        scheduled_at, urgency, budget_min, budget_max, job_photos, job_video_url,
+        intake_answers)
+     VALUES ($1, $2, $3, 'quote_based', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb)
      RETURNING *`,
     [
       customerId, data.categoryId, data.subcategoryId ?? null, data.description,
@@ -1189,6 +1192,9 @@ export async function createJobRequest(
       scheduledAt, data.urgency,
       data.budgetMin ?? null, data.budgetMax ?? null,
       data.jobPhotos ?? [], data.jobVideoUrl ?? null,
+      data.intakeAnswers && Object.keys(data.intakeAnswers).length > 0
+        ? JSON.stringify(data.intakeAnswers)
+        : null,
     ],
   );
 

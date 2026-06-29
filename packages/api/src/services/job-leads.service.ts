@@ -101,6 +101,7 @@ export interface OpenJobRequest {
   budgetMax: number | null;
   jobPhotos: string[];
   jobVideoUrl: string | null;
+  intakeAnswers: Record<string, unknown> | null;
   barangay: string | null;
   city: string | null;
   province: string | null;
@@ -172,6 +173,7 @@ export async function getOpenJobRequestsForProvider(
     budget_max: number | null;
     job_photos: string[] | null;
     job_video_url: string | null;
+    intake_answers: Record<string, unknown> | null;
     barangay: string | null;
     city: string | null;
     province: string | null;
@@ -182,7 +184,7 @@ export async function getOpenJobRequestsForProvider(
   }>(
     `SELECT b.id, b.category_id, sc.name AS category_name, b.subcategory_id,
             b.description, b.urgency, b.budget_min, b.budget_max,
-            b.job_photos, b.job_video_url, b.barangay, b.city, b.province,
+            b.job_photos, b.job_video_url, b.intake_answers, b.barangay, b.city, b.province,
             u.first_name AS customer_first, u.last_name AS customer_last,
             CASE WHEN $2::numeric IS NOT NULL AND $3::numeric IS NOT NULL
                   AND b.latitude IS NOT NULL AND b.longitude IS NOT NULL
@@ -208,6 +210,7 @@ export async function getOpenJobRequestsForProvider(
     budgetMax: r.budget_max,
     jobPhotos: r.job_photos ?? [],
     jobVideoUrl: r.job_video_url,
+    intakeAnswers: r.intake_answers,
     barangay: r.barangay,
     city: r.city,
     province: r.province,
