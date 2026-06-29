@@ -127,6 +127,11 @@ export const Routes = {
     STANDARDS: '/provider/standards',
     // D27 Phase 7 — provider CRM: the provider's client book.
     CLIENTS: '/provider/clients',
+    // D27 Phase 7b — CRM depth.
+    CLIENT_DETAIL: '/provider/clients/[id]',
+    REMINDERS: '/provider/reminders',
+    QUOTE_TEMPLATES: '/provider/quote-templates',
+    INSIGHTS: '/provider/insights',
     NOTIFICATIONS: '/provider/notifications',
     SERVICES: '/provider/services',
     CALENDAR: '/provider/calendar',

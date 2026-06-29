@@ -4,6 +4,7 @@ import { validationMiddleware } from '../middleware/validation.middleware';
 import { providerApplicationSchema, updateProfileSchema, addServiceSchema, setScheduleSchema, availabilityOverrideSchema } from '../validators/provider.validators';
 import * as providerService from '../services/provider.service';
 import * as providerCrmService from '../services/provider-crm.service';
+import { addClientNoteSchema, addReminderSchema, createTemplateSchema } from '../validators/provider-crm.validators';
 import * as jobLeadsService from '../services/job-leads.service';
 import * as reviewService from '../services/review.service';
 import * as providerToolsService from '../services/provider-tools.service';
@@ -225,6 +226,88 @@ router.get(
     }
   },
 );
+
+// D27 Phase 7b — provider CRM depth. All scoped to the calling provider.
+async function pid(req: AuthenticatedRequest): Promise<string> {
+  requireProvider(req);
+  const provider = await providerService.getProviderByUserId(req.user!.userId);
+  return provider.id;
+}
+function strParam(req: AuthenticatedRequest, name: string): string {
+  const v = req.params[name];
+  if (typeof v !== 'string' || !v) throw createAppError(`${name} is required.`, 400);
+  return v;
+}
+
+// Per-category performance insights.
+router.get('/me/insights', authMiddleware, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await providerCrmService.getCategoryInsights(await pid(req)) });
+  } catch (e) { next(e); }
+});
+
+// Reminders.
+router.get('/me/reminders', authMiddleware, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    res.json({ success: true, data: await providerCrmService.listReminders(await pid(req), { status }) });
+  } catch (e) { next(e); }
+});
+router.post('/me/reminders', authMiddleware, validationMiddleware(addReminderSchema), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    res.status(201).json({ success: true, data: await providerCrmService.addReminder(await pid(req), req.body) });
+  } catch (e) { next(e); }
+});
+router.patch('/me/reminders/:reminderId/done', authMiddleware, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await providerCrmService.completeReminder(await pid(req), strParam(req, 'reminderId')) });
+  } catch (e) { next(e); }
+});
+router.delete('/me/reminders/:reminderId', authMiddleware, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    await providerCrmService.deleteReminder(await pid(req), strParam(req, 'reminderId'));
+    res.json({ success: true });
+  } catch (e) { next(e); }
+});
+
+// Quote templates.
+router.get('/me/quote-templates', authMiddleware, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await providerCrmService.listTemplates(await pid(req)) });
+  } catch (e) { next(e); }
+});
+router.post('/me/quote-templates', authMiddleware, validationMiddleware(createTemplateSchema), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    res.status(201).json({ success: true, data: await providerCrmService.createTemplate(await pid(req), req.body) });
+  } catch (e) { next(e); }
+});
+router.delete('/me/quote-templates/:templateId', authMiddleware, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    await providerCrmService.deleteTemplate(await pid(req), strParam(req, 'templateId'));
+    res.json({ success: true });
+  } catch (e) { next(e); }
+});
+
+// Client notes (delete by note id — the more specific path is registered before
+// the /me/clients/:customerId param route below).
+router.delete('/me/client-notes/:noteId', authMiddleware, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    await providerCrmService.deleteClientNote(await pid(req), strParam(req, 'noteId'));
+    res.json({ success: true });
+  } catch (e) { next(e); }
+});
+
+// One client's detail (history + notes + reminders) and notes CRUD.
+router.get('/me/clients/:customerId', authMiddleware, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await providerCrmService.getClientDetail(await pid(req), strParam(req, 'customerId')) });
+  } catch (e) { next(e); }
+});
+router.post('/me/clients/:customerId/notes', authMiddleware, validationMiddleware(addClientNoteSchema), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    res.status(201).json({ success: true, data: await providerCrmService.addClientNote(await pid(req), strParam(req, 'customerId'), req.body.body) });
+  } catch (e) { next(e); }
+});
 
 router.get(
   '/me/services',

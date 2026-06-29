@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { submitQuote } from '@/services/booking.service';
+import { listTemplates, type QuoteTemplate } from '@/services/provider-crm.service';
 import { showToast } from '@/lib/toast';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
@@ -36,6 +37,22 @@ export default function QuoteBuilderScreen(): React.ReactElement {
   const [items, setItems] = useState<LineItemDraft[]>([createEmptyItem()]);
 
   const addItem = (): void => setItems([...items, createEmptyItem()]);
+
+  // D27 Phase 7b — prefill line items from a saved quote template.
+  const [showTemplates, setShowTemplates] = useState(false);
+  const templatesQuery = useQuery({ queryKey: ['quote-templates'], queryFn: listTemplates, enabled: showTemplates, staleTime: 60 * 1000 });
+  const applyTemplate = (t: QuoteTemplate): void => {
+    setItems(t.items.map((it) => ({
+      id: nextItemId++,
+      description: it.description,
+      quantity: String(it.quantity),
+      unit: it.unit,
+      unitPrice: String(it.unitPrice / 100),
+      itemType: (['labor', 'materials', 'equipment', 'other'].includes(it.itemType) ? it.itemType : 'labor') as LineItemDraft['itemType'],
+    })));
+    setShowTemplates(false);
+    showToast(`Loaded "${t.name}"`, 'success');
+  };
 
   const updateItem = (id: number, field: keyof LineItemDraft, value: string): void => {
     setItems(items.map(item => item.id === id ? { ...item, [field]: value } : item));
@@ -136,10 +153,33 @@ export default function QuoteBuilderScreen(): React.ReactElement {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Line Items *</Text>
-            <TouchableOpacity onPress={addItem} style={styles.addItemBtn}>
-              <Text style={styles.addItemText}>+ Add Item</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <TouchableOpacity onPress={() => setShowTemplates((v) => !v)} style={styles.templateBtn}>
+                <Text style={styles.templateBtnText}>Use template</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={addItem} style={styles.addItemBtn}>
+                <Text style={styles.addItemText}>+ Add Item</Text>
+              </TouchableOpacity>
+            </View>
           </View>
+
+          {/* D27 Phase 7b — pick a saved template to prefill the line items. */}
+          {showTemplates && (
+            <View style={styles.templatePanel}>
+              {templatesQuery.isLoading ? (
+                <ActivityIndicator size="small" color={colors.info} />
+              ) : (templatesQuery.data ?? []).length === 0 ? (
+                <Text style={styles.templateEmpty}>No templates yet. Create them under Profile → Quote Templates.</Text>
+              ) : (
+                (templatesQuery.data ?? []).map((t) => (
+                  <TouchableOpacity key={t.id} style={styles.templateRow} onPress={() => applyTemplate(t)}>
+                    <Text style={styles.templateName}>{t.name}</Text>
+                    <Text style={styles.templateMeta}>{t.items.length} item{t.items.length !== 1 ? 's' : ''} ›</Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          )}
 
           {items.map((item, idx) => (
             <View key={item.id} style={styles.lineItemCard}>
@@ -309,6 +349,13 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.white, borderRadius: borderRadius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, marginBottom: spacing.sm },
   addItemBtn: { backgroundColor: colors.primaryLight, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 8, minHeight: 44, justifyContent: 'center' as const },
   addItemText: { fontSize: 13, fontWeight: '600', color: colors.info },
+  templateBtn: { backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 8, minHeight: 44, justifyContent: 'center' as const, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  templateBtnText: { fontSize: 13, fontWeight: '600', color: colors.text },
+  templatePanel: { backgroundColor: colors.surfaceMuted, borderRadius: borderRadius.md, padding: spacing.sm, marginBottom: spacing.sm, gap: spacing.xs, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  templateEmpty: { fontSize: 12, color: colors.textTertiary, padding: spacing.xs },
+  templateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: borderRadius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2 },
+  templateName: { fontSize: 14, fontWeight: '600', color: colors.text },
+  templateMeta: { fontSize: 12, color: colors.textSecondary },
   lineItemCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, marginBottom: spacing.md },
   lineItemHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
   lineItemNum: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },

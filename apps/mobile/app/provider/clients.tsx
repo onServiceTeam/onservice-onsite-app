@@ -19,7 +19,11 @@ export default function ProviderClientsScreen(): React.ReactElement {
   const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 2 });
 
   const renderItem = ({ item }: { item: ProviderClient }): React.ReactElement => (
-    <View style={[styles.card, numColumns > 1 && styles.cardGrid]}>
+    <TouchableOpacity
+      style={[styles.card, numColumns > 1 && styles.cardGrid]}
+      activeOpacity={0.7}
+      onPress={() => router.push(`/provider/clients/${item.customerId}`)}
+    >
       <View style={styles.cardTop}>
         <Text style={styles.name} numberOfLines={1}>{item.customerName}</Text>
         <Text style={styles.value}>{formatPHP(item.totalJobValue)}</Text>
@@ -36,7 +40,7 @@ export default function ProviderClientsScreen(): React.ReactElement {
         ) : null}
       </View>
       {item.jobCount > 1 ? <Text style={styles.repeat}>Repeat client</Text> : null}
-    </View>
+    </TouchableOpacity>
   );
 
   return (

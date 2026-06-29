@@ -64,6 +64,8 @@ export type NotificationType =
   // D27 Phase 1 — provider is notified when a custom-quote job request lands in
   // their category + service area (pull-based lead, provider chooses to quote).
   | 'new_job_request'
+  // D27 Phase 7b — provider CRM follow-up reminder fires on its due date.
+  | 'provider_reminder'
   // MED-N70 — change-order auto-expiry worker
   | 'change_order_expired'
   // Recurring + business

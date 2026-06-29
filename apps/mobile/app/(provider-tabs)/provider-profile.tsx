@@ -26,6 +26,8 @@ import {
   Bell,
   Settings,
   Users,
+  FileText,
+  BarChart3,
 } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
@@ -328,10 +330,25 @@ export default function ProviderProfileScreen(): React.ReactElement {
           <Text style={styles.menuLabel}>Certifications</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
-        {/* D27 Phase 7 — provider CRM: the client book. */}
+        {/* D27 Phase 7 / 7b — provider CRM: client book, reminders, templates, insights. */}
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.CLIENTS)}>
           <Users size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>My Clients</Text>
+          <Text style={styles.menuArrow}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.REMINDERS)}>
+          <Bell size={22} color={colors.primary} style={styles.menuIconImg} />
+          <Text style={styles.menuLabel}>Follow-up Reminders</Text>
+          <Text style={styles.menuArrow}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.QUOTE_TEMPLATES)}>
+          <FileText size={22} color={colors.primary} style={styles.menuIconImg} />
+          <Text style={styles.menuLabel}>Quote Templates</Text>
+          <Text style={styles.menuArrow}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.INSIGHTS)}>
+          <BarChart3 size={22} color={colors.primary} style={styles.menuIconImg} />
+          <Text style={styles.menuLabel}>Insights by Category</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.REVIEWS)}>

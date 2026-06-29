@@ -15,6 +15,7 @@ import * as disputeService from '../services/dispute.service';
 import * as gatewayRetryService from '../services/gateway-retry.service';
 import * as bookingService from '../services/booking.service';
 import * as bookingOfferService from '../services/booking-offer.service';
+import * as providerCrmService from '../services/provider-crm.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -475,6 +476,10 @@ const schedulerWorker = new Worker(
       case 'booking-offers-sweep':
         results.bookingOffers = await bookingOfferService.sweepExpiredOffers();
         break;
+      case 'provider-reminders-fire':
+        // D27 Phase 7b — notify providers of CRM follow-up reminders due today.
+        results.remindersFired = await providerCrmService.fireDueReminders();
+        break;
       case 'all': {
         results.confirmed = await autoConfirmBookings();
         results.expired = await expireStaleQuotes();
@@ -537,6 +542,14 @@ export async function initScheduledJobs(): Promise<void> {
     repeat: { pattern: '0 16 * * *' },
     removeOnComplete: 10,
     removeOnFail: 10,
+  });
+
+  // D27 Phase 7b — fire provider CRM follow-up reminders each morning (00:00 UTC
+  // = 08:00 Manila).
+  await schedulerQueue.add('provider-reminders-fire', {}, {
+    repeat: { pattern: '0 0 * * *' },
+    removeOnComplete: 10,
+    removeOnFail: 30,
   });
 
   await schedulerQueue.add('slot-waitlist-expire', {}, {
