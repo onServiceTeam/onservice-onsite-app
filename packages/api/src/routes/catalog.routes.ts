@@ -45,6 +45,7 @@ function formatSubcategory(s: {
   id: string; category_id: string; name: string; slug: string; description: string;
   pricing_type: string; base_price: number | null; min_price: number | null;
   max_price: number | null; estimated_duration_minutes: number | null; display_order: number;
+  unit_label?: string | null; unit_price?: number | null;
   category_name?: string; category_slug?: string;
 }): Record<string, unknown> {
   const result: Record<string, unknown> = {
@@ -58,6 +59,9 @@ function formatSubcategory(s: {
     minPrice: s.min_price,
     maxPrice: s.max_price,
     estimatedDurationMinutes: s.estimated_duration_minutes,
+    // D27 Phase 4 — per-unit rate (null unless pricingType is 'per_unit').
+    unitLabel: s.unit_label ?? null,
+    unitPrice: s.unit_price ?? null,
     displayOrder: s.display_order,
   };
   if (s.category_name) result.categoryName = s.category_name;
@@ -287,12 +291,12 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req); // MED-N161
-      const { categoryId, name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, displayOrder } = req.body;
+      const { categoryId, name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, unitLabel, unitPrice, displayOrder } = req.body;
       if (typeof name !== 'string' || !name.trim()) throw createAppError('Name is required.', 400);
       if (typeof categoryId !== 'string') throw createAppError('Category ID is required.', 400);
 
       const row = await catalogService.createSubcategory(
-        { categoryId, name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, displayOrder },
+        { categoryId, name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, unitLabel, unitPrice, displayOrder },
         req.user!.userId,
       );
 
@@ -314,10 +318,10 @@ router.put(
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Subcategory ID is required.', 400);
 
-      const { name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, displayOrder, isActive } = req.body;
+      const { name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, unitLabel, unitPrice, displayOrder, isActive } = req.body;
       const row = await catalogService.updateSubcategory(
         id,
-        { name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, displayOrder, isActive },
+        { name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, unitLabel, unitPrice, displayOrder, isActive },
         req.user!.userId,
       );
 

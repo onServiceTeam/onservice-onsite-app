@@ -156,6 +156,12 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
     if (subcat.pricing_type === 'quote') {
       throw createAppError('Quote-based subcategory cannot be booked as fixed_price.', 400);
     }
+    // D27 Phase 4 — per-unit services advertise a rate (₱/sqm) but are not
+    // auto-charged on a self-reported quantity. They go through the custom-quote
+    // flow where the provider measures and confirms the real amount.
+    if (subcat.pricing_type === 'per_unit') {
+      throw createAppError('Per-unit subcategory must be booked through the custom-quote flow.', 400);
+    }
     if (subcat.base_price == null) {
       throw createAppError('Service price could not be determined for this subcategory.', 400);
     }

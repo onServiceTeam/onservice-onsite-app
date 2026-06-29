@@ -252,6 +252,18 @@ describe('Bug d05-hourly-deferred — pricing.service resolvePricing (LAUNCH-LIM
   });
 });
 
+describe('D27 Phase 4 — per_unit subcat routes to the quote flow', () => {
+  it('throws subcategory_quote_required for a per_unit subcategory', async () => {
+    setupQueries({
+      match: /service_subcategories/i,
+      rows: [{ id: SUBCAT_QUOTE_ID, pricing_type: 'per_unit', base_price: null, is_active: true }],
+    });
+    await expect(
+      resolvePricing({ ...baseInput, subcategoryId: SUBCAT_QUOTE_ID }),
+    ).rejects.toThrow(/subcategory_quote_required/);
+  });
+});
+
 describe('pricing.service resolvePricing — subcategory edge cases', () => {
   it('rejects unknown subcategoryId', async () => {
     setupQueries({ match: /service_subcategories/i, rows: [] });

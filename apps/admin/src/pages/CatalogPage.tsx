@@ -20,6 +20,9 @@ interface Subcategory {
   minPrice: number | null;
   maxPrice: number | null;
   estimatedDurationMinutes: number | null;
+  // D27 Phase 4 — per-unit rate (unitPrice is centavos per unitLabel).
+  unitLabel: string | null;
+  unitPrice: number | null;
   displayOrder: number;
 }
 
@@ -69,6 +72,9 @@ export default function CatalogPage(): React.ReactElement {
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [estimatedDuration, setEstimatedDuration] = useState('');
+  // D27 Phase 4 — per-unit rate.
+  const [unitLabel, setUnitLabel] = useState('');
+  const [unitPrice, setUnitPrice] = useState('');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['adminCatalog'],
@@ -136,6 +142,13 @@ export default function CatalogPage(): React.ReactElement {
     if ((pricingType === 'fixed' || pricingType === 'hourly') && basePrice === '') {
       return 'Base price is required for fixed and hourly services.';
     }
+    // D27 Phase 4 — per-unit services need a unit label + a unit price.
+    if (pricingType === 'per_unit') {
+      if (!unitLabel.trim()) return 'Per-unit services need a unit label (e.g. "sqm").';
+      if (unitPrice === '' || !Number.isFinite(Number(unitPrice)) || Number(unitPrice) < 0) {
+        return 'Per-unit services need a valid unit price.';
+      }
+    }
     // 'range' is no longer a selectable/saveable pricing type (DB CHECK in
     // migration 003 allows only fixed/quote/hourly); its dead validation branch
     // was removed. Legacy 'range' rows (none on prod) are coerced on edit below.
@@ -153,6 +166,8 @@ export default function CatalogPage(): React.ReactElement {
         minPrice: toCentavos(minPrice),
         maxPrice: toCentavos(maxPrice),
         estimatedDurationMinutes: estimatedDuration ? Number(estimatedDuration) : null,
+        unitLabel: pricingType === 'per_unit' ? (unitLabel.trim() || null) : null,
+        unitPrice: pricingType === 'per_unit' ? toCentavos(unitPrice) : null,
         displayOrder: Number(displayOrder),
       };
       if (modal === 'addSubcategory') {
@@ -234,6 +249,8 @@ export default function CatalogPage(): React.ReactElement {
     setMinPrice('');
     setMaxPrice('');
     setEstimatedDuration('');
+    setUnitLabel('');
+    setUnitPrice('');
     setAddonName('');
     setAddonDesc('');
     setAddonPrice('');
@@ -269,13 +286,15 @@ export default function CatalogPage(): React.ReactElement {
     setDescription(sub.description);
     // Coerce any legacy/unsupported pricing type (e.g. an old 'range' row) to a
     // valid, selectable one so re-saving can't send a value the DB CHECK rejects.
-    setPricingType(['fixed', 'quote', 'hourly'].includes(sub.pricingType) ? sub.pricingType : 'quote');
+    setPricingType(['fixed', 'quote', 'hourly', 'per_unit'].includes(sub.pricingType) ? sub.pricingType : 'quote');
     // Phase 200 zero-price fix — a legitimate 0-centavo price is falsy and
     // wrongly showed blank; check null/undefined explicitly instead.
     setBasePrice(sub.basePrice != null ? String(sub.basePrice / 100) : '');
     setMinPrice(sub.minPrice != null ? String(sub.minPrice / 100) : '');
     setMaxPrice(sub.maxPrice != null ? String(sub.maxPrice / 100) : '');
     setEstimatedDuration(sub.estimatedDurationMinutes ? String(sub.estimatedDurationMinutes) : '');
+    setUnitLabel(sub.unitLabel ?? '');
+    setUnitPrice(sub.unitPrice != null ? String(sub.unitPrice / 100) : '');
     setDisplayOrder(String(sub.displayOrder));
     setModal('editSubcategory');
   }
@@ -441,6 +460,10 @@ export default function CatalogPage(): React.ReactElement {
                             ) : sub.pricingType === 'quote' ? (
                               <span className="ml-2 text-sm text-[var(--color-text-secondary)]">
                                 (quote on request)
+                              </span>
+                            ) : sub.pricingType === 'per_unit' && sub.unitPrice != null ? (
+                              <span className="ml-2 text-sm font-medium text-[var(--color-text)]">
+                                {formatCurrency(sub.unitPrice)}<span className="text-[var(--color-text-secondary)]">/{sub.unitLabel ?? 'unit'}</span>
                               </span>
                             ) : sub.basePrice != null ? (
                               <span className="ml-2 text-sm font-medium text-[var(--color-text)]">
@@ -687,6 +710,9 @@ export default function CatalogPage(): React.ReactElement {
                             tracked in the variable-pricing design (D27). */}
                         <option value="quote">Quote</option>
                         <option value="hourly">Hourly</option>
+                        {/* D27 Phase 4 — per-unit rate (e.g. ₱/sqm). Advertises a
+                            rate + estimate; the real price is provider-quoted. */}
+                        <option value="per_unit">Per unit</option>
                       </select>
                     </div>
                     <div>
@@ -737,6 +763,36 @@ export default function CatalogPage(): React.ReactElement {
                       placeholder="Optional"
                     />
                   </div>
+
+                  {pricingType === 'per_unit' && (
+                    <div className="grid grid-cols-2 gap-4 rounded-lg bg-amber-50/50 p-3 border border-amber-100">
+                      <div>
+                        <Label htmlFor="cat-unit-label" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Unit label</Label>
+                        <Input
+                          id="cat-unit-label"
+                          type="text"
+                          value={unitLabel}
+                          onChange={(e) => setUnitLabel(e.target.value)}
+                          placeholder="sqm, room, panel"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="cat-unit-price" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Price per unit ({CURRENCY_SYMBOL})</Label>
+                        <Input
+                          id="cat-unit-price"
+                          type="number"
+                          step="0.01"
+                          value={unitPrice}
+                          onChange={(e) => setUnitPrice(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <p className="col-span-2 text-xs text-[var(--color-text-secondary)]">
+                        Shown to customers as a rate (e.g. ₱50 / sqm) with an estimate. The final price is
+                        confirmed by the provider's quote, not auto-charged.
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
 

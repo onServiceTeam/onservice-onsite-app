@@ -42,7 +42,7 @@ export interface ResolvedPricing {
 
 interface SubcategoryRow {
   id: string;
-  pricing_type: 'fixed' | 'quote' | 'hourly';
+  pricing_type: 'fixed' | 'quote' | 'hourly' | 'per_unit';
   base_price: number | string | null;
   is_active: boolean;
 }
@@ -85,6 +85,11 @@ export async function resolvePricing(input: BookingPricingInput): Promise<Resolv
     throw createAppError(PRICING_ERRORS.subcategoryPricingTypeUnsupported, 400);
   }
   if (subcat.pricing_type === 'quote') {
+    throw createAppError(PRICING_ERRORS.subcategoryQuoteRequired, 400);
+  }
+  // D27 Phase 4 — per-unit services are quoted by the provider, never priced
+  // up front from a self-reported quantity. Route them to the quote flow.
+  if (subcat.pricing_type === 'per_unit') {
     throw createAppError(PRICING_ERRORS.subcategoryQuoteRequired, 400);
   }
   if (subcat.base_price === null || subcat.base_price === undefined) {

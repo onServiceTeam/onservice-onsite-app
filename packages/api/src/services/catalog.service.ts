@@ -58,6 +58,9 @@ export interface SubcategoryMutationRow {
   min_price: number | null;
   max_price: number | null;
   estimated_duration_minutes: number | null;
+  // D27 Phase 4 — per-unit pricing (unit_price is centavos per unit_label).
+  unit_label: string | null;
+  unit_price: number | null;
   display_order: number;
   is_active: boolean;
   created_at: Date;
@@ -230,6 +233,29 @@ function assertPriceBounds(
   }
 }
 
+// D27 Phase 4 — per-unit pricing guards. unit_price (centavos per unit) must be
+// a non-negative integer when supplied, and a per_unit subcategory needs both a
+// unit label and a unit price to advertise a meaningful rate.
+function assertUnitPricing(
+  pricingType: string | undefined,
+  unitLabel: string | null | undefined,
+  unitPrice: number | null | undefined,
+): void {
+  if (unitPrice != null) {
+    if (!Number.isInteger(unitPrice) || unitPrice < 0) {
+      throw createAppError('Unit price must be a non-negative whole number of centavos.', 400);
+    }
+  }
+  if (pricingType === 'per_unit') {
+    if (!unitLabel || !unitLabel.trim()) {
+      throw createAppError('Per-unit services need a unit label (e.g. "sqm").', 400);
+    }
+    if (unitPrice == null) {
+      throw createAppError('Per-unit services need a unit price.', 400);
+    }
+  }
+}
+
 export async function createSubcategory(
   input: {
     categoryId: string;
@@ -240,6 +266,8 @@ export async function createSubcategory(
     minPrice?: number | null;
     maxPrice?: number | null;
     estimatedDurationMinutes?: number | null;
+    unitLabel?: string | null;
+    unitPrice?: number | null;
     displayOrder?: number;
   },
   adminUserId: string,
@@ -250,13 +278,16 @@ export async function createSubcategory(
   validateCatalogText(input.name, 'name', CATALOG_NAME_MAX, false);
   validateCatalogText(input.description, 'description', CATALOG_DESCRIPTION_MAX);
   assertPriceBounds(input.minPrice, input.basePrice, input.maxPrice);
+  // D27 Phase 4 — per-unit rate must be a non-negative integer (centavos) and a
+  // per_unit subcategory needs a rate to be meaningful.
+  assertUnitPricing(input.pricingType, input.unitLabel, input.unitPrice);
   const slug = slugify(input.name);
 
   return db.transaction(async (client) => {
     const result = await client.query<SubcategoryMutationRow>(
       `INSERT INTO service_subcategories
-         (category_id, name, slug, description, pricing_type, base_price, min_price, max_price, estimated_duration_minutes, display_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         (category_id, name, slug, description, pricing_type, base_price, min_price, max_price, estimated_duration_minutes, unit_label, unit_price, display_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         input.categoryId,
@@ -268,6 +299,8 @@ export async function createSubcategory(
         input.minPrice ?? null,
         input.maxPrice ?? null,
         input.estimatedDurationMinutes ?? null,
+        input.unitLabel?.trim() || null,
+        input.unitPrice ?? null,
         input.displayOrder ?? 0,
       ],
     );
@@ -307,6 +340,8 @@ export async function updateSubcategory(
     minPrice?: number | null;
     maxPrice?: number | null;
     estimatedDurationMinutes?: number | null;
+    unitLabel?: string | null;
+    unitPrice?: number | null;
     displayOrder?: number;
     isActive?: boolean;
   },
@@ -329,6 +364,22 @@ export async function updateSubcategory(
       patch.minPrice !== undefined ? patch.minPrice : cur.min_price,
       patch.basePrice !== undefined ? patch.basePrice : cur.base_price,
       patch.maxPrice !== undefined ? patch.maxPrice : cur.max_price,
+    );
+  }
+
+  // D27 Phase 4 — validate per-unit pricing against the MERGED result so a
+  // patch that switches pricing_type to per_unit without a rate is rejected.
+  if (patch.unitLabel !== undefined || patch.unitPrice !== undefined || patch.pricingType !== undefined) {
+    const existing = await db.query<{ pricing_type: string; unit_label: string | null; unit_price: number | null }>(
+      `SELECT pricing_type, unit_label, unit_price FROM service_subcategories WHERE id = $1`,
+      [subcategoryId],
+    );
+    if (existing.rows.length === 0) throw createAppError('Subcategory not found.', 404);
+    const cur = existing.rows[0]!;
+    assertUnitPricing(
+      patch.pricingType !== undefined ? patch.pricingType : cur.pricing_type,
+      patch.unitLabel !== undefined ? patch.unitLabel : cur.unit_label,
+      patch.unitPrice !== undefined ? patch.unitPrice : cur.unit_price,
     );
   }
 
@@ -372,6 +423,16 @@ export async function updateSubcategory(
     sets.push(`estimated_duration_minutes = $${sets.length + 1}`);
     values.push(patch.estimatedDurationMinutes);
     auditPatch.estimatedDurationMinutes = patch.estimatedDurationMinutes;
+  }
+  if (patch.unitLabel !== undefined) {
+    sets.push(`unit_label = $${sets.length + 1}`);
+    values.push(patch.unitLabel?.trim() || null);
+    auditPatch.unitLabel = patch.unitLabel;
+  }
+  if (patch.unitPrice !== undefined) {
+    sets.push(`unit_price = $${sets.length + 1}`);
+    values.push(patch.unitPrice);
+    auditPatch.unitPrice = patch.unitPrice;
   }
   if (patch.displayOrder !== undefined) {
     sets.push(`display_order = $${sets.length + 1}`);
@@ -684,6 +745,8 @@ interface SubcategoryRow {
   min_price: number | null;
   max_price: number | null;
   estimated_duration_minutes: number | null;
+  unit_label: string | null;
+  unit_price: number | null;
   display_order: number;
   is_active: boolean;
   created_at: Date;

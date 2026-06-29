@@ -21,6 +21,9 @@ export interface Subcategory {
   minPrice: number | null;
   maxPrice: number | null;
   estimatedDurationMinutes: number | null;
+  // D27 Phase 4 — per-unit rate (unitPrice is centavos per unitLabel).
+  unitLabel: string | null;
+  unitPrice: number | null;
   displayOrder: number;
   categoryName?: string;
   categorySlug?: string;

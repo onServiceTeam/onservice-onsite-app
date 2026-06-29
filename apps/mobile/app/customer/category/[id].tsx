@@ -42,7 +42,10 @@ export default function SubcategoryListScreen(): React.ReactElement {
   // compared against 'quote_based' and only worked via the basePrice==null
   // fallback, so a quote subcategory with a base_price set mis-routed to the
   // fixed-price configure screen. Match the real value.
-  const isQuoteBased = (sub: Subcategory): boolean => sub.pricingType === 'quote' || sub.basePrice == null;
+  // D27 Phase 4 — per_unit services route through the quote flow too (the
+  // provider measures and confirms; the rate is only an estimate).
+  const isQuoteBased = (sub: Subcategory): boolean =>
+    sub.pricingType === 'quote' || sub.pricingType === 'per_unit' || sub.basePrice == null;
 
   const handleSelect = (sub: Subcategory): void => {
     if (sub.categoryId) {
@@ -83,7 +86,13 @@ export default function SubcategoryListScreen(): React.ReactElement {
           )}
         </View>
         <View style={styles.priceContainer}>
-          {quoteBased ? (
+          {item.pricingType === 'per_unit' && item.unitPrice != null ? (
+            // D27 Phase 4 — show the per-unit rate; the final price is quoted.
+            <>
+              <Text style={styles.price}>{formatPHP(item.unitPrice)}</Text>
+              <Text style={styles.priceLabel}>per {item.unitLabel ?? 'unit'}</Text>
+            </>
+          ) : quoteBased ? (
             <Text style={styles.quoteLabel}>Get Quote</Text>
           ) : (
             <>
