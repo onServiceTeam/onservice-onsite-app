@@ -44,7 +44,13 @@ sub "Known project markers on this box"
 ls -d /etc/odoo* /opt/odoo* /odoo /var/lib/odoo* 2>/dev/null | sed 's/^/MARKER: odoo path -> /' || true
 $SUDO find /opt /srv /var/www /home /root -maxdepth 2 -iname '*medclaim*' 2>/dev/null | sed 's/^/MARKER: medclaims path -> /'
 $SUDO find /opt /srv /var/www /home /root -maxdepth 2 \( -iname '*agent*' -o -iname '*mcp*' \) 2>/dev/null | sed 's/^/MARKER: agents\/mcp path -> /'
-have docker && docker ps --format '{{.Names}} {{.Image}}' 2>/dev/null | grep -iE 'odoo|onservice|medclaim|agent' | sed 's/^/MARKER: container -> /'
+# Point-of-sale / restaurant project (Cochi Loco) — Ken is unsure whether it exists.
+$SUDO find /opt /srv /var/www /home /root -maxdepth 3 \( -iname '*cochi*' -o -iname '*loco*' -o -iname '*pos*' -o -iname '*restaurant*' -o -iname '*resto*' -o -iname '*kitchen*' -o -iname '*menu*' \) 2>/dev/null | grep -viE 'node_modules|/pos(ix|t)|compose|position' | sed 's/^/MARKER: possible POS\/restaurant path -> /'
+have docker && $SUDO docker ps -a --format '{{.Names}} {{.Image}}' 2>/dev/null | grep -iE 'odoo|onservice|medclaim|agent|cochi|loco|pos|restaurant' | sed 's/^/MARKER: container -> /'
+sub "EVERY project directory (so nothing is missed, named or not)"
+for base in /opt /srv /var/www /home; do
+  [ -d "$base" ] && $SUDO ls -1 "$base" 2>/dev/null | sed "s|^|  $base/|"
+done
 
 hr "SYSTEM"
 { hostnamectl 2>/dev/null || cat /etc/os-release 2>/dev/null; } | head -12
