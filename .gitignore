@@ -114,3 +114,6 @@ TESTER-LOGINS.txt
 docs/qa/ux-testing/FEEDBACK-INBOX.json
 docs/qa/ux-testing/FEEDBACK-INBOX.md
 docs/qa/ux-testing/feedback-screenshots/
+
+# timestamped backups made during the 2026-08 server consolidation
+*.bak-*

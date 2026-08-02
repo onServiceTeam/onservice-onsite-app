@@ -13,6 +13,7 @@
 # data, but a total disk loss loses both. Off-siting is the last durability step
 # (needs a destination + credentials from Ken). See docs/runbooks/postgres-restore.md.
 set -euo pipefail
+umask 077
 cd /opt/onservice
 mkdir -p backups
 TS="$(date +%Y%m%d-%H%M%S)"
