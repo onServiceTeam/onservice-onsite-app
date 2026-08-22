@@ -178,12 +178,13 @@ on the server never updates them. They are built locally and transferred:
 # Customer/provider web app (Expo web export). The API URL must be set at
 # build time, otherwise a production build throws (platform.config.ts).
 cd apps/mobile
-EXPO_PUBLIC_API_URL=https://api.onservice.ph npx expo export -p web --output-dir dist-web
-# (Do NOT also set NODE_ENV=production unless EAS_PROJECT_ID + the Google Maps
-#  native keys are present — those are native-only and unused by the web bundle,
-#  so without NODE_ENV=production they fall back to harmless placeholders that
-#  never reach the web JS. Verify: the bundle has api.onservice.ph and no
-#  "DEV_MISSING"/"localhost:7381" string.)
+EXPO_OS=web EXPO_PUBLIC_API_URL=https://app.onservice.ph \
+  EXPO_PUBLIC_DEMO_MODE=1 npx expo export -p web --output-dir dist-web
+# EXPO_OS=web tells app.config.ts to omit native-only EAS Update and Google Maps
+# values. The app URL is intentionally same-origin because nginx proxies /api,
+# /socket.io, and /uploads for the browser build. Omit EXPO_PUBLIC_DEMO_MODE for
+# the public launch build. Verify that the bundle has app.onservice.ph and no
+# "DEV_MISSING"/"localhost:7381" string.
 
 # Admin (Vite build):
 cd apps/admin && npm run build

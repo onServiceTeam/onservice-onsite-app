@@ -33,7 +33,15 @@ function reqEnv(name: string): string {
   return value;
 }
 
-const easProjectId = reqEnv('EAS_PROJECT_ID');
+// A web export cannot use the native Google Maps keys or EAS Update project.
+// Requiring those native-only values made `expo export -p web` impossible on a
+// deployment machine that correctly had only the web build variables. Expo
+// sets EXPO_OS for the target platform; our deploy command also sets it
+// explicitly so config evaluation is deterministic.
+const isWebExport = process.env.EXPO_OS === 'web';
+const easProjectId = isWebExport
+  ? process.env.EAS_PROJECT_ID?.trim()
+  : reqEnv('EAS_PROJECT_ID');
 
 const config: ExpoConfig = {
   name: 'onService',
@@ -100,9 +108,11 @@ const config: ExpoConfig = {
       ITSAppUsesNonExemptEncryption: true,
     },
     associatedDomains: ['applinks:onservice.ph'],
-    config: {
-      googleMapsApiKey: reqEnv('GOOGLE_MAPS_IOS_API_KEY'),
-    },
+    ...(!isWebExport && {
+      config: {
+        googleMapsApiKey: reqEnv('GOOGLE_MAPS_IOS_API_KEY'),
+      },
+    }),
     privacyManifests: {
       NSPrivacyAccessedAPITypes: [
         {
@@ -128,11 +138,13 @@ const config: ExpoConfig = {
       'RECEIVE_BOOT_COMPLETED',
       'VIBRATE',
     ],
-    config: {
-      googleMaps: {
-        apiKey: reqEnv('GOOGLE_MAPS_ANDROID_API_KEY'),
+    ...(!isWebExport && {
+      config: {
+        googleMaps: {
+          apiKey: reqEnv('GOOGLE_MAPS_ANDROID_API_KEY'),
+        },
       },
-    },
+    }),
     intentFilters: [
       {
         action: 'VIEW',
@@ -166,7 +178,7 @@ const config: ExpoConfig = {
   ],
   extra: {
     sentryDsn: process.env.SENTRY_DSN_MOBILE ?? '',
-    eas: { projectId: easProjectId },
+    ...(easProjectId && { eas: { projectId: easProjectId } }),
     // Phase 200 — pin the Expo Router root to the real route directory `app/`.
     // A stray empty `src/app/` placeholder used to win Expo's auto-detection
     // (it prefers `src/app` over `app` when both exist), which produced an
@@ -184,7 +196,7 @@ const config: ExpoConfig = {
   // working navigation. Re-enable when Routes is migrated to `as const`
   // and call sites pass typed-route strings directly.
   experiments: { typedRoutes: false },
-  updates: { url: `https://u.expo.dev/${easProjectId}` },
+  ...(easProjectId && { updates: { url: `https://u.expo.dev/${easProjectId}` } }),
 };
 
 export default config;

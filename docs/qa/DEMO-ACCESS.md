@@ -21,20 +21,22 @@ login screen:
 Customer and provider are the **same app** at different links — that is how one
 person reaches both experiences without juggling two accounts.
 
-## Mobile view vs desktop view
+## Phone, tablet, and desktop views
 
-The customer/provider app runs in the browser in two layouts. Add `?view=` to
-either app link:
+The customer/provider app responds to the browser width automatically. Resize
+the browser or use its device toolbar to exercise each layout:
 
-| View | Link example | What you get |
+| View | Browser width | What you get |
 | --- | --- | --- |
-| Mobile (default) | https://app.onservice.ph/?demo=customer | The app centered in a phone-width column — the phone experience |
-| Desktop | https://app.onservice.ph/?demo=customer&view=desktop | The app widened to a desktop content width; service grids reflow to more columns |
+| Phone | Under 700 px | The app fills the viewport |
+| Tablet | 700–999 px | A centered surface up to 760 px with roomier layouts |
+| Desktop | 1,000 px and wider | A surface up to 1,100 px; supported grids reflow to multiple columns |
 
-The view choice sticks while you navigate (it is remembered in the browser), so
-you can set it once with `&view=desktop` and keep testing. Switch back any time
-with `&view=mobile`. The **admin** area (`admin.onservice.ph`) is a desktop web
-app already — open it on a full browser window.
+For a single-page screenshot test, `?view=mobile` or `?view=desktop` can force
+that URL's shell. The override is intentionally not remembered after navigation;
+an old test link must not leave a customer or provider stuck in phone mode. The
+**admin** area (`admin.onservice.ph`) is a desktop web app already, so open it in
+a full browser window.
 
 ## Leaving feedback
 
