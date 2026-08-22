@@ -9,7 +9,7 @@ Current verified repository identity:
 - GitHub: `onServiceTeam/onservice-onsite-app`, branch `master`
 - Production checkout: `/opt/onservice` on `46.62.207.225`, remote `git@github.com:onServiceTeam/onservice-onsite-app.git`
 - The server also contains other applications. `/opt/crm-odoo/custom-addons/onservice` is not this product.
-- The server directory is not being renamed. Deployment, backup, certificate, nginx, and volume paths depend on `/opt/onservice`. A clearer alias may be added later, but the canonical path must remain stable.
+- The server directory was not renamed. Deployment, backup, certificate, nginx, and volume paths depend on `/opt/onservice`. A safe alias, `/opt/onservice-onsite-app`, resolves to that canonical path so operators can identify it clearly without breaking existing automation.
 
 ## Current surface inventory
 
