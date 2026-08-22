@@ -9,7 +9,9 @@
 //   • tablet (700-999px): a comfortable centered surface (up to 760px).
 //   • desktop (>= 1000px): a real desktop surface (up to 1100px) where grids
 //     reflow to more columns.
-// A ?view=mobile|desktop URL param still force-overrides for testing.
+// A ?view=mobile|desktop URL param still force-overrides the current URL for
+// testing. It is deliberately not persisted: a test link must never leave a
+// real customer or provider stuck in phone mode on later visits.
 import { Platform, Dimensions } from 'react-native';
 
 export type Breakpoint = 'phone' | 'tablet' | 'desktop';
@@ -23,21 +25,14 @@ export const PHONE_COLUMN_MAX_WIDTH = 480; // forced-mobile phone column on wide
 export const TABLET_CONTENT_MAX_WIDTH = 760;
 export const DESKTOP_CONTENT_MAX_WIDTH = 1100;
 
-const VIEW_KEY = 'onservice.view';
-
-/** Web-only forced view from ?view=desktop|mobile (remembered in localStorage). */
+/** Web-only forced view from the current ?view=desktop|mobile query string. */
 export function getForcedView(): 'mobile' | 'desktop' | null {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
   try {
     const fromUrl = new URLSearchParams(window.location.search).get('view');
-    if (fromUrl === 'desktop' || fromUrl === 'mobile') {
-      window.localStorage.setItem(VIEW_KEY, fromUrl);
-      return fromUrl;
-    }
-    const saved = window.localStorage.getItem(VIEW_KEY);
-    if (saved === 'desktop' || saved === 'mobile') return saved;
+    if (fromUrl === 'desktop' || fromUrl === 'mobile') return fromUrl;
   } catch {
-    /* localStorage unavailable (private mode) — fall through to default */
+    /* Malformed or unavailable location state: fall through to auto layout. */
   }
   return null;
 }

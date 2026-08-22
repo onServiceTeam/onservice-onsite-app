@@ -2,7 +2,7 @@
 //
 // Responsive web shell. AUTO-adapts to the real window width across phone,
 // tablet, and desktop (see src/utils/responsive.ts) — no manual ?view needed,
-// though ?view=mobile|desktop still force-overrides for testing. Native
+// though ?view=mobile|desktop still force-overrides that URL for testing. Native
 // (iOS/Android) is a pure passthrough — zero change.
 //
 //   • phone  (< 700px): the app fills the viewport (mobile web).
