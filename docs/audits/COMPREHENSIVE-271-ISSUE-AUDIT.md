@@ -1,4 +1,5 @@
 # ONSERVICE ONSITE APP — COMPREHENSIVE 250+ ISSUE AUDIT
+> **HISTORICAL ISSUE INVENTORY (2026-08-22):** this is the original pre-remediation list, not a current open-bug list. Many entries were fixed, superseded, or replaced by later decisions. Do not implement a money/config value from this file without checking current code, `LAUNCH-LIMITATIONS.md`, and the active decision/escalation records. Current audit: `docs/audits/CURRENT-PLATFORM-AUDIT-2026-08-22.md`.
 # ════════════════════════════════════════════════════════
 # Source: Full repo review + 90 Stitch screen comparison
 # Total issues: 250+ across 15 categories

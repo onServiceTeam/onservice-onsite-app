@@ -14,8 +14,8 @@ Ken is your only coder review. There is no human team. You are not waiting on a 
 
 onService PH is a remote home-services marketplace for the Philippines, built **city-agnostic** so it can operate in any market. Cities/service areas are data, configured in the admin area (the `service_areas` table + the admin "Service Areas" page), not hardcoded — adding a city does not require a code change. The **default / first launch market is Metro Cebu** (Cebu City, Mandaue, Lapu-Lapu, Talisay). Additional markets Ken has in mind (Boracay, General Santos, Davao, Metro Manila, Bacolod, and others) get added and turned on in admin when ready. Which cities we actively market is an internal marketing decision, not a platform constraint. (Historical note: an earlier strategy chose Boracay; that was superseded by the Cebu-default, multi-city direction — Ken, 2026-06-04. Some `.ai-coder/` audit/phase records and test fixtures still mention Boracay; those are point-in-time history and test data, left as-is.) The platform connects customers needing services (cleaning, aircon, plumbing, electrical, etc.) with vetted providers. The stack is:
 
-- `apps/admin/` — React 19 + Tailwind 4 + shadcn/ui (29 pages catalogued)
-- `apps/mobile/` — React Native 0.83 + Expo SDK 55 + Expo Router (84 screens: 43 customer + 41 provider)
+- `apps/admin/` — React 19 + Tailwind 4 + shadcn/ui (34 routed page components)
+- `apps/mobile/` — React Native 0.83 + Expo SDK 55 + Expo Router (103 route-screen files across customer, provider, provider onboarding, staff, support, auth, and shared entry screens)
 - `packages/api/` — Node 24 + Express 5 + raw `pg` + Postgres 18.3
 - `infra/` — Terraform for AWS resources
 

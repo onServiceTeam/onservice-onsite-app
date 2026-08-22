@@ -1,5 +1,7 @@
 # STRATEGIC DECISIONS LOG
 
+> **Current-source warning (2026-08-22):** this log contains point-in-time decisions that were later superseded. In particular, DECISION-001 (Boracay-first), the customer service-fee values in DECISION-006, and the SiguradoShield framing are not current implementation authority. Current market direction is city-agnostic with Metro Cebu first. Money and protection language must be reconciled through the open decision/escalation records before launch. See `CLAUDE.md`, `LAUNCH-LIMITATIONS.md`, and `docs/audits/CURRENT-PLATFORM-AUDIT-2026-08-22.md`.
+
 This document records every settled strategic decision and where it came from. Future me, future Claude, future AI coder: read this before changing strategy. Do not regress these decisions without explicit Ken sign-off.
 
 ---

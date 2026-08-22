@@ -60,10 +60,10 @@ Three front-ends + one backend + one database. You do not need to be able to mod
 
 | Surface | What it is | Tech | Scale |
 |---|---|---|---|
-| **Customer mobile app** | What customers use | React Native + Expo (iOS + Android) | ~43 screens |
-| **Provider mobile app** | What workers use (same app, provider role) | React Native + Expo | ~41 screens |
-| **Admin web app** | Company back office | React + Vite (web browser) | ~29 pages |
-| **API (backend)** | The "brain" — all logic + money | Node.js + Express + PostgreSQL | ~40 route groups |
+| **Customer app** | What customers use | React Native + Expo (iOS, Android, web) | 43 customer-specific/tab routes plus 8 shared auth/support/root routes |
+| **Provider app** | What providers and their staff use (same app, role-gated) | React Native + Expo (iOS, Android, web) | 52 provider/onboarding/staff routes plus the same 8 shared routes |
+| **Admin web app** | Company back office | React + Vite (web browser) | 34 routed page components |
+| **API (backend)** | The "brain" — all logic + money | Node.js + Express + PostgreSQL | 47 route modules |
 | **Database** | All data | PostgreSQL 18 | ~130 migrations |
 | **Supporting services** | Cache, file storage, email, monitoring | Redis, S3/MinIO, MailHog, Prometheus/Grafana | — |
 

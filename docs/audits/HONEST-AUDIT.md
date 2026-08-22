@@ -4,7 +4,7 @@
 **Latest commit verified:** `322330a`
 **Verified by:** Direct git clone in this session, file-by-file inspection
 
-> **STATUS (2026-06-04):** the launch-city conclusion in this audit ("Boracay primary at launch, expand to Kalibo then Iloilo") is superseded. The current decision is multi-city / city-agnostic, configured in admin, with **Metro Cebu** as the default first market. This audit's *engineering* findings still stand; only the city choice changed. See `CLAUDE.md`.
+> **HISTORICAL SNAPSHOT (2026-08-22):** this audit describes commit `322330a` from April 2026. Its screen counts, dependency counts, money settings, launch conclusions, and statements that findings "still stand" are not current verification. Keep it as audit history only. Use `docs/audits/CURRENT-PLATFORM-AUDIT-2026-08-22.md` for the current baseline and `CLAUDE.md` for binding direction.
 
 This document is what's actually true about the codebase, the prior plans, and the strategic choices. Where I was wrong before, I say so explicitly.
 

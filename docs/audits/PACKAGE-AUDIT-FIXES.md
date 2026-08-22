@@ -1,5 +1,7 @@
 # PACKAGE AUDIT — what was wrong
 
+> **HISTORICAL SNAPSHOT (2026-08-22):** this file audits an older planning package against commit `322330a`. Paths, dependency claims, migration numbers, and open-work statements are not a current repo inventory. Current audit: `docs/audits/CURRENT-PLATFORM-AUDIT-2026-08-22.md`.
+
 I cloned the repo at https://github.com/onServiceTeam/onservice-onsite-app.git (commit 322330a) and audited my entire package against it line by line. Here's what I found wrong and what I'm fixing.
 
 You were right to push back. Some of these errors are mechanical (paths that don't exist, dependencies forbidden that you actually use). Some are deeper — my package didn't integrate with the substantial governance structure already in your repo.

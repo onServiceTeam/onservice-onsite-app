@@ -58,7 +58,7 @@ Bottom line for a new admin: if a button is greyed out or you see a "requires a 
 
 ---
 
-## 2. Page-by-page guide (the 29 pages)
+## 2. Page-by-page guide (34 routed page components)
 
 The left sidebar lists the pages in this order. The version label at the bottom shows the build (currently v0.14.0). For each page below: what it is for, the common tasks, and a short how-to.
 
@@ -320,6 +320,14 @@ Honest caveat to flag in support: this displayed policy is NOT the same set of n
 
 Change your own password here. If your account is flagged for forced rotation, every page redirects you here until you set a new password. The 404 page is the catch-all for any unknown URL.
 
+### 2.30 Communications (`/communications`)
+
+Company-wide conversation oversight. Use the queue and statistics to find conversations that need review, open the linked booking context, review reported messages, and redact a message only when policy requires it. Redaction and review actions are audited. This page is for oversight; normal customer/provider replies belong in the Support queue or the role apps.
+
+### 2.31 Projects (`/projects`)
+
+Oversight for larger multi-stage customer projects. Use it to inspect project status, milestones, linked bookings, participants, and exceptions that need operations support. Milestone escrow is not launch-approved until the legal and accounting decision in escalation E12 is resolved, so do not describe a planning milestone as protected escrow.
+
 ---
 
 ## 3. New-admin onboarding: Week 1 shadowing plan
@@ -345,7 +353,7 @@ A super_admin signs off each item. Until all are checked, the new admin stays re
 Navigation and roles
 - [ ] Can log in, including completing 2FA, and can change own password.
 - [ ] Can explain the difference between the account role and the named DB role, and why "super_admin only" buttons are greyed out for them.
-- [ ] Can find any of the 29 pages from the sidebar without help.
+- [ ] Can find every current sidebar page and the detail/change-password routes without help.
 
 Providers
 - [ ] Can open a Provider 360 and view KYC docs through the proxy.

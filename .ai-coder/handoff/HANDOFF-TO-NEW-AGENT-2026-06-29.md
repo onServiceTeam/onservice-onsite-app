@@ -1,5 +1,7 @@
 # onService PH — Full Handoff for a New AI Coding Agent (2026-06-29)
 
+> **SUPERSEDED CONNECTION DETAILS (2026-08-22):** do not use the old `5.78.143.185` root-login commands in this historical handoff. The verified host is `46.62.207.225`, login user `onservice`, and the correct checkout remains `/opt/onservice` with remote `git@github.com:onServiceTeam/onservice-onsite-app.git`. Private-key locations are intentionally kept outside the repository. Verify the checkout identity and clean status before every server action.
+
 You are taking over development of **onService PH**. Read this entire file before
 doing anything. Then read `CLAUDE.md` at the repo root in full — it is the
 binding rulebook and overrides anything you assume.
