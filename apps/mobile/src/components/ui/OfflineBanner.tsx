@@ -63,18 +63,17 @@ export function OfflineBanner(): React.ReactElement | null {
   // NetInfo native module is unavailable. On native, no NetInfo means no signal.
   if (Platform.OS !== 'web' && !NetInfo) return null;
 
+  // Opacity alone does not remove content from the browser's text or
+  // accessibility trees consistently across react-native-web versions. Do not
+  // mount an offline alert at all while the device is online.
+  if (!isOffline) return null;
+
   return (
     <Animated.View
       style={[styles.container, { opacity }]}
       pointerEvents={isOffline ? 'auto' : 'none'}
       accessibilityRole="alert"
       accessibilityLabel="You are offline. Some features may not be available."
-      // The banner stays mounted at opacity 0 for the fade animation, which
-      // leaves an always-on "offline" alert in the accessibility tree (screen
-      // readers + the web aria snapshot announce it while online). Hide it
-      // from assistive tech whenever it is not actually showing.
-      accessibilityElementsHidden={!isOffline}
-      importantForAccessibility={isOffline ? 'auto' : 'no-hide-descendants'}
     >
       <View style={[styles.inner, { paddingTop: insets.top + spacing.xs }]}>
         <Text style={styles.icon}>📡</Text>
