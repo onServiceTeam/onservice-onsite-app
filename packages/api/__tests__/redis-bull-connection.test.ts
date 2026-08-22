@@ -1,4 +1,4 @@
-import { parseBullConnection } from '../src/config/redis.config';
+import { parseBullConnection } from '../src/config/redis-connection';
 
 describe('parseBullConnection (BullMQ Redis auth)', () => {
   it('carries the password from a redis:// URL (the NOAUTH fix)', () => {

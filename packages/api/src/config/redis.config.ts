@@ -11,6 +11,10 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '..', '..', 
 
 import Redis, { RedisOptions } from 'ioredis';
 import { logger } from '../utils/logger';
+import { parseBullConnection } from './redis-connection';
+
+export { parseBullConnection } from './redis-connection';
+export type { BullConnection } from './redis-connection';
 
 // Phase 16 fix — support REDIS_URL (e.g.
 // `redis://user:pass@host:port/db`) as the canonical way to point
@@ -60,39 +64,4 @@ redis.on('error', (err) => {
 // first provider's 45s offer expired (no re-kick to the next provider). Now we
 // carry the password (and username, if any) through from REDIS_URL or the
 // REDIS_PASSWORD env var so BullMQ authenticates like the main client does.
-export interface BullConnection {
-  host: string;
-  port: number;
-  password?: string;
-  username?: string;
-}
-
-export function parseBullConnection(
-  url: string | undefined = redisUrl,
-  env: NodeJS.ProcessEnv = process.env,
-): BullConnection {
-  if (url) {
-    try {
-      const u = new URL(url);
-      const conn: BullConnection = {
-        host: u.hostname || 'localhost',
-        port: u.port ? Number(u.port) : 6379,
-      };
-      if (u.password) conn.password = decodeURIComponent(u.password);
-      // Redis `requirepass` uses the implicit "default" user; only forward an
-      // explicit non-default username to avoid breaking password-only auth.
-      if (u.username && u.username !== 'default') conn.username = decodeURIComponent(u.username);
-      return conn;
-    } catch {
-      // malformed URL — fall through to host/port env vars
-    }
-  }
-  const conn: BullConnection = {
-    host: env.REDIS_HOST || 'localhost',
-    port: Number(env.REDIS_PORT) || 6379,
-  };
-  if (env.REDIS_PASSWORD) conn.password = env.REDIS_PASSWORD;
-  return conn;
-}
-
-export const bullMqConnection = parseBullConnection();
+export const bullMqConnection = parseBullConnection(redisUrl);

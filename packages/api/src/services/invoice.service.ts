@@ -64,7 +64,10 @@ interface AccountWithBookingsRow {
 
 interface CountRow { count: string }
 
-function generateInvoiceNumber(date: Date): string {
+export function generateInvoiceNumber(
+  date: Date,
+  randomBytes: (size: number) => Buffer = (size) => crypto.randomBytes(size),
+): string {
   // BUG-PHASE120-01 fix — pre-fix used device-local
   // date.getFullYear() / getMonth(). Server runs UTC, so a cron run
   // at 17:00 UTC May 31 (= 01:00 Manila June 1) produced invoices
@@ -82,7 +85,7 @@ function generateInvoiceNumber(date: Date): string {
   // CSPRNG over an unambiguous 32-char alphanumeric set (no I/O/0/1
   // for human readability), 6 chars = ~30 bits of entropy.
   const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const buf = crypto.randomBytes(8);
+  const buf = randomBytes(8);
   let suffix = '';
   for (let i = 0; i < 6; i++) {
     suffix += ALPHABET[buf[i]! % ALPHABET.length];

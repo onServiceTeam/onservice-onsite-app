@@ -26,6 +26,7 @@ jest.mock('@sentry/node', () => ({
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { generateInvoiceNumber } from '../src/services/invoice.service';
 
 const INVOICE_SVC = readFileSync(
   resolve(__dirname, '../src/services/invoice.service.ts'),
@@ -71,19 +72,33 @@ function stripLineComments(src: string): string {
     .join('\n');
 }
 
-describe('MED-N116 — generateInvoiceNumber uses crypto.randomBytes (not Math.random)', () => {
-  it('MED-N116 — function body has no Math.random; uses crypto.randomBytes + ALPHABET', () => {
-    const body = stripLineComments(
-      sliceBetween(INVOICE_SVC, 'function generateInvoiceNumber', 'function getDueDate'),
-    );
-    expect(body).not.toBe('');
-    expect(body).not.toMatch(/Math\.random/);
-    expect(body).toMatch(/crypto\.randomBytes/);
-    expect(body).toMatch(/ALPHABET/);
+describe('MED-N116 — generateInvoiceNumber uses cryptographic randomness', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
-  it('MED-N116 — uses an ambiguous-character-free alphabet (no I/O/0/1)', () => {
-    expect(INVOICE_SVC).toMatch(/'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'/);
+  it('MED-N116 — generates the Manila billing month from crypto.randomBytes without Math.random', () => {
+    const randomBytes = jest.fn((size: number) => Buffer.alloc(size, 0));
+    const mathRandom = jest.spyOn(Math, 'random').mockImplementation(() => {
+      throw new Error('Math.random must not be used for invoice numbers');
+    });
+
+    const number = generateInvoiceNumber(new Date('2026-05-31T17:00:00.000Z'), randomBytes);
+
+    expect(number).toBe('INV-202606-AAAAAA');
+    expect(randomBytes).toHaveBeenCalledWith(8);
+    expect(mathRandom).not.toHaveBeenCalled();
+  });
+
+  it('MED-N116 — emits only unambiguous suffix characters', () => {
+    const randomBytes = (size: number): Buffer =>
+      Buffer.from([0, 8, 14, 22, 24, 31, 0, 0]).subarray(0, size);
+
+    const number = generateInvoiceNumber(new Date('2026-06-01T00:00:00.000Z'), randomBytes);
+    const suffix = number.slice(-6);
+
+    expect(number).toMatch(/^INV-202606-[A-HJ-NP-Z2-9]{6}$/);
+    expect(suffix).not.toMatch(/[IO01]/);
   });
 });
 

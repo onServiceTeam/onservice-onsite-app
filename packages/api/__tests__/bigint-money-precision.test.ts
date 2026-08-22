@@ -2,7 +2,7 @@
  * Phase 13 Dispatch E — BIGINT money column precision regression tests.
  *
  * Migration 059 widens centavos columns from INTEGER to BIGINT.
- * `packages/api/src/config/database.config.ts` registers a pg-types parser for
+ * `packages/api/src/config/pg-types.config.ts` registers a pg-types parser for
  * OID 20 (BIGINT) that coerces returned strings to JS Number ("Option B").
  *
  * These tests are HERMETIC: db.query is mocked. They cannot exercise real
@@ -10,7 +10,7 @@
  * staging via the migration harness). What they DO assert:
  *
  *   1. The pg-types OID-20 parser is registered as a side effect of importing
- *      `database.config`, and round-trips representative values:
+ *      `pg-types.config`, and round-trips representative values:
  *        a. ₱50M (5_000_000_000 centavos) — well above INT4 ceiling, well below
  *           Number.MAX_SAFE_INTEGER. Documents that ordinary platform-scale
  *           values are exact.
@@ -41,9 +41,9 @@ jest.mock('../src/utils/logger', () => ({
   },
 }));
 
-// Importing database.config registers the OID-20 parser as a module side effect.
-// We import it for that side effect even though we don't use the exported pool here.
-import '../src/config/database.config';
+// This pure configuration module registers the OID-20 parser without creating
+// a PostgreSQL connection pool.
+import '../src/config/pg-types.config';
 import * as pgTypes from 'pg-types';
 
 beforeEach(() => {
@@ -89,7 +89,7 @@ describe('BIGINT money column precision (migration 059 + pg-types Option B)', ()
     // This documents the Option B ceiling stated in LAUNCH-LIMITATIONS §15.
   });
 
-  test('Test 4 — parser registration is a module-load side effect of database.config', () => {
+  test('Test 4 — parser registration is a module-load side effect of pg-types.config', () => {
     // Re-import at runtime to confirm registration survived (caching does not unregister).
     const parser = pgTypes.getTypeParser(PARSER_OID_BIGINT) as (raw: string) => unknown;
     expect(typeof parser).toBe('function');

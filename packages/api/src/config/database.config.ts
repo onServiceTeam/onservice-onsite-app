@@ -1,6 +1,6 @@
 import { Pool, PoolConfig } from 'pg';
-import * as pgTypes from 'pg-types';
 import { logger } from '../utils/logger';
+import './pg-types.config';
 
 // Phase 13 Dispatch E: BIGINT (OID 20) → JS Number.
 // Approved Option B per .ai-coder/checkpoints/logs/PHASE-13/dispatch-E/bigint-inventory.md §5.
@@ -8,8 +8,6 @@ import { logger } from '../utils/logger';
 // Aggregator columns approaching ₱1T cumulative GMV must switch to BigInt-end-to-end.
 // See docs/MONEY-HANDLING.md and LAUNCH-LIMITATIONS.md §15-§16.
 // pg-types skips NULLs (the parser is only invoked for non-null text values).
-pgTypes.setTypeParser(20, (val: string) => Number(val));
-
 // MED-M14 fix — explicit SSL config for production.
 // Pre-fix: poolConfig had no `ssl` key, so the pool relied entirely
 // on `?sslmode=` in DATABASE_URL. If the env var lacked the param
