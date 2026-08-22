@@ -107,6 +107,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    # The shared nginx container also joins the MedClaimsPro and Cochi Loco
+    # networks. Those projects can have their own generic `api` DNS alias, so
+    # `api` is ambiguous inside nginx. Give onService a unique alias and use it
+    # in nginx.conf to prevent cross-project upstream collisions.
+    networks:
+      default:
+        aliases:
+          - onservice-api-backend
 
   nginx:
     image: nginx:1.27-alpine
