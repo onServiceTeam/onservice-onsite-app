@@ -88,17 +88,27 @@ tar czf /tmp/onservice-admin-<sha>.tar.gz -C apps/admin/dist .
 1. Connect as the dedicated `onservice` user with key-only SSH.
 2. Resolve `/opt/onservice` and the alias with `readlink -f`. Both must point to
    the intended onService checkout before any write.
-3. Confirm the checkout is clean and its remote is
-   `https://github.com/onServiceTeam/onservice-onsite-app.git`.
-4. Fetch `origin/master`, then fast-forward only to the already-green release
-   SHA. Never force-push or merge an unverified server-side commit.
-5. Transfer the two uniquely named frontend archives to `/tmp`.
-6. Extract each archive **in place** into the existing
+3. Confirm the checkout owner. If it is root-owned, run checkout writes through
+   non-interactive `sudo` with a per-command
+   `-c safe.directory=/opt/onservice`; do not add a broad global safe-directory
+   exception to the deployment user's Git configuration.
+4. Confirm the checkout is clean and its remote points to
+   `onServiceTeam/onservice-onsite-app` over either SSH or HTTPS.
+5. Fetch `origin/master`, then fast-forward only to the already-green release
+   SHA. If the server's private-repository deploy key is unavailable, create a
+   uniquely named incremental `git bundle` from the verified local clone,
+   transfer it to `/tmp`, run `git bundle verify` on the server, fetch its
+   `master` ref into a temporary remote-tracking ref, and merge with
+   `--ff-only`. This preserves the canonical remote and avoids putting a GitHub
+   token on the server. Never force-push or merge an unverified server-side
+   commit.
+6. Transfer the two uniquely named frontend archives to `/tmp`.
+7. Extract each archive **in place** into the existing
    `apps/mobile/dist-web` and `apps/admin/dist` directories. Do not rename or
    replace either directory because nginx bind-mounts their directory inodes.
    Old hashed assets may remain until a later controlled cleanup; the new
    `index.html` references only the current hashes.
-7. Build and recreate only the API service:
+8. Build and recreate only the API service:
 
    ```bash
    cd /opt/onservice
@@ -106,10 +116,10 @@ tar czf /tmp/onservice-admin-<sha>.tar.gz -C apps/admin/dist .
    docker compose -f docker-compose.prod.yml up -d --no-deps api
    ```
 
-8. Do not run migrations unless the release contains a reviewed migration and
+9. Do not run migrations unless the release contains a reviewed migration and
    the release plan explicitly authorizes it. Migrations bypass PgBouncer and
    use `DATABASE_DIRECT_URL`.
-9. Do not recreate nginx for an ordinary frontend or API release. In-place
+10. Do not recreate nginx for an ordinary frontend or API release. In-place
    extraction makes the new static files visible without replacing the shared
    proxy.
 
