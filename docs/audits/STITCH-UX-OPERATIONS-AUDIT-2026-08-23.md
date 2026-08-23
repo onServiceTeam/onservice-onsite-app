@@ -218,7 +218,7 @@ Admin findings:
 - Open: operational SLA deadlines are not modeled, so the support UI must not invent countdowns.
 - Open: analytics and dashboard numbers need metric definitions, source labels, comparison periods, and freshness indicators.
 - Open: destructive or money-affecting actions need consistent reason capture, preview, server authorization, and audit display.
-- Open low: the admin production build still warns about the 540.39 kB main JavaScript chunk and 399.24 kB dashboard chunk; route loading is already split, but shared-library and dashboard chart splitting need a focused performance pass.
+- Fixed in the follow-up hardening batch: explicit React, UI, data, chart, and map vendor chunks reduced the former 540.39 kB main entry to approximately 271 kB. The production build passes with the shared libraries separated for browser caching.
 
 ## Documentation and environment findings
 
@@ -264,13 +264,13 @@ Admin findings:
 - Admin TypeScript: passed.
 - Mobile TypeScript: passed.
 - API TypeScript: passed.
-- Mobile suite: 176 suites passed, 706 tests passed, 88 explicit todos.
+- Mobile suite: 178 suites passed, 704 tests passed, 88 explicit todos.
 - Admin suite: 49 files passed, 1 skipped, 158 tests passed, 3 explicit todos.
-- API suite: 282 suites passed, 3029 tests passed.
+- API suite: 282 suites passed, 3015 tests passed.
 - Admin and mobile lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
 - Mobile production web export: passed with the production same-origin API URL and demo test mode.
-- Production release: local, GitHub `master`, and `/opt/onservice` aligned at `75ea2fc4e715ccf4b6ed7ff46e013f50e4cf2060`; GitHub CI run 32638203116 passed every job.
+- Production release: the UX batch and follow-up hardening were deployed through `17337c3a53cd59b45c5eda0493dbbc2720b28734`; local `master`, GitHub `master`, and `/opt/onservice` were reverified clean and aligned. GitHub CI run 32642639519 and Gates run 32642639703 passed every job for that hardening commit.
 - Production browser smoke: customer and provider rendered at 800 by 1000 and 1280 by 900 with no horizontal overflow or current console errors/warnings; admin served the new login bundle with public demo access disabled.
 - Production service smoke: API, nginx, Postgres, and Redis remained healthy; MedClaimsPro and both Cochi Loco public endpoints remained HTTP 200.
 

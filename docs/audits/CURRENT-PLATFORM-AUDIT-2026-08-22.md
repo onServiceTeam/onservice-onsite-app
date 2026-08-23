@@ -22,7 +22,7 @@ The old 29-admin-page and 84-mobile-screen counts are stale.
 | Admin routed page components |                     34 |
 | Mobile route-screen files    |                    103 |
 | API route modules            |                     47 |
-| API Jest suites / tests      |            278 / 3,025 |
+| API Jest suites / tests      |            282 / 3,015 |
 
 Mobile route-screen families:
 
@@ -68,7 +68,7 @@ This trace exposes the key company rule: admin pages must not invent a second st
 9. Admin navigation is grouped by operating purpose and shared with page command search; the dashboard now leads with action queues.
 10. Admin support list/detail PII masking is wired at the route boundary, named assignment replaces pasted UUIDs, assignments are validated and audit-logged, and closed-case resolution notes persist.
 11. Production deployment documentation now matches the real shared Hetzner topology; the API deploy workflow is manual until its repository secrets are deliberately configured.
-12. The customer/provider and admin artifacts plus API were deployed at `75ea2fc4e715ccf4b6ed7ff46e013f50e4cf2060`, with GitHub, the local working clone, and `/opt/onservice` verified at the same clean SHA.
+12. The customer/provider and admin artifacts plus API were deployed, followed by the CI, transaction, icon, routing, bundle-splitting, and deployment-document hardening through `17337c3a53cd59b45c5eda0493dbbc2720b28734`. GitHub, the local working clone, and `/opt/onservice` were reverified clean and aligned after deployment.
 
 ## Open register, ordered by risk
 
