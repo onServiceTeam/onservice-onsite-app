@@ -69,7 +69,7 @@ export default function CheckoutScreen(): React.ReactElement {
       setMethodError('Please select a payment method to continue.');
       return;
     }
-    if (!draft.categoryId || !draft.subcategoryId || !draft.address || !draft.barangay || !draft.scheduledDate || !draft.scheduledTime) {
+    if (!draft.categoryId || !draft.subcategoryId || !draft.address || !draft.barangay || draft.latitude == null || draft.longitude == null || !draft.scheduledDate || !draft.scheduledTime) {
       // The missing fields live on earlier steps (nothing to highlight on this
       // screen), so a single summary toast is the right affordance here.
       showToast('Booking details are incomplete. Please go back and complete all fields.', 'error');
@@ -116,8 +116,8 @@ export default function CheckoutScreen(): React.ReactElement {
           barangay: draft.barangay || '',
           city: draft.city ?? '',
           province: draft.province ?? '',
-          latitude: draft.latitude ?? undefined,
-          longitude: draft.longitude ?? undefined,
+          latitude: draft.latitude,
+          longitude: draft.longitude,
           scheduledAt,
           addons: draft.addons.length > 0
             ? draft.addons.map((a) => ({ addonId: a.id, quantity: 1 }))

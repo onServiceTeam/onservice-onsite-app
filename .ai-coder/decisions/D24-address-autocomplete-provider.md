@@ -75,3 +75,30 @@ usable in the interim.
 - Not adding a paid external dependency or API-key handling without Ken's call.
 - Not picking a default. The city-level search fix is already in; this decision
   only governs the upgrade to real autocomplete/geocoding.
+
+## 2026-08-24 safe remediation while this decision remains open
+
+The external-provider choice is still open. A second production-backed audit
+found defects that did not require choosing a provider and could not safely
+wait:
+
+- city matching now checks a city before its shared province, so “Mandaue
+  City, Cebu” resolves to Mandaue rather than the first Cebu-province row;
+- address search now suggests only admin-configured active/soft-launch service
+  areas rather than a hardcoded nationwide list;
+- a city-center search result is explicitly approximate and cannot be
+  confirmed as the service pin;
+- coordinate-less saved addresses are no longer silently assigned Cebu City’s
+  coordinates;
+- saved addresses can capture the device’s current coordinates and verify them
+  against active coverage;
+- fixed-price and quote requests now require coordinates and the API rejects a
+  location outside every active service area before writing a booking;
+- overlapping service-area circles resolve to the nearest covered center;
+- browser users can book while at the service property by combining typed
+  address/barangay details with browser geolocation. Booking a different
+  property in a browser still needs the provider decision in this document.
+
+Production had two saved addresses on 2026-08-24 and both lacked coordinates.
+No production row was rewritten or guessed. Those addresses remain visible but
+must have an exact location captured before they can be used for a new booking.

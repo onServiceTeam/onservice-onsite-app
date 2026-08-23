@@ -10,6 +10,7 @@ import * as socketService from './socket.service';
 import { resolvePromo, recordPromoRedemption } from './booking/promo.service';
 import { resolveHourlyCap, type HourlyConfig } from './booking/pricing.service';
 import * as businessService from './business.service';
+import * as serviceAreaService from './service-area.service';
 
 interface BookingRow {
   id: string;
@@ -68,8 +69,8 @@ interface CreateBookingParams {
   barangay: string;
   city: string;
   province: string;
-  latitude?: number;
-  longitude?: number;
+  latitude: number;
+  longitude: number;
   scheduledAt: string;
   rebookedFromId?: string;
   waitlistId?: string;
@@ -135,6 +136,7 @@ export async function calculateServiceFee(servicePrice: number): Promise<number>
 }
 
 export async function createBooking(params: CreateBookingParams): Promise<BookingRow> {
+  await assertBookableLocation(params.latitude, params.longitude);
   // Phase 14 Dispatch 05 — Bug 175.
   // Fixed-price bookings now REQUIRE subcategoryId AND a non-null
   // base_price in service_subcategories. There is no fallback to a
@@ -1200,8 +1202,8 @@ export async function createJobRequest(
     barangay: string;
     city: string;
     province: string;
-    latitude?: number;
-    longitude?: number;
+    latitude: number;
+    longitude: number;
     urgency: string;
     budgetMin?: number;
     budgetMax?: number;
@@ -1211,6 +1213,7 @@ export async function createJobRequest(
     intakeAnswers?: Record<string, unknown>;
   },
 ): Promise<BookingRow> {
+  await assertBookableLocation(data.latitude, data.longitude);
   const scheduledAt = new Date();
   if (data.urgency === 'same_day') {
     scheduledAt.setHours(scheduledAt.getHours() + 4);
@@ -1245,6 +1248,25 @@ export async function createJobRequest(
 
   logger.info('Job request created', { bookingId: result.rows[0]!.id, customerId });
   return result.rows[0]!;
+}
+
+async function assertBookableLocation(latitude?: number, longitude?: number): Promise<void> {
+  // UX-052 — matching cannot dispatch a booking without coordinates. The old
+  // API accepted coordinate-less and out-of-market bookings, allowing payment
+  // before kickOfferCycle later failed or found nobody.
+  if (latitude == null || longitude == null) {
+    throw createAppError(
+      'Select an exact service location before booking. We need a map pin or device location to dispatch a provider.',
+      400,
+    );
+  }
+  const coverage = await serviceAreaService.checkCoverage(latitude, longitude);
+  if (!coverage.covered) {
+    throw createAppError(
+      'onService is not available at this location yet. Choose a location inside an active service area.',
+      422,
+    );
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────

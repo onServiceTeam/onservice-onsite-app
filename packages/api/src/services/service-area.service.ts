@@ -396,6 +396,7 @@ export async function checkCoverage(
   );
 
   let coveredArea: ServiceAreaRow | null = null;
+  let coveredDistance: number | null = null;
   let nearestArea: ServiceAreaRow | null = null;
   let nearestDistance: number | null = null;
 
@@ -406,8 +407,14 @@ export async function checkCoverage(
     );
 
     if (distance <= area.radius_km) {
-      coveredArea = area;
-      break;
+      // UX-053 — Metro Cebu service radii overlap. The old `break` selected
+      // whichever row Postgres returned first, so a Mandaue coordinate could
+      // be classified as Cebu City. Pick the nearest covered center instead.
+      if (coveredDistance === null || distance < coveredDistance) {
+        coveredArea = area;
+        coveredDistance = distance;
+      }
+      continue;
     }
 
     if (nearestDistance === null || distance < nearestDistance) {

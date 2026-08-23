@@ -45,6 +45,10 @@ jest.mock('../../src/services/settings.service', () => ({
   }),
 }));
 
+jest.mock('../../src/services/service-area.service', () => ({
+  checkCoverage: jest.fn().mockResolvedValue({ covered: true, area: { id: 'area-1' } }),
+}));
+
 import { createBooking } from '../../src/services/booking.service';
 
 const SUBCAT_ID = 'sub-1';
@@ -115,6 +119,8 @@ describe('CRIT-N09 — createBooking + booking_addons run inside one transaction
       barangay: 'B',
       city: 'C',
       province: 'P',
+      latitude: 10.3157,
+      longitude: 123.8854,
       scheduledAt: '2026-04-15T08:00:00Z',
       addons: [
         { addonId: ADDON_1, quantity: 1 },
@@ -171,6 +177,8 @@ describe('CRIT-N09 — createBooking + booking_addons run inside one transaction
       barangay: 'B',
       city: 'C',
       province: 'P',
+      latitude: 10.3157,
+      longitude: 123.8854,
       scheduledAt: '2026-04-15T08:00:00Z',
       addons: [{ addonId: ADDON_1, quantity: 1 }],
     })).rejects.toThrow(/addon insert failed/);
@@ -220,6 +228,8 @@ describe('CRIT-N09 — createBooking + booking_addons run inside one transaction
       barangay: 'B',
       city: 'C',
       province: 'P',
+      latitude: 10.3157,
+      longitude: 123.8854,
       scheduledAt: '2026-04-15T08:00:00Z',
     });
 

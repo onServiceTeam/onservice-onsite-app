@@ -78,8 +78,8 @@ export interface CreateBookingPayload {
   barangay: string;
   city: string;
   province: string;
-  latitude?: number;
-  longitude?: number;
+  latitude: number;
+  longitude: number;
   scheduledAt: string;
   rebookedFromId?: string;
   waitlistId?: string;
@@ -123,8 +123,8 @@ export interface JobRequestPayload {
   barangay: string;
   city: string;
   province: string;
-  latitude?: number;
-  longitude?: number;
+  latitude: number;
+  longitude: number;
   urgency: 'same_day' | 'within_3_days' | 'within_a_week' | 'flexible';
   budgetMin?: number;
   budgetMax?: number;

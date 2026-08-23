@@ -181,10 +181,11 @@ ACCURACY NOTE for everyone: the instant-pay path (pay right after creating the b
 
 1. Confirm what they are trying to do: book a service, or finish a booking that stalled.
 2. For a fresh booking: confirm their city is a live service area. If their area is not active, there is no provider to match. Tell them honestly and offer to log them on the waitlist (note it on the ticket; the area waitlist is run manually until self-serve is confirmed).
-3. Confirm the service category exists in their area (cleaning, aircon, plumbing, electrical, etc.).
-4. Remind them how it works, in plain words: pick the service, confirm the price shown (the price is set by us, not typed in by the customer), pay, then we match a vetted provider to you.
-5. If they cannot finish at the pay step, treat it as a payment issue (8.5).
-6. Log a `booking_issue` ticket if anything is unresolved.
+3. Confirm the booking has real latitude/longitude captured from a map pin or device location. A typed city or saved address without coordinates is not dispatchable and must never be replaced with a city-center guess.
+4. Confirm the service category exists in their area (cleaning, aircon, plumbing, electrical, etc.).
+5. Remind them how it works, in plain words: pick the service, confirm the price shown (the price is set by us, not typed in by the customer), pay, then we match a vetted provider to you.
+6. If they cannot finish at the pay step, treat it as a payment issue (8.5).
+7. Log a `booking_issue` ticket if anything is unresolved.
 
 ### 8.2 Provider late or no-show
 

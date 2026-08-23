@@ -150,7 +150,7 @@ export default function JobRequestScreen(): React.ReactElement {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!draft.categoryId || !draft.address) {
+      if (!draft.categoryId || !draft.address || !draft.barangay || draft.latitude == null || draft.longitude == null) {
         throw new Error('Missing category or address');
       }
       const uploadedUrls = await imagePicker.uploadAll();
@@ -162,8 +162,8 @@ export default function JobRequestScreen(): React.ReactElement {
         barangay: draft.barangay ?? '',
         city: draft.city ?? '',
         province: draft.province ?? '',
-        latitude: draft.latitude ?? undefined,
-        longitude: draft.longitude ?? undefined,
+        latitude: draft.latitude,
+        longitude: draft.longitude,
         urgency,
         budgetMin: budgetMin ? Math.round(Number(budgetMin) * 100) : undefined,
         budgetMax: budgetMax ? Math.round(Number(budgetMax) * 100) : undefined,
@@ -195,6 +195,9 @@ export default function JobRequestScreen(): React.ReactElement {
     description.length >= 50 &&
     draft.categoryId &&
     draft.address &&
+    draft.barangay &&
+    draft.latitude != null &&
+    draft.longitude != null &&
     hasMinPhotos &&
     budgetValid &&
     intakeComplete;
@@ -375,6 +378,9 @@ export default function JobRequestScreen(): React.ReactElement {
             </Text>
             <ChevronRight size={18} color={colors.textTertiary} />
           </TouchableOpacity>
+          {draft.address && (draft.latitude == null || draft.longitude == null || !draft.barangay) ? (
+            <Text style={[styles.hint, { color: colors.error }]}>Select the exact map location and barangay before submitting.</Text>
+          ) : null}
         </View>
 
         {!budgetValid && (

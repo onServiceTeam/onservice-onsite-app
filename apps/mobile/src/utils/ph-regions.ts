@@ -14,6 +14,24 @@ export interface PhRegion {
   province: string;
 }
 
+export interface ConfiguredAreaLocation {
+  id: string;
+  name: string;
+  city: string;
+  province: string;
+  centerLat: number;
+  centerLng: number;
+}
+
+function normalizePlace(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export const PH_REGIONS: PhRegion[] = [
   // Phase 200 — Metro Cebu launch market, listed first.
   { lat: 10.3157, lng: 123.8854, city: 'Cebu City', province: 'Cebu' },
@@ -86,11 +104,56 @@ export function guessRegionFromCoordinates(lat: number, lng: number): { city: st
  * an empty-city result.
  */
 export function matchRegionForQuery(searchText: string): PhRegion | null {
-  const query = searchText.trim().toLowerCase();
+  const query = normalizePlace(searchText);
   if (!query) return null;
-  return (
-    PH_REGIONS.find(
-      (r) => query.includes(r.city.toLowerCase()) || query.includes(r.province.toLowerCase()),
-    ) ?? null
-  );
+  // UX-050 — city must win over province. Metro Cebu cities all share the
+  // province "Cebu"; the old single-pass OR returned Cebu City before it ever
+  // reached Mandaue, Lapu-Lapu, or Talisay.
+  const cityMatch = PH_REGIONS.find((r) => query.includes(normalizePlace(r.city)));
+  if (cityMatch) return cityMatch;
+  return PH_REGIONS.find((r) => query.includes(normalizePlace(r.province))) ?? null;
+}
+
+/**
+ * Match only the service areas currently returned by the API. City matches
+ * are authoritative; a province-only query can legitimately return several
+ * choices (for example all four Metro Cebu launch cities).
+ */
+export function matchConfiguredAreasForQuery<T extends ConfiguredAreaLocation>(
+  searchText: string,
+  areas: T[],
+): T[] {
+  const query = normalizePlace(searchText);
+  if (!query) return [];
+
+  const cityMatches = areas.filter((area) => {
+    const city = normalizePlace(area.city);
+    const name = normalizePlace(area.name);
+    return (city.length > 0 && query.includes(city)) || (name.length > 0 && query.includes(name));
+  });
+  if (cityMatches.length > 0) return cityMatches;
+
+  return areas.filter((area) => {
+    const province = normalizePlace(area.province);
+    return province.length > 0 && query.includes(province);
+  });
+}
+
+export function findNearestConfiguredArea<T extends ConfiguredAreaLocation>(
+  latitude: number,
+  longitude: number,
+  areas: T[],
+): T | null {
+  let nearest: T | null = null;
+  let distance = Number.POSITIVE_INFINITY;
+  for (const area of areas) {
+    const candidate = Math.sqrt(
+      (area.centerLat - latitude) ** 2 + (area.centerLng - longitude) ** 2,
+    );
+    if (candidate < distance) {
+      nearest = area;
+      distance = candidate;
+    }
+  }
+  return nearest;
 }

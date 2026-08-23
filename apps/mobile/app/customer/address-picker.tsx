@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker } from 'react-native-maps';
@@ -12,7 +12,8 @@ import * as addressService from '@/services/address.service';
 import type { SavedAddress } from '@/services/address.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useServiceAreaDefaults } from '@/hooks/useServiceAreaDefaults';
-import { guessRegionFromCoordinates, matchRegionForQuery } from '@/utils/ph-regions';
+import { checkCoverage } from '@/services/service-area.service';
+import { findNearestConfiguredArea, matchConfiguredAreasForQuery } from '@/utils/ph-regions';
 import type { ComponentType } from 'react';
 import { Home as HomeIcon, Building2, Pin, MapPin } from '@/components/icons';
 
@@ -40,7 +41,7 @@ export default function AddressPickerScreen(): React.ReactElement {
   const setAddress = useBookingStore((s) => s.setAddress);
   const mapRef = useRef<MapView>(null);
   const { isAvailable: gpsAvailable, isLoading: gpsLoading, getCurrentLocation } = useLocation();
-  const { defaultRegion } = useServiceAreaDefaults();
+  const { areas, defaultRegion, isLoading: areasLoading } = useServiceAreaDefaults();
   const recenteredOnDefault = useRef(false);
 
   const [pin, setPin] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -48,6 +49,9 @@ export default function AddressPickerScreen(): React.ReactElement {
   const [selectedAddress, setSelectedAddress] = useState<GeoResult | null>(null);
   const [searchResults, setSearchResults] = useState<GeoResult[]>([]);
   const [searchMessage, setSearchMessage] = useState('');
+  const [barangayText, setBarangayText] = useState('');
+  const [hasExactCoordinates, setHasExactCoordinates] = useState(false);
+  const [checkingCoverage, setCheckingCoverage] = useState(false);
 
   const { data: savedAddresses } = useQuery({
     queryKey: ['saved-addresses'],
@@ -66,17 +70,31 @@ export default function AddressPickerScreen(): React.ReactElement {
   }, [defaultRegion, pin, selectedAddress]);
 
   const handleSelectSaved = useCallback((addr: SavedAddress) => {
+    setBarangayText(addr.barangay);
+    if (addr.latitude == null || addr.longitude == null) {
+      // UX-051 — never substitute Cebu's center for a saved address that has
+      // no coordinates. That sent providers to the wrong city. Keep the real
+      // text visible and ask the customer to capture an exact location.
+      setSearchText([addr.fullAddress, addr.barangay, addr.city, addr.province].filter(Boolean).join(', '));
+      setSelectedAddress(null);
+      setPin(null);
+      setHasExactCoordinates(false);
+      setSearchMessage('This saved address needs an exact location. Use your current location or set the pin in the mobile app before booking.');
+      return;
+    }
     const geo: GeoResult = {
       address: addr.fullAddress,
       barangay: addr.barangay,
       city: addr.city,
       province: addr.province,
-      latitude: addr.latitude ?? 10.3157,
-      longitude: addr.longitude ?? 123.8854,
+      latitude: addr.latitude,
+      longitude: addr.longitude,
     };
     setSelectedAddress(geo);
     const coords = { latitude: geo.latitude, longitude: geo.longitude };
     setPin(coords);
+    setHasExactCoordinates(true);
+    setSearchMessage('');
     setSearchResults([]);
     mapRef.current?.animateToRegion({
       ...coords,
@@ -95,22 +113,24 @@ export default function AddressPickerScreen(): React.ReactElement {
     }
 
     setPin(coords);
-    const regionGuess = guessRegionFromCoordinates(coords.latitude, coords.longitude);
+    const nearestArea = findNearestConfiguredArea(coords.latitude, coords.longitude, areas);
     setSelectedAddress({
-      address: `Current Location: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`,
-      barangay: '',
-      city: regionGuess.city,
-      province: regionGuess.province,
+      address: searchText.trim() || `Current Location: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`,
+      barangay: barangayText.trim(),
+      city: nearestArea?.city ?? '',
+      province: nearestArea?.province ?? '',
       latitude: coords.latitude,
       longitude: coords.longitude,
     });
     setSearchResults([]);
+    setHasExactCoordinates(true);
+    setSearchMessage('');
     mapRef.current?.animateToRegion({
       ...coords,
       latitudeDelta: 0.01,
       longitudeDelta: 0.01,
     });
-  }, [getCurrentLocation]);
+  }, [areas, barangayText, getCurrentLocation, searchText]);
 
   const handleMapPress = useCallback((e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
     const { latitude, longitude } = e.nativeEvent.coordinate;
@@ -120,45 +140,56 @@ export default function AddressPickerScreen(): React.ReactElement {
     }
     setPin({ latitude, longitude });
 
-    const regionGuess = guessRegionFromCoordinates(latitude, longitude);
+    const nearestArea = findNearestConfiguredArea(latitude, longitude, areas);
     setSelectedAddress({
-      address: `Pin: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-      barangay: '',
-      city: regionGuess.city,
-      province: regionGuess.province,
+      address: searchText.trim() || `Pin: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+      barangay: barangayText.trim(),
+      city: nearestArea?.city ?? '',
+      province: nearestArea?.province ?? '',
       latitude,
       longitude,
     });
     setSearchResults([]);
-  }, []);
+    setHasExactCoordinates(true);
+    setSearchMessage('');
+  }, [areas, barangayText, searchText]);
 
   const handleSearch = useCallback(() => {
     if (!searchText.trim()) return;
-    const match = matchRegionForQuery(searchText);
-    if (match) {
+    if (areasLoading) {
+      setSearchMessage('Loading active service areas. Please try again in a moment.');
+      return;
+    }
+    const matches = matchConfiguredAreasForQuery(searchText, areas);
+    if (matches.length > 0) {
       setSearchMessage('');
-      setSearchResults([{
+      setSearchResults(matches.map((match) => ({
         address: searchText.trim(),
         barangay: '',
         city: match.city,
         province: match.province,
-        latitude: match.lat,
-        longitude: match.lng,
-      }]);
+        latitude: match.centerLat,
+        longitude: match.centerLng,
+      })));
     } else {
       // No known city in the typed text. Don't fabricate an empty-city result
       // that blocks Confirm two taps later with "Location Not Recognized" —
       // tell the user how to succeed now.
       setSearchResults([]);
       setSearchMessage(
-        'We could not find that address. Try including the city name, for example "Cebu City".',
+        `We could not match that address to an active service area. Try including one of: ${areas.map((area) => area.city).join(', ') || 'an active city'}.`,
       );
     }
-  }, [searchText]);
+  }, [areas, areasLoading, searchText]);
 
   const handleSelectResult = (result: GeoResult): void => {
-    setPin({ latitude: result.latitude, longitude: result.longitude });
+    // A city-center search result is only a map starting point. It is not an
+    // exact service coordinate and cannot be confirmed until the customer
+    // drops a pin or uses device location.
+    setPin(null);
     setSelectedAddress(result);
+    setBarangayText('');
+    setHasExactCoordinates(false);
     setSearchResults([]);
     setSearchMessage('');
     mapRef.current?.animateToRegion({
@@ -168,7 +199,7 @@ export default function AddressPickerScreen(): React.ReactElement {
     });
   };
 
-  const handleConfirm = (): void => {
+  const handleConfirm = async (): Promise<void> => {
     if (!selectedAddress) {
       Alert.alert('Select Address', 'Please tap on the map or search for your address.');
       return;
@@ -180,8 +211,39 @@ export default function AddressPickerScreen(): React.ReactElement {
       );
       return;
     }
-    setAddress(selectedAddress);
-    router.back();
+    if (!hasExactCoordinates) {
+      Alert.alert('Exact Location Required', 'Use your current location or set the map pin at the service address before confirming.');
+      return;
+    }
+    if (!barangayText.trim()) {
+      Alert.alert('Barangay Required', 'Enter the barangay for the service address.');
+      return;
+    }
+
+    setCheckingCoverage(true);
+    try {
+      const coverage = await checkCoverage(selectedAddress.latitude, selectedAddress.longitude);
+      if (!coverage.covered || !coverage.area) {
+        Alert.alert(
+          'Outside Service Area',
+          coverage.nearestArea
+            ? `This location is outside our active coverage. The nearest area is ${coverage.nearestArea.name}.`
+            : 'This location is outside our active coverage.',
+        );
+        return;
+      }
+      setAddress({
+        ...selectedAddress,
+        barangay: barangayText.trim(),
+        city: coverage.area.city,
+        province: coverage.area.province,
+      });
+      router.back();
+    } catch {
+      Alert.alert('Coverage Check Failed', 'We could not verify this location. Please check your connection and try again.');
+    } finally {
+      setCheckingCoverage(false);
+    }
   };
 
   return (
@@ -196,7 +258,8 @@ export default function AddressPickerScreen(): React.ReactElement {
 
       {/* Search */}
       <View style={styles.searchContainer}>
-        <TextInput
+        <View style={styles.searchRow}>
+          <TextInput
           style={styles.searchInput}
           placeholder="Search for an address..."
           placeholderTextColor={colors.textTertiary}
@@ -204,7 +267,17 @@ export default function AddressPickerScreen(): React.ReactElement {
           onChangeText={(t) => { setSearchText(t); if (searchMessage) setSearchMessage(''); }}
           onSubmitEditing={handleSearch}
           returnKeyType="search"
+          accessibilityLabel="Service address"
         />
+          <TouchableOpacity
+            style={styles.searchButton}
+            onPress={handleSearch}
+            accessibilityRole="button"
+            accessibilityLabel="Search active service areas"
+          >
+            <Text style={styles.searchButtonText}>Search</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {searchResults.length > 0 && (
@@ -284,6 +357,15 @@ export default function AddressPickerScreen(): React.ReactElement {
         </TouchableOpacity>
       )}
 
+      {Platform.OS === 'web' && (
+        <View style={styles.browserNotice}>
+          <Text style={styles.browserNoticeTitle}>Booking in a browser</Text>
+          <Text style={styles.browserNoticeText}>
+            Search for the address, enter its barangay, then use this device&apos;s location while you are at the service property. For another property, set the exact pin in the mobile app.
+          </Text>
+        </View>
+      )}
+
       {/* Map */}
       <MapView
         ref={mapRef}
@@ -297,17 +379,34 @@ export default function AddressPickerScreen(): React.ReactElement {
       {/* Bottom bar */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
         {selectedAddress && (
-          <View style={styles.selectedRow}>
-            <MapPin size={16} color={colors.text} style={{ marginRight: 6, marginTop: 2 }} />
-            <Text style={styles.selectedText} numberOfLines={2}>
-              {[selectedAddress.address, selectedAddress.barangay, selectedAddress.city].filter(Boolean).join(', ')}
-            </Text>
-          </View>
+          <>
+            <View style={styles.selectedRow}>
+              <MapPin size={16} color={colors.text} style={{ marginRight: 6, marginTop: 2 }} />
+              <Text style={styles.selectedText} numberOfLines={2}>
+                {[selectedAddress.address, barangayText, selectedAddress.city].filter(Boolean).join(', ')}
+              </Text>
+            </View>
+            <TextInput
+              style={styles.barangayInput}
+              placeholder="Barangay *"
+              placeholderTextColor={colors.textTertiary}
+              value={barangayText}
+              onChangeText={setBarangayText}
+              maxLength={100}
+              accessibilityLabel="Barangay"
+            />
+            {!hasExactCoordinates && (
+              <Text style={styles.precisionWarning} accessibilityRole="alert">
+                City found. Now use your current location or move the map pin to the exact service address.
+              </Text>
+            )}
+          </>
         )}
         <Button
           title="Confirm Address"
-          onPress={handleConfirm}
-          disabled={!selectedAddress}
+          onPress={() => void handleConfirm()}
+          loading={checkingCoverage}
+          disabled={!selectedAddress || !hasExactCoordinates || !barangayText.trim() || checkingCoverage}
         />
       </View>
     </View>
@@ -348,6 +447,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     zIndex: 10,
   },
+  searchRow: { flexDirection: 'row', gap: spacing.sm },
   searchInput: {
     ...typography.body,
     backgroundColor: colors.backgroundSecondary,
@@ -355,7 +455,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     color: colors.text,
+    flex: 1,
   },
+  searchButton: {
+    minWidth: 88,
+    minHeight: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  searchButtonText: { ...typography.button, color: colors.white },
   searchMessageBox: {
     marginHorizontal: spacing.base,
     marginBottom: spacing.sm,
@@ -430,6 +541,17 @@ const styles = StyleSheet.create({
   defaultTagText: { ...typography.caption, color: colors.primary, fontWeight: '600', fontSize: 10 },
 
   map: { flex: 1 },
+  browserNotice: {
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.md,
+  },
+  browserNoticeTitle: { ...typography.bodySmall, color: colors.primary, fontWeight: '700', marginBottom: 2 },
+  browserNoticeText: { ...typography.caption, color: colors.textSecondary, lineHeight: 18 },
   bottomBar: {
     backgroundColor: colors.background,
     paddingHorizontal: spacing.base,
@@ -446,5 +568,25 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     color: colors.text,
     flex: 1,
+  },
+  barangayInput: {
+    ...typography.body,
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  precisionWarning: {
+    ...typography.caption,
+    color: colors.warningDark,
+    backgroundColor: colors.warningLight,
+    borderRadius: borderRadius.sm,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    lineHeight: 18,
   },
 });

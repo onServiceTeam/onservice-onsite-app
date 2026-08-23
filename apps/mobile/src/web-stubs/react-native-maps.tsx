@@ -19,7 +19,15 @@ export type Region = {
 export const PROVIDER_GOOGLE = 'google';
 export const PROVIDER_DEFAULT = undefined;
 
-function MapView(props: { style?: unknown; children?: React.ReactNode }): React.ReactElement {
+export interface MapViewHandle {
+  animateToRegion: (region: Region, duration?: number) => void;
+}
+
+const MapView = React.forwardRef<MapViewHandle, { style?: unknown; children?: React.ReactNode }>(function MapView(
+  props,
+  ref,
+): React.ReactElement {
+  React.useImperativeHandle(ref, () => ({ animateToRegion: () => undefined }), []);
   return (
     <View style={[styles.box, props.style as object]}>
       <Text style={styles.title}>Map preview</Text>
@@ -27,7 +35,7 @@ function MapView(props: { style?: unknown; children?: React.ReactNode }): React.
       {props.children}
     </View>
   );
-}
+});
 
 // Sub-components used by the map screens — render nothing on web.
 export function Marker(): null { return null; }

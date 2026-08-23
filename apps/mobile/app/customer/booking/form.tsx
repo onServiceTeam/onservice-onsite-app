@@ -66,8 +66,8 @@ export default function BookingFormScreen(): React.ReactElement {
       showToast('Please select both a date and time for your booking.', 'warning');
       return;
     }
-    if (!draft.address) {
-      showToast('Please select your service address.', 'warning');
+    if (!draft.address || !draft.barangay || draft.latitude == null || draft.longitude == null) {
+      showToast('Select an exact service address, including barangay and map location.', 'warning');
       return;
     }
     setSchedule(selectedDate, selectedTime);
@@ -214,7 +214,7 @@ export default function BookingFormScreen(): React.ReactElement {
         <Button
           title={`Proceed to Payment • ${formatPHP(total)}`}
           onPress={handleProceed}
-          disabled={!selectedDate || !selectedTime || !draft.address}
+          disabled={!selectedDate || !selectedTime || !draft.address || !draft.barangay || draft.latitude == null || draft.longitude == null}
         />
       </View>
     </View>

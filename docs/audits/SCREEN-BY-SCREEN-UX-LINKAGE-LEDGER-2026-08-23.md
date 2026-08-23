@@ -64,11 +64,11 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/(tabs)/wallet.tsx` | MONEY | payment service | W/HOLD | SOURCE/RENDER. Customer credit must never expose provider withdrawal behavior. |
 | `app/(tabs)/profile.tsx` | IDENTITY/GOVERNANCE | auth API | W | SOURCE/RENDER. Desktop sections use responsive spacing; route-link review remains. |
 | `app/customer/account-management.tsx` | GOVERNANCE | data-management service | S/HOLD | SOURCE/RENDER. Destructive account actions need deliberate wide confirmation UI. |
-| `app/customer/address-picker.tsx` | DISCOVERY/BOOKING | address service | S/N | SOURCE/RENDER. Browser map/address fallback needs dedicated evidence. |
-| `app/customer/addresses.tsx` | BOOKING | address service | S | SOURCE/RENDER. CRUD states exist; wide list/editor composition pending. |
+| `app/customer/address-picker.tsx` | DISCOVERY/BOOKING | address + service-area services | W/N/HOLD | SOURCE/RENDER via Bugs UX-050/051. Search is limited to configured service areas, city wins over shared province, approximate city centers cannot masquerade as exact pins, barangay is required, coverage is checked, and browser geolocation is the honest no-map fallback. Third-party autocomplete/geocoding for booking another property in a browser remains D24. |
+| `app/customer/addresses.tsx` | BOOKING | address + service-area services | W/HOLD | SOURCE/RENDER via Bug UX-054. CRUD states exist, desktop forms/lists are constrained, coordinate status is visible, and current-location capture writes verified coordinates. A saved address without coordinates stays visible but is not bookable; remote browser geocoding remains D24. |
 | `app/customer/booking/[id].tsx` | BOOKING/SUPPORT/MONEY | booking, booking photos | W | SOURCE/RENDER/WIDE via Bug UX-019. Desktop summary/actions stay beside service context. Tablet visual check remains. |
 | `app/customer/booking/change-order.tsx` | BOOKING/MONEY | booking, payment | S/HOLD | SOURCE/RENDER. Server contract exists; money wording and wide comparison need review. |
-| `app/customer/booking/checkout.tsx` | MONEY/BOOKING | booking, payment | S/HOLD | SOURCE/RENDER. PayMongo live-mode chain remains launch work. |
+| `app/customer/booking/checkout.tsx` | MONEY/BOOKING | booking, payment | S/HOLD | SOURCE/RENDER. UX-052 prevents a coordinate-less/out-of-area booking from reaching this money step. E14 blocks the invalid PayMongo hosted flow. |
 | `app/customer/booking/complete.tsx` | BOOKING/SUPPORT | booking API | S | SOURCE/RENDER. Confirmation, dispute, and review exits linked. Wide hierarchy pending. |
 | `app/customer/booking/configure.tsx` | DISCOVERY/BOOKING | booking API | W | SOURCE/RENDER/WIDE via Bugs UX-043/046. Customer scope and pricing type survive discovery-to-booking linkage; the form is constrained for tablet/desktop reading. |
 | `app/customer/booking/confirm.tsx` | BOOKING/MONEY | booking service | S | SOURCE/RENDER. Booking/pay/support exits linked; desktop summary pending. |
@@ -101,7 +101,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/customer/search.tsx` | DISCOVERY | catalog/search API | S | SOURCE/RENDER via Bug UX-046. Results retain category/service/scope/pricing context and hourly services no longer enter the custom-quote path. Wide filters remain. |
 | `app/customer/suki-pros.tsx` | RETENTION/DISCOVERY | Suki service | S | SOURCE/RENDER. Provider loyalty counterpart exists; wide card grid pending. |
 | `app/customer/terms.tsx` | GOVERNANCE | canonical legal content | S/HOLD | SOURCE/RENDER. Final disclaimer remains F#10. |
-| `app/customer/wallet-topup.tsx` | MONEY | payment service | S/HOLD | SOURCE/RENDER. Customer top-up only; provider withdrawal must stay separate. |
+| `app/customer/wallet-topup.tsx` | MONEY | payment service | S/HOLD | SOURCE/RENDER. Production has 12 attempts and all remain awaiting; E14 confirms the constructed hosted URL is invalid and blocks implementation pending Checkout Session vs client-flow approval plus test keys. |
 
 ## Provider onboarding, owner, and staff screens
 

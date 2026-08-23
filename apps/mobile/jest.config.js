@@ -66,6 +66,7 @@ module.exports = {
     '^react-native-safe-area-context$': '<rootDir>/__mocks__/safe-area.js',
     '^react-native-gesture-handler$': '<rootDir>/__mocks__/gesture-handler.js',
     '^lucide-react-native$': '<rootDir>/__mocks__/lucide.js',
+    '^react-native-maps$': '<rootDir>/src/web-stubs/react-native-maps.tsx',
     // Phase E CRIT-103/104 (E01 Option A) — WebView-backed signature
     // canvas + its expo-file-system dep are mocked for the jest harness;
     // the real components live behind the platform layer and are

@@ -20,6 +20,8 @@ describe('Booking Validators', () => {
       barangay: 'Legaspi Village',
       city: 'Makati',
       province: 'Metro Manila',
+      latitude: 14.5547,
+      longitude: 121.0244,
       scheduledAt: '2026-04-20T09:00:00.000Z',
     };
 
@@ -104,7 +106,7 @@ describe('Booking Validators', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should accept optional lat/lng coordinates', () => {
+    it('should accept valid lat/lng coordinates', () => {
       const result = createBookingSchema.safeParse({
         ...validBooking,
         latitude: 14.5547,

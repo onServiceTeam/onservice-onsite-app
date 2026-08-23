@@ -36,9 +36,9 @@ Only the first three are screen evidence. The other three support spam/quality t
 | --- | --- | --- | --- | --- |
 | Service scope, inclusions, exclusions, and expected result are unclear | Home, category detail, provider profile, booking configure/request | Catalog, provider services, pricing rules | Confirmed: all 29 active production services had blank descriptions on 2026-08-24 | Added honest customer fallbacks, end-to-end scope retention, an admin publishing queue and exact customer preview, and server-side publishing validation; the business still must author the 29 real scopes |
 | Custom-quote checkout can feel like a dead end | Quotes, pay, checkout, payment failed | Booking 360, Communications, Support Queue | Historical report; current post-E03 state must be reproduced before changing behavior | Trace fixed-price and quote state machines end to end and add a regression only for a current failure |
-| Payment method trust, logos, fees, and recovery are unclear | Payment methods, wallet top-up, checkout, receipt | Financials, notification templates, support | Plausible current friction; money behavior remains server-authoritative | Improve explanation and recovery UI without inventing payment guarantees or methods |
-| Wallet top-up QR did not return cleanly | Wallet top-up, wallet, payment failed | Financials, Support Queue | Current-code verification required | Trace redirect/callback/deep-link handling and visible pending/failed/success states |
-| Cebu address could not be recognized | Address picker, saved addresses, booking form | Service Areas, Dispatch, booking detail | Real screenshot evidence; a prior matcher fix exists, so regression testing is required | Reproduce exact class of supported Cebu address against current matcher and browser fallback |
+| Payment method trust, logos, fees, and recovery are unclear | Payment methods, wallet top-up, checkout, receipt | Financials, notification templates, support | Confirmed launch blocker: the API constructs an undocumented hosted URL from a Payment Intent client key; the URL shape returns 404 | E14 records the required Checkout Session vs client-integration decision; do not change the live money path without test keys and approval |
+| Wallet top-up QR did not return cleanly | Wallet top-up, wallet, payment failed | Financials, Support Queue | Confirmed: production has 12 top-up intents and all 12 remain `awaiting_payment`; there is no return route or top-up status endpoint | Blocked under E14 pending an approved PayMongo flow and test-mode end-to-end validation |
+| Cebu address could not be recognized | Address picker, saved addresses, booking form | Service Areas, Dispatch, booking detail | Confirmed follow-on defects: shared-province matching misclassified Mandaue as Cebu City; coordinate-less saved addresses received fake Cebu coordinates; bookings were not coverage-gated | Bugs UX-050 through UX-054 now use configured areas, require exact coordinates/barangay, verify active coverage, classify overlapping areas by nearest center, and support browser geolocation; paid autocomplete remains D24 |
 | Duplicate requested bookings appeared after a failed payment attempt | Home, bookings, payment failed | Booking queue, Financials, Audit Log | E03 was resolved on 2026-06-19 after the report; do not reopen from old evidence alone | Keep as a regression scenario and verify current idempotency before any new fix |
 | Help, cancellation, dispute, and live-support entry points are hard to find | Help, Safety & Support, support inbox, booking detail | Support Queue, Disputes, Communications | Current information-architecture issue likely remains on shell-only screens | Put real support cases ahead of `mailto:` exits and keep booking/user context attached |
 | Provider checklist issue reporting is missing/broken | Provider job checklist | Booking 360, Support Queue | Hard stop E05: no approved endpoint or escalation behavior | Do not invent; preserve as an explicit decision/escalation item |
@@ -90,9 +90,12 @@ Behavior is covered by Bugs UX-043 through UX-049. Provider-profile regressions 
 
 ## Next verification order
 
-1. Customer wallet top-up and payment-result recovery.
-2. Cebu address recognition and browser address fallback.
-3. Customer Help, Safety & Support, and shared support case linkage.
-4. Provider navigation, Services, Schedule/Availability, Team, Certifications, and upload states.
+1. Customer Help, Safety & Support, and shared support case linkage.
+2. Provider navigation, Services, Schedule/Availability, Team, Certifications, and upload states.
+3. PayMongo hosted checkout and top-up recovery after E14 is decided and test keys are available.
+
+The Cebu address regression and safe browser fallback are covered by Bugs
+UX-050 through UX-054. D24 remains open only for third-party autocomplete and
+geocoding of a property other than the browser user's current location.
 5. Provider earnings/payout presentation without changing money behavior.
 6. Admin dashboard/reporting requests only after metric definitions and privacy boundaries exist.

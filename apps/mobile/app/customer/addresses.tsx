@@ -17,6 +17,9 @@ import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/co
 import ConfirmModal from '@/components/ConfirmModal';
 import type { ComponentType } from 'react';
 import { Home as HomeIcon, Briefcase, Pin, ChevronLeft, Check, MapPin } from '@/components/icons';
+import { useLocation } from '@/hooks/useLocation';
+import { checkCoverage } from '@/services/service-area.service';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -30,6 +33,8 @@ const LABEL_OPTIONS: Array<{ value: SavedAddress['label']; icon: IconComponent }
 export default function AddressesScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isDesktop } = useResponsive();
+  const { isAvailable: locationAvailable, isLoading: locationLoading, getCurrentLocation } = useLocation();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -40,6 +45,9 @@ export default function AddressesScreen(): React.ReactElement {
   const [province, setProvince] = useState('');
   const [notes, setNotes] = useState('');
   const [isDefault, setIsDefault] = useState(false);
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [locationMessage, setLocationMessage] = useState('');
 
   const { data: addresses = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['addresses'],
@@ -54,6 +62,9 @@ export default function AddressesScreen(): React.ReactElement {
     setProvince('');
     setNotes('');
     setIsDefault(false);
+    setLatitude(null);
+    setLongitude(null);
+    setLocationMessage('');
     setEditingId(null);
     setShowForm(false);
   }, []);
@@ -113,6 +124,8 @@ export default function AddressesScreen(): React.ReactElement {
       province: province.trim(),
       isDefault,
       notes: notes.trim() || undefined,
+      latitude: latitude ?? undefined,
+      longitude: longitude ?? undefined,
     };
 
     if (editingId) {
@@ -131,7 +144,39 @@ export default function AddressesScreen(): React.ReactElement {
     setProvince(addr.province);
     setNotes(addr.notes ?? '');
     setIsDefault(addr.isDefault);
+    setLatitude(addr.latitude);
+    setLongitude(addr.longitude);
+    setLocationMessage(
+      addr.latitude != null && addr.longitude != null
+        ? 'Exact service location is saved.'
+        : 'This address still needs an exact service location before it can be used for booking.',
+    );
     setShowForm(true);
+  };
+
+  const handleCaptureLocation = async (): Promise<void> => {
+    const coords = await getCurrentLocation();
+    if (!coords) return;
+    try {
+      const coverage = await checkCoverage(coords.latitude, coords.longitude);
+      if (!coverage.covered || !coverage.area) {
+        setLatitude(null);
+        setLongitude(null);
+        setLocationMessage(
+          coverage.nearestArea
+            ? `Outside current coverage. Nearest area: ${coverage.nearestArea.name}.`
+            : 'Outside current service coverage.',
+        );
+        return;
+      }
+      setLatitude(coords.latitude);
+      setLongitude(coords.longitude);
+      setCity(coverage.area.city);
+      setProvince(coverage.area.province);
+      setLocationMessage(`Location verified in ${coverage.area.name}.`);
+    } catch {
+      setLocationMessage('Could not verify this location. Check your connection and try again.');
+    }
   };
 
   // Phase 14 R5-complete — ConfirmModal replaces Alert.alert for delete-address.
@@ -182,6 +227,9 @@ export default function AddressesScreen(): React.ReactElement {
             <Text style={styles.addressArea}>
               {[item.barangay, item.city, item.province].filter(Boolean).join(', ')}
             </Text>
+            <Text style={item.latitude != null && item.longitude != null ? styles.locationReady : styles.locationNeeded}>
+              {item.latitude != null && item.longitude != null ? 'Location verified' : 'Exact location needed before booking'}
+            </Text>
             {item.notes ? <Text style={styles.addressNotes}>{item.notes}</Text> : null}
           </View>
         </View>
@@ -212,7 +260,11 @@ export default function AddressesScreen(): React.ReactElement {
           <Text style={styles.title}>{editingId ? 'Edit Address' : 'Add Address'}</Text>
         </View>
 
-        <ScrollView style={styles.formBody} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.formBody}
+          contentContainerStyle={isDesktop ? styles.desktopFormContent : undefined}
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={styles.formLabel}>Label</Text>
           <View style={styles.labelGrid}>
             {LABEL_OPTIONS.map((opt) => {
@@ -246,6 +298,7 @@ export default function AddressesScreen(): React.ReactElement {
             onChangeText={setFullAddress}
             multiline
             maxLength={500}
+            accessibilityLabel="Full address"
           />
 
           <Text style={styles.formLabel}>Barangay *</Text>
@@ -256,6 +309,7 @@ export default function AddressesScreen(): React.ReactElement {
             value={barangay}
             onChangeText={setBarangay}
             maxLength={100}
+            accessibilityLabel="Barangay"
           />
 
           <Text style={styles.formLabel}>City / Municipality *</Text>
@@ -266,6 +320,7 @@ export default function AddressesScreen(): React.ReactElement {
             value={city}
             onChangeText={setCity}
             maxLength={100}
+            accessibilityLabel="City or municipality"
           />
 
           <Text style={styles.formLabel}>Province *</Text>
@@ -276,7 +331,32 @@ export default function AddressesScreen(): React.ReactElement {
             value={province}
             onChangeText={setProvince}
             maxLength={100}
+            accessibilityLabel="Province"
           />
+
+          <Text style={styles.formLabel}>Exact Service Location</Text>
+          <Text style={styles.locationHelp}>
+            Required before this saved address can be selected for a booking. Capture it while you are at the service property.
+          </Text>
+          {locationAvailable ? (
+            <TouchableOpacity
+              style={styles.locationButton}
+              onPress={() => void handleCaptureLocation()}
+              disabled={locationLoading}
+              accessibilityRole="button"
+              accessibilityLabel="Use current location for saved address"
+            >
+              {locationLoading ? <ActivityIndicator size="small" color={colors.primary} /> : <MapPin size={18} color={colors.primary} />}
+              <Text style={styles.locationButtonText}>{locationLoading ? 'Checking location…' : 'Use Current Location'}</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.locationNeeded}>Location capture is not available on this device.</Text>
+          )}
+          {locationMessage ? (
+            <Text style={latitude != null && longitude != null ? styles.locationReady : styles.locationNeeded}>
+              {locationMessage}
+            </Text>
+          ) : null}
 
           <Text style={styles.formLabel}>Notes (optional)</Text>
           <TextInput
@@ -287,6 +367,7 @@ export default function AddressesScreen(): React.ReactElement {
             onChangeText={setNotes}
             multiline
             maxLength={500}
+            accessibilityLabel="Address notes"
           />
 
           <TouchableOpacity
@@ -340,7 +421,7 @@ export default function AddressesScreen(): React.ReactElement {
             data={addresses}
             keyExtractor={(item: SavedAddress) => item.id}
             renderItem={renderAddress}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, isDesktop && styles.desktopListContent]}
             showsVerticalScrollIndicator={false}
             onRefresh={async () => { await refetch(); }}
           />
@@ -435,6 +516,8 @@ const styles = StyleSheet.create({
   defaultBadgeText: { ...typography.caption, color: colors.primary, fontWeight: '700' },
   addressText: { ...typography.body, color: colors.text, marginBottom: 2 },
   addressArea: { ...typography.caption, color: colors.textSecondary },
+  locationReady: { ...typography.caption, color: colors.success, fontWeight: '600', marginTop: 4 },
+  locationNeeded: { ...typography.caption, color: colors.warningDark, fontWeight: '600', marginTop: 4 },
   addressNotes: { ...typography.caption, color: colors.textTertiary, fontStyle: 'italic', marginTop: 4 },
   addressActions: {
     flexDirection: 'row',
@@ -470,6 +553,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
   },
+  desktopFormContent: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingBottom: spacing.xl },
+  desktopListContent: { width: '100%', maxWidth: 960, alignSelf: 'center' },
   formLabel: {
     ...typography.body,
     fontWeight: '600',
@@ -506,6 +591,21 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     marginBottom: spacing.xs,
   },
+  locationHelp: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.sm },
+  locationButton: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  locationButtonText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
   defaultToggle: {
     flexDirection: 'row',
     alignItems: 'center',

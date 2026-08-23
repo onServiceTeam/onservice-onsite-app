@@ -23,6 +23,9 @@ jest.mock('../../src/services/settings.service', () => ({
   getSettingNumber: jest.fn().mockImplementation((k: string) =>
     Promise.resolve(k === 'service_fee_min' ? 2500 : k === 'service_fee_max' ? 50000 : 0)),
 }));
+jest.mock('../../src/services/service-area.service', () => ({
+  checkCoverage: jest.fn().mockResolvedValue({ covered: true, area: { id: 'area-1' } }),
+}));
 const businessMock = { resolveBookingContract: jest.fn() };
 jest.mock('../../src/services/business.service', () => businessMock);
 
@@ -32,6 +35,7 @@ const BASE = {
   customerId: 'c-1', categoryId: 'cat-1', subcategoryId: 'sub-1',
   bookingType: 'fixed_price' as const, description: 'Test booking',
   address: '123 Test St', barangay: 'B', city: 'C', province: 'P',
+  latitude: 10.3157, longitude: 123.8854,
   scheduledAt: '2026-04-15T08:00:00Z',
 };
 
