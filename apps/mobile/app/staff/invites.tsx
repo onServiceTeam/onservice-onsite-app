@@ -15,10 +15,12 @@ import { ChevronLeft, Mail } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export default function StaffInvitesScreen(): React.ReactElement {
   const router = useRouter();
   const applyStaffSession = useAuthStore((s) => s.applyStaffSession);
+  const { isPhone } = useResponsive();
 
   const { data: invites, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['myInvites'],
@@ -61,9 +63,13 @@ export default function StaffInvitesScreen(): React.ReactElement {
 
       <ScrollView
         style={styles.body}
-        contentContainerStyle={styles.bodyContent}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={colors.primary} colors={[colors.primary]} />}
       >
+        <View
+          style={[styles.inviteGrid, !isPhone && styles.inviteGridWide]}
+          accessibilityLabel={isPhone ? 'Team invitations' : 'Tablet and desktop team invitations workspace'}
+        >
         {isLoading && (
           <>
             <SkeletonCard />
@@ -86,7 +92,7 @@ export default function StaffInvitesScreen(): React.ReactElement {
         )}
 
         {list.map((invite: PendingInvite) => (
-          <View key={invite.staffId} style={styles.card}>
+          <View key={invite.staffId} style={[styles.card, !isPhone && styles.cardWide]}>
             <Text style={styles.provider}>{invite.providerBusinessName}</Text>
             <Text style={styles.role}>{invite.roleTitle || 'Team member'}</Text>
             <TouchableOpacity
@@ -103,6 +109,7 @@ export default function StaffInvitesScreen(): React.ReactElement {
             </TouchableOpacity>
           </View>
         ))}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -121,6 +128,9 @@ const styles = StyleSheet.create({
 
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  bodyContentWide: { width: '100%', maxWidth: 980, alignSelf: 'center', padding: spacing.xl },
+  inviteGrid: { width: '100%' },
+  inviteGridWide: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   errorBox: { backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: 12 },
   errorText: { color: colors.error, fontSize: 13, textAlign: 'center' },
 
@@ -132,6 +142,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface, borderRadius: borderRadius.lg,
     padding: spacing.base, marginBottom: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
+  cardWide: { flexBasis: '48%', flexGrow: 1, minWidth: 300, marginBottom: 0 },
   provider: { ...typography.body, fontWeight: '700', color: colors.text },
   role: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2, marginBottom: spacing.md },
   acceptBtn: {

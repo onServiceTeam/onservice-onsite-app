@@ -1301,3 +1301,25 @@ covering Manila-time cutoffs, weekends and bank holidays, fees, wallet holds,
 AML, concurrency, retries, destination verification, transfer rails, admin
 exceptions, reconciliation, and customer/provider notification behavior. See
 `.ai-coder/escalations/E15-provider-auto-payout-engine-missing-2026-08-24.md`.
+
+---
+
+## 39. Fixed provider-service price source is unresolved
+
+Providers can store a personal base price for a fixed service and the customer
+provider-profile screen can display it, but booking creation records the admin
+catalog price. A read-only production check on 2026-08-24 found that 15 of 20
+active fixed provider-service rows differ from the matching catalog price.
+
+This is a customer money-trust blocker even though the server remains protected
+from client-trusted prices: the visible amount can disagree with the amount the
+server puts on the booking. No production price, booking, wallet, or provider row
+was changed during the audit.
+
+E16 requires a product decision among catalog-authoritative fixed pricing,
+provider-authoritative fixed pricing, or an admin-configured price source per
+subcategory. Catalog-authoritative pricing is recommended for launch because it
+matches the existing booking/escrow source with the smallest money-path change.
+Provider Services pricing/edit behavior remains paused until that decision is
+recorded. See
+`.ai-coder/escalations/E16-provider-service-price-source-contradiction-2026-08-24.md`.

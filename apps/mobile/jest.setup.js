@@ -22,8 +22,8 @@ jest.mock('@/services/api', () => {
   // Minimal stand-in so utils/errors getErrorMessage's `instanceof ApiError`
   // check works in tests that drive real error paths.
   class ApiError extends Error {
-    constructor(message, status, body) {
-      super(message);
+    constructor(status, body, fallback) {
+      super(body?.error?.message ?? fallback);
       this.name = 'ApiError';
       this.status = status;
       this.body = body;

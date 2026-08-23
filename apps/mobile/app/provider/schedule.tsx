@@ -59,8 +59,10 @@ export default function ScheduleScreen(): React.ReactElement {
         if (existing) {
           return {
             dayOfWeek: existing.dayOfWeek,
-            startTime: existing.startTime,
-            endTime: existing.endTime,
+            // Bug UX-084 — tolerate legacy API responses containing seconds;
+            // the editable contract is the HH:MM value shown to providers.
+            startTime: existing.startTime.slice(0, 5),
+            endTime: existing.endTime.slice(0, 5),
             isAvailable: existing.isAvailable,
           };
         }
@@ -171,7 +173,7 @@ export default function ScheduleScreen(): React.ReactElement {
         refreshControl={<RefreshControl refreshing={scheduleRefetching} onRefresh={() => void refetchSchedule()} tintColor={colors.secondary} />}
       >
         <Text style={styles.description}>
-          Set your weekly availability. Customers will only see you as available during these hours.
+          Set your weekly availability. Use 24-hour HH:MM, such as 08:00 to 17:00. Customers will only see you as available during these hours.
         </Text>
 
         <View
@@ -206,6 +208,7 @@ export default function ScheduleScreen(): React.ReactElement {
                   placeholder="08:00"
                   placeholderTextColor={colors.textTertiary}
                   maxLength={5}
+                  accessibilityLabel={`${DAY_NAMES[day.dayOfWeek]} start time in HH:MM`}
                 />
                 <Text style={styles.timeSeparator}>to</Text>
                 <TextInput
@@ -215,6 +218,7 @@ export default function ScheduleScreen(): React.ReactElement {
                   placeholder="17:00"
                   placeholderTextColor={colors.textTertiary}
                   maxLength={5}
+                  accessibilityLabel={`${DAY_NAMES[day.dayOfWeek]} end time in HH:MM`}
                 />
               </View>
             )}

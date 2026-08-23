@@ -69,7 +69,15 @@ export const storage = {
 // ── Fetch wrapper ───────────────────────────────────────────────────────
 
 interface ApiSuccess<T> { success: true; data: T }
-interface ApiFailure { success: false; error: { message: string; statusCode?: number; code?: string } }
+interface ApiFailure {
+  success: false;
+  error: {
+    message: string;
+    statusCode?: number;
+    code?: string;
+    details?: Array<{ field: string; message: string }>;
+  };
+}
 export type ApiResponseEnvelope<T> = ApiSuccess<T> | ApiFailure;
 
 export class ApiError extends Error {

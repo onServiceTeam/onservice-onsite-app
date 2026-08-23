@@ -122,7 +122,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/(provider-tabs)/earnings.tsx` | MONEY | payment/API | W/HOLD | SOURCE/RENDER. Wide stat composition exists; financial labels need source/freshness review. |
 | `app/(provider-tabs)/provider-profile.tsx` | IDENTITY/DISCOVERY | provider API | S | SOURCE/RENDER. Stitch portfolio/profile hierarchy pending. |
 | `app/provider/account-management.tsx` | GOVERNANCE | data-management | S/HOLD | SOURCE/RENDER. Destructive action confirmation and wide layout pending. |
-| `app/provider/availability.tsx` | RETENTION/BOOKING | provider API | S | SOURCE/RENDER. Calendar blocks need wide composition. |
+| `app/provider/availability.tsx` | RETENTION/BOOKING | provider API | W | SOURCE/RENDER/WIDE via Bugs UX-083/085/087/088. Tablet/desktop separates current controls from date overrides; the form validates exact HH:MM windows before submit and server detail messages survive the generic envelope. Live wide evidence pending. |
 | `app/provider/calendar.tsx` | RETENTION/BOOKING | provider API | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bug UX-029. Month grid and selected-day schedule are side by side without overflow; live QA caught and fixed the panel flex-basis collapse. |
 | `app/provider/certifications.tsx` | IDENTITY/DISCOVERY | provider, upload | S/N | SOURCE/RENDER. Admin vetting linkage exists; browser upload state pending. |
 | `app/provider/chat/[id].tsx` | BOOKING/SUPPORT | messaging, socket, upload | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bugs UX-031/032. Customer/job context stays beside the thread, and support-record guidance is visible without overflow. |
@@ -146,17 +146,17 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/provider/quote-templates.tsx` | BOOKING/RETENTION | provider CRM | S | SOURCE/RENDER. Desktop template editor pending. |
 | `app/provider/reminders.tsx` | RETENTION | provider CRM | S | SOURCE/RENDER. Client/job linkage and wide list pending. |
 | `app/provider/reviews.tsx` | DISCOVERY/RETENTION | provider/review API | S | SOURCE/RENDER. Customer review/admin moderation linkage exists. |
-| `app/provider/schedule.tsx` | RETENTION/BOOKING | provider schedule | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bugs UX-022/077. Seven-day grid and desktop operations rail verified without overflow; a load failure locks editing instead of exposing fallback hours that could overwrite saved availability. |
+| `app/provider/schedule.tsx` | RETENTION/BOOKING | provider schedule | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bugs UX-022/077/084/086. Seven-day grid and desktop operations rail verified without overflow; a load failure locks editing, database TIME values serialize to editable HH:MM, and impossible/reversed server ranges are rejected. |
 | `app/provider/service-area.tsx` | DISCOVERY/BOOKING | provider/API | S | SOURCE/RENDER. Admin market controls counterpart exists. |
-| `app/provider/services.tsx` | DISCOVERY/BOOKING | catalog, provider | S | SOURCE/RENDER. Admin catalog eligibility linkage exists; wide editor pending. |
+| `app/provider/services.tsx` | DISCOVERY/BOOKING | catalog, provider | S/HOLD | SOURCE/RENDER. E16 proves fixed provider-price display conflicts with the catalog price persisted on bookings; service price/edit behavior is paused pending the price-source decision. Wide editor remains pending. |
 | `app/provider/settings.tsx` | GOVERNANCE | push service | S | SOURCE/RENDER. Notification/account routes need grouped wide settings. |
 | `app/provider/skills.tsx` | DISCOVERY | local/service linkage | S | SOURCE/RENDER. Must stay consistent with Services and admin Catalog. |
 | `app/provider/standards.tsx` | GOVERNANCE | canonical content | S/HOLD | SOURCE/RENDER. Policy language cannot be invented from Stitch. |
 | `app/provider/suki-customers.tsx` | RETENTION | Suki service | S | SOURCE/RENDER. Customer Suki counterpart linked; wide list pending. |
-| `app/provider/team.tsx` | IDENTITY/BOOKING | provider staff | S | SOURCE/RENDER. Staff assignment/admin provider-team review linkage exists. |
+| `app/provider/team.tsx` | IDENTITY/BOOKING | provider staff | W | SOURCE/RENDER/WIDE via Bugs UX-080/081/082/089. Provider invites normalize and bound PH phone/email/role values on both client and route, explain in-app discovery honestly, and split invite/member work on wide screens. Staff assignment and admin review linkage remains intact. |
 | `app/provider/tier-progression.tsx` | RETENTION/DISCOVERY | provider API | S | SOURCE/RENDER. Tier rules and admin provider actions linked. |
 | `app/provider/withdraw.tsx` | MONEY | payment/API | S/HOLD | SOURCE/RENDER via Bug UX-074. Provider-only manual withdrawal now prefills saved method/account while keeping them editable; admin Payouts counterpart is linked. Wide layout verification remains. |
-| `app/staff/invites.tsx` | IDENTITY/BOOKING | provider staff | S | SOURCE/RENDER. Scoped provider-staff role checks exist. |
+| `app/staff/invites.tsx` | IDENTITY/BOOKING | provider staff | W | SOURCE/RENDER/WIDE via Bugs UX-089/090. D23's customer-profile and desktop-rail discovery path is restored before role conversion; acceptance remains contact-matched and the wide invitation grid is bounded. |
 | `app/staff/jobs.tsx` | BOOKING | provider staff | S | SOURCE/RENDER. Desktop scoped job list pending. |
 | `app/staff/job/[id].tsx` | BOOKING/SUPPORT | booking, provider | S | SOURCE/RENDER. Must not expose provider-owner controls. |
 | `app/support/index.tsx` | SUPPORT | support service | W | SOURCE/RENDER/WIDE via Bug UX-062. Shared customer/provider inbox uses a bounded desktop workspace and two-column case grid. |

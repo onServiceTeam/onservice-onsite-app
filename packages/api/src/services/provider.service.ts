@@ -491,8 +491,11 @@ export function formatScheduleSlot(s: AvailabilityRow): Record<string, unknown> 
   return {
     id: s.id,
     dayOfWeek: s.day_of_week,
-    startTime: s.start_time,
-    endTime: s.end_time,
+    // Bug UX-084 — PostgreSQL TIME values arrive as HH:MM:SS. The mobile
+    // editors accept and submit HH:MM, so returning the raw DB string made a
+    // previously disabled day fail validation as soon as it was re-enabled.
+    startTime: s.start_time.slice(0, 5),
+    endTime: s.end_time.slice(0, 5),
     isAvailable: s.is_available,
   };
 }
@@ -760,8 +763,8 @@ export function formatOverride(o: OverrideRow): Record<string, unknown> {
     id: o.id,
     overrideDate: o.override_date,
     isAvailable: o.is_available,
-    startTime: o.start_time,
-    endTime: o.end_time,
+    startTime: o.start_time?.slice(0, 5) ?? null,
+    endTime: o.end_time?.slice(0, 5) ?? null,
     reason: o.reason,
     createdAt: o.created_at,
   };

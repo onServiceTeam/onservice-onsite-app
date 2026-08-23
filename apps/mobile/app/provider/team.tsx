@@ -16,6 +16,31 @@ import { ChevronLeft, Plus, Trash2, Star, Phone, Mail, Users } from '@/component
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
+import { useResponsive } from '@/hooks/useResponsive';
+
+const PH_MOBILE_E164 = /^\+639\d{9}$/;
+const BASIC_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function normalizeTeamInvitePhone(raw: string): string {
+  const compact = raw.trim().replace(/[\s().-]+/g, '');
+  if (/^09\d{9}$/.test(compact)) return `+63${compact.slice(1)}`;
+  if (/^639\d{9}$/.test(compact)) return `+${compact}`;
+  return compact;
+}
+
+export function validateTeamInvite(phone: string, email: string, roleTitle: string): string | null {
+  const trimmedPhone = phone.trim();
+  const trimmedEmail = email.trim();
+  if (!trimmedPhone && !trimmedEmail) return 'Enter a phone number or email to invite a team member.';
+  if (trimmedPhone && !PH_MOBILE_E164.test(normalizeTeamInvitePhone(trimmedPhone))) {
+    return 'Enter a valid PH mobile number, such as +63 917 123 4567.';
+  }
+  if (trimmedEmail && (trimmedEmail.length > 254 || !BASIC_EMAIL.test(trimmedEmail))) {
+    return 'Enter a valid email address.';
+  }
+  if (roleTitle.trim().length > 100) return 'Role must be 100 characters or less.';
+  return null;
+}
 
 const STATUS_COLOR: Record<StaffStatus, string> = {
   invited: colors.info,
@@ -29,6 +54,7 @@ const STATUS_COLOR: Record<StaffStatus, string> = {
 export default function ProviderTeamScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [roleTitle, setRoleTitle] = useState('');
@@ -40,15 +66,14 @@ export default function ProviderTeamScreen(): React.ReactElement {
   });
 
   const invite = useMutation({
-    mutationFn: () => inviteStaff({
-      phone: phone.trim() || undefined,
-      email: email.trim() || undefined,
-      roleTitle: roleTitle.trim() || undefined,
-    }),
+    mutationFn: inviteStaff,
     onSuccess: () => {
       setPhone(''); setEmail(''); setRoleTitle('');
       void queryClient.invalidateQueries({ queryKey: ['providerStaff'] });
-      showToast('Invite sent. Your team member will be reviewed before they can be assigned jobs.', 'success');
+      showToast(
+        'Invitation created. Ask them to sign in with that phone or email and open Team Invitations. onService reviews them before job assignment.',
+        'success',
+      );
     },
     onError: (e) => showToast(getErrorMessage(e, 'Could not send invite. Please try again.'), 'error'),
   });
@@ -80,11 +105,16 @@ export default function ProviderTeamScreen(): React.ReactElement {
   }
 
   function submitInvite(): void {
-    if (!phone.trim() && !email.trim()) {
-      showToast('Enter a phone number or email to invite a team member.', 'warning');
+    const validationError = validateTeamInvite(phone, email, roleTitle);
+    if (validationError) {
+      showToast(validationError, 'warning');
       return;
     }
-    invite.mutate();
+    invite.mutate({
+      phone: phone.trim() ? normalizeTeamInvitePhone(phone) : undefined,
+      email: email.trim() ? email.trim().toLowerCase() : undefined,
+      roleTitle: roleTitle.trim() || undefined,
+    });
   }
 
   const members = (staff ?? []).filter((m) => m.status !== 'deactivated');
@@ -101,7 +131,7 @@ export default function ProviderTeamScreen(): React.ReactElement {
 
       <ScrollView
         style={styles.body}
-        contentContainerStyle={styles.bodyContent}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={colors.primary} colors={[colors.primary]} />}
       >
         <Text style={styles.intro}>
@@ -109,9 +139,15 @@ export default function ProviderTeamScreen(): React.ReactElement {
           assigned jobs. Their ratings count toward your account.
         </Text>
 
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={isPhone ? 'Team management' : 'Tablet and desktop team management workspace'}
+        >
         {/* Invite form */}
+        <View style={styles.inviteColumn}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Invite a team member</Text>
+          <Text style={styles.cardHint}>Use a PH mobile number, an email address, or both.</Text>
           <Text style={styles.label}>Phone</Text>
           <TextInput
             style={styles.input}
@@ -120,6 +156,9 @@ export default function ProviderTeamScreen(): React.ReactElement {
             placeholder="+63 9XX XXX XXXX"
             placeholderTextColor={colors.textTertiary}
             keyboardType="phone-pad"
+            autoComplete="tel"
+            maxLength={30}
+            accessibilityLabel="Team member phone number"
           />
           <Text style={styles.label}>or Email</Text>
           <TextInput
@@ -130,6 +169,9 @@ export default function ProviderTeamScreen(): React.ReactElement {
             placeholderTextColor={colors.textTertiary}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoComplete="email"
+            maxLength={254}
+            accessibilityLabel="Team member email address"
           />
           <Text style={styles.label}>Role (optional)</Text>
           <TextInput
@@ -138,6 +180,8 @@ export default function ProviderTeamScreen(): React.ReactElement {
             onChangeText={setRoleTitle}
             placeholder="e.g. Aircon technician"
             placeholderTextColor={colors.textTertiary}
+            maxLength={100}
+            accessibilityLabel="Team member role"
           />
           <TouchableOpacity
             style={[styles.inviteBtn, invite.isPending && styles.btnDisabled]}
@@ -155,7 +199,9 @@ export default function ProviderTeamScreen(): React.ReactElement {
             )}
           </TouchableOpacity>
         </View>
+        </View>
 
+        <View style={styles.membersColumn}>
         <Text style={styles.sectionLabel}>Team members ({members.length})</Text>
 
         {isLoading && (
@@ -229,6 +275,8 @@ export default function ProviderTeamScreen(): React.ReactElement {
             </View>
           </View>
         ))}
+        </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -247,13 +295,19 @@ const styles = StyleSheet.create({
 
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  bodyContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.xl },
   intro: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.base },
+  workspace: { width: '100%' },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  inviteColumn: { flex: 1, minWidth: 280 },
+  membersColumn: { flex: 1.35, minWidth: 320 },
 
   card: {
     backgroundColor: colors.surface, borderRadius: borderRadius.lg,
     padding: spacing.base, marginBottom: spacing.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
   cardTitle: { ...typography.body, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
+  cardHint: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.xs },
   label: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs, marginTop: spacing.sm },
   input: {
     borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.sm,

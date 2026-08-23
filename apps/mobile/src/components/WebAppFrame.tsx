@@ -91,6 +91,12 @@ const CUSTOMER_NAV: DesktopNavItem[] = [
     matches: ['/customer/suki-pros'],
   },
   {
+    label: 'Team Invitations',
+    route: Routes.STAFF.INVITES,
+    Icon: UserCheck,
+    matches: ['/staff/invites'],
+  },
+  {
     label: 'Support',
     route: Routes.SUPPORT.INBOX,
     Icon: HelpCircle,

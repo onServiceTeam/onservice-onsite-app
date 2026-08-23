@@ -30,10 +30,12 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Calendar, ClipboardList, X } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
+import { useResponsive } from '@/hooks/useResponsive';
 export default function AvailabilitySettingsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [overrideDate, setOverrideDate] = useState('');
@@ -124,6 +126,15 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
       showToast('Custom hours need both start and end time (HH:MM).', 'warning');
       return;
     }
+    const validTime = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (isCustomAvailable && !validTime.test(startTime.trim())) {
+      showToast('Enter a valid start time in HH:MM, such as 08:00 for 8:00 AM.', 'warning');
+      return;
+    }
+    if (isCustomAvailable && !validTime.test(endTime.trim())) {
+      showToast('Enter a valid end time in HH:MM, such as 17:00 for 5:00 PM.', 'warning');
+      return;
+    }
     if (isCustomAvailable && startTime.trim() >= endTime.trim()) {
       showToast('End time must be later than start time.', 'warning');
       return;
@@ -183,9 +194,14 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
         <Text style={styles.title}>Availability Settings</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={statusRefetching || overridesRefetching} onRefresh={() => void invalidateAll()} tintColor={colors.secondary} />}
       >
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={isPhone ? 'Availability settings' : 'Tablet and desktop availability workspace'}
+        >
+        <View style={styles.controlColumn}>
         <View style={styles.toggleCard}>
           <View style={styles.toggleInfo}>
             <Text style={styles.toggleTitle}>Available Now</Text>
@@ -202,6 +218,21 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
           />
         </View>
 
+        <TouchableOpacity
+          style={styles.scheduleLink}
+          onPress={(): void => { router.push(Routes.PROVIDER.SCHEDULE); }}
+          accessibilityRole="button"
+        >
+          <ClipboardList size={18} color={colors.primary} />
+          <View style={styles.scheduleLinkCopy}>
+            <Text style={styles.scheduleLinkTitle}>Weekly schedule</Text>
+            <Text style={styles.scheduleLinkText}>Set your normal working days and hours</Text>
+          </View>
+          <Text style={styles.scheduleLinkArrow}>→</Text>
+        </TouchableOpacity>
+        </View>
+
+        <View style={styles.overrideColumn}>
         <SectionHeader
           title="Date Overrides"
           actionLabel="+ Add"
@@ -221,7 +252,9 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
               placeholder="Date (YYYY-MM-DD)"
               placeholderTextColor={colors.textTertiary}
               maxLength={10}
+              accessibilityLabel="Override date in YYYY-MM-DD format"
             />
+            <Text style={styles.fieldHelp}>Example: 2026-08-31</Text>
 
             <View style={styles.typeRow}>
               <TouchableOpacity
@@ -237,7 +270,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
                 onPress={(): void => { setOverrideType('custom'); }}
               >
                 <Text style={[styles.typeBtnText, overrideType === 'custom' && styles.typeBtnTextActive]}>
-                  Custom Hours
+                  Available Hours for This Date
                 </Text>
               </TouchableOpacity>
             </View>
@@ -251,6 +284,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
                   placeholder="Start (HH:MM)"
                   placeholderTextColor={colors.textTertiary}
                   maxLength={5}
+                  accessibilityLabel="Override start time in HH:MM"
                 />
                 <Text style={styles.timeSep}>to</Text>
                 <TextInput
@@ -260,8 +294,12 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
                   placeholder="End (HH:MM)"
                   placeholderTextColor={colors.textTertiary}
                   maxLength={5}
+                  accessibilityLabel="Override end time in HH:MM"
                 />
               </View>
+            )}
+            {overrideType === 'custom' && (
+              <Text style={styles.fieldHelp}>Use 24-hour HH:MM, for example 08:00 to 17:00.</Text>
             )}
 
             {/* BUG-PHASE150-01 fix — pre-fix overrideReason had no
@@ -275,6 +313,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
               placeholder="Reason (optional, e.g. Vacation, Family event)"
               placeholderTextColor={colors.textTertiary}
               maxLength={500}
+              accessibilityLabel="Override reason"
             />
 
             <View style={styles.formActions}>
@@ -316,14 +355,8 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
             </View>
           ))
         )}
-
-        <TouchableOpacity
-          style={styles.scheduleLink}
-          onPress={(): void => { router.push(Routes.PROVIDER.SCHEDULE); }}
-        >
-          <ClipboardList size={16} color={colors.primary} />
-          <Text style={styles.scheduleLinkText}> Edit Weekly Schedule →</Text>
-        </TouchableOpacity>
+        </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -357,6 +390,11 @@ const styles = StyleSheet.create({
 
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 100 },
+  scrollContentWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl },
+  workspace: { width: '100%' },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  controlColumn: { flex: 0.85, minWidth: 250 },
+  overrideColumn: { flex: 1.5, minWidth: 360 },
 
   toggleCard: {
     backgroundColor: colors.surface,
@@ -411,6 +449,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
   },
+  fieldHelp: { ...typography.caption, color: colors.textTertiary, marginTop: -spacing.xs },
   typeRow: { flexDirection: 'row', gap: spacing.sm },
   typeBtn: {
     flex: 1,
@@ -458,13 +497,17 @@ const styles = StyleSheet.create({
   removeBtnText: { fontSize: 18, color: colors.error, fontWeight: '700' },
 
   scheduleLink: {
-    marginTop: spacing.lg,
-    paddingVertical: spacing.base,
-    borderTopWidth: 1,
-    borderTopColor: colors.divider,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
     alignItems: 'center',
     flexDirection: 'row' as const,
-    justifyContent: 'center' as const,
+    minHeight: 64,
   },
-  scheduleLinkText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
+  scheduleLinkCopy: { flex: 1, marginHorizontal: spacing.sm },
+  scheduleLinkTitle: { ...typography.body, color: colors.text, fontWeight: '700' },
+  scheduleLinkText: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  scheduleLinkArrow: { ...typography.h3, color: colors.primary },
 });

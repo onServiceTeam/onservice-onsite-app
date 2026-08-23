@@ -1,7 +1,14 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
-import { providerApplicationSchema, updateProfileSchema, addServiceSchema, setScheduleSchema, availabilityOverrideSchema } from '../validators/provider.validators';
+import {
+  providerApplicationSchema,
+  updateProfileSchema,
+  addServiceSchema,
+  setScheduleSchema,
+  availabilityOverrideSchema,
+  providerStaffInviteSchema,
+} from '../validators/provider.validators';
 import * as providerService from '../services/provider.service';
 import * as providerCrmService from '../services/provider-crm.service';
 import { addClientNoteSchema, addReminderSchema, createTemplateSchema } from '../validators/provider-crm.validators';
@@ -1016,22 +1023,17 @@ router.get(
 router.post(
   '/staff',
   authMiddleware,
+  validationMiddleware(providerStaffInviteSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireProvider(req);
       const provider = await providerService.getProviderByUserId(req.user!.userId);
-      const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : undefined;
-      const email = typeof req.body?.email === 'string' ? req.body.email.trim() : undefined;
-      const roleTitle = typeof req.body?.roleTitle === 'string' ? req.body.roleTitle.trim() : undefined;
-      if (!phone && !email) {
-        throw createAppError('Enter a phone number or email to invite a team member.', 400);
-      }
       const staff = await providerStaffService.createStaffInvite({
         providerId: provider.id,
         invitedByUserId: req.user!.userId,
-        roleTitle: roleTitle || undefined,
-        phone: phone || undefined,
-        email: email || undefined,
+        roleTitle: req.body.roleTitle,
+        phone: req.body.phone,
+        email: req.body.email,
       });
       res.status(201).json({ success: true, data: providerStaffService.formatProviderStaff(staff) });
     } catch (error) {

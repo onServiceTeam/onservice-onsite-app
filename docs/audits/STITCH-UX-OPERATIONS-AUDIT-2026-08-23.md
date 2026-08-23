@@ -271,7 +271,7 @@ Admin findings:
 10. Added target validation and transactional assignment audit logging.
 11. Preserved resolution notes for both resolved and closed cases.
 12. Replaced booking-provider and dispute-admin UUID entry with named, constrained pickers.
-13. Removed the customer-profile link that incorrectly exposed a provider-staff invitation route.
+13. Restored D23's customer-profile provider-staff invitation discovery route after tracing the full pre-role-conversion flow; its later removal had made acceptance direct-URL-only.
 14. Removed unsupported native-driver requests from every shared browser animation component.
 15. Added rendered-output and route/service behavior tests for each claimed change.
 16. Added the explicit 103-screen, 8-layout, and 35-admin-page linkage ledger; shell-only responsive coverage is no longer counted as per-screen completion.
@@ -301,20 +301,24 @@ Admin findings:
 40. Caught a production-artifact cache mismatch in live browser QA, rebuilt with a cleared Metro cache, verified the controlled demo entry in the compiled and live bundle, and made `--clear` mandatory in both deployment guides.
 41. Corrected quote-priced provider cards so a legacy provider base price cannot appear as the booking price; Bug UX-049 proves the card says Get Quote and starts the quote-request path.
 42. Closed the tester-backed support linkage gap across customer, provider, and admin surfaces with contextual entry, secure booking ownership, correct persona links, searchable case context, audited agent intake, and responsive shared support screens.
+43. Documented E16 after proving from code and production counts that fixed provider prices can differ from the catalog amount booking creation records; no price or production money row was changed.
+44. Repaired provider team invitation validation and contact matching through Bugs UX-080/081, including honest in-app delivery copy and field-specific errors.
+45. Reconnected customer invite discovery and added bounded team/invitation workspaces for tablet and desktop through Bugs UX-082/089/090.
+46. Normalized database schedule/override times to editable HH:MM, tightened server time-window validation, and rebuilt Availability as a wide controls/overrides workspace through Bugs UX-083-088.
 
 ## Verification record for this batch
 
 - Admin TypeScript: passed.
 - Mobile TypeScript: passed.
 - API TypeScript: passed.
-- Mobile suite after the service-scope batch: 192 suites passed, 718 tests passed, 88 explicit todos.
+- Mobile suite after the provider team/availability batch: 212 suites passed, 750 tests passed, 84 explicit todos.
 - Admin suite after the service-scope batch: 63 files passed, 1 skipped, 176 tests passed, 3 explicit todos.
-- API suite after the service-scope batch: 286 suites passed, 3020 tests passed.
+- API suite after the provider team/availability batch: 302 suites passed, 3036 tests passed.
 - Admin and mobile lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
 - Mobile production web export: passed with `EXPO_OS=web` and the production same-origin API URL.
-- Production baseline entering the service-scope batch: application source and assets were aligned through Tester Feedback commit `257ce394eb61eeb978ecf980cad742208d4e8f19`, including migration 147 and healthy API/admin/mobile services. Each later checkpoint must still pass GitHub CI before the source and affected production assets are advanced together.
-- Production browser smoke: admin login rendered the Stitch operations workspace live at 1280 with 44 px controls and no overflow. Provider dashboard and Schedule were verified at 820/1280. Provider calendar, job detail, and chat now render their paired workspaces at 820/1280 with no horizontal overflow. Live QA caught and fixed an initial one-pixel calendar detail collapse before closeout. Customer tracker/chat still need an authenticated customer browser session; their rendered behavior tests pass.
+- Production baseline entering the provider team/availability batch: local, GitHub, and the server were aligned at provider navigation commit `fa2e1c042090a5c50b7fbf3d016f95f14580b19c`, with healthy API/admin/mobile services. This batch must pass GitHub CI before the source and affected production assets advance together.
+- Browser smoke: admin login rendered the Stitch operations workspace live at 1280 with 44 px controls and no overflow. Provider dashboard and Schedule were verified at 820/1280. Provider calendar, job detail, chat, Team, and Availability render their paired workspaces without horizontal overflow. Team and Availability were inspected from the production-config export with populated controlled data at 768/1366 and no page or console errors. Customer tracker/chat still need an authenticated customer browser session; their rendered behavior tests pass.
 - Production asset and service smoke: admin and mobile `index.html` SHA-256 hashes matched the local production builds; the public config endpoint returned `#003D9B`, `#0052CC`, and `#FE8A00`; every onService compose service remained healthy.
 - Local visual regression record: all 21 Catalog states replayed cleanly after the endpoint interception was corrected. Populated scope queue, customer preview, and ordinary-admin read-only images were inspected directly at 1280 pixels. The admin baseline inventory is now 387 PNGs.
 

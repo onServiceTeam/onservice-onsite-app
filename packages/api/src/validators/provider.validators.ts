@@ -88,6 +88,55 @@ export const addServiceSchema = z.object({
   basePrice: z.number().int().positive().optional(),
 });
 
+function blankStringToUndefined(value: unknown): unknown {
+  if (typeof value === 'string' && value.trim().length === 0) return undefined;
+  return value;
+}
+
+function normalizeStaffInvitePhone(value: string): string {
+  const compact = value.trim().replace(/[\s().-]+/g, '');
+  if (/^09\d{9}$/.test(compact)) return `+63${compact.slice(1)}`;
+  if (/^639\d{9}$/.test(compact)) return `+${compact}`;
+  return compact;
+}
+
+// Bug UX-080 — provider staff invites previously bypassed validation entirely.
+// Invalid contact values reached the database, and strings longer than the
+// provider_staff VARCHAR columns surfaced as internal errors. Accept the two PH
+// phone shapes the UI teaches, normalize them to E.164, cap every field to its
+// real storage contract, and reject unknown payload keys.
+export const providerStaffInviteSchema = z.object({
+  phone: z.preprocess(
+    blankStringToUndefined,
+    z.string()
+      .max(30, 'Phone number is too long')
+      .transform(normalizeStaffInvitePhone)
+      .refine((value) => /^\+639\d{9}$/.test(value), 'Enter a valid PH mobile number, such as +63 917 123 4567')
+      .optional(),
+  ),
+  email: z.preprocess(
+    blankStringToUndefined,
+    z.string()
+      .trim()
+      .max(254, 'Email must be 254 characters or less')
+      .email('Enter a valid email address')
+      .transform((value) => value.toLowerCase())
+      .optional(),
+  ),
+  roleTitle: z.preprocess(
+    blankStringToUndefined,
+    z.string().trim().max(100, 'Role must be 100 characters or less').optional(),
+  ),
+}).strict().superRefine((data, ctx) => {
+  if (!data.phone && !data.email) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['phone'],
+      message: 'Enter a phone number or email to invite a team member',
+    });
+  }
+});
+
 // MED-N99 fix — POST /providers/me/availability/overrides used to do
 // only manual presence-checks on overrideDate + isAvailable, with no
 // validation of the date format, the start/end time format, the
@@ -107,7 +156,12 @@ export const availabilityOverrideSchema = z.object({
   startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'startTime must be a valid 24h HH:MM').optional(),
   endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'endTime must be a valid 24h HH:MM').optional(),
   reason: z.string().max(500, 'reason must be 500 characters or less').optional(),
-})
+}).strict()
+  .refine((data) => {
+    // An available override represents a bounded custom-hours window. Without
+    // both values the calendar would claim availability without defining when.
+    return !data.isAvailable || Boolean(data.startTime && data.endTime);
+  }, { message: 'Available overrides need both a start time and an end time', path: ['startTime'] })
   .refine((data) => {
     // If both times provided, end must be after start (string compare
     // works because the format is fixed-width zero-padded HH:MM).
@@ -139,12 +193,15 @@ export const setScheduleSchema = z.object({
   schedule: z.array(
     z.object({
       dayOfWeek: z.number().int().min(0).max(6),
-      startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be in HH:MM format'),
-      endTime: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be in HH:MM format'),
+      startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Start time must be a valid 24-hour time in HH:MM format'),
+      endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'End time must be a valid 24-hour time in HH:MM format'),
       isAvailable: z.boolean(),
-    }),
+    }).strict().refine(
+      (slot) => !slot.isAvailable || slot.endTime > slot.startTime,
+      { message: 'End time must be later than start time', path: ['endTime'] },
+    ),
   ).min(1, 'At least one schedule slot is required').max(7),
-}).refine(
+}).strict().refine(
   (data) => {
     const days = data.schedule.map((s) => s.dayOfWeek);
     return new Set(days).size === days.length;

@@ -27,15 +27,24 @@ interface AxiosShapedError {
  * Extract a user-facing error message from any thrown value.
  *
  * Resolution order:
- *   1. ApiError.body.error.message (canonical post-fetch-migration)
- *   2. ApiError.message (constructor super; same as #1 when populated)
- *   3. err.response.data.error.message (legacy axios shape — kept
+ *   1. First field-specific validation detail, when present
+ *   2. ApiError.body.error.message (canonical post-fetch-migration)
+ *   3. ApiError.message (constructor super; same as #2 when populated)
+ *   4. err.response.data.error.message (legacy axios shape — kept
  *      for back-compat in case any caller still wraps with axios)
- *   4. err.message (any Error subclass)
- *   5. fallback
+ *   5. err.message (any Error subclass)
+ *   6. fallback
  */
 export function getErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
+    // Bug UX-083 — Zod responses carry the useful reason in details while the
+    // envelope message is intentionally generic. Showing only the envelope
+    // left providers with “Validation failed” even when the server explained
+    // the exact date, time, price, or account problem.
+    const detail = err.body?.error?.details?.find(
+      (item) => typeof item.message === 'string' && item.message.trim().length > 0,
+    );
+    if (detail) return detail.message;
     return err.body?.error?.message ?? err.message ?? fallback;
   }
   if (err && typeof err === 'object') {

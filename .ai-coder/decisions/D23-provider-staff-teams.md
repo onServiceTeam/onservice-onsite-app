@@ -1,6 +1,6 @@
 # D23 — Provider staff / team members
 
-**Status:** Decided (Ken, 2026-06-04). Built end-to-end on topic branch `feat/provider-staff` (not yet merged/deployed — awaiting Ken's cutover call).
+**Status:** Decided (Ken, 2026-06-04). Built end to end, merged to `master`, and deployed. Invite discovery/contact validation repaired 2026-08-24.
 **Owner:** AI coder, reviewed by Ken.
 
 ### Build progress (2026-06-04)
@@ -32,11 +32,8 @@ and fixed during integrity checks: a singular-vs-plural API path mismatch in the
 mobile staff calls, and `u.full_name` (a nonexistent column) in two queries — both
 verified against the live schema.
 
-### Not yet done (intentional, post-merge ops)
+### Remaining intentional limits
 
-- The branch is **not merged to master and not deployed.** Merging means applying
-  migration 131 + rebuilding the API image + redeploying admin and mobile-web —
-  recommend one clean cutover (Ken's call).
 - Staff **on-site job execution — DONE.** A member taps an assigned job and drives
   the on-site steps (start navigation → en route → arrived [GPS-checked] → start
   service). Authorization extended so the assigned approved performer is a
@@ -46,6 +43,13 @@ verified against the live schema.
   complete would need those auth surfaces extended too (a clean future step).
 - Invite delivery is in-app discovery (the invited person finds it under their
   profile via phone/email match). SMS/email invite links are a future enhancement.
+
+The 2026-08-24 audit found that a later customer-profile test had incorrectly
+removed D23's decided discovery entry, making the acceptance flow reachable only
+through a direct URL. The customer profile and desktop customer rail now expose
+Team Invitations again. Provider-created invites also normalize PH phone/email
+contacts to the same values used by account matching and no longer claim that an
+SMS/email was sent.
 
 ## The ask (Ken, 2026-06-04)
 

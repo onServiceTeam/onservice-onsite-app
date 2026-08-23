@@ -30,6 +30,7 @@ import {
   HelpCircle,
   FileText,
   KeyRound,
+  UserCheck,
   ChevronRight,
 } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -119,6 +120,15 @@ export default function ProfileScreen(): React.ReactElement {
       label: 'Notification Settings',
       icon: Bell,
       onPress: () => router.push(Routes.CUSTOMER.SETTINGS),
+    },
+    {
+      // D23 + Bug UX-089 — an invite is matched to an existing customer
+      // account before accepting it changes that account to provider_staff.
+      // Keep this discovery link in the customer profile so acceptance is not
+      // a circular, direct-URL-only flow.
+      label: 'Team Invitations',
+      icon: UserCheck,
+      onPress: () => router.push(Routes.STAFF.INVITES),
     },
     { label: 'Help & Support', icon: HelpCircle, onPress: () => router.push(Routes.CUSTOMER.HELP) },
     { label: 'Terms & Privacy', icon: FileText, onPress: () => router.push(Routes.CUSTOMER.TERMS) },
