@@ -43,6 +43,22 @@ const ADMIN_ID = '11111111-1111-1111-1111-111111111111';
 const CATEGORY_ID = '22222222-2222-2222-2222-222222222222';
 const SUBCATEGORY_ID = '33333333-3333-3333-3333-333333333333';
 const ADDON_ID = '44444444-4444-4444-4444-444444444444';
+const SERVICE_SCOPE = 'Includes the agreed service work and important customer-facing limits.';
+
+function existingSubcategory(over: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    description: SERVICE_SCOPE,
+    is_active: true,
+    base_price: 0,
+    min_price: null,
+    max_price: null,
+    pricing_type: 'fixed',
+    unit_label: null,
+    unit_price: null,
+    hourly_rate: null,
+    ...over,
+  };
+}
 
 beforeEach(resetDbMock);
 
@@ -54,7 +70,7 @@ describe('Bug 237 — catalog mutations transactional', () => {
           id: CATEGORY_ID,
           name: 'Cleaning',
           slug: 'cleaning',
-          description: '',
+          description: SERVICE_SCOPE,
           icon_url: null,
           display_order: 0,
           is_active: true,
@@ -134,7 +150,7 @@ describe('Bug 237 — catalog mutations transactional', () => {
         { match: /INSERT INTO admin_actions/, rows: [{ id: 'audit-sub' }], rowCount: 1 },
       ]));
 
-      await createSubcategory({ categoryId: CATEGORY_ID, name: 'Deep clean', basePrice: 50000 }, ADMIN_ID);
+      await createSubcategory({ categoryId: CATEGORY_ID, name: 'Deep clean', description: SERVICE_SCOPE, basePrice: 50000 }, ADMIN_ID);
 
       const txCalls = getTxCalls();
       const audit = txCalls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
@@ -144,9 +160,8 @@ describe('Bug 237 — catalog mutations transactional', () => {
 
   describe('updateSubcategory', () => {
     it('updates row + writes audit inside one transaction', async () => {
-      // The price-bounds check pre-fetches the existing row (top-level query).
       setTopQueryImpl(makeRouter([
-        { match: /SELECT base_price, min_price, max_price/, rows: [{ base_price: 0, min_price: null, max_price: null }], rowCount: 1 },
+        { match: /SELECT description, is_active, base_price/, rows: [existingSubcategory()], rowCount: 1 },
       ]));
       setTxQueryImpl(makeRouter([
         { match: /UPDATE service_subcategories/, rows: [{ id: SUBCATEGORY_ID, category_id: CATEGORY_ID, name: 'X', slug: 'x', description: '', pricing_type: 'fixed', base_price: 0, min_price: null, max_price: null, estimated_duration_minutes: null, display_order: 0, is_active: true, created_at: new Date(), updated_at: new Date() }], rowCount: 1 },
@@ -160,7 +175,7 @@ describe('Bug 237 — catalog mutations transactional', () => {
 
     it('rolls back when audit insert throws', async () => {
       setTopQueryImpl(makeRouter([
-        { match: /SELECT base_price, min_price, max_price/, rows: [{ base_price: 0, min_price: null, max_price: null }], rowCount: 1 },
+        { match: /SELECT description, is_active, base_price/, rows: [existingSubcategory()], rowCount: 1 },
       ]));
       setTxQueryImpl(makeRouter([
         { match: /UPDATE service_subcategories/, rows: [{ id: SUBCATEGORY_ID, category_id: CATEGORY_ID, name: 'X', slug: 'x', description: '', pricing_type: 'fixed', base_price: 0, min_price: null, max_price: null, estimated_duration_minutes: null, display_order: 0, is_active: true, created_at: new Date(), updated_at: new Date() }], rowCount: 1 },
@@ -234,20 +249,20 @@ describe('Bug 237 — catalog mutations transactional', () => {
   describe('price bounds validation (audit 2026-06-04)', () => {
     it('createSubcategory rejects min > base', async () => {
       await expect(
-        createSubcategory({ categoryId: CATEGORY_ID, name: 'Bad', minPrice: 5000, basePrice: 1000 }, ADMIN_ID),
+        createSubcategory({ categoryId: CATEGORY_ID, name: 'Bad', description: SERVICE_SCOPE, minPrice: 5000, basePrice: 1000 }, ADMIN_ID),
       ).rejects.toThrow(/Minimum price cannot exceed the base price/);
     });
 
     it('createSubcategory rejects base > max', async () => {
       await expect(
-        createSubcategory({ categoryId: CATEGORY_ID, name: 'Bad', basePrice: 9000, maxPrice: 5000 }, ADMIN_ID),
+        createSubcategory({ categoryId: CATEGORY_ID, name: 'Bad', description: SERVICE_SCOPE, basePrice: 9000, maxPrice: 5000 }, ADMIN_ID),
       ).rejects.toThrow(/Base price cannot exceed the maximum price/);
     });
 
     it('updateSubcategory rejects a patch that inverts bounds against the existing row', async () => {
       // Existing base = 1000; patching min up to 5000 would make min > base.
       setTopQueryImpl(makeRouter([
-        { match: /SELECT base_price, min_price, max_price/, rows: [{ base_price: 1000, min_price: null, max_price: null }], rowCount: 1 },
+        { match: /SELECT description, is_active, base_price/, rows: [existingSubcategory({ base_price: 1000 })], rowCount: 1 },
       ]));
       await expect(
         updateSubcategory(SUBCATEGORY_ID, { minPrice: 5000 }, ADMIN_ID),

@@ -23,6 +23,7 @@ function slugify(text: string): string {
 const CATALOG_NAME_MAX = 100;
 const CATALOG_DESCRIPTION_MAX = 2000;
 const CATALOG_ICON_URL_MAX = 500;
+export const CUSTOMER_SERVICE_SCOPE_MIN = 30;
 
 function validateCatalogText(value: unknown, field: string, max: number, optional = true): void {
   if (value === undefined || value === null || value === '') {
@@ -32,6 +33,16 @@ function validateCatalogText(value: unknown, field: string, max: number, optiona
   if (typeof value !== 'string') throw createAppError(`${field} must be a string.`, 400);
   if (value.length > max) {
     throw createAppError(`${field} must be ≤ ${max} characters.`, 400);
+  }
+}
+
+function assertCustomerServiceScope(value: unknown): void {
+  validateCatalogText(value, 'Customer service scope', CATALOG_DESCRIPTION_MAX, false);
+  if ((value as string).trim().length < CUSTOMER_SERVICE_SCOPE_MIN) {
+    throw createAppError(
+      `Customer service scope must be at least ${CUSTOMER_SERVICE_SCOPE_MIN} characters. Explain what is covered and any important limits.`,
+      400,
+    );
   }
 }
 
@@ -289,7 +300,7 @@ export async function createSubcategory(
   if (!input.categoryId) throw createAppError('Category ID is required.', 400);
   // BUG-PHASE163-01 fix — explicit length validation.
   validateCatalogText(input.name, 'name', CATALOG_NAME_MAX, false);
-  validateCatalogText(input.description, 'description', CATALOG_DESCRIPTION_MAX);
+  assertCustomerServiceScope(input.description);
   assertPriceBounds(input.minPrice, input.basePrice, input.maxPrice);
   // D27 Phase 4 — per-unit rate must be a non-negative integer (centavos) and a
   // per_unit subcategory needs a rate to be meaningful.
@@ -367,38 +378,52 @@ export async function updateSubcategory(
   validateCatalogText(patch.name, 'name', CATALOG_NAME_MAX);
   validateCatalogText(patch.description, 'description', CATALOG_DESCRIPTION_MAX);
 
+  // Tester-feedback remediation: the customer scope is now required for every
+  // active service. Existing legacy rows can still be deactivated even when
+  // incomplete, but cannot otherwise be re-published or edited while blank.
+  const existing = await db.query<{
+    description: string;
+    is_active: boolean;
+    base_price: number | null;
+    min_price: number | null;
+    max_price: number | null;
+    pricing_type: string;
+    unit_label: string | null;
+    unit_price: number | null;
+    hourly_rate: number | null;
+  }>(
+    `SELECT description, is_active, base_price, min_price, max_price,
+            pricing_type, unit_label, unit_price, hourly_rate
+       FROM service_subcategories WHERE id = $1`,
+    [subcategoryId],
+  );
+  if (existing.rows.length === 0) throw createAppError('Subcategory not found.', 404);
+  const current = existing.rows[0]!;
+  const mergedIsActive = patch.isActive !== undefined ? patch.isActive : current.is_active;
+  if (mergedIsActive) {
+    assertCustomerServiceScope(patch.description !== undefined ? patch.description : current.description);
+  }
+
   // Validate price bounds against the MERGED result (patch over existing), so a
   // patch that only moves one bound can't create an inverted min/base/max.
   if (patch.basePrice !== undefined || patch.minPrice !== undefined || patch.maxPrice !== undefined) {
-    const existing = await db.query<{ base_price: number | null; min_price: number | null; max_price: number | null }>(
-      `SELECT base_price, min_price, max_price FROM service_subcategories WHERE id = $1`,
-      [subcategoryId],
-    );
-    if (existing.rows.length === 0) throw createAppError('Subcategory not found.', 404);
-    const cur = existing.rows[0]!;
     assertPriceBounds(
-      patch.minPrice !== undefined ? patch.minPrice : cur.min_price,
-      patch.basePrice !== undefined ? patch.basePrice : cur.base_price,
-      patch.maxPrice !== undefined ? patch.maxPrice : cur.max_price,
+      patch.minPrice !== undefined ? patch.minPrice : current.min_price,
+      patch.basePrice !== undefined ? patch.basePrice : current.base_price,
+      patch.maxPrice !== undefined ? patch.maxPrice : current.max_price,
     );
   }
 
   // D27 Phase 4 / 4b — validate per-unit + hourly pricing against the MERGED
   // result so a patch that switches pricing_type without the needed rate fails.
   if (patch.unitLabel !== undefined || patch.unitPrice !== undefined || patch.hourlyRate !== undefined || patch.pricingType !== undefined) {
-    const existing = await db.query<{ pricing_type: string; unit_label: string | null; unit_price: number | null; hourly_rate: number | null }>(
-      `SELECT pricing_type, unit_label, unit_price, hourly_rate FROM service_subcategories WHERE id = $1`,
-      [subcategoryId],
-    );
-    if (existing.rows.length === 0) throw createAppError('Subcategory not found.', 404);
-    const cur = existing.rows[0]!;
-    const mergedType = patch.pricingType !== undefined ? patch.pricingType : cur.pricing_type;
+    const mergedType = patch.pricingType !== undefined ? patch.pricingType : current.pricing_type;
     assertUnitPricing(
       mergedType,
-      patch.unitLabel !== undefined ? patch.unitLabel : cur.unit_label,
-      patch.unitPrice !== undefined ? patch.unitPrice : cur.unit_price,
+      patch.unitLabel !== undefined ? patch.unitLabel : current.unit_label,
+      patch.unitPrice !== undefined ? patch.unitPrice : current.unit_price,
     );
-    assertHourlyPricing(mergedType, patch.hourlyRate !== undefined ? patch.hourlyRate : cur.hourly_rate);
+    assertHourlyPricing(mergedType, patch.hourlyRate !== undefined ? patch.hourlyRate : current.hourly_rate);
   }
 
   const sets: string[] = [];

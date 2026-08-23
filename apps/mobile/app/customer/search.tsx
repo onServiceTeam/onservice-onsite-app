@@ -22,6 +22,7 @@ import { SkeletonCard, EmptyState, ErrorState, SectionHeader } from '@/component
 // Phase 14 R5-complete — FilterModal for advanced search filters.
 import FilterModal from '@/components/FilterModal';
 import useDebouncedValue from '@/hooks/useDebouncedValue';
+import { getServiceScopeCopy } from '@/utils/serviceScope';
 
 import { Routes } from '@/config/navigation';
 interface ProviderResult {
@@ -119,8 +120,14 @@ export default function SearchScreen(): React.ReactElement {
     // 'quote_based' (that is the bookings.booking_type value). Same fix as
     // customer/category/[id].tsx — a quote subcategory with a base_price set was
     // mis-routing from search into the fixed-price flow.
-    const isQuoteBased = item.pricingType === 'quote' || item.basePrice == null;
-    setSubcategory(item.id, item.name, item.basePrice ?? 0);
+    const isHourly = item.pricingType === 'hourly';
+    const isQuoteBased = !isHourly
+      && (item.pricingType === 'quote' || item.pricingType === 'per_unit' || item.basePrice == null);
+    setSubcategory(item.id, item.name, isQuoteBased ? 0 : (item.basePrice ?? 0), {
+      ...(isHourly ? { hourlyRate: item.hourlyRate ?? 0 } : {}),
+      description: item.description,
+      pricingType: item.pricingType,
+    });
     if (isQuoteBased) {
       router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);
     } else {
@@ -141,6 +148,7 @@ export default function SearchScreen(): React.ReactElement {
   const renderItem = ({ item }: { item: SearchItem }): React.ReactElement => {
     if (item.type === 'service') {
       const svc = item.data;
+      const scope = getServiceScopeCopy(svc.description, svc.pricingType);
       return (
         <TouchableOpacity
           style={styles.resultCard}
@@ -149,7 +157,8 @@ export default function SearchScreen(): React.ReactElement {
         >
           <View style={styles.resultContent}>
             <Text style={styles.resultName}>{svc.name}</Text>
-            <Text style={styles.resultDesc} numberOfLines={2}>{svc.description}</Text>
+            {!scope.isPublished ? <Text style={styles.scopePending}>SCOPE DETAILS PENDING</Text> : null}
+            <Text style={styles.resultDesc} numberOfLines={3}>{scope.text}</Text>
             {svc.estimatedDurationMinutes != null && (
               <View style={styles.resultDurationRow}>
                 <Clock size={12} color={colors.textTertiary} />
@@ -158,7 +167,19 @@ export default function SearchScreen(): React.ReactElement {
             )}
           </View>
           <View style={styles.resultPrice}>
-            {svc.basePrice != null && (
+            {svc.pricingType === 'hourly' && svc.hourlyRate != null ? (
+              <>
+                <Text style={styles.priceLabel}>Per hour</Text>
+                <Text style={styles.priceValue}>{formatPHP(svc.hourlyRate)}</Text>
+              </>
+            ) : svc.pricingType === 'per_unit' && svc.unitPrice != null ? (
+              <>
+                <Text style={styles.priceLabel}>Per {svc.unitLabel ?? 'unit'}</Text>
+                <Text style={styles.priceValue}>{formatPHP(svc.unitPrice)}</Text>
+              </>
+            ) : svc.pricingType === 'quote' || svc.basePrice == null ? (
+              <Text style={styles.quoteValue}>Get Quote</Text>
+            ) : (
               <>
                 <Text style={styles.priceLabel}>From</Text>
                 <Text style={styles.priceValue}>{formatPHP(svc.basePrice)}</Text>
@@ -409,12 +430,14 @@ const styles = StyleSheet.create({
   },
   resultContent: { flex: 1, marginRight: spacing.base },
   resultName: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
+  scopePending: { ...typography.caption, color: colors.warningDark, fontWeight: '700', marginBottom: spacing.xs },
   resultDesc: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.sm },
   resultDurationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   resultDuration: { ...typography.caption, color: colors.textTertiary },
   resultPrice: { alignItems: 'flex-end', justifyContent: 'center' },
   priceLabel: { ...typography.caption, color: colors.textTertiary, marginBottom: 2 },
   priceValue: { ...typography.priceSmall, color: colors.primary },
+  quoteValue: { ...typography.bodySmall, color: colors.secondary, fontWeight: '700' },
 
   providerCard: {
     flexDirection: 'row',

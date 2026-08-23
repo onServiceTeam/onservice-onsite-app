@@ -137,11 +137,21 @@ export async function getProviderServices(
   providerId: string,
 ): Promise<(ProviderServiceRow & {
   subcategory_name: string;
+  subcategory_description: string;
+  pricing_type: string;
+  hourly_rate: number | null;
+  unit_label: string | null;
+  unit_price: number | null;
   category_name: string;
   category_slug: string;
 })[]> {
   const result = await db.query<ProviderServiceRow & {
     subcategory_name: string;
+    subcategory_description: string;
+    pricing_type: string;
+    hourly_rate: number | null;
+    unit_label: string | null;
+    unit_price: number | null;
     category_name: string;
     category_slug: string;
   }>(
@@ -151,6 +161,8 @@ export async function getProviderServices(
     // back, so "Book this Provider" / tapping a service had no category to
     // route with and dead-ended on an empty booking form.
     `SELECT ps.*, sc.name as subcategory_name,
+            sc.description as subcategory_description, sc.pricing_type,
+            sc.hourly_rate, sc.unit_label, sc.unit_price,
             c.name as category_name, c.slug as category_slug
      FROM provider_services ps
      JOIN service_subcategories sc ON sc.id = ps.subcategory_id
@@ -447,6 +459,11 @@ export function formatProvider(p: ProviderRow): Record<string, unknown> {
 export function formatProviderService(
   ps: ProviderServiceRow & {
     subcategory_name?: string;
+    subcategory_description?: string;
+    pricing_type?: string;
+    hourly_rate?: number | null;
+    unit_label?: string | null;
+    unit_price?: number | null;
     category_name?: string;
     category_slug?: string;
   },
@@ -456,11 +473,16 @@ export function formatProviderService(
     providerId: ps.provider_id,
     subcategoryId: ps.subcategory_id,
     subcategoryName: ps.subcategory_name ?? null,
+    description: ps.subcategory_description ?? '',
+    pricingType: ps.pricing_type ?? null,
+    hourlyRate: ps.hourly_rate != null ? Number(ps.hourly_rate) : null,
+    unitLabel: ps.unit_label ?? null,
+    unitPrice: ps.unit_price != null ? Number(ps.unit_price) : null,
     // Phase 200 — category context so the customer app can book this service.
     categoryId: ps.category_id ?? null,
     categoryName: ps.category_name ?? null,
     categorySlug: ps.category_slug ?? null,
-    basePrice: ps.base_price ? Number(ps.base_price) : null,
+    basePrice: ps.base_price != null ? Number(ps.base_price) : null,
     isActive: ps.is_active,
   };
 }

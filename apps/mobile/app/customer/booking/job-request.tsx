@@ -14,6 +14,8 @@ import { ChevronLeft, ChevronRight } from '@/components/icons';
 import { showToast } from '@/lib/toast';
 import { platformConfig } from '@/config/platform.config';
 import { Routes } from '@/config/navigation';
+import { useResponsive } from '@/hooks/useResponsive';
+import ServiceScopeNotice from '@/components/ServiceScopeNotice';
 
 const URGENCY_OPTIONS = [
   { value: 'same_day' as const, label: 'Same Day', desc: 'Within 4 hours' },
@@ -25,6 +27,7 @@ const URGENCY_OPTIONS = [
 export default function JobRequestScreen(): React.ReactElement {
   const router = useRouter();
   const draft = useBookingStore((s) => s.draft);
+  const { isPhone } = useResponsive();
 
   const [description, setDescription] = useState('');
   const [urgency, setUrgency] = useState<'same_day' | 'within_3_days' | 'within_a_week' | 'flexible'>('within_3_days');
@@ -207,6 +210,7 @@ export default function JobRequestScreen(): React.ReactElement {
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        <View style={[styles.formContent, !isPhone && styles.formContentWide]}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Service Category</Text>
           <View style={styles.categoryCard}>
@@ -216,6 +220,11 @@ export default function JobRequestScreen(): React.ReactElement {
             )}
           </View>
         </View>
+
+        <ServiceScopeNotice
+          description={draft.serviceDescription}
+          pricingType={draft.pricingType}
+        />
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Describe the Job *</Text>
@@ -399,6 +408,7 @@ export default function JobRequestScreen(): React.ReactElement {
         <Text style={styles.footer}>
           Up to 5 providers will send you quotes. You can compare and choose the best one.
         </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -413,6 +423,8 @@ const styles = StyleSheet.create({
   placeholder: { width: 30 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  formContent: { width: '100%' },
+  formContentWide: { maxWidth: 920, alignSelf: 'center' },
   section: { marginBottom: spacing.lg },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 6 },
   hint: { fontSize: 13, color: colors.textSecondary, marginBottom: spacing.sm },

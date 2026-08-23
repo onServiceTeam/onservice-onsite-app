@@ -20,11 +20,12 @@ import {
 const ADMIN_ID = '11111111-1111-1111-1111-111111111111';
 const CATEGORY_ID = '22222222-2222-2222-2222-222222222222';
 const SUBCATEGORY_ID = '33333333-3333-3333-3333-333333333333';
+const SERVICE_SCOPE = 'Includes measured wall preparation and painting work as agreed in the quote.';
 
 function subRow(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: SUBCATEGORY_ID, category_id: CATEGORY_ID, name: 'Wall painting', slug: 'wall-painting',
-    description: '', pricing_type: 'per_unit', base_price: null, min_price: null, max_price: null,
+    description: SERVICE_SCOPE, pricing_type: 'per_unit', base_price: null, min_price: null, max_price: null,
     estimated_duration_minutes: null, unit_label: 'sqm', unit_price: 5000, display_order: 0,
     is_active: true, created_at: new Date(), updated_at: new Date(), ...over,
   };
@@ -41,7 +42,7 @@ describe('D27 Phase 4 — per-unit pricing', () => {
       ]));
 
       await createSubcategory(
-        { categoryId: CATEGORY_ID, name: 'Wall painting', pricingType: 'per_unit', unitLabel: 'sqm', unitPrice: 5000 },
+        { categoryId: CATEGORY_ID, name: 'Wall painting', description: SERVICE_SCOPE, pricingType: 'per_unit', unitLabel: 'sqm', unitPrice: 5000 },
         ADMIN_ID,
       );
 
@@ -54,7 +55,7 @@ describe('D27 Phase 4 — per-unit pricing', () => {
     it('rejects a per_unit service with no unit price', async () => {
       await expect(
         createSubcategory(
-          { categoryId: CATEGORY_ID, name: 'Wall painting', pricingType: 'per_unit', unitLabel: 'sqm' },
+          { categoryId: CATEGORY_ID, name: 'Wall painting', description: SERVICE_SCOPE, pricingType: 'per_unit', unitLabel: 'sqm' },
           ADMIN_ID,
         ),
       ).rejects.toMatchObject({ statusCode: 400 });
@@ -63,7 +64,7 @@ describe('D27 Phase 4 — per-unit pricing', () => {
     it('rejects a per_unit service with no unit label', async () => {
       await expect(
         createSubcategory(
-          { categoryId: CATEGORY_ID, name: 'Wall painting', pricingType: 'per_unit', unitPrice: 5000 },
+          { categoryId: CATEGORY_ID, name: 'Wall painting', description: SERVICE_SCOPE, pricingType: 'per_unit', unitPrice: 5000 },
           ADMIN_ID,
         ),
       ).rejects.toMatchObject({ statusCode: 400 });
@@ -72,7 +73,7 @@ describe('D27 Phase 4 — per-unit pricing', () => {
     it('rejects a negative unit price', async () => {
       await expect(
         createSubcategory(
-          { categoryId: CATEGORY_ID, name: 'Wall painting', pricingType: 'per_unit', unitLabel: 'sqm', unitPrice: -1 },
+          { categoryId: CATEGORY_ID, name: 'Wall painting', description: SERVICE_SCOPE, pricingType: 'per_unit', unitLabel: 'sqm', unitPrice: -1 },
           ADMIN_ID,
         ),
       ).rejects.toMatchObject({ statusCode: 400 });
@@ -82,7 +83,10 @@ describe('D27 Phase 4 — per-unit pricing', () => {
   describe('updateSubcategory', () => {
     it('rejects switching to per_unit without a rate', async () => {
       setTopQueryImpl(makeRouter([
-        { match: /SELECT pricing_type, unit_label, unit_price/, rows: [{ pricing_type: 'fixed', unit_label: null, unit_price: null }], rowCount: 1 },
+        { match: /SELECT description, is_active, base_price/, rows: [{
+          description: SERVICE_SCOPE, is_active: true, pricing_type: 'fixed', unit_label: null,
+          unit_price: null, hourly_rate: null, base_price: 1000, min_price: null, max_price: null,
+        }], rowCount: 1 },
       ]));
       await expect(
         updateSubcategory(SUBCATEGORY_ID, { pricingType: 'per_unit' }, ADMIN_ID),
@@ -91,7 +95,10 @@ describe('D27 Phase 4 — per-unit pricing', () => {
 
     it('persists unit_label + unit_price on a valid per_unit update', async () => {
       setTopQueryImpl(makeRouter([
-        { match: /SELECT pricing_type, unit_label, unit_price/, rows: [{ pricing_type: 'fixed', unit_label: null, unit_price: null }], rowCount: 1 },
+        { match: /SELECT description, is_active, base_price/, rows: [{
+          description: SERVICE_SCOPE, is_active: true, pricing_type: 'fixed', unit_label: null,
+          unit_price: null, hourly_rate: null, base_price: 1000, min_price: null, max_price: null,
+        }], rowCount: 1 },
       ]));
       setTxQueryImpl(makeRouter([
         { match: /UPDATE service_subcategories/, rows: [subRow()], rowCount: 1 },

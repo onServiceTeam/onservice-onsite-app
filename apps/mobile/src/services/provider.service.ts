@@ -31,6 +31,11 @@ export interface ProviderService {
   categoryId: string | null;
   categoryName: string | null;
   categorySlug: string | null;
+  description: string;
+  pricingType: string | null;
+  hourlyRate: number | null;
+  unitLabel: string | null;
+  unitPrice: number | null;
   basePrice: number | null;
   isActive: boolean;
 }

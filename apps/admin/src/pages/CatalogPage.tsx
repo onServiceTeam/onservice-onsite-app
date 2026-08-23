@@ -6,8 +6,10 @@ import { formatCurrency } from '@/lib/format';
 import { Badge, Label, Input, Textarea } from '@/components/ui';
 import { Package } from '@/components/icons';
 import { IntakeFieldsManager } from '@/components/IntakeFieldsManager';
+import { useAuthStore } from '@/stores/auth.store';
 
 const CURRENCY_SYMBOL = '₱';
+const CUSTOMER_SERVICE_SCOPE_MIN = 30;
 
 interface Subcategory {
   id: string;
@@ -52,7 +54,9 @@ type ModalMode = null | 'addCategory' | 'editCategory' | 'addSubcategory' | 'edi
 
 export default function CatalogPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [serviceFilter, setServiceFilter] = useState<'all' | 'needsScope'>('all');
   const [modal, setModal] = useState<ModalMode>(null);
   const [editTarget, setEditTarget] = useState<Category | Subcategory | null>(null);
   const [targetCategoryId, setTargetCategoryId] = useState<string | null>(null);
@@ -86,6 +90,7 @@ export default function CatalogPage(): React.ReactElement {
       const res = await api.get<{ success: boolean; data: Category[] }>('/api/v1/catalog/full');
       return res.data.data;
     },
+    refetchOnWindowFocus: false,
   });
 
   const categoryMutation = useMutation({
@@ -136,6 +141,9 @@ export default function CatalogPage(): React.ReactElement {
     if (!name.trim()) return 'Name is required.';
     if (!isFiniteNumber(displayOrder)) return 'Display order must be a valid number.';
     if (isCategoryModal) return null;
+    if (description.trim().length < CUSTOMER_SERVICE_SCOPE_MIN) {
+      return `Customer service scope must be at least ${CUSTOMER_SERVICE_SCOPE_MIN} characters.`;
+    }
 
     if (![basePrice, minPrice, maxPrice, estimatedDuration].every(isFiniteNumber)) {
       return 'Prices and duration must be valid numbers.';
@@ -349,6 +357,22 @@ export default function CatalogPage(): React.ReactElement {
   const isCategoryModal = modal === 'addCategory' || modal === 'editCategory';
   const isAddonModal = modal === 'addAddon' || modal === 'editAddon';
   const isPending = categoryMutation.isPending || subcategoryMutation.isPending || addonMutation.isPending;
+  const categories = data ?? [];
+  const activeServices = categories.flatMap((category) => category.subcategories);
+  const missingScopeCount = activeServices.filter(
+    (service) => service.description.trim().length < CUSTOMER_SERVICE_SCOPE_MIN,
+  ).length;
+  const readyScopeCount = activeServices.length - missingScopeCount;
+  const visibleCategories = serviceFilter === 'needsScope'
+    ? categories
+      .map((category) => ({
+        ...category,
+        subcategories: category.subcategories.filter(
+          (service) => service.description.trim().length < CUSTOMER_SERVICE_SCOPE_MIN,
+        ),
+      }))
+      .filter((category) => category.subcategories.length > 0)
+    : categories;
 
   if (isLoading) {
     return (
@@ -364,18 +388,56 @@ export default function CatalogPage(): React.ReactElement {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-[var(--color-text)]">Service Catalog</h1>
-          <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">Manage categories and services</p>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">Publish the service scope, pricing, intake questions, and add-ons customers use to book.</p>
         </div>
-        <button
+        {isSuperAdmin ? <button
           onClick={openAddCategory}
           className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
         >
           + Add Category
-        </button>
+        </button> : null}
       </div>
+
+      {!isSuperAdmin && (
+        <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+          You have read-only catalog access. A super admin must publish or change categories, services, pricing, add-ons, and intake fields.
+        </div>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-3 mb-4" aria-label="Catalog publishing status">
+        <button
+          type="button"
+          onClick={() => setServiceFilter('all')}
+          aria-pressed={serviceFilter === 'all'}
+          className={`min-h-24 rounded-xl border p-4 text-left transition-colors ${serviceFilter === 'all' ? 'border-[var(--color-primary)] bg-blue-50' : 'border-[var(--color-border)] bg-white hover:bg-slate-50'}`}
+        >
+          <span className="block text-2xl font-bold text-[var(--color-text)]">{activeServices.length}</span>
+          <span className="text-sm text-[var(--color-text-secondary)]">Active services</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setServiceFilter('needsScope')}
+          aria-pressed={serviceFilter === 'needsScope'}
+          className={`min-h-24 rounded-xl border p-4 text-left transition-colors ${serviceFilter === 'needsScope' ? 'border-amber-500 bg-amber-50' : 'border-[var(--color-border)] bg-white hover:bg-slate-50'}`}
+        >
+          <span className="block text-2xl font-bold text-amber-800">{missingScopeCount}</span>
+          <span className="text-sm text-amber-800">Need customer scope</span>
+        </button>
+        <div className="min-h-24 rounded-xl border border-[var(--color-border)] bg-white p-4">
+          <span className="block text-2xl font-bold text-emerald-700">{readyScopeCount}</span>
+          <span className="text-sm text-[var(--color-text-secondary)]">Scope ready</span>
+        </div>
+      </div>
+
+      {missingScopeCount > 0 && (
+        <div role="alert" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          <span className="font-semibold">{missingScopeCount} active service{missingScopeCount === 1 ? '' : 's'} need customer scope.</span>{' '}
+          These services currently show an honest fallback to customers. Add what is covered and important limits before changing any other service details.
+        </div>
+      )}
 
       {error && !modal && (
         <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -384,19 +446,21 @@ export default function CatalogPage(): React.ReactElement {
       )}
 
       <div className="space-y-3">
-        {(data ?? []).map((cat) => (
+        {visibleCategories.map((cat) => {
+          const categoryExpanded = serviceFilter === 'needsScope' || expandedCategory === cat.id;
+          return (
           <div key={cat.id} className="bg-white rounded-xl border border-[var(--color-border)] overflow-hidden">
             <div
               role="button"
               tabIndex={0}
-              aria-expanded={expandedCategory === cat.id}
-              aria-label={`${expandedCategory === cat.id ? 'Collapse' : 'Expand'} ${cat.name} services`}
+              aria-expanded={categoryExpanded}
+              aria-label={`${categoryExpanded ? 'Collapse' : 'Expand'} ${cat.name} services`}
               className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors"
-              onClick={() => setExpandedCategory(expandedCategory === cat.id ? null : cat.id)}
+              onClick={() => { if (serviceFilter === 'all') setExpandedCategory(expandedCategory === cat.id ? null : cat.id); }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  setExpandedCategory(expandedCategory === cat.id ? null : cat.id);
+                  if (serviceFilter === 'all') setExpandedCategory(expandedCategory === cat.id ? null : cat.id);
                 }
               }}
             >
@@ -410,32 +474,33 @@ export default function CatalogPage(): React.ReactElement {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button
+                {isSuperAdmin && <button
                   onClick={(e) => { e.stopPropagation(); openEditCategory(cat); }}
                   aria-label={`Edit category ${cat.name}`}
                   className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
                 >
                   Edit
-                </button>
-                <button
+                </button>}
+                {isSuperAdmin && <button
                   onClick={(e) => { e.stopPropagation(); openAddSubcategory(cat.id); }}
                   aria-label={`Add service to ${cat.name}`}
                   className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
                 >
                   + Service
-                </button>
-                <span className="text-[var(--color-text-secondary)] text-lg">
-                  {expandedCategory === cat.id ? '▾' : '▸'}
+                </button>}
+                <span className="text-[var(--color-text-secondary)] text-lg" aria-hidden="true">
+                  {categoryExpanded ? '▾' : '▸'}
                 </span>
               </div>
             </div>
 
-            {expandedCategory === cat.id && (
+            {categoryExpanded && (
               <div className="border-t border-[var(--color-border)]">
                 {cat.subcategories.length === 0 ? (
                   <p className="text-sm text-[var(--color-text-secondary)] px-5 py-4">No services in this category yet.</p>
                 ) : (
-                  <table className="w-full">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[800px]">
                     <thead>
                       <tr className="bg-slate-50/70 text-xs text-[var(--color-text-secondary)] uppercase tracking-wider">
                         <th className="text-left px-5 py-2 font-semibold">Service</th>
@@ -451,7 +516,11 @@ export default function CatalogPage(): React.ReactElement {
                         <tr className="border-t border-[var(--color-border)]">
                           <td className="px-5 py-3">
                             <p className="text-sm font-medium text-[var(--color-text)]">{sub.name}</p>
-                            <p className="text-xs text-[var(--color-text-secondary)] line-clamp-1">{sub.description}</p>
+                            {sub.description.trim().length >= CUSTOMER_SERVICE_SCOPE_MIN ? (
+                              <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">{sub.description}</p>
+                            ) : (
+                              <div className="mt-1"><Badge label="Missing customer scope" variant="warning" /></div>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             {/* BUG-PHASE40-01 fix — pre-fix the Pricing
@@ -512,14 +581,14 @@ export default function CatalogPage(): React.ReactElement {
                             >
                               Intake
                             </button>
-                            <button
+                            {isSuperAdmin && <button
                               onClick={() => openEditSubcategory(sub)}
                               aria-label={`Edit service ${sub.name}`}
                               className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors mr-1"
                             >
                               Edit
-                            </button>
-                            <button
+                            </button>}
+                            {isSuperAdmin && <button
                               onClick={() => {
                                 if (window.confirm(`Deactivate "${sub.name}"?`)) deleteMutation.mutate(sub.id);
                               }}
@@ -527,7 +596,7 @@ export default function CatalogPage(): React.ReactElement {
                               className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
                             >
                               Remove
-                            </button>
+                            </button>}
                           </td>
                         </tr>
                         {expandedAddons === sub.id && (
@@ -537,13 +606,13 @@ export default function CatalogPage(): React.ReactElement {
                                 <span className="text-xs font-semibold text-purple-800 uppercase tracking-wider">
                                   Add-ons for {sub.name}
                                 </span>
-                                <button
+                                {isSuperAdmin && <button
                                   onClick={() => openAddAddon(sub.id)}
                                   aria-label={`Add add-on to ${sub.name}`}
                                   className="px-2 py-1 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-md transition-colors"
                                 >
                                   + Add-on
-                                </button>
+                                </button>}
                               </div>
                               {isAddonsLoading ? (
                                 <p className="text-xs text-[var(--color-text-secondary)]">Loading add-ons…</p>
@@ -564,20 +633,20 @@ export default function CatalogPage(): React.ReactElement {
                                       <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium text-[var(--color-text)]">{formatCurrency(addon.price)}</span>
                                         {!addon.isActive && <span className="text-xs text-red-600">(inactive)</span>}
-                                        <button
+                                        {isSuperAdmin && <button
                                           onClick={() => openEditAddon(addon)}
                                           aria-label={`Edit add-on ${addon.name}`}
                                           className="px-2 py-0.5 text-xs text-sky-700 bg-sky-50 rounded hover:bg-sky-100 transition-colors"
                                         >
                                           Edit
-                                        </button>
-                                        <button
+                                        </button>}
+                                        {isSuperAdmin && <button
                                           onClick={() => { if (window.confirm(`Remove "${addon.name}"?`)) deleteAddonMutation.mutate(addon.id); }}
                                           aria-label={`Remove add-on ${addon.name}`}
                                           className="px-2 py-0.5 text-xs text-red-700 bg-red-50 rounded hover:bg-red-100 transition-colors"
                                         >
                                           Remove
-                                        </button>
+                                        </button>}
                                       </div>
                                     </div>
                                   ))}
@@ -589,7 +658,7 @@ export default function CatalogPage(): React.ReactElement {
                         {expandedIntake === sub.id && (
                           <tr>
                             <td colSpan={5} className="p-0">
-                              <IntakeFieldsManager subcategoryId={sub.id} subcategoryName={sub.name} />
+                              <IntakeFieldsManager subcategoryId={sub.id} subcategoryName={sub.name} readOnly={!isSuperAdmin} />
                             </td>
                           </tr>
                         )}
@@ -597,16 +666,23 @@ export default function CatalogPage(): React.ReactElement {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 )}
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
 
-        {(data ?? []).length === 0 && (
+        {categories.length === 0 && (
           <div className="text-center py-12 text-[var(--color-text-secondary)]">
             <Package size={40} className="mx-auto mb-3 text-slate-400" />
             <p>No categories yet. Create one to get started.</p>
+          </div>
+        )}
+        {categories.length > 0 && visibleCategories.length === 0 && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-8 text-center text-emerald-800">
+            Every active service has customer scope copy.
           </div>
         )}
       </div>
@@ -686,13 +762,27 @@ export default function CatalogPage(): React.ReactElement {
               </div>
 
               <div>
-                <Label htmlFor="cat-description" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Description</Label>
+                <Label htmlFor="cat-description" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">
+                  {isCategoryModal ? 'Category description' : 'Customer service scope'}
+                </Label>
                 <Textarea
                   id="cat-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  rows={2}
+                  rows={isCategoryModal ? 2 : 5}
+                  minLength={isCategoryModal ? undefined : CUSTOMER_SERVICE_SCOPE_MIN}
+                  maxLength={2000}
+                  required={!isCategoryModal}
+                  aria-describedby={!isCategoryModal ? 'cat-description-help' : undefined}
                 />
+                {!isCategoryModal && (
+                  <div id="cat-description-help" className="mt-1.5 flex flex-col gap-1 text-xs text-[var(--color-text-secondary)] sm:flex-row sm:items-start sm:justify-between">
+                    <span>Shown before booking. State what is covered, important exclusions or limits, and the expected result. Do not promise unavailable materials or guarantees.</span>
+                    <span className={description.trim().length < CUSTOMER_SERVICE_SCOPE_MIN ? 'font-semibold text-amber-700 whitespace-nowrap' : 'font-semibold text-emerald-700 whitespace-nowrap'}>
+                      {description.trim().length}/2000
+                    </span>
+                  </div>
+                )}
               </div>
 
               {isCategoryModal && (
@@ -710,6 +800,25 @@ export default function CatalogPage(): React.ReactElement {
 
               {!isCategoryModal && (
                 <>
+                  <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4" aria-label="Customer service preview">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">Customer preview</p>
+                    <p className="mt-2 font-semibold text-[var(--color-text)]">{name.trim() || 'Service name'}</p>
+                    <p className={`mt-1 text-sm ${description.trim().length >= CUSTOMER_SERVICE_SCOPE_MIN ? 'text-[var(--color-text-secondary)]' : 'text-amber-700'}`}>
+                      {description.trim() || 'Add customer-facing scope before this service can be saved.'}
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Badge label={pricingType.replace('_', ' ')} variant="outline" />
+                      <span className="text-sm font-semibold text-[var(--color-primary)]">
+                        {pricingType === 'quote'
+                          ? 'Quote on request'
+                          : pricingType === 'per_unit'
+                            ? `${unitPrice ? `${CURRENCY_SYMBOL}${unitPrice}` : 'Set rate'} / ${unitLabel || 'unit'}`
+                            : pricingType === 'hourly'
+                              ? `${hourlyRate ? `${CURRENCY_SYMBOL}${hourlyRate}` : 'Set rate'} / hour`
+                              : basePrice ? `${CURRENCY_SYMBOL}${basePrice}` : 'Set price'}
+                      </span>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="cat-pricing-type" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Pricing type</Label>

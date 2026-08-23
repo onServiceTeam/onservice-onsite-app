@@ -59,9 +59,11 @@ function slugifyKey(raw: string): string {
 export function IntakeFieldsManager({
   subcategoryId,
   subcategoryName,
+  readOnly = false,
 }: {
   subcategoryId: string;
   subcategoryName: string;
+  readOnly?: boolean;
 }): React.ReactElement {
   const queryClient = useQueryClient();
   const queryKey = ['adminIntakeFields', subcategoryId];
@@ -200,7 +202,7 @@ export function IntakeFieldsManager({
         <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
           Intake fields for {subcategoryName}
         </span>
-        {!showForm && (
+        {!readOnly && !showForm && (
           <button
             onClick={openAdd}
             aria-label={`Add intake field to ${subcategoryName}`}
@@ -249,7 +251,7 @@ export function IntakeFieldsManager({
                   {f.helpText ? ` · ${f.helpText}` : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              {!readOnly && <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => openEdit(f)}
                   aria-label={`Edit intake field ${f.label}`}
@@ -266,13 +268,13 @@ export function IntakeFieldsManager({
                 >
                   Remove
                 </button>
-              </div>
+              </div>}
             </div>
           ))}
         </div>
       )}
 
-      {showForm && (
+      {!readOnly && showForm && (
         <form onSubmit={handleSubmit} className="mt-3 bg-white rounded-lg border border-amber-200 p-3 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>

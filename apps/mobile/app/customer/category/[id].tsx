@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View,
@@ -19,6 +19,8 @@ import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
 import { Clock, ChevronLeft, Wrench } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import { getServiceScopeCopy } from '@/utils/serviceScope';
 
 import { Routes } from '@/config/navigation';
 export default function SubcategoryListScreen(): React.ReactElement {
@@ -26,6 +28,7 @@ export default function SubcategoryListScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { draft, setCategory, setSubcategory } = useBookingStore();
+  const [selectedSubcategory, setSelectedSubcategory] = useState<Subcategory | null>(null);
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['subcategories', slug],
@@ -52,18 +55,30 @@ export default function SubcategoryListScreen(): React.ReactElement {
 
   const handleSelect = (sub: Subcategory): void => {
     if (sub.categoryId) {
-      setCategory(sub.categoryId, sub.categoryName ?? '', sub.categorySlug ?? '');
+      setCategory(
+        sub.categoryId,
+        sub.categoryName ?? data?.categoryName ?? draft.categoryName ?? '',
+        sub.categorySlug ?? slug ?? draft.categorySlug ?? '',
+      );
     }
     if (isQuoteBased(sub)) {
-      setSubcategory(sub.id, sub.name, 0);
+      setSubcategory(sub.id, sub.name, 0, { description: sub.description, pricingType: sub.pricingType });
       router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);
     } else if (isHourly(sub)) {
-      setSubcategory(sub.id, sub.name, 0, { hourlyRate: sub.hourlyRate ?? 0 });
+      setSubcategory(sub.id, sub.name, 0, {
+        hourlyRate: sub.hourlyRate ?? 0,
+        description: sub.description,
+        pricingType: sub.pricingType,
+      });
       router.push(Routes.CUSTOMER.BOOKING_CONFIGURE);
     } else {
-      setSubcategory(sub.id, sub.name, sub.basePrice ?? 0);
+      setSubcategory(sub.id, sub.name, sub.basePrice ?? 0, {
+        description: sub.description,
+        pricingType: sub.pricingType,
+      });
       router.push(Routes.CUSTOMER.BOOKING_CONFIGURE);
     }
+    setSelectedSubcategory(null);
   };
 
   const tint = getCategoryTint(slug);
@@ -73,16 +88,20 @@ export default function SubcategoryListScreen(): React.ReactElement {
 
   const renderItem = ({ item }: { item: Subcategory }): React.ReactElement => {
     const quoteBased = isQuoteBased(item);
+    const scope = getServiceScopeCopy(item.description, item.pricingType);
     return (
       <TouchableOpacity
         style={[styles.card, numColumns > 1 && styles.cardGrid]}
-        onPress={() => handleSelect(item)}
+        onPress={() => setSelectedSubcategory(item)}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`View ${item.name} service details`}
       >
         <View style={styles.cardContent}>
           <Text style={styles.serviceName}>{item.name}</Text>
-          <Text style={styles.serviceDesc} numberOfLines={2}>
-            {item.description}
+          {!scope.isPublished ? <Text style={styles.pendingLabel}>SCOPE DETAILS PENDING</Text> : null}
+          <Text style={styles.serviceDesc} numberOfLines={3}>
+            {scope.text}
           </Text>
           {item.estimatedDurationMinutes != null && (
             <View style={[styles.durationRow, { backgroundColor: tint.bg }]}>
@@ -164,6 +183,18 @@ export default function SubcategoryListScreen(): React.ReactElement {
           }
         />
       )}
+
+      <ConfirmModal
+        visible={selectedSubcategory !== null}
+        title={selectedSubcategory?.name ?? 'Service details'}
+        message={selectedSubcategory
+          ? getServiceScopeCopy(selectedSubcategory.description, selectedSubcategory.pricingType).text
+          : undefined}
+        confirmLabel={selectedSubcategory && isQuoteBased(selectedSubcategory) ? 'Describe job' : 'Customize service'}
+        cancelLabel="Back"
+        onCancel={() => setSelectedSubcategory(null)}
+        onConfirm={() => { if (selectedSubcategory) handleSelect(selectedSubcategory); }}
+      />
     </View>
   );
 }
@@ -196,6 +227,7 @@ const styles = StyleSheet.create({
   },
   cardContent: { flex: 1, marginRight: spacing.base },
   serviceName: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
+  pendingLabel: { ...typography.caption, color: colors.warningDark, fontWeight: '700', marginBottom: spacing.xs },
   serviceDesc: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.sm },
   durationRow: {
     flexDirection: 'row',

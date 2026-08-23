@@ -13,6 +13,8 @@ export interface BookingDraft {
   categorySlug: string | null;
   subcategoryId: string | null;
   subcategoryName: string | null;
+  serviceDescription: string;
+  pricingType: string | null;
   basePrice: number;
   // D27 Phase 4b — hourly bookings. basePrice tracks the capped authorization
   // (rounded estimatedHours x hourlyRate); the customer is billed for actual
@@ -40,7 +42,12 @@ interface BookingState {
   addonsTotal: number;
 
   setCategory: (id: string, name: string, slug: string) => void;
-  setSubcategory: (id: string, name: string, basePrice: number, hourly?: { hourlyRate: number }) => void;
+  setSubcategory: (
+    id: string,
+    name: string,
+    basePrice: number,
+    options?: { hourlyRate?: number; description?: string | null; pricingType?: string | null },
+  ) => void;
   setEstimatedHours: (hours: number) => void;
   setAddons: (addons: SelectedAddon[]) => void;
   setSchedule: (date: string, time: string) => void;
@@ -63,6 +70,8 @@ const initialDraft: BookingDraft = {
   categorySlug: null,
   subcategoryId: null,
   subcategoryName: null,
+  serviceDescription: '',
+  pricingType: null,
   basePrice: 0,
   isHourly: false,
   hourlyRate: 0,
@@ -107,6 +116,8 @@ export const useBookingStore = create<BookingState>((set) => ({
         categorySlug: slug,
         subcategoryId: null,
         subcategoryName: null,
+        serviceDescription: '',
+        pricingType: null,
         basePrice: 0,
         addons: [],
       },
@@ -115,10 +126,10 @@ export const useBookingStore = create<BookingState>((set) => ({
       addonsTotal: 0,
     })),
 
-  setSubcategory: (id, name, basePrice, hourly) =>
+  setSubcategory: (id, name, basePrice, options) =>
     set((s) => {
-      const isHourly = !!hourly;
-      const hourlyRate = hourly?.hourlyRate ?? 0;
+      const isHourly = options?.hourlyRate !== undefined;
+      const hourlyRate = options?.hourlyRate ?? 0;
       // Hourly starts at the 1-hour minimum authorization.
       const estimatedHours = isHourly ? 1 : 1;
       const effectiveBase = isHourly ? roundHourlyAmount(estimatedHours, hourlyRate) : basePrice;
@@ -128,6 +139,8 @@ export const useBookingStore = create<BookingState>((set) => ({
           ...s.draft,
           subcategoryId: id,
           subcategoryName: name,
+          serviceDescription: options?.description?.trim() ?? '',
+          pricingType: options?.pricingType ?? null,
           basePrice: effectiveBase,
           isHourly,
           hourlyRate,

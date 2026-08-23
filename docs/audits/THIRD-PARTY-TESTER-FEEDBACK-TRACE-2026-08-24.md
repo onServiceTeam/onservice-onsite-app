@@ -34,7 +34,7 @@ Only the first three are screen evidence. The other three support spam/quality t
 
 | Feedback cluster | Customer/provider surface | Admin/company counterpart | Current assessment | Action |
 | --- | --- | --- | --- | --- |
-| Service scope, inclusions, exclusions, and expected result are unclear | Home, category detail, provider profile, booking configure/request | Catalog, provider services, pricing rules | Strongest new qualitative signal; current descriptions and admin authoring quality must be measured | Audit catalog data completeness and add a truthful customer preview to catalog operations where supported |
+| Service scope, inclusions, exclusions, and expected result are unclear | Home, category detail, provider profile, booking configure/request | Catalog, provider services, pricing rules | Confirmed: all 29 active production services had blank descriptions on 2026-08-24 | Added honest customer fallbacks, end-to-end scope retention, an admin publishing queue and exact customer preview, and server-side publishing validation; the business still must author the 29 real scopes |
 | Custom-quote checkout can feel like a dead end | Quotes, pay, checkout, payment failed | Booking 360, Communications, Support Queue | Historical report; current post-E03 state must be reproduced before changing behavior | Trace fixed-price and quote state machines end to end and add a regression only for a current failure |
 | Payment method trust, logos, fees, and recovery are unclear | Payment methods, wallet top-up, checkout, receipt | Financials, notification templates, support | Plausible current friction; money behavior remains server-authoritative | Improve explanation and recovery UI without inventing payment guarantees or methods |
 | Wallet top-up QR did not return cleanly | Wallet top-up, wallet, payment failed | Financials, Support Queue | Current-code verification required | Trace redirect/callback/deep-link handling and visible pending/failed/success states |
@@ -78,12 +78,21 @@ The admin now needs one dedicated Tester Feedback workspace under Support & Trus
 
 The secret export remains available for private analysis and backup. It is not the day-to-day company workflow.
 
+## Service-scope verification and remediation
+
+The first tester-backed product finding was checked against production data instead of inferred from UI copy. On 2026-08-24 the catalog contained 29 active subcategories and every one had a blank description: 17 fixed-price services and 12 quote services. No service add-ons were configured. Category descriptions were present, but they do not define what an individual service includes, excludes, or delivers.
+
+No service scope was invented. Until the business publishes exact copy, customer category, search, provider profile, fixed-price configuration, and quote-request screens now show a pricing-aware fallback and carry the same scope state through the booking draft. The fallback tells customers to confirm included work inside onService; it does not promise a result or turn provider negotiation into the source of truth.
+
+Catalog operations now shows active, missing-scope, and scope-ready counts; a dedicated missing-scope queue; a visible warning on incomplete services; and an exact customer-facing preview. New active services and edits to active legacy services require at least 30 trimmed characters of customer scope. That threshold prevents blank or token text but is not proof that the copy is commercially or legally complete. Ordinary admins can inspect catalog evidence and the customer preview but cannot see superadmin-only mutation controls that the API would reject.
+
+Behavior is covered by Bugs UX-043 through UX-048, including a provider-profile regression that proves hourly booking uses the canonical catalog rate rather than a provider's generic base price. Catalog visual evidence covers populated, ordinary-admin read-only, missing-scope, customer-preview, loading, empty, and error states at 1280, 1440, and 1920 pixels. The remaining business task is to author and approve the 29 exact scopes, including important limits and any preparation the customer or provider must make.
+
 ## Next verification order
 
-1. Customer catalog scope/inclusions and the admin Catalog authoring model.
-2. Customer wallet top-up and payment-result recovery.
-3. Cebu address recognition and browser address fallback.
-4. Customer Help, Safety & Support, and shared support case linkage.
-5. Provider navigation, Services, Schedule/Availability, Team, Certifications, and upload states.
-6. Provider earnings/payout presentation without changing money behavior.
-7. Admin dashboard/reporting requests only after metric definitions and privacy boundaries exist.
+1. Customer wallet top-up and payment-result recovery.
+2. Cebu address recognition and browser address fallback.
+3. Customer Help, Safety & Support, and shared support case linkage.
+4. Provider navigation, Services, Schedule/Availability, Team, Certifications, and upload states.
+5. Provider earnings/payout presentation without changing money behavior.
+6. Admin dashboard/reporting requests only after metric definitions and privacy boundaries exist.

@@ -70,11 +70,11 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/customer/booking/change-order.tsx` | BOOKING/MONEY | booking, payment | S/HOLD | SOURCE/RENDER. Server contract exists; money wording and wide comparison need review. |
 | `app/customer/booking/checkout.tsx` | MONEY/BOOKING | booking, payment | S/HOLD | SOURCE/RENDER. PayMongo live-mode chain remains launch work. |
 | `app/customer/booking/complete.tsx` | BOOKING/SUPPORT | booking API | S | SOURCE/RENDER. Confirmation, dispute, and review exits linked. Wide hierarchy pending. |
-| `app/customer/booking/configure.tsx` | DISCOVERY/BOOKING | booking API | S | SOURCE/RENDER. Tablet form grouping and pricing explanation pending. |
+| `app/customer/booking/configure.tsx` | DISCOVERY/BOOKING | booking API | W | SOURCE/RENDER/WIDE via Bugs UX-043/046. Customer scope and pricing type survive discovery-to-booking linkage; the form is constrained for tablet/desktop reading. |
 | `app/customer/booking/confirm.tsx` | BOOKING/MONEY | booking service | S | SOURCE/RENDER. Booking/pay/support exits linked; desktop summary pending. |
 | `app/customer/booking/dispute.tsx` | SUPPORT/BOOKING | booking service | S/HOLD | SOURCE/RENDER. Provider response workflow is unresolved in E04. |
 | `app/customer/booking/form.tsx` | BOOKING | local booking state | S | SOURCE/RENDER. Calendar/time wide composition pending. |
-| `app/customer/booking/job-request.tsx` | BOOKING | booking service | S | SOURCE/RENDER. Provider lead and admin booking linkage exists. Stitch question grouping pending. |
+| `app/customer/booking/job-request.tsx` | BOOKING | booking service | W | SOURCE/RENDER/WIDE via Bugs UX-043/046. Quote/per-unit scope is retained from discovery and shown before request submission; the wide form is constrained for reading. |
 | `app/customer/booking/make-recurring.tsx` | RETENTION/BOOKING | booking API | S | SOURCE/RENDER. Recurring-admin linkage exists; wide schedule preview pending. |
 | `app/customer/booking/pay.tsx` | MONEY/BOOKING | booking, payment | S/HOLD | SOURCE/RENDER. Payment-failure and confirm exits linked. |
 | `app/customer/booking/payment-failed.tsx` | MONEY/SUPPORT | booking service | S | SOURCE/RENDER. Retry/support hierarchy and wide state pending. |
@@ -83,7 +83,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/customer/booking/review.tsx` | BOOKING/RETENTION | review service | S | SOURCE/RENDER. Provider/admin review linkage exists; wide form pending. |
 | `app/customer/booking/tip.tsx` | MONEY/RETENTION | tip, payment, booking | S/HOLD | SOURCE/RENDER. Money path remains server canonical. Wide summary pending. |
 | `app/customer/booking/tracker.tsx` | BOOKING/SUPPORT | booking, socket | W/N | SOURCE/RENDER/WIDE via Bug UX-027. Tablet/desktop map-and-status workspace preserves honest service-location behavior; no fake provider pin. Live authenticated customer visual evidence remains. |
-| `app/customer/category/[id].tsx` | DISCOVERY | catalog service | W | SOURCE/RENDER. Responsive provider grid exists; wide visual evidence pending. |
+| `app/customer/category/[id].tsx` | DISCOVERY | catalog service | W | SOURCE/RENDER via Bug UX-043. Responsive provider grid exists; every service has published scope or an honest pricing-aware fallback, and a confirmation step preserves the selected category/service context. Wide live visual evidence remains. |
 | `app/customer/chat/[id].tsx` | BOOKING/SUPPORT | messaging, socket, upload | W | SOURCE/RENDER/WIDE via Bug UX-030. Booking status, schedule, location, details, and tracker exits stay beside the conversation. Live authenticated customer visual evidence remains. |
 | `app/customer/data-rights.tsx` | GOVERNANCE | compliance service | S/HOLD | SOURCE/RENDER. Admin DSR linkage exists; identity/legal states must stay canonical. |
 | `app/customer/help.tsx` | SUPPORT | static help links | S | SOURCE/RENDER. Must route users into real support cases where appropriate. |
@@ -93,12 +93,12 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/customer/projects/index.tsx` | RETENTION | project service | W | SOURCE/RENDER. Responsive list exists; admin Projects counterpart linked. |
 | `app/customer/projects/new.tsx` | RETENTION/BOOKING | project service | S | SOURCE/RENDER. Desktop form and admin visibility pending. |
 | `app/customer/projects/[id].tsx` | RETENTION/BOOKING | project service | S | SOURCE/RENDER. Project-to-booking timeline split pending. |
-| `app/customer/provider/[id].tsx` | DISCOVERY/RETENTION | provider, review | S | SOURCE/RENDER. Admin provider record and provider portfolio link exist. Wide profile layout pending. |
+| `app/customer/provider/[id].tsx` | DISCOVERY/RETENTION | provider, review | S | SOURCE/RENDER via Bugs UX-043/048. Admin provider and portfolio links exist; provider service cards now use canonical catalog scope and fixed/hourly/per-unit/quote pricing before starting the correct booking path. UX-048 proves hourly booking uses the catalog hourly rate rather than a provider's generic base price. Wide profile layout remains. |
 | `app/customer/recurring/index.tsx` | RETENTION | recurring API | W | SOURCE/RENDER. Responsive list exists; admin Recurring counterpart linked. |
 | `app/customer/recurring/[id].tsx` | RETENTION/BOOKING | recurring API | S | SOURCE/RENDER. Edit/cancel implications and wide preview pending. |
 | `app/customer/referral.tsx` | RETENTION | referral service | S | SOURCE/RENDER. Marketing/analytics counterpart exists; metric truth review pending. |
 | `app/customer/safety-and-support.tsx` | SUPPORT/GOVERNANCE | support routes | S/HOLD | SOURCE/RENDER. Must not promise unresolved guarantee coverage. |
-| `app/customer/search.tsx` | DISCOVERY | catalog/search API | S | SOURCE/RENDER. Results link categories/providers; wide filters pending. |
+| `app/customer/search.tsx` | DISCOVERY | catalog/search API | S | SOURCE/RENDER via Bug UX-046. Results retain category/service/scope/pricing context and hourly services no longer enter the custom-quote path. Wide filters remain. |
 | `app/customer/suki-pros.tsx` | RETENTION/DISCOVERY | Suki service | S | SOURCE/RENDER. Provider loyalty counterpart exists; wide card grid pending. |
 | `app/customer/terms.tsx` | GOVERNANCE | canonical legal content | S/HOLD | SOURCE/RENDER. Final disclaimer remains F#10. |
 | `app/customer/wallet-topup.tsx` | MONEY | payment service | S/HOLD | SOURCE/RENDER. Customer top-up only; provider withdrawal must stay separate. |
@@ -180,7 +180,7 @@ Every admin page below is reopened for first-principles review. `Existing` means
 | `/bookings` | fulfilment and exception queue | customer bookings/provider jobs | command center | Existing; queue ownership/saved views open |
 | `/bookings/:id` | unified booking case, evidence, money, audit | booking detail/job execution | case workspace | Reworked in prior batch; destructive preview consistency open |
 | `/dispatch` | live assignment and exception response | tracker/provider jobs | command center | Existing; map/live-state honesty and operator density open |
-| `/catalog` | taxonomy, intake, price model | discovery/request/provider services | catalog config | Existing; customer preview and linked eligibility open |
+| `/catalog` | taxonomy, intake, price model | discovery/request/provider services | catalog config | Reworked via Bugs UX-044/045/047. Production-derived scope counts, missing-scope queue, exact customer preview, visible incomplete state, 30-character active-service API gate, and read-only ordinary-admin inspection now align company publishing with customer discovery. The business still must author all 29 production scopes. Seven visual states pass at 1280/1440/1920. |
 | `/projects` | recurring/multi-job oversight | customer projects/provider jobs | operations | Existing; lifecycle ownership open |
 | `/recurring` | recurring work exceptions | customer recurring/provider calendar | operations | Existing; case linkage open |
 | `/service-areas` | market launch, capacity, coverage | address/search/provider area | catalog config | Existing; impact preview and safe activation open |

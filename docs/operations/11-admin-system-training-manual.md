@@ -41,7 +41,7 @@ What actually controls what you can click is your single account role on the `us
 | Your account role | What you can do |
 |---|---|
 | `super_admin` | Everything, including all money and destructive actions: escrow release/refund, booking force-complete/cancel/reassign, dispute resolve/escalate/reopen, payout approve/reject/complete, provider wallet adjust, BIR finalize, reconciliation run, settings edit/reset, staff and roles management, cancellation-policy edit, service-area set-default, delete notification templates. |
-| `admin` | Read and operational access. You can view every page and do non-money operational work (approve/reject/suspend providers, manage service areas and catalog, work support tickets, etc.). On the money/destructive pages you see a read-only banner that says the action "requires a super-admin account." |
+| `admin` | Read and operational access. You can view every page and do non-money operational work such as provider vetting and support case handling. Catalog publishing is read-only because the API reserves category, service, pricing, add-on, and intake-field changes for `super_admin`. On money, destructive, and catalog-publishing surfaces you see a read-only banner. |
 | `dpo` | Admin-tier, plus the compliance powers: search consent records and handle Data Subject Requests under the Data Privacy Act. This is a real, separate role required by NPC rules, not a nickname for super_admin. |
 
 There is also a second, finer permission system in the database (`admin_roles` / `admin_staff`) that seeds named roles: `super_admin`, `admin`, `support_agent`, `finance`, `moderator`, plus a permission vocabulary like `bookings.view`, `payouts.manage`, `disputes.manage`. Useful to know:
@@ -165,9 +165,19 @@ Known quirk: the default map center is still hardcoded to old Boracay coordinate
 
 ### 2.9 Catalog / Service Catalog (`/catalog`)
 
-Manage the service taxonomy: Categories (name, description, icon, order), Subcategories/services (pricing type `fixed`/`range`/`quote`/`hourly`; base/min/max price in pesos; estimated duration; order), and Add-ons (name, price, order). Prices are stored as centavos.
+Manage the customer-facing service taxonomy: Categories (name, description, icon, order), Subcategories/services (customer scope, pricing type `fixed`/`range`/`quote`/`hourly`; base/min/max price in pesos; estimated duration; order), Add-ons (name, price, order), and intake fields. Prices are stored as centavos. Ordinary admins can inspect this workspace; only `super_admin` can publish or change it.
 
-How to add a service: open the right Category, add a Subcategory, set its pricing type and base price, set a sensible min/max so per-provider prices can not drift out of range, save.
+Start with the three status cards. **Need customer scope** opens the publishing queue for active services whose description is blank or too short. These services show customers an honest fallback until approved copy is published. Do not treat that fallback as finished catalog content.
+
+How a `super_admin` adds or repairs a service:
+
+1. Open the right category and add or edit the service.
+2. Write the customer service scope first. State what work is covered, the expected deliverable, important exclusions or limits, and anything the customer or provider must prepare. Do not add guarantees, prices, parts, response times, or legal promises that have not been approved.
+3. Use the customer preview to check the exact name, scope, and pricing presentation the customer receives.
+4. Set the canonical pricing type and applicable base/range/hourly/per-unit values, estimated duration, and order.
+5. Save. Active services require at least 30 trimmed characters of scope. This is a blank-copy safety check, not approval of the wording.
+
+At the 2026-08-24 production audit, all 29 active services needed scope (17 fixed-price and 12 quote), and there were no add-ons. The business content task remains open until each service is reviewed and published; do not invent copy simply to clear the counter.
 
 ### 2.10 Pricing Rules (`/pricing-rules`)
 

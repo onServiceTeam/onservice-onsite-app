@@ -22,6 +22,7 @@ import { Badge, Skeleton, SkeletonCard, EmptyState, ErrorState } from '@/compone
 import Avatar from '@/components/Avatar';
 import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
+import { getServiceScopeCopy } from '@/utils/serviceScope';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Star, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText, ChevronRight, Search } from '@/components/icons';
 // BUG-PHASE94-01 — founding tier added so customers viewing a
@@ -91,11 +92,27 @@ export default function ProviderProfileScreen(): React.ReactElement {
     if (svc.categoryId) {
       setCategory(svc.categoryId, svc.categoryName ?? '', svc.categorySlug ?? '');
     }
-    if (svc.basePrice == null) {
-      setSubcategory(svc.subcategoryId, svc.subcategoryName, 0);
+    const isHourly = svc.pricingType === 'hourly';
+    const isQuoteBased = !isHourly
+      && (svc.pricingType === 'quote' || svc.pricingType === 'per_unit' || svc.basePrice == null);
+    if (isQuoteBased) {
+      setSubcategory(svc.subcategoryId, svc.subcategoryName, 0, {
+        description: svc.description,
+        pricingType: svc.pricingType,
+      });
       router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);
+    } else if (isHourly) {
+      setSubcategory(svc.subcategoryId, svc.subcategoryName, 0, {
+        hourlyRate: svc.hourlyRate ?? 0,
+        description: svc.description,
+        pricingType: svc.pricingType,
+      });
+      router.push(Routes.CUSTOMER.BOOKING_CONFIGURE);
     } else {
-      setSubcategory(svc.subcategoryId, svc.subcategoryName, svc.basePrice);
+      setSubcategory(svc.subcategoryId, svc.subcategoryName, svc.basePrice ?? 0, {
+        description: svc.description,
+        pricingType: svc.pricingType,
+      });
       router.push(Routes.CUSTOMER.BOOKING_CONFIGURE);
     }
   }, [router, setCategory, setSubcategory]);
@@ -279,9 +296,18 @@ export default function ProviderProfileScreen(): React.ReactElement {
                 accessibilityRole="button"
                 accessibilityLabel={`Book ${svc.subcategoryName}`}
               >
-                <Text style={styles.serviceName}>{svc.subcategoryName}</Text>
+                <View style={styles.serviceCopy}>
+                  <Text style={styles.serviceName}>{svc.subcategoryName}</Text>
+                  <Text style={styles.serviceDescription} numberOfLines={2}>
+                    {getServiceScopeCopy(svc.description, svc.pricingType).text}
+                  </Text>
+                </View>
                 <View style={styles.serviceRowRight}>
-                  {svc.basePrice != null ? (
+                  {svc.pricingType === 'hourly' && svc.hourlyRate != null ? (
+                    <Text style={styles.servicePrice}>{formatPHP(svc.hourlyRate)}/hr</Text>
+                  ) : svc.pricingType === 'per_unit' && svc.unitPrice != null ? (
+                    <Text style={styles.servicePrice}>{formatPHP(svc.unitPrice)}/{svc.unitLabel ?? 'unit'}</Text>
+                  ) : svc.basePrice != null ? (
                     <Text style={styles.servicePrice}>{formatPHP(svc.basePrice)}</Text>
                   ) : (
                     <Text style={styles.serviceQuote}>Get Quote</Text>
@@ -521,9 +547,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
+  serviceCopy: { flex: 1, marginRight: spacing.md },
   serviceRowRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   serviceQuote: { ...typography.body, color: colors.secondary, fontWeight: '600' },
-  serviceName: { ...typography.body, color: colors.text, flex: 1 },
+  serviceName: { ...typography.body, color: colors.text, fontWeight: '600' },
+  serviceDescription: { ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 17 },
   servicePrice: { ...typography.body, color: colors.primary, fontWeight: '600' },
 
   scheduleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },

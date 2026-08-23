@@ -287,26 +287,32 @@ Admin findings:
 31. Pulled and visually reviewed all 10 available third-party tester submissions and six screenshots through the private, gitignored production-export workflow.
 32. Added the Tester Feedback admin workspace and transactional triage API through Bugs UX-037 to UX-041, plus active-sidebar visibility via UX-042.
 33. Added 12 Tester Feedback baselines at 1280, 1440, and 1920 pixels, raising admin visual coverage from 366 to 378 snapshots.
+34. Measured the strongest tester complaint against production data: all 29 active services had blank customer scope descriptions (17 fixed-price, 12 quote), and no add-ons were configured.
+35. Added pricing-aware scope fallback and booking-draft retention across customer category, search, provider profile, fixed configuration, and custom request paths without inventing service promises.
+36. Reworked Catalog into a publishing workspace with active/missing/ready counts, a missing-scope queue, visible incomplete states, an exact customer preview, and a 30-character server-side gate for active service publishing.
+37. Aligned Catalog controls with the existing API boundary: ordinary admins retain evidence inspection while category, service, pricing, add-on, and intake mutations are shown only to superadmins.
+38. Repaired Catalog visual tests that had intercepted the wrong endpoint, then verified seven real states at 1280, 1440, and 1920 pixels. Nine new baselines raise admin visual coverage from 378 to 387 snapshots.
+39. Corrected provider-profile hourly booking linkage so the displayed and drafted rate comes from the canonical catalog hourly rate, not the provider service's generic base price; Bug UX-048 renders and proves the complete interaction.
 
 ## Verification record for this batch
 
 - Admin TypeScript: passed.
 - Mobile TypeScript: passed.
 - API TypeScript: passed.
-- Mobile suite after the current responsive batch: 188 suites passed, 714 tests passed, 88 explicit todos.
-- Admin suite after the Tester Feedback batch: 61 files passed, 1 skipped, 174 tests passed, 3 explicit todos.
-- API suite after the Tester Feedback batch: 285 suites passed, 3019 tests passed.
+- Mobile suite after the service-scope batch: 191 suites passed, 717 tests passed, 88 explicit todos.
+- Admin suite after the service-scope batch: 63 files passed, 1 skipped, 176 tests passed, 3 explicit todos.
+- API suite after the service-scope batch: 286 suites passed, 3020 tests passed.
 - Admin and mobile lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
 - Mobile production web export: passed with `EXPO_OS=web` and the production same-origin API URL.
-- Production release before this local Tester Feedback checkpoint: application source and assets are deployed through `5c9d8762bd5a055c6edbe883465e2420ca600964`; GitHub Gates run 32650979719 and CI run 32650979727 passed every job. The Tester Feedback batch still requires push, migration, and deployment before this line can be advanced.
+- Production baseline entering the service-scope batch: application source and assets were aligned through Tester Feedback commit `257ce394eb61eeb978ecf980cad742208d4e8f19`, including migration 147 and healthy API/admin/mobile services. Each later checkpoint must still pass GitHub CI before the source and affected production assets are advanced together.
 - Production browser smoke: admin login rendered the Stitch operations workspace live at 1280 with 44 px controls and no overflow. Provider dashboard and Schedule were verified at 820/1280. Provider calendar, job detail, and chat now render their paired workspaces at 820/1280 with no horizontal overflow. Live QA caught and fixed an initial one-pixel calendar detail collapse before closeout. Customer tracker/chat still need an authenticated customer browser session; their rendered behavior tests pass.
 - Production asset and service smoke: admin and mobile `index.html` SHA-256 hashes matched the local production builds; the public config endpoint returned `#003D9B`, `#0052CC`, and `#FE8A00`; every onService compose service remained healthy.
-- Local visual regression record: all 12 new Tester Feedback baselines plus the active-sidebar visibility check replayed cleanly; the populated 1280-pixel image was inspected directly for queue/detail alignment, evidence hierarchy, ownership form, and overflow. The admin baseline inventory is now 378 PNGs.
+- Local visual regression record: all 21 Catalog states replayed cleanly after the endpoint interception was corrected. Populated scope queue, customer preview, and ordinary-admin read-only images were inspected directly at 1280 pixels. The admin baseline inventory is now 387 PNGs.
 
 ## Next implementation order
 
-1. Work the tester-backed customer findings in evidence order: catalog scope/inclusions, wallet top-up recovery, Cebu address recognition, and support entry/linkage.
+1. Continue the tester-backed customer findings in evidence order: wallet top-up recovery, Cebu address recognition, and support entry/linkage.
 2. Work the tester-backed provider findings: job navigation, service editing, availability validation, team contact validation, certification/upload states, and payout presentation.
 3. Audit and improve the remaining high-use wide layouts: customer projects, support, and notifications; provider earnings, client detail, and quote builder.
 4. Continue the admin suspicion-first pass page by page, replacing generic confirmations only where impact preview, reason capture, and audit context are required.

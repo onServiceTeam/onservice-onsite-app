@@ -13,6 +13,8 @@ import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { ChevronLeft, Check } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
+import { useResponsive } from '@/hooks/useResponsive';
+import ServiceScopeNotice from '@/components/ServiceScopeNotice';
 
 import { Routes } from '@/config/navigation';
 interface Addon {
@@ -28,6 +30,7 @@ export default function ConfigureScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { draft, setAddons, setEstimatedHours } = useBookingStore();
+  const { isPhone } = useResponsive();
 
   const [selected, setSelected] = useState<Map<string, SelectedAddon>>(
     new Map(draft.addons.map((a) => [a.id, a])),
@@ -91,6 +94,7 @@ export default function ConfigureScreen(): React.ReactElement {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <View style={[styles.formContent, !isPhone && styles.formContentWide]}>
         <View style={[styles.serviceInfo, { backgroundColor: tint.bg }]}>
           <Text style={[styles.serviceName, { color: tint.fg }]}>{draft.subcategoryName ?? 'Service'}</Text>
           <Text style={[styles.servicePrice, { color: tint.fg }]}>{formatPHP(draft.basePrice)}</Text>
@@ -98,6 +102,11 @@ export default function ConfigureScreen(): React.ReactElement {
             <Text style={[styles.hourlyRateNote, { color: tint.fg }]}>{formatPHP(draft.hourlyRate)}/hr</Text>
           ) : null}
         </View>
+
+        <ServiceScopeNotice
+          description={draft.serviceDescription}
+          pricingType={draft.pricingType}
+        />
 
         {/* D27 Phase 4b — hourly estimate stepper. The amount above is the
             authorization (estimate x rate); the customer is billed for actual
@@ -205,9 +214,11 @@ export default function ConfigureScreen(): React.ReactElement {
             </View>
           </Card>
         )}
+        </View>
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
+        <View style={[styles.bottomBarContent, !isPhone && styles.formContentWide]}>
         {addons && addons.length > 0 ? (
           <Button
             title={selectedAddons.length > 0
@@ -218,6 +229,7 @@ export default function ConfigureScreen(): React.ReactElement {
         ) : (
           <Button title="Continue" onPress={handleSkip} />
         )}
+        </View>
       </View>
     </View>
   );
@@ -246,6 +258,8 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 120 },
+  formContent: { width: '100%' },
+  formContentWide: { maxWidth: 880, alignSelf: 'center' },
 
   serviceInfo: {
     flexDirection: 'row',
@@ -315,5 +329,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.base,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
+    alignItems: 'center',
   },
+  bottomBarContent: { width: '100%' },
 });
