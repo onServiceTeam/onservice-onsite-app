@@ -434,6 +434,7 @@ const styles = StyleSheet.create({
   detailScroll: { flex: 1 },
   detailScrollTablet: {
     flex: 0,
+    flexBasis: 'auto',
     flexGrow: 0,
     flexShrink: 0,
     width: 300,
@@ -444,6 +445,7 @@ const styles = StyleSheet.create({
   },
   detailScrollWide: {
     flex: 0,
+    flexBasis: 'auto',
     flexGrow: 0,
     flexShrink: 0,
     width: 360,
