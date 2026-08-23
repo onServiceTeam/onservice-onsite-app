@@ -7,7 +7,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View, Easing } from 'react-native';
+import { Animated, StyleSheet, View, Easing, Platform } from 'react-native';
 import { colors } from '@/config/theme';
 
 export interface PulsingDotProps {
@@ -32,13 +32,13 @@ export function PulsingDot({
             toValue: 0.4,
             duration: 800,
             easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
           Animated.timing(scale, {
             toValue: 1.4,
             duration: 800,
             easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
         ]),
         Animated.parallel([
@@ -46,13 +46,13 @@ export function PulsingDot({
             toValue: 1,
             duration: 800,
             easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
           Animated.timing(scale, {
             toValue: 1,
             duration: 800,
             easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
         ]),
       ]),

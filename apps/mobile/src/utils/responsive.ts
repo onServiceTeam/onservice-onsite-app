@@ -6,9 +6,9 @@
 //
 // The web app now AUTO-adapts to the real window width (no manual ?view needed):
 //   • phone  (< 700px window): the app fills the viewport (mobile web).
-//   • tablet (700-999px): a comfortable centered surface (up to 760px).
-//   • desktop (>= 1000px): a real desktop surface (up to 1100px) where grids
-//     reflow to more columns.
+//   • tablet (700-999px): a comfortable centered surface (up to 920px).
+//   • desktop (>= 1000px): content may grow to 1100px. At 1180px the web
+//     shell also adds persistent role-aware navigation beside that content.
 // A ?view=mobile|desktop URL param still force-overrides the current URL for
 // testing. It is deliberately not persisted: a test link must never leave a
 // real customer or provider stuck in phone mode on later visits.
@@ -22,8 +22,10 @@ export const DESKTOP_MIN_WIDTH = 1000;
 
 // How wide the app's content surface is allowed to grow at each breakpoint.
 export const PHONE_COLUMN_MAX_WIDTH = 480; // forced-mobile phone column on wide screens
-export const TABLET_CONTENT_MAX_WIDTH = 760;
+export const TABLET_CONTENT_MAX_WIDTH = 920;
 export const DESKTOP_CONTENT_MAX_WIDTH = 1100;
+export const DESKTOP_SHELL_MIN_WIDTH = 1180;
+export const DESKTOP_SHELL_MAX_WIDTH = 1320;
 
 /** Web-only forced view from the current ?view=desktop|mobile query string. */
 export function getForcedView(): 'mobile' | 'desktop' | null {
@@ -61,11 +63,16 @@ function info(width: number, breakpoint: Breakpoint): ResponsiveInfo {
  * uses the real device width (phone, or tablet on big devices). On web it
  * auto-adapts by width unless a ?view override is set.
  */
-export function resolveLayout(windowWidth: number, forcedView: 'mobile' | 'desktop' | null): ResponsiveInfo {
+export function resolveLayout(
+  windowWidth: number,
+  forcedView: 'mobile' | 'desktop' | null,
+): ResponsiveInfo {
   if (forcedView === 'mobile') return info(Math.min(windowWidth, PHONE_COLUMN_MAX_WIDTH), 'phone');
-  if (forcedView === 'desktop') return info(Math.min(windowWidth, DESKTOP_CONTENT_MAX_WIDTH), 'desktop');
+  if (forcedView === 'desktop')
+    return info(Math.min(windowWidth, DESKTOP_CONTENT_MAX_WIDTH), 'desktop');
   if (windowWidth < TABLET_MIN_WIDTH) return info(windowWidth, 'phone');
-  if (windowWidth < DESKTOP_MIN_WIDTH) return info(Math.min(windowWidth, TABLET_CONTENT_MAX_WIDTH), 'tablet');
+  if (windowWidth < DESKTOP_MIN_WIDTH)
+    return info(Math.min(windowWidth, TABLET_CONTENT_MAX_WIDTH), 'tablet');
   return info(Math.min(windowWidth, DESKTOP_CONTENT_MAX_WIDTH), 'desktop');
 }
 

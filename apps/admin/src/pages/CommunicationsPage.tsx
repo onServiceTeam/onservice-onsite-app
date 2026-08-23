@@ -329,7 +329,7 @@ function ConversationThread({ conversationId }: { conversationId: string }): Rea
     },
   });
 
-  const invalidate = () => {
+  const invalidate = (): void => {
     queryClient.invalidateQueries({ queryKey: ['admin-comms-thread', conversationId] });
     queryClient.invalidateQueries({ queryKey: ['admin-comms-stats'] });
     queryClient.invalidateQueries({ queryKey: ['admin-comms-queue'] });

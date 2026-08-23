@@ -1,7 +1,7 @@
 import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { Tabs, Redirect } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { colors, typography } from '@/config/theme';
 import NewJobModal from '@/components/provider/NewJobModal';
 import { LayoutDashboard, Wrench, Coins, User } from '@/components/icons';
@@ -14,16 +14,24 @@ import { LayoutDashboard, Wrench, Coins, User } from '@/components/icons';
 // shape of provider features to non-providers.
 import { useAuthStore } from '@/stores/auth.store';
 import { Routes } from '@/config/navigation';
+import { DESKTOP_SHELL_MIN_WIDTH } from '@/utils/responsive';
 
 type TabIconProps = { focused: boolean; color: string };
 
-function tabIcon(Icon: React.ComponentType<{ size?: number; color?: string }>): (props: TabIconProps) => React.ReactElement {
+function tabIcon(
+  Icon: React.ComponentType<{ size?: number; color?: string }>,
+): (props: TabIconProps) => React.ReactElement {
   return ({ focused, color }) => (
-    <Icon size={focused ? 24 : 22} color={focused ? colors.secondary : color ?? colors.textTertiary} />
+    <Icon
+      size={focused ? 24 : 22}
+      color={focused ? colors.secondary : (color ?? colors.textTertiary)}
+    />
   );
 }
 
 export default function ProviderTabLayout(): React.ReactElement {
+  const { width } = useWindowDimensions();
+  const hideForDesktopShell = Platform.OS === 'web' && width >= DESKTOP_SHELL_MIN_WIDTH;
   // Phase K CRIT-K02 — role gate. Customer / anonymous / not-yet-
   // approved applicants get bounced to the customer tabs (or auth
   // landing if not signed in).
@@ -41,9 +49,9 @@ export default function ProviderTabLayout(): React.ReactElement {
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: colors.secondary,
+          tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textTertiary,
-          tabBarStyle: styles.tabBar,
+          tabBarStyle: hideForDesktopShell ? styles.hiddenTabBar : styles.tabBar,
           tabBarLabelStyle: styles.tabLabel,
         }}
       >
@@ -95,4 +103,5 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: '600',
   },
+  hiddenTabBar: { display: 'none' },
 });

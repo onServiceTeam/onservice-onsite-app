@@ -118,6 +118,12 @@ interface BookingDispute {
   resolvedAt: string | null;
 }
 
+interface AssignableProvider {
+  id: string;
+  businessName: string | null;
+  city: string | null;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 function fmtCentavos(centavos: number): string {
@@ -132,7 +138,9 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
 }
 
-function statusVariant(status: string | undefined | null): 'success' | 'danger' | 'info' | 'warning' {
+function statusVariant(
+  status: string | undefined | null,
+): 'success' | 'danger' | 'info' | 'warning' {
   // Phase L MED-L04 fix — guard against undefined/null status; loading
   // state used to throw on .startsWith.
   if (!status) return 'info';
@@ -285,7 +293,7 @@ function BookingHeader({ detail }: { detail: BookingDetail }): React.ReactElemen
 
 type ActionId = 'release' | 'refund' | 'reassign' | 'cancel' | 'force_complete';
 
-function BookingActions({ bookingId }: { bookingId: string }): React.ReactElement | null {
+export function BookingActions({ bookingId }: { bookingId: string }): React.ReactElement | null {
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
   const queryClient = useQueryClient();
@@ -297,6 +305,17 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
   const [hoursUntilScheduled, setHoursUntilScheduled] = useState('');
   const [providerArrived, setProviderArrived] = useState(false);
   const [customerNoShow, setCustomerNoShow] = useState(false);
+
+  const providersQuery = useQuery({
+    queryKey: ['admin-online-providers', 'booking-reassign'],
+    queryFn: async () => {
+      const res = await api.get<{ rows?: AssignableProvider[]; data?: AssignableProvider[] }>(
+        '/api/v1/admin/providers?online=true&pageSize=100',
+      );
+      return res.data.rows ?? res.data.data ?? [];
+    },
+    enabled: open === 'reassign',
+  });
 
   const invalidateAll = (): void => {
     queryClient.invalidateQueries({ queryKey: ['admin-booking-detail', bookingId] });
@@ -320,10 +339,7 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
 
   const releaseMut = useMutation({
     mutationFn: async (input: { reason: string }) => {
-      const res = await api.post(
-        `/api/v1/admin/bookings/${bookingId}/escrow/release`,
-        input,
-      );
+      const res = await api.post(`/api/v1/admin/bookings/${bookingId}/escrow/release`, input);
       return res.data;
     },
     onSuccess: () => {
@@ -334,10 +350,7 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
 
   const refundMut = useMutation({
     mutationFn: async (input: { amount: number; reason: string }) => {
-      const res = await api.post(
-        `/api/v1/admin/bookings/${bookingId}/escrow/refund`,
-        input,
-      );
+      const res = await api.post(`/api/v1/admin/bookings/${bookingId}/escrow/refund`, input);
       return res.data;
     },
     onSuccess: () => {
@@ -375,10 +388,7 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
 
   const forceMut = useMutation({
     mutationFn: async (input: { reason: string }) => {
-      const res = await api.post(
-        `/api/v1/admin/bookings/${bookingId}/force-complete`,
-        input,
-      );
+      const res = await api.post(`/api/v1/admin/bookings/${bookingId}/force-complete`, input);
       return res.data;
     },
     onSuccess: () => {
@@ -401,8 +411,7 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
   // 20-char floor.
   const reasonOk = reason.trim().length >= 10;
   const reasonOkForce = reason.trim().length >= 20;
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const providerIdOk = UUID_RE.test(providerId.trim());
+  const providerIdOk = (providersQuery.data ?? []).some((provider) => provider.id === providerId);
   const refundAmtCentavos = (() => {
     const n = parseFloat(amountPesos);
     return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
@@ -417,9 +426,7 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
     <Card className="p-5">
       <div className="flex items-center gap-2 flex-wrap">
         <Shield size={14} className="text-[var(--color-text-secondary)]" />
-        <span className="text-sm font-medium text-[var(--color-text)]">
-          Super-admin actions
-        </span>
+        <span className="text-sm font-medium text-[var(--color-text)]">Super-admin actions</span>
         <div className="flex items-center gap-2 ml-auto flex-wrap">
           <Button
             size="sm"
@@ -471,7 +478,10 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
 
           {open === 'refund' && (
             <div>
-              <label htmlFor="booking-refund-amount" className="text-xs text-[var(--color-text-secondary)]">
+              <label
+                htmlFor="booking-refund-amount"
+                className="text-xs text-[var(--color-text-secondary)]"
+              >
                 Refund amount (PHP)
               </label>
               <input
@@ -488,19 +498,36 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
 
           {open === 'reassign' && (
             <div>
-              <label htmlFor="booking-reassign-provider" className="text-xs text-[var(--color-text-secondary)]">
-                New provider ID (UUID)
+              <label
+                htmlFor="booking-reassign-provider"
+                className="text-xs text-[var(--color-text-secondary)]"
+              >
+                New online provider
               </label>
-              <input
+              <select
                 id="booking-reassign-provider"
-                type="text"
                 value={providerId}
                 onChange={(e) => setProviderId(e.target.value)}
-                placeholder="00000000-0000-0000-0000-000000000000"
-                className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm font-mono"
-              />
-              {providerId.trim().length > 0 && !providerIdOk && (
-                <p className="text-xs text-[var(--color-error)] mt-1">Enter a valid provider ID (UUID format)</p>
+                aria-label="New online provider"
+                disabled={providersQuery.isLoading || providersQuery.isError}
+                className="h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 text-sm"
+              >
+                <option value="">
+                  {providersQuery.isLoading
+                    ? 'Loading online providers...'
+                    : 'Choose an online provider'}
+                </option>
+                {(providersQuery.data ?? []).map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.businessName ?? 'Unnamed provider'}
+                    {provider.city ? ` · ${provider.city}` : ''}
+                  </option>
+                ))}
+              </select>
+              {providersQuery.isError && (
+                <p role="alert" className="mt-1 text-xs text-[var(--color-error)]">
+                  Online providers could not be loaded. Use Dispatch to retry.
+                </p>
               )}
             </div>
           )}
@@ -508,7 +535,10 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
           {open === 'cancel' && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label htmlFor="booking-cancel-hours" className="text-xs text-[var(--color-text-secondary)]">
+                <label
+                  htmlFor="booking-cancel-hours"
+                  className="text-xs text-[var(--color-text-secondary)]"
+                >
                   Hours until scheduled (optional)
                 </label>
                 <input
@@ -564,7 +594,8 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
                 size="sm"
                 disabled={!reasonOk || releaseMut.isPending}
                 onClick={() => {
-                  if (window.confirm('Manually release escrow for this booking?')) releaseMut.mutate({ reason });
+                  if (window.confirm('Manually release escrow for this booking?'))
+                    releaseMut.mutate({ reason });
                 }}
               >
                 Confirm release
@@ -587,11 +618,7 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
               <Button
                 size="sm"
                 disabled={!reasonOk || !providerIdOk || reassignMut.isPending}
-                onClick={() =>
-                  window.confirm('Reassign this booking to the entered provider ID?')
-                    ? reassignMut.mutate({ newProviderId: providerId.trim(), reason })
-                    : undefined
-                }
+                onClick={() => reassignMut.mutate({ newProviderId: providerId, reason })}
               >
                 Confirm reassign
               </Button>
@@ -604,11 +631,11 @@ function BookingActions({ bookingId }: { bookingId: string }): React.ReactElemen
                 onClick={() =>
                   window.confirm('Cancel this booking?')
                     ? cancelMut.mutate({
-                      reason,
-                      hoursUntilScheduled: cancelHours,
-                      providerArrived: providerArrived || undefined,
-                      customerNoShow: customerNoShow || undefined,
-                    })
+                        reason,
+                        hoursUntilScheduled: cancelHours,
+                        providerArrived: providerArrived || undefined,
+                        customerNoShow: customerNoShow || undefined,
+                      })
                     : undefined
                 }
               >
@@ -700,10 +727,8 @@ function OverviewTab({ detail }: { detail: BookingDetail }): React.ReactElement 
             extraLine={
               <span className="inline-flex items-center gap-1">
                 <Star size={12} />{' '}
-                {detail.provider.rating !== null
-                  ? detail.provider.rating.toFixed(2)
-                  : '—'}{' '}
-                · {detail.provider.lifetimeJobs} jobs · tier {detail.provider.tier}
+                {detail.provider.rating !== null ? detail.provider.rating.toFixed(2) : '—'} ·{' '}
+                {detail.provider.lifetimeJobs} jobs · tier {detail.provider.tier}
               </span>
             }
             link={`/providers/${detail.provider.id}`}
@@ -724,11 +749,12 @@ function OverviewTab({ detail }: { detail: BookingDetail }): React.ReactElement 
         {detail.address && (detail.address.full || detail.address.city) ? (
           <div className="text-sm text-[var(--color-text)]">
             {detail.address.full && <p>{detail.address.full}</p>}
-            {[detail.address.barangay, detail.address.city, detail.address.province]
-              .filter(Boolean).length > 0 && (
+            {[detail.address.barangay, detail.address.city, detail.address.province].filter(Boolean)
+              .length > 0 && (
               <p className="text-[var(--color-text-secondary)] mt-0.5">
                 {[detail.address.barangay, detail.address.city, detail.address.province]
-                  .filter(Boolean).join(', ')}
+                  .filter(Boolean)
+                  .join(', ')}
               </p>
             )}
           </div>
@@ -830,15 +856,11 @@ function TimelineTab({ bookingId }: { bookingId: string }): React.ReactElement {
                 }
               />
               <span className="text-sm font-medium text-[var(--color-text)]">{e.type}</span>
-              <span className="text-xs text-[var(--color-text-secondary)]">
-                {fmtDate(e.at)}
-              </span>
+              <span className="text-xs text-[var(--color-text-secondary)]">{fmtDate(e.at)}</span>
             </div>
             <p className="text-sm text-[var(--color-text-secondary)] mt-1">{e.description}</p>
             {e.actor.name && (
-              <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                by {e.actor.name}
-              </p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">by {e.actor.name}</p>
             )}
           </li>
         ))}
@@ -937,12 +959,8 @@ function EvidenceTab({ bookingId }: { bookingId: string }): React.ReactElement {
                     <td className="px-3 py-2">
                       <Badge label={g.eventType} variant="info" />
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs">
-                      {g.lat.toFixed(6)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs">
-                      {g.lng.toFixed(6)}
-                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-xs">{g.lat.toFixed(6)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs">{g.lng.toFixed(6)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1103,10 +1121,7 @@ function AuditTab({ bookingId }: { bookingId: string }): React.ReactElement {
           </thead>
           <tbody>
             {adminEvents.map((e, idx) => (
-              <tr
-                key={`${e.at}-${idx}`}
-                className="border-t border-[var(--color-border)]"
-              >
+              <tr key={`${e.at}-${idx}`} className="border-t border-[var(--color-border)]">
                 <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">
                   {fmtDate(e.at)}
                 </td>
@@ -1169,22 +1184,26 @@ function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
   const q = useQuery({
     queryKey: ['admin-booking-quotes', bookingId],
     queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: { quotes: AdminQuote[]; changeOrders: AdminChangeOrder[] } }>(
-        `/api/v1/admin/bookings/${bookingId}/quotes`,
-      );
+      const res = await api.get<{
+        success: boolean;
+        data: { quotes: AdminQuote[]; changeOrders: AdminChangeOrder[] };
+      }>(`/api/v1/admin/bookings/${bookingId}/quotes`);
       return res.data.data;
     },
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError || !q.data) return <ErrorState title="Failed to load quotes" description={getErrorMessage(q.error)} />;
+  if (q.isError || !q.data)
+    return <ErrorState title="Failed to load quotes" description={getErrorMessage(q.error)} />;
 
   const { quotes, changeOrders } = q.data;
 
   return (
     <div className="space-y-5">
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Quotes ({quotes.length})</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">
+          Quotes ({quotes.length})
+        </h3>
         {quotes.length === 0 ? (
           <EmptyState title="No quotes" description="No provider has quoted this request." />
         ) : (
@@ -1197,8 +1216,19 @@ function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
                     {quote.providerRating != null ? ` · ★ ${quote.providerRating.toFixed(2)}` : ''}
                   </span>
                   <div className="flex items-center gap-2">
-                    <Badge label={quote.status} variant={quote.status === 'accepted' ? 'success' : quote.status === 'declined' ? 'danger' : 'info'} />
-                    <span className="text-sm font-semibold text-[var(--color-text)]">{fmtCentavos(quote.quotedPrice)}</span>
+                    <Badge
+                      label={quote.status}
+                      variant={
+                        quote.status === 'accepted'
+                          ? 'success'
+                          : quote.status === 'declined'
+                            ? 'danger'
+                            : 'info'
+                      }
+                    />
+                    <span className="text-sm font-semibold text-[var(--color-text)]">
+                      {fmtCentavos(quote.quotedPrice)}
+                    </span>
                   </div>
                 </div>
                 <div className="flex gap-4 mt-1 text-xs text-[var(--color-text-secondary)]">
@@ -1206,12 +1236,20 @@ function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
                   <span>Materials {fmtCentavos(quote.materialsAmount)}</span>
                   {quote.estimatedDays != null ? <span>{quote.estimatedDays} day(s)</span> : null}
                 </div>
-                {quote.description ? <p className="text-sm text-[var(--color-text-secondary)] mt-2">{quote.description}</p> : null}
+                {quote.description ? (
+                  <p className="text-sm text-[var(--color-text-secondary)] mt-2">
+                    {quote.description}
+                  </p>
+                ) : null}
                 {quote.lineItems.length > 0 && (
                   <table className="w-full mt-3 text-xs">
                     <thead>
                       <tr className="text-left text-[var(--color-text-tertiary)]">
-                        <th className="py-1">Item</th><th>Type</th><th className="text-right">Qty</th><th className="text-right">Unit</th><th className="text-right">Total</th>
+                        <th className="py-1">Item</th>
+                        <th>Type</th>
+                        <th className="text-right">Qty</th>
+                        <th className="text-right">Unit</th>
+                        <th className="text-right">Total</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1219,15 +1257,23 @@ function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
                         <tr key={li.id} className="border-t border-[var(--color-border)]">
                           <td className="py-1 text-[var(--color-text)]">{li.description}</td>
                           <td className="text-[var(--color-text-secondary)]">{li.itemType}</td>
-                          <td className="text-right">{li.quantity} {li.unit}</td>
+                          <td className="text-right">
+                            {li.quantity} {li.unit}
+                          </td>
                           <td className="text-right">{fmtCentavos(li.unitPrice)}</td>
-                          <td className="text-right text-[var(--color-text)]">{fmtCentavos(li.lineTotal)}</td>
+                          <td className="text-right text-[var(--color-text)]">
+                            {fmtCentavos(li.lineTotal)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 )}
-                {quote.notes ? <p className="text-xs text-[var(--color-text-tertiary)] mt-2">Notes: {quote.notes}</p> : null}
+                {quote.notes ? (
+                  <p className="text-xs text-[var(--color-text-tertiary)] mt-2">
+                    Notes: {quote.notes}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>
@@ -1235,23 +1281,43 @@ function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Change orders ({changeOrders.length})</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">
+          Change orders ({changeOrders.length})
+        </h3>
         {changeOrders.length === 0 ? (
-          <EmptyState title="No change orders" description="No mid-job change orders on this booking." />
+          <EmptyState
+            title="No change orders"
+            description="No mid-job change orders on this booking."
+          />
         ) : (
           <div className="space-y-3">
             {changeOrders.map((co) => (
               <div key={co.id} className="rounded-lg border border-[var(--color-border)] p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <Badge label={co.status} variant={co.status === 'paid' ? 'success' : co.status === 'declined' || co.status === 'expired' ? 'danger' : 'info'} />
-                  <span className="text-sm font-semibold text-[var(--color-text)]">{fmtCentavos(co.additionalAmount)}</span>
+                  <Badge
+                    label={co.status}
+                    variant={
+                      co.status === 'paid'
+                        ? 'success'
+                        : co.status === 'declined' || co.status === 'expired'
+                          ? 'danger'
+                          : 'info'
+                    }
+                  />
+                  <span className="text-sm font-semibold text-[var(--color-text)]">
+                    {fmtCentavos(co.additionalAmount)}
+                  </span>
                 </div>
                 <p className="text-sm text-[var(--color-text-secondary)] mt-1">{co.description}</p>
                 {co.lineItems && co.lineItems.length > 0 && (
                   <table className="w-full mt-2 text-xs">
                     <thead>
                       <tr className="text-left text-[var(--color-text-tertiary)]">
-                        <th className="py-1">Item</th><th>Type</th><th className="text-right">Qty</th><th className="text-right">Unit</th><th className="text-right">Total</th>
+                        <th className="py-1">Item</th>
+                        <th>Type</th>
+                        <th className="text-right">Qty</th>
+                        <th className="text-right">Unit</th>
+                        <th className="text-right">Total</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1259,15 +1325,23 @@ function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
                         <tr key={li.id} className="border-t border-[var(--color-border)]">
                           <td className="py-1 text-[var(--color-text)]">{li.description}</td>
                           <td className="text-[var(--color-text-secondary)]">{li.itemType}</td>
-                          <td className="text-right">{li.quantity} {li.unit}</td>
+                          <td className="text-right">
+                            {li.quantity} {li.unit}
+                          </td>
                           <td className="text-right">{fmtCentavos(li.unitPrice)}</td>
-                          <td className="text-right text-[var(--color-text)]">{fmtCentavos(li.lineTotal)}</td>
+                          <td className="text-right text-[var(--color-text)]">
+                            {fmtCentavos(li.lineTotal)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 )}
-                {co.photos.length > 0 ? <p className="text-xs text-[var(--color-text-tertiary)] mt-1">{co.photos.length} photo(s)</p> : null}
+                {co.photos.length > 0 ? (
+                  <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+                    {co.photos.length} photo(s)
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>

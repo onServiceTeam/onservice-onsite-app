@@ -3,7 +3,10 @@ import { StyleSheet, Text, View, Animated, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, typography } from '@/config/theme';
 
-interface NetInfoState { isConnected: boolean | null; isInternetReachable: boolean | null }
+interface NetInfoState {
+  isConnected: boolean | null;
+  isInternetReachable: boolean | null;
+}
 type NetInfoListener = (state: NetInfoState) => void;
 interface NetInfoModule {
   addEventListener: (cb: NetInfoListener) => () => void;
@@ -55,7 +58,7 @@ export function OfflineBanner(): React.ReactElement | null {
     Animated.timing(opacity, {
       toValue: isOffline ? 1 : 0,
       duration: 300,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
     }).start();
   }, [isOffline, opacity]);
 

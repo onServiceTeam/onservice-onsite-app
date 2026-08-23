@@ -1,32 +1,33 @@
 @import 'tailwindcss';
 
 :root {
-  --color-primary: #1B3A4B;
-  --color-primary-dark: #142D3B;
-  --color-secondary: #00B4D8;
-  --color-accent: #FF6B35;
-  --color-success: #10B981;
-  --color-warning: #F59E0B;
-  --color-error: #EF4444;
-  --color-danger: #EF4444;
-  --color-bg: #F8FAFC;
-  --color-surface: #FFFFFF;
-  --color-surface-hover: #F1F5F9;
-  --color-sidebar: #0F172A;
-  --color-sidebar-hover: #1E293B;
-  --color-text: #0F172A;
-  --color-text-secondary: #64748B;
-  --color-text-tertiary: #94A3B8;
-  --color-border: #E2E8F0;
+  --color-primary: #1b3a4b;
+  --color-primary-dark: #142d3b;
+  --color-primary-soft: #e6eef1;
+  --color-secondary: #00b4d8;
+  --color-accent: #ff6b35;
+  --color-success: #007a4d;
+  --color-warning: #b85c00;
+  --color-error: #b42318;
+  --color-danger: #b42318;
+  --color-bg: #f6f7fc;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f1f3ff;
+  --color-sidebar: #ffffff;
+  --color-sidebar-hover: #e8eeff;
+  --color-text: #051a3e;
+  --color-text-secondary: #434654;
+  --color-text-tertiary: #646978;
+  --color-border: #c9cedd;
 
   /* Phase 01 — design-token additions (semantic, status, typography) */
-  --color-border-strong: #C6C6C6;
-  --color-text-tertiary-2: #8D8D8D;
-  --color-success-bg: #DEFBE6;
-  --color-warning-bg: #FCF4D6;
-  --color-danger-bg: #FFF1F1;
-  --color-info: #0043CE;
-  --color-info-bg: #EDF5FF;
+  --color-border-strong: #8d93a3;
+  --color-text-tertiary-2: #646978;
+  --color-success-bg: #defbe6;
+  --color-warning-bg: #fcf4d6;
+  --color-danger-bg: #fff1f1;
+  --color-info: #0043ce;
+  --color-info-bg: #edf5ff;
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', Menlo, monospace;
@@ -34,10 +35,45 @@
 
 body {
   margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   background-color: var(--color-bg);
   color: var(--color-text);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+[role='button'],
+a,
+input,
+select,
+textarea {
+  outline-offset: 2px;
+}
+
+:focus-visible {
+  outline: 3px solid #ff8a00;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 * {

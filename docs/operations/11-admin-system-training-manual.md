@@ -289,10 +289,10 @@ A DPO surface listing current consent types and versions with active-user counts
 
 The ticket queue. Types: `booking_issue`, `payment_issue`, `provider_no_show`, `app_bug`, `account_issue`, `general_inquiry`. Statuses: `open`, `in_progress`, `waiting_on_customer`, `waiting_on_provider`, `escalated`, `resolved`, `closed`. Priorities: low/medium/high/urgent.
 
-Important: customers and providers can NOT open tickets inside the mobile app today. Tickets reach us by email (support@onservice.ph for customers, providers@onservice.ph for providers) and you create the ticket here on their behalf, or you reply to an existing one.
+Customers and providers can open and follow their own tickets in the shared in-app Support screens. Those tickets enter this queue automatically. Contacts received through email (support@onservice.ph for customers, providers@onservice.ph for providers) or Messenger still need an agent-created ticket so they use the same case record.
 
 How to work a ticket:
-1. Open it, set priority, assign it to an agent.
+1. Open it, confirm priority, and assign it from the active-agent list.
 2. Reply to the user, or post an internal note (internal notes are admin-only).
 3. Update status as you go. To mark `resolved` or `closed` you must add resolution notes of at least 10 characters.
 

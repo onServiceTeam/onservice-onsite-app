@@ -1,22 +1,21 @@
 # Demo access — no-login testing (customer, provider, admin)
 
-Updated 2026-06-28. The staging site is now **open for testing**: the old
-username/password pop-up (the nginx gate) is gone, and the links below land you
-**straight inside each area with no login at all**. This is on purpose so the
-whole app can be walked through to find GUI and UX problems. Production builds
-will simply omit the demo flags, so real login (phone + OTP for the app, email +
-password + 2FA for admin) returns at cutover with no code change.
+Updated 2026-08-23. Customer and provider demo entry remains enabled on the
+current test deployment. Admin demo auto-login is disabled on the public build
+because it would grant unauthenticated super-admin access. Admin testing now
+requires a real authorized admin login unless a separately protected staging
+build is created with the demo flag.
 
-## The three straight-in links
+## Test entry links
 
-Open any of these and you are dropped directly into the app — no pop-up, no
-login screen:
+Customer and provider links enter their seeded demos without a login. The admin
+link intentionally stops at real login on the public deployment:
 
 | Area | Link | Lands on |
 | --- | --- | --- |
 | Customer | https://app.onservice.ph/?demo=customer | Customer home (active bookings + services) |
 | Provider | https://app.onservice.ph/?demo=provider | Provider dashboard (online toggle, jobs, earnings) |
-| Admin | https://admin.onservice.ph/login?demo=1 | Admin dashboard (full super-admin access) |
+| Admin | https://admin.onservice.ph/login | Real admin login; no public auto-login |
 
 Customer and provider are the **same app** at different links — that is how one
 person reaches both experiences without juggling two accounts.
@@ -29,8 +28,9 @@ the browser or use its device toolbar to exercise each layout:
 | View | Browser width | What you get |
 | --- | --- | --- |
 | Phone | Under 700 px | The app fills the viewport |
-| Tablet | 700–999 px | A centered surface up to 760 px with roomier layouts |
-| Desktop | 1,000 px and wider | A surface up to 1,100 px; supported grids reflow to multiple columns |
+| Tablet | 700–999 px | A centered surface up to 920 px with roomier layouts |
+| Compact desktop | 1,000–1,179 px | A centered content surface up to 1,100 px |
+| Desktop workspace | 1,180 px and wider | Role navigation plus customer, provider, or staff content, capped at 1,320 px |
 
 For a single-page screenshot test, `?view=mobile` or `?view=desktop` can force
 that URL's shell. The override is intentionally not remembered after navigation;
@@ -63,7 +63,7 @@ collected feedback back out.
 The login screens also carry one-tap demo buttons:
 
 - App login screen: **Enter as Customer** / **Enter as Provider**.
-- Admin login screen: **Enter as Admin (demo)**.
+- Admin login screen: the demo button appears only in a separately protected build made with `VITE_DEMO_MODE=1`; it is absent from the public deployment.
 
 ## Turning demo + open access OFF for launch
 

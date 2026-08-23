@@ -60,9 +60,20 @@ interface DashboardKpis {
   guaranteeFundRunwayMonths: number;
 }
 
-interface RevenueTrendPoint { date: string; gmv: number; revenue: number }
-interface BookingVolumePoint { category: string; count: number }
-interface AcquisitionFunnel { registered: number; firstBooking: number; repeatBooking: number }
+interface RevenueTrendPoint {
+  date: string;
+  gmv: number;
+  revenue: number;
+}
+interface BookingVolumePoint {
+  category: string;
+  count: number;
+}
+interface AcquisitionFunnel {
+  registered: number;
+  firstBooking: number;
+  repeatBooking: number;
+}
 interface OperationalAlert {
   id: string;
   type: string;
@@ -92,27 +103,38 @@ async function fetchJson<T>(url: string): Promise<T> {
 
 function rangeToDays(range: DateRange): number {
   switch (range) {
-    case 'today': return 1;
-    case '7d': return 7;
-    case '30d': return 30;
-    case '90d': return 90;
+    case 'today':
+      return 1;
+    case '7d':
+      return 7;
+    case '30d':
+      return 30;
+    case '90d':
+      return 90;
     case 'ytd': {
       const now = new Date();
       const startOfYear = new Date(now.getFullYear(), 0, 1);
       return Math.max(1, Math.ceil((now.getTime() - startOfYear.getTime()) / 86_400_000));
     }
-    default: return 30;
+    default:
+      return 30;
   }
 }
 
 function rangeLabel(range: DateRange): string {
   switch (range) {
-    case 'today': return 'Today';
-    case '7d': return '7d';
-    case '30d': return '30d';
-    case '90d': return '90d';
-    case 'ytd': return 'YTD';
-    default: return '30d';
+    case 'today':
+      return 'Today';
+    case '7d':
+      return '7d';
+    case '30d':
+      return '30d';
+    case '90d':
+      return '90d';
+    case 'ytd':
+      return 'YTD';
+    default:
+      return '30d';
   }
 }
 
@@ -133,19 +155,22 @@ export default function DashboardPage(): React.ReactElement {
 
   const revenueTrend = useQuery({
     queryKey: ['dashboard-revenue-trend', range],
-    queryFn: () => fetchJson<RevenueTrendPoint[]>(`/api/v1/admin/dashboard/revenue-trend?days=${rangeDays}`),
+    queryFn: () =>
+      fetchJson<RevenueTrendPoint[]>(`/api/v1/admin/dashboard/revenue-trend?days=${rangeDays}`),
     refetchInterval: 60_000,
   });
 
   const bookingVolume = useQuery({
     queryKey: ['dashboard-booking-volume', range],
-    queryFn: () => fetchJson<BookingVolumePoint[]>(`/api/v1/admin/dashboard/booking-volume?days=${rangeDays}`),
+    queryFn: () =>
+      fetchJson<BookingVolumePoint[]>(`/api/v1/admin/dashboard/booking-volume?days=${rangeDays}`),
     refetchInterval: 60_000,
   });
 
   const funnel = useQuery({
     queryKey: ['dashboard-funnel', range],
-    queryFn: () => fetchJson<AcquisitionFunnel>(`/api/v1/admin/dashboard/acquisition-funnel?days=${rangeDays}`),
+    queryFn: () =>
+      fetchJson<AcquisitionFunnel>(`/api/v1/admin/dashboard/acquisition-funnel?days=${rangeDays}`),
     refetchInterval: 300_000,
   });
 
@@ -160,14 +185,16 @@ export default function DashboardPage(): React.ReactElement {
     queryKey: ['dashboard-dsr-alerts'],
     queryFn: async () => {
       try {
-        return await fetchJson<Array<{
-          id: string;
-          requestType: string;
-          userEmail: string | null;
-          dueAt: string;
-          daysUntilDue: number;
-          isOverdue: boolean;
-        }>>('/api/v1/admin/compliance/dsr-alerts');
+        return await fetchJson<
+          Array<{
+            id: string;
+            requestType: string;
+            userEmail: string | null;
+            dueAt: string;
+            daysUntilDue: number;
+            isOverdue: boolean;
+          }>
+        >('/api/v1/admin/compliance/dsr-alerts');
       } catch {
         return [];
       }
@@ -234,13 +261,20 @@ export default function DashboardPage(): React.ReactElement {
   const refreshedAt = new Date().toLocaleTimeString('en-PH');
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <header className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--color-text)]">Dashboard</h1>
+          <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+            <span className="h-2 w-2 rounded-full bg-emerald-600" aria-hidden="true" />
+            Live operations
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-[var(--color-text)]">
+            Command Center
+          </h1>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            Platform overview · Auto-refresh 60s · Last: {refreshedAt}
+            What needs attention, what is at risk, and what changed. Auto-refresh 60s · Last:{' '}
+            {refreshedAt}
           </p>
         </div>
         <div className="flex gap-2 items-center">
@@ -262,53 +296,112 @@ export default function DashboardPage(): React.ReactElement {
         </div>
       </header>
 
-      {/* KPI Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title="Revenue"
-          value={formatCurrency(k.revenue)}
-          icon={<Coins size={20} className="text-emerald-600" />}
-          trendPct={k.revenueTrendPct}
-        />
-        <KpiCard
-          title="Active Bookings"
-          value={k.activeBookings}
-          icon={<ClipboardList size={20} className="text-blue-600" />}
-        />
-        <KpiCard
-          title="Pending Disputes"
-          value={k.pendingDisputes}
-          icon={<AlertTriangle size={20} className={k.pendingDisputes > 0 ? 'text-red-600' : 'text-slate-400'} />}
-        />
-        <KpiCard
-          title="New Signups"
-          value={k.newSignups}
-          icon={<UserPlus size={20} className="text-blue-600" />}
-        />
-        <KpiCard
-          title="Provider Approvals"
-          value={k.pendingApprovals}
-          icon={<Wrench size={20} className="text-blue-600" />}
-        />
-        <KpiCard
-          title="Today's Bookings"
-          value={k.todayBookings}
-          icon={<Calendar size={20} className="text-blue-600" />}
-        />
-        <KpiCard
-          title="Escalated Disputes"
-          value={k.escalatedDisputes}
-          icon={<AlertCircle size={20} className={k.escalatedDisputes > 0 ? 'text-red-600' : 'text-slate-400'} />}
-        />
-        <KpiCard
-          title="Stale (48h+)"
-          value={k.staleDisputes}
-          icon={<Clock size={20} className={k.staleDisputes > 0 ? 'text-amber-600' : 'text-slate-400'} />}
-        />
-      </div>
+      {/* Action queues come first. These are work, not vanity metrics. */}
+      <section aria-labelledby="action-queues-title">
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <h2 id="action-queues-title" className="text-lg font-bold text-[var(--color-text)]">
+              Action queues
+            </h2>
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Open the queue and take the next case.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Link
+            to="/providers?status=pending"
+            className="block rounded-lg focus-visible:outline-offset-4"
+          >
+            <KpiCard
+              title="Provider approvals"
+              value={k.pendingApprovals}
+              icon={<Wrench size={20} className="text-[var(--color-primary)]" />}
+            />
+          </Link>
+          <Link
+            to="/disputes?status=open"
+            className="block rounded-lg focus-visible:outline-offset-4"
+          >
+            <KpiCard
+              title="Pending disputes"
+              value={k.pendingDisputes}
+              icon={
+                <AlertTriangle
+                  size={20}
+                  className={k.pendingDisputes > 0 ? 'text-red-700' : 'text-slate-500'}
+                />
+              }
+            />
+          </Link>
+          <Link
+            to="/disputes?status=escalated"
+            className="block rounded-lg focus-visible:outline-offset-4"
+          >
+            <KpiCard
+              title="Escalated disputes"
+              value={k.escalatedDisputes}
+              icon={
+                <AlertCircle
+                  size={20}
+                  className={k.escalatedDisputes > 0 ? 'text-red-700' : 'text-slate-500'}
+                />
+              }
+            />
+          </Link>
+          <Link
+            to="/disputes?stale=true"
+            className="block rounded-lg focus-visible:outline-offset-4"
+          >
+            <KpiCard
+              title="Stale disputes (48h+)"
+              value={k.staleDisputes}
+              icon={
+                <Clock
+                  size={20}
+                  className={k.staleDisputes > 0 ? 'text-amber-700' : 'text-slate-500'}
+                />
+              }
+            />
+          </Link>
+        </div>
+      </section>
+
+      {/* Marketplace pulse */}
+      <section aria-labelledby="marketplace-pulse-title">
+        <h2
+          id="marketplace-pulse-title"
+          className="mb-3 text-lg font-bold text-[var(--color-text)]"
+        >
+          Marketplace pulse
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            title="Revenue"
+            value={formatCurrency(k.revenue)}
+            icon={<Coins size={20} className="text-emerald-600" />}
+            trendPct={k.revenueTrendPct}
+          />
+          <KpiCard
+            title="Active Bookings"
+            value={k.activeBookings}
+            icon={<ClipboardList size={20} className="text-blue-600" />}
+          />
+          <KpiCard
+            title="New Signups"
+            value={k.newSignups}
+            icon={<UserPlus size={20} className="text-blue-600" />}
+          />
+          <KpiCard
+            title="Today's Bookings"
+            value={k.todayBookings}
+            icon={<Calendar size={20} className="text-blue-600" />}
+          />
+        </div>
+      </section>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div id="operational-alerts" className="grid grid-cols-1 lg:grid-cols-3 gap-4 scroll-mt-24">
         <Card>
           <CardHeader>
             <CardTitle>Revenue Trend ({rangeLabel(range)})</CardTitle>
@@ -323,18 +416,37 @@ export default function DashboardPage(): React.ReactElement {
               <div className="h-[240px] flex flex-col items-center justify-center text-center">
                 <BarChart3 size={28} className="text-slate-400 mb-2" />
                 <p className="text-sm text-[var(--color-text-secondary)]">No revenue data yet</p>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-1">Data will appear once bookings start completing.</p>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+                  Data will appear once bookings start completing.
+                </p>
               </div>
             ) : (
               <ChartContainer height={240}>
                 <LineChart data={revenueTrend.data ?? []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                  <XAxis dataKey="date" tickFormatter={(d: string) => new Date(d).getDate().toString()} />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(d: string) => new Date(d).getDate().toString()}
+                  />
                   <YAxis tickFormatter={(v: number) => `₱${(v / 100000).toFixed(0)}K`} />
                   <ChartTooltip formatter={(v) => formatCurrency(Number(v))} />
                   <ChartLegend />
-                  <Line type="monotone" dataKey="gmv" name="GMV" stroke={CHART_COLORS.secondary} strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="revenue" name="Platform Revenue" stroke={CHART_COLORS.success} strokeWidth={2} dot={false} />
+                  <Line
+                    type="monotone"
+                    dataKey="gmv"
+                    name="GMV"
+                    stroke={CHART_COLORS.secondary}
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    name="Platform Revenue"
+                    stroke={CHART_COLORS.success}
+                    strokeWidth={2}
+                    dot={false}
+                  />
                 </LineChart>
               </ChartContainer>
             )}
@@ -351,7 +463,9 @@ export default function DashboardPage(): React.ReactElement {
               <div className="h-[240px] flex flex-col items-center justify-center text-center">
                 <ClipboardList size={28} className="text-slate-400 mb-2" />
                 <p className="text-sm text-[var(--color-text-secondary)]">No bookings yet</p>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-1">Volume by category will appear here.</p>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+                  Volume by category will appear here.
+                </p>
               </div>
             ) : (
               <ChartContainer height={240}>
@@ -375,7 +489,14 @@ export default function DashboardPage(): React.ReactElement {
             {funnel.isError ? (
               <div className="py-4 text-center">
                 <p className="text-sm text-red-600">Failed to load funnel.</p>
-                <Button variant="outline" size="sm" className="mt-2" onClick={() => void funnel.refetch()}>Retry</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => void funnel.refetch()}
+                >
+                  Retry
+                </Button>
               </div>
             ) : funnel.data ? (
               <div className="space-y-3 py-4">
@@ -383,12 +504,20 @@ export default function DashboardPage(): React.ReactElement {
                 <FunnelStep
                   label="First Booking"
                   value={funnel.data.firstBooking}
-                  percent={funnel.data.registered > 0 ? (funnel.data.firstBooking / funnel.data.registered) * 100 : 0}
+                  percent={
+                    funnel.data.registered > 0
+                      ? (funnel.data.firstBooking / funnel.data.registered) * 100
+                      : 0
+                  }
                 />
                 <FunnelStep
                   label="Repeat Booking"
                   value={funnel.data.repeatBooking}
-                  percent={funnel.data.registered > 0 ? (funnel.data.repeatBooking / funnel.data.registered) * 100 : 0}
+                  percent={
+                    funnel.data.registered > 0
+                      ? (funnel.data.repeatBooking / funnel.data.registered) * 100
+                      : 0
+                  }
                 />
               </div>
             ) : (
@@ -417,15 +546,19 @@ export default function DashboardPage(): React.ReactElement {
                   <li key={alert.id} className="py-3 flex items-start gap-3">
                     <AlertCircle
                       className={
-                        alert.severity === 'danger' ? 'text-red-600' :
-                        alert.severity === 'warning' ? 'text-amber-600' :
-                        'text-blue-600'
+                        alert.severity === 'danger'
+                          ? 'text-red-600'
+                          : alert.severity === 'warning'
+                            ? 'text-amber-600'
+                            : 'text-blue-600'
                       }
                       size={18}
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[var(--color-text)]">{alert.title}</p>
-                      <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{alert.description}</p>
+                      <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                        {alert.description}
+                      </p>
                     </div>
                     {alert.action_url && (
                       <Link to={alert.action_url}>
@@ -485,7 +618,12 @@ export default function DashboardPage(): React.ReactElement {
           ) : qualityWatch.isError ? (
             <div className="py-4 text-center">
               <p className="text-sm text-red-600">Failed to load quality watch.</p>
-              <Button variant="outline" size="sm" className="mt-2" onClick={() => void qualityWatch.refetch()}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => void qualityWatch.refetch()}
+              >
                 Retry
               </Button>
             </div>
@@ -518,11 +656,7 @@ export default function DashboardPage(): React.ReactElement {
 
       {/* Wallets Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <WalletCard
-          title="Platform Escrow"
-          amount={k.escrowBalance}
-          description="Held in escrow"
-        />
+        <WalletCard title="Platform Escrow" amount={k.escrowBalance} description="Held in escrow" />
         <WalletCard
           title="Platform Revenue"
           amount={k.platformRevenue}
@@ -539,9 +673,7 @@ export default function DashboardPage(): React.ReactElement {
           title="Guarantee Fund"
           amount={k.guaranteeFund}
           description={
-            k.guaranteeFund > 0
-              ? `${k.guaranteeFundRunwayMonths} months runway`
-              : 'Not yet funded'
+            k.guaranteeFund > 0 ? `${k.guaranteeFundRunwayMonths} months runway` : 'Not yet funded'
           }
           warning={k.guaranteeFund > 0 && k.guaranteeFundRunwayMonths < 3}
         />
@@ -568,13 +700,19 @@ export default function DashboardPage(): React.ReactElement {
                       <div className="flex items-start justify-between">
                         <div>
                           <p className="font-medium text-[var(--color-text)]">{city.name}</p>
-                          <p className="text-xs text-[var(--color-text-secondary)] capitalize">{city.status.replace(/_/g, ' ')}</p>
+                          <p className="text-xs text-[var(--color-text-secondary)] capitalize">
+                            {city.status.replace(/_/g, ' ')}
+                          </p>
                         </div>
                         <MapPin size={16} className="text-slate-400" />
                       </div>
                       <div className="mt-3 flex justify-between text-sm text-[var(--color-text)]">
-                        <span><strong>{city.activeProviders}</strong> providers</span>
-                        <span><strong>{city.todayBookings}</strong> today</span>
+                        <span>
+                          <strong>{city.activeProviders}</strong> providers
+                        </span>
+                        <span>
+                          <strong>{city.todayBookings}</strong> today
+                        </span>
                       </div>
                     </CardContent>
                   </Card>
@@ -588,16 +726,29 @@ export default function DashboardPage(): React.ReactElement {
   );
 }
 
-function FunnelStep({ label, value, percent }: { label: string; value: number; percent: number }): React.ReactElement {
+function FunnelStep({
+  label,
+  value,
+  percent,
+}: {
+  label: string;
+  value: number;
+  percent: number;
+}): React.ReactElement {
   const safePct = Math.max(0, Math.min(100, percent));
   return (
     <div>
       <div className="flex justify-between text-sm mb-1 text-[var(--color-text)]">
         <span>{label}</span>
-        <span><strong>{value}</strong> ({safePct.toFixed(1)}%)</span>
+        <span>
+          <strong>{value}</strong> ({safePct.toFixed(1)}%)
+        </span>
       </div>
       <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-        <div className="h-full bg-[var(--color-secondary)] transition-all" style={{ width: `${safePct}%` }} />
+        <div
+          className="h-full bg-[var(--color-secondary)] transition-all"
+          style={{ width: `${safePct}%` }}
+        />
       </div>
     </div>
   );
@@ -611,16 +762,20 @@ interface WalletCardProps {
   warning?: boolean;
 }
 
-function WalletCard({ title, amount, description, valueColor = 'text-[var(--color-text)]', warning = false }: WalletCardProps): React.ReactElement {
+function WalletCard({
+  title,
+  amount,
+  description,
+  valueColor = 'text-[var(--color-text)]',
+  warning = false,
+}: WalletCardProps): React.ReactElement {
   return (
     <Card className={warning ? 'border-amber-400' : ''}>
       <CardContent className="p-5">
         <p className="text-sm text-[var(--color-text-secondary)]">{title}</p>
         <p className={`text-3xl font-bold mt-2 ${valueColor}`}>{formatCurrency(amount)}</p>
         <p className="text-xs text-[var(--color-text-secondary)] mt-1">{description}</p>
-        {warning && (
-          <p className="text-xs text-amber-600 mt-1">Replenishment recommended</p>
-        )}
+        {warning && <p className="text-xs text-amber-600 mt-1">Replenishment recommended</p>}
       </CardContent>
     </Card>
   );

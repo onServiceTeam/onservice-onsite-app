@@ -29,6 +29,7 @@ import NbiStatusBanner from '@/components/provider/NbiStatusBanner';
 import { formatRelative } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 // BUG-PHASE94-01 — founding tier added so the badge shows the
@@ -58,16 +59,19 @@ const TIER_COLORS: Record<string, string> = {
 // the bell). Customer side already badges the bell on home.tsx — we
 // now mirror that pattern here.
 async function getUnreadNotificationCount(): Promise<number> {
-  const res = await api.get<{ success: boolean; meta: { unread: number } }>('/api/v1/notifications', {
-    params: { page: 1, pageSize: 1 },
-  });
+  const res = await api.get<{ success: boolean; meta: { unread: number } }>(
+    '/api/v1/notifications',
+    {
+      params: { page: 1, pageSize: 1 },
+    },
+  );
   return res.data.meta?.unread ?? 0;
 }
-
 
 export default function ProviderDashboardScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useResponsive();
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
 
@@ -145,19 +149,21 @@ export default function ProviderDashboardScreen(): React.ReactElement {
   return (
     <ScrollView
       style={[styles.container, { paddingTop: insets.top + spacing.sm }]}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopContent]}
       showsVerticalScrollIndicator={false}
       refreshControl={
-        <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.secondary}
+        />
       }
     >
       {/* Phase 14 Remediation #5 — Bug 1234 NBI lifecycle banner */}
       <NbiStatusBanner onTap={() => router.push(Routes.PROVIDER.ACCOUNT_MANAGEMENT)} />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>
-            Hello, {user?.firstName ?? 'Provider'}
-          </Text>
+          <Text style={styles.greeting}>Hello, {user?.firstName ?? 'Provider'}</Text>
           {profile && (
             <Badge
               label={TIER_LABELS[profile.tier] ?? profile.tier}
@@ -170,7 +176,9 @@ export default function ProviderDashboardScreen(): React.ReactElement {
           style={styles.notifButton}
           onPress={() => router.push(Routes.PROVIDER.NOTIFICATIONS)}
           accessibilityRole="button"
-          accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+          accessibilityLabel={
+            unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+          }
         >
           <Bell size={22} color={colors.text} />
           {unreadCount > 0 && (
@@ -185,12 +193,10 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         <View style={styles.availabilityCard}>
           <View style={styles.availabilityInfo}>
             <Text style={styles.availabilityLabel}>
-              {profile.isAvailable ? 'You\'re Online' : 'You\'re Offline'}
+              {profile.isAvailable ? "You're Online" : "You're Offline"}
             </Text>
             <Text style={styles.availabilityHint}>
-              {profile.isAvailable
-                ? 'Accepting new job requests'
-                : 'Toggle on to receive jobs'}
+              {profile.isAvailable ? 'Accepting new job requests' : 'Toggle on to receive jobs'}
             </Text>
           </View>
           <Switch
@@ -226,111 +232,124 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         </View>
       )}
 
-      {/* D27 Phase 1 — entry to the new Job Requests (leads) inbox. Custom-quote
+      <View style={[styles.workspaceGrid, isDesktop && styles.desktopWorkspaceGrid]}>
+        <View style={isDesktop ? styles.desktopPrimary : undefined}>
+          {/* D27 Phase 1 — entry to the new Job Requests (leads) inbox. Custom-quote
           requests now reach matched providers; this is where they browse + quote. */}
-      <TouchableOpacity
-        style={styles.leadsCard}
-        activeOpacity={0.85}
-        onPress={() => router.push(Routes.PROVIDER.LEADS)}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={styles.leadsTitle}>Job Requests</Text>
-          <Text style={styles.leadsSubtitle}>Browse open custom-quote requests in your area and send a quote.</Text>
-        </View>
-        <Text style={styles.leadsArrow}>›</Text>
-      </TouchableOpacity>
-
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Active Jobs</Text>
-          <TouchableOpacity onPress={() => router.push(Routes.PROVIDER_TABS.JOBS)}>
-            <Text style={styles.seeAllText}>See All</Text>
+          <TouchableOpacity
+            style={styles.leadsCard}
+            activeOpacity={0.85}
+            onPress={() => router.push(Routes.PROVIDER.LEADS)}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.leadsTitle}>Job Requests</Text>
+              <Text style={styles.leadsSubtitle}>
+                Browse open custom-quote requests in your area and send a quote.
+              </Text>
+            </View>
+            <Text style={styles.leadsArrow}>›</Text>
           </TouchableOpacity>
-        </View>
 
-        {activeJobs.length === 0 ? (
-          <EmptyState
-            icon="📭"
-            title="No active jobs right now"
-            description={profile?.isAvailable
-              ? 'New job requests will appear here.'
-              : 'Go online to start receiving jobs.'}
-          />
-        ) : (
-          activeJobs.map((job: Booking) => (
-            <TouchableOpacity
-              key={job.id}
-              style={styles.jobCard}
-              onPress={() => router.push(`/provider/job/${job.id}`)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.jobCardTop}>
-                <StatusBadge status={job.status} size="sm" />
-                <Text style={styles.jobTime}>{formatRelative(job.scheduledAt)}</Text>
-              </View>
-              <Text style={styles.jobService}>{job.serviceName ?? job.categoryName ?? 'Service'}</Text>
-              <Text style={styles.jobAddress} numberOfLines={1}>{[job.address, job.barangay, job.city].filter(Boolean).join(', ')}</Text>
-              <View style={styles.jobCardBottom}>
-                {/* Phase 200 — show servicePrice (the provider's gross for
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Active Jobs</Text>
+              <TouchableOpacity onPress={() => router.push(Routes.PROVIDER_TABS.JOBS)}>
+                <Text style={styles.seeAllText}>See All</Text>
+              </TouchableOpacity>
+            </View>
+
+            {activeJobs.length === 0 ? (
+              <EmptyState
+                icon="📭"
+                title="No active jobs right now"
+                description={
+                  profile?.isAvailable
+                    ? 'New job requests will appear here.'
+                    : 'Go online to start receiving jobs.'
+                }
+              />
+            ) : (
+              activeJobs.map((job: Booking) => (
+                <TouchableOpacity
+                  key={job.id}
+                  style={styles.jobCard}
+                  onPress={() => router.push(`/provider/job/${job.id}`)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.jobCardTop}>
+                    <StatusBadge status={job.status} size="sm" />
+                    <Text style={styles.jobTime}>{formatRelative(job.scheduledAt)}</Text>
+                  </View>
+                  <Text style={styles.jobService}>
+                    {job.serviceName ?? job.categoryName ?? 'Service'}
+                  </Text>
+                  <Text style={styles.jobAddress} numberOfLines={1}>
+                    {[job.address, job.barangay, job.city].filter(Boolean).join(', ')}
+                  </Text>
+                  <View style={styles.jobCardBottom}>
+                    {/* Phase 200 — show servicePrice (the provider's gross for
                      the job), matching the Jobs tab card. totalAmount includes
                      the customer's platform service fee, which the provider
                      never receives, so showing it here both overstated the
                      provider's take AND disagreed with the Jobs tab (the same
                      job appeared at two different prices). The job detail
                      screen shows the full net-of-commission breakdown. */}
-                <Text style={styles.jobPrice}>{formatPHP(job.servicePrice)}</Text>
-                <Text style={styles.jobArrow}>›</Text>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
-      </View>
-
-      {profile && profile.services.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>My Services</Text>
-            <TouchableOpacity onPress={() => router.push(Routes.PROVIDER.SERVICES)}>
-              <Text style={styles.seeAllText}>Manage</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.servicesChips}>
-            {profile.services.slice(0, 4).map((svc) => (
-              <View key={svc.id} style={styles.serviceChip}>
-                <Text style={styles.serviceChipText}>{svc.subcategoryName}</Text>
-              </View>
-            ))}
-            {profile.services.length > 4 && (
-              <View style={styles.serviceChip}>
-                <Text style={styles.serviceChipText}>+{profile.services.length - 4} more</Text>
-              </View>
+                    <Text style={styles.jobPrice}>{formatPHP(job.servicePrice)}</Text>
+                    <Text style={styles.jobArrow}>›</Text>
+                  </View>
+                </TouchableOpacity>
+              ))
             )}
           </View>
         </View>
-      )}
+        <View style={isDesktop ? styles.desktopSidebar : undefined}>
+          {profile && profile.services.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>My Services</Text>
+                <TouchableOpacity onPress={() => router.push(Routes.PROVIDER.SERVICES)}>
+                  <Text style={styles.seeAllText}>Manage</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.servicesChips}>
+                {profile.services.slice(0, 4).map((svc) => (
+                  <View key={svc.id} style={styles.serviceChip}>
+                    <Text style={styles.serviceChipText}>{svc.subcategoryName}</Text>
+                  </View>
+                ))}
+                {profile.services.length > 4 && (
+                  <View style={styles.serviceChip}>
+                    <Text style={styles.serviceChipText}>+{profile.services.length - 4} more</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
 
-      <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => router.push(Routes.PROVIDER.CALENDAR)}
-        >
-          <Calendar size={24} color={colors.primary} style={styles.actionIconImg} />
-          <Text style={styles.actionLabel}>Calendar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => router.push(Routes.PROVIDER.SERVICES)}
-        >
-          <Wrench size={24} color={colors.primary} style={styles.actionIconImg} />
-          <Text style={styles.actionLabel}>Services</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => router.push(Routes.PROVIDER_TABS.EARNINGS)}
-        >
-          <CreditCard size={24} color={colors.primary} style={styles.actionIconImg} />
-          <Text style={styles.actionLabel}>Earnings</Text>
-        </TouchableOpacity>
+          <View style={[styles.quickActions, isDesktop && styles.desktopQuickActions]}>
+            <TouchableOpacity
+              style={[styles.actionButton, isDesktop && styles.desktopActionButton]}
+              onPress={() => router.push(Routes.PROVIDER.CALENDAR)}
+            >
+              <Calendar size={24} color={colors.primary} style={styles.actionIconImg} />
+              <Text style={styles.actionLabel}>Calendar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, isDesktop && styles.desktopActionButton]}
+              onPress={() => router.push(Routes.PROVIDER.SERVICES)}
+            >
+              <Wrench size={24} color={colors.primary} style={styles.actionIconImg} />
+              <Text style={styles.actionLabel}>Services</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, isDesktop && styles.desktopActionButton]}
+              onPress={() => router.push(Routes.PROVIDER_TABS.EARNINGS)}
+            >
+              <CreditCard size={24} color={colors.primary} style={styles.actionIconImg} />
+              <Text style={styles.actionLabel}>Earnings</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       <View style={styles.bottomSpacer} />
@@ -348,6 +367,16 @@ const styles = StyleSheet.create({
   errorText: { ...typography.body, color: colors.error, marginBottom: spacing.md },
   retryText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
   scrollContent: { paddingHorizontal: spacing.base, paddingBottom: 20 },
+  desktopContent: {
+    width: '100%',
+    maxWidth: 1040,
+    alignSelf: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  workspaceGrid: {},
+  desktopWorkspaceGrid: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  desktopPrimary: { flex: 1, minWidth: 0 },
+  desktopSidebar: { width: 320 },
 
   header: {
     flexDirection: 'row',
@@ -357,7 +386,14 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   greeting: { ...typography.h2, color: colors.text },
-  notifButton: { padding: spacing.sm, minWidth: 44, minHeight: 44, position: 'relative' as const, justifyContent: 'center' as const, alignItems: 'center' as const },
+  notifButton: {
+    padding: spacing.sm,
+    minWidth: 44,
+    minHeight: 44,
+    position: 'relative' as const,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
   notifBadge: {
     position: 'absolute' as const,
     top: 2,
@@ -440,7 +476,12 @@ const styles = StyleSheet.create({
   },
   emptyIcon: { fontSize: 40, marginBottom: spacing.sm },
   emptyText: { ...typography.body, color: colors.text, fontWeight: '600' },
-  emptyHint: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs, textAlign: 'center' },
+  emptyHint: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
 
   jobCard: {
     backgroundColor: colors.surface,
@@ -482,6 +523,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     marginBottom: spacing.lg,
+  },
+  desktopQuickActions: { flexDirection: 'column' },
+  desktopActionButton: {
+    flex: 0,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    gap: spacing.sm,
   },
   actionButton: {
     flex: 1,

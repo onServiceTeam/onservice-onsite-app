@@ -1,26 +1,35 @@
 import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { Tabs } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions } from 'react-native';
 import { colors, typography } from '@/config/theme';
 import { Home, ClipboardList, Wallet, User } from '@/components/icons';
+import { DESKTOP_SHELL_MIN_WIDTH } from '@/utils/responsive';
 
 type TabIconProps = { focused: boolean; color: string };
 
-function tabIcon(Icon: React.ComponentType<{ size?: number; color?: string }>): (props: TabIconProps) => React.ReactElement {
+function tabIcon(
+  Icon: React.ComponentType<{ size?: number; color?: string }>,
+): (props: TabIconProps) => React.ReactElement {
   return ({ focused, color }) => (
-    <Icon size={focused ? 24 : 22} color={focused ? colors.primary : color ?? colors.textTertiary} />
+    <Icon
+      size={focused ? 24 : 22}
+      color={focused ? colors.primary : (color ?? colors.textTertiary)}
+    />
   );
 }
 
 export default function TabLayout(): React.ReactElement {
+  const { width } = useWindowDimensions();
+  const hideForDesktopShell = Platform.OS === 'web' && width >= DESKTOP_SHELL_MIN_WIDTH;
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: hideForDesktopShell ? styles.hiddenTabBar : styles.tabBar,
         tabBarLabelStyle: styles.tabLabel,
       }}
     >
@@ -68,4 +77,5 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: '600',
   },
+  hiddenTabBar: { display: 'none' },
 });

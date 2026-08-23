@@ -34,6 +34,7 @@ import {
 } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -65,6 +66,7 @@ const TRANSACTION_ICONS: Record<string, IconComponent> = {
 export default function WalletScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isDesktop } = useResponsive();
   // Phase 14 R5-complete — FilterChips for transaction-type filter.
   const [txFilter, setTxFilter] = React.useState<string>('all');
 
@@ -107,13 +109,14 @@ export default function WalletScreen(): React.ReactElement {
     if (txFilter === 'all') return allTransactions;
     if (txFilter === 'topup') {
       return allTransactions.filter(
-        (t) => t.type === 'topup' || t.type === 'wallet_topup' || (t.description ?? '').toLowerCase().includes('top-up'),
+        (t) =>
+          t.type === 'topup' ||
+          t.type === 'wallet_topup' ||
+          (t.description ?? '').toLowerCase().includes('top-up'),
       );
     }
     if (txFilter === 'payment') {
-      return allTransactions.filter(
-        (t) => t.type === 'payment' || t.type === 'escrow_hold',
-      );
+      return allTransactions.filter((t) => t.type === 'payment' || t.type === 'escrow_hold');
     }
     if (txFilter === 'refund') {
       return allTransactions.filter((t) => t.type === 'refund');
@@ -121,33 +124,27 @@ export default function WalletScreen(): React.ReactElement {
     return allTransactions;
   }, [allTransactions, txFilter]);
 
-  const renderHeader = (): React.ReactElement => (
-    <View>
-      <View style={styles.balanceCard}>
-        {walletQuery.isLoading ? (
-          <ActivityIndicator size="large" color={colors.white} />
-        ) : (
-          <>
-            <Text style={styles.balanceLabel}>Available Balance</Text>
-            <Text style={styles.balanceAmount}>
-              {wallet ? formatPHP(wallet.availableBalance) : formatPHP(0)}
-            </Text>
-            {wallet && wallet.pendingBalance > 0 && (
-              <Text style={styles.pendingText}>
-                {formatPHP(wallet.pendingBalance)} pending
-              </Text>
-            )}
-            <TouchableOpacity
-              style={styles.topUpBtn}
-              onPress={() => router.push(Routes.CUSTOMER.WALLET)}
-            >
-              <Text style={styles.topUpBtnText}>+ Top Up</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-
-      <Text style={styles.sectionTitle}>Recent Transactions</Text>
+  const renderBalanceCard = (): React.ReactElement => (
+    <View style={[styles.balanceCard, isDesktop && styles.desktopBalanceCard]}>
+      {walletQuery.isLoading ? (
+        <ActivityIndicator size="large" color={colors.white} />
+      ) : (
+        <>
+          <Text style={styles.balanceLabel}>Available Balance</Text>
+          <Text style={styles.balanceAmount}>
+            {wallet ? formatPHP(wallet.availableBalance) : formatPHP(0)}
+          </Text>
+          {wallet && wallet.pendingBalance > 0 && (
+            <Text style={styles.pendingText}>{formatPHP(wallet.pendingBalance)} pending</Text>
+          )}
+          <TouchableOpacity
+            style={styles.topUpBtn}
+            onPress={() => router.push(Routes.CUSTOMER.WALLET)}
+          >
+            <Text style={styles.topUpBtnText}>+ Top Up</Text>
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 
@@ -155,17 +152,68 @@ export default function WalletScreen(): React.ReactElement {
     const Icon = TRANSACTION_ICONS[item.type] ?? Repeat;
     return (
       <View style={styles.txRow}>
-        <View style={styles.txIconWrap}><Icon size={22} color={colors.primary} /></View>
+        <View style={styles.txIconWrap}>
+          <Icon size={22} color={colors.primary} />
+        </View>
         <View style={styles.txInfo}>
-          <Text style={styles.txDescription} numberOfLines={1}>{item.description}</Text>
+          <Text style={styles.txDescription} numberOfLines={1}>
+            {item.description}
+          </Text>
           <Text style={styles.txDate}>{formatDateTime(item.createdAt)}</Text>
         </View>
         <Text style={[styles.txAmount, item.amount >= 0 ? styles.txCredit : styles.txDebit]}>
-          {item.amount >= 0 ? '+' : '-'}{formatPHP(Math.abs(item.amount))}
+          {item.amount >= 0 ? '+' : '-'}
+          {formatPHP(Math.abs(item.amount))}
         </Text>
       </View>
     );
   };
+
+  const renderTransactionList = (includeBalance: boolean): React.ReactElement => (
+    <FlatList
+      data={transactions}
+      renderItem={renderTransaction}
+      keyExtractor={(item) => item.id}
+      ListHeaderComponent={() => (
+        <View>
+          {includeBalance && renderBalanceCard()}
+          <Text style={styles.sectionTitle}>Recent Transactions</Text>
+        </View>
+      )}
+      contentContainerStyle={styles.list}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.primary}
+        />
+      }
+      ListEmptyComponent={
+        transactionsQuery.isLoading ? (
+          <View style={styles.list}>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </View>
+        ) : (
+          <EmptyState
+            icon="💳"
+            title={
+              allTransactions.length === 0
+                ? 'No transactions yet'
+                : `No ${txFilter === 'topup' ? 'top-ups' : txFilter === 'payment' ? 'payments' : txFilter === 'refund' ? 'refunds' : 'transactions'} in this view`
+            }
+            description={
+              allTransactions.length === 0
+                ? 'Top up your wallet or pay for a booking to see history here.'
+                : undefined
+            }
+          />
+        )
+      }
+    />
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
@@ -188,39 +236,13 @@ export default function WalletScreen(): React.ReactElement {
           message="We couldn't load your wallet. Please check your connection and try again."
           onRetry={onRefresh}
         />
+      ) : isDesktop ? (
+        <View style={styles.desktopColumns}>
+          <View style={styles.desktopSummary}>{renderBalanceCard()}</View>
+          <View style={styles.desktopTransactions}>{renderTransactionList(false)}</View>
+        </View>
       ) : (
-        <FlatList
-          data={transactions}
-          renderItem={renderTransaction}
-          keyExtractor={(item) => item.id}
-          ListHeaderComponent={renderHeader}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-          }
-          // BUG-PHASE177-01 — the empty message reflects whether the
-          // wallet is genuinely empty or just the active filter is empty.
-          ListEmptyComponent={
-            transactionsQuery.isLoading ? (
-              <View style={styles.list}>
-                <SkeletonCard />
-                <SkeletonCard />
-                <SkeletonCard />
-              </View>
-            ) : (
-              <EmptyState
-                icon="💳"
-                title={allTransactions.length === 0
-                  ? 'No transactions yet'
-                  : `No ${txFilter === 'topup' ? 'top-ups' : txFilter === 'payment' ? 'payments' : txFilter === 'refund' ? 'refunds' : 'transactions'} in this view`}
-                description={allTransactions.length === 0
-                  ? 'Top up your wallet or pay for a booking to see history here.'
-                  : undefined}
-              />
-            )
-          }
-        />
+        renderTransactionList(true)
       )}
     </View>
   );
@@ -237,6 +259,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xl,
   },
+  desktopColumns: { flex: 1, flexDirection: 'row', gap: spacing.lg, minHeight: 0 },
+  desktopSummary: { width: 360 },
+  desktopTransactions: { flex: 1, minWidth: 0 },
+  desktopBalanceCard: { alignItems: 'flex-start' },
   balanceLabel: { ...typography.body, color: 'rgba(255,255,255,0.7)', marginBottom: spacing.sm },
   balanceAmount: { fontSize: 36, fontWeight: '800', color: colors.white, lineHeight: 44 },
   pendingText: { ...typography.bodySmall, color: 'rgba(255,255,255,0.6)', marginTop: spacing.sm },

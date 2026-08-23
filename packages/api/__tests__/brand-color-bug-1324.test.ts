@@ -50,7 +50,7 @@ describe('Bug 1324 fix verified — canonical brand color values', () => {
 
   it('admin index.css uses the canonical primary as a CSS variable', () => {
     const css = fs.readFileSync(ADMIN_CSS, 'utf8');
-    expect(css).toMatch(new RegExp(`--color-primary:\\s*${CANONICAL_PRIMARY}`));
+    expect(css).toMatch(new RegExp(`--color-primary:\\s*${CANONICAL_PRIMARY}`, 'i'));
   });
 });
 

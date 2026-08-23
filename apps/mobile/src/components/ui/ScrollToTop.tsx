@@ -1,10 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import {
-  Animated,
-  StyleSheet,
-  TouchableOpacity,
-  Text,
-} from 'react-native';
+import { Animated, Platform, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { hapticLight } from '@/utils/haptics';
 import { colors } from '@/config/theme';
 
@@ -19,7 +14,7 @@ export function ScrollToTop({ visible, onPress }: ScrollToTopProps): React.React
   useEffect(() => {
     Animated.spring(scale, {
       toValue: visible ? 1 : 0,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
       tension: 100,
       friction: 8,
     }).start();
@@ -49,7 +44,9 @@ export function ScrollToTop({ visible, onPress }: ScrollToTopProps): React.React
         accessibilityLabel="Scroll to top"
         accessibilityHint="Double tap to scroll to the top of the list"
       >
-        <Text style={styles.arrow} accessibilityElementsHidden={true}>↑</Text>
+        <Text style={styles.arrow} accessibilityElementsHidden={true}>
+          ↑
+        </Text>
       </TouchableOpacity>
     </Animated.View>
   );

@@ -156,15 +156,15 @@ describe('Bug 1170-admin-ui fix verified — page module structural assertions',
     expect(file).toMatch(/SAMPLE_BOOKING_PHP/);
   });
 
-  it('Sidebar.tsx hides the link from non-super-admin', async () => {
+  it('shared admin navigation hides the link from non-super-admin', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const file = fs.readFileSync(
-      path.join(__dirname, '../../../apps/admin/src/components/Sidebar.tsx'),
+      path.join(__dirname, '../../../apps/admin/src/config/admin-navigation.ts'),
       'utf8',
     );
-    expect(file).toMatch(/superAdminOnly: true/);
-    expect(file).toMatch(/role === ['"]super_admin['"]/);
+    expect(file).toMatch(/roles: \[['"]super_admin['"]\]/);
+    expect(file).toMatch(/item\.roles\.includes\(role\)/);
     expect(file).toMatch(/\/settings\/cancellation-policy/);
   });
 

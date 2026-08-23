@@ -1,11 +1,7 @@
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
-import {
-  maskPhilippinePhone,
-  maskEmail,
-  type ActorRole,
-} from '../utils/pii-mask';
+import { maskPhilippinePhone, maskEmail, type ActorRole } from '../utils/pii-mask';
 
 // MED-N137 fix — role-aware PII masking for support tickets returned
 // to admin queries. Pre-fix every admin role saw raw user_phone +
@@ -17,11 +13,13 @@ import {
 //   - all other admin roles: masked phone/email + last initial only.
 // First name is always preserved (needed to greet the customer in
 // reply messages).
-export function maskTicketForRole<T extends {
-  user_phone?: string | null;
-  user_email?: string | null;
-  user_last_name?: string | null;
-}>(ticket: T, role: ActorRole | null | undefined): T {
+export function maskTicketForRole<
+  T extends {
+    user_phone?: string | null;
+    user_email?: string | null;
+    user_last_name?: string | null;
+  },
+>(ticket: T, role: ActorRole | null | undefined): T {
   // Only super_admin sees raw; null/undefined defaults to FULL masking
   // (defense in depth — never assume an unknown role is privileged).
   if (role === 'super_admin') return ticket;
@@ -39,8 +37,23 @@ export function maskTicketForRole<T extends {
   return out;
 }
 
-const VALID_TICKET_TYPES = ['booking_issue', 'payment_issue', 'provider_no_show', 'app_bug', 'account_issue', 'general_inquiry'] as const;
-const VALID_STATUSES = ['open', 'in_progress', 'waiting_on_customer', 'waiting_on_provider', 'escalated', 'resolved', 'closed'] as const;
+const VALID_TICKET_TYPES = [
+  'booking_issue',
+  'payment_issue',
+  'provider_no_show',
+  'app_bug',
+  'account_issue',
+  'general_inquiry',
+] as const;
+const VALID_STATUSES = [
+  'open',
+  'in_progress',
+  'waiting_on_customer',
+  'waiting_on_provider',
+  'escalated',
+  'resolved',
+  'closed',
+] as const;
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 
 export interface SupportTicket {
@@ -78,6 +91,13 @@ export interface TicketMessage {
   created_at: string;
   sender_first_name?: string;
   sender_last_name?: string;
+}
+
+export interface AssignableSupportAgent {
+  id: string;
+  first_name: string;
+  last_name: string;
+  role: 'admin' | 'super_admin';
 }
 
 interface ListTicketsParams {
@@ -198,7 +218,21 @@ export async function getTicketById(ticketId: string): Promise<SupportTicket | n
   return result.rows[0] ?? null;
 }
 
-export async function getTicketMessages(ticketId: string, includeInternal = true): Promise<TicketMessage[]> {
+export async function listAssignableAgents(): Promise<AssignableSupportAgent[]> {
+  const result = await db.query<AssignableSupportAgent>(
+    `SELECT id, first_name, last_name, role
+       FROM users
+      WHERE is_active = TRUE
+        AND role IN ('admin', 'super_admin')
+      ORDER BY first_name, last_name, id`,
+  );
+  return result.rows;
+}
+
+export async function getTicketMessages(
+  ticketId: string,
+  includeInternal = true,
+): Promise<TicketMessage[]> {
   const internalFilter = includeInternal ? '' : ' AND stm.is_internal_note = false';
   const result = await db.query<TicketMessage>(
     `SELECT stm.*, u.first_name AS sender_first_name, u.last_name AS sender_last_name
@@ -223,10 +257,10 @@ export async function createTicket(params: {
   // for the audit trail. Optional for back-compat.
   createdByAdminId?: string;
 }): Promise<SupportTicket> {
-  if (!VALID_TICKET_TYPES.includes(params.type as typeof VALID_TICKET_TYPES[number])) {
+  if (!VALID_TICKET_TYPES.includes(params.type as (typeof VALID_TICKET_TYPES)[number])) {
     throw createAppError(`Invalid ticket type: ${params.type}`, 400);
   }
-  if (!VALID_PRIORITIES.includes(params.priority as typeof VALID_PRIORITIES[number])) {
+  if (!VALID_PRIORITIES.includes(params.priority as (typeof VALID_PRIORITIES)[number])) {
     throw createAppError(`Invalid priority: ${params.priority}`, 400);
   }
   if (params.subject.length > 200) {
@@ -243,7 +277,15 @@ export async function createTicket(params: {
       `INSERT INTO support_tickets (ticket_number, user_id, type, priority, subject, description, booking_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [ticketNumber, params.userId, params.type, params.priority, params.subject, params.description, params.bookingId ?? null],
+      [
+        ticketNumber,
+        params.userId,
+        params.type,
+        params.priority,
+        params.subject,
+        params.description,
+        params.bookingId ?? null,
+      ],
     );
     if (result.rows.length === 0) throw new Error('Failed to create ticket.');
     if (params.createdByAdminId && params.createdByAdminId !== params.userId) {
@@ -292,12 +334,17 @@ export async function addMessage(params: {
       `INSERT INTO support_ticket_messages (ticket_id, sender_id, sender_role, message, is_internal_note)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [params.ticketId, params.senderId, params.senderRole, params.message, params.isInternalNote ?? false],
+      [
+        params.ticketId,
+        params.senderId,
+        params.senderRole,
+        params.message,
+        params.isInternalNote ?? false,
+      ],
     );
-    await client.query(
-      `UPDATE support_tickets SET updated_at = NOW() WHERE id = $1`,
-      [params.ticketId],
-    );
+    await client.query(`UPDATE support_tickets SET updated_at = NOW() WHERE id = $1`, [
+      params.ticketId,
+    ]);
     const msg = result.rows[0];
     if (!msg) throw new Error('Failed to add message.');
     return msg;
@@ -309,7 +356,7 @@ export async function updateTicketStatus(
   status: string,
   resolutionNotes?: string,
 ): Promise<SupportTicket> {
-  if (!VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
+  if (!VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
     throw createAppError(`Invalid ticket status: ${status}`, 400);
   }
   // BUG-PHASE154-01 fix — pre-fix resolution_notes had no server cap.
@@ -331,13 +378,13 @@ export async function updateTicketStatus(
 
   if (status === 'resolved') {
     extras.push(`resolved_at = NOW()`);
-    if (resolutionNotes) {
-      extras.push(`resolution_notes = $${idx}`);
-      values.push(resolutionNotes);
-    }
   }
   if (status === 'closed') {
     extras.push(`closed_at = NOW()`);
+  }
+  if ((status === 'resolved' || status === 'closed') && resolutionNotes) {
+    extras.push(`resolution_notes = $${idx}`);
+    values.push(resolutionNotes);
   }
 
   const result = await db.query<SupportTicket>(
@@ -353,24 +400,48 @@ export async function updateTicketStatus(
 export async function assignTicket(
   ticketId: string,
   agentId: string,
+  assignedByAdminId: string,
 ): Promise<SupportTicket> {
-  const result = await db.query<SupportTicket>(
-    `UPDATE support_tickets SET assigned_agent_id = $2,
-       status = CASE WHEN status = 'open' THEN 'in_progress' ELSE status END,
-       updated_at = NOW()
-     WHERE id = $1 RETURNING *`,
-    [ticketId, agentId],
-  );
-  logger.info('Support ticket assigned', { ticketId, agentId });
-  const ticket = result.rows[0];
-  if (!ticket) throw new Error('Ticket not found.');
-  return ticket;
+  return db.transaction(async (client) => {
+    const agent = await client.query<{ id: string }>(
+      `SELECT id FROM users
+        WHERE id = $1
+          AND is_active = TRUE
+          AND role IN ('admin', 'super_admin')`,
+      [agentId],
+    );
+    if (!agent.rows[0]) {
+      throw createAppError('Selected support agent is not active or assignable.', 400);
+    }
+
+    const result = await client.query<SupportTicket>(
+      `UPDATE support_tickets SET assigned_agent_id = $2,
+         status = CASE WHEN status = 'open' THEN 'in_progress' ELSE status END,
+         updated_at = NOW()
+       WHERE id = $1 RETURNING *`,
+      [ticketId, agentId],
+    );
+    const ticket = result.rows[0];
+    if (!ticket) throw createAppError('Ticket not found.', 404);
+
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'config_changed', 'support_ticket', $2, $3::jsonb)`,
+      [
+        assignedByAdminId,
+        ticketId,
+        JSON.stringify({ op: 'support_ticket_assigned', assignedAgentId: agentId }),
+      ],
+    );
+
+    logger.info('Support ticket assigned', { ticketId, agentId, assignedByAdminId });
+    return ticket;
+  });
 }
 
 async function generateTicketNumber(): Promise<string> {
-  const result = await db.query<{ nextval: string }>(
-    `SELECT nextval('support_ticket_seq')`,
-  );
+  const result = await db.query<{ nextval: string }>(`SELECT nextval('support_ticket_seq')`);
   const row = result.rows[0];
   if (!row) throw new Error('Failed to generate ticket number.');
   return `TKT-${row.nextval}`;

@@ -1,9 +1,10 @@
 /**
  * Design system tokens — onService brand.
  * Bug 1324 fix verified — primary brand color is #1B3A4B (deep teal),
- * sourced from docs/design-system/tokens.json. Static defaults below match
- * the canonical token values; runtime override via platform_settings is
- * deferred (LAUNCH-LIMITATIONS §brand-color-mobile-runtime).
+ * sourced from docs/design-system/tokens.json. The August 2026 product
+ * redesign keeps these server-canonical brand values while increasing
+ * contrast, spacing, and type size. Runtime overrides via platform_settings
+ * remain deferred (LAUNCH-LIMITATIONS §brand-color-mobile-runtime).
  */
 export const colors = {
   primary: '#1B3A4B',
@@ -13,13 +14,13 @@ export const colors = {
   secondary: '#00B4D8',
   secondaryDark: '#0096B0',
 
-  success: '#10B981',
+  success: '#007A4D',
   successLight: '#DEFBE6',
   successDark: '#047857',
-  warning: '#F59E0B',
+  warning: '#B85C00',
   warningLight: '#FCF4D6',
   warningDark: '#B45309',
-  error: '#EF4444',
+  error: '#B42318',
   errorLight: '#FFF1F1',
   info: '#0043CE',
   infoLight: '#EDF5FF',
@@ -27,23 +28,23 @@ export const colors = {
   white: '#FFFFFF',
   shadow: '#000000',
 
-  text: '#1A1A2E',
-  textSecondary: '#6B7280',
+  text: '#051A3E',
+  textSecondary: '#434654',
   // Darkened from #9CA3AF (only ~2.5:1 on white — failed WCAG AA) to #6E7480
   // (~4.7:1, passes AA for normal text). Used for captions, placeholders, and
   // fine print; a tester reported the light gray text was hard to read
   // (2026-06-16). Kept a touch lighter/cooler than textSecondary so the
   // de-emphasis hierarchy survives.
-  textTertiary: '#6E7480',
-  border: '#E5E7EB',
-  divider: '#F3F4F6',
-  background: '#FFFFFF',
-  backgroundSecondary: '#F9FAFB',
+  textTertiary: '#646978',
+  border: '#C9CEDD',
+  divider: '#E4E8F2',
+  background: '#FAF9FF',
+  backgroundSecondary: '#F1F3FF',
   surface: '#FFFFFF',
   // App design refresh (2026-06) — the soft canvas a screen sits on so white
   // cards lift off the page. Use as a screen-root background; cards stay
   // `surface` (white) with a `border` hairline.
-  surfaceMuted: '#F3F5F8',
+  surfaceMuted: '#F1F3FF',
 
   // BUG-PHASE94-01 — `founding` is the invite-only launch-batch tier
   // (10% commission). It existed in platformConfig.commissionRates and
@@ -101,22 +102,22 @@ export const spacing = {
 } as const;
 
 export const typography = {
-  h1: { fontSize: 28, fontWeight: '700' as const, lineHeight: 34 },
-  h2: { fontSize: 22, fontWeight: '700' as const, lineHeight: 28 },
-  h3: { fontSize: 18, fontWeight: '600' as const, lineHeight: 24 },
-  body: { fontSize: 15, fontWeight: '400' as const, lineHeight: 22 },
-  bodySmall: { fontSize: 13, fontWeight: '400' as const, lineHeight: 18 },
-  caption: { fontSize: 11, fontWeight: '400' as const, lineHeight: 16 },
+  h1: { fontSize: 28, fontWeight: '700' as const, lineHeight: 36 },
+  h2: { fontSize: 22, fontWeight: '700' as const, lineHeight: 30 },
+  h3: { fontSize: 18, fontWeight: '600' as const, lineHeight: 26 },
+  body: { fontSize: 16, fontWeight: '400' as const, lineHeight: 24 },
+  bodySmall: { fontSize: 14, fontWeight: '400' as const, lineHeight: 20 },
+  caption: { fontSize: 12, fontWeight: '500' as const, lineHeight: 16 },
   button: { fontSize: 16, fontWeight: '600' as const, lineHeight: 20 },
   price: { fontSize: 24, fontWeight: '700' as const, lineHeight: 30 },
   priceSmall: { fontSize: 16, fontWeight: '700' as const, lineHeight: 22 },
 } as const;
 
 export const borderRadius = {
-  sm: 6,
-  md: 10,
-  lg: 14,
-  xl: 20,
+  sm: 4,
+  md: 6,
+  lg: 8,
+  xl: 12,
   full: 9999,
 } as const;
 

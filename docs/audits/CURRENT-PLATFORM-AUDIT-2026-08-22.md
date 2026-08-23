@@ -4,6 +4,8 @@
 
 This is the current living audit for the customer, provider, staff, admin, API, documentation, CI, and production-server surfaces. It records only checks repeated against the current repository and live server. It does not claim that every interaction has already been manually exercised. Items not yet closed remain in the open register below.
 
+The 2026-08-23 Stitch, cross-role UX, and company-operations implementation audit continues this record at `docs/audits/STITCH-UX-OPERATIONS-AUDIT-2026-08-23.md`.
+
 Current verified repository identity:
 
 - GitHub: `onServiceTeam/onservice-onsite-app`, branch `master`
@@ -62,6 +64,9 @@ This trace exposes the key company rule: admin pages must not invent a second st
 5. Online accessibility state fixed. The offline alert is no longer mounted while the browser is online.
 6. Web export fixed. Native-only EAS and Google Maps settings are omitted for an explicitly targeted web export; native production builds still require their real values.
 7. Demo and Hetzner deployment documentation updated to match the same-origin web API and automatic phone/tablet/desktop behavior.
+8. Customer, provider, and provider-staff web now have role-specific persistent desktop navigation instead of a widened phone-only shell.
+9. Admin navigation is grouped by operating purpose and shared with page command search; the dashboard now leads with action queues.
+10. Admin support list/detail PII masking is wired at the route boundary, named assignment replaces pasted UUIDs, assignments are validated and audit-logged, and closed-case resolution notes persist.
 
 ## Open register, ordered by risk
 
@@ -92,7 +97,7 @@ This trace exposes the key company rule: admin pages must not invent a second st
 - Pricing contains a deferred surge-rule resolution TODO in a money path; this cannot be changed without resolving the current pricing authority and tests.
 - Historical audits and strategy files contained stale screen counts, Boracay-first direction, old fee values, and old server details. They are retained as history but now carry warnings.
 - The 354 admin visual baselines cover the former 29-page catalog. Newer route components need explicit visual-state coverage.
-- Customer/provider web uses a responsive outer surface, but every screen still needs interaction and overflow checks at phone, tablet, and desktop widths. Fixing the persistent 480-pixel lock does not by itself prove every inner screen is fully responsive.
+- Customer/provider web now uses a responsive role workspace, but every inner screen still needs interaction and overflow checks at phone, tablet, and desktop widths. A shared desktop shell does not by itself prove every route is fully responsive.
 
 ## Verification required for each remaining batch
 

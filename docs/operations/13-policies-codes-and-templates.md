@@ -221,7 +221,7 @@ Score a sample of agent interactions weekly. Each line 0, 1, or 2 (0 = miss, 2 =
 | Logged it (support ticket created/updated in admin) | [ ] |
 | No off-policy promises (no insurance claims, no off-platform deals) | [ ] |
 
-Note: customers and providers cannot open tickets in the app. Agents create the ticket in the admin Support Tickets page on the user's behalf (from email or Facebook Messenger). Support hours are Monday to Saturday, 8:00 AM to 6:00 PM PHT; urgent safety issues escalate via the on-call path even outside those hours.
+Note: customers and providers can open and follow tickets in the shared in-app Support screens. Agents create a ticket in the admin Support Queue only when the contact starts through email or Facebook Messenger. Support hours are Monday to Saturday, 8:00 AM to 6:00 PM PHT; urgent safety issues escalate via the on-call path even outside those hours.
 
 ### 6.8 Shift handover template
 

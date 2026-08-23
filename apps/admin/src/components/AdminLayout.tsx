@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useState } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import Sidebar from './Sidebar';
@@ -14,6 +14,7 @@ function PageLoader(): React.ReactElement {
 
 export default function AdminLayout(): React.ReactElement {
   const { isAuthenticated, isLoading } = useAuthStore();
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -29,10 +30,10 @@ export default function AdminLayout(): React.ReactElement {
 
   return (
     <div className="flex min-h-screen bg-[var(--color-bg)]">
-      <Sidebar />
-      <div className="flex-1 ml-60 flex flex-col">
-        <Header />
-        <main className="flex-1 p-6">
+      <Sidebar mobileOpen={mobileNavigationOpen} onClose={() => setMobileNavigationOpen(false)} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Header onOpenNavigation={() => setMobileNavigationOpen(true)} />
+        <main className="flex-1 p-4 sm:p-6 xl:p-8">
           <Suspense fallback={<PageLoader />}>
             <Outlet />
           </Suspense>

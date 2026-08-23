@@ -78,7 +78,6 @@ export default function LoginPage(): React.ReactElement {
       demoFired.current = true;
       void handleDemoLogin();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (isAuthenticated) {

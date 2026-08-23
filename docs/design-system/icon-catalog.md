@@ -74,6 +74,9 @@ The AI coder MUST use `import { IconName } from '@/components/icons'` — never 
 | 🔍 | Search | Search | `Search` |
 | 🎯 | Filter | Filter | `Filter` |
 
+Navigation utilities also use `Menu` for opening the compact admin drawer. This
+is a structural control, not an emoji replacement.
+
 ## Communication (8 icons)
 
 | Current emoji | Used for | lucide replacement | Import name |

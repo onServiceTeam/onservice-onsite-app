@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { hapticSuccess } from '@/utils/haptics';
 import { colors } from '@/config/theme';
 
@@ -36,19 +36,19 @@ export function SuccessAnimation({
     Animated.sequence([
       Animated.spring(scale, {
         toValue: 1,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
         tension: 60,
         friction: 6,
       }),
       Animated.timing(checkOpacity, {
         toValue: 1,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
       Animated.timing(messageOpacity, {
         toValue: 1,
         duration: 250,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
     ]).start(() => {
       if (onComplete) {
@@ -79,12 +79,7 @@ export function SuccessAnimation({
         ]}
         accessibilityElementsHidden={true}
       >
-        <Animated.Text
-          style={[
-            styles.checkmark,
-            { fontSize: size * 0.45, opacity: checkOpacity },
-          ]}
-        >
+        <Animated.Text style={[styles.checkmark, { fontSize: size * 0.45, opacity: checkOpacity }]}>
           ✓
         </Animated.Text>
       </Animated.View>

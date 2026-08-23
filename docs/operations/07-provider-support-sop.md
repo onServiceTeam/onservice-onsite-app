@@ -10,12 +10,13 @@ All money in this doc is Philippine pesos (₱). Timezone is Asia/Manila (PHT). 
 
 ## 1. Channels and hours
 
-There is no in-app support ticket screen for providers yet. A `support_tickets` table and admin Support Tickets page exist, but the mobile app does not surface them. So providers reach us by email or Messenger, and the agent creates the ticket in admin on the provider's behalf.
+Providers can open, list, view, and reply to their own cases in the shared in-app Support screens. The same cases appear in the admin Support Queue. Provider email and Messenger remain staffed channels; the agent creates the ticket in admin when contact starts outside the app.
 
 | Channel | Address | Notes |
 |---|---|---|
 | Provider email | providers@onservice.ph | Primary written channel. Hardcoded in the app. |
 | Facebook Messenger | onService PH page | Second staffed channel at launch. |
+| In-app support cases | Support inbox in the provider workspace | Provider creates and follows their own case; admin internal notes stay hidden. |
 | Hotline | (not provisioned) | Placeholder number removed from the app pre-launch. See the decision below. |
 | In-app provider chat | per-booking only | Provider chats the customer, not support. Not a support channel. |
 | Admin Support Tickets page | `/support-tickets` | Where agents log and work every provider issue. |
@@ -50,7 +51,7 @@ Map these to the admin ticket priority field (low/medium/high/urgent) and ticket
 1. Read the message. Identify the provider (business name, phone, or email) and find them on the Providers page (`/providers`).
 2. Open Provider 360 (`/providers/:id`). Check status (pending / approved / rejected / suspended / deactivated), tier, NBI status, and any open disputes.
 3. Pick the ticket type and priority from the table above.
-4. Create the ticket in `/support-tickets` (you create it for the provider; the `createdByAdminId` path records that you opened it on their behalf).
+4. Open the existing ticket if it came through the app. For email or Messenger, create it in `/support-tickets`; the `createdByAdminId` path records that you opened it on the provider's behalf.
 5. Work the playbook for that issue (sections 5 to 14).
 6. If the issue needs Finance or Trust & Safety, escalate per section 4 and set status `escalated`.
 7. Resolve with a clear reply. Resolution notes need at least 10 characters in admin.
@@ -321,9 +322,7 @@ When a provider asks "what do I get if a customer cancels," the live cancellatio
 
 ## 16. Provider ticket intake
 
-There is no provider-facing ticket screen yet.
-
-> **Set (editable):** Provider ticket intake is email-to-agent (and Facebook Messenger): the agent logs the ticket in admin on the provider's behalf. Keep this at launch rather than building a provider-facing ticket screen; revisit post-launch if volume warrants it. _Recommended default. To change it, edit here and anywhere this value is referenced._
+Provider ticket intake is available in the shared in-app Support screens. Email and Facebook Messenger remain valid channels; the agent logs those external contacts in admin on the provider's behalf so all work uses the same case record.
 
 ---
 
@@ -352,4 +351,4 @@ There is no provider-facing ticket screen yet.
 - Super-admin/Ken reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout. (editable)
 - Customer no-show wait window is 15 minutes before the provider reports it. (editable)
 - Support quotes the live refund money-path numbers (not the policy page) on cancellation questions until the two systems are reconciled. (editable)
-- Provider ticket intake stays email/Messenger-to-agent at launch; no provider-facing ticket screen yet. (editable)
+- Provider ticket intake uses the in-app Support inbox when possible, with email/Messenger-to-agent intake retained for external contacts. (editable)

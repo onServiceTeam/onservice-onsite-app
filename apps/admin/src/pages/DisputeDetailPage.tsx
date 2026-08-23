@@ -49,7 +49,7 @@ type ResolutionType =
 
 type Recipient = 'customer' | 'provider' | 'both';
 
-interface DisputeFullDetail {
+export interface DisputeFullDetail {
   id: string;
   bookingId: string;
   status: string;
@@ -106,6 +106,13 @@ interface DisputeFullDetail {
     description: string | null;
     createdAt: string;
   }>;
+}
+
+interface AssignableAdmin {
+  id: string;
+  first_name: string;
+  last_name: string;
+  role: 'admin' | 'super_admin';
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -194,9 +201,7 @@ export default function DisputeDetailPage(): React.ReactElement {
            had to query the DB or audit log to see what was decided.
            Now: a Resolution Card shows above the claim/response
            when the dispute is resolved. */}
-      {detail.status === 'resolved' && (
-        <ResolutionCard detail={detail} />
-      )}
+      {detail.status === 'resolved' && <ResolutionCard detail={detail} />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <ClaimCard detail={detail} />
@@ -234,10 +239,7 @@ function DisputeHeader({ detail }: { detail: DisputeFullDetail }): React.ReactEl
             />
             <Badge label={`tier ${detail.tier}`} variant={severityVariant(detail.tier)} />
             <Badge label={`age ${detail.ageHours}h`} variant="info" />
-            <Badge
-              label={`priority ${Math.round(detail.priorityScore)}`}
-              variant="default"
-            />
+            <Badge label={`priority ${Math.round(detail.priorityScore)}`} variant="default" />
           </div>
           <div className="flex items-center gap-4 mt-2 text-sm text-[var(--color-text-secondary)] flex-wrap">
             <Link
@@ -343,9 +345,7 @@ function ClaimCard({ detail }: { detail: DisputeFullDetail }): React.ReactElemen
           {fmtDate(detail.filedAt)}
         </span>
       </div>
-      <p className="text-sm text-[var(--color-text)] whitespace-pre-wrap">
-        {detail.description}
-      </p>
+      <p className="text-sm text-[var(--color-text)] whitespace-pre-wrap">{detail.description}</p>
       {detail.customer && (
         <p className="text-xs text-[var(--color-text-secondary)] mt-3 inline-flex items-center gap-1">
           <Phone size={12} /> {detail.customer.fullName} · {detail.customer.phone}
@@ -440,9 +440,7 @@ function EvidenceList({ detail }: { detail: DisputeFullDetail }): React.ReactEle
                         </span>
                       </div>
                       {e.description && (
-                        <p className="text-sm text-[var(--color-text)] mt-1">
-                          {e.description}
-                        </p>
+                        <p className="text-sm text-[var(--color-text)] mt-1">{e.description}</p>
                       )}
                       <a
                         href={e.fileUrl}
@@ -466,11 +464,7 @@ function EvidenceList({ detail }: { detail: DisputeFullDetail }): React.ReactEle
 
 // ─── Party history ────────────────────────────────────────────────────────
 
-function CustomerHistoryCard({
-  detail,
-}: {
-  detail: DisputeFullDetail;
-}): React.ReactElement {
+function CustomerHistoryCard({ detail }: { detail: DisputeFullDetail }): React.ReactElement {
   const c = detail.customer;
   return (
     <Card className="p-5">
@@ -508,11 +502,7 @@ function CustomerHistoryCard({
   );
 }
 
-function ProviderHistoryCard({
-  detail,
-}: {
-  detail: DisputeFullDetail;
-}): React.ReactElement {
+function ProviderHistoryCard({ detail }: { detail: DisputeFullDetail }): React.ReactElement {
   const p = detail.provider;
   return (
     <Card className="p-5">
@@ -562,7 +552,7 @@ const RESOLUTION_OPTIONS: ReadonlyArray<{ value: ResolutionType; label: string }
   { value: 'split_decision', label: 'Split decision' },
 ];
 
-function DisputeActions({
+export function DisputeActions({
   detail,
 }: {
   detail: DisputeFullDetail;
@@ -582,6 +572,16 @@ function DisputeActions({
   const [reopenReason, setReopenReason] = useState('');
   const [recipient, setRecipient] = useState<Recipient>('both');
   const [message, setMessage] = useState('');
+
+  const agentsQuery = useQuery({
+    queryKey: ['assignable-admin-agents'],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: AssignableAdmin[] }>(
+        '/api/v1/support-tickets/agents',
+      );
+      return res.data.data;
+    },
+  });
 
   const invalidate = (): void => {
     queryClient.invalidateQueries({ queryKey: ['admin-dispute-detail', disputeId] });
@@ -655,9 +655,8 @@ function DisputeActions({
   const decisionOk = decisionNotes.trim().length >= 20;
   const refundPercentValue = Number(refundPercent);
   const refundPercentOk =
-    (resolutionType !== 'partial_refund' && resolutionType !== 'split_decision') || (
-      Number.isFinite(refundPercentValue) && refundPercentValue >= 1 && refundPercentValue <= 100
-    );
+    (resolutionType !== 'partial_refund' && resolutionType !== 'split_decision') ||
+    (Number.isFinite(refundPercentValue) && refundPercentValue >= 1 && refundPercentValue <= 100);
   const canResolve = decisionOk && refundPercentOk;
   const canSendMessage = message.trim().length >= 5 && message.trim().length <= 2000;
   const totalAmount = detail.booking?.totalAmount ?? 0;
@@ -690,28 +689,40 @@ function DisputeActions({
       <div className="space-y-2">
         <p className="text-sm font-medium text-[var(--color-text)]">Assign to admin</p>
         <div className="flex items-center gap-2 flex-wrap">
-          <input
-            id="dispute-assignee-id"
-            aria-label="Assignee admin user ID"
-            type="text"
+          <select
+            id="dispute-assignee"
+            aria-label="Admin to assign dispute"
             value={assigneeId}
             onChange={(e) => setAssigneeId(e.target.value)}
-            placeholder="Admin user ID (UUID)"
-            className="flex-1 min-w-[260px] px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm font-mono"
-          />
+            disabled={agentsQuery.isLoading || agentsQuery.isError}
+            className="flex-1 min-w-[260px] px-3 py-2 border border-[var(--color-border)] rounded-lg bg-white text-sm"
+          >
+            <option value="">
+              {agentsQuery.isLoading ? 'Loading active admins…' : 'Select an active admin'}
+            </option>
+            {(agentsQuery.data ?? []).map((agent) => (
+              <option key={agent.id} value={agent.id}>
+                {`${agent.first_name} ${agent.last_name}`.trim()} (
+                {agent.role === 'super_admin' ? 'Super admin' : 'Admin'})
+              </option>
+            ))}
+          </select>
           <Button
             size="sm"
             disabled={assigneeId.trim().length === 0 || assignMut.isPending}
-            onClick={() => {
-              if (window.confirm('Assign this dispute to the entered admin ID?')) {
-                assignMut.mutate({ assigneeAdminId: assigneeId.trim() });
-              }
-            }}
+            onClick={() => assignMut.mutate({ assigneeAdminId: assigneeId.trim() })}
           >
             <RefreshCw size={14} /> Assign
           </Button>
+          {agentsQuery.isError && (
+            <span role="alert" className="text-xs text-red-600">
+              Active admins could not be loaded. Refresh this page to try again.
+            </span>
+          )}
           {assignMut.isError && (
-            <span role="alert" className="text-xs text-red-600">{getErrorMessage(assignMut.error)}</span>
+            <span role="alert" className="text-xs text-red-600">
+              {getErrorMessage(assignMut.error)}
+            </span>
           )}
         </div>
       </div>
@@ -745,7 +756,10 @@ function DisputeActions({
 
           {(resolutionType === 'partial_refund' || resolutionType === 'split_decision') && (
             <div>
-              <label htmlFor="detail-refund-percent" className="text-xs text-[var(--color-text-secondary)]">
+              <label
+                htmlFor="detail-refund-percent"
+                className="text-xs text-[var(--color-text-secondary)]"
+              >
                 Refund percent (1–100)
               </label>
               <input
@@ -761,7 +775,10 @@ function DisputeActions({
           )}
 
           <div>
-              <label htmlFor="detail-decision-notes" className="text-xs text-[var(--color-text-secondary)]">
+            <label
+              htmlFor="detail-decision-notes"
+              className="text-xs text-[var(--color-text-secondary)]"
+            >
               Decision notes (visible to user, min 20 characters)
             </label>
             <Textarea
@@ -781,7 +798,10 @@ function DisputeActions({
           </div>
 
           <div>
-              <label htmlFor="detail-internal-notes" className="text-xs text-[var(--color-text-secondary)]">
+            <label
+              htmlFor="detail-internal-notes"
+              className="text-xs text-[var(--color-text-secondary)]"
+            >
               Internal notes (admin only, optional)
             </label>
             <Textarea
@@ -819,13 +839,11 @@ function DisputeActions({
                   <p className="font-medium">Confirm resolution</p>
                   <p>
                     This will resolve the dispute as{' '}
-                    <strong>{resolutionType.replace(/_/g, ' ')}</strong> and notify both
-                    parties. Estimated refund:{' '}
-                    <strong>{fmtCentavos(estimatedRefund)}</strong>.
+                    <strong>{resolutionType.replace(/_/g, ' ')}</strong> and notify both parties.
+                    Estimated refund: <strong>{fmtCentavos(estimatedRefund)}</strong>.
                   </p>
                   <p className="text-xs text-[var(--color-text-secondary)]">
-                    Money flows through the audited escrow primitives. This action cannot
-                    be undone.
+                    Money flows through the audited escrow primitives. This action cannot be undone.
                   </p>
                 </div>
               </div>
@@ -847,11 +865,7 @@ function DisputeActions({
                 >
                   Yes, resolve and notify
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setConfirmResolve(false)}
-                >
+                <Button size="sm" variant="ghost" onClick={() => setConfirmResolve(false)}>
                   Cancel
                 </Button>
               </div>
@@ -862,40 +876,39 @@ function DisputeActions({
 
       {/* Escalate (only when not already resolved) */}
       {detail.status !== 'resolved' && (
-      <div className="space-y-2 pt-3 border-t border-[var(--color-border)]">
-        <p className="text-sm font-medium text-[var(--color-text)]">Escalate</p>
-        <Textarea
-          aria-label="Escalation reason"
-          value={escalateReason}
-          onChange={(e) => setEscalateReason(e.target.value)}
-          placeholder="Why is this being escalated? (min 10 characters)"
-          rows={2}
-        />
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={escalateReason.trim().length < 10 || escalateMut.isPending}
-            onClick={() => {
-              if (window.confirm('Escalate this dispute?')) escalateMut.mutate({ reason: escalateReason.trim() });
-            }}
-          >
-            <AlertTriangle size={14} /> Escalate
-          </Button>
-          {escalateMut.isError && (
-            <span role="alert" className="text-xs text-red-600">
-              {getErrorMessage(escalateMut.error)}
-            </span>
-          )}
+        <div className="space-y-2 pt-3 border-t border-[var(--color-border)]">
+          <p className="text-sm font-medium text-[var(--color-text)]">Escalate</p>
+          <Textarea
+            aria-label="Escalation reason"
+            value={escalateReason}
+            onChange={(e) => setEscalateReason(e.target.value)}
+            placeholder="Why is this being escalated? (min 10 characters)"
+            rows={2}
+          />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={escalateReason.trim().length < 10 || escalateMut.isPending}
+              onClick={() => {
+                if (window.confirm('Escalate this dispute?'))
+                  escalateMut.mutate({ reason: escalateReason.trim() });
+              }}
+            >
+              <AlertTriangle size={14} /> Escalate
+            </Button>
+            {escalateMut.isError && (
+              <span role="alert" className="text-xs text-red-600">
+                {getErrorMessage(escalateMut.error)}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
       )}
 
       {/* Message */}
       <div className="space-y-2 pt-3 border-t border-[var(--color-border)]">
-        <p className="text-sm font-medium text-[var(--color-text)]">
-          Send message to parties
-        </p>
+        <p className="text-sm font-medium text-[var(--color-text)]">Send message to parties</p>
         <div className="flex items-center gap-3 flex-wrap">
           {(['customer', 'provider', 'both'] as const).map((r) => (
             <label key={r} className="inline-flex items-center gap-1 text-sm">
@@ -964,7 +977,8 @@ function DisputeActions({
               variant="destructive"
               disabled={reopenReason.trim().length < 20 || reopenMut.isPending}
               onClick={() => {
-                if (window.confirm('Reopen this resolved dispute?')) reopenMut.mutate({ reason: reopenReason.trim() });
+                if (window.confirm('Reopen this resolved dispute?'))
+                  reopenMut.mutate({ reason: reopenReason.trim() });
               }}
             >
               <RefreshCw size={14} /> Reopen

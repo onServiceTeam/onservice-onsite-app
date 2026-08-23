@@ -1,5 +1,15 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore, type User } from '@/stores/auth.store';
@@ -13,7 +23,16 @@ import Avatar from '@/components/Avatar';
 import PhoneInput from '@/components/PhoneInput';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
-import { MapPin, CreditCard, Bell, HelpCircle, FileText, KeyRound, ChevronRight, Users } from '@/components/icons';
+import {
+  MapPin,
+  CreditCard,
+  Bell,
+  HelpCircle,
+  FileText,
+  KeyRound,
+  ChevronRight,
+} from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -22,6 +41,7 @@ type IconComponent = ComponentType<IconProps>;
 export default function ProfileScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isDesktop } = useResponsive();
   const { user, logout, setUser } = useAuthStore();
   const [editing, setEditing] = useState(false);
   const [firstName, setFirstName] = useState(user?.firstName ?? '');
@@ -90,124 +110,141 @@ export default function ProfileScreen(): React.ReactElement {
   // a SiguradoShield menu row without lifting LAUNCH-LIMITATIONS §23.
   const menuItems: Array<{ label: string; icon: IconComponent; onPress: () => void }> = [
     { label: 'My Addresses', icon: MapPin, onPress: () => router.push(Routes.CUSTOMER.ADDRESSES) },
-    { label: 'Payment Methods', icon: CreditCard, onPress: () => router.push(Routes.CUSTOMER.PAYMENT_METHODS) },
-    { label: 'Notification Settings', icon: Bell, onPress: () => router.push(Routes.CUSTOMER.SETTINGS) },
+    {
+      label: 'Payment Methods',
+      icon: CreditCard,
+      onPress: () => router.push(Routes.CUSTOMER.PAYMENT_METHODS),
+    },
+    {
+      label: 'Notification Settings',
+      icon: Bell,
+      onPress: () => router.push(Routes.CUSTOMER.SETTINGS),
+    },
     { label: 'Help & Support', icon: HelpCircle, onPress: () => router.push(Routes.CUSTOMER.HELP) },
     { label: 'Terms & Privacy', icon: FileText, onPress: () => router.push(Routes.CUSTOMER.TERMS) },
-    { label: 'Account & Data', icon: KeyRound, onPress: () => router.push(Routes.CUSTOMER.ACCOUNT_MANAGEMENT) },
-    { label: 'Team Invitations', icon: Users, onPress: () => router.push(Routes.STAFF.INVITES) },
+    {
+      label: 'Account & Data',
+      icon: KeyRound,
+      onPress: () => router.push(Routes.CUSTOMER.ACCOUNT_MANAGEMENT),
+    },
   ];
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
-    <ScrollView
-      style={[styles.container, { paddingTop: insets.top + spacing.base }]}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          tintColor={colors.primary}
-          colors={[colors.primary]}
-        />
-      }
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={80}
     >
-      <Text style={styles.title}>Profile</Text>
+      <ScrollView
+        style={[styles.container, { paddingTop: insets.top + spacing.base }]}
+        contentContainerStyle={[styles.content, isDesktop && styles.desktopContent]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
+        <Text style={styles.title}>Profile</Text>
 
-      <View style={styles.userCard}>
-        {/* Phase 14 R5-complete — Avatar with initials fallback */}
-        <Avatar
-          name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || undefined}
-          size={64}
-        />
-        {editing ? (
-          /* BUG-PHASE147-01 fix — pre-fix First/Last Name inputs
+        <View style={styles.userCard}>
+          {/* Phase 14 R5-complete — Avatar with initials fallback */}
+          <Avatar
+            name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || undefined}
+            size={64}
+          />
+          {editing ? (
+            /* BUG-PHASE147-01 fix — pre-fix First/Last Name inputs
              had no maxLength. Server caps both at max(100)
              (auth.validators.ts:76-77). Same fix shape as Phase
              145/146. */
-          <View style={styles.editForm}>
-            <Input
-              label="First Name"
-              value={firstName}
-              onChangeText={setFirstName}
-              autoCapitalize="words"
-              maxLength={100}
-            />
-            <Input
-              label="Last Name"
-              value={lastName}
-              onChangeText={setLastName}
-              autoCapitalize="words"
-              maxLength={100}
-            />
-            {/* Phase 14 R5-complete — PhoneInput (read-only display via value prop;
-                actual phone change requires OTP re-verification — separate flow). */}
-            <PhoneInput
-              value={user?.phone ?? ''}
-              onChange={() => {
-                Alert.alert(
-                  'Change Phone',
-                  'Phone number changes require OTP re-verification. This feature is in development.',
-                );
-              }}
-              label="Mobile Number"
-              testID="profile-phone-input"
-            />
-            <View style={styles.editActions}>
-              <Button title="Save" onPress={handleSaveProfile} loading={saving} size="sm" />
-              <Button
-                title="Cancel"
-                onPress={() => {
-                  setEditing(false);
-                  setFirstName(user?.firstName ?? '');
-                  setLastName(user?.lastName ?? '');
-                }}
-                variant="ghost"
-                size="sm"
+            <View style={styles.editForm}>
+              <Input
+                label="First Name"
+                value={firstName}
+                onChangeText={setFirstName}
+                autoCapitalize="words"
+                maxLength={100}
               />
+              <Input
+                label="Last Name"
+                value={lastName}
+                onChangeText={setLastName}
+                autoCapitalize="words"
+                maxLength={100}
+              />
+              {/* Phase 14 R5-complete — PhoneInput (read-only display via value prop;
+                actual phone change requires OTP re-verification — separate flow). */}
+              <PhoneInput
+                value={user?.phone ?? ''}
+                onChange={() => {
+                  Alert.alert(
+                    'Change Phone',
+                    'Phone number changes require OTP re-verification. This feature is in development.',
+                  );
+                }}
+                label="Mobile Number"
+                testID="profile-phone-input"
+              />
+              <View style={styles.editActions}>
+                <Button title="Save" onPress={handleSaveProfile} loading={saving} size="sm" />
+                <Button
+                  title="Cancel"
+                  onPress={() => {
+                    setEditing(false);
+                    setFirstName(user?.firstName ?? '');
+                    setLastName(user?.lastName ?? '');
+                  }}
+                  variant="ghost"
+                  size="sm"
+                />
+              </View>
             </View>
-          </View>
-        ) : (
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>
-              {user?.firstName ?? ''} {user?.lastName ?? ''}
-            </Text>
-            <Text style={styles.userPhone}>{user?.phone ?? ''}</Text>
-            <TouchableOpacity onPress={() => setEditing(true)} style={styles.editButton}>
-              <Text style={styles.editButtonText}>Edit Profile</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+          ) : (
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>
+                {user?.firstName ?? ''} {user?.lastName ?? ''}
+              </Text>
+              <Text style={styles.userPhone}>{user?.phone ?? ''}</Text>
+              <TouchableOpacity onPress={() => setEditing(true)} style={styles.editButton}>
+                <Text style={styles.editButtonText}>Edit Profile</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
-      <View style={styles.menu}>
-        {menuItems.map((item) => {
-          const ItemIcon = item.icon;
-          return (
-            <TouchableOpacity
-              key={item.label}
-              style={styles.menuItem}
-              onPress={item.onPress}
-              activeOpacity={0.6}
-            >
-              <View style={styles.menuIconWrap}><ItemIcon size={20} color={colors.primary} /></View>
-              <Text style={styles.menuLabel}>{item.label}</Text>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+        <View style={[styles.menu, isDesktop && styles.desktopMenu]}>
+          {menuItems.map((item) => {
+            const ItemIcon = item.icon;
+            return (
+              <TouchableOpacity
+                key={item.label}
+                style={[styles.menuItem, isDesktop && styles.desktopMenuItem]}
+                onPress={item.onPress}
+                activeOpacity={0.6}
+              >
+                <View style={styles.menuIconWrap}>
+                  <ItemIcon size={20} color={colors.primary} />
+                </View>
+                <Text style={styles.menuLabel}>{item.label}</Text>
+                <ChevronRight size={20} color={colors.textTertiary} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-      <Button
-        title="Log Out"
-        onPress={handleLogout}
-        variant="outline"
-        style={styles.logoutButton}
-      />
+        <Button
+          title="Log Out"
+          onPress={handleLogout}
+          variant="outline"
+          style={styles.logoutButton}
+        />
 
-      <Text style={styles.version}>Version {platformConfig.appVersion}</Text>
-    </ScrollView>
+        <Text style={styles.version}>Version {platformConfig.appVersion}</Text>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -215,6 +252,7 @@ export default function ProfileScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
   content: { paddingBottom: 100 },
+  desktopContent: { width: '100%', maxWidth: 960, alignSelf: 'center' },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.lg },
   userCard: {
     flexDirection: 'row',
@@ -259,6 +297,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
     minHeight: 44,
+  },
+  desktopMenu: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: spacing.sm,
+  },
+  desktopMenuItem: {
+    width: '50%',
+    paddingHorizontal: spacing.sm,
   },
   menuIcon: { fontSize: 20, marginRight: spacing.md, width: 28 },
   menuIconWrap: {

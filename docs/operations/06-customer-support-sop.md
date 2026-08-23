@@ -8,12 +8,12 @@ This doc covers customer-side support. Provider payouts, account, and job suppor
 
 ## 1. What support actually runs on (read this first)
 
-There is no in-app support ticket screen for customers. The app does not let a customer open or view a ticket. Customers reach us by email or Facebook Messenger, and a human agent creates the ticket in the admin app on the customer's behalf. The Support Tickets page in admin (`/support-tickets`) is the agent's workspace. The customer never sees it.
+Customers can open, list, view, and reply to their own support cases in the shared in-app Support screens (`/support`, `/support/new`, `/support/:id`). Internal notes are excluded from the customer response. Email and Facebook Messenger remain staffed channels; a human agent creates the ticket in admin when contact starts outside the app. The Support Queue in admin (`/support-tickets`) is the agent workspace.
 
 Two things follow from this:
 
-1. Every contact starts outside the app (email, FB, later SMS) and gets logged by us inside admin. Nothing self-serves into the queue.
-2. There is no live chat with support. The only chat in the app is per-booking customer-to-provider chat. The one way we can push a message to a customer inside the app is the super-admin "Message customer" action on the Dispatch Console, which lands as a notification titled "Message from onService support."
+1. In-app cases enter the same support queue automatically. Email, Facebook Messenger, and later SMS contacts still need an agent-created ticket so the company has one record.
+2. The support case thread is asynchronous, not a real-time live-chat promise. Per-booking customer-to-provider chat remains separate. The super-admin "Message customer" action on the Dispatch Console is also separate and lands as a notification titled "Message from onService support."
 
 Also true today and worth knowing before you promise anything:
 
@@ -31,6 +31,7 @@ Also true today and worth knowing before you promise anything:
 | Email (customer) | `support@onservice.ph` | Support agents | Hardcoded in-app. Primary written channel. |
 | Email (provider) | `providers@onservice.ph` | Provider support | Routed to provider team (see `07-provider-support-sop.md`). |
 | Facebook Messenger | onService PH page | Support agents | Launch channel. Filipino customers expect Messenger. Confirm the page is set up. |
+| In-app support cases | Support inbox in customer/provider workspace | Support agents | Customer opens and follows their own case; internal notes never appear. |
 | Phone / SMS hotline | TBD (provision before launch) | Support agents | No real number yet. Remove the placeholder from the app first, then provision. |
 | In-app push (outbound only) | Dispatch Console "Message customer" | Super-admin | Lands as "Message from onService support" notification. Not a two-way channel. |
 | DPO / privacy requests | `dpo@onservice.ph`, `privacy@onservice.ph` | DPO / compliance | Data requests go here, not to general support. See section 9. |
@@ -56,7 +57,7 @@ The app must show the same hours to customers. Match the line above exactly.
 Every contact becomes a ticket in admin, even if you resolve it in one reply. That is how we get a record and a number.
 
 ```
-contact comes in (email / FB / SMS)
+contact comes in (in-app / email / FB / SMS)
         |
    agent creates ticket in admin  -> status: open
         |

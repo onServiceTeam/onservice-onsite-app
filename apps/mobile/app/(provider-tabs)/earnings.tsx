@@ -38,6 +38,7 @@ import {
   Coins,
 } from '@/components/icons';
 import type { ComponentType } from 'react';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -73,6 +74,7 @@ const FALLBACK_ICON: IconComponent = Repeat;
 export default function EarningsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useResponsive();
 
   const walletQuery = useQuery({
     queryKey: ['wallet'],
@@ -142,81 +144,87 @@ export default function EarningsScreen(): React.ReactElement {
 
   const renderHeader = (): React.ReactElement => (
     <View>
-      <View style={styles.earningsCard}>
-        {walletQuery.isLoading ? (
-          <ActivityIndicator size="large" color={colors.white} />
-        ) : (
-          <>
-            <Text style={styles.earningsLabel}>Available Balance</Text>
-            <Text style={styles.earningsAmount}>
-              {wallet ? formatPHP(wallet.availableBalance) : formatPHP(0)}
-            </Text>
-            {wallet && wallet.pendingBalance > 0 && (
-              <Text style={styles.pendingText}>
-                {formatPHP(wallet.pendingBalance)} in escrow
-              </Text>
+      <View style={[styles.overview, isDesktop && styles.desktopOverview]}>
+        <View style={isDesktop ? styles.desktopSummary : undefined}>
+          <View style={styles.earningsCard}>
+            {walletQuery.isLoading ? (
+              <ActivityIndicator size="large" color={colors.white} />
+            ) : (
+              <>
+                <Text style={styles.earningsLabel}>Available Balance</Text>
+                <Text style={styles.earningsAmount}>
+                  {wallet ? formatPHP(wallet.availableBalance) : formatPHP(0)}
+                </Text>
+                {wallet && wallet.pendingBalance > 0 && (
+                  <Text style={styles.pendingText}>
+                    {formatPHP(wallet.pendingBalance)} in escrow
+                  </Text>
+                )}
+                <View style={styles.earningsActions}>
+                  <TouchableOpacity
+                    style={styles.withdrawButton}
+                    onPress={() => router.push(Routes.PROVIDER.WITHDRAW)}
+                  >
+                    <Text style={styles.withdrawText}>Withdraw Funds</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.withdrawButton, { marginTop: spacing.sm }]}
+                    onPress={() => router.push(Routes.PROVIDER.PAYOUTS)}
+                  >
+                    <Text style={styles.withdrawText}>Payout History</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
             )}
-            <View style={styles.earningsActions}>
-              <TouchableOpacity
-                style={styles.withdrawButton}
-                onPress={() => router.push(Routes.PROVIDER.WITHDRAW)}
-              >
-                <Text style={styles.withdrawText}>Withdraw Funds</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.withdrawButton, { marginTop: spacing.sm }]}
-                onPress={() => router.push(Routes.PROVIDER.PAYOUTS)}
-              >
-                <Text style={styles.withdrawText}>Payout History</Text>
-              </TouchableOpacity>
+          </View>
+
+          <View style={styles.infoRow}>
+            <View style={styles.infoCard}>
+              <Coins size={22} color={colors.primary} style={styles.infoIconImg} />
+              <Text style={styles.infoLabel}>Min Withdrawal</Text>
+              <Text style={styles.infoValue}>
+                {formatPHP(platformConfig.minimumWithdrawalAmount)}
+              </Text>
             </View>
-          </>
-        )}
-      </View>
-
-      <View style={styles.infoRow}>
-        <View style={styles.infoCard}>
-          <Coins size={22} color={colors.primary} style={styles.infoIconImg} />
-          <Text style={styles.infoLabel}>Min Withdrawal</Text>
-          <Text style={styles.infoValue}>{formatPHP(platformConfig.minimumWithdrawalAmount)}</Text>
-        </View>
-        <View style={styles.infoCard}>
-          <BarChart3 size={22} color={colors.primary} style={styles.infoIconImg} />
-          <Text style={styles.infoLabel}>Your Commission</Text>
-          {/* Phase K CRIT-K09 fix — show this provider's actual tier
+            <View style={styles.infoCard}>
+              <BarChart3 size={22} color={colors.primary} style={styles.infoIconImg} />
+              <Text style={styles.infoLabel}>Your Commission</Text>
+              {/* Phase K CRIT-K09 fix — show this provider's actual tier
                commission, not the platform-wide range. */}
-          <Text style={styles.infoValue}>{`${tierCommissionPct}%`}</Text>
+              <Text style={styles.infoValue}>{`${tierCommissionPct}%`}</Text>
+            </View>
+          </View>
         </View>
-      </View>
 
-      {/* Phase K CRIT-K08 fix — EarningsChart driven by REAL backend
+        <View style={isDesktop ? styles.desktopInsights : undefined}>
+          {/* Phase K CRIT-K08 fix — EarningsChart driven by REAL backend
            data (provider/me/earnings/trends?period=daily&days=7). */}
-      <View style={{ marginBottom: spacing.base }}>
-        {trendsQuery.isLoading ? (
-          <SkeletonCard />
-        ) : trendsQuery.isError ? (
-          <EmptyState
-            icon="📉"
-            title="Couldn't load earnings trend"
-            description="Pull to refresh to try again."
-          />
-        ) : trendsQuery.data && trendsQuery.data.length > 0 ? (
-          <EarningsChart
-            data={trendsQuery.data.map((row) => ({
-              date: row.period.split('T')[0] ?? row.period,
-              amount: row.netEarned,
-            }))}
-          />
-        ) : (
-          <EmptyState
-            icon="📊"
-            title="No earnings trend yet"
-            description="Complete jobs to see your daily earnings here."
-          />
-        )}
-      </View>
+          <View style={{ marginBottom: spacing.base }}>
+            {trendsQuery.isLoading ? (
+              <SkeletonCard />
+            ) : trendsQuery.isError ? (
+              <EmptyState
+                icon="📉"
+                title="Couldn't load earnings trend"
+                description="Pull to refresh to try again."
+              />
+            ) : trendsQuery.data && trendsQuery.data.length > 0 ? (
+              <EarningsChart
+                data={trendsQuery.data.map((row) => ({
+                  date: row.period.split('T')[0] ?? row.period,
+                  amount: row.netEarned,
+                }))}
+              />
+            ) : (
+              <EmptyState
+                icon="📊"
+                title="No earnings trend yet"
+                description="Complete jobs to see your daily earnings here."
+              />
+            )}
+          </View>
 
-      {/* Phase K CRIT-K09 fix — CommissionBreakdown uses the provider's
+          {/* Phase K CRIT-K09 fix — CommissionBreakdown uses the provider's
            ACTUAL tier-specific commission rate (was hardcoded 12%).
            BUG-PHASE64-04 fix — the commission and guarantee `amount`
            lines used (1 - commRate) as the denominator, which doesn't
@@ -225,34 +233,42 @@ export default function EarningsScreen(): React.ReactElement {
            than gross - net. Now both use the same denominator so the
            breakdown is internally consistent: gross - commission -
            guarantee == net exactly. */}
-      {wallet && wallet.availableBalance > 0 && (() => {
-        const netRate = 1 - tierCommissionRate - platformConfig.guaranteeFundRate;
-        const gross = Math.round(wallet.availableBalance / netRate);
-        const commission = Math.round(wallet.availableBalance * (tierCommissionRate / netRate));
-        const guarantee = Math.round(wallet.availableBalance * (platformConfig.guaranteeFundRate / netRate));
-        return (
-          <View style={{ marginBottom: spacing.base }}>
-            <CommissionBreakdown
-              gross={gross}
-              lines={[
-                {
-                  label: 'Platform commission',
-                  amount: commission,
-                  pct: tierCommissionPct,
-                  helpText: `Your tier (${providerTier}) commission rate. Earn higher tier for lower commission.`,
-                },
-                {
-                  label: 'Guarantee fund',
-                  amount: guarantee,
-                  pct: Math.round(platformConfig.guaranteeFundRate * 100 * 10) / 10,
-                  helpText: 'Funds the platform guarantee program for completed bookings.',
-                },
-              ]}
-              net={wallet.availableBalance}
-            />
-          </View>
-        );
-      })()}
+          {wallet &&
+            wallet.availableBalance > 0 &&
+            (() => {
+              const netRate = 1 - tierCommissionRate - platformConfig.guaranteeFundRate;
+              const gross = Math.round(wallet.availableBalance / netRate);
+              const commission = Math.round(
+                wallet.availableBalance * (tierCommissionRate / netRate),
+              );
+              const guarantee = Math.round(
+                wallet.availableBalance * (platformConfig.guaranteeFundRate / netRate),
+              );
+              return (
+                <View style={{ marginBottom: spacing.base }}>
+                  <CommissionBreakdown
+                    gross={gross}
+                    lines={[
+                      {
+                        label: 'Platform commission',
+                        amount: commission,
+                        pct: tierCommissionPct,
+                        helpText: `Your tier (${providerTier}) commission rate. Earn higher tier for lower commission.`,
+                      },
+                      {
+                        label: 'Guarantee fund',
+                        amount: guarantee,
+                        pct: Math.round(platformConfig.guaranteeFundRate * 100 * 10) / 10,
+                        helpText: 'Funds the platform guarantee program for completed bookings.',
+                      },
+                    ]}
+                    net={wallet.availableBalance}
+                  />
+                </View>
+              );
+            })()}
+        </View>
+      </View>
 
       <Text style={styles.sectionTitle}>Transaction History</Text>
     </View>
@@ -262,20 +278,31 @@ export default function EarningsScreen(): React.ReactElement {
     const Icon = TRANSACTION_ICONS[item.type] ?? FALLBACK_ICON;
     return (
       <View style={styles.txRow}>
-        <View style={styles.txIconWrap}><Icon size={20} color={colors.primary} /></View>
+        <View style={styles.txIconWrap}>
+          <Icon size={20} color={colors.primary} />
+        </View>
         <View style={styles.txInfo}>
-          <Text style={styles.txDescription} numberOfLines={1}>{item.description}</Text>
+          <Text style={styles.txDescription} numberOfLines={1}>
+            {item.description}
+          </Text>
           <Text style={styles.txDate}>{formatDateTime(item.createdAt)}</Text>
         </View>
         <Text style={[styles.txAmount, item.amount >= 0 ? styles.txCredit : styles.txDebit]}>
-          {item.amount >= 0 ? '+' : ''}{formatPHP(Math.abs(item.amount))}
+          {item.amount >= 0 ? '+' : ''}
+          {formatPHP(Math.abs(item.amount))}
         </Text>
       </View>
     );
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
+    <View
+      style={[
+        styles.container,
+        isDesktop && styles.desktopContainer,
+        { paddingTop: insets.top + spacing.base },
+      ]}
+    >
       <Text style={styles.title}>Earnings</Text>
 
       {isError ? (
@@ -292,7 +319,11 @@ export default function EarningsScreen(): React.ReactElement {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.secondary}
+            />
           }
           ListEmptyComponent={
             transactionsQuery.isLoading ? (
@@ -317,6 +348,16 @@ export default function EarningsScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
+  desktopContainer: {
+    width: '100%',
+    maxWidth: 1040,
+    alignSelf: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  overview: {},
+  desktopOverview: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  desktopSummary: { width: 360 },
+  desktopInsights: { flex: 1, minWidth: 0 },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.lg },
 
   earningsCard: {

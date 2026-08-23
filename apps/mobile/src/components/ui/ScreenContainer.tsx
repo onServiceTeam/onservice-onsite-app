@@ -2,6 +2,7 @@ import React from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '@/config/theme';
+import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
 
 interface ScreenContainerProps {
   children: React.ReactNode;
@@ -23,13 +24,19 @@ export default function ScreenContainer({
   backgroundColor = colors.background,
 }: ScreenContainerProps): React.ReactElement {
   const insets = useSafeAreaInsets();
+  const { breakpoint } = useResponsive();
+  const horizontalPadding = byBreakpoint(breakpoint, {
+    phone: spacing.base,
+    tablet: spacing.lg,
+    desktop: spacing.xl,
+  });
 
   if (scrollable) {
     return (
       <ScrollView
         style={[styles.container, { backgroundColor }]}
         contentContainerStyle={[
-          padded && styles.padded,
+          padded && { paddingHorizontal: horizontalPadding },
           { paddingTop: insets.top, paddingBottom: insets.bottom + 80 },
           style,
         ]}
@@ -37,7 +44,11 @@ export default function ScreenContainer({
         keyboardShouldPersistTaps="handled"
         refreshControl={
           onRefresh ? (
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
           ) : undefined
         }
       >
@@ -51,7 +62,7 @@ export default function ScreenContainer({
       style={[
         styles.container,
         { backgroundColor, paddingTop: insets.top, paddingBottom: insets.bottom },
-        padded && styles.padded,
+        padded && { paddingHorizontal: horizontalPadding },
         style,
       ]}
     >
@@ -62,5 +73,4 @@ export default function ScreenContainer({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  padded: { paddingHorizontal: spacing.base },
 });

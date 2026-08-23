@@ -1,110 +1,129 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
-import {
-  LayoutDashboard,
-  Wrench,
-  Users,
-  ClipboardList,
-  Package,
-  TrendingUp,
-  Scale,
-  Coins,
-  Banknote,
-  Megaphone,
-  Repeat,
-  Building2,
-  MapPin,
-  LineChart,
-  Search,
-  Ticket,
-  Tag,
-  User,
-  Settings,
-  Activity,
-  Shield,
-  Lock,
-  FileText,
-  MessageSquare,
-  Hammer,
-} from '@/components/icons';
+import { X } from '@/components/icons';
+import { visibleAdminNavGroups } from '@/config/admin-navigation';
 
-type NavItem = {
-  to: string;
-  Icon: React.ComponentType<{ size?: number; className?: string }>;
-  label: string;
-  superAdminOnly?: boolean;
-};
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}
 
-const NAV_ITEMS: NavItem[] = [
-  { to: '/', Icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/providers', Icon: Wrench, label: 'Providers' },
-  { to: '/customers', Icon: Users, label: 'Customers' },
-  { to: '/bookings', Icon: ClipboardList, label: 'Bookings' },
-  { to: '/dispatch', Icon: Activity, label: 'Dispatch' },
-  { to: '/communications', Icon: MessageSquare, label: 'Communications' },
-  { to: '/catalog', Icon: Package, label: 'Catalog' },
-  { to: '/projects', Icon: Hammer, label: 'Projects' },
-  { to: '/pricing-rules', Icon: TrendingUp, label: 'Pricing Rules' },
-  { to: '/disputes', Icon: Scale, label: 'Disputes' },
-  { to: '/financials', Icon: Coins, label: 'Financials' },
-  { to: '/payouts', Icon: Banknote, label: 'Payouts' },
-  { to: '/notification-templates', Icon: Megaphone, label: 'Templates' },
-  { to: '/marketing', Icon: Tag, label: 'Marketing' },
-  { to: '/recurring', Icon: Repeat, label: 'Recurring' },
-  { to: '/business-accounts', Icon: Building2, label: 'Business' },
-  { to: '/service-areas', Icon: MapPin, label: 'Service Areas' },
-  { to: '/analytics', Icon: LineChart, label: 'Analytics' },
-  { to: '/audit-log', Icon: Search, label: 'Audit Log' },
-  { to: '/compliance', Icon: Shield, label: 'Compliance' },
-  { to: '/data-protection-log', Icon: Lock, label: 'Data Protection Log' },
-  { to: '/consent-versions', Icon: FileText, label: 'Consent Versions' },
-  { to: '/support-tickets', Icon: Ticket, label: 'Support' },
-  { to: '/staff', Icon: User, label: 'Staff & Roles' },
-  { to: '/settings', Icon: Settings, label: 'Settings' },
-  // Bug 1170-admin-ui: super_admin-only link to the cancellation-policy editor.
-  // Server enforces super_admin too; this filter just hides the link visually.
-  { to: '/settings/cancellation-policy', Icon: Settings, label: 'Cancellation Policy', superAdminOnly: true },
-];
+function roleLabel(role: string | undefined): string {
+  if (role === 'super_admin') return 'Super Admin';
+  if (role === 'dpo') return 'Data Protection Officer';
+  return 'Operations Admin';
+}
 
-export default function Sidebar(): React.ReactElement {
-  const role = useAuthStore((s) => s.user?.role);
-  const visibleItems = NAV_ITEMS.filter((item) => !item.superAdminOnly || role === 'super_admin');
+function SidebarContent({
+  onNavigate,
+  onClose,
+}: {
+  onNavigate?: () => void;
+  onClose?: () => void;
+}): React.ReactElement {
+  const user = useAuthStore((state) => state.user);
+  const groups = visibleAdminNavGroups(user?.role);
+  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Admin';
+
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-60 bg-[var(--color-sidebar)] text-white flex flex-col z-20">
-      <div className="px-5 py-5 border-b border-white/10">
-        <h1 className="text-lg font-bold tracking-tight">
-          <span className="text-[var(--color-secondary)]">on</span>Service
-        </h1>
-        <p className="text-xs text-slate-400 mt-0.5">Admin Panel</p>
-      </div>
-      <nav className="flex-1 py-3 overflow-y-auto">
-        {visibleItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-5 py-2.5 text-sm transition-colors ${
-                isActive
-                  ? 'bg-[var(--color-sidebar-hover)] text-white font-medium'
-                  : 'text-slate-400 hover:text-white hover:bg-[var(--color-sidebar-hover)]'
-              }`
-            }
+    <>
+      <div className="flex min-h-18 items-center gap-3 border-b border-[var(--color-border)] px-5 py-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[var(--color-primary)] text-sm font-bold text-white">
+          oS
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-lg font-bold tracking-tight text-[var(--color-text)]">
+            onService PH
+          </h1>
+          <p className="text-xs font-medium text-[var(--color-text-secondary)]">
+            Operations Console
+          </p>
+        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] lg:hidden"
+            aria-label="Close navigation"
           >
-            <item.Icon size={18} className="shrink-0" />
-            {item.label}
-          </NavLink>
+            <X size={20} />
+          </button>
+        )}
+      </div>
+
+      <nav aria-label="Admin workspace" className="flex-1 overflow-y-auto px-3 py-4">
+        {groups.map((group) => (
+          <section
+            key={group.label}
+            aria-labelledby={`nav-${group.label.replace(/\W+/g, '-').toLowerCase()}`}
+            className="mb-5"
+          >
+            <h2
+              id={`nav-${group.label.replace(/\W+/g, '-').toLowerCase()}`}
+              className="mb-1 px-3 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--color-text-tertiary)]"
+            >
+              {group.label}
+            </h2>
+            <div className="space-y-0.5">
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === '/'}
+                  title={item.description}
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    `group flex min-h-11 items-center gap-3 rounded-md border-l-[3px] px-3 py-2 text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary)]'
+                        : 'border-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]'
+                    }`
+                  }
+                >
+                  <item.Icon size={18} className="shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          </section>
         ))}
       </nav>
-      <div className="px-5 py-3 border-t border-white/10">
-        {/* Phase 22f a11y fix — was text-slate-500 (3.74:1 on slate-900,
-            fails WCAG AA 4.5:1). slate-400 (#94a3b8) on slate-900 = 5.2:1
-            which passes. axe-core dev plugin previously flagged this on
-            every admin page. */}
-        {/* Phase 200 — was a stale hardcoded v0.1.0 */}
-        <p className="text-xs text-slate-400">v0.14.0</p>
+
+      <div className="border-t border-[var(--color-border)] p-4">
+        <div className="mb-3 flex items-center gap-2 rounded-md bg-[var(--color-surface-hover)] px-3 py-2">
+          <span className="h-2 w-2 rounded-full bg-emerald-600" aria-hidden="true" />
+          <span className="text-xs font-semibold text-[var(--color-text)]">Live environment</span>
+        </div>
+        <p className="truncate text-sm font-semibold text-[var(--color-text)]">{displayName}</p>
+        <p className="truncate text-xs text-[var(--color-text-secondary)]">
+          {roleLabel(user?.role)}
+        </p>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export default function Sidebar({ mobileOpen = false, onClose }: SidebarProps): React.ReactElement {
+  return (
+    <>
+      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-sidebar)] lg:flex">
+        <SidebarContent />
+      </aside>
+
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden" role="presentation">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-950/45"
+            aria-label="Close navigation"
+            onClick={onClose}
+          />
+          <aside className="relative flex h-full w-[min(20rem,88vw)] flex-col border-r border-[var(--color-border)] bg-[var(--color-sidebar)] shadow-xl">
+            <SidebarContent onNavigate={onClose} onClose={onClose} />
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

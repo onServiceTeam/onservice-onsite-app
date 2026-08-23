@@ -21,10 +21,42 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const page = parseInt(req.query.page as string, 10) || 1;
-      const limit = Math.min(parseInt(req.query.limit as string, 10) || platformConfig.defaultPageSize, platformConfig.maxPageSize);
-      const { status, type, priority, assignedAgentId } = req.query as Record<string, string | undefined>;
-      const result = await supportTicketService.listTickets({ page, limit, status, type, priority, assignedAgentId });
-      res.json({ success: true, data: result.tickets, meta: { total: result.total, page, limit } });
+      const limit = Math.min(
+        parseInt(req.query.limit as string, 10) || platformConfig.defaultPageSize,
+        platformConfig.maxPageSize,
+      );
+      const { status, type, priority, assignedAgentId } = req.query as Record<
+        string,
+        string | undefined
+      >;
+      const result = await supportTicketService.listTickets({
+        page,
+        limit,
+        status,
+        type,
+        priority,
+        assignedAgentId,
+      });
+      const tickets = result.tickets.map((ticket) =>
+        supportTicketService.maskTicketForRole(ticket, req.user!.role),
+      );
+      res.json({ success: true, data: tickets, meta: { total: result.total, page, limit } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// Named assignment choices for the admin support workspace. This literal
+// route must stay before '/:id' so "agents" cannot be captured as a ticket ID.
+router.get(
+  '/agents',
+  authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const agents = await supportTicketService.listAssignableAgents();
+      res.json({ success: true, data: agents });
     } catch (error) {
       next(error);
     }
@@ -42,9 +74,17 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const page = parseInt(req.query.page as string, 10) || 1;
-      const limit = Math.min(parseInt(req.query.limit as string, 10) || platformConfig.defaultPageSize, platformConfig.maxPageSize);
+      const limit = Math.min(
+        parseInt(req.query.limit as string, 10) || platformConfig.defaultPageSize,
+        platformConfig.maxPageSize,
+      );
       const { status } = req.query as Record<string, string | undefined>;
-      const result = await supportTicketService.listMyTickets({ userId: req.user!.userId, page, limit, status });
+      const result = await supportTicketService.listMyTickets({
+        userId: req.user!.userId,
+        page,
+        limit,
+        status,
+      });
       res.json({ success: true, data: result.tickets, meta: { total: result.total, page, limit } });
     } catch (error) {
       next(error);
@@ -85,7 +125,8 @@ router.get(
       const ticket = await supportTicketService.getTicketById(id);
       if (!ticket) throw createAppError('Ticket not found.', 404);
       const messages = await supportTicketService.getTicketMessages(id);
-      res.json({ success: true, data: { ...ticket, messages } });
+      const maskedTicket = supportTicketService.maskTicketForRole(ticket, req.user!.role);
+      res.json({ success: true, data: { ...maskedTicket, messages } });
     } catch (error) {
       next(error);
     }
@@ -165,7 +206,11 @@ router.patch(
     try {
       const { status, resolutionNotes } = req.body;
       if (!status) throw createAppError('Status is required.', 400);
-      const ticket = await supportTicketService.updateTicketStatus(getParamId(req), status, resolutionNotes);
+      const ticket = await supportTicketService.updateTicketStatus(
+        getParamId(req),
+        status,
+        resolutionNotes,
+      );
       res.json({ success: true, data: ticket });
     } catch (error) {
       next(error);
@@ -182,7 +227,11 @@ router.patch(
     try {
       const { agentId } = req.body;
       if (!agentId) throw createAppError('Agent ID is required.', 400);
-      const ticket = await supportTicketService.assignTicket(getParamId(req), agentId);
+      const ticket = await supportTicketService.assignTicket(
+        getParamId(req),
+        agentId,
+        req.user!.userId,
+      );
       res.json({ success: true, data: ticket });
     } catch (error) {
       next(error);

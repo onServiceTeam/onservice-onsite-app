@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback } from 'react';
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { create } from 'zustand';
 import { hapticSuccess, hapticError, hapticWarning } from '@/utils/haptics';
@@ -94,14 +94,14 @@ export function ToastProvider(): React.ReactElement | null {
       Animated.parallel([
         Animated.spring(translateY, {
           toValue: 0,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
           tension: 80,
           friction: 10,
         }),
         Animated.timing(opacity, {
           toValue: 1,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]).start();
 
@@ -112,12 +112,12 @@ export function ToastProvider(): React.ReactElement | null {
           Animated.timing(translateY, {
             toValue: -100,
             duration: 250,
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
           Animated.timing(opacity, {
             toValue: 0,
             duration: 250,
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
         ]).start(() => hide());
       }, duration);
@@ -181,7 +181,10 @@ export function ToastProvider(): React.ReactElement | null {
           accessibilityRole="button"
           accessibilityLabel={actionLabel}
         >
-          <Text style={[styles.actionLabel, { color: toastStyle.text }]} maxFontSizeMultiplier={1.5}>
+          <Text
+            style={[styles.actionLabel, { color: toastStyle.text }]}
+            maxFontSizeMultiplier={1.5}
+          >
             {actionLabel}
           </Text>
         </TouchableOpacity>

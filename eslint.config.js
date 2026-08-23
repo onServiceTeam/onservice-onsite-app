@@ -79,6 +79,9 @@ export default [
         NodeJS: 'readonly',
         __DEV__: 'readonly',
         HTMLSelectElement: 'readonly',
+        HTMLCanvasElement: 'readonly',
+        CanvasRenderingContext2D: 'readonly',
+        KeyboardEvent: 'readonly',
       },
     },
     plugins: {

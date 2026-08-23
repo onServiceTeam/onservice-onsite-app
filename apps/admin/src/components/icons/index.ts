@@ -92,6 +92,7 @@ export {
   ArrowDown,
   MoreHorizontal,
   MoreVertical,
+  Menu,
   Filter,
   ArrowUpAZ as SortAsc,
   ArrowDownAZ as SortDesc,

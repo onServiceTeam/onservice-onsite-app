@@ -109,7 +109,7 @@ A review means: read the provider's recent jobs, ratings, disputes, and Notes, d
 
 ## 3. Support quality standards
 
-Support runs out of the admin Support Tickets page (`/support-tickets`). There is no in-app ticket screen for customers or providers today, so tickets come in by email (`support@onservice.ph` for customers, `providers@onservice.ph` for providers) and Facebook Messenger, and an agent creates the ticket on the user's behalf. Support hours are Monday to Saturday, 8:00 AM to 6:00 PM PHT. See `06-customer-support-sop.md` and `10-money-and-compliance-ops.md` for the channel and data-handling detail.
+Support runs out of the admin Support Queue (`/support-tickets`). Customers and providers can create and follow cases in the shared in-app Support screens. Email (`support@onservice.ph` for customers, `providers@onservice.ph` for providers) and Facebook Messenger remain staffed channels; an agent creates a ticket on the user's behalf for those external contacts. Support hours are Monday to Saturday, 8:00 AM to 6:00 PM PHT. See `06-customer-support-sop.md` and `10-money-and-compliance-ops.md` for the channel and data-handling detail.
 
 ### Support SLA targets (tune-able)
 
