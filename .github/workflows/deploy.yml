@@ -1,20 +1,12 @@
 name: Deploy to Production
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "packages/api/**"
-      - "docker-compose.prod.yml"
-      - "nginx/**"
-      - "monitoring/**"
-
   workflow_dispatch:
     inputs:
       run_migrations:
-        description: "Run database migrations"
+        description: 'Run database migrations'
         required: false
-        default: "false"
+        default: 'false'
         type: boolean
 
 concurrency:
@@ -24,12 +16,15 @@ concurrency:
 jobs:
   deploy:
     name: Deploy API to Production
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          ref: master
 
       - name: Build API Docker image
         run: |
@@ -67,7 +62,7 @@ jobs:
             rm -f /tmp/api-image.tar.gz
 
             # Pull latest config
-            git pull origin main
+            git pull --ff-only origin master
 
             # Run migrations if requested (bypass PgBouncer — advisory locks need session mode)
             if [ "${{ github.event.inputs.run_migrations }}" = "true" ]; then

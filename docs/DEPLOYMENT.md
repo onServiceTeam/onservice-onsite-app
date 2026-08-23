@@ -1,192 +1,199 @@
 # Deployment Guide
 
-This document describes how to deploy onService to production. The platform has
-three deployable artefacts: the API (Node + Express), the admin web app
-(React + Vite), and the mobile app (Expo / React Native). All three share a
-single PostgreSQL database, a Redis instance, and an S3-compatible object
-store.
+This is the release runbook for the current onService PH production topology.
+The canonical Git branch is `master`. Production is self-hosted on the shared
+Hetzner server described in `docs/HETZNER-DEPLOY.md`; Render and Vercel are not
+part of the current deployment.
 
-## Pre-flight (every release)
+The production checkout is `/opt/onservice`. `/opt/onservice-onsite-app` is a
+human-readable alias to the same directory. The customer/provider Expo web
+export and the admin Vite build are served by the shared nginx container. The
+API, Postgres/PostGIS, PgBouncer, Redis, and monitoring services run under
+`docker-compose.prod.yml`.
 
-Before promoting any artefact to production:
+This server also hosts unrelated applications. Never run a broad Docker prune,
+stop every container, recreate the entire Compose project, or replace the
+shared nginx container as part of an ordinary onService release.
 
-- All packages typecheck cleanly: `cd packages/api && npx tsc --noEmit`,
-  `cd apps/admin && npx tsc --noEmit`.
-- Lint is clean: `npx eslint .` from each package.
-- The full Jest suite is green: `cd packages/api && npx jest --silent`.
-- The smoke gate is green:
-  `cd packages/api && npx jest __tests__/smoke.test.ts`. **The smoke gate is
-  mandatory — every deploy must pass it before going live.** If any smoke
-  test fails the deploy must be blocked and the on-call lead engineer paged.
-- The k6 load test (`load-tests/full-suite.js`) has been run against staging
-  within the last 7 days with no regressions in p95 latency.
+## Release ownership and automation
 
-## API deploy (Render)
+GitHub Actions runs the code/test gates on pushes to `master`. The production
+workflow in `.github/workflows/deploy.yml` is deliberately manual and deploys
+the API only. It requires the `DEPLOY_HOST`, `DEPLOY_USER`, and
+`DEPLOY_SSH_KEY` repository secrets before it can be used. Those secrets are
+not currently stored in the public repository settings.
 
-Render is the chosen host because its free Postgres + Redis add-ons match our
-staging needs and its native Node runtime requires no Dockerfile maintenance.
+Frontend artifacts are gitignored and must be built, transferred, and
+extracted separately. Until the production workflow is configured and tested,
+use the controlled SSH procedure below. Never commit an SSH private key, server
+environment file, database dump, or third-party credential.
 
-- **Service type**: Web Service, runtime Node 20+.
-- **Root directory**: `packages/api`.
-- **Build command**: `npm ci && npm run build`.
-- **Start command**: `node dist/server.js`.
-- **Health check path**: `/health` (returns `{ status: "ok" }`).
-- **Auto-deploy branch**: `main`. Every push to `main` triggers a build.
-- **Database**: Provision a Render Postgres 18 instance and copy the
-  `Internal Database URL` to `DATABASE_URL`. Use the same value for
-  `DATABASE_DIRECT_URL` until PgBouncer is added.
-- **Redis**: Provision Render Redis (or Upstash) and copy the URL to
-  `REDIS_URL`.
-- **S3**: Use AWS S3 or DigitalOcean Spaces. Set `S3_BUCKET`, `S3_REGION`,
-  `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and optionally `S3_ENDPOINT`
-  (for Spaces) and `S3_CDN_URL`.
-- **Run migrations on deploy**: add a `Pre-Deploy Command` of
-  `bash scripts/run-migrations.sh`. The script is idempotent — it skips
-  already-applied migrations.
-- **Required env vars** (see "Environment variable inventory" below).
+## Pre-flight gate
 
-## Admin deploy (Vercel)
+Run from the repository root at the exact commit being released:
 
-The admin web app is a Vite SPA that talks to the API over CORS.
+```bash
+npm ci --legacy-peer-deps
+npx tsc --noEmit --project packages/api/tsconfig.json
+npx tsc --noEmit --project apps/admin/tsconfig.json
+npx tsc --noEmit --project apps/mobile/tsconfig.json
+npm test --workspace=packages/api
+npm test --workspace=apps/admin
+npm test --workspace=apps/mobile
+npm run build --workspace=packages/api
+npm run build --workspace=apps/admin
+npm run lint --workspace=apps/admin
+npm run lint --workspace=apps/mobile
+npm test --workspace=packages/api -- --runInBand __tests__/smoke.test.ts
+```
 
-- **Root directory**: `apps/admin`.
-- **Build command**: `npm run build`.
-- **Output directory**: `dist`.
-- **Install command**: `npm ci --legacy-peer-deps` (matches the local
-  install pattern).
-- **Framework preset**: `Other` (Vite is auto-detected; no preset needed).
-- **Required env vars**:
-  - `VITE_API_URL` — full URL of the deployed API
-    (e.g. `https://api.onservice.ph`).
-  - `VITE_SENTRY_DSN` — Sentry browser DSN (optional in dev; required in
-    production).
-- **SPA rewrites**: add a Vercel rewrite of `/(.*)` → `/index.html` so deep
-  links work. Vite's history-mode router needs this.
-- **Auto-deploy branch**: `main`.
+The explicit API smoke command is mandatory even when the full suite already
+passed. Any failure blocks deployment. The load test in
+`load-tests/full-suite.js` remains a launch-cutover requirement; do not claim a
+routine UI release has passed that launch gate unless it was actually run
+against the intended environment.
 
-## Mobile deploy (EAS Build + EAS Submit)
+Confirm GitHub CI is green for the release SHA before changing production.
 
-The mobile app uses Expo's managed workflow. EAS configuration lives in
-`apps/mobile/eas.json`.
+## Build the web frontends
 
-- **Build**: `eas build --platform all` from `apps/mobile`. Produces an `.ipa`
-  and an `.aab`.
-- **Submit**: `eas submit --platform ios` and
-  `eas submit --platform android`. These push to App Store Connect and
-  Google Play Console respectively.
-- **OTA updates**: `eas update --branch production` for JS-only fixes that
-  don't require a native rebuild. Use sparingly — App Review terms apply to
-  significant changes.
-- **Sentry release tagging**: the build pipeline writes the commit SHA to
-  `Constants.expoConfig.extra.release`; Sentry picks it up automatically via
-  `release: ...` in `_layout.tsx`.
-- **Versioning**: bump `expo.version` (user-facing) and `expo.ios.buildNumber`
-  / `expo.android.versionCode` (store-internal) in `app.config.ts` for every
-  store submission. EAS will refuse a submit with a stale build number.
+The Expo web build uses the customer/provider app origin because nginx proxies
+`/api`, `/socket.io`, and `/uploads` to the API. Demo mode is for controlled
+testing only and must be omitted for the public launch build.
+
+```bash
+cd apps/mobile
+EXPO_OS=web \
+EXPO_PUBLIC_API_URL=https://app.onservice.ph \
+EXPO_PUBLIC_DEMO_MODE=1 \
+npx expo export -p web --output-dir dist-web
+
+cd ../admin
+npm run build
+```
+
+Before transfer, verify the mobile bundle contains the production host and
+does not contain `DEV_MISSING` or `localhost:7381`.
+
+Package each artifact from inside its output directory so extraction does not
+add an extra folder level:
+
+```bash
+tar czf /tmp/onservice-mobile-<sha>.tar.gz -C apps/mobile/dist-web .
+tar czf /tmp/onservice-admin-<sha>.tar.gz -C apps/admin/dist .
+```
+
+## Controlled production deployment
+
+1. Connect as the dedicated `onservice` user with key-only SSH.
+2. Resolve `/opt/onservice` and the alias with `readlink -f`. Both must point to
+   the intended onService checkout before any write.
+3. Confirm the checkout is clean and its remote is
+   `https://github.com/onServiceTeam/onservice-onsite-app.git`.
+4. Fetch `origin/master`, then fast-forward only to the already-green release
+   SHA. Never force-push or merge an unverified server-side commit.
+5. Transfer the two uniquely named frontend archives to `/tmp`.
+6. Extract each archive **in place** into the existing
+   `apps/mobile/dist-web` and `apps/admin/dist` directories. Do not rename or
+   replace either directory because nginx bind-mounts their directory inodes.
+   Old hashed assets may remain until a later controlled cleanup; the new
+   `index.html` references only the current hashes.
+7. Build and recreate only the API service:
+
+   ```bash
+   cd /opt/onservice
+   docker compose -f docker-compose.prod.yml build api
+   docker compose -f docker-compose.prod.yml up -d --no-deps api
+   ```
+
+8. Do not run migrations unless the release contains a reviewed migration and
+   the release plan explicitly authorizes it. Migrations bypass PgBouncer and
+   use `DATABASE_DIRECT_URL`.
+9. Do not recreate nginx for an ordinary frontend or API release. In-place
+   extraction makes the new static files visible without replacing the shared
+   proxy.
+
+## Post-deploy verification
+
+Verify all of the following before declaring the release complete:
+
+- `/opt/onservice` is clean and exactly matches the GitHub release SHA.
+- `docker compose -f docker-compose.prod.yml ps` reports the onService API,
+  Postgres, Redis, and nginx as healthy/running.
+- `https://api.onservice.ph/health/ready` returns a successful readiness
+  response.
+- `https://app.onservice.ph` loads the customer/provider app and serves the new
+  hashed Expo entry asset.
+- `https://admin.onservice.ph` loads the admin login and serves the new Vite
+  assets.
+- Customer and provider demo sessions work at phone, tablet, and desktop
+  widths when the deployed build intentionally enables demo mode.
+- The browser console contains no new application errors.
+- Other applications routed by the shared nginx container remain reachable.
+
+Keep the release archives only long enough to verify deployment, then remove
+the exact `/tmp/onservice-*-<sha>.tar.gz` files. Do not use wildcard cleanup in
+a shared `/tmp` directory.
 
 ## Database migrations
 
-Migrations live in `packages/api/migrations/` as numbered SQL files
-(`001_*.sql`, `002_*.sql`, …). Apply with:
+Migrations live in `packages/api/migrations`. They are forward-only. A
+production migration is a hard stop unless it has been reviewed, backed up,
+and explicitly included in the release plan.
+
+When authorized, run it through the direct database connection:
 
 ```bash
-bash scripts/run-migrations.sh
+docker compose -f docker-compose.prod.yml run --rm \
+  api sh -c 'DATABASE_URL="$DATABASE_DIRECT_URL" npx node-pg-migrate up --migrations-dir migrations'
 ```
 
-The runner reads `DATABASE_URL`, tracks applied migrations in a
-`schema_migrations` table, and is idempotent. **There is no down-migration
-system.** To roll back a migration:
+Never improvise a destructive inverse migration on production. Follow the
+backup and rollback plan written for that migration.
 
-1. `git revert <commit-sha-of-migration>` to remove the SQL file from the
-   tree.
-2. Hand-write the inverse SQL (e.g. `DROP COLUMN`, `DROP TABLE`,
-   `ALTER TYPE … DROP VALUE`) and apply it via `psql $DATABASE_URL`.
-3. Manually delete the corresponding row from `schema_migrations` so the
-   runner does not think it is still applied.
-4. Redeploy the API at the reverted commit.
+## Rollback
 
-Treat migrations as forward-only. Destructive changes (column drops, type
-narrowing) require a multi-deploy strategy: ship a backwards-compatible
-migration first, then a follow-up that drops the old shape after every
-running instance has caught up.
+For an application-code regression with no migration:
 
-## Environment variable inventory
+1. Create a normal `git revert <bad-sha>` on `master` and push it.
+2. Wait for all GitHub CI checks on the revert to pass.
+3. Build the frontend artifacts from the revert commit and deploy them in
+   place using the same procedure.
+4. Fast-forward the server checkout and rebuild/recreate only the API service.
+5. Repeat every post-deploy verification, including checks of the neighboring
+   apps.
 
-The full list lives in `.env.example`. Required at minimum for production:
+Do not force-push `master`, use `git reset --hard`, or roll the database back
+without a separately reviewed recovery plan.
 
-| Variable | Purpose |
-| --- | --- |
-| `NODE_ENV` | `production` |
-| `PORT` | API listen port (default 7381) |
-| `APP_URL` / `ADMIN_URL` / `API_URL` | Canonical public URLs |
-| `DATABASE_URL` / `DATABASE_DIRECT_URL` | Postgres connection strings |
-| `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | Direct DB params used by some scripts |
-| `DB_POOL_MIN` / `DB_POOL_MAX` | Connection pool bounds |
-| `PGBOUNCER_HOST` / `PGBOUNCER_PORT` | Optional pooler |
-| `REDIS_URL` / `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | Cache + queues |
-| `JWT_SECRET` | HS256 signing secret (rotate with care — invalidates all sessions) |
-| `JWT_ACCESS_EXPIRES_IN` | Default `15m` |
-| `JWT_REFRESH_EXPIRES_IN` | Default `30d` |
-| `JWT_ADMIN_REFRESH_EXPIRES_IN` | Default `1h` |
-| `PAYMONGO_PUBLIC_KEY` / `PAYMONGO_SECRET_KEY` / `PAYMONGO_WEBHOOK_SECRET` | Payment gateway |
-| `SEMAPHORE_API_KEY` / `SEMAPHORE_SENDER_NAME` | SMS gateway |
-| `FCM_PROJECT_ID` / `GOOGLE_APPLICATION_CREDENTIALS` | Push notifications |
-| `RESEND_API_KEY` / `EMAIL_FROM` | Transactional email |
-| `S3_BUCKET` / `S3_REGION` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_ENDPOINT` | Object storage |
-| `CAPTCHA_SECRET_KEY` / `CAPTCHA_SITE_KEY` | CAPTCHA after N failed OTPs |
-| `OTP_LENGTH` / `OTP_EXPIRY_MINUTES` / `OTP_MAX_ATTEMPTS` / `OTP_COOLDOWN_SECONDS` / `OTP_MAX_REQUESTS_PER_HOUR` | OTP tuning |
-| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX_REQUESTS` / `RATE_LIMIT_AUTH_MAX_REQUESTS` | API rate limiting |
-| `SENTRY_DSN` | API error reporting |
-| `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` | Metrics dashboard |
-| `DOMAIN` / `CERTBOT_EMAIL` | TLS provisioning (self-hosted only) |
+## Environment variables
 
-Admin SPA additionally needs `VITE_API_URL` and `VITE_SENTRY_DSN`. Mobile
-reads `expo.extra.sentryDsn` from `app.config.ts`.
+Production values live only in the protected server environment file. The
+tracked `.env.production.example` is the inventory and must contain
+placeholders, never live values. Important groups include:
 
-## Rollback procedure
+- canonical URLs and runtime mode;
+- direct and pooled Postgres connections;
+- Redis;
+- JWT signing and expiry settings;
+- PayMongo payment and webhook keys;
+- SMS, email, push, CAPTCHA, and object-storage credentials;
+- Sentry and monitoring settings;
+- TLS domain and contact settings.
 
-For a bad release:
+Mobile native releases continue to use EAS Build/Submit. Bump the public app
+version and both store build numbers for every store submission. Use EAS Update
+only for JavaScript changes permitted by the store policies.
 
-1. `git revert HEAD` on `main` (or `git revert <sha>` for a specific commit).
-2. `git push origin main`.
-3. Render auto-deploys the revert; Vercel auto-deploys the admin revert.
-4. For mobile: revert the offending commit, bump the build number, and run
-   `eas build` + `eas submit` again. For pure JS bugs, use
-   `eas update --branch production` with the reverted JS bundle.
-5. If the revert touched a migration, follow the manual SQL inverse procedure
-   in "Database migrations" above.
-6. Notify the on-call channel that a rollback was issued and capture the
-   reason in the post-mortem doc.
+## Incident escalation
 
-Never `git push --force` to `main`. Never amend a published commit. If
-the revert fails to fix the issue, page the lead engineer rather than
-attempting further hot-fixes under pressure.
+- P1: customer-facing outage, payment failure, suspected data loss, or security
+  incident. Stop the rollout, preserve logs, notify the founder/DPO, and begin
+  the incident runbook immediately.
+- P2: degraded performance or a major single-feature outage. Roll back if the
+  release caused it and start same-day triage.
+- P3: cosmetic issue or isolated log noise. Record it with evidence and fix it
+  through the normal tested release path.
 
-## On-call escalation
-
-| Severity | Definition | Action |
-| --- | --- | --- |
-| **P1** | Customer-facing outage, payment failures, data loss, security incident | Page DPO + lead engineer immediately via PagerDuty. Acknowledge within 15 min. Status page updated within 30 min. |
-| **P2** | Degraded performance, single-feature outage, elevated error rate | Slack `#oncall` channel. Triage by next business day. |
-| **P3** | Cosmetic, minor bugs, log noise | File a ticket; no paging. |
-
-Escalation contacts (placeholders — fill in for production):
-
-- **PagerDuty service**: `onservice-prod-api`
-- **Slack channel**: `#onservice-oncall`
-- **DPO email**: `dpo@onservice.ph`
-- **Lead engineer phone**: see PagerDuty escalation policy
-
-## Smoke gate (mandatory)
-
-Before flipping traffic to a new revision:
-
-```bash
-cd packages/api
-npx jest __tests__/smoke.test.ts
-```
-
-The smoke suite covers the invariants whose breakage indicates an unsafe
-deploy: health endpoint, auth validators, money conservation, booking state
-machine, commission math, TOTP correctness, audit-CSV escaping, admin route
-guarding, and JWT expiry config. **Treat any smoke failure as a blocker.**
+Do not publish placeholder phone numbers, PagerDuty routes, or internal contact
+details in this public repository.

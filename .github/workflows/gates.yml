@@ -14,18 +14,18 @@ jobs:
     name: Gate A — cross-source-of-truth
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
       - run: bash scripts/gates/run-gate-a.sh
 
   gate-b:
     name: Gate B — bug deferral
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - name: Determine dispatch number
         id: dispatch
@@ -41,13 +41,13 @@ jobs:
     name: Gate C — constitution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         # mode-lookup.sh wraps a tiny python3 helper to read MODES.json.
         # Ubuntu runners have python3 by default but pinning the version
         # makes the tier-lookup deterministic across runners.
         with:
-          python-version: "3.11"
+          python-version: '3.11'
       - name: Gate smoke tests (verify gates themselves still reject violations)
         # Per Dispatch 03: each gate has a corresponding smoke test that
         # synthesizes a known-bad pattern and asserts the gate rejects it.
@@ -61,7 +61,7 @@ jobs:
     name: Gate D — visual screenshots
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # E07 — .env.docker is now gitignored (so a real secret can't be committed).
       # Provision the local-dev defaults from the tracked template before the stack starts.
       - name: Provision local dev env file
@@ -69,8 +69,8 @@ jobs:
       - uses: pnpm/action-setup@v3
         with:
           version: 9
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
+      - uses: actions/setup-node@v7
+        with: { node-version: '20' }
         # cache: "pnpm" removed in D03 — this repo uses npm workspaces with
         # package-lock.json, not pnpm-lock.yaml. setup-node was failing the
         # job when it couldn't find a pnpm-lock.yaml to cache against.
@@ -118,7 +118,7 @@ jobs:
     name: Gate E — mutation testing
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       # E07 — provision the gitignored local-dev env file from the tracked template.
       - name: Provision local dev env file
@@ -126,8 +126,8 @@ jobs:
       - uses: pnpm/action-setup@v3
         with:
           version: 9
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
+      - uses: actions/setup-node@v7
+        with: { node-version: '20' }
         # cache: "pnpm" removed in D03 — this repo uses npm workspaces with
         # package-lock.json, not pnpm-lock.yaml. setup-node was failing the
         # job when it couldn't find a pnpm-lock.yaml to cache against.
