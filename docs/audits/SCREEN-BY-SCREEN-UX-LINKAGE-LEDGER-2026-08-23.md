@@ -123,14 +123,14 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/(provider-tabs)/provider-profile.tsx` | IDENTITY/DISCOVERY | provider API | S | SOURCE/RENDER. Stitch portfolio/profile hierarchy pending. |
 | `app/provider/account-management.tsx` | GOVERNANCE | data-management | S/HOLD | SOURCE/RENDER. Destructive action confirmation and wide layout pending. |
 | `app/provider/availability.tsx` | RETENTION/BOOKING | provider API | S | SOURCE/RENDER. Calendar blocks need wide composition. |
-| `app/provider/calendar.tsx` | RETENTION/BOOKING | provider API | W | SOURCE/RENDER/WIDE via Bug UX-029. Tablet/desktop month grid and selected-day schedule form one workspace; live visual evidence remains. |
+| `app/provider/calendar.tsx` | RETENTION/BOOKING | provider API | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bug UX-029. Month grid and selected-day schedule are side by side without overflow; live QA caught and fixed the panel flex-basis collapse. |
 | `app/provider/certifications.tsx` | IDENTITY/DISCOVERY | provider, upload | S/N | SOURCE/RENDER. Admin vetting linkage exists; browser upload state pending. |
-| `app/provider/chat/[id].tsx` | BOOKING/SUPPORT | messaging, socket, upload | W | SOURCE/RENDER/WIDE via Bugs UX-031/032. Customer/job context stays beside the thread, and support-record guidance is visible on all widths. Live visual evidence remains. |
+| `app/provider/chat/[id].tsx` | BOOKING/SUPPORT | messaging, socket, upload | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bugs UX-031/032. Customer/job context stays beside the thread, and support-record guidance is visible without overflow. |
 | `app/provider/clients.tsx` | RETENTION | provider CRM | W | SOURCE/RENDER. Two-column list exists; wide spacing/visual evidence pending. |
 | `app/provider/clients/[id].tsx` | RETENTION/BOOKING | provider CRM | S | SOURCE/RENDER. Client history/detail split pending. |
 | `app/provider/help.tsx` | SUPPORT | support/help links | S | SOURCE/RENDER. Must route into shared support case workflow. |
 | `app/provider/insights.tsx` | RETENTION | provider CRM | S | SOURCE/RENDER. Metric definitions/source/freshness are required. |
-| `app/provider/job/[id].tsx` | BOOKING/SUPPORT | booking, provider | W | SOURCE/RENDER/WIDE via Bug UX-028. Tablet/desktop job record keeps canonical earnings and execution actions in a persistent side rail. Live visual evidence remains. |
+| `app/provider/job/[id].tsx` | BOOKING/SUPPORT | booking, provider | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bug UX-028. Job record keeps canonical earnings and execution actions in a persistent side rail without overflow. |
 | `app/provider/job/[id]/change-order.tsx` | BOOKING/MONEY | booking API | S/HOLD | SOURCE/RENDER. Customer approval/admin money linkage exists. |
 | `app/provider/job/[id]/checklist.tsx` | BOOKING/SUPPORT | booking photos/API | S/HOLD | SOURCE/RENDER. `Report Issue` remains E05; do not invent endpoint. |
 | `app/provider/job/[id]/complete.tsx` | BOOKING/MONEY | booking, photos | S | SOURCE/RENDER. Completion/customer confirmation/admin booking link exists. |

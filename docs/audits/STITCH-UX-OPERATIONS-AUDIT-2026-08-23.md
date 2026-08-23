@@ -289,8 +289,8 @@ Admin findings:
 - Admin and mobile lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
 - Mobile production web export: passed with `EXPO_OS=web` and the production same-origin API URL.
-- Production release: deployed through `406ded662fe30ff7558c1554ea9470ef29f87df8`; local `master`, GitHub `master`, and `/opt/onservice` were reverified clean and aligned. GitHub CI run 32646911715 and Gates run 32646911699 passed every job.
-- Production browser smoke: admin login rendered the Stitch operations workspace live at 1280 with 44 px controls and no overflow. The provider dashboard and Schedule filled the 820 px tablet viewport without overflow; Schedule also rendered the provider operations rail and seven-day grid at 1280.
+- Production release: application assets are deployed through `28e518158f2a3c92611d1001f724b86a8c6adb42`; local `master`, GitHub `master`, and `/opt/onservice` were reverified clean and aligned before this verification-only documentation update. GitHub Gates run 32649708632 and CI run 32649708626 passed every job, including the API container boot check.
+- Production browser smoke: admin login rendered the Stitch operations workspace live at 1280 with 44 px controls and no overflow. Provider dashboard and Schedule were verified at 820/1280. Provider calendar, job detail, and chat now render their paired workspaces at 820/1280 with no horizontal overflow. Live QA caught and fixed an initial one-pixel calendar detail collapse before closeout. Customer tracker/chat still need an authenticated customer browser session; their rendered behavior tests pass.
 - Production asset and service smoke: admin and mobile `index.html` SHA-256 hashes matched the local production builds; the public config endpoint returned `#003D9B`, `#0052CC`, and `#FE8A00`; every onService compose service remained healthy.
 
 ## Next implementation order
