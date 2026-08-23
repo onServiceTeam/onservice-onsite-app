@@ -18,6 +18,7 @@ import { logger } from '../utils/logger';
 
 const PREVIEW_LEN = 120;
 const REDACTION_REASON_MIN = 3;
+const REVIEW_NOTE_MIN = 3;
 
 interface AdminMessageRow {
   id: string;
@@ -393,7 +394,16 @@ export async function redactMessage(
 export async function reviewFlag(
   messageId: string,
   adminId: string,
+  reviewNote: string,
 ): Promise<{ reviewed: boolean }> {
+  const trimmedNote = (reviewNote ?? '').trim();
+  if (trimmedNote.length < REVIEW_NOTE_MIN) {
+    throw createAppError(
+      `A review rationale of at least ${REVIEW_NOTE_MIN} characters is required.`,
+      400,
+    );
+  }
+
   await db.transaction(async (client) => {
     const lookup = await client.query<{ booking_id: string }>(
       `SELECT c.booking_id
@@ -414,6 +424,7 @@ export async function reviewFlag(
 
     await logModerationAction(client, adminId, 'message_flag_reviewed', row.booking_id, {
       messageId,
+      reviewNote: trimmedNote.slice(0, 1000),
     });
   });
   logger.info('Admin reviewed message flag', { adminId, messageId });

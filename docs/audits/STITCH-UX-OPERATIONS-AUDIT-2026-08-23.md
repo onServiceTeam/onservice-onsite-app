@@ -214,6 +214,7 @@ Admin findings:
 - Fixed: support queue and case workspace now expose purpose, visible-page signals, linked customer and booking context, public versus internal conversation, named owner assignment, and explicit status confirmation.
 - Fixed: ordinary-admin support list and detail responses now apply the existing PII mask.
 - Fixed: support assignment now validates active admin roles and writes an audit event in the same transaction.
+- Fixed in the current admin trust-and-safety batch: Communications now starts on the actionable review queue, opens the exact reported message, keeps booking/customer/provider case links beside the conversation, and requires an audit rationale before a report is cleared.
 - Fixed: booking reassignment uses a named online-provider picker rather than asking an employee to paste a UUID.
 - Fixed: dispute assignment uses a named active-admin picker rather than asking an employee to paste a UUID.
 - Fixed in the current continuation: provider-team reject/send-back decisions use an in-page reason dialog instead of a browser prompt.
@@ -277,6 +278,10 @@ Admin findings:
 24. Reworked provider calendar into a month-grid and selected-day workspace for tablet and desktop.
 25. Added customer/job context beside provider chat and made the support-record guidance persist outside message history.
 26. Added one real rendered behavioral test for each of Bugs UX-027 through UX-032.
+27. Reworked Communications from a generic conversation browser into a queue-first trust-and-safety workspace with exact reported-message focus.
+28. Linked each moderated thread to its customer, provider, and booking case records and required a support rationale before marking a report reviewed.
+29. Persisted the review rationale in the transactional moderation audit record, with one real behavioral test per Bugs UX-033 through UX-036.
+30. Added 12 populated/loading/empty/error Communications visual baselines at 1280, 1440, and 1920 pixels, raising admin visual coverage from 354 to 366 snapshots.
 
 ## Verification record for this batch
 
@@ -284,14 +289,15 @@ Admin findings:
 - Mobile TypeScript: passed.
 - API TypeScript: passed.
 - Mobile suite after the current responsive batch: 188 suites passed, 714 tests passed, 88 explicit todos.
-- Admin suite: 53 files passed, 1 skipped, 162 tests passed, 3 explicit todos.
-- API suite: 282 suites passed, 3016 tests passed.
+- Admin suite after the Communications batch: 57 files passed, 1 skipped, 168 tests passed, 3 explicit todos.
+- API suite after the Communications batch: 283 suites passed, 3017 tests passed.
 - Admin and mobile lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
 - Mobile production web export: passed with `EXPO_OS=web` and the production same-origin API URL.
 - Production release: application assets are deployed through `28e518158f2a3c92611d1001f724b86a8c6adb42`; local `master`, GitHub `master`, and `/opt/onservice` were reverified clean and aligned before this verification-only documentation update. GitHub Gates run 32649708632 and CI run 32649708626 passed every job, including the API container boot check.
 - Production browser smoke: admin login rendered the Stitch operations workspace live at 1280 with 44 px controls and no overflow. Provider dashboard and Schedule were verified at 820/1280. Provider calendar, job detail, and chat now render their paired workspaces at 820/1280 with no horizontal overflow. Live QA caught and fixed an initial one-pixel calendar detail collapse before closeout. Customer tracker/chat still need an authenticated customer browser session; their rendered behavior tests pass.
 - Production asset and service smoke: admin and mobile `index.html` SHA-256 hashes matched the local production builds; the public config endpoint returned `#003D9B`, `#0052CC`, and `#FE8A00`; every onService compose service remained healthy.
+- Local visual regression record: all 12 new Communications baselines replayed cleanly after capture; the populated 1280-pixel image was inspected directly for queue/thread alignment, linked case context, focus state, and overflow.
 
 ## Next implementation order
 

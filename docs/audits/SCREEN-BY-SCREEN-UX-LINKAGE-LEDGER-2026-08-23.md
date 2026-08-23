@@ -187,7 +187,7 @@ Every admin page below is reopened for first-principles review. `Existing` means
 | `/disputes` | trust queue and assignment | customer dispute/provider context | trust and safety | Existing; SLA model absent, do not invent countdowns |
 | `/disputes/:id` | evidence, messages, decision record | customer dispute/provider response | case workspace | Reworked partly; provider response remains E04 |
 | `/support-tickets` | triage, owner, public/internal conversation | shared support routes | case workspace | Reworked; record-level search still open |
-| `/communications` | reported-message moderation | customer/provider chat | trust and safety | Existing; case linkage and redaction confirmation open |
+| `/communications` | reported-message moderation | customer/provider chat | trust and safety | Reworked via Bugs UX-033 through UX-036. Opens on the review queue, preserves the exact reported-message focus, links booking/customer/provider case records, and requires an audit rationale before clearing a report. Populated/loading/empty/error visual baselines pass at 1280/1440/1920. Global record search remains open. |
 | `/financials` | reconciliation, escrow, tax, receipt control | customer pay/provider earnings | payout/command | Existing; money actions remain server-authoritative |
 | `/payouts` | provider disbursement queue | provider payouts/withdrawal | payout management | Existing; batch preview/dual-control decision open |
 | `/pricing-rules` | canonical price policy | booking configure/quotes | catalog config | Existing; customer impact preview open |

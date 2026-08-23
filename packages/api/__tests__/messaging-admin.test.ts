@@ -257,7 +257,7 @@ describe('redactMessage', () => {
 describe('reviewFlag', () => {
   it('404s when the message is missing', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([]));
-    await expect(adminSvc.reviewFlag(MSG_ID, ADMIN_ID)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(adminSvc.reviewFlag(MSG_ID, ADMIN_ID, 'no violation')).rejects.toMatchObject({ statusCode: 404 });
   });
 
   it('marks the flag reviewed and writes a message_flag_reviewed audit row', async () => {
@@ -265,7 +265,7 @@ describe('reviewFlag', () => {
       .mockResolvedValueOnce(rows([{ booking_id: BOOKING_ID }]))
       .mockResolvedValueOnce(rows([]))
       .mockResolvedValueOnce(rows([]));
-    const out = await adminSvc.reviewFlag(MSG_ID, ADMIN_ID);
+    const out = await adminSvc.reviewFlag(MSG_ID, ADMIN_ID, 'no violation found');
     expect(out).toEqual({ reviewed: true });
     const auditCall = dbQueryMock.mock.calls[2];
     expect(auditCall[1][1]).toBe('message_flag_reviewed');

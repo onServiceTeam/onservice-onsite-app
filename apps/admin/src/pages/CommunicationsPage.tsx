@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { MessageSquare, Flag, AlertTriangle, Search, EyeOff, CheckCircle2 } from '@/components/icons';
 import api, { getErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
@@ -53,7 +54,9 @@ interface AdminMessage {
 interface Thread {
   id: string;
   bookingId: string;
+  customerId: string;
   customerName: string;
+  providerId: string;
   providerName: string;
   isActive: boolean;
   messages: AdminMessage[];
@@ -69,9 +72,10 @@ function fmtTime(iso: string | null): string {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function CommunicationsPage(): React.ReactElement {
-  const [tab, setTab] = useState<TabId>('all');
+  const [tab, setTab] = useState<TabId>('queue');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
   const statsQuery = useQuery({
     queryKey: ['admin-comms-stats'],
@@ -122,7 +126,7 @@ export default function CommunicationsPage(): React.ReactElement {
           <button
             key={id}
             type="button"
-            onClick={() => { setTab(id); setSelectedId(null); }}
+            onClick={() => { setTab(id); setSelectedId(null); setSelectedMessageId(null); }}
             className={`px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${
               tab === id
                 ? 'border-[var(--color-secondary)] text-[var(--color-text)] font-medium'
@@ -149,12 +153,21 @@ export default function CommunicationsPage(): React.ReactElement {
             </div>
           )}
           {tab === 'queue' ? (
-            <QueueList onSelect={setSelectedId} selectedId={selectedId} />
+            <QueueList
+              onSelect={(conversationId, messageId) => {
+                setSelectedId(conversationId);
+                setSelectedMessageId(messageId);
+              }}
+              selectedId={selectedId}
+            />
           ) : (
             <ConversationList
               filter={tab}
               search={search}
-              onSelect={setSelectedId}
+              onSelect={(conversationId) => {
+                setSelectedId(conversationId);
+                setSelectedMessageId(null);
+              }}
               selectedId={selectedId}
             />
           )}
@@ -163,7 +176,7 @@ export default function CommunicationsPage(): React.ReactElement {
         {/* Right: thread */}
         <div>
           {selectedId ? (
-            <ConversationThread conversationId={selectedId} />
+            <ConversationThread conversationId={selectedId} focusMessageId={selectedMessageId} />
           ) : (
             <Card className="p-8">
               <EmptyState
@@ -214,7 +227,8 @@ function ConversationList({
 
   if (q.isLoading) return <LoadingState />;
   if (q.isError) return <ErrorState title="Failed to load" description={getErrorMessage(q.error)} />;
-  if (!q.data || q.data.conversations.length === 0) {
+  const conversations = q.data?.conversations ?? [];
+  if (conversations.length === 0) {
     return (
       <Card className="p-6">
         <EmptyState title="No conversations" description="Nothing matches this view yet." />
@@ -224,8 +238,8 @@ function ConversationList({
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-[var(--color-text-secondary)]">{q.data.total} conversation(s)</p>
-      {q.data.conversations.map((c) => (
+      <p className="text-xs text-[var(--color-text-secondary)]">{q.data?.total ?? 0} conversation(s)</p>
+      {conversations.map((c) => (
         <button
           key={c.id}
           type="button"
@@ -261,7 +275,7 @@ function ConversationList({
 
 function QueueList({
   onSelect, selectedId,
-}: { onSelect: (id: string) => void; selectedId: string | null }): React.ReactElement {
+}: { onSelect: (conversationId: string, messageId: string) => void; selectedId: string | null }): React.ReactElement {
   const q = useQuery({
     queryKey: ['admin-comms-queue'],
     queryFn: async () => {
@@ -275,7 +289,8 @@ function QueueList({
 
   if (q.isLoading) return <LoadingState />;
   if (q.isError) return <ErrorState title="Failed to load" description={getErrorMessage(q.error)} />;
-  if (!q.data || q.data.messages.length === 0) {
+  const messages = q.data?.messages ?? [];
+  if (messages.length === 0) {
     return (
       <Card className="p-6">
         <EmptyState title="Queue is clear" description="No flagged or reported messages are awaiting review." />
@@ -285,12 +300,12 @@ function QueueList({
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-[var(--color-text-secondary)]">{q.data.total} message(s) awaiting review</p>
-      {q.data.messages.map((m) => (
+      <p className="text-xs text-[var(--color-text-secondary)]">{q.data?.total ?? 0} message(s) awaiting review</p>
+      {messages.map((m) => (
         <button
           key={m.id}
           type="button"
-          onClick={() => onSelect(m.conversationId)}
+          onClick={() => onSelect(m.conversationId, m.id)}
           className={`w-full text-left rounded-lg border p-3 transition-colors ${
             selectedId === m.conversationId
               ? 'border-[var(--color-secondary)] bg-[var(--color-surface-hover)]'
@@ -305,7 +320,9 @@ function QueueList({
           {m.reportReason && (
             <p className="text-[11px] text-[var(--color-danger)] mt-1">Reason: {m.reportReason}</p>
           )}
-          <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1">{fmtTime(m.createdAt)} · open thread</p>
+          <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1">
+            Booking {m.bookingId?.slice(0, 8) ?? 'unknown'} · {fmtTime(m.createdAt)} · open reported message
+          </p>
         </button>
       ))}
     </div>
@@ -314,10 +331,18 @@ function QueueList({
 
 // ─── Conversation thread + moderation actions ────────────────────────────────
 
-function ConversationThread({ conversationId }: { conversationId: string }): React.ReactElement {
+function ConversationThread({
+  conversationId,
+  focusMessageId,
+}: {
+  conversationId: string;
+  focusMessageId: string | null;
+}): React.ReactElement {
   const queryClient = useQueryClient();
   const [redactingId, setRedactingId] = useState<string | null>(null);
   const [reason, setReason] = useState('');
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewNote, setReviewNote] = useState('');
 
   const q = useQuery({
     queryKey: ['admin-comms-thread', conversationId],
@@ -344,11 +369,22 @@ function ConversationThread({ conversationId }: { conversationId: string }): Rea
   });
 
   const reviewMutation = useMutation({
-    mutationFn: async (messageId: string) => {
-      await api.post(`/api/v1/admin/conversations/messages/${messageId}/review`);
+    mutationFn: async (vars: { messageId: string; reviewNote: string }) => {
+      await api.post(`/api/v1/admin/conversations/messages/${vars.messageId}/review`, {
+        reviewNote: vars.reviewNote,
+      });
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setReviewingId(null);
+      setReviewNote('');
+      invalidate();
+    },
   });
+
+  useEffect(() => {
+    if (!q.data || !focusMessageId) return;
+    document.getElementById(`moderation-message-${focusMessageId}`)?.scrollIntoView?.({ block: 'center' });
+  }, [focusMessageId, q.data]);
 
   if (q.isLoading) return <LoadingState />;
   if (q.isError || !q.data) return <ErrorState title="Failed to load thread" description={getErrorMessage(q.error)} />;
@@ -357,18 +393,37 @@ function ConversationThread({ conversationId }: { conversationId: string }): Rea
 
   return (
     <Card className="p-0 overflow-hidden">
-      <div className="px-4 py-3 border-b border-[var(--color-border)]">
-        <p className="text-sm font-medium text-[var(--color-text)]">
-          {thread.customerName} &harr; {thread.providerName}
+      <div className="px-4 py-3 border-b border-[var(--color-border)] space-y-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
+          <Link className="text-[var(--color-secondary)] hover:underline" to={`/customers/${thread.customerId}`}>
+            {thread.customerName}
+          </Link>
+          <span className="text-[var(--color-text-tertiary)]">&harr;</span>
+          <Link className="text-[var(--color-secondary)] hover:underline" to={`/providers/${thread.providerId}`}>
+            {thread.providerName}
+          </Link>
+        </div>
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          <Link className="font-medium text-[var(--color-secondary)] hover:underline" to={`/bookings/${thread.bookingId}`}>
+            Booking {thread.bookingId.slice(0, 8)}
+          </Link>
+          {' · '}{thread.messages.length} message(s){' · '}{thread.isActive ? 'conversation open' : 'conversation closed'}
         </p>
-        <p className="text-xs text-[var(--color-text-secondary)]">Booking {thread.bookingId.slice(0, 8)} · {thread.messages.length} message(s)</p>
       </div>
 
       <div className="max-h-[60vh] overflow-y-auto p-4 space-y-3">
         {thread.messages.map((m) => {
           const needsReview = (m.isFlagged || !!m.reportedAt) && !m.flagReviewedAt;
           return (
-            <div key={m.id} className="rounded-lg border border-[var(--color-border)] p-3">
+            <div
+              key={m.id}
+              id={`moderation-message-${m.id}`}
+              className={`rounded-lg border p-3 ${
+                focusMessageId === m.id
+                  ? 'border-[var(--color-secondary)] ring-2 ring-[var(--color-secondary)]/20'
+                  : 'border-[var(--color-border)]'
+              }`}
+            >
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-medium text-[var(--color-text)]">
                   {m.senderName}{' '}
@@ -406,7 +461,12 @@ function ConversationThread({ conversationId }: { conversationId: string }): Rea
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => { setRedactingId(redactingId === m.id ? null : m.id); setReason(''); }}
+                      onClick={() => {
+                        setRedactingId(redactingId === m.id ? null : m.id);
+                        setReason('');
+                        setReviewingId(null);
+                        setReviewNote('');
+                      }}
                     >
                       <EyeOff size={13} /> Redact
                     </Button>
@@ -415,7 +475,12 @@ function ConversationThread({ conversationId }: { conversationId: string }): Rea
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => reviewMutation.mutate(m.id)}
+                      onClick={() => {
+                        setReviewingId(reviewingId === m.id ? null : m.id);
+                        setReviewNote('');
+                        setRedactingId(null);
+                        setReason('');
+                      }}
                       disabled={reviewMutation.isPending}
                     >
                       <CheckCircle2 size={13} /> Mark reviewed
@@ -445,6 +510,43 @@ function ConversationThread({ conversationId }: { conversationId: string }): Rea
                       Cancel
                     </Button>
                   </div>
+                  {redactMutation.isError && (
+                    <p role="alert" className="text-xs text-[var(--color-danger)]">
+                      {getErrorMessage(redactMutation.error)}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {reviewingId === m.id && (
+                <div className="mt-2 space-y-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-hover)] p-3">
+                  <label htmlFor={`review-note-${m.id}`} className="text-xs font-medium text-[var(--color-text)]">
+                    Review rationale
+                  </label>
+                  <Textarea
+                    id={`review-note-${m.id}`}
+                    rows={2}
+                    value={reviewNote}
+                    onChange={(e) => setReviewNote(e.target.value)}
+                    placeholder="Record why no redaction is needed or how this report was handled. Saved to the audit log."
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={reviewNote.trim().length < 3 || reviewMutation.isPending}
+                      onClick={() => reviewMutation.mutate({ messageId: m.id, reviewNote: reviewNote.trim() })}
+                    >
+                      Confirm reviewed
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setReviewingId(null); setReviewNote(''); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                  {reviewMutation.isError && (
+                    <p role="alert" className="text-xs text-[var(--color-danger)]">
+                      {getErrorMessage(reviewMutation.error)}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

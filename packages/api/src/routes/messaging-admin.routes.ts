@@ -112,7 +112,11 @@ router.post(
     try {
       requireAdmin(req);
       const messageId = getParamId(req, 'messageId');
-      const data = await messagingAdminService.reviewFlag(messageId, req.user!.userId);
+      const data = await messagingAdminService.reviewFlag(
+        messageId,
+        req.user!.userId,
+        String(req.body?.reviewNote ?? ''),
+      );
       res.json({ success: true, data });
     } catch (error) {
       next(error);
