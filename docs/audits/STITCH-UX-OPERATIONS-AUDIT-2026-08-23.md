@@ -24,7 +24,7 @@ This audit reconciles:
 
 - the attached Stitch ZIP and all readable manifest, prompt, design-system, HTML, and image assets;
 - 103 Expo Router screen files and 8 route layouts under `apps/mobile/app`;
-- 34 admin page components plus the admin router and shared shell;
+- 35 admin page components plus the admin router and shared shell;
 - 47 Express route modules and the services used by cross-role support operations;
 - the live production customer and provider demos at phone and 1280-pixel desktop widths;
 - the live admin login surface;
@@ -199,7 +199,7 @@ Provider findings:
 | Command          | Dashboard, Analytics                                                                                          | queues, alerts, marketplace pulse, demand, quality, growth               |
 | Operations       | Bookings, Booking Detail, Dispatch, Recurring, Projects, Service Areas                                        | fulfilment, assignment, exceptions, capacity, market controls            |
 | People           | Providers, Provider Detail, Customers, Customer Detail, Business Accounts, Business Account Detail            | onboarding, vetting, account history, risk, access, billing context      |
-| Support & Trust  | Support Tickets, Communications, Disputes, Dispute Detail                                                     | case ownership, conversation, evidence, decisions, escalation            |
+| Support & Trust  | Support Tickets, Communications, Tester Feedback, Disputes, Dispute Detail                                    | case ownership, conversation, research evidence, decisions, escalation   |
 | Money            | Financials, Payouts, Pricing Rules, Cancellation Policy                                                       | reconciliation, disbursement, canonical pricing, approved policy display |
 | Growth & Content | Catalog, Marketing, Notification Templates                                                                    | taxonomy, intake, campaigns, promotions, lifecycle communications        |
 | Governance       | Compliance, Data Protection Log, Consent Versions, Audit Log, Staff & Roles, System Settings, Change Password | regulatory controls, privacy requests, history, access, configuration    |
@@ -215,6 +215,8 @@ Admin findings:
 - Fixed: ordinary-admin support list and detail responses now apply the existing PII mask.
 - Fixed: support assignment now validates active admin roles and writes an audit event in the same transaction.
 - Fixed in the current admin trust-and-safety batch: Communications now starts on the actionable review queue, opens the exact reported message, keeps booking/customer/provider case links beside the conversation, and requires an audit rationale before a report is cleared.
+- Fixed in the tester-feedback operations batch: production tester research now has a dedicated queue, customer/provider/admin area filters, preserved issue/questionnaire/screenshot evidence, named active-admin ownership, a written decision note, and a transactional audit event. Ordinary-admin contact and free-text PII are masked.
+- Fixed: navigating directly to a lower sidebar workspace scrolls its active destination into the visible navigation region instead of leaving the current page hidden below the fold.
 - Fixed: booking reassignment uses a named online-provider picker rather than asking an employee to paste a UUID.
 - Fixed: dispute assignment uses a named active-admin picker rather than asking an employee to paste a UUID.
 - Fixed in the current continuation: provider-team reject/send-back decisions use an in-page reason dialog instead of a browser prompt.
@@ -267,7 +269,7 @@ Admin findings:
 13. Removed the customer-profile link that incorrectly exposed a provider-staff invitation route.
 14. Removed unsupported native-driver requests from every shared browser animation component.
 15. Added rendered-output and route/service behavior tests for each claimed change.
-16. Added the explicit 103-screen, 8-layout, and 34-admin-page linkage ledger; shell-only responsive coverage is no longer counted as per-screen completion.
+16. Added the explicit 103-screen, 8-layout, and 35-admin-page linkage ledger; shell-only responsive coverage is no longer counted as per-screen completion.
 17. Switched all canonical brand sources and runtime branding rows to the approved Stitch palette through migration 146.
 18. Added wide customer booking detail, quote comparison, and provider schedule compositions.
 19. Replaced provider-team and invoice-payment browser prompts, plus business-account manager UUID entry, with named, auditable workflows.
@@ -282,6 +284,9 @@ Admin findings:
 28. Linked each moderated thread to its customer, provider, and booking case records and required a support rationale before marking a report reviewed.
 29. Persisted the review rationale in the transactional moderation audit record, with one real behavioral test per Bugs UX-033 through UX-036.
 30. Added 12 populated/loading/empty/error Communications visual baselines at 1280, 1440, and 1920 pixels, raising admin visual coverage from 354 to 366 snapshots.
+31. Pulled and visually reviewed all 10 available third-party tester submissions and six screenshots through the private, gitignored production-export workflow.
+32. Added the Tester Feedback admin workspace and transactional triage API through Bugs UX-037 to UX-041, plus active-sidebar visibility via UX-042.
+33. Added 12 Tester Feedback baselines at 1280, 1440, and 1920 pixels, raising admin visual coverage from 366 to 378 snapshots.
 
 ## Verification record for this batch
 
@@ -289,20 +294,22 @@ Admin findings:
 - Mobile TypeScript: passed.
 - API TypeScript: passed.
 - Mobile suite after the current responsive batch: 188 suites passed, 714 tests passed, 88 explicit todos.
-- Admin suite after the Communications batch: 57 files passed, 1 skipped, 168 tests passed, 3 explicit todos.
-- API suite after the Communications batch: 283 suites passed, 3017 tests passed.
+- Admin suite after the Tester Feedback batch: 61 files passed, 1 skipped, 174 tests passed, 3 explicit todos.
+- API suite after the Tester Feedback batch: 285 suites passed, 3019 tests passed.
 - Admin and mobile lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
 - Mobile production web export: passed with `EXPO_OS=web` and the production same-origin API URL.
-- Production release: application assets are deployed through `28e518158f2a3c92611d1001f724b86a8c6adb42`; local `master`, GitHub `master`, and `/opt/onservice` were reverified clean and aligned before this verification-only documentation update. GitHub Gates run 32649708632 and CI run 32649708626 passed every job, including the API container boot check.
+- Production release before this local Tester Feedback checkpoint: application source and assets are deployed through `5c9d8762bd5a055c6edbe883465e2420ca600964`; GitHub Gates run 32650979719 and CI run 32650979727 passed every job. The Tester Feedback batch still requires push, migration, and deployment before this line can be advanced.
 - Production browser smoke: admin login rendered the Stitch operations workspace live at 1280 with 44 px controls and no overflow. Provider dashboard and Schedule were verified at 820/1280. Provider calendar, job detail, and chat now render their paired workspaces at 820/1280 with no horizontal overflow. Live QA caught and fixed an initial one-pixel calendar detail collapse before closeout. Customer tracker/chat still need an authenticated customer browser session; their rendered behavior tests pass.
 - Production asset and service smoke: admin and mobile `index.html` SHA-256 hashes matched the local production builds; the public config endpoint returned `#003D9B`, `#0052CC`, and `#FE8A00`; every onService compose service remained healthy.
-- Local visual regression record: all 12 new Communications baselines replayed cleanly after capture; the populated 1280-pixel image was inspected directly for queue/thread alignment, linked case context, focus state, and overflow.
+- Local visual regression record: all 12 new Tester Feedback baselines plus the active-sidebar visibility check replayed cleanly; the populated 1280-pixel image was inspected directly for queue/detail alignment, evidence hierarchy, ownership form, and overflow. The admin baseline inventory is now 378 PNGs.
 
 ## Next implementation order
 
-1. Audit and improve the remaining high-use wide layouts: customer projects, support, and notifications; provider earnings, client detail, and quote builder.
-2. Continue the admin suspicion-first pass page by page, replacing generic confirmations only where impact preview, reason capture, and audit context are required.
-3. Add real admin entity search after defining safe searchable fields and PII visibility.
-4. Reconcile fine-grained staff authorization through an explicit architecture decision.
-5. Resolve money/legal hard stops before changing those workflows.
+1. Work the tester-backed customer findings in evidence order: catalog scope/inclusions, wallet top-up recovery, Cebu address recognition, and support entry/linkage.
+2. Work the tester-backed provider findings: job navigation, service editing, availability validation, team contact validation, certification/upload states, and payout presentation.
+3. Audit and improve the remaining high-use wide layouts: customer projects, support, and notifications; provider earnings, client detail, and quote builder.
+4. Continue the admin suspicion-first pass page by page, replacing generic confirmations only where impact preview, reason capture, and audit context are required.
+5. Add real admin entity search after defining safe searchable fields and PII visibility.
+6. Reconcile fine-grained staff authorization through an explicit architecture decision.
+7. Resolve money/legal hard stops before changing those workflows.

@@ -73,7 +73,12 @@ Ken decision.
 
 ## Where to read it without the AI coder (humans)
 
-Same data, in a browser, using the key:
+Day-to-day company triage now belongs in the admin app at **Tester Feedback**
+(`/feedback`). Start in New, filter by customer/provider/admin area, assign an
+active named admin, and record the verification or dismissal note. These changes
+are audit-logged, and ordinary admins receive masked contact/free-text PII.
+
+The same data remains available for private analysis or backup using the key:
 
 - Spreadsheet: `https://app.onservice.ph/api/v1/feedback/export.csv?key=<key>`
 - Readable report: `https://app.onservice.ph/api/v1/feedback/export.md?key=<key>`

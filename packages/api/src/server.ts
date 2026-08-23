@@ -76,6 +76,7 @@ import staffRoutes from './routes/staff.routes';
 import settingsRoutes from './routes/settings.routes';
 import cancellationPolicyPublicRoutes from './routes/cancellation-policy-public.routes';
 import feedbackRoutes from './routes/feedback.routes';
+import feedbackAdminRoutes from './routes/feedback-admin.routes';
 import projectRoutes from './routes/project.routes';
 import cancellationPolicyAdminRoutes from './routes/cancellation-policy-admin.routes';
 import * as settingsService from './services/settings.service';
@@ -292,6 +293,10 @@ app.use('/api/v1/admin/customers', customerAdminRoutes);
 // review queue, redact, resolve flag) — mounted before generic /admin/* so the
 // specific /admin/conversations/* paths win.
 app.use('/api/v1/admin/conversations', messagingAdminRoutes);
+// UX-037 — tester feedback is an owned Support & Trust queue. Mount the
+// specific route before the generic /admin router so feedback IDs are never
+// mistaken for generic admin resources.
+app.use('/api/v1/admin/feedback', feedbackAdminRoutes);
 // Phase 07: booking 360 + dispute detail sub-routes mounted BEFORE generic
 // admin routes so `/admin/bookings/:id/...` and `/admin/disputes/:id/...` match
 // before any `/admin/bookings` or `/admin/disputes` (list) fallthrough.

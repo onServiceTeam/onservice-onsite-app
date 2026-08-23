@@ -1,5 +1,5 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useLayoutEffect, useRef } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { X } from '@/components/icons';
 import { visibleAdminNavGroups } from '@/config/admin-navigation';
@@ -23,8 +23,21 @@ function SidebarContent({
   onClose?: () => void;
 }): React.ReactElement {
   const user = useAuthStore((state) => state.user);
+  const location = useLocation();
+  const navigationRef = useRef<HTMLElement>(null);
   const groups = visibleAdminNavGroups(user?.role);
   const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Admin';
+
+  useLayoutEffect(() => {
+    const navigation = navigationRef.current;
+    const activeLink = navigationRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!navigation || !activeLink) return;
+    const navigationRect = navigation.getBoundingClientRect();
+    const linkRect = activeLink.getBoundingClientRect();
+    if (linkRect.top < navigationRect.top || linkRect.bottom > navigationRect.bottom) {
+      navigation.scrollTop = activeLink.offsetTop - (navigation.clientHeight - activeLink.clientHeight) / 2;
+    }
+  }, [location.pathname]);
 
   return (
     <>
@@ -52,7 +65,7 @@ function SidebarContent({
         )}
       </div>
 
-      <nav aria-label="Admin workspace" className="flex-1 overflow-y-auto px-3 py-4">
+      <nav ref={navigationRef} aria-label="Admin workspace" className="flex-1 overflow-y-auto overscroll-contain px-3 py-4">
         {groups.map((group) => (
           <section
             key={group.label}

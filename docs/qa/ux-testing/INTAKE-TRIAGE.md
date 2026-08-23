@@ -14,19 +14,24 @@ up cold.
 
 Most feedback now comes through the live page at
 **https://app.onservice.ph/feedback** and lands in the database automatically.
-You don't have to chase files. There are three ways to read it back, all using
-the export key (`FEEDBACK_EXPORT_KEY` on the server, kept by Ken; hand it to the
-AI coder when you want a review):
+You don't have to chase files. There are four ways to read it back. The first is
+the day-to-day operating workflow; the other three use the export key
+(`FEEDBACK_EXPORT_KEY` on the server, kept by Ken; hand it to the AI coder when
+you want a review):
 
-1. **In a browser** (humans): open
+1. **In the admin app** (operations): open **Tester Feedback** (`/feedback`),
+   filter New work by customer/provider/admin area, preserve the original
+   evidence, assign an active named admin, and record a triage, completion, or
+   dismissal note. Ordinary admins see masked contact and free-text PII.
+2. **In a browser export** (private analysis): open
    `https://app.onservice.ph/api/v1/feedback/export.csv?key=THEKEY` for a
    spreadsheet, or `…/export.md?key=THEKEY` for a readable digest.
-2. **Into the repo** (AI coder): run `node scripts/feedback/pull.mjs` with
+3. **Into the repo** (AI coder): run `node scripts/feedback/pull.mjs` with
    `FEEDBACK_EXPORT_KEY` set. It writes
    [FEEDBACK-INBOX.md](FEEDBACK-INBOX.md) (readable) and `FEEDBACK-INBOX.json`
    (machine) into this folder, so the AI coder can review feedback in-repo and
    turn it into fixes.
-3. **Ask the AI coder** to "pull the latest tester feedback and triage it" — it
+4. **Ask the AI coder** to "pull the latest tester feedback and triage it" — it
    runs the pull and works through the steps below.
 
 The markdown files testers can fill by hand ([QUESTIONNAIRE.md](QUESTIONNAIRE.md),

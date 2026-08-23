@@ -58,7 +58,7 @@ Bottom line for a new admin: if a button is greyed out or you see a "requires a 
 
 ---
 
-## 2. Page-by-page guide (34 routed page components)
+## 2. Page-by-page guide (35 routed page components)
 
 The left sidebar lists the pages in this order. The version label at the bottom shows the build (currently v0.14.0). For each page below: what it is for, the common tasks, and a short how-to.
 
@@ -324,7 +324,21 @@ Change your own password here. If your account is flagged for forced rotation, e
 
 Company-wide conversation oversight. Use the queue and statistics to find conversations that need review, open the linked booking context, review reported messages, and redact a message only when policy requires it. Redaction and review actions are audited. This page is for oversight; normal customer/provider replies belong in the Support queue or the role apps.
 
-### 2.31 Projects (`/projects`)
+### 2.31 Tester Feedback (`/feedback`)
+
+The owned queue for third-party customer, provider, and admin testing. It is separate from Communications, which moderates user chat, and Support Tickets, which handles individual customer/provider cases.
+
+How to triage a submission:
+
+1. Start in New. Use the app-area filter to separate customer, provider, and admin feedback.
+2. Read the original issue, reproduction steps, expected result, ratings, written answers, price reactions, ideas, and real screenshots. A tester's severity label is evidence, not the final company priority.
+3. Choose `Triaged` only after selecting an active named admin owner and writing what was verified or where the work is linked.
+4. Choose `Done` only when the verified work is actually complete. Keep the owner and record the result.
+5. Choose `Dismissed` for spam, stress input, duplicates, or non-actionable content and explain why. Do not silently delete feedback.
+
+Ordinary admins see masked contact details and masked personal data inside free text. Status, owner, and note changes are permanent audit-log events. The key-protected exports remain available for private research and backup, but they are not the operating queue.
+
+### 2.32 Projects (`/projects`)
 
 Oversight for larger multi-stage customer projects. Use it to inspect project status, milestones, linked bookings, participants, and exceptions that need operations support. Milestone escrow is not launch-approved until the legal and accounting decision in escalation E12 is resolved, so do not describe a planning milestone as protected escrow.
 
@@ -368,6 +382,7 @@ Bookings and dispatch
 
 Support and disputes
 - [ ] Can create a support ticket on a user's behalf and set priority/assignment.
+- [ ] Can separate Tester Feedback from a user support case, assign an owner, and record a defensible triage or dismissal note.
 - [ ] Can walk the dispute decision tree and write defensible decision notes (at least 20 chars).
 - [ ] Knows the displayed cancellation policy can differ from the actual refund math, quotes the live numbers, and escalates the mismatch.
 

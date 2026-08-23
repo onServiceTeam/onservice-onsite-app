@@ -35,6 +35,7 @@ const PricingRulesPage = lazy(() => import('@/pages/PricingRulesPage'));
 const MarketingPage = lazy(() => import('@/pages/MarketingPage'));
 const DispatchConsolePage = lazy(() => import('@/pages/DispatchConsolePage'));
 const CommunicationsPage = lazy(() => import('@/pages/CommunicationsPage'));
+const FeedbackPage = lazy(() => import('@/pages/FeedbackPage'));
 const CompliancePage = lazy(() => import('@/pages/CompliancePage'));
 const DataProtectionLogPage = lazy(() => import('@/pages/DataProtectionLogPage'));
 const ConsentVersionsPage = lazy(() => import('@/pages/ConsentVersionsPage'));
@@ -109,6 +110,7 @@ export default function App(): React.ReactElement {
             <Route path="/marketing" element={<MarketingPage />} />
             <Route path="/dispatch" element={<DispatchConsolePage />} />
             <Route path="/communications" element={<CommunicationsPage />} />
+            <Route path="/feedback" element={<FeedbackPage />} />
             <Route path="/compliance" element={<CompliancePage />} />
             <Route path="/data-protection-log" element={<DataProtectionLogPage />} />
             <Route path="/consent-versions" element={<ConsentVersionsPage />} />

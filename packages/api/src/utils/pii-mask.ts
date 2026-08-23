@@ -86,7 +86,7 @@ export function maskPiiInString(s: string): string {
     });
 }
 
-type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
+export type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 
 export function maskPiiInObject<T extends Json>(obj: T): T {
   if (obj === null || obj === undefined) return obj;

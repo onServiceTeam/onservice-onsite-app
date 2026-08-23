@@ -138,6 +138,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         description: 'Conversations and delivery status',
       },
       {
+        to: '/feedback',
+        Icon: ClipboardList,
+        label: 'Tester Feedback',
+        description: 'Product research, bugs, and ideas',
+      },
+      {
         to: '/disputes',
         Icon: Scale,
         label: 'Disputes',

@@ -2,7 +2,7 @@
 
 Date: 2026-08-23
 Status: active audit, not a completion certificate
-Scope: 103 routed mobile screens, 8 mobile layouts, 34 admin pages, shared services, and cross-role operating links
+Scope: 103 routed mobile screens, 8 mobile layouts, 35 admin pages, shared services, and cross-role operating links
 
 ## How to read this ledger
 
@@ -188,6 +188,7 @@ Every admin page below is reopened for first-principles review. `Existing` means
 | `/disputes/:id` | evidence, messages, decision record | customer dispute/provider response | case workspace | Reworked partly; provider response remains E04 |
 | `/support-tickets` | triage, owner, public/internal conversation | shared support routes | case workspace | Reworked; record-level search still open |
 | `/communications` | reported-message moderation | customer/provider chat | trust and safety | Reworked via Bugs UX-033 through UX-036. Opens on the review queue, preserves the exact reported-message focus, links booking/customer/provider case records, and requires an audit rationale before clearing a report. Populated/loading/empty/error visual baselines pass at 1280/1440/1920. Global record search remains open. |
+| `/feedback` | own and triage third-party product research | customer/provider/admin feedback form | case workspace | Added via Bugs UX-037 through UX-041. Defaults to new, filters by app area, preserves original evidence, masks contact/free-text PII for ordinary admins, and requires a named owner plus audited note for triaged/done work. Populated/loading/empty/error baselines pass at 1280/1440/1920. |
 | `/financials` | reconciliation, escrow, tax, receipt control | customer pay/provider earnings | payout/command | Existing; money actions remain server-authoritative |
 | `/payouts` | provider disbursement queue | provider payouts/withdrawal | payout management | Existing; batch preview/dual-control decision open |
 | `/pricing-rules` | canonical price policy | booking configure/quotes | catalog config | Existing; customer impact preview open |
@@ -211,6 +212,7 @@ Every admin page below is reopened for first-principles review. `Existing` means
 3. Admin still contains raw user-ID entry in staff access and dozens of generic browser-confirm operations across staff, analytics, catalog, money, compliance, and settings workflows. Confirmation itself is valid, but high-impact actions need consistent context, impact preview, reasons, and audit evidence rather than a generic browser prompt.
 4. The admin shell and support/booking/dispute improvements are foundations. They do not make every page a coherent case workspace.
 5. Fine-grained staff permissions, cancellation math, provider dispute response, checklist issue reporting, legal disclaimer text, and milestone escrow remain explicit holds. Visual work cannot silently decide them.
+6. Production tester feedback was operationally orphaned: 10 submissions remained `new` because no employee queue, owner, decision note, or dismissal path existed. The new Tester Feedback workspace closes that company-process gap; the underlying screen reports still require individual current-code verification.
 
 ## Completion rule for future updates
 
