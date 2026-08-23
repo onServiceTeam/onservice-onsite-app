@@ -27,6 +27,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { MapIcon, ChevronLeft } from '@/components/icons';
 import { useLocation } from '@/hooks/useLocation';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const STATUS_LABELS: Record<string, string> = {
   requested: 'New Request',
@@ -68,6 +69,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { getCurrentLocation, isLoading: isGettingLocation } = useLocation();
+  const { isPhone } = useResponsive();
 
   const { data: booking, isLoading, isError, refetch } = useQuery({
     queryKey: ['booking', id],
@@ -237,6 +239,122 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   const isActiveJob = ['paid', 'provider_en_route', 'provider_arrived', 'in_progress'].includes(booking.status);
   const canSubmitQuote = booking.bookingType === 'quote_based' && booking.status === 'requested';
   const canSubmitChangeOrder = booking.status === 'in_progress';
+  const tierRate = platformConfig.commissionRates[providerTier] ?? platformConfig.commissionRates.new ?? 0.15;
+  const commissionAmount = Math.round(booking.servicePrice * tierRate);
+  const netEarnings = booking.servicePrice - commissionAmount;
+  const tierPct = Math.round(tierRate * 100);
+
+  const earningsCard = (
+    <Card style={styles.card}>
+      <SectionHeader title="Earnings" />
+      <View style={styles.earningsRow}>
+        <Text style={styles.earningsLabel}>Service Price</Text>
+        <Text style={styles.earningsValue}>{formatPHP(booking.servicePrice)}</Text>
+      </View>
+      <View style={styles.earningsRow}>
+        <Text style={styles.earningsLabel}>{`Platform commission (${tierPct}%)`}</Text>
+        <Text style={styles.earningsValue}>{`-${formatPHP(commissionAmount)}`}</Text>
+      </View>
+      <View style={styles.earningsDivider} />
+      <View style={styles.earningsRow}>
+        <Text style={styles.earningsTotalLabel}>Your Earnings</Text>
+        <Text style={styles.earningsTotalValue}>{formatPHP(netEarnings)}</Text>
+      </View>
+      <Text style={styles.earningsNote}>
+        {`${tierPct}% commission deducted automatically when payment is released. Earn higher tier for lower commission.`}
+      </Text>
+    </Card>
+  );
+
+  const actionPanel = (
+    <>
+      {canSubmitQuote && (
+        <Button
+          title="Submit Quote"
+          onPress={() => router.push(`/provider/job/${booking.id}/quote`)}
+        />
+      )}
+      {nextAction && (
+        <Button
+          title={isGettingLocation ? 'Getting location...' : statusMutation.isPending ? 'Updating...' : nextAction.label}
+          onPress={handleNextStatus}
+          loading={statusMutation.isPending}
+          disabled={statusMutation.isPending || cancelMutation.isPending || isGettingLocation}
+        />
+      )}
+      {canSubmitChangeOrder && (
+        <>
+          <Button
+            title="Submit Change Order (Parts / Materials)"
+            onPress={() => router.push(`/provider/job/${booking.id}/change-order`)}
+            variant="outline"
+          />
+          <Text style={styles.changeOrderNote}>
+            Need extra parts or materials? Send a change order here so the customer approves the added cost in the app before you buy or do extra work. It stays on the record and protected by escrow.
+          </Text>
+        </>
+      )}
+      {['in_progress', 'provider_arrived', 'provider_en_route'].includes(booking.status) && (
+        <>
+          <Button
+            title="Job Checklist"
+            onPress={() => router.push(`/provider/job/${booking.id}/checklist`)}
+            variant="outline"
+          />
+          <Button
+            title="Upload Before/After Photos"
+            onPress={() => router.push(`/provider/job/${booking.id}/photos`)}
+            variant="outline"
+          />
+        </>
+      )}
+      {isActiveJob && (
+        <Button
+          title="Chat with Customer"
+          onPress={() => router.push(`/provider/chat/${booking.id}`)}
+          variant="outline"
+        />
+      )}
+      {canCancel && !showCancelForm && (
+        <Button
+          title="Cancel Job"
+          onPress={handleCancel}
+          variant="ghost"
+          disabled={cancelMutation.isPending || statusMutation.isPending}
+        />
+      )}
+      {canCancel && showCancelForm && (
+        <View style={styles.cancelForm}>
+          <Text style={styles.cancelFormLabel}>Reason for cancellation (optional)</Text>
+          {/* BUG-PHASE146-01 fix — keep the client cap aligned with the
+              server's 500-character cancellationReason limit. */}
+          <TextInput
+            style={styles.cancelReasonInput}
+            placeholder="Tell the customer why..."
+            placeholderTextColor={colors.textTertiary}
+            multiline
+            numberOfLines={2}
+            maxLength={500}
+            value={cancelReason}
+            onChangeText={setCancelReason}
+            textAlignVertical="top"
+          />
+          <Button
+            title={cancelMutation.isPending ? 'Cancelling...' : 'Confirm Cancellation'}
+            onPress={() => cancelMutation.mutate()}
+            loading={cancelMutation.isPending}
+            disabled={cancelMutation.isPending}
+          />
+          <TouchableOpacity
+            onPress={() => { setShowCancelForm(false); setCancelReason(''); }}
+            style={styles.cancelFormDismiss}
+          >
+            <Text style={styles.cancelFormDismissText}>Never mind</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </>
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -247,7 +365,16 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
         <Text style={styles.headerTitle}>Job Details</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={[styles.jobWorkspace, !isPhone && styles.jobWorkspaceWide]}
+          accessibilityLabel={isPhone ? 'Provider job details' : 'Provider job execution workspace'}
+        >
+        <View style={styles.jobRecord} accessibilityLabel="Job service and customer context">
         <View style={styles.statusCard}>
           <StatusBadge status={booking.status} size="md" />
           <Text style={styles.bookingId}>#{formatBookingRef(booking.id, booking.createdAt)}</Text>
@@ -309,140 +436,23 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
             </TouchableOpacity>
           )}
         </Card>
+        {isPhone && earningsCard}
+        </View>
 
-        {/* Phase E CRIT-101 fix — Earnings section now shows the
-             real breakdown: gross Service Price → tier-specific
-             commission → NET earnings. Pre-fix "Your Earnings"
-             showed the gross service price. */}
-        {(() => {
-          const tierRate =
-            platformConfig.commissionRates[providerTier] ?? platformConfig.commissionRates.new ?? 0.15;
-          const commissionAmount = Math.round(booking.servicePrice * tierRate);
-          const net = booking.servicePrice - commissionAmount;
-          const tierPct = Math.round(tierRate * 100);
-          return (
-            <Card style={styles.card}>
-              <SectionHeader title="Earnings" />
-              <View style={styles.earningsRow}>
-                <Text style={styles.earningsLabel}>Service Price</Text>
-                <Text style={styles.earningsValue}>
-                  {formatPHP(booking.servicePrice)}
-                </Text>
-              </View>
-              <View style={styles.earningsRow}>
-                <Text style={styles.earningsLabel}>{`Platform commission (${tierPct}%)`}</Text>
-                <Text style={styles.earningsValue}>
-                  {`-${formatPHP(commissionAmount)}`}
-                </Text>
-              </View>
-              <View style={styles.earningsDivider} />
-              <View style={styles.earningsRow}>
-                <Text style={styles.earningsTotalLabel}>Your Earnings</Text>
-                <Text style={styles.earningsTotalValue}>
-                  {formatPHP(net)}
-                </Text>
-              </View>
-              <Text style={styles.earningsNote}>
-                {`${tierPct}% commission deducted automatically when payment is released. Earn higher tier for lower commission.`}
-              </Text>
-            </Card>
-          );
-        })()}
-      </ScrollView>
-
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
-        {canSubmitQuote && (
-          <Button
-            title="Submit Quote"
-            onPress={() => router.push(`/provider/job/${booking.id}/quote`)}
-          />
-        )}
-        {nextAction && (
-          <Button
-            title={isGettingLocation ? 'Getting location...' : statusMutation.isPending ? 'Updating...' : nextAction.label}
-            onPress={handleNextStatus}
-            loading={statusMutation.isPending}
-            disabled={statusMutation.isPending || cancelMutation.isPending || isGettingLocation}
-          />
-        )}
-        {canSubmitChangeOrder && (
-          <>
-            <Button
-              title="Submit Change Order (Parts / Materials)"
-              onPress={() => router.push(`/provider/job/${booking.id}/change-order`)}
-              variant="outline"
-            />
-            <Text style={styles.changeOrderNote}>
-              Need extra parts or materials? Send a change order here so the customer approves the added cost in the app before you buy or do extra work. It stays on the record and protected by escrow.
-            </Text>
-          </>
-        )}
-        {['in_progress', 'provider_arrived', 'provider_en_route'].includes(booking.status) && (
-          <>
-            <Button
-              title="Job Checklist"
-              onPress={() => router.push(`/provider/job/${booking.id}/checklist`)}
-              variant="outline"
-            />
-            <Button
-              title="Upload Before/After Photos"
-              onPress={() => router.push(`/provider/job/${booking.id}/photos`)}
-              variant="outline"
-            />
-          </>
-        )}
-        {isActiveJob && (
-          <Button
-            title="Chat with Customer"
-            onPress={() => router.push(`/provider/chat/${booking.id}`)}
-            variant="outline"
-          />
-        )}
-        {canCancel && !showCancelForm && (
-          <Button
-            title="Cancel Job"
-            onPress={handleCancel}
-            variant="ghost"
-            disabled={cancelMutation.isPending || statusMutation.isPending}
-          />
-        )}
-        {/* BUG-PHASE67-01 fix — inline cancel-reason form (mirrors
-            customer/booking/[id].tsx). Reason is sent to the server so
-            the customer can see why their booking was cancelled. */}
-        {canCancel && showCancelForm && (
-          <View style={styles.cancelForm}>
-            <Text style={styles.cancelFormLabel}>Reason for cancellation (optional)</Text>
-            {/* BUG-PHASE146-01 fix — pre-fix this input had no
-                maxLength. Server's updateBookingStatusSchema caps
-                cancellationReason at 500 (booking.validators.ts:61).
-                Same fix shape as the customer-side cancel reason
-                (also fixed in Phase 146). */}
-            <TextInput
-              style={styles.cancelReasonInput}
-              placeholder="Tell the customer why..."
-              placeholderTextColor={colors.textTertiary}
-              multiline
-              numberOfLines={2}
-              maxLength={500}
-              value={cancelReason}
-              onChangeText={setCancelReason}
-              textAlignVertical="top"
-            />
-            <Button
-              title={cancelMutation.isPending ? 'Cancelling...' : 'Confirm Cancellation'}
-              onPress={() => cancelMutation.mutate()}
-              loading={cancelMutation.isPending}
-              disabled={cancelMutation.isPending}
-            />
-            <TouchableOpacity
-              onPress={() => { setShowCancelForm(false); setCancelReason(''); }}
-              style={styles.cancelFormDismiss}
-            >
-              <Text style={styles.cancelFormDismissText}>Never mind</Text>
-            </TouchableOpacity>
+        {!isPhone && (
+          <View style={styles.jobSidebar} accessibilityLabel="Job earnings and actions">
+            {earningsCard}
+            <View style={styles.actionPanelWide}>{actionPanel}</View>
           </View>
         )}
-      </View>
+        </View>
+      </ScrollView>
+
+      {isPhone && (
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
+          {actionPanel}
+        </View>
+      )}
     </View>
   );
 }
@@ -464,6 +474,19 @@ const styles = StyleSheet.create({
   headerTitle: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 160 },
+  scrollContentWide: { padding: spacing.xl, paddingBottom: spacing.xl },
+  jobWorkspace: { width: '100%' },
+  jobWorkspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  jobRecord: { flex: 1, minWidth: 0 },
+  jobSidebar: { width: 340, minWidth: 0 },
+  actionPanelWide: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    gap: spacing.sm,
+  },
 
   statusCard: {
     flexDirection: 'row',

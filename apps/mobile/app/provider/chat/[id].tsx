@@ -37,12 +37,13 @@ import {
   emitMarkRead,
 } from '@/services/socket.service';
 import { uploadImages } from '@/services/upload.service';
-import { LazyImage } from '@/components/ui';
-import { formatTime } from '@/utils/date';
+import { LazyImage, StatusBadge } from '@/components/ui';
+import { formatDateTime, formatTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MessageSquare, Camera, Check, CheckCheck, Send, ChevronLeft } from '@/components/icons';
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import * as ImagePicker from 'expo-image-picker';
 
@@ -51,6 +52,7 @@ export default function ProviderChatScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const userId = useAuthStore((s) => s.user?.id);
+  const { isPhone } = useResponsive();
 
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [initError, setInitError] = useState(false);
@@ -328,8 +330,19 @@ export default function ProviderChatScreen(): React.ReactElement {
         </View>
       </View>
 
+      <View
+        style={[styles.chatWorkspace, !isPhone && styles.chatWorkspaceWide]}
+        accessibilityLabel={isPhone ? 'Provider conversation' : 'Provider conversation workspace'}
+      >
+      <View style={styles.conversationPane} accessibilityLabel="Conversation messages and composer">
+      <View style={styles.keepOnAppStrip}>
+        <Text style={styles.keepOnAppText}>
+          Keep your conversation here. On-app chat gives support the booking record, protects both sides, and helps resolve service issues faster.
+        </Text>
+      </View>
       <FlatList
         ref={flatListRef}
+        style={styles.messageFeed}
         data={messages}
         renderItem={renderMessage}
         keyExtractor={(item) => item.id}
@@ -387,6 +400,47 @@ export default function ProviderChatScreen(): React.ReactElement {
           <Send size={20} color={colors.white} />
         </TouchableOpacity>
       </View>
+      </View>
+
+      {!isPhone && (
+        <View style={styles.contextPanel} accessibilityLabel="Job conversation context">
+          <Text style={styles.contextEyebrow}>JOB CONTEXT</Text>
+          {bookingQuery.data ? (
+            <>
+              <Text style={styles.contextTitle}>
+                {bookingQuery.data.serviceName ?? bookingQuery.data.categoryName ?? 'Service job'}
+              </Text>
+              <StatusBadge status={bookingQuery.data.status} size="md" />
+              <View style={styles.contextSection}>
+                <Text style={styles.contextLabel}>Customer</Text>
+                <Text style={styles.contextValue}>{bookingQuery.data.customerName ?? 'Customer'}</Text>
+              </View>
+              <View style={styles.contextSection}>
+                <Text style={styles.contextLabel}>Scheduled</Text>
+                <Text style={styles.contextValue}>{formatDateTime(bookingQuery.data.scheduledAt)}</Text>
+              </View>
+              <View style={styles.contextSection}>
+                <Text style={styles.contextLabel}>Service location</Text>
+                <Text style={styles.contextValue}>
+                  {[bookingQuery.data.address, bookingQuery.data.barangay, bookingQuery.data.city].filter(Boolean).join(', ')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.contextAction}
+                onPress={() => router.push(`/provider/job/${bookingId}`)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.contextActionText}>Open job details</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text style={styles.contextUnavailable}>
+              {bookingQuery.isError ? 'Job context is unavailable. You can still use this conversation.' : 'Loading job context...'}
+            </Text>
+          )}
+        </View>
+      )}
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -413,7 +467,47 @@ const styles = StyleSheet.create({
   headerTitle: { ...typography.h3, color: colors.text },
   typingText: { ...typography.caption, color: colors.secondary, fontStyle: 'italic' },
 
+  chatWorkspace: { flex: 1 },
+  chatWorkspaceWide: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    padding: spacing.lg,
+    gap: spacing.lg,
+  },
+  conversationPane: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: colors.surface,
+  },
+  messageFeed: { flex: 1 },
+  contextPanel: {
+    width: 320,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  contextEyebrow: { ...typography.caption, color: colors.textTertiary, fontWeight: '700', letterSpacing: 0.8 },
+  contextTitle: { ...typography.h2, color: colors.text },
+  contextSection: { gap: spacing.xs },
+  contextLabel: { ...typography.caption, color: colors.textTertiary, fontWeight: '600', textTransform: 'uppercase' },
+  contextValue: { ...typography.body, color: colors.text },
+  contextUnavailable: { ...typography.body, color: colors.textSecondary },
+  contextAction: {
+    minHeight: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.base,
+  },
+  contextActionText: { ...typography.body, color: colors.white, fontWeight: '700' },
+
   messageList: { padding: spacing.base, paddingBottom: spacing.lg },
+  keepOnAppStrip: { backgroundColor: colors.infoLight, borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.sm, marginHorizontal: spacing.base, marginBottom: spacing.sm },
+  keepOnAppText: { ...typography.caption, color: colors.infoDark, lineHeight: 17, textAlign: 'center' },
 
   messageBubble: {
     maxWidth: '75%',

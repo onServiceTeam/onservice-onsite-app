@@ -14,10 +14,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getCalendarData, type CalendarJob, type AvailabilityOverride } from '@/services/provider-api.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Calendar, Settings } from '@/components/icons';
+import { Calendar, Settings, ChevronLeft, ChevronRight } from '@/components/icons';
 // A7 — shared empty state for the selected-day job list.
 import { EmptyState } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -80,6 +81,7 @@ function toDateKey(dt: Date | string): string {
 export default function ProviderCalendarScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone, isDesktop } = useResponsive();
   const today = new Date();
 
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -143,7 +145,7 @@ export default function ProviderCalendarScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={(): void => { router.back(); }} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>My Schedule</Text>
         <TouchableOpacity
@@ -156,13 +158,22 @@ export default function ProviderCalendarScreen(): React.ReactElement {
         </TouchableOpacity>
       </View>
 
+      <View
+        style={[
+          styles.calendarWorkspace,
+          !isPhone && styles.calendarWorkspaceWide,
+          isDesktop && styles.calendarWorkspaceDesktop,
+        ]}
+        accessibilityLabel={isPhone ? 'Provider calendar' : 'Provider calendar workspace'}
+      >
+      <View style={[styles.calendarPanel, !isPhone && styles.calendarPanelWide]} accessibilityLabel="Monthly calendar grid">
       <View style={styles.monthNav}>
         <TouchableOpacity onPress={(): void => { navigateMonth(-1); }} style={styles.navBtn} accessibilityRole="button" accessibilityLabel="Previous month">
-          <Text style={styles.navBtnText}>‹</Text>
+          <ChevronLeft size={24} color={colors.secondary} />
         </TouchableOpacity>
         <Text style={styles.monthLabel}>{MONTHS[viewMonth]} {viewYear}</Text>
         <TouchableOpacity onPress={(): void => { navigateMonth(1); }} style={styles.navBtn} accessibilityRole="button" accessibilityLabel="Next month">
-          <Text style={styles.navBtnText}>›</Text>
+          <ChevronRight size={24} color={colors.secondary} />
         </TouchableOpacity>
       </View>
 
@@ -174,7 +185,7 @@ export default function ProviderCalendarScreen(): React.ReactElement {
 
       <View style={styles.calendarGrid}>
         {calendarDays.map((day, idx) => {
-          if (day === null) return <View key={`empty-${idx}`} style={styles.dayCell} />;
+          if (day === null) return <View key={`empty-${idx}`} style={[styles.dayCell, !isPhone && styles.dayCellWide]} />;
           const key = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const hasJobs = !!jobsByDate[key]?.length;
           const hasOverride = !!overridesByDate[key];
@@ -188,6 +199,7 @@ export default function ProviderCalendarScreen(): React.ReactElement {
               key={key}
               style={[
                 styles.dayCell,
+                !isPhone && styles.dayCellWide,
                 isToday && styles.todayCell,
                 isSelected && styles.selectedCell,
                 isBlocked && styles.blockedCell,
@@ -230,8 +242,17 @@ export default function ProviderCalendarScreen(): React.ReactElement {
           <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load calendar data. Pull to refresh.</Text>
         </View>
       )}
+      </View>
 
-      <ScrollView style={styles.detailScroll} contentContainerStyle={styles.detailContent}>
+      <ScrollView
+        style={[
+          styles.detailScroll,
+          !isPhone && styles.detailScrollTablet,
+          isDesktop && styles.detailScrollWide,
+        ]}
+        contentContainerStyle={[styles.detailContent, !isPhone && styles.detailContentWide]}
+        accessibilityLabel="Selected day schedule"
+      >
         {selectedDate && (
           <Text style={styles.detailDateLabel}>
             {formatDateFull(selectedDate)}
@@ -281,6 +302,7 @@ export default function ProviderCalendarScreen(): React.ReactElement {
           ))
         )}
       </ScrollView>
+      </View>
     </View>
   );
 }
@@ -309,8 +331,26 @@ const styles = StyleSheet.create({
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text, flex: 1 },
-  settingsBtn: { padding: spacing.sm },
+  settingsBtn: { padding: spacing.sm, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   settingsBtnText: { fontSize: 20 },
+
+  calendarWorkspace: { flex: 1 },
+  calendarWorkspaceWide: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    padding: spacing.base,
+    gap: spacing.base,
+  },
+  calendarWorkspaceDesktop: { padding: spacing.lg, gap: spacing.lg },
+  calendarPanel: { backgroundColor: colors.surface },
+  calendarPanelWide: {
+    flex: 1,
+    minWidth: 0,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+  },
 
   monthNav: {
     flexDirection: 'row',
@@ -354,6 +394,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
   },
+  dayCellWide: { height: 72 },
   todayCell: {
     backgroundColor: colors.primaryLight,
     borderRadius: borderRadius.sm,
@@ -391,10 +432,22 @@ const styles = StyleSheet.create({
   },
 
   detailScroll: { flex: 1 },
+  detailScrollTablet: {
+    flexGrow: 0,
+    width: 300,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+  },
+  detailScrollWide: {
+    width: 360,
+  },
   detailContent: {
     padding: spacing.base,
     paddingBottom: 100,
   },
+  detailContentWide: { paddingBottom: spacing.lg },
   detailDateLabel: {
     ...typography.body,
     fontWeight: '700',

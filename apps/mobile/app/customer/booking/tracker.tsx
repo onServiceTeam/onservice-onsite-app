@@ -14,6 +14,7 @@ import PulsingDot from '@/components/PulsingDot';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MessageSquare, ChevronLeft } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const STATUS_LABELS: Record<string, string> = {
   matched: 'Waiting for provider',
@@ -32,6 +33,7 @@ export default function BookingTrackerScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
   const mapRef = useRef<MapView>(null);
   const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
@@ -101,13 +103,17 @@ export default function BookingTrackerScreen(): React.ReactElement {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+      <View style={[styles.header, !isPhone && styles.headerWide, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Track Booking</Text>
       </View>
 
+      <View
+        style={[styles.trackerWorkspace, !isPhone && styles.trackerWorkspaceWide]}
+        accessibilityLabel={isPhone ? 'Booking tracker' : 'Booking tracking workspace'}
+      >
       {/* Phase 200 (Cebu launch) — fallback map center is central Cebu City
            (the launch market), used only when a booking is missing
            coordinates. Once we expand beyond Cebu, this can become the
@@ -141,7 +147,14 @@ export default function BookingTrackerScreen(): React.ReactElement {
         )}
       </MapView>
 
-      <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + spacing.base }]}>
+      <View
+        style={[
+          styles.bottomSheet,
+          !isPhone && styles.summaryPanelWide,
+          { paddingBottom: insets.bottom + spacing.base },
+        ]}
+        accessibilityLabel={isPhone ? 'Booking status and provider' : 'Booking tracking status and actions'}
+      >
         {booking && (
           <>
             <View style={styles.statusRow}>
@@ -194,6 +207,7 @@ export default function BookingTrackerScreen(): React.ReactElement {
           </>
         )}
       </View>
+      </View>
     </View>
   );
 }
@@ -214,10 +228,18 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     backgroundColor: 'rgba(255,255,255,0.95)',
   },
+  headerWide: {
+    position: 'relative',
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
-  map: { flex: 1 },
+  trackerWorkspace: { flex: 1 },
+  trackerWorkspaceWide: { flexDirection: 'row' },
+  map: { flex: 1, minWidth: 0 },
 
   bottomSheet: {
     backgroundColor: colors.surface,
@@ -229,6 +251,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 8,
+  },
+  summaryPanelWide: {
+    width: 360,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+    shadowOpacity: 0,
+    elevation: 0,
+    justifyContent: 'center',
+    padding: spacing.xl,
   },
   statusRow: {
     flexDirection: 'row',

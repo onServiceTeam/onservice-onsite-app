@@ -17,7 +17,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
-import { MessageSquare, Camera, Check, CheckCheck, Send } from '@/components/icons';
+import { MessageSquare, Camera, Check, CheckCheck, Send, ChevronLeft } from '@/components/icons';
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
 import { getBookingById } from '@/services/booking.service';
@@ -40,9 +40,10 @@ import {
   emitMarkRead,
 } from '@/services/socket.service';
 import { uploadImages } from '@/services/upload.service';
-import { LazyImage } from '@/components/ui';
-import { formatTime } from '@/utils/date';
+import { LazyImage, StatusBadge } from '@/components/ui';
+import { formatDateTime, formatTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import * as ImagePicker from 'expo-image-picker';
 
@@ -51,6 +52,7 @@ export default function ChatScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const userId = useAuthStore((s) => s.user?.id);
+  const { isPhone } = useResponsive();
 
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [initError, setInitError] = useState(false);
@@ -326,7 +328,7 @@ export default function ChatScreen(): React.ReactElement {
     >
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>{providerName}</Text>
@@ -334,8 +336,14 @@ export default function ChatScreen(): React.ReactElement {
         </View>
       </View>
 
+      <View
+        style={[styles.chatWorkspace, !isPhone && styles.chatWorkspaceWide]}
+        accessibilityLabel={isPhone ? 'Customer conversation' : 'Customer conversation workspace'}
+      >
+      <View style={styles.conversationPane} accessibilityLabel="Conversation messages and composer">
       <FlatList
         ref={flatListRef}
+        style={styles.messageFeed}
         data={messages}
         renderItem={renderMessage}
         keyExtractor={(item) => item.id}
@@ -402,6 +410,52 @@ export default function ChatScreen(): React.ReactElement {
           <Send size={20} color={colors.white} />
         </TouchableOpacity>
       </View>
+      </View>
+
+      {!isPhone && (
+        <View style={styles.contextPanel} accessibilityLabel="Booking conversation context">
+          <Text style={styles.contextEyebrow}>BOOKING CONTEXT</Text>
+          {bookingQuery.data ? (
+            <>
+              <Text style={styles.contextTitle}>
+                {bookingQuery.data.serviceName ?? bookingQuery.data.categoryName ?? 'Service booking'}
+              </Text>
+              <StatusBadge status={bookingQuery.data.status} size="md" />
+              <View style={styles.contextSection}>
+                <Text style={styles.contextLabel}>Scheduled</Text>
+                <Text style={styles.contextValue}>{formatDateTime(bookingQuery.data.scheduledAt)}</Text>
+              </View>
+              <View style={styles.contextSection}>
+                <Text style={styles.contextLabel}>Service location</Text>
+                <Text style={styles.contextValue}>
+                  {[bookingQuery.data.address, bookingQuery.data.barangay, bookingQuery.data.city].filter(Boolean).join(', ')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.contextAction}
+                onPress={() => router.push(`/customer/booking/${bookingId}`)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.contextActionText}>View booking details</Text>
+              </TouchableOpacity>
+              {['paid', 'provider_en_route', 'provider_arrived', 'in_progress'].includes(bookingQuery.data.status) && (
+                <TouchableOpacity
+                  style={[styles.contextAction, styles.contextActionSecondary]}
+                  onPress={() => router.push(`/customer/booking/tracker?bookingId=${bookingId}`)}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.contextActionSecondaryText}>Open booking tracker</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          ) : (
+            <Text style={styles.contextUnavailable}>
+              {bookingQuery.isError ? 'Booking context is unavailable. You can still use this conversation.' : 'Loading booking context...'}
+            </Text>
+          )}
+        </View>
+      )}
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -423,10 +477,49 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
-  backIcon: { fontSize: 24, color: colors.text },
   headerInfo: { flex: 1 },
   headerTitle: { ...typography.h3, color: colors.text },
   typingText: { ...typography.caption, color: colors.primary, fontStyle: 'italic' },
+
+  chatWorkspace: { flex: 1 },
+  chatWorkspaceWide: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    padding: spacing.lg,
+    gap: spacing.lg,
+  },
+  conversationPane: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: colors.surface,
+  },
+  messageFeed: { flex: 1 },
+  contextPanel: {
+    width: 320,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  contextEyebrow: { ...typography.caption, color: colors.textTertiary, fontWeight: '700', letterSpacing: 0.8 },
+  contextTitle: { ...typography.h2, color: colors.text },
+  contextSection: { gap: spacing.xs },
+  contextLabel: { ...typography.caption, color: colors.textTertiary, fontWeight: '600', textTransform: 'uppercase' },
+  contextValue: { ...typography.body, color: colors.text },
+  contextUnavailable: { ...typography.body, color: colors.textSecondary },
+  contextAction: {
+    minHeight: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.base,
+  },
+  contextActionText: { ...typography.body, color: colors.white, fontWeight: '700' },
+  contextActionSecondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary },
+  contextActionSecondaryText: { ...typography.body, color: colors.primary, fontWeight: '700' },
 
   messageList: { padding: spacing.base, paddingBottom: spacing.lg },
   keepOnAppStrip: { backgroundColor: colors.infoLight, borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.sm, marginHorizontal: spacing.base, marginBottom: spacing.sm },

@@ -88,7 +88,7 @@ The package contains 102 ZIP entries and 63 files. Extraction was checked for ro
 | Request         | Booking form, questions, schedule, address, photos | Lead/job request                                        | Booking queue, dispatch                                    | Linked through booking and quote APIs                                     |
 | Offer           | Quote comparison                                   | Quote creation/templates                                | Booking and dispute context                                | Linked, but quote and change-order explanations need consistency checks   |
 | Payment         | Pay, checkout, saved methods, wallet               | Earnings and payout settings                            | Financials, payouts, pricing                               | Linked server-side; money-language contradictions remain hard stops       |
-| Fulfilment      | Tracker, chat, active booking, changes             | Active job, navigation, checklist, photos, change order | Dispatch, booking detail, communications                   | Broad coverage; desktop composition and live-state honesty need work      |
+| Fulfilment      | Tracker, chat, active booking, changes             | Active job, navigation, checklist, photos, change order | Dispatch, booking detail, communications                   | Core detail/tracker/chat workspaces now adapt wide; remaining states and live customer evidence need work |
 | Completion      | Signature, review, tip, dispute                    | Complete job, reviews, earnings                         | Booking detail, disputes, finance                          | Broad coverage; guarantee and dispute-response decisions remain open      |
 | Retention       | Recurring, projects, referrals, Suki Pros          | Clients, Suki customers, schedule, insights             | Recurring, projects, marketing, analytics                  | Features exist but metrics and lifecycle ownership are fragmented         |
 | Support         | Support inbox, new request, case thread, safety    | Same shared support routes plus provider help           | Support queue, linked customer and booking, internal notes | PII and assignment defects fixed in this implementation batch             |
@@ -139,7 +139,8 @@ Customer findings:
 - Fixed: web animations use the JavaScript driver in browsers, eliminating the unsupported native-driver warning while retaining native acceleration on iOS and Android.
 - Fixed: content padding now scales for phone, tablet, and desktop.
 - Fixed in the current continuation: booking detail now places its summary and actions beside service context on desktop; quote review becomes a tablet/desktop comparison grid.
-- Open: tracker, project detail, chat, and support remain single-column inside the desktop content area and need context side panels where that materially helps.
+- Fixed in the current responsive batch: tracker now becomes an honest map-and-status workspace, and customer chat keeps booking status, schedule, location, details, and tracker actions beside the conversation at tablet/desktop widths.
+- Open: project detail, notifications, and support remain single-column inside the desktop content area and need context side panels where that materially helps.
 - Open: wallet labels must be reviewed to ensure customer credit, refund balance, and provider withdrawal are never conflated.
 - Open hard stop: cancellation presentation and server refund math are contradictory.
 - Open hard stop: final guarantee/disclaimer language requires approved wording.
@@ -185,7 +186,8 @@ Provider findings:
 - Fixed: bottom tabs are hidden when persistent desktop navigation is active, removing duplicate navigation.
 - Fixed: browser builds no longer request the unavailable native animation driver; a clean production export rendered without console warnings.
 - Fixed in the current continuation: provider weekly schedule becomes a tablet/desktop grid with a bounded desktop save action.
-- Open: jobs, calendar, clients, and earnings need per-screen wide-layout verification at 768, 1024, 1280, and 1440 pixels.
+- Fixed in the current responsive batch: provider job detail keeps canonical earnings and execution actions beside the job record; calendar separates the month grid from the selected-day schedule; chat keeps customer/job context beside the thread and now shows providers why the on-app record matters for support.
+- Open: jobs, clients, earnings, and the quote builder need per-screen wide-layout verification at 768, 1024, 1280, and 1440 pixels.
 - Open hard stop: provider response inside a dispute is not implemented.
 - Open hard stop: checklist `Report Issue` has no approved API endpoint.
 - Open hard stop: milestone escrow behavior is unresolved.
@@ -269,13 +271,19 @@ Admin findings:
 18. Added wide customer booking detail, quote comparison, and provider schedule compositions.
 19. Replaced provider-team and invoice-payment browser prompts, plus business-account manager UUID entry, with named, auditable workflows.
 20. Rebuilt the admin login composition for phone, tablet, and desktop and verified its palette, overflow, and 44 px control sizing in a real browser.
+21. Reworked customer tracking into a tablet/desktop map-and-status workspace without inventing a live provider pin.
+22. Added booking context and direct booking/tracker exits beside customer chat on wide screens.
+23. Reworked provider job detail into a job-record and execution-action workspace while preserving canonical earnings and phone actions.
+24. Reworked provider calendar into a month-grid and selected-day workspace for tablet and desktop.
+25. Added customer/job context beside provider chat and made the support-record guidance persist outside message history.
+26. Added one real rendered behavioral test for each of Bugs UX-027 through UX-032.
 
 ## Verification record for this batch
 
 - Admin TypeScript: passed.
 - Mobile TypeScript: passed.
 - API TypeScript: passed.
-- Mobile suite: 182 suites passed, 708 tests passed, 88 explicit todos.
+- Mobile suite after the current responsive batch: 188 suites passed, 714 tests passed, 88 explicit todos.
 - Admin suite: 53 files passed, 1 skipped, 162 tests passed, 3 explicit todos.
 - API suite: 282 suites passed, 3016 tests passed.
 - Admin and mobile lint: passed with zero warnings or errors.
@@ -287,7 +295,7 @@ Admin findings:
 
 ## Next implementation order
 
-1. Audit and improve the remaining high-use wide layouts: customer tracker, chat, projects, and support; provider job detail, calendar, chat, and client detail.
+1. Audit and improve the remaining high-use wide layouts: customer projects, support, and notifications; provider earnings, client detail, and quote builder.
 2. Continue the admin suspicion-first pass page by page, replacing generic confirmations only where impact preview, reason capture, and audit context are required.
 3. Add real admin entity search after defining safe searchable fields and PII visibility.
 4. Reconcile fine-grained staff authorization through an explicit architecture decision.

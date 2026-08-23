@@ -82,9 +82,9 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/customer/booking/quotes.tsx` | BOOKING/MONEY | booking quotes | W | SOURCE/RENDER/WIDE via Bugs UX-020/021. Tablet/desktop comparison grid and vector empty state added. |
 | `app/customer/booking/review.tsx` | BOOKING/RETENTION | review service | S | SOURCE/RENDER. Provider/admin review linkage exists; wide form pending. |
 | `app/customer/booking/tip.tsx` | MONEY/RETENTION | tip, payment, booking | S/HOLD | SOURCE/RENDER. Money path remains server canonical. Wide summary pending. |
-| `app/customer/booking/tracker.tsx` | BOOKING/SUPPORT | booking, socket | S/N | SOURCE/RENDER. Live-state honesty and desktop context panel pending; no fake map. |
+| `app/customer/booking/tracker.tsx` | BOOKING/SUPPORT | booking, socket | W/N | SOURCE/RENDER/WIDE via Bug UX-027. Tablet/desktop map-and-status workspace preserves honest service-location behavior; no fake provider pin. Live authenticated customer visual evidence remains. |
 | `app/customer/category/[id].tsx` | DISCOVERY | catalog service | W | SOURCE/RENDER. Responsive provider grid exists; wide visual evidence pending. |
-| `app/customer/chat/[id].tsx` | BOOKING/SUPPORT | messaging, socket, upload | S | SOURCE/RENDER. Desktop conversation/context split pending. |
+| `app/customer/chat/[id].tsx` | BOOKING/SUPPORT | messaging, socket, upload | W | SOURCE/RENDER/WIDE via Bug UX-030. Booking status, schedule, location, details, and tracker exits stay beside the conversation. Live authenticated customer visual evidence remains. |
 | `app/customer/data-rights.tsx` | GOVERNANCE | compliance service | S/HOLD | SOURCE/RENDER. Admin DSR linkage exists; identity/legal states must stay canonical. |
 | `app/customer/help.tsx` | SUPPORT | static help links | S | SOURCE/RENDER. Must route users into real support cases where appropriate. |
 | `app/customer/notification-settings.tsx` | GOVERNANCE | API settings | S | SOURCE/RENDER. Admin template linkage exists; wide grouping pending. |
@@ -123,14 +123,14 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/(provider-tabs)/provider-profile.tsx` | IDENTITY/DISCOVERY | provider API | S | SOURCE/RENDER. Stitch portfolio/profile hierarchy pending. |
 | `app/provider/account-management.tsx` | GOVERNANCE | data-management | S/HOLD | SOURCE/RENDER. Destructive action confirmation and wide layout pending. |
 | `app/provider/availability.tsx` | RETENTION/BOOKING | provider API | S | SOURCE/RENDER. Calendar blocks need wide composition. |
-| `app/provider/calendar.tsx` | RETENTION/BOOKING | provider API | S | SOURCE/RENDER. Desktop week/month view is a high-priority gap. |
+| `app/provider/calendar.tsx` | RETENTION/BOOKING | provider API | W | SOURCE/RENDER/WIDE via Bug UX-029. Tablet/desktop month grid and selected-day schedule form one workspace; live visual evidence remains. |
 | `app/provider/certifications.tsx` | IDENTITY/DISCOVERY | provider, upload | S/N | SOURCE/RENDER. Admin vetting linkage exists; browser upload state pending. |
-| `app/provider/chat/[id].tsx` | BOOKING/SUPPORT | messaging, socket, upload | S | SOURCE/RENDER. Desktop job-context split pending. |
+| `app/provider/chat/[id].tsx` | BOOKING/SUPPORT | messaging, socket, upload | W | SOURCE/RENDER/WIDE via Bugs UX-031/032. Customer/job context stays beside the thread, and support-record guidance is visible on all widths. Live visual evidence remains. |
 | `app/provider/clients.tsx` | RETENTION | provider CRM | W | SOURCE/RENDER. Two-column list exists; wide spacing/visual evidence pending. |
 | `app/provider/clients/[id].tsx` | RETENTION/BOOKING | provider CRM | S | SOURCE/RENDER. Client history/detail split pending. |
 | `app/provider/help.tsx` | SUPPORT | support/help links | S | SOURCE/RENDER. Must route into shared support case workflow. |
 | `app/provider/insights.tsx` | RETENTION | provider CRM | S | SOURCE/RENDER. Metric definitions/source/freshness are required. |
-| `app/provider/job/[id].tsx` | BOOKING/SUPPORT | booking, provider | S | SOURCE/RENDER. Desktop task/context sidebar is a high-priority gap. |
+| `app/provider/job/[id].tsx` | BOOKING/SUPPORT | booking, provider | W | SOURCE/RENDER/WIDE via Bug UX-028. Tablet/desktop job record keeps canonical earnings and execution actions in a persistent side rail. Live visual evidence remains. |
 | `app/provider/job/[id]/change-order.tsx` | BOOKING/MONEY | booking API | S/HOLD | SOURCE/RENDER. Customer approval/admin money linkage exists. |
 | `app/provider/job/[id]/checklist.tsx` | BOOKING/SUPPORT | booking photos/API | S/HOLD | SOURCE/RENDER. `Report Issue` remains E05; do not invent endpoint. |
 | `app/provider/job/[id]/complete.tsx` | BOOKING/MONEY | booking, photos | S | SOURCE/RENDER. Completion/customer confirmation/admin booking link exists. |
@@ -206,8 +206,8 @@ Every admin page below is reopened for first-principles review. `Existing` means
 
 ## Immediate findings generated by this ledger
 
-1. Only 16 of 103 routed mobile screens currently have explicit internal responsive logic after this batch. The other 87 are shell-constrained and require task-specific wide review; this is not recorded as completion.
-2. High-use desktop gaps are customer tracker/chat/projects/support and provider calendar/job detail/chat/earnings/client detail.
+1. Only 21 of 103 routed mobile screens currently have explicit internal responsive logic after this batch. The other 82 are shell-constrained and require task-specific wide review; this is not recorded as completion.
+2. The next high-use desktop gaps are customer projects/support/notifications and provider earnings/client detail/quote builder, followed by the remaining shell-only settings and onboarding forms.
 3. Admin still contains raw user-ID entry in staff access and dozens of generic browser-confirm operations across staff, analytics, catalog, money, compliance, and settings workflows. Confirmation itself is valid, but high-impact actions need consistent context, impact preview, reasons, and audit evidence rather than a generic browser prompt.
 4. The admin shell and support/booking/dispute improvements are foundations. They do not make every page a coherent case workspace.
 5. Fine-grained staff permissions, cancellation math, provider dispute response, checklist issue reporting, legal disclaimer text, and milestone escrow remain explicit holds. Visual work cannot silently decide them.
