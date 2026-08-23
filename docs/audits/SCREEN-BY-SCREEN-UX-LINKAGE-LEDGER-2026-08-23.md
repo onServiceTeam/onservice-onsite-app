@@ -117,7 +117,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/provider-onboarding/terms.tsx` | GOVERNANCE | auth/provider API | S/HOLD | SOURCE/RENDER. Legal text remains canonical. |
 | `app/provider-onboarding/background-check-status.tsx` | IDENTITY/GOVERNANCE | provider API | S | SOURCE/RENDER. Admin provider-review counterpart exists. |
 | `app/provider-onboarding/review-pending.tsx` | IDENTITY | provider API | S | SOURCE/RENDER. Status and support exit need wide check. |
-| `app/(provider-tabs)/dashboard.tsx` | BOOKING/RETENTION | provider, booking | W | SOURCE/RENDER/LIVE shell. Wide dashboard composition exists. |
+| `app/(provider-tabs)/dashboard.tsx` | BOOKING/RETENTION | provider, booking | W | SOURCE/RENDER/LIVE 820/1280. Tablet fills the viewport; desktop uses the provider operations rail. |
 | `app/(provider-tabs)/jobs.tsx` | BOOKING | provider bookings | W | SOURCE/RENDER. Two-column list exists; 768/1024/1280 visual evidence pending. |
 | `app/(provider-tabs)/earnings.tsx` | MONEY | payment/API | W/HOLD | SOURCE/RENDER. Wide stat composition exists; financial labels need source/freshness review. |
 | `app/(provider-tabs)/provider-profile.tsx` | IDENTITY/DISCOVERY | provider API | S | SOURCE/RENDER. Stitch portfolio/profile hierarchy pending. |
@@ -146,7 +146,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/provider/quote-templates.tsx` | BOOKING/RETENTION | provider CRM | S | SOURCE/RENDER. Desktop template editor pending. |
 | `app/provider/reminders.tsx` | RETENTION | provider CRM | S | SOURCE/RENDER. Client/job linkage and wide list pending. |
 | `app/provider/reviews.tsx` | DISCOVERY/RETENTION | provider/review API | S | SOURCE/RENDER. Customer review/admin moderation linkage exists. |
-| `app/provider/schedule.tsx` | RETENTION/BOOKING | provider schedule | W | SOURCE/RENDER/WIDE via Bug UX-022. Tablet/desktop weekly grid added. |
+| `app/provider/schedule.tsx` | RETENTION/BOOKING | provider schedule | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bug UX-022. Seven-day grid and desktop operations rail verified without overflow. |
 | `app/provider/service-area.tsx` | DISCOVERY/BOOKING | provider/API | S | SOURCE/RENDER. Admin market controls counterpart exists. |
 | `app/provider/services.tsx` | DISCOVERY/BOOKING | catalog, provider | S | SOURCE/RENDER. Admin catalog eligibility linkage exists; wide editor pending. |
 | `app/provider/settings.tsx` | GOVERNANCE | push service | S | SOURCE/RENDER. Notification/account routes need grouped wide settings. |

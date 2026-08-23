@@ -275,20 +275,20 @@ Admin findings:
 - Admin TypeScript: passed.
 - Mobile TypeScript: passed.
 - API TypeScript: passed.
-- Mobile suite: 178 suites passed, 704 tests passed, 88 explicit todos.
-- Admin suite: 49 files passed, 1 skipped, 158 tests passed, 3 explicit todos.
-- API suite: 282 suites passed, 3015 tests passed.
+- Mobile suite: 182 suites passed, 708 tests passed, 88 explicit todos.
+- Admin suite: 53 files passed, 1 skipped, 162 tests passed, 3 explicit todos.
+- API suite: 282 suites passed, 3016 tests passed.
 - Admin and mobile lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
-- Mobile production web export: passed with the production same-origin API URL and demo test mode.
-- Production release: the UX batch and follow-up hardening were deployed through `17337c3a53cd59b45c5eda0493dbbc2720b28734`; local `master`, GitHub `master`, and `/opt/onservice` were reverified clean and aligned. GitHub CI run 32642639519 and Gates run 32642639703 passed every job for that hardening commit.
-- Production browser smoke: customer and provider rendered at 800 by 1000 and 1280 by 900 with no horizontal overflow or current console errors/warnings; admin served the new login bundle with public demo access disabled.
-- Production service smoke: API, nginx, Postgres, and Redis remained healthy; MedClaimsPro and both Cochi Loco public endpoints remained HTTP 200.
+- Mobile production web export: passed with `EXPO_OS=web` and the production same-origin API URL.
+- Production release: deployed through `406ded662fe30ff7558c1554ea9470ef29f87df8`; local `master`, GitHub `master`, and `/opt/onservice` were reverified clean and aligned. GitHub CI run 32646911715 and Gates run 32646911699 passed every job.
+- Production browser smoke: admin login rendered the Stitch operations workspace live at 1280 with 44 px controls and no overflow. The provider dashboard and Schedule filled the 820 px tablet viewport without overflow; Schedule also rendered the provider operations rail and seven-day grid at 1280.
+- Production asset and service smoke: admin and mobile `index.html` SHA-256 hashes matched the local production builds; the public config endpoint returned `#003D9B`, `#0052CC`, and `#FE8A00`; every onService compose service remained healthy.
 
 ## Next implementation order
 
-1. Audit and improve the remaining high-use wide layouts: customer booking detail and quote comparison; provider jobs, schedule, and clients.
-2. Convert provider/customer complex pages to responsive split layouts only where context remains useful beside the primary task.
+1. Audit and improve the remaining high-use wide layouts: customer tracker, chat, projects, and support; provider job detail, calendar, chat, and client detail.
+2. Continue the admin suspicion-first pass page by page, replacing generic confirmations only where impact preview, reason capture, and audit context are required.
 3. Add real admin entity search after defining safe searchable fields and PII visibility.
 4. Reconcile fine-grained staff authorization through an explicit architecture decision.
 5. Resolve money/legal hard stops before changing those workflows.
