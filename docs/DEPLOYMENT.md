@@ -120,8 +120,10 @@ tar czf /tmp/onservice-admin-<sha>.tar.gz -C apps/admin/dist .
    ```
 
 9. Do not run migrations unless the release contains a reviewed migration and
-   the release plan explicitly authorizes it. Migrations bypass PgBouncer and
-   use `DATABASE_DIRECT_URL`.
+   the release plan explicitly authorizes it. Take the full server backup, set
+   `MIGRATION_TARGET` to the exact migration basename, and use the production
+   helper described below. Migrations bypass PgBouncer and use
+   `DATABASE_DIRECT_URL`.
 10. Do not recreate nginx for an ordinary frontend or API release. In-place
    extraction makes the new static files visible without replacing the shared
    proxy.
@@ -133,8 +135,10 @@ Verify all of the following before declaring the release complete:
 - `/opt/onservice` is clean and exactly matches the GitHub release SHA.
 - `docker compose -f docker-compose.prod.yml ps` reports the onService API,
   Postgres, Redis, and nginx as healthy/running.
-- `https://api.onservice.ph/health/ready` returns a successful readiness
-  response.
+- The API container's `/health/ready` returns a successful readiness response.
+  While the staging IP lock is active, an outside request to
+  `https://api.onservice.ph/health/ready` correctly returns 403; verify the
+  customer/provider proxy with `https://app.onservice.ph/api/v1/config` instead.
 - `https://app.onservice.ph` loads the customer/provider app and serves the new
   hashed Expo entry asset.
 - `https://admin.onservice.ph` loads the admin login and serves the new Vite
@@ -154,11 +158,29 @@ Migrations live in `packages/api/migrations`. They are forward-only. A
 production migration is a hard stop unless it has been reviewed, backed up,
 and explicitly included in the release plan.
 
-When authorized, run it through the direct database connection:
+The repository uses legacy three-digit migration filenames rather than the
+timestamp filenames expected by node-pg-migrate 8. Production migrations
+135-145 were also recorded in a nonnumeric order during one historical batch.
+The normal order check therefore rejects later migrations even though the
+schema ledger is complete. The production helper uses the runner's
+`--no-check-order` mode, but limits ordinary releases to an exact target and
+always performs a dry run first.
+
+When authorized, take a backup and run the exact reviewed migration through the
+helper:
 
 ```bash
-docker compose -f docker-compose.prod.yml run --rm \
-  api sh -c 'DATABASE_URL="$DATABASE_DIRECT_URL" npx node-pg-migrate up --migrations-dir migrations'
+sudo -n bash scripts/server/backup-db.sh
+sudo -n env MIGRATION_TARGET=148_provider_portfolio_consent \
+  MIGRATIONS_DRY_RUN_ONLY=1 bash scripts/server/run-production-migrations.sh
+```
+
+Read the dry-run output and confirm it lists only the intended migration. Then
+apply it and verify both the new ledger row and expected schema object:
+
+```bash
+sudo -n env MIGRATION_TARGET=148_provider_portfolio_consent \
+  bash scripts/server/run-production-migrations.sh
 ```
 
 Never improvise a destructive inverse migration on production. Follow the

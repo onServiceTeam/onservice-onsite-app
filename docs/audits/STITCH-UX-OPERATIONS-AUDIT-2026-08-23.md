@@ -248,6 +248,7 @@ Admin findings:
 - Production admin demo auto-login is intentionally disabled; demo documentation now states that admin access requires an authorized account.
 - Support documentation now describes the implemented in-app and agent-created intake paths. The former claim that waiting cases automatically send reminders and close after five days is explicitly marked unimplemented; staff must not rely on an automation that does not exist.
 - Fixed: the deployment workflow no longer targets the obsolete `main` branch or auto-runs without configured production secrets; the release guide now describes the actual shared Hetzner topology.
+- Fixed in the production-operations continuation: the documented container migration command no longer calls an executable that is unavailable from the API working directory. One production helper now performs a dry run before apply, uses the direct database connection, accepts an exact migration target, and handles the historical 135-145 ledger order explicitly. The manual workflow now backs up before migrations, fast-forwards the verified public repository SHA with noninteractive sudo, and no longer reloads shared nginx or prunes images belonging to other apps (Bug OPS-001).
 - Fresh dependency installation still requires `npm ci --legacy-peer-deps` because ESLint 10 is outside `eslint-plugin-react`'s declared peer range.
 - The current local Node 24.13 runtime is below one installed dependency's preferred 24.15 engine range.
 - Fresh install reports 42 dependency vulnerabilities, including one critical. These require package-by-package triage, not an automatic breaking `audit fix --force`.
@@ -316,6 +317,7 @@ Admin findings:
 48. Repaired Provider 360 visual coverage that had mislabeled an invalid array payload as an empty detail record and captured its retrying error request as a loading spinner. The suite now waits for real missing-provider and settled server-error alerts before taking those baselines.
 49. Closed cross-persona route leakage through Bugs CRIT-K02 and UX-105-109. Customer, provider-owner, and provider-staff route families now enforce their owning role, shared support requires an authenticated app persona, the staff group is registered explicitly, and the desktop shell only mounts when the route belongs to the signed-in role.
 50. Corrected provider approval authority and the onboarding/portfolio media chain through Bugs UX-110-122: pending applicants remain customers, approval grants provider access transactionally, private KYC references are owned and never rendered as public images, portfolio uploads are public and owned, consent is recorded, wide layouts are bounded, and Provider 360 receives the customer-facing portfolio evidence.
+51. Repaired the production migration and API deployment path after the live release exposed the broken `npx` command and historical ledger ordering. A behavior-tested helper now dry-runs the exact target before applying it through `npm`, bootstrap migrates before API startup, the manual workflow backs up first, and shared nginx/image state is left untouched (Bug OPS-001).
 
 ## Verification record for this batch
 
@@ -324,21 +326,21 @@ Admin findings:
 - API TypeScript: passed.
 - Mobile suite after the route-isolation batch: 227 suites passed, 758 tests passed, 84 explicit todos.
 - Admin suite after the certification batch: 68 files passed, 1 skipped, 181 tests passed, 3 explicit todos.
-- API suite after the certification batch: 307 suites passed, 3041 tests passed.
+- API suite after the production-operations continuation: 315 suites passed, 3049 tests passed.
 - Admin and mobile lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
 - Mobile production web export: passed with `EXPO_OS=web` and the production same-origin API URL.
 - Production baseline entering the route-isolation batch: local, GitHub, and the server were aligned at certification commit `37bbb0819f4c9e8f2aa6cddc3d16a292759a1f4f`, with all six compose services healthy.
 - Browser smoke: the provider certification workspace was inspected from the clean production-config export with populated controlled data at 768/1366. The real browser file chooser produced a private onboarding upload, Chrome supplied the multipart boundary, the returned URL reached the certification PATCH, each date control measured 48 px high, tablet controls remained wide enough to show complete values, and neither viewport had horizontal overflow, console errors, or page errors. Provider 360 certification review baselines pass at 1280/1440/1920. The route-isolation export additionally proves customer-to-provider, provider-to-customer, and customer-to-staff direct URLs return to the correct role home at 768/1366; provider certification remains available to a provider; anonymous support returns to login; and all checked states have zero horizontal overflow and no browser page errors. Customer tracker/chat still need an authenticated customer browser session; their rendered behavior tests pass.
 - Production asset and service smoke: admin and mobile `index.html` SHA-256 hashes matched the local production builds; the public config endpoint returned `#003D9B`, `#0052CC`, and `#FE8A00`; every onService compose service remained healthy.
+- Provider approval/portfolio production release: local, GitHub, and the server reached `14b3dfc56aa10081922322dd3e15e9798073c7c4`; all GitHub CI and gate jobs passed; a full database/uploads/config/git backup completed; migration 148 dry-ran as the only pending file and was recorded; the nullable consent column exists with zero legacy portfolio rows; the API and both web artifacts matched the release; and provider dashboard, portfolio, secure documents, admin login, and same-origin config were exercised live at tablet/desktop widths. The controlled provider session was signed out after verification.
 - Local visual regression record: three Provider 360 certification baselines raise the admin inventory from 387 to 390 PNGs. Existing Provider 360 snapshots were re-captured against the current app, and the former false empty/error states now wait for real missing-record and settled server-error output.
 
 ## Next implementation order
 
-1. Continue the tester-backed provider upload findings in evidence order: portfolio media and onboarding document/selfie states. Provider Services pricing remains paused under E16.
-2. Audit provider earnings and payout presentation without changing money movement, then continue into client detail and quote builder.
-3. Audit and improve the remaining high-use customer wide layouts: projects and notifications. Payment recovery, Cebu address recognition, and support entry/linkage are covered by the completed customer batches.
-4. Continue the admin suspicion-first pass page by page, replacing generic confirmations only where impact preview, reason capture, and audit context are required.
-5. Add real admin entity search after defining safe searchable fields and PII visibility.
-6. Reconcile fine-grained staff authorization through an explicit architecture decision.
-7. Resolve money/legal hard stops before changing those workflows.
+1. Audit provider earnings and payout presentation without changing money movement, then continue into client detail and quote builder.
+2. Audit and improve the remaining high-use customer wide layouts: projects and notifications. Payment recovery, Cebu address recognition, and support entry/linkage are covered by the completed customer batches.
+3. Continue the admin suspicion-first pass page by page, replacing generic confirmations only where impact preview, reason capture, and audit context are required.
+4. Add real admin entity search after defining safe searchable fields and PII visibility.
+5. Reconcile fine-grained staff authorization through an explicit architecture decision.
+6. Resolve money/legal hard stops before changing those workflows.

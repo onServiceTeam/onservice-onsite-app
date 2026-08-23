@@ -36,16 +36,26 @@ mkdir -p certbot/conf certbot/www
 echo "==> [3/6] Build the API image (this is the slow step)"
 $COMPOSE build api
 
-echo "==> [4/6] Start data plane: postgres, pgbouncer, redis, api"
-$COMPOSE up -d postgres pgbouncer redis api
+echo "==> [4/6] Start data plane: postgres, pgbouncer, redis"
+$COMPOSE up -d postgres pgbouncer redis
 
-echo "==> [5/6] Wait for postgres + api health"
+echo "==> [5/6] Wait for postgres, migrate, then start API"
 for i in $(seq 1 40); do
   if $COMPOSE exec -T postgres pg_isready -U onservice_user -d onservice >/dev/null 2>&1; then echo "    postgres ready"; break; fi
   sleep 3
 done
 echo "    running migrations (direct connection, not the pooler)..."
-$COMPOSE exec -T api sh -lc 'DATABASE_URL="$DATABASE_DIRECT_URL" npm run migrate:up'
+bash scripts/server/run-production-migrations.sh
+$COMPOSE up -d --no-deps api
+for i in $(seq 1 40); do
+  if $COMPOSE exec -T api curl -sf http://localhost:7381/health/ready >/dev/null 2>&1; then echo "    api ready"; break; fi
+  if [ "$i" -eq 40 ]; then
+    echo "ERROR: API failed to become healthy after migrations." >&2
+    $COMPOSE logs --tail=100 api >&2
+    exit 1
+  fi
+  sleep 3
+done
 
 echo "==> [6/6] Seed catalog + Cebu service areas + demo data"
 for f in packages/api/seeds/*.sql; do
