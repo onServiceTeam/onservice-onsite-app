@@ -1,9 +1,10 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Inbox } from '@/components/icons';
 
 interface EmptyStateProps {
-  icon?: string;
+  icon?: React.ReactNode;
   title: string;
   description?: string;
   actionLabel?: string;
@@ -11,7 +12,7 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({
-  icon = '📭',
+  icon = <Inbox size={48} color={colors.textTertiary} />,
   title,
   description,
   actionLabel,
@@ -24,7 +25,7 @@ export function EmptyState({
       accessibilityRole="text"
       accessibilityLabel={description ? `${title}. ${description}` : title}
     >
-      <Text style={styles.icon} accessibilityElementsHidden={true}>{icon}</Text>
+      <View style={styles.icon} accessibilityElementsHidden={true}>{icon}</View>
       <Text style={styles.title} maxFontSizeMultiplier={2}>{title}</Text>
       {description ? (
         <Text style={styles.description} maxFontSizeMultiplier={2}>{description}</Text>
@@ -47,7 +48,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxl + spacing.base,
   },
   icon: {
-    fontSize: 48,
     marginBottom: spacing.base,
   },
   title: {

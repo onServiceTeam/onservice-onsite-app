@@ -48,7 +48,7 @@ export default function JobRequestScreen(): React.ReactElement {
   });
   const intakeFields: IntakeField[] = fieldsQuery.data ?? [];
 
-  const setAnswer = (key: string, value: string | number | boolean | undefined) => {
+  const setAnswer = (key: string, value: string | number | boolean | undefined): void => {
     setIntakeAnswers((prev) => {
       const next = { ...prev };
       if (value === undefined || value === '') delete next[key];
@@ -57,7 +57,7 @@ export default function JobRequestScreen(): React.ReactElement {
     });
   };
 
-  const onNumberChange = (key: string, text: string) => {
+  const onNumberChange = (key: string, text: string): void => {
     // allow digits and a single decimal point only
     const cleaned = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
     setNumberText((prev) => ({ ...prev, [key]: cleaned }));

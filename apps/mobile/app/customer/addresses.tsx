@@ -16,7 +16,7 @@ import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/co
 // Phase 14 R5-complete — ConfirmModal for delete-address destructive flow.
 import ConfirmModal from '@/components/ConfirmModal';
 import type { ComponentType } from 'react';
-import { Home as HomeIcon, Briefcase, Pin, ChevronLeft, Check } from '@/components/icons';
+import { Home as HomeIcon, Briefcase, Pin, ChevronLeft, Check, MapPin } from '@/components/icons';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -328,7 +328,7 @@ export default function AddressesScreen(): React.ReactElement {
         </View>
       ) : addresses.length === 0 ? (
         <EmptyState
-          icon="📍"
+          icon={<MapPin size={48} color={colors.textTertiary} />}
           title="No Saved Addresses"
           description="Add your home, work, or other frequently used addresses for quick booking."
           actionLabel="Add Your First Address"

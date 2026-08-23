@@ -1,26 +1,50 @@
-// BUG-PHASE172-01 — provider Payout History screen had no link to
-// the Withdraw screen. Provider had to navigate back to the
-// Earnings tab to request a new withdrawal.
-//
-// Same UX-gap family as Phase 169-170. Fix: add Request Withdrawal
-// CTA in the header for direct access.
+import React from 'react';
+import { fireEvent, render } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import PayoutsScreen from '../app/provider/payouts';
+import { Routes } from '@/config/navigation';
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+const mockPush = jest.fn();
 
-const SOURCE = readFileSync(
-  resolve(__dirname, '../app/provider/payouts.tsx'),
-  'utf8',
-);
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush, back: jest.fn() }),
+}));
 
-describe('BUG-PHASE172-01 — payouts header has Withdraw CTA', () => {
-  it('header has Withdraw button linking to /provider/withdraw', () => {
-    expect(SOURCE).toMatch(
-      /headerCta[\s\S]+?\/provider\/withdraw[\s\S]+?Withdraw/,
+jest.mock('@/services/api', () => ({
+  __esModule: true,
+  default: {
+    get: jest.fn((url: string) => {
+      if (url === '/api/v1/wallet/payouts') {
+        return Promise.resolve({
+          data: {
+            data: [],
+            pagination: { total: 0, page: 1, pageSize: 20, totalPages: 0 },
+          },
+        });
+      }
+      if (url.includes('/earnings/trends')) return Promise.resolve({ data: { data: [] } });
+      if (url === '/api/v1/providers/me') {
+        return Promise.resolve({ data: { data: { tier: 'new' } } });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    }),
+  },
+}));
+
+describe('provider payout navigation', () => {
+  it('BUG-PHASE172-01 — opens withdrawal from the payout header action', () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    const { getByRole } = render(
+      React.createElement(
+        QueryClientProvider,
+        { client },
+        React.createElement(PayoutsScreen),
+      ),
     );
-  });
 
-  it('PHASE172 fix-comment is preserved', () => {
-    expect(SOURCE).toMatch(/BUG-PHASE172-01 fix/);
+    fireEvent.click(getByRole('button', { name: 'Request a new withdrawal' }));
+    expect(mockPush).toHaveBeenCalledWith(Routes.PROVIDER.WITHDRAW);
   });
 });

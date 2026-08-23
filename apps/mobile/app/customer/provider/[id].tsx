@@ -23,7 +23,7 @@ import Avatar from '@/components/Avatar';
 import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Star, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText, ChevronRight } from '@/components/icons';
+import { Star, Wrench, CheckCircle2, MapPin, Heart, Building, ScrollText, ChevronRight, Search } from '@/components/icons';
 // BUG-PHASE94-01 — founding tier added so customers viewing a
 // founding-batch provider see the right badge color + label.
 const TIER_COLORS: Record<string, string> = {
@@ -167,7 +167,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
           <Text style={styles.headerTitle}>Provider Profile</Text>
         </View>
         <EmptyState
-          icon="🔍"
+          icon={<Search size={48} color={colors.textTertiary} />}
           title="Provider not found"
           description="This provider may no longer be available."
           actionLabel="Go Back"

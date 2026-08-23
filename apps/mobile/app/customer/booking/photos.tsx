@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import api from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft, Repeat } from '@/components/icons';
+import { Camera, ChevronLeft, Repeat, X } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { getAppContentWidth } from '@/components/WebAppFrame';
@@ -143,7 +143,7 @@ export default function BookingPhotosScreen(): React.ReactElement {
           />
         ) : activePhotos.length === 0 ? (
           <EmptyState
-            icon="📷"
+            icon={<Camera size={48} color={colors.textTertiary} />}
             title={`No ${activeTab === 'customer' ? 'Customer' : activeTab === 'before' ? 'Before' : 'After'} Photos`}
             description={activeTab === 'before'
               ? 'The provider has not uploaded any photos taken before starting the job.'
@@ -204,7 +204,7 @@ export default function BookingPhotosScreen(): React.ReactElement {
             style={styles.modalClose}
             onPress={() => setViewingPhoto(null)}
           >
-            <Text style={styles.modalCloseText}>✕</Text>
+            <X size={20} color={colors.white} />
           </TouchableOpacity>
           {viewingPhoto && (
             <Image

@@ -224,7 +224,7 @@ Admin findings:
 
 - Production admin demo auto-login is intentionally disabled; demo documentation now states that admin access requires an authorized account.
 - Several operations documents still state that in-app support ticketing is absent, but customer and provider support inbox, create, and thread routes now exist.
-- The deployment workflow tracks the wrong branch and has ambiguous image selection according to the current platform audit.
+- Fixed: the deployment workflow no longer targets the obsolete `main` branch or auto-runs without configured production secrets; the release guide now describes the actual shared Hetzner topology.
 - Fresh dependency installation still requires `npm ci --legacy-peer-deps` because ESLint 10 is outside `eslint-plugin-react`'s declared peer range.
 - The current local Node 24.13 runtime is below one installed dependency's preferred 24.15 engine range.
 - Fresh install reports 42 dependency vulnerabilities, including one critical. These require package-by-package triage, not an automatic breaking `audit fix --force`.
@@ -270,13 +270,14 @@ Admin findings:
 - Admin and mobile lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
 - Mobile production web export: passed with the production same-origin API URL and demo test mode.
-- Local browser smoke: production exports rendered at 1280 by 720 and 800 by 1000 with no current console errors or warnings; final post-deploy customer/provider smoke remains pending.
+- Production release: local, GitHub `master`, and `/opt/onservice` aligned at `75ea2fc4e715ccf4b6ed7ff46e013f50e4cf2060`; GitHub CI run 32638203116 passed every job.
+- Production browser smoke: customer and provider rendered at 800 by 1000 and 1280 by 900 with no horizontal overflow or current console errors/warnings; admin served the new login bundle with public demo access disabled.
+- Production service smoke: API, nginx, Postgres, and Redis remained healthy; MedClaimsPro and both Cochi Loco public endpoints remained HTTP 200.
 
 ## Next implementation order
 
-1. Commit, push master, wait for required GitHub gates, fast-forward the exact commit on production, deploy affected services, and smoke-test all three public surfaces.
-2. Audit and improve the remaining high-use wide layouts: customer booking detail and quote comparison; provider jobs, schedule, and clients.
-3. Convert provider/customer complex pages to responsive split layouts only where context remains useful beside the primary task.
-4. Add real admin entity search after defining safe searchable fields and PII visibility.
-5. Reconcile fine-grained staff authorization through an explicit architecture decision.
-6. Resolve money/legal hard stops before changing those workflows.
+1. Audit and improve the remaining high-use wide layouts: customer booking detail and quote comparison; provider jobs, schedule, and clients.
+2. Convert provider/customer complex pages to responsive split layouts only where context remains useful beside the primary task.
+3. Add real admin entity search after defining safe searchable fields and PII visibility.
+4. Reconcile fine-grained staff authorization through an explicit architecture decision.
+5. Resolve money/legal hard stops before changing those workflows.

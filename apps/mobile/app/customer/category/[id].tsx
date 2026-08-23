@@ -16,7 +16,7 @@ import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
-import { Clock, ChevronLeft } from '@/components/icons';
+import { Clock, ChevronLeft, Wrench } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 
@@ -155,7 +155,7 @@ export default function SubcategoryListScreen(): React.ReactElement {
           // so a customer on a freshly-onboarded market has a path forward.
           ListEmptyComponent={
             <EmptyState
-              icon="🧰"
+              icon={<Wrench size={48} color={colors.textTertiary} />}
               title="No services yet"
               description="Check back soon — providers in this category may be coming online."
               actionLabel="Browse Other Categories"

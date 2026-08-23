@@ -1,41 +1,50 @@
 #!/usr/bin/env bash
 # Constitution Article 4.6 fix. No emoji as iconography in components or screens.
-# Uses Python for reliable cross-encoding emoji detection.
+# Uses the repository's required Node runtime for cross-platform detection.
+# Gate maintenance (2026-08-23): replaced the optional `python3 ... || true`
+# scanner because missing Python caused a false-green local gate on Windows.
 #
 # Allowed: emoji in CMS content, in tests, in scripts, in docs.
 # Disallowed: emoji used as visual replacement for icons in component JSX or status maps.
 
 set -euo pipefail
 
-violations=$(python3 -c "
-import re, os, sys
+violations=$(node <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
 
-EMOJI_RE = re.compile(
-    '[\U0001F300-\U0001F9FF'    # symbols, pictographs, transport, etc.
-    '\U00002600-\U000027BF'      # misc symbols, dingbats
-    '\U0001F000-\U0001F02F'      # mahjong, etc.
-    ']'
+const emojiPattern = /[\u{1F000}-\u{1F02F}\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}]/u;
+const roots = [
+  'apps/mobile/src/config',
+  'apps/mobile/src/components',
+  'apps/mobile/app',
+  'apps/admin/src/components',
+  'apps/admin/src/pages',
+];
+
+function scan(directory) {
+  if (!fs.existsSync(directory)) return;
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const filePath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      scan(filePath);
+      continue;
+    }
+    if (!/\.tsx?$/.test(entry.name) || entry.name.includes('.test.')) continue;
+    const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+    lines.forEach((line, index) => {
+      if (line.includes('// gate-a-allowed:')) return;
+      if (line.toLowerCase().includes('emoji') && line.includes('//')) return;
+      if (emojiPattern.test(line)) {
+        process.stdout.write(`${filePath}:${index + 1}: ${line.trim()}\n`);
+      }
+    });
+  }
+}
+
+roots.forEach(scan);
+NODE
 )
-
-for root in ['apps/mobile/src/config', 'apps/mobile/src/components',
-             'apps/mobile/app', 'apps/admin/src/components',
-             'apps/admin/src/pages']:
-    if not os.path.isdir(root): continue
-    for dirpath, _, files in os.walk(root):
-        for f in files:
-            if not f.endswith(('.ts', '.tsx')): continue
-            if '.test.' in f: continue
-            p = os.path.join(dirpath, f)
-            try:
-                with open(p, encoding='utf-8') as fh:
-                    for ln, line in enumerate(fh, 1):
-                        if '// gate-a-allowed:' in line: continue
-                        if 'emoji' in line.lower() and '//' in line: continue
-                        if EMOJI_RE.search(line):
-                            print(f'{p}:{ln}: {line.strip()}')
-            except Exception:
-                pass
-" || true)
 
 if [ -n "$violations" ]; then
   echo "GATE A VIOLATION (Article 4.6): emoji as iconography"

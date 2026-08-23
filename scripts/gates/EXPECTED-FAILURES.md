@@ -56,10 +56,9 @@ The Phase 14 design accepts these failures during Dispatches 01–13 because eac
 - **Status:** BLOCKING immediately on D02 Part 5 onward.
 
 ### `a-cross-source-no-emoji-icons.sh`
-- **Expected to fail on master:** YES
-- **Reason:** Phase 13's `BASELINE-DEBT.md` claims `gate-1-emoji: absolute=0, introduced-this-phase=0` but a fresh run during Phase 14 bootstrap shows `absolute=1089, introduced-this-phase=412`. Emoji icons exist throughout `apps/mobile/src/config/accessibility.ts:56-63`, mobile dashboard cards, admin sidebar, etc.
-- **Owning dispatch:** Dispatch 02 (initial reconciliation), Dispatches 07/08/11/12 (per-screen polish replaces all emoji with lucide).
-- **Becomes BLOCKING:** after D12 PR merges.
+- **Expected to fail on master:** NO (resolved by the 2026-08-23 UX audit).
+- **Reason:** The remaining production emoji iconography was replaced with the central Lucide vector set across customer, provider, staff, support, shared mobile UI, and the remaining admin pages. The scanner was also made fail-closed when its runtime is unavailable.
+- **Status:** BLOCKING from the 2026-08-23 UX audit onward.
 
 ### `a-cross-source-no-google-maps-placeholder.sh`
 - **Expected to fail on master:** YES
@@ -101,7 +100,7 @@ The Phase 14 design accepts these failures during Dispatches 01–13 because eac
 - **Becomes BLOCKING:** after D12 PR merges.
 
 ### Article 4.6 — no emoji as iconography
-- See `a-cross-source-no-emoji-icons.sh` above.
+- See `a-cross-source-no-emoji-icons.sh` above. The redundant constitution article is also BLOCKING from the 2026-08-23 UX audit onward.
 
 ### Article 7.1 — no axios
 - See `a-cross-source-no-axios.sh` above.

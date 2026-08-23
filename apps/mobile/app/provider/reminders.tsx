@@ -7,7 +7,7 @@ import { listReminders, addReminder, completeReminder, deleteReminder, type Clie
 import { getErrorMessage } from '@/utils/errors';
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft } from '@/components/icons';
+import { AlarmClock, ChevronLeft } from '@/components/icons';
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 
 export default function RemindersScreen(): React.ReactElement {
@@ -80,7 +80,7 @@ export default function RemindersScreen(): React.ReactElement {
           renderItem={renderItem}
           contentContainerStyle={styles.body}
           refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} />}
-          ListEmptyComponent={<EmptyState icon="⏰" title="No reminders" description="Set follow-up reminders and we'll nudge you on the day they're due." />}
+          ListEmptyComponent={<EmptyState icon={<AlarmClock size={48} color={colors.textTertiary} />} title="No reminders" description="Set follow-up reminders and we'll nudge you on the day they're due." />}
         />
       )}
     </SafeAreaView>

@@ -755,7 +755,7 @@ function JobsTab({ providerId }: { providerId: string }): React.ReactElement {
                 <td className="px-3 py-2 text-right">{formatPHP(row.totalAmount)}</td>
                 <td className="px-3 py-2 text-right">{formatPHP(row.serviceFee)}</td>
                 <td className="px-3 py-2"><Badge label={row.status} variant="default" /></td>
-                <td className="px-3 py-2">{row.rating != null ? `${row.rating} ★` : '—'}</td>
+                <td className="px-3 py-2">{row.rating != null ? <span className="inline-flex items-center gap-1">{row.rating} <Star size={13} className="text-amber-500" fill="currentColor" aria-hidden="true" /></span> : '—'}</td>
                 <td className="px-3 py-2">{row.hasDispute ? <Badge label="yes" variant="danger" /> : '—'}</td>
               </tr>
             ))}
@@ -978,7 +978,11 @@ function ReviewsTab({ providerId }: { providerId: string }): React.ReactElement 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-medium text-sm">{r.reviewerName}</span>
-                <span className="text-xs text-amber-600">{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+                <span className="inline-flex gap-0.5" aria-label={`${r.rating} out of 5 stars`}>
+                  {Array.from({ length: 5 }, (_, index) => (
+                    <Star key={index} size={13} className={index < r.rating ? 'text-amber-500' : 'text-slate-300'} fill={index < r.rating ? 'currentColor' : 'none'} aria-hidden="true" />
+                  ))}
+                </span>
                 <span className="text-xs text-[var(--color-text-secondary)]">{formatDate(r.createdAt)}</span>
                 {!r.isVisible && <Badge label="hidden" variant="warning" />}
               </div>

@@ -15,7 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getTierProgression, type TierRequirement } from '@/services/provider-api.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
-import { Sparkle, CheckCircle2, Star, Crown } from '@/components/icons';
+import { Sparkle, Check, CheckCircle2, Minus, Star, Crown } from '@/components/icons';
 // A7 — shared UI kit for loading/error states.
 import { SkeletonCard, ErrorState } from '@/components/ui';
 
@@ -180,7 +180,7 @@ export default function TierProgressionScreen(): React.ReactElement {
               </Text>
               {nextTier.benefits.map((benefit, idx) => (
                 <View key={idx} style={styles.benefitRow}>
-                  <Text style={styles.benefitCheck}>✓</Text>
+                  <Check size={14} color={colors.success} style={styles.benefitCheck} />
                   <Text style={styles.benefitText}>{benefit}</Text>
                 </View>
               ))}
@@ -220,9 +220,11 @@ function RequirementRow({ label, current, met, progressPct }: {
   return (
     <View style={styles.reqRow}>
       <View style={styles.reqRowHeader}>
-        <Text style={[styles.reqCheck, met ? styles.reqCheckMet : styles.reqCheckPending]}>
-          {met ? '✓' : '○'}
-        </Text>
+        <View style={styles.reqCheck}>
+          {met
+            ? <Check size={16} color={colors.success} />
+            : <Minus size={16} color={colors.textTertiary} />}
+        </View>
         <Text style={[styles.reqLabel, met && styles.reqLabelMet]}>{label}</Text>
         <Text style={styles.reqCurrent}>{current}</Text>
       </View>
@@ -361,9 +363,7 @@ const styles = StyleSheet.create({
   reqTitle: { ...typography.body, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
   reqRow: { marginBottom: spacing.md },
   reqRowHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
-  reqCheck: { fontSize: 16, marginRight: spacing.sm, width: 20, textAlign: 'center' },
-  reqCheckMet: { color: colors.success },
-  reqCheckPending: { color: colors.textTertiary },
+  reqCheck: { marginRight: spacing.sm, width: 20, alignItems: 'center' },
   reqLabel: { ...typography.bodySmall, color: colors.text, flex: 1 },
   reqLabelMet: { color: colors.success },
   reqCurrent: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' },
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
   },
   benefitsTitle: { ...typography.body, fontWeight: '700', color: colors.success, marginBottom: spacing.sm },
   benefitRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.xs },
-  benefitCheck: { color: colors.success, marginRight: spacing.sm, fontSize: 14, fontWeight: '700' },
+  benefitCheck: { marginRight: spacing.sm },
   benefitText: { ...typography.bodySmall, color: colors.text, flex: 1 },
 
   maxTierCard: {

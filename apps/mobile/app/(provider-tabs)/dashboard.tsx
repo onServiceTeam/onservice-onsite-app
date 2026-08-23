@@ -22,7 +22,7 @@ import type { Booking } from '@/services/booking.service';
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
 import { Badge, StatusBadge, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
-import { Bell, Calendar, Wrench, CreditCard } from '@/components/icons';
+import { Bell, Calendar, Wrench, CreditCard, Inbox } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 // Phase 14 Remediation #5 — Bug 1234 NBI lifecycle banner.
 import NbiStatusBanner from '@/components/provider/NbiStatusBanner';
@@ -260,7 +260,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
 
             {activeJobs.length === 0 ? (
               <EmptyState
-                icon="📭"
+                icon={<Inbox size={48} color={colors.textTertiary} />}
                 title="No active jobs right now"
                 description={
                   profile?.isAvailable

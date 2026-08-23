@@ -126,7 +126,7 @@ export default function ProviderSukiCustomersScreen(): React.ReactElement {
           }
           ListEmptyComponent={
             <EmptyState
-              icon="💛"
+              icon={<Heart size={48} color={colors.textTertiary} />}
               title="No Suki Customers Yet"
               description="As customers rebook your services, they will appear here with their loyalty tier and stats."
             />

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { hapticSuccess } from '@/utils/haptics';
 import { colors } from '@/config/theme';
+import { Check } from '@/components/icons';
 
 interface SuccessAnimationProps {
   visible: boolean;
@@ -79,9 +80,9 @@ export function SuccessAnimation({
         ]}
         accessibilityElementsHidden={true}
       >
-        <Animated.Text style={[styles.checkmark, { fontSize: size * 0.45, opacity: checkOpacity }]}>
-          ✓
-        </Animated.Text>
+        <Animated.View style={[styles.checkmark, { opacity: checkOpacity }]}>
+          <Check size={size * 0.45} color={colors.white} strokeWidth={3} />
+        </Animated.View>
       </Animated.View>
       {message ? (
         <Animated.Text
@@ -112,8 +113,8 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   checkmark: {
-    color: colors.white,
-    fontWeight: '700',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   message: {
     marginTop: 16,

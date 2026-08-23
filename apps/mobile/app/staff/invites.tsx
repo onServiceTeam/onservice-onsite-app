@@ -11,7 +11,7 @@ import { getMyInvites, acceptInvite, type PendingInvite } from '@/services/provi
 import { getErrorMessage } from '@/utils/errors';
 import { Routes } from '@/config/navigation';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft } from '@/components/icons';
+import { ChevronLeft, Mail } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
@@ -79,7 +79,7 @@ export default function StaffInvitesScreen(): React.ReactElement {
         )}
         {!isLoading && !isError && list.length === 0 && (
           <EmptyState
-            icon="✉️"
+            icon={<Mail size={48} color={colors.textTertiary} />}
             title="No invitations"
             description="If a provider invites you to their team, the invitation appears here."
           />

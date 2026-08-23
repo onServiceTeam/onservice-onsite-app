@@ -13,10 +13,12 @@
  */
 
 const dbQueryMock = jest.fn();
+const dbTransactionMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({
   db: {
     query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (cb: unknown) => dbTransactionMock(cb),
   },
 }));
 
@@ -25,6 +27,11 @@ import * as msgSvc from '../src/services/messaging.service';
 
 beforeEach(() => {
   dbQueryMock.mockReset();
+  dbTransactionMock.mockReset();
+  dbTransactionMock.mockImplementation(
+    (cb: (client: { query: (...args: unknown[]) => unknown }) => unknown) =>
+      cb({ query: (...args: unknown[]) => dbQueryMock(...args) }),
+  );
 });
 
 function rows<T>(data: T[]): { rows: T[]; rowCount: number } {
@@ -42,30 +49,28 @@ const PROVIDER_ID = '66666666-6666-6666-6666-666666666666';
 
 describe('listConversationsForAdmin', () => {
   it('maps rows, truncates the preview, and returns the total', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ count: '2' }]))
-      .mockResolvedValueOnce(
-        rows([
-          {
-            id: CONV_ID,
-            booking_id: BOOKING_ID,
-            customer_id: CUSTOMER_ID,
-            provider_id: PROVIDER_ID,
-            is_active: true,
-            created_at: new Date('2026-01-01T00:00:00Z'),
-            updated_at: new Date('2026-01-02T00:00:00Z'),
-            customer_first: 'Joe',
-            customer_last: 'Cust',
-            provider_first: 'Jane',
-            provider_last: 'Pro',
-            message_count: '5',
-            flagged_open: '1',
-            reported_open: '0',
-            last_message_at: new Date('2026-01-02T00:00:00Z'),
-            last_message_preview: 'x'.repeat(200),
-          },
-        ]),
-      );
+    dbQueryMock.mockResolvedValueOnce(rows([{ count: '2' }])).mockResolvedValueOnce(
+      rows([
+        {
+          id: CONV_ID,
+          booking_id: BOOKING_ID,
+          customer_id: CUSTOMER_ID,
+          provider_id: PROVIDER_ID,
+          is_active: true,
+          created_at: new Date('2026-01-01T00:00:00Z'),
+          updated_at: new Date('2026-01-02T00:00:00Z'),
+          customer_first: 'Joe',
+          customer_last: 'Cust',
+          provider_first: 'Jane',
+          provider_last: 'Pro',
+          message_count: '5',
+          flagged_open: '1',
+          reported_open: '0',
+          last_message_at: new Date('2026-01-02T00:00:00Z'),
+          last_message_preview: 'x'.repeat(200),
+        },
+      ]),
+    );
 
     const out = await adminSvc.listConversationsForAdmin({ filter: 'all' });
     expect(out.total).toBe(2);
@@ -146,7 +151,7 @@ describe('getConversationThreadForAdmin', () => {
       .mockResolvedValueOnce(rows([])); // admin_actions INSERT
 
     const out = await adminSvc.getConversationThreadForAdmin(CONV_ID, ADMIN_ID);
-    expect((out.messages as unknown[])).toHaveLength(1);
+    expect(out.messages as unknown[]).toHaveLength(1);
     // Admin sees the ORIGINAL (flagged) content, not a masked version.
     expect((out.messages as Record<string, unknown>[])[0]!.content).toBe('call me on viber');
     expect((out.messages as Record<string, unknown>[])[0]!.isFlagged).toBe(true);
@@ -192,18 +197,22 @@ describe('getModerationStats', () => {
 
 describe('redactMessage', () => {
   it('rejects a too-short reason before touching the DB', async () => {
-    await expect(adminSvc.redactMessage(MSG_ID, ADMIN_ID, 'x')).rejects.toMatchObject({ statusCode: 400 });
+    await expect(adminSvc.redactMessage(MSG_ID, ADMIN_ID, 'x')).rejects.toMatchObject({
+      statusCode: 400,
+    });
     expect(dbQueryMock).not.toHaveBeenCalled();
   });
 
   it('404s when the message is missing', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([]));
-    await expect(adminSvc.redactMessage(MSG_ID, ADMIN_ID, 'abusive language')).rejects.toMatchObject({
+    await expect(
+      adminSvc.redactMessage(MSG_ID, ADMIN_ID, 'abusive language'),
+    ).rejects.toMatchObject({
       statusCode: 404,
     });
   });
 
-  it('redacts, clears the flag, and writes a message_redacted audit row', async () => {
+  it('Bug UX-016 — redacts and audits the moderation action atomically', async () => {
     dbQueryMock
       .mockResolvedValueOnce(rows([{ booking_id: BOOKING_ID, already: null }]))
       .mockResolvedValueOnce(
@@ -235,6 +244,7 @@ describe('redactMessage', () => {
     const out = await adminSvc.redactMessage(MSG_ID, ADMIN_ID, 'abusive language');
     expect(out.redactedAt).not.toBeNull();
     expect(out.redactionReason).toBe('abusive language');
+    expect(dbTransactionMock).toHaveBeenCalledTimes(1);
 
     const auditCall = dbQueryMock.mock.calls[2];
     expect(auditCall[0]).toMatch(/INSERT INTO admin_actions/);
@@ -273,7 +283,9 @@ describe('reportMessage', () => {
   });
 
   it('403s when the reporter is not a participant', async () => {
-    dbQueryMock.mockResolvedValueOnce(rows([{ customer_id: CUSTOMER_ID, provider_id: PROVIDER_ID }]));
+    dbQueryMock.mockResolvedValueOnce(
+      rows([{ customer_id: CUSTOMER_ID, provider_id: PROVIDER_ID }]),
+    );
     await expect(msgSvc.reportMessage(MSG_ID, 'someone-else', 'spam')).rejects.toMatchObject({
       statusCode: 403,
     });

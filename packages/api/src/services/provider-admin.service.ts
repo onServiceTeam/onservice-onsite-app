@@ -178,7 +178,10 @@ export function isNoteCategory(v: unknown): v is NoteCategory {
 // Profile
 // ─────────────────────────────────────────────────────────────────
 
-export async function getProviderProfile(providerId: string, actorRole: string): Promise<ProviderProfile> {
+export async function getProviderProfile(
+  providerId: string,
+  actorRole: string,
+): Promise<ProviderProfile> {
   const providerResult = await db.query<{
     id: string;
     user_id: string;
@@ -288,16 +291,18 @@ export async function getProviderProfile(providerId: string, actorRole: string):
     // private KYC bucket. A field is null when no document was uploaded.
     documents: {
       nbiClearanceUrl: p.nbi_clearance_url
-        ? kycDocumentService.kycProxyPath('admin', 'nbi_clearance', p.id) : null,
+        ? kycDocumentService.kycProxyPath('admin', 'nbi_clearance', p.id)
+        : null,
       nbiExpiryDate: p.nbi_expiry_date ? p.nbi_expiry_date.toISOString().slice(0, 10) : null,
       nbiExpiryNotified: p.nbi_expiry_notified,
       avatarUrl: p.avatar_url,
       governmentIdUrl: p.government_id_front_url
-        ? kycDocumentService.kycProxyPath('admin', 'government_id_front', p.id) : null,
+        ? kycDocumentService.kycProxyPath('admin', 'government_id_front', p.id)
+        : null,
       governmentIdBackUrl: p.government_id_back_url
-        ? kycDocumentService.kycProxyPath('admin', 'government_id_back', p.id) : null,
-      selfieUrl: p.selfie_url
-        ? kycDocumentService.kycProxyPath('admin', 'selfie', p.id) : null,
+        ? kycDocumentService.kycProxyPath('admin', 'government_id_back', p.id)
+        : null,
+      selfieUrl: p.selfie_url ? kycDocumentService.kycProxyPath('admin', 'selfie', p.id) : null,
     },
     categories: categoriesResult.rows.map((r) => ({
       id: r.id,
@@ -322,22 +327,24 @@ export async function revealProviderContact(
   providerId: string,
   adminId: string,
 ): Promise<{ phone: string; email: string | null }> {
-  const result = await db.query<{ phone: string; email: string | null }>(
-    `SELECT u.phone, u.email
-       FROM providers pr
-       JOIN users u ON u.id = pr.user_id
-      WHERE pr.id = $1`,
-    [providerId],
-  );
-  const row = result.rows[0];
-  if (!row) throw createAppError('Provider not found.', 404);
-  await db.query(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-     VALUES ($1, 'pii_reveal', 'provider', $2, $3::jsonb)`,
-    [adminId, providerId, JSON.stringify({ fields: ['phone', 'email'] })],
-  );
-  logger.info('Provider contact revealed', { adminId, providerId });
-  return { phone: row.phone, email: row.email };
+  return db.transaction(async (client) => {
+    const result = await client.query<{ phone: string; email: string | null }>(
+      `SELECT u.phone, u.email
+         FROM providers pr
+         JOIN users u ON u.id = pr.user_id
+        WHERE pr.id = $1`,
+      [providerId],
+    );
+    const row = result.rows[0];
+    if (!row) throw createAppError('Provider not found.', 404);
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'pii_reveal', 'provider', $2, $3::jsonb)`,
+      [adminId, providerId, JSON.stringify({ fields: ['phone', 'email'] })],
+    );
+    logger.info('Provider contact revealed', { adminId, providerId });
+    return { phone: row.phone, email: row.email };
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -562,10 +569,7 @@ export async function getProviderReviews(
   };
 }
 
-export async function setReviewVisibility(
-  reviewId: string,
-  isVisible: boolean,
-): Promise<void> {
+export async function setReviewVisibility(reviewId: string, isVisible: boolean): Promise<void> {
   const result = await db.query(
     `UPDATE reviews SET is_visible = $1, updated_at = NOW() WHERE id = $2`,
     [isVisible, reviewId],
@@ -573,10 +577,7 @@ export async function setReviewVisibility(
   if (result.rowCount === 0) throw createAppError('Review not found.', 404);
 }
 
-export async function setReviewAdminResponse(
-  reviewId: string,
-  response: string,
-): Promise<void> {
+export async function setReviewAdminResponse(reviewId: string, response: string): Promise<void> {
   const result = await db.query(
     `UPDATE reviews SET admin_response = $1, updated_at = NOW() WHERE id = $2`,
     [response, reviewId],
@@ -914,10 +915,9 @@ export async function deleteProviderNote(
       author_id: string;
       provider_id: string;
       deleted_at: Date | null;
-    }>(
-      `SELECT author_id, provider_id, deleted_at FROM provider_admin_notes WHERE id = $1`,
-      [noteId],
-    );
+    }>(`SELECT author_id, provider_id, deleted_at FROM provider_admin_notes WHERE id = $1`, [
+      noteId,
+    ]);
     const row = existing.rows[0];
     if (!row) throw createAppError('Note not found.', 404);
     if (row.deleted_at) throw createAppError('Note already deleted.', 409);

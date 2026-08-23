@@ -23,6 +23,7 @@ import { showToast } from '@/lib/toast';
 import { formatRelative } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Star } from '@/components/icons';
 
 interface ReviewImage {
   id: string;
@@ -92,9 +93,7 @@ function StarRating({ rating, size = 14 }: { rating: number; size?: number }): R
   const stars = [];
   for (let i = 1; i <= 5; i++) {
     stars.push(
-      <Text key={i} style={{ fontSize: size, color: i <= rating ? colors.warning : colors.border }}>
-        ★
-      </Text>,
+      <Star key={i} size={size} color={i <= rating ? colors.warning : colors.border} fill={i <= rating ? colors.warning : 'transparent'} />,
     );
   }
   return <View style={{ flexDirection: 'row', gap: 1 }}>{stars}</View>;

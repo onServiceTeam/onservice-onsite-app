@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { getProviderBookings } from '@/services/provider-api.service';
 import type { Booking } from '@/services/booking.service';
-import { Filter, MapPin } from '@/components/icons';
+import { Ban, CheckCircle2, Filter, Inbox, MapPin } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
@@ -208,7 +208,11 @@ export default function ProviderJobsScreen(): React.ReactElement {
               </View>
             ) : (
               <EmptyState
-                icon={filter === 'completed' ? '✅' : filter === 'cancelled' ? '🚫' : '📭'}
+                icon={filter === 'completed'
+                  ? <CheckCircle2 size={48} color={colors.textTertiary} />
+                  : filter === 'cancelled'
+                    ? <Ban size={48} color={colors.textTertiary} />
+                    : <Inbox size={48} color={colors.textTertiary} />}
                 title={filter === 'active'
                   ? 'No active jobs'
                   : filter === 'completed'

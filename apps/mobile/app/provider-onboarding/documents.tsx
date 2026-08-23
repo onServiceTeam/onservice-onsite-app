@@ -15,7 +15,7 @@ import { useOnboardingStore } from '@/stores/onboarding.store';
 import { uploadImages } from '@/services/upload.service';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { FileText } from '@/components/icons';
+import { Check, FileText } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 type DocField = 'governmentIdFrontUri' | 'governmentIdBackUri' | 'nbiClearanceUri';
@@ -149,9 +149,9 @@ export default function DocumentsScreen(): React.ReactElement {
                 <Text style={styles.docLabel}>{label}</Text>
                 <Text style={styles.docHint}>{hint}</Text>
               </View>
-              <Text style={[styles.docStatus, uri && styles.docStatusDone]}>
-                {uri ? '✓' : 'Upload'}
-              </Text>
+              {uri
+                ? <Check size={20} color={colors.success} accessibilityLabel="Uploaded" />
+                : <Text style={styles.docStatus}>Upload</Text>}
             </TouchableOpacity>
           );
         })}

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Routes } from '@/config/navigation';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 // Phase E CRIT-110 fix — DEPRECATED screen.
 //
@@ -37,7 +38,7 @@ export default function ProviderSkillsScreen(): React.ReactElement {
   // brief frame before the navigation lands, plus as a fallback if
   // navigation is somehow blocked.
   useEffect(() => {
-    router.replace('/provider/services');
+    router.replace(Routes.PROVIDER.SERVICES);
   }, [router]);
 
   return (
@@ -50,7 +51,7 @@ export default function ProviderSkillsScreen(): React.ReactElement {
         </Text>
         <TouchableOpacity
           style={styles.btn}
-          onPress={() => router.replace('/provider/services')}
+          onPress={() => router.replace(Routes.PROVIDER.SERVICES)}
           activeOpacity={0.8}
         >
           <Text style={styles.btnText}>Go to Services</Text>

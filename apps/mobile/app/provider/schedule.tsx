@@ -18,6 +18,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { Button, SkeletonCard } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Check } from '@/components/icons';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -167,7 +168,7 @@ export default function ScheduleScreen(): React.ReactElement {
               activeOpacity={0.7}
             >
               <View style={[styles.checkbox, day.isAvailable && styles.checkboxActive]}>
-                {day.isAvailable && <Text style={styles.checkMark}>✓</Text>}
+                {day.isAvailable && <Check size={15} color={colors.white} />}
               </View>
               <Text style={[styles.dayName, !day.isAvailable && styles.dayNameDisabled]}>
                 {DAY_NAMES[day.dayOfWeek]}

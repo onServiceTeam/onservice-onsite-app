@@ -6,10 +6,13 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft } from '@/components/icons';
+import type { ComponentType } from 'react';
+import { AlarmClock, ChevronLeft, IdCard, Lock, MessageSquare, Receipt, Star, Wrench } from '@/components/icons';
+
+type StandardIcon = ComponentType<{ size?: number; color?: string }>;
 
 interface Standard {
-  emoji: string;
+  icon: StandardIcon;
   title: string;
   body: string;
 }
@@ -18,37 +21,37 @@ interface Standard {
 // differentiation guidelines. Kept short and provider-facing.
 const STANDARDS: Standard[] = [
   {
-    emoji: '🪪',
+    icon: IdCard,
     title: 'Be verified and legitimate',
     body: 'Keep your NBI clearance current and your ID, selfie, and business details accurate. Expired or missing clearance pauses you from new jobs.',
   },
   {
-    emoji: '⏱️',
+    icon: AlarmClock,
     title: 'Show up on time, every time',
     body: 'Accept only jobs you can do, arrive within your window, and keep the customer updated on your status. Reliability is the single biggest driver of your rating.',
   },
   {
-    emoji: '💬',
+    icon: MessageSquare,
     title: 'Communicate clearly and kindly',
     body: 'Reply in the in-app chat, set expectations, and be professional. Harassment, pressure, or abusive language can get you suspended.',
   },
   {
-    emoji: '🧾',
+    icon: Receipt,
     title: 'Quote honestly and in detail',
     body: 'Use itemized quotes (labor, materials, equipment). If the scope grows, send a change order and get approval before you do extra paid work. No surprise charges.',
   },
   {
-    emoji: '🔒',
+    icon: Lock,
     title: 'Stay on the platform',
     body: 'Keep payments, chat, and bookings on onService. It protects you with escrow and our guarantee, and protects the customer. Taking deals off-app is a serious violation.',
   },
   {
-    emoji: '🛠️',
+    icon: Wrench,
     title: 'Do quality work and stand behind it',
     body: 'Take before/after photos, finish the checklist, and fix legitimate issues. Escrow releases to you once the customer confirms the job was done right.',
   },
   {
-    emoji: '⭐',
+    icon: Star,
     title: 'How your standing works',
     body: 'Your rating, completion rate, on-time rate, and dispute history feed your standing and tier. Higher standing means better placement and more jobs. A few low ratings are recoverable: respond professionally, learn from the feedback, and keep delivering.',
   },
@@ -70,12 +73,18 @@ export default function ProviderStandardsScreen(): React.ReactElement {
           These are the standards that keep onService trusted and keep good providers busy. Living up to
           them is how you earn a strong rating, a higher tier, and more jobs.
         </Text>
-        {STANDARDS.map((s) => (
-          <View key={s.title} style={styles.card}>
-            <Text style={styles.cardTitle}>{s.emoji}  {s.title}</Text>
-            <Text style={styles.cardBody}>{s.body}</Text>
-          </View>
-        ))}
+        {STANDARDS.map((standard) => {
+          const StandardIcon = standard.icon;
+          return (
+            <View key={standard.title} style={styles.card}>
+              <View style={styles.cardTitleRow}>
+                <StandardIcon size={20} color={colors.primary} />
+                <Text style={styles.cardTitle}>{standard.title}</Text>
+              </View>
+              <Text style={styles.cardBody}>{standard.body}</Text>
+            </View>
+          );
+        })}
         <Text style={styles.footer}>
           Repeated or serious violations can lead to suspension or removal. Questions? Reach us from Help.
         </Text>
@@ -108,6 +117,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   cardTitle: { ...typography.body, fontWeight: '700', color: colors.text },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   cardBody: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
   footer: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.sm, marginBottom: spacing.lg },
 });

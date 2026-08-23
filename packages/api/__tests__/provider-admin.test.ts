@@ -28,6 +28,10 @@ import * as svc from '../src/services/provider-admin.service';
 beforeEach(() => {
   dbQueryMock.mockReset();
   dbTransactionMock.mockReset();
+  dbTransactionMock.mockImplementation(
+    (cb: (client: { query: (...args: unknown[]) => unknown }) => unknown) =>
+      cb({ query: (...args: unknown[]) => dbQueryMock(...args) }),
+  );
 });
 
 function rows<T>(data: T[]): { rows: T[]; rowCount: number } {
@@ -138,13 +142,14 @@ describe('getProviderProfile', () => {
 // ─── revealProviderContact ──────────────────────────────────────────────────
 
 describe('revealProviderContact', () => {
-  it('returns raw contact and writes a pii_reveal audit row', async () => {
+  it('Bug UX-015 — returns contact only through an audit-logged transaction', async () => {
     dbQueryMock
       .mockResolvedValueOnce(rows([{ phone: '+639171234567', email: 'jane@example.com' }]))
       .mockResolvedValueOnce(rows([])); // the INSERT into admin_actions
 
     const out = await svc.revealProviderContact(PROVIDER_ID, ADMIN_ID);
     expect(out).toEqual({ phone: '+639171234567', email: 'jane@example.com' });
+    expect(dbTransactionMock).toHaveBeenCalledTimes(1);
 
     // Second call is the audit insert with action_type 'pii_reveal'.
     const insertCall = dbQueryMock.mock.calls[1];
@@ -166,25 +171,23 @@ describe('revealProviderContact', () => {
 
 describe('getProviderJobs', () => {
   it('clamps page/pageSize and returns total + rows', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ count: '42' }]))
-      .mockResolvedValueOnce(
-        rows([
-          {
-            id: 'b1',
-            customer_id: 'c1',
-            customer_name: 'Joe Cust',
-            category_name: 'Plumbing',
-            status: 'completed',
-            total_amount: 100000,
-            service_fee: 12000,
-            scheduled_at: new Date('2024-01-15T08:00:00Z'),
-            completed_at: new Date('2024-01-15T10:00:00Z'),
-            rating: 5,
-            has_dispute: false,
-          },
-        ]),
-      );
+    dbQueryMock.mockResolvedValueOnce(rows([{ count: '42' }])).mockResolvedValueOnce(
+      rows([
+        {
+          id: 'b1',
+          customer_id: 'c1',
+          customer_name: 'Joe Cust',
+          category_name: 'Plumbing',
+          status: 'completed',
+          total_amount: 100000,
+          service_fee: 12000,
+          scheduled_at: new Date('2024-01-15T08:00:00Z'),
+          completed_at: new Date('2024-01-15T10:00:00Z'),
+          rating: 5,
+          has_dispute: false,
+        },
+      ]),
+    );
 
     const out = await svc.getProviderJobs(PROVIDER_ID, 0, 999);
     expect(out.total).toBe(42);
@@ -196,9 +199,7 @@ describe('getProviderJobs', () => {
   });
 
   it('applies status filter', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ count: '0' }]))
-      .mockResolvedValueOnce(rows([]));
+    dbQueryMock.mockResolvedValueOnce(rows([{ count: '0' }])).mockResolvedValueOnce(rows([]));
     await svc.getProviderJobs(PROVIDER_ID, 1, 20, 'completed');
     // params array is reused/mutated across the two queries inside the service;
     // assert the COUNT SQL placeholdered the status filter and used both keys.
@@ -248,23 +249,21 @@ describe('getProviderReviews + mutations', () => {
   it('returns reviews with image_urls (now paginated — MED-N13)', async () => {
     // Service now does Promise.all([COUNT, data]) so the mocks must
     // satisfy two queries.
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ count: '1' }]))
-      .mockResolvedValueOnce(
-        rows([
-          {
-            id: 'r1',
-            booking_id: 'b1',
-            reviewer_name: 'Joe Cust',
-            rating: 4,
-            comment: 'good',
-            is_visible: true,
-            admin_response: null,
-            image_urls: ['https://x/1.png'],
-            created_at: new Date('2024-02-01T00:00:00Z'),
-          },
-        ]),
-      );
+    dbQueryMock.mockResolvedValueOnce(rows([{ count: '1' }])).mockResolvedValueOnce(
+      rows([
+        {
+          id: 'r1',
+          booking_id: 'b1',
+          reviewer_name: 'Joe Cust',
+          rating: 4,
+          comment: 'good',
+          is_visible: true,
+          admin_response: null,
+          image_urls: ['https://x/1.png'],
+          created_at: new Date('2024-02-01T00:00:00Z'),
+        },
+      ]),
+    );
     const out = await svc.getProviderReviews(PROVIDER_ID);
     expect(out.rows[0].rating).toBe(4);
     expect(out.rows[0].imageUrls).toEqual(['https://x/1.png']);
@@ -289,20 +288,18 @@ describe('getProviderReviews + mutations', () => {
 
 describe('getProviderDisputes', () => {
   it('projects resolution_type as resolutionType (now paginated — MED-N13)', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ count: '1' }]))
-      .mockResolvedValueOnce(
-        rows([
-          {
-            id: 'd1',
-            booking_id: 'b1',
-            customer_name: 'Joe Cust',
-            status: 'resolved',
-            resolution_type: 'partial_refund',
-            created_at: new Date('2024-02-01T00:00:00Z'),
-          },
-        ]),
-      );
+    dbQueryMock.mockResolvedValueOnce(rows([{ count: '1' }])).mockResolvedValueOnce(
+      rows([
+        {
+          id: 'd1',
+          booking_id: 'b1',
+          customer_name: 'Joe Cust',
+          status: 'resolved',
+          resolution_type: 'partial_refund',
+          created_at: new Date('2024-02-01T00:00:00Z'),
+        },
+      ]),
+    );
     const out = await svc.getProviderDisputes(PROVIDER_ID);
     expect(out.rows[0].resolutionType).toBe('partial_refund');
     expect(out.total).toBe(1);
@@ -461,7 +458,9 @@ describe('Notes CRUD', () => {
       async (cb: (client: { query: jest.Mock }) => unknown) => {
         const clientQuery = jest.fn(async (sql: string) => {
           if (sql.includes('FROM provider_admin_notes WHERE id')) {
-            return rows([{ author_id: 'someone-else', provider_id: PROVIDER_ID, deleted_at: null }]);
+            return rows([
+              { author_id: 'someone-else', provider_id: PROVIDER_ID, deleted_at: null },
+            ]);
           }
           return rows([]);
         });
@@ -509,7 +508,11 @@ describe('Notes CRUD', () => {
 
 describe('updateProviderProfile', () => {
   function setupProfileTx(opts: {
-    selectRows: { business_name: string | null; description: string | null; service_radius_km: number | null }[];
+    selectRows: {
+      business_name: string | null;
+      description: string | null;
+      service_radius_km: number | null;
+    }[];
     updateRowCount: number;
     auditId: string | null;
   }): { calls: { sql: string; params: unknown[] }[] } {
@@ -519,7 +522,8 @@ describe('updateProviderProfile', () => {
         const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
           calls.push({ sql, params });
           if (sql.includes('SELECT business_name')) return rows(opts.selectRows);
-          if (sql.startsWith('UPDATE providers')) return { rows: [], rowCount: opts.updateRowCount };
+          if (sql.startsWith('UPDATE providers'))
+            return { rows: [], rowCount: opts.updateRowCount };
           if (sql.startsWith('INSERT INTO admin_actions')) {
             return rows(opts.auditId ? [{ id: opts.auditId }] : []);
           }
@@ -575,24 +579,21 @@ describe('adjustProviderWallet', () => {
     auditId: string | null = 'audit-1',
   ): { calls: { sql: string; params: unknown[] }[] } {
     const calls: { sql: string; params: unknown[] }[] = [];
-    dbTransactionMock.mockImplementation(
-      async (cb: (client: { query: jest.Mock }) => unknown) => {
-        const clientQuery = jest.fn(async (sql: string, params: unknown[]) => {
-          calls.push({ sql, params });
-          if (sql.includes('SELECT w.id')) return rows(selectRows);
-          if (sql.startsWith('UPDATE wallets'))
-            return { rows: [], rowCount: updateRowCount };
-          if (sql.startsWith('INSERT INTO wallet_transactions'))
-            return rows(insertId ? [{ id: insertId }] : []);
-          // Phase 14 Dispatch 06 — Bug 78: admin_actions audit row inside
-          // the same transaction as the wallet write.
-          if (sql.startsWith('INSERT INTO admin_actions'))
-            return rows(auditId ? [{ id: auditId }] : []);
-          return rows([]);
-        });
-        return cb({ query: clientQuery as unknown as jest.Mock });
-      },
-    );
+    dbTransactionMock.mockImplementation(async (cb: (client: { query: jest.Mock }) => unknown) => {
+      const clientQuery = jest.fn(async (sql: string, params: unknown[]) => {
+        calls.push({ sql, params });
+        if (sql.includes('SELECT w.id')) return rows(selectRows);
+        if (sql.startsWith('UPDATE wallets')) return { rows: [], rowCount: updateRowCount };
+        if (sql.startsWith('INSERT INTO wallet_transactions'))
+          return rows(insertId ? [{ id: insertId }] : []);
+        // Phase 14 Dispatch 06 — Bug 78: admin_actions audit row inside
+        // the same transaction as the wallet write.
+        if (sql.startsWith('INSERT INTO admin_actions'))
+          return rows(auditId ? [{ id: auditId }] : []);
+        return rows([]);
+      });
+      return cb({ query: clientQuery as unknown as jest.Mock });
+    });
     return { calls };
   }
 
@@ -627,10 +628,7 @@ describe('adjustProviderWallet', () => {
   });
 
   it('credits wallet, writes paired adjustment ledger row, conserves money', async () => {
-    const { calls } = setupTransaction(
-      [{ id: 'w1', available_balance: '500' }],
-      'tx-id-123',
-    );
+    const { calls } = setupTransaction([{ id: 'w1', available_balance: '500' }], 'tx-id-123');
     const result = await svc.adjustProviderWallet(
       PROVIDER_ID,
       250,
@@ -667,10 +665,7 @@ describe('adjustProviderWallet', () => {
   });
 
   it('debits wallet correctly when delta is negative', async () => {
-    const { calls } = setupTransaction(
-      [{ id: 'w1', available_balance: '1000' }],
-      'tx-id-456',
-    );
+    const { calls } = setupTransaction([{ id: 'w1', available_balance: '1000' }], 'tx-id-456');
     const result = await svc.adjustProviderWallet(
       PROVIDER_ID,
       -300,

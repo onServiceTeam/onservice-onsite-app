@@ -28,7 +28,13 @@
 #   - packages/api/migrations/*.sql (deprecated migrations preserve history)
 #   - docs/strategy/INSURANCE.md
 #   - docs/audits/** (Phase 13 audit docs)
+#   - docs/LEGAL-REVIEW-2026-06-05.md (legal removal record)
+#   - docs/operations/01-company-foundation.md (operator warning against reintroduction)
+#   - docs/strategy/CEBU-LAUNCH-PLAN.md (shelved-product strategy record)
 #   - docs/REPO-INTEGRATION.md
+#   - .ai-coder/audit-2026-05-01/** (immutable historical audit evidence)
+#   - .ai-coder/escalations/E10-customer-fees-and-service-guarantee-2026-06-28.md
+#     (active legal-language hard-stop evidence)
 #   - .ai-coder/SESSION-LOG.md
 #   - .ai-coder/CURRENT-DISPATCH (during D04 in-flight; cleared after merge)
 #   - .ai-coder/dispatches/D03-closeout.md (D03 referenced the upcoming D04 work)
@@ -102,12 +108,17 @@ filtered=$(echo "$hits" | grep -vE \
   -e "^\.?/?packages/api/migrations/.*\.sql:" \
   -e "^\.?/?docs/strategy/INSURANCE\.md:" \
   -e "^\.?/?docs/audits/" \
+  -e "^\.?/?docs/LEGAL-REVIEW-2026-06-05\.md:" \
+  -e "^\.?/?docs/operations/01-company-foundation\.md:" \
+  -e "^\.?/?docs/strategy/CEBU-LAUNCH-PLAN\.md:" \
   -e "^\.?/?docs/REPO-INTEGRATION\.md:" \
   -e "^\.?/?docs/architecture/" \
   -e "^\.?/?docs/strategy/STRATEGIC-DECISIONS-LOG\.md:" \
   -e "^\.?/?docs/strategy/STRATEGY\.md:" \
   -e "^\.?/?docs/strategy/COMPLIANCE\.md:" \
   -e "^\.?/?\.ai-coder/SESSION-LOG\.md:" \
+  -e "^\.?/?\.ai-coder/audit-2026-05-01/" \
+  -e "^\.?/?\.ai-coder/escalations/E10-customer-fees-and-service-guarantee-2026-06-28\.md:" \
   -e "^\.?/?\.ai-coder/CURRENT-DISPATCH:" \
   -e "^\.?/?\.ai-coder/checkpoints/" \
   -e "^\.?/?\.ai-coder/PHASE-14-ACKNOWLEDGMENT\.md:" \

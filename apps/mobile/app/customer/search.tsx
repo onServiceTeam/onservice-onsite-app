@@ -16,7 +16,7 @@ import type { Subcategory } from '@/services/catalog.service';
 import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Star, Clock, MapPin, Filter, ChevronLeft } from '@/components/icons';
+import { Star, Clock, MapPin, Filter, ChevronLeft, Search } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState, SectionHeader } from '@/components/ui';
 // Phase 14 R5-complete — FilterModal for advanced search filters.
@@ -297,7 +297,7 @@ export default function SearchScreen(): React.ReactElement {
       {!isLoading && !isError && isFetched && searchTerm.length >= 2 && totalResults === 0 && (
         // BUG-PHASE176-01 — no-results state has a real "Browse Categories" CTA.
         <EmptyState
-          icon="🔍"
+          icon={<Search size={48} color={colors.textTertiary} />}
           title={`No results for "${searchTerm}"`}
           description="Try a different keyword or browse categories."
           actionLabel="Browse Categories"
@@ -336,8 +336,8 @@ export default function SearchScreen(): React.ReactElement {
             key: 'rating',
             label: 'Minimum Rating',
             options: [
-              { value: '4', label: '4★ +' },
-              { value: '4.5', label: '4.5★ +' },
+              { value: '4', label: '4 and up' },
+              { value: '4.5', label: '4.5 and up' },
             ],
           },
         ]}

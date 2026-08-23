@@ -29,6 +29,7 @@ import {
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { getErrorMessage } from '@/utils/errors';
+import { Routes, buildRoute } from '@/config/navigation';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -137,14 +138,14 @@ export default function ProviderNotificationsScreen(): React.ReactElement {
         || notif.type === 'chat_started')
       && notifData?.bookingId
     ) {
-      router.push(`/provider/chat/${notifData.bookingId}`);
+      router.push(buildRoute(Routes.PROVIDER.CHAT, { id: notifData.bookingId }));
     } else if (notifData?.bookingId) {
-      router.push(`/provider/job/${notifData.bookingId}`);
+      router.push(buildRoute(Routes.PROVIDER.JOB_DETAIL, { id: notifData.bookingId }));
     } else if (notif.type === 'rating_received') {
       // BUG-PHASE125-01 fix — pre-fix this branch keyed on
       // `review_received` which the API never emits, so the route
       // was dead.
-      router.push('/provider/reviews');
+      router.push(Routes.PROVIDER.REVIEWS);
     } else if (notif.type === 'payment' || notif.type === 'payment_released') {
       // BUG-PHASE125-01 fix — pre-fix branched on `tip_received`
       // and `payment_received` which the API never emits. tip.service
@@ -152,11 +153,11 @@ export default function ProviderNotificationsScreen(): React.ReactElement {
       // is the canonical escrow release type per
       // notification.service's statusToType map. Both land on
       // earnings so the provider can see the credit.
-      router.push('/(provider-tabs)/earnings');
+      router.push(Routes.PROVIDER_TABS.EARNINGS);
     } else if (notif.type === 'tier_upgrade' || notif.type === 'provider_tier_changed') {
-      router.push('/provider/tier-progression');
+      router.push(Routes.PROVIDER.TIER_PROGRESSION);
     } else if (notif.type === 'nbi_expiring') {
-      router.push('/provider/account-management');
+      router.push(Routes.PROVIDER.ACCOUNT_MANAGEMENT);
     }
     // Else: just stays on the notifications list (already marked read).
   };
@@ -218,7 +219,7 @@ export default function ProviderNotificationsScreen(): React.ReactElement {
           }
           ListEmptyComponent={
             <EmptyState
-              icon="🔔"
+              icon={<Bell size={48} color={colors.textTertiary} />}
               title="No notifications yet"
               description="Job offers, payment releases, reviews, and tier updates will appear here."
             />

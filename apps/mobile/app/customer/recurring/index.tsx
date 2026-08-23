@@ -11,7 +11,7 @@ import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
-import { MapPin, ChevronRight } from '@/components/icons';
+import { MapPin, ChevronRight, Repeat } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { Routes } from '@/config/navigation';
@@ -152,7 +152,7 @@ export default function RecurringListScreen(): React.ReactElement {
           // customer with no recurring bookings has a path forward.
           ListEmptyComponent={
             <EmptyState
-              icon="🔁"
+              icon={<Repeat size={48} color={colors.textTertiary} />}
               title="No recurring bookings"
               description="After completing a booking, you can set it to repeat automatically."
               actionLabel="Browse Services"

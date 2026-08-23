@@ -21,7 +21,7 @@ GitHub Actions runs the code/test gates on pushes to `master`. The production
 workflow in `.github/workflows/deploy.yml` is deliberately manual and deploys
 the API only. It requires the `DEPLOY_HOST`, `DEPLOY_USER`, and
 `DEPLOY_SSH_KEY` repository secrets before it can be used. Those secrets are
-not currently stored in the public repository settings.
+not currently stored in the repository settings.
 
 Frontend artifacts are gitignored and must be built, transferred, and
 extracted separately. Until the production workflow is configured and tested,
@@ -196,4 +196,4 @@ only for JavaScript changes permitted by the store policies.
   through the normal tested release path.
 
 Do not publish placeholder phone numbers, PagerDuty routes, or internal contact
-details in this public repository.
+details in the repository.

@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import {
   StyleSheet,
-  Text,
   View,
   type ImageStyle,
   type ViewStyle,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { colors } from '@/config/theme';
+import { Camera } from '@/components/icons';
 
 interface LazyImageProps {
   source: string | null | undefined;
@@ -40,7 +40,7 @@ export function LazyImage({
         accessibilityRole="image"
         accessibilityLabel={accessibilityLabel ?? 'Image unavailable'}
       >
-        <Text style={styles.placeholderIcon} accessibilityElementsHidden={true}>📷</Text>
+        <Camera size={24} color={colors.textTertiary} accessibilityElementsHidden={true} />
       </View>
     );
   }
@@ -80,9 +80,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundSecondary,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  placeholderIcon: {
-    fontSize: 24,
-    opacity: 0.4,
   },
 });

@@ -12,7 +12,7 @@ import {
 } from '@/services/provider-staff.service';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft, Plus, Trash2, Star, Phone, Mail } from '@/components/icons';
+import { ChevronLeft, Plus, Trash2, Star, Phone, Mail, Users } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
@@ -173,7 +173,7 @@ export default function ProviderTeamScreen(): React.ReactElement {
         )}
         {!isLoading && !isError && members.length === 0 && (
           <EmptyState
-            icon="👥"
+            icon={<Users size={48} color={colors.textTertiary} />}
             title="No team members yet"
             description="Invite someone above to add them to your team."
           />

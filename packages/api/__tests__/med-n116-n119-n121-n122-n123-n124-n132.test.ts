@@ -28,10 +28,6 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { generateInvoiceNumber } from '../src/services/invoice.service';
 
-const INVOICE_SVC = readFileSync(
-  resolve(__dirname, '../src/services/invoice.service.ts'),
-  'utf8',
-);
 const RECON_SVC = readFileSync(
   resolve(__dirname, '../src/services/reconciliation.service.ts'),
   'utf8',
@@ -62,14 +58,6 @@ function sliceBetween(src: string, startNeedle: string, endNeedle: string): stri
   if (start < 0) return '';
   const end = src.indexOf(endNeedle, start + startNeedle.length);
   return end < 0 ? src.slice(start) : src.slice(start, end);
-}
-
-// Strip // line comments so source-shape regexes don't match comment text.
-function stripLineComments(src: string): string {
-  return src
-    .split('\n')
-    .map((l) => l.replace(/\/\/.*$/, ''))
-    .join('\n');
 }
 
 describe('MED-N116 — generateInvoiceNumber uses cryptographic randomness', () => {

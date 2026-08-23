@@ -7,7 +7,7 @@ import { listProjects, type Project } from '@/services/project.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
-import { ChevronLeft, ChevronRight } from '@/components/icons';
+import { Building2, ChevronLeft, ChevronRight } from '@/components/icons';
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { Routes } from '@/config/navigation';
 
@@ -83,7 +83,7 @@ export default function ProjectsListScreen(): React.ReactElement {
           refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} />}
           ListEmptyComponent={
             <EmptyState
-              icon="🏗️"
+              icon={<Building2 size={48} color={colors.textTertiary} />}
               title="No projects yet"
               description="Projects are for big multi-stage jobs like a renovation or a build. Start one to plan milestones, choices, and documents in one place."
             />

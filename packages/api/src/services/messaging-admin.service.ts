@@ -66,12 +66,13 @@ function formatAdminMessage(m: AdminMessageRow): Record<string, unknown> {
 
 /** Records an admin moderation action against the conversation's booking. */
 async function logModerationAction(
+  executor: Pick<typeof db, 'query'>,
   adminId: string,
   actionType: 'conversation_viewed' | 'message_redacted' | 'message_flag_reviewed',
   bookingId: string,
   details: Record<string, unknown>,
 ): Promise<void> {
-  await db.query(
+  await executor.query(
     `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
      VALUES ($1, $2, 'booking', $3, $4::jsonb)`,
     [adminId, actionType, bookingId, JSON.stringify(details)],
@@ -87,9 +88,12 @@ export interface ListConversationsOpts {
   pageSize?: number;
 }
 
-export async function listConversationsForAdmin(
-  opts: ListConversationsOpts,
-): Promise<{ conversations: Record<string, unknown>[]; total: number; page: number; pageSize: number }> {
+export async function listConversationsForAdmin(opts: ListConversationsOpts): Promise<{
+  conversations: Record<string, unknown>[];
+  total: number;
+  page: number;
+  pageSize: number;
+}> {
   const page = Math.max(1, Number(opts.page) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(opts.pageSize) || 25));
   const offset = (page - 1) * pageSize;
@@ -181,7 +185,9 @@ export async function listConversationsForAdmin(
     flaggedOpen: Number(r.flagged_open ?? 0),
     reportedOpen: Number(r.reported_open ?? 0),
     lastMessageAt: r.last_message_at ? r.last_message_at.toISOString() : null,
-    lastMessagePreview: r.last_message_preview ? r.last_message_preview.slice(0, PREVIEW_LEN) : null,
+    lastMessagePreview: r.last_message_preview
+      ? r.last_message_preview.slice(0, PREVIEW_LEN)
+      : null,
     createdAt: r.created_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
   }));
@@ -195,20 +201,21 @@ export async function getConversationThreadForAdmin(
   conversationId: string,
   adminId: string,
 ): Promise<Record<string, unknown>> {
-  const convResult = await db.query<{
-    id: string;
-    booking_id: string;
-    customer_id: string;
-    provider_id: string;
-    is_active: boolean;
-    created_at: Date;
-    updated_at: Date;
-    customer_first: string;
-    customer_last: string;
-    provider_first: string;
-    provider_last: string;
-  }>(
-    `SELECT c.id, c.booking_id, c.customer_id, c.provider_id, c.is_active,
+  const thread = await db.transaction(async (client) => {
+    const convResult = await client.query<{
+      id: string;
+      booking_id: string;
+      customer_id: string;
+      provider_id: string;
+      is_active: boolean;
+      created_at: Date;
+      updated_at: Date;
+      customer_first: string;
+      customer_last: string;
+      provider_first: string;
+      provider_last: string;
+    }>(
+      `SELECT c.id, c.booking_id, c.customer_id, c.provider_id, c.is_active,
             c.created_at, c.updated_at,
             cu.first_name AS customer_first, cu.last_name AS customer_last,
             pu.first_name AS provider_first, pu.last_name AS provider_last
@@ -216,13 +223,13 @@ export async function getConversationThreadForAdmin(
        JOIN users cu ON cu.id = c.customer_id
        JOIN users pu ON pu.id = c.provider_id
       WHERE c.id = $1`,
-    [conversationId],
-  );
-  const conv = convResult.rows[0];
-  if (!conv) throw createAppError('Conversation not found.', 404);
+      [conversationId],
+    );
+    const conv = convResult.rows[0];
+    if (!conv) throw createAppError('Conversation not found.', 404);
 
-  const messages = await db.query<AdminMessageRow>(
-    `SELECT m.id, m.conversation_id, m.sender_id, m.content, m.message_type, m.image_url,
+    const messages = await client.query<AdminMessageRow>(
+      `SELECT m.id, m.conversation_id, m.sender_id, m.content, m.message_type, m.image_url,
             m.is_read, m.is_flagged, m.flag_reviewed_at, m.reported_at, m.report_reason,
             m.redacted_at, m.redacted_by, m.redaction_reason, m.created_at,
             su.first_name AS sender_first, su.last_name AS sender_last, su.role AS sender_role
@@ -230,25 +237,37 @@ export async function getConversationThreadForAdmin(
        JOIN users su ON su.id = m.sender_id
       WHERE m.conversation_id = $1
       ORDER BY m.created_at ASC`,
-    [conversationId],
-  );
+      [conversationId],
+    );
 
-  // Reading the private thread is a PII access — log it.
-  await logModerationAction(adminId, 'conversation_viewed', conv.booking_id, { conversationId });
-  logger.info('Admin viewed conversation', { adminId, conversationId, bookingId: conv.booking_id });
+    // Reading the private thread is a PII access. Do not return it unless the
+    // access ledger write succeeds in the same transaction.
+    await logModerationAction(client, adminId, 'conversation_viewed', conv.booking_id, {
+      conversationId,
+    });
 
-  return {
-    id: conv.id,
-    bookingId: conv.booking_id,
-    customerId: conv.customer_id,
-    customerName: `${conv.customer_first} ${conv.customer_last}`.trim(),
-    providerId: conv.provider_id,
-    providerName: `${conv.provider_first} ${conv.provider_last}`.trim(),
-    isActive: conv.is_active,
-    createdAt: conv.created_at.toISOString(),
-    updatedAt: conv.updated_at.toISOString(),
-    messages: messages.rows.map(formatAdminMessage),
-  };
+    return {
+      bookingId: conv.booking_id,
+      result: {
+        id: conv.id,
+        bookingId: conv.booking_id,
+        customerId: conv.customer_id,
+        customerName: `${conv.customer_first} ${conv.customer_last}`.trim(),
+        providerId: conv.provider_id,
+        providerName: `${conv.provider_first} ${conv.provider_last}`.trim(),
+        isActive: conv.is_active,
+        createdAt: conv.created_at.toISOString(),
+        updatedAt: conv.updated_at.toISOString(),
+        messages: messages.rows.map(formatAdminMessage),
+      },
+    };
+  });
+  logger.info('Admin viewed conversation', {
+    adminId,
+    conversationId,
+    bookingId: thread.bookingId,
+  });
+  return thread.result;
 }
 
 // ─── Review queue (flagged + reported, not yet handled) ──────────────────────
@@ -257,7 +276,12 @@ export async function listModerationQueue(opts: {
   scope?: 'all' | 'flagged' | 'reported';
   page?: number;
   pageSize?: number;
-}): Promise<{ messages: Record<string, unknown>[]; total: number; page: number; pageSize: number }> {
+}): Promise<{
+  messages: Record<string, unknown>[];
+  total: number;
+  page: number;
+  pageSize: number;
+}> {
   const page = Math.max(1, Number(opts.page) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(opts.pageSize) || 25));
   const offset = (page - 1) * pageSize;
@@ -323,63 +347,75 @@ export async function redactMessage(
 ): Promise<Record<string, unknown>> {
   const trimmed = (reason ?? '').trim();
   if (trimmed.length < REDACTION_REASON_MIN) {
-    throw createAppError(`A redaction reason of at least ${REDACTION_REASON_MIN} characters is required.`, 400);
+    throw createAppError(
+      `A redaction reason of at least ${REDACTION_REASON_MIN} characters is required.`,
+      400,
+    );
   }
 
-  const bookingResult = await db.query<{ booking_id: string; already: Date | null }>(
-    `SELECT c.booking_id, m.redacted_at AS already
-       FROM messages m JOIN conversations c ON c.id = m.conversation_id
-      WHERE m.id = $1`,
-    [messageId],
-  );
-  const row = bookingResult.rows[0];
-  if (!row) throw createAppError('Message not found.', 404);
+  const message = await db.transaction(async (client) => {
+    const bookingResult = await client.query<{ booking_id: string; already: Date | null }>(
+      `SELECT c.booking_id, m.redacted_at AS already
+         FROM messages m JOIN conversations c ON c.id = m.conversation_id
+        WHERE m.id = $1`,
+      [messageId],
+    );
+    const row = bookingResult.rows[0];
+    if (!row) throw createAppError('Message not found.', 404);
 
-  const updated = await db.query<AdminMessageRow>(
-    `UPDATE messages
-        SET redacted_at = COALESCE(redacted_at, NOW()),
-            redacted_by = COALESCE(redacted_by, $2),
-            redaction_reason = $3,
-            flag_reviewed_at = COALESCE(flag_reviewed_at, NOW()),
-            flag_reviewed_by = COALESCE(flag_reviewed_by, $2)
-      WHERE id = $1
-      RETURNING id, conversation_id, sender_id, content, message_type, image_url,
-                is_read, is_flagged, flag_reviewed_at, reported_at, report_reason,
-                redacted_at, redacted_by, redaction_reason, created_at,
-                '' AS sender_first, '' AS sender_last, '' AS sender_role`,
-    [messageId, adminId, trimmed],
-  );
+    const updated = await client.query<AdminMessageRow>(
+      `UPDATE messages
+          SET redacted_at = COALESCE(redacted_at, NOW()),
+              redacted_by = COALESCE(redacted_by, $2),
+              redaction_reason = $3,
+              flag_reviewed_at = COALESCE(flag_reviewed_at, NOW()),
+              flag_reviewed_by = COALESCE(flag_reviewed_by, $2)
+        WHERE id = $1
+        RETURNING id, conversation_id, sender_id, content, message_type, image_url,
+                  is_read, is_flagged, flag_reviewed_at, reported_at, report_reason,
+                  redacted_at, redacted_by, redaction_reason, created_at,
+                  '' AS sender_first, '' AS sender_last, '' AS sender_role`,
+      [messageId, adminId, trimmed],
+    );
 
-  await logModerationAction(adminId, 'message_redacted', row.booking_id, {
-    messageId,
-    reason: trimmed,
-    alreadyRedacted: row.already !== null,
+    await logModerationAction(client, adminId, 'message_redacted', row.booking_id, {
+      messageId,
+      reason: trimmed,
+      alreadyRedacted: row.already !== null,
+    });
+    return formatAdminMessage(updated.rows[0]!);
   });
   logger.info('Admin redacted message', { adminId, messageId });
-
-  return formatAdminMessage(updated.rows[0]!);
+  return message;
 }
 
 /** Mark an auto-flag or user report as reviewed/handled (clears it from the queue). */
-export async function reviewFlag(messageId: string, adminId: string): Promise<{ reviewed: boolean }> {
-  const lookup = await db.query<{ booking_id: string }>(
-    `SELECT c.booking_id
-       FROM messages m JOIN conversations c ON c.id = m.conversation_id
-      WHERE m.id = $1`,
-    [messageId],
-  );
-  const row = lookup.rows[0];
-  if (!row) throw createAppError('Message not found.', 404);
+export async function reviewFlag(
+  messageId: string,
+  adminId: string,
+): Promise<{ reviewed: boolean }> {
+  await db.transaction(async (client) => {
+    const lookup = await client.query<{ booking_id: string }>(
+      `SELECT c.booking_id
+         FROM messages m JOIN conversations c ON c.id = m.conversation_id
+        WHERE m.id = $1`,
+      [messageId],
+    );
+    const row = lookup.rows[0];
+    if (!row) throw createAppError('Message not found.', 404);
 
-  await db.query(
-    `UPDATE messages
-        SET flag_reviewed_at = COALESCE(flag_reviewed_at, NOW()),
-            flag_reviewed_by = COALESCE(flag_reviewed_by, $2)
-      WHERE id = $1`,
-    [messageId, adminId],
-  );
+    await client.query(
+      `UPDATE messages
+          SET flag_reviewed_at = COALESCE(flag_reviewed_at, NOW()),
+              flag_reviewed_by = COALESCE(flag_reviewed_by, $2)
+        WHERE id = $1`,
+      [messageId, adminId],
+    );
 
-  await logModerationAction(adminId, 'message_flag_reviewed', row.booking_id, { messageId });
+    await logModerationAction(client, adminId, 'message_flag_reviewed', row.booking_id, {
+      messageId,
+    });
+  });
   logger.info('Admin reviewed message flag', { adminId, messageId });
 
   return { reviewed: true };

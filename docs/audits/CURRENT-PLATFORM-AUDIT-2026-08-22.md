@@ -17,41 +17,41 @@ Current verified repository identity:
 
 The old 29-admin-page and 84-mobile-screen counts are stale.
 
-| Surface | Current code inventory |
-| --- | ---: |
-| Admin routed page components | 34 |
-| Mobile route-screen files | 103 |
-| API route modules | 47 |
-| API Jest suites / tests | 278 / 3,025 |
+| Surface                      | Current code inventory |
+| ---------------------------- | ---------------------: |
+| Admin routed page components |                     34 |
+| Mobile route-screen files    |                    103 |
+| API route modules            |                     47 |
+| API Jest suites / tests      |            278 / 3,025 |
 
 Mobile route-screen families:
 
-| Family | Files |
-| --- | ---: |
-| Customer tabs | 4 |
-| Customer detail/flow screens | 39 |
-| Provider tabs | 4 |
-| Provider operations screens | 35 |
-| Provider onboarding | 10 |
-| Provider staff | 3 |
-| Shared support | 3 |
-| Authentication | 3 |
-| Shared root/onboarding | 2 |
+| Family                       | Files |
+| ---------------------------- | ----: |
+| Customer tabs                |     4 |
+| Customer detail/flow screens |    39 |
+| Provider tabs                |     4 |
+| Provider operations screens  |    35 |
+| Provider onboarding          |    10 |
+| Provider staff               |     3 |
+| Shared support               |     3 |
+| Authentication               |     3 |
+| Shared root/onboarding       |     2 |
 
 The 34 admin components are Login, Change Password, Dashboard, Providers, Provider Detail, Customers, Customer Detail, Bookings, Booking Detail, Catalog, Projects, Disputes, Dispute Detail, Financials, Payouts, Notification Templates, Recurring, Business Accounts, Business Account Detail, Service Areas, Analytics, Audit Log, System Settings, Cancellation Policy, Support Tickets, Staff & Roles, Pricing Rules, Marketing, Dispatch Console, Communications, Compliance, Data Protection Log, Consent Versions, and Not Found.
 
 ## Cross-role source-of-truth trace
 
-| Lifecycle | Customer surface | Provider/staff surface | Admin/support surface | Primary API/domain |
-| --- | --- | --- | --- | --- |
-| Account and identity | Login, OTP, profile, account management, data rights | Login, provider onboarding, KYC, certifications, team/staff | Provider 360, Customer 360, Staff & Roles, Compliance, Data Protection | auth, providers, staff, security, account, compliance |
-| Discovery and coverage | Home, search, category, provider profile, addresses | Services, skills, service area, availability | Catalog, Providers, Service Areas, Pricing Rules | catalog, providers, service-areas, addresses, settings |
-| Request and quote | Booking configure/form/job request, quotes | Leads, quote builder/templates | Bookings, Booking 360, Dispatch | bookings, providers, pricing |
-| Payment and price truth | Checkout, pay, wallet, payment methods | Earnings and job price breakdown | Financials, Payouts, BIR, Settings | payments, wallet, escrow, payouts, financial admin |
-| Fulfilment | Booking detail, tracker, photos, chat, change order | Job detail, navigation, checklist, photos, chat, change order | Booking 360, Dispatch, Communications | bookings, checklist, uploads, messaging/socket |
-| Completion and trust | Complete, tip, review, dispute | Complete, reviews, response/evidence paths | Disputes, Compliance, Audit Log, Support | reviews, tips, disputes, escrow, audit |
-| Retention and larger work | Recurring, Suki, projects, referrals | Suki customers, clients, reminders, insights | Recurring, Projects, Marketing, Business Accounts | recurring, suki, projects, referrals, business, marketing |
-| Support | Help, safety, shared support inbox/thread | Provider Help and shared support | Support Tickets, Communications, booking/customer/provider detail | support-tickets, messaging, notifications |
+| Lifecycle                 | Customer surface                                     | Provider/staff surface                                        | Admin/support surface                                                  | Primary API/domain                                        |
+| ------------------------- | ---------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------- |
+| Account and identity      | Login, OTP, profile, account management, data rights | Login, provider onboarding, KYC, certifications, team/staff   | Provider 360, Customer 360, Staff & Roles, Compliance, Data Protection | auth, providers, staff, security, account, compliance     |
+| Discovery and coverage    | Home, search, category, provider profile, addresses  | Services, skills, service area, availability                  | Catalog, Providers, Service Areas, Pricing Rules                       | catalog, providers, service-areas, addresses, settings    |
+| Request and quote         | Booking configure/form/job request, quotes           | Leads, quote builder/templates                                | Bookings, Booking 360, Dispatch                                        | bookings, providers, pricing                              |
+| Payment and price truth   | Checkout, pay, wallet, payment methods               | Earnings and job price breakdown                              | Financials, Payouts, BIR, Settings                                     | payments, wallet, escrow, payouts, financial admin        |
+| Fulfilment                | Booking detail, tracker, photos, chat, change order  | Job detail, navigation, checklist, photos, chat, change order | Booking 360, Dispatch, Communications                                  | bookings, checklist, uploads, messaging/socket            |
+| Completion and trust      | Complete, tip, review, dispute                       | Complete, reviews, response/evidence paths                    | Disputes, Compliance, Audit Log, Support                               | reviews, tips, disputes, escrow, audit                    |
+| Retention and larger work | Recurring, Suki, projects, referrals                 | Suki customers, clients, reminders, insights                  | Recurring, Projects, Marketing, Business Accounts                      | recurring, suki, projects, referrals, business, marketing |
+| Support                   | Help, safety, shared support inbox/thread            | Provider Help and shared support                              | Support Tickets, Communications, booking/customer/provider detail      | support-tickets, messaging, notifications                 |
 
 This trace exposes the key company rule: admin pages must not invent a second status, price, policy, or identity model. They are support and control surfaces over the same API records used by the customer and provider apps.
 
@@ -67,6 +67,8 @@ This trace exposes the key company rule: admin pages must not invent a second st
 8. Customer, provider, and provider-staff web now have role-specific persistent desktop navigation instead of a widened phone-only shell.
 9. Admin navigation is grouped by operating purpose and shared with page command search; the dashboard now leads with action queues.
 10. Admin support list/detail PII masking is wired at the route boundary, named assignment replaces pasted UUIDs, assignments are validated and audit-logged, and closed-case resolution notes persist.
+11. Production deployment documentation now matches the real shared Hetzner topology; the API deploy workflow is manual until its repository secrets are deliberately configured.
+12. The customer/provider and admin artifacts plus API were deployed at `75ea2fc4e715ccf4b6ed7ff46e013f50e4cf2060`, with GitHub, the local working clone, and `/opt/onservice` verified at the same clean SHA.
 
 ## Open register, ordered by risk
 
@@ -80,15 +82,14 @@ This trace exposes the key company rule: admin pages must not invent a second st
 
 ### Engineering and production operations
 
-- `.github/workflows/deploy.yml` watches `main` and pulls `origin main`, while the real branch is `master`. It also loads a tagged image that the compose service does not select. Automatic deployment is therefore not trustworthy yet.
-- `.github/workflows/gates.yml` does not run on direct `master` pushes even though the rulebook says master is gated. Gate D/E also invoke pnpm in an npm-lockfile repository and tolerate install failures.
-- Docker CI builds an image but carries a stale comment deferring runtime smoke, although the Dockerfile now runs through `tsx`. A real container boot check is still needed.
+- Fixed in the follow-up infrastructure batch: `.github/workflows/gates.yml` runs on direct `master` pushes, report-only Gate D/E skip unnecessary setup, and their blocking setup uses the repository's npm lockfile.
+- Fixed in the follow-up infrastructure batch: Docker CI starts the built image against ephemeral Postgres/Redis services and requires a successful `/health` response.
 - Fresh install requires `npm ci --legacy-peer-deps` because ESLint 10 conflicts with the supported peer range of `eslint-plugin-react`.
 - The current dependency audit reports 42 findings (1 critical, 20 high, 18 moderate, 3 low). Production-only audit reports 38 (1 critical, 17 high, 18 moderate, 2 low). Upgrades need staged testing; do not run a forced audit rewrite.
 - The shared server has shown severe short-term load spikes and SSH `MaxStartups` rejections. Capacity and process attribution need monitoring before traffic is opened.
 - Docker Compose warns that the existing uploads volume is not declared external. This must be reconciled without risking uploaded customer/provider files.
-- `/opt/SERVER-MAP.md` is referenced by production comments but absent.
-- Static frontend deployment is still manual and must recreate nginx after replacing bind-mounted assets to avoid stale inodes.
+- Fixed: `/opt/SERVER-MAP.md` documents the shared host without storing credentials.
+- Static frontend deployment is still manual. The verified procedure extracts into existing bind-mounted directories, preserving their inodes and avoiding a shared-nginx restart.
 
 ### Product, admin, and documentation
 

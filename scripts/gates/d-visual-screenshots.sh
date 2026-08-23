@@ -39,7 +39,7 @@ mobile_flows=$(find apps/mobile/.maestro/visual -type f -name "*.yaml" 2>/dev/nu
 if [ -n "$admin_tests" ]; then
   echo "Running admin Playwright screenshot suite..."
   pushd apps/admin > /dev/null
-  if ! pnpm exec playwright test tests/visual/ --update-snapshots=missing; then
+  if ! npx playwright test tests/visual/ --update-snapshots=missing; then
     fail=1
   fi
   popd > /dev/null

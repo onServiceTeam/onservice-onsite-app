@@ -18,6 +18,7 @@ import {
   type Notification,
 } from '@/services/notification.service';
 import { formatRelative } from '@/utils/date';
+import { Routes, buildRoute } from '@/config/navigation';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import {
@@ -119,22 +120,22 @@ export default function NotificationsScreen(): React.ReactElement {
         || notif.type === 'chat_started')
       && notifData?.bookingId
     ) {
-      router.push(`/customer/chat/${notifData.bookingId}`);
+      router.push(buildRoute(Routes.CUSTOMER.CHAT, { id: notifData.bookingId }));
     } else if (notifData?.bookingId) {
-      router.push(`/customer/booking/${notifData.bookingId}`);
+      router.push(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: notifData.bookingId }));
     } else if (notifData?.disputeId && notifData?.bookingId === undefined) {
       // Disputes always tied to a booking server-side, but if the
       // notification data only has disputeId, fall through to
       // bookings tab so the customer can find it.
-      router.push('/(tabs)/bookings');
+      router.push(Routes.TABS.BOOKINGS);
     } else if (notifData?.providerId) {
-      router.push(`/customer/provider/${notifData.providerId}`);
+      router.push(buildRoute(Routes.CUSTOMER.PROVIDER_PROFILE, { id: notifData.providerId }));
     } else if (notif.type === 'promo' || notif.type === 'referral') {
-      router.push('/customer/referral');
+      router.push(Routes.CUSTOMER.REFERRAL);
     } else if (notif.type === 'rating_received' || notif.type === 'job_completed') {
-      router.push('/(tabs)/bookings');
+      router.push(Routes.TABS.BOOKINGS);
     } else if (notif.type === 'payment_released') {
-      router.push('/(tabs)/wallet');
+      router.push(Routes.TABS.WALLET);
     }
     // Else: no nav, just stays on notifications list (already marked read).
   };
@@ -200,7 +201,7 @@ export default function NotificationsScreen(): React.ReactElement {
           }
           ListEmptyComponent={
             <EmptyState
-              icon="🔔"
+              icon={<Bell size={48} color={colors.textTertiary} />}
               title="No notifications yet"
               description="Booking updates, provider arrivals, quotes, and promos will appear here."
             />

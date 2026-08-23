@@ -14,7 +14,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
-import { Smartphone, CreditCard, Wallet, ScanLine, Lock } from '@/components/icons';
+import { Smartphone, CreditCard, Wallet, ScanLine, Lock, Check } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -81,7 +81,7 @@ export default function CheckoutScreen(): React.ReactElement {
         'Your wallet balance is lower than the total. Top up your wallet or choose another payment method.',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Top Up', onPress: () => router.push('/customer/wallet-topup') },
+          { text: 'Top Up', onPress: () => router.push(Routes.CUSTOMER.WALLET) },
         ],
       );
       return;
@@ -293,10 +293,17 @@ export default function CheckoutScreen(): React.ReactElement {
             see is the price you pay. Suki points + the escrow + ₱10,000 service
             guarantee are surfaced so the value is clear at the pay screen. */}
         <View style={styles.benefitsCard}>
-          <Text style={styles.benefitLine}>✓  No platform fees — you only pay for the service</Text>
-          <Text style={styles.benefitLine}>✓  Held in escrow, released only when you confirm the job</Text>
-          <Text style={styles.benefitLine}>✓  Eligible jobs backed by our Service Guarantee, up to ₱10,000 (subject to terms)</Text>
-          <Text style={styles.benefitLine}>✓  Earn Suki points on this booking</Text>
+          {[
+            'No platform fees — you only pay for the service',
+            'Held in escrow, released only when you confirm the job',
+            'Eligible jobs backed by our Service Guarantee, up to ₱10,000 (subject to terms)',
+            'Earn Suki points on this booking',
+          ].map((benefit) => (
+            <View key={benefit} style={styles.benefitLine}>
+              <Check size={16} color={colors.success} />
+              <Text style={styles.benefitText}>{benefit}</Text>
+            </View>
+          ))}
         </View>
 
         <TrustStrip style={styles.trustStrip} />
@@ -456,7 +463,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     gap: 6,
   },
-  benefitLine: { ...typography.bodySmall, color: colors.text, lineHeight: 20 },
+  benefitLine: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  benefitText: { ...typography.bodySmall, color: colors.text, lineHeight: 20, flex: 1 },
   priceDivider: {
     height: 1,
     backgroundColor: colors.border,

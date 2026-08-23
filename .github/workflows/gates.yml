@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master, main]
   push:
-    branches: [phase/**]
+    branches: [master, phase/**]
 
 env:
   BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/master' }}
@@ -62,28 +62,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Read Gate D enforcement mode
+        id: mode
+        run: echo "value=$(jq -r '.gate_d_state.mode' scripts/gates/MODES.json)" >> "$GITHUB_OUTPUT"
       # E07 — .env.docker is now gitignored (so a real secret can't be committed).
       # Provision the local-dev defaults from the tracked template before the stack starts.
       - name: Provision local dev env file
+        if: steps.mode.outputs.value == 'BLOCKING'
         run: cp infra/docker/.env.docker.example infra/docker/.env.docker
       - uses: pnpm/action-setup@v3
+        if: steps.mode.outputs.value == 'BLOCKING'
         with:
           version: 9
       - uses: actions/setup-node@v7
+        if: steps.mode.outputs.value == 'BLOCKING'
         with: { node-version: '20' }
-        # cache: "pnpm" removed in D03 — this repo uses npm workspaces with
-        # package-lock.json, not pnpm-lock.yaml. setup-node was failing the
-        # job when it couldn't find a pnpm-lock.yaml to cache against.
-        # Gate D and Gate E are REPORT-mode (per MODES.json gate_d_state /
-        # gate_e_state) until D07/D11/D12 populate baselines anyway, so a
-        # cold install is acceptable here.
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        continue-on-error: true
+        if: steps.mode.outputs.value == 'BLOCKING'
+        run: npm ci --legacy-peer-deps
       - name: Install Playwright browsers
-        run: cd apps/admin && pnpm exec playwright install chromium
-        continue-on-error: true
+        if: steps.mode.outputs.value == 'BLOCKING'
+        run: cd apps/admin && npx playwright install chromium
       - name: Bring up local Docker stack (D0.5)
+        if: steps.mode.outputs.value == 'BLOCKING'
         # Gate D needs a real backend for end-to-end visual tests of the
         # admin pages. The local stack matches production behavior for
         # everything except DNS/TLS (D14 production-parity work).
@@ -101,10 +102,9 @@ jobs:
             [ "$healthy" -eq 3 ] && break
             sleep 2
           done
-        continue-on-error: true
       - run: bash scripts/gates/d-visual-screenshots.sh
       - name: Tear down Docker stack
-        if: always()
+        if: always() && steps.mode.outputs.value == 'BLOCKING'
         run: docker compose -f infra/docker/docker-compose.dev.yml --env-file infra/docker/.env.docker down -v --remove-orphans
         continue-on-error: true
       - name: Upload visual diffs (on failure)
@@ -120,24 +120,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
+      - name: Read Gate E enforcement mode
+        id: mode
+        run: echo "value=$(jq -r '.gate_e_state.mode' scripts/gates/MODES.json)" >> "$GITHUB_OUTPUT"
       # E07 — provision the gitignored local-dev env file from the tracked template.
       - name: Provision local dev env file
+        if: steps.mode.outputs.value == 'BLOCKING'
         run: cp infra/docker/.env.docker.example infra/docker/.env.docker
       - uses: pnpm/action-setup@v3
+        if: steps.mode.outputs.value == 'BLOCKING'
         with:
           version: 9
       - uses: actions/setup-node@v7
+        if: steps.mode.outputs.value == 'BLOCKING'
         with: { node-version: '20' }
-        # cache: "pnpm" removed in D03 — this repo uses npm workspaces with
-        # package-lock.json, not pnpm-lock.yaml. setup-node was failing the
-        # job when it couldn't find a pnpm-lock.yaml to cache against.
-        # Gate D and Gate E are REPORT-mode (per MODES.json gate_d_state /
-        # gate_e_state) until D07/D11/D12 populate baselines anyway, so a
-        # cold install is acceptable here.
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        continue-on-error: true
+        if: steps.mode.outputs.value == 'BLOCKING'
+        run: npm ci --legacy-peer-deps
       - name: Bring up local Docker stack (D0.5)
+        if: steps.mode.outputs.value == 'BLOCKING'
         # Gate E mutation testing on integration-tested code paths needs
         # a real DB. Stryker runs jest which connects to postgres for
         # integration tests of the money-conservation suite.
@@ -150,18 +151,17 @@ jobs:
             [ "$s" = "healthy" ] && break
             sleep 2
           done
-        continue-on-error: true
       - name: Run database migrations
+        if: steps.mode.outputs.value == 'BLOCKING'
         run: |
           DATABASE_URL="postgresql://onservice:onservice_dev@localhost:7383/onservice_dev" \
             bash scripts/run-migrations.sh
-        continue-on-error: true
       - run: bash scripts/gates/e-mutation-testing.sh
         env:
           DATABASE_URL: postgresql://onservice:onservice_dev@localhost:7383/onservice_dev
           REDIS_URL: redis://localhost:7385
       - name: Tear down Docker stack
-        if: always()
+        if: always() && steps.mode.outputs.value == 'BLOCKING'
         run: docker compose -f infra/docker/docker-compose.dev.yml --env-file infra/docker/.env.docker down -v --remove-orphans
         continue-on-error: true
       - name: Upload mutation report

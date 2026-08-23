@@ -1213,7 +1213,13 @@ function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-sm font-medium text-[var(--color-text)]">
                     {quote.providerName ?? 'Provider'}
-                    {quote.providerRating != null ? ` · ★ ${quote.providerRating.toFixed(2)}` : ''}
+                    {quote.providerRating != null ? (
+                      <span className="ml-1 inline-flex items-center gap-1" aria-label={`${quote.providerRating.toFixed(2)} out of 5 stars`}>
+                        <span aria-hidden="true">·</span>
+                        <Star size={13} className="text-amber-500" fill="currentColor" aria-hidden="true" />
+                        {quote.providerRating.toFixed(2)}
+                      </span>
+                    ) : null}
                   </span>
                   <div className="flex items-center gap-2">
                     <Badge

@@ -12,6 +12,7 @@ import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
+import { X } from '@/components/icons';
 
 interface LineItemDraft {
   id: number;
@@ -187,7 +188,7 @@ export default function QuoteBuilderScreen(): React.ReactElement {
                 <Text style={styles.lineItemNum}>#{idx + 1}</Text>
                 {items.length > 1 && (
                   <TouchableOpacity onPress={() => removeItem(item.id)} style={styles.removeItemBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={styles.removeItem}>✕</Text>
+                    <X size={16} color={colors.error} />
                   </TouchableOpacity>
                 )}
               </View>

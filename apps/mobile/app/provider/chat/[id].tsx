@@ -40,7 +40,7 @@ import { uploadImages } from '@/services/upload.service';
 import { LazyImage } from '@/components/ui';
 import { formatTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { MessageSquare, Camera, Send, ChevronLeft } from '@/components/icons';
+import { MessageSquare, Camera, Check, CheckCheck, Send, ChevronLeft } from '@/components/icons';
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
 
@@ -198,7 +198,7 @@ export default function ProviderChatScreen(): React.ReactElement {
     try {
       const uploaded = await uploadImages([result.assets[0].uri], 'chat');
       if (uploaded.length > 0) {
-        const msg = await sendMessageApi(conversationId, '📷 Photo', 'image', uploaded[0]!.url);
+        const msg = await sendMessageApi(conversationId, 'Photo', 'image', uploaded[0]!.url);
         setMessages((prev) => {
           if (prev.some((m) => m.id === msg.id)) return prev;
           return [...prev, msg];
@@ -264,11 +264,9 @@ export default function ProviderChatScreen(): React.ReactElement {
           <Text style={[styles.messageTime, isMine ? styles.myTime : styles.theirTime]}>
             {formatTime(item.createdAt)}
           </Text>
-          {isMine && (
-            <Text style={styles.readReceipt}>
-              {item.isRead ? '✓✓' : '✓'}
-            </Text>
-          )}
+          {isMine && (item.isRead
+            ? <CheckCheck size={12} color="rgba(255,255,255,0.7)" accessibilityLabel="Read" />
+            : <Check size={12} color="rgba(255,255,255,0.7)" accessibilityLabel="Sent" />)}
         </View>
       </TouchableOpacity>
     );

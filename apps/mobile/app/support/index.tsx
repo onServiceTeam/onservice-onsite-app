@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft, ChevronRight, Plus } from '@/components/icons';
+import { ChevronLeft, ChevronRight, MessageSquare, Plus } from '@/components/icons';
 import { EmptyState } from '@/components/ui';
 import { Routes, buildRoute } from '@/config/navigation';
 import {
@@ -83,7 +83,7 @@ export default function SupportInboxScreen(): React.ReactElement {
           </View>
         ) : tickets.length === 0 ? (
           <EmptyState
-            icon="💬"
+            icon={<MessageSquare size={48} color={colors.textTertiary} />}
             title="No requests yet"
             description="When you message support, your conversations show up here."
           />

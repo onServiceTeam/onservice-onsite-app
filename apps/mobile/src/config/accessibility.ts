@@ -53,12 +53,12 @@ export const highContrastColors = {
  * Ensures status is distinguishable without relying solely on color.
  */
 export const statusIndicators: Record<string, { icon: string; label: string }> = {
-  pending: { icon: '⏳', label: 'Pending' },
-  confirmed: { icon: '✓', label: 'Confirmed' },
-  inProgress: { icon: '▶', label: 'In Progress' },
-  completed: { icon: '✓✓', label: 'Completed' },
+  pending: { icon: 'P', label: 'Pending' },
+  confirmed: { icon: 'C', label: 'Confirmed' },
+  inProgress: { icon: 'IP', label: 'In Progress' },
+  completed: { icon: 'D', label: 'Completed' },
   disputed: { icon: '!', label: 'Disputed' },
-  cancelled: { icon: '✕', label: 'Cancelled' },
+  cancelled: { icon: 'X', label: 'Cancelled' },
 };
 
 export function announceForAccessibility(message: string): void {

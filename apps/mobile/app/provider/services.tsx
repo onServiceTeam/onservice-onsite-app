@@ -27,6 +27,7 @@ import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Wrench, X } from '@/components/icons';
 
 export default function ManageServicesScreen(): React.ReactElement {
   const router = useRouter();
@@ -133,7 +134,7 @@ export default function ManageServicesScreen(): React.ReactElement {
           // BUG-PHASE183-01 — empty state has an embedded "Add Your First
           // Service" CTA so a provider sees a clear next step.
           <EmptyState
-            icon="🧰"
+            icon={<Wrench size={48} color={colors.textTertiary} />}
             title="No services added yet"
             description="Add services you can offer to customers."
             actionLabel={!showAdd ? 'Add Your First Service' : undefined}
@@ -153,7 +154,7 @@ export default function ManageServicesScreen(): React.ReactElement {
                 onPress={() => handleRemove(svc)}
                 disabled={removeMutation.isPending}
               >
-                <Text style={styles.removeText}>✕</Text>
+                <X size={16} color={colors.error} />
               </TouchableOpacity>
             </View>
           ))

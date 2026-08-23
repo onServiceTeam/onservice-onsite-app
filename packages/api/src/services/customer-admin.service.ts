@@ -178,7 +178,10 @@ export type CustomerStatusAction = 'suspend' | 'reactivate' | 'flag_fraud';
 // Profile
 // ─────────────────────────────────────────────────────────────────
 
-export async function getCustomerProfile(customerId: string, actorRole: string): Promise<CustomerProfile> {
+export async function getCustomerProfile(
+  customerId: string,
+  actorRole: string,
+): Promise<CustomerProfile> {
   const userResult = await db.query<{
     id: string;
     first_name: string;
@@ -315,20 +318,22 @@ export async function revealCustomerContact(
   customerId: string,
   adminId: string,
 ): Promise<{ phone: string; email: string | null }> {
-  const result = await db.query<{ phone: string; email: string | null }>(
-    `SELECT phone, email FROM users WHERE id = $1 AND role = 'customer'`,
-    [customerId],
-  );
-  const row = result.rows[0];
-  if (!row) throw createAppError('Customer not found.', 404);
+  return db.transaction(async (client) => {
+    const result = await client.query<{ phone: string; email: string | null }>(
+      `SELECT phone, email FROM users WHERE id = $1 AND role = 'customer'`,
+      [customerId],
+    );
+    const row = result.rows[0];
+    if (!row) throw createAppError('Customer not found.', 404);
 
-  await db.query(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-     VALUES ($1, 'pii_reveal', 'customer', $2, $3::jsonb)`,
-    [adminId, customerId, JSON.stringify({ fields: ['phone', 'email'] })],
-  );
-  logger.info('Customer contact revealed', { adminId, customerId });
-  return { phone: row.phone, email: row.email };
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'pii_reveal', 'customer', $2, $3::jsonb)`,
+      [adminId, customerId, JSON.stringify({ fields: ['phone', 'email'] })],
+    );
+    logger.info('Customer contact revealed', { adminId, customerId });
+    return { phone: row.phone, email: row.email };
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -539,12 +544,16 @@ export async function getCustomerDisputes(customerId: string): Promise<CustomerD
   // the original constants).
   let countThreshold = 5;
   let windowDays = 30;
-  let favorRateThreshold = 0.80;
+  let favorRateThreshold = 0.8;
   try {
-    countThreshold = await settingsService.getSettingInteger('fraud_pattern_dispute_count_threshold');
+    countThreshold = await settingsService.getSettingInteger(
+      'fraud_pattern_dispute_count_threshold',
+    );
     windowDays = await settingsService.getSettingInteger('fraud_pattern_window_days');
-    favorRateThreshold = Number(await settingsService.getSetting('fraud_pattern_favor_provider_rate'));
-    if (!Number.isFinite(favorRateThreshold)) favorRateThreshold = 0.80;
+    favorRateThreshold = Number(
+      await settingsService.getSetting('fraud_pattern_favor_provider_rate'),
+    );
+    if (!Number.isFinite(favorRateThreshold)) favorRateThreshold = 0.8;
   } catch (err) {
     logger.warn('Fraud-pattern threshold settings unreadable; using built-in defaults', {
       error: err instanceof Error ? err.message : String(err),
@@ -556,10 +565,16 @@ export async function getCustomerDisputes(customerId: string): Promise<CustomerD
   const recent = rows.filter((r) => new Date(r.createdAt).getTime() >= cutoff);
   const resolved = recent.filter((r) => r.status === 'resolved');
   const favorProvider = resolved.filter(
-    (r) => r.resolutionType === 'no_refund' || r.resolutionType === 'refund_with_warning' || r.resolutionType === 'refund_with_suspension',
+    (r) =>
+      r.resolutionType === 'no_refund' ||
+      r.resolutionType === 'refund_with_warning' ||
+      r.resolutionType === 'refund_with_suspension',
   ).length;
   const favorProviderRate = resolved.length > 0 ? favorProvider / resolved.length : null;
-  const flagged = recent.length >= countThreshold && favorProviderRate !== null && favorProviderRate >= favorRateThreshold;
+  const flagged =
+    recent.length >= countThreshold &&
+    favorProviderRate !== null &&
+    favorProviderRate >= favorRateThreshold;
   let reason: string | null = null;
   if (flagged) {
     const pct = Math.round((favorProviderRate ?? 0) * 100);
@@ -831,8 +846,8 @@ export async function updateCustomerStatus(
 
     let newIsActive = user.is_active;
     // Phase L typecheck fix — widen union to include the
-     // 'customer_flagged_fraud' branch added by MED-N15. Pre-fix the
-     // narrower union made the assignment on line ~806 a TS2322.
+    // 'customer_flagged_fraud' branch added by MED-N15. Pre-fix the
+    // narrower union made the assignment on line ~806 a TS2322.
     let actionType: 'customer_suspended' | 'customer_reactivated' | 'customer_flagged_fraud';
 
     if (action === 'suspend') {
@@ -853,10 +868,10 @@ export async function updateCustomerStatus(
     }
 
     if (action !== 'flag_fraud' && newIsActive !== user.is_active) {
-      await client.query(
-        `UPDATE users SET is_active = $1, updated_at = NOW() WHERE id = $2`,
-        [newIsActive, customerId],
-      );
+      await client.query(`UPDATE users SET is_active = $1, updated_at = NOW() WHERE id = $2`, [
+        newIsActive,
+        customerId,
+      ]);
     }
 
     if (action === 'flag_fraud') {
@@ -871,13 +886,7 @@ export async function updateCustomerStatus(
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
        VALUES ($1, $2, 'customer', $3, $4::jsonb, $5)`,
-      [
-        adminUserId,
-        actionType,
-        customerId,
-        JSON.stringify({ requestedAction: action }),
-        trimmed,
-      ],
+      [adminUserId, actionType, customerId, JSON.stringify({ requestedAction: action }), trimmed],
     );
 
     logger.info('Customer status updated', {

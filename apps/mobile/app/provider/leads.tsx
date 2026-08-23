@@ -19,7 +19,7 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { EmptyState, ErrorState, SkeletonCard, Badge } from '@/components/ui';
-import { ChevronLeft } from '@/components/icons';
+import { ChevronLeft, Inbox } from '@/components/icons';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
@@ -164,7 +164,7 @@ export default function ProviderLeadsScreen(): React.ReactElement {
           }
           ListEmptyComponent={
             <EmptyState
-              icon="📭"
+              icon={<Inbox size={48} color={colors.textTertiary} />}
               title="No open job requests"
               description="When a customer requests a custom quote in your service area, it will show up here. Make sure your services and service area are set so you get matched."
             />

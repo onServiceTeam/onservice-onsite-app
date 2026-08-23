@@ -48,7 +48,7 @@ import {
   Label,
   Textarea,
 } from '@/components/ui';
-import { Activity, RefreshCw, MapPin, AlertCircle } from '@/components/icons';
+import { Activity, RefreshCw, MapPin, AlertCircle, X } from '@/components/icons';
 import { useAuthStore } from '@/stores/auth.store';
 
 // Vite ships broken default icon URLs; merge in the bundled assets.
@@ -814,8 +814,9 @@ export default function DispatchConsolePage(): React.ReactElement {
               type="button"
               onClick={() => setSelectedBookingId(null)}
               className="text-slate-500 hover:text-slate-900 text-sm"
+              aria-label="Close booking details"
             >
-              ✕
+              <X size={16} aria-hidden="true" />
             </button>
           </div>
           <div className="p-4 text-xs space-y-2 overflow-y-auto">

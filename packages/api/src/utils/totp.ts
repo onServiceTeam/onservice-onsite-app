@@ -76,7 +76,11 @@ export function verifyTotp(base32Secret: string, token: string, window: number =
   return false;
 }
 
-export function generateTotpUri(secret: string, email: string, issuer: string = 'onService'): string {
+export function generateTotpUri(
+  secret: string,
+  email: string,
+  issuer: string = 'onService',
+): string {
   const encodedIssuer = encodeURIComponent(issuer);
   const encodedEmail = encodeURIComponent(email);
   return `otpauth://totp/${encodedIssuer}:${encodedEmail}?secret=${secret}&issuer=${encodedIssuer}&algorithm=SHA1&digits=${TOTP_DIGITS}&period=${TOTP_PERIOD}`;
@@ -99,8 +103,8 @@ function getEncryptionKey(): Buffer | null {
   if (!/^[0-9a-fA-F]{64}$/.test(keyHex)) {
     throw new Error(
       `TOTP_ENCRYPTION_KEY must be exactly 64 hex chars (32 bytes for AES-256). ` +
-      `Got ${keyHex.length} chars; first chars: "${keyHex.slice(0, 8)}". ` +
-      `Generate one with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+        `Got ${keyHex.length} chars; first chars: "${keyHex.slice(0, 8)}". ` +
+        `Generate one with: node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))"`,
     );
   }
   return Buffer.from(keyHex, 'hex');
@@ -110,7 +114,9 @@ export function encryptSecret(plaintext: string): string {
   const key = getEncryptionKey();
   if (!key) return plaintext; // Fallback: store unencrypted if key not configured
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
+  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv, {
+    authTagLength: AUTH_TAG_LENGTH,
+  });
   const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const authTag = cipher.getAuthTag();
   return `enc:${Buffer.concat([iv, authTag, encrypted]).toString('base64')}`;
@@ -124,7 +130,9 @@ export function decryptSecret(stored: string): string {
   const iv = data.subarray(0, IV_LENGTH);
   const authTag = data.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
   const encrypted = data.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
-  const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
+  const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, iv, {
+    authTagLength: AUTH_TAG_LENGTH,
+  });
   decipher.setAuthTag(authTag);
   return decipher.update(encrypted) + decipher.final('utf8');
 }

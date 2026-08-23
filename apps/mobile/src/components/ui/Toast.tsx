@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { create } from 'zustand';
 import { hapticSuccess, hapticError, hapticWarning } from '@/utils/haptics';
 import { colors } from '@/config/theme';
+import { AlertTriangle, Check, Info, X } from '@/components/icons';
+import type { ComponentType } from 'react';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -44,11 +46,13 @@ export const useToastStore = create<ToastState>((set) => ({
   },
 }));
 
-const TOAST_COLORS: Record<ToastType, { bg: string; text: string; icon: string }> = {
-  success: { bg: colors.success, text: colors.white, icon: '✓' },
-  error: { bg: colors.error, text: colors.white, icon: '✕' },
-  warning: { bg: colors.warning, text: colors.text, icon: '!' },
-  info: { bg: colors.info, text: colors.white, icon: 'i' },
+type ToastIcon = ComponentType<{ size?: number; color?: string }>;
+
+const TOAST_COLORS: Record<ToastType, { bg: string; text: string; icon: ToastIcon }> = {
+  success: { bg: colors.success, text: colors.white, icon: Check },
+  error: { bg: colors.error, text: colors.white, icon: X },
+  warning: { bg: colors.warning, text: colors.text, icon: AlertTriangle },
+  info: { bg: colors.info, text: colors.white, icon: Info },
 };
 
 // Phase K MED-K19 fix — display duration is now severity-aware so a
@@ -130,6 +134,7 @@ export function ToastProvider(): React.ReactElement | null {
   if (!visible) return null;
 
   const toastStyle = TOAST_COLORS[type];
+  const ToastIcon = toastStyle.icon;
 
   return (
     <Animated.View
@@ -147,14 +152,12 @@ export function ToastProvider(): React.ReactElement | null {
       accessibilityLiveRegion="assertive"
       accessibilityLabel={`${type}: ${message}`}
     >
-      <View style={styles.iconWrapper}>
-        <Text
-          style={[styles.icon, { color: toastStyle.text }]}
-          accessibilityElementsHidden={true}
-          importantForAccessibility="no"
-        >
-          {toastStyle.icon}
-        </Text>
+      <View
+        style={styles.iconWrapper}
+        accessibilityElementsHidden={true}
+        importantForAccessibility="no"
+      >
+        <ToastIcon size={16} color={toastStyle.text} />
       </View>
       <Text
         style={[styles.message, { color: toastStyle.text }]}
@@ -218,10 +221,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
-  },
-  icon: {
-    fontSize: 16,
-    fontWeight: '700',
   },
   message: {
     flex: 1,

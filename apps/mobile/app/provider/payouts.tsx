@@ -28,6 +28,8 @@ import { platformConfig } from '@/config/platform.config';
 import PaginationLoader from '@/components/PaginationLoader';
 import EarningsChart from '@/components/provider/EarningsChart';
 import CommissionBreakdown from '@/components/provider/CommissionBreakdown';
+import { Routes } from '@/config/navigation';
+import { Building2 } from '@/components/icons';
 
 interface Payout {
   id: string;
@@ -183,7 +185,7 @@ export default function PayoutsScreen(): React.ReactElement {
         <Text style={styles.title}>Payout History</Text>
         <TouchableOpacity
           style={styles.headerCta}
-          onPress={() => router.push('/provider/withdraw')}
+          onPress={() => router.push(Routes.PROVIDER.WITHDRAW)}
           accessibilityLabel="Request a new withdrawal"
         >
           <Text style={styles.headerCtaText}>Withdraw</Text>
@@ -253,7 +255,7 @@ export default function PayoutsScreen(): React.ReactElement {
               </View>
             ) : (
               <EmptyState
-                icon="🏦"
+                icon={<Building2 size={48} color={colors.textTertiary} />}
                 title="No payouts yet"
                 description="Completed withdrawals will appear here."
               />

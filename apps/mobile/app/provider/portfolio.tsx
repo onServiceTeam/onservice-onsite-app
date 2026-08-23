@@ -297,7 +297,7 @@ export default function PortfolioScreen(): React.ReactElement {
       >
         {portfolio.length === 0 ? (
           <EmptyState
-            icon="📷"
+            icon={<Camera size={48} color={colors.textTertiary} />}
             title="No Portfolio Photos Yet"
             description="Add photos of your past work to build trust with customers and showcase your skills."
             actionLabel="Add Your First Photo"

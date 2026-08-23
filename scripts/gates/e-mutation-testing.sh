@@ -41,12 +41,12 @@ echo "Running mutation testing on changed files:"
 echo "$CHANGED_FILES" | head -20
 
 if [ ! -d "packages/api/node_modules/@stryker-mutator" ]; then
-  echo "Gate E: stryker not installed in packages/api/node_modules; run 'pnpm install' (per Dispatch 0 step 0.7.1)"
+  echo "Gate E: stryker not installed in packages/api/node_modules; run 'npm ci --legacy-peer-deps'"
   exit 1
 fi
 
 pushd packages/api > /dev/null
-pnpm exec stryker run --mutate "$CHANGED_FILES" --reporters json,clear-text
+npx --no-install stryker run --mutate "$CHANGED_FILES" --reporters json,clear-text
 popd > /dev/null
 
 # Parse stryker output

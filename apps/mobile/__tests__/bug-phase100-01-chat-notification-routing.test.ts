@@ -1,58 +1,69 @@
-// BUG-PHASE100-01 — chat-related notifications (new_message,
-// chat_last_message, chat_started) route directly to the chat
-// thread on both customer and provider sides.
-//
-// Pre-fix the routing logic in customer/notifications.tsx and
-// provider/notifications.tsx checked `notifData?.bookingId` first
-// and routed everyone to the booking/job detail screen. Chat
-// notifications include `bookingId` in their data payload (set by
-// booking-admin.service when an admin sends to a customer + by the
-// regular messaging endpoints), so they fell into that branch and
-// the user was dumped on the booking/job detail screen. To
-// actually read the message that just buzzed their phone they had
-// to tap "Chat with Provider" / "Chat with Customer" once more —
-// two taps where one should do.
-//
-// Fix: both screens add a chat-type short-circuit BEFORE the
-// generic bookingId branch. When notif.type matches a chat type
-// AND bookingId is present, route to the chat thread directly.
+import React from 'react';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import CustomerNotificationsScreen from '../app/customer/notifications';
+import ProviderNotificationsScreen from '../app/provider/notifications';
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+const mockPush = jest.fn();
+const mockBack = jest.fn();
 
-const CUSTOMER = readFileSync(
-  resolve(__dirname, '../app/customer/notifications.tsx'),
-  'utf8',
-);
-const PROVIDER = readFileSync(
-  resolve(__dirname, '../app/provider/notifications.tsx'),
-  'utf8',
-);
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush, back: mockBack }),
+}));
 
-const CHAT_TYPES_CHECK = /'new_message'\s*\|\|\s*notif\.type === 'chat_last_message'\s*\|\|\s*notif\.type === 'chat_started'/;
+jest.mock('@/services/notification.service', () => ({
+  getNotifications: jest.fn().mockResolvedValue({
+    notifications: [
+      {
+        id: 'notification-1',
+        type: 'new_message',
+        title: 'New chat message',
+        body: 'Open the conversation',
+        data: { bookingId: 'booking with spaces' },
+        isRead: true,
+        createdAt: '2026-08-23T00:00:00.000Z',
+      },
+    ],
+    total: 1,
+    unread: 0,
+  }),
+  markNotificationRead: jest.fn().mockResolvedValue(undefined),
+  markAllNotificationsRead: jest.fn().mockResolvedValue(0),
+}));
 
-describe('BUG-PHASE100-01 — chat notifications route to chat threads on both sides', () => {
-  it('BUG-PHASE100-01 — customer notifications shortcut hits all 3 chat types', () => {
-    expect(CUSTOMER).toMatch(CHAT_TYPES_CHECK);
+function renderNotifications(Screen: React.ComponentType): ReturnType<typeof render> {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  return render(
+    React.createElement(
+      QueryClientProvider,
+      { client },
+      React.createElement(Screen),
+    ),
+  );
+}
+
+describe('chat notification routing', () => {
+  afterEach(() => {
+    cleanup();
+    mockPush.mockClear();
   });
 
-  it('BUG-PHASE100-01 — customer chat shortcut precedes the generic bookingId branch', () => {
-    const chatBranchIdx = CUSTOMER.indexOf("router.push(`/customer/chat/${notifData.bookingId}`)");
-    const detailBranchIdx = CUSTOMER.indexOf("router.push(`/customer/booking/${notifData.bookingId}`)");
-    expect(chatBranchIdx).toBeGreaterThan(0);
-    expect(detailBranchIdx).toBeGreaterThan(0);
-    expect(chatBranchIdx).toBeLessThan(detailBranchIdx);
-  });
+  it('BUG-PHASE100-01 — opens the direct chat thread for customer and provider notifications', async () => {
+    const customer = renderNotifications(CustomerNotificationsScreen);
+    fireEvent.click(await customer.findByText('New chat message'));
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/customer/chat/booking%20with%20spaces');
+    });
 
-  it('BUG-PHASE100-01 — provider notifications shortcut hits all 3 chat types', () => {
-    expect(PROVIDER).toMatch(CHAT_TYPES_CHECK);
-  });
+    cleanup();
+    mockPush.mockClear();
 
-  it('BUG-PHASE100-01 — provider chat shortcut precedes the generic bookingId branch', () => {
-    const chatBranchIdx = PROVIDER.indexOf("router.push(`/provider/chat/${notifData.bookingId}`)");
-    const detailBranchIdx = PROVIDER.indexOf("router.push(`/provider/job/${notifData.bookingId}`)");
-    expect(chatBranchIdx).toBeGreaterThan(0);
-    expect(detailBranchIdx).toBeGreaterThan(0);
-    expect(chatBranchIdx).toBeLessThan(detailBranchIdx);
+    const provider = renderNotifications(ProviderNotificationsScreen);
+    fireEvent.click(await provider.findByText('New chat message'));
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/provider/chat/booking%20with%20spaces');
+    });
   });
 });

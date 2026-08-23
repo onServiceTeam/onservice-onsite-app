@@ -128,22 +128,8 @@ describe('BUG-PHASE125-01 — rating notification end-to-end (API emit + mobile 
       expect(PROVIDER_NOTIFS).toMatch(/new_message: MessageSquare,/);
     });
 
-    it('BUG-PHASE125-01 — routing keyed on rating_received (not review_received) lands on /provider/reviews', () => {
-      expect(PROVIDER_NOTIFS).toMatch(/notif\.type === 'rating_received'[\s\S]+?router\.push\('\/provider\/reviews'\)/);
-      expect(PROVIDER_NOTIFS).not.toMatch(/notif\.type === 'review_received'/);
-    });
-
-    it('BUG-PHASE125-01 — routing keyed on payment / payment_released (not tip_received / payment_received) lands on earnings', () => {
-      expect(PROVIDER_NOTIFS).toMatch(
-        /notif\.type === 'payment' \|\| notif\.type === 'payment_released'[\s\S]+?router\.push\('\/\(provider-tabs\)\/earnings'\)/,
-      );
-      expect(PROVIDER_NOTIFS).not.toMatch(/notif\.type === 'tip_received'/);
-      expect(PROVIDER_NOTIFS).not.toMatch(/notif\.type === 'payment_received'/);
-    });
-
-    it('BUG-PHASE125-01 — tier_upgrade / nbi_expiring routing branches added', () => {
-      expect(PROVIDER_NOTIFS).toMatch(/'tier_upgrade'[\s\S]+?router\.push\('\/provider\/tier-progression'\)/);
-      expect(PROVIDER_NOTIFS).toMatch(/'nbi_expiring'[\s\S]+?router\.push\('\/provider\/account-management'\)/);
-    });
+    // Routing is covered by the rendered-screen behavior test at
+    // apps/mobile/__tests__/bug-phase125-01-notification-routing.test.tsx.
+    // Keep this API-side file focused on the emitted type and icon-key contract.
   });
 });

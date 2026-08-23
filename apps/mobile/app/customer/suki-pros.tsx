@@ -13,6 +13,7 @@ import { Sparkle, Star, Award, Crown, Heart, ChevronLeft } from '@/components/ic
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
 import { SkeletonCard, EmptyState, ErrorState, SectionHeader } from '@/components/ui';
 import { showToast } from '@/lib/toast';
+import { Routes } from '@/config/navigation';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -250,11 +251,11 @@ export default function SukiProsScreen(): React.ReactElement {
             // BUG-PHASE174-01 — empty state has a "Browse Services" CTA (the
             // Suki feature requires repeat bookings with the same provider).
             <EmptyState
-              icon="💛"
+              icon={<Heart size={48} color={colors.textTertiary} />}
               title="No Suki Relationships Yet"
               description="Complete bookings with the same provider to start building Suki loyalty and earn points!"
               actionLabel="Browse Services"
-              onAction={() => router.push('/(tabs)/home')}
+              onAction={() => router.push(Routes.TABS.HOME)}
             />
           ) : (
             <>

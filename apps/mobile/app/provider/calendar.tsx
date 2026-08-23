@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getCalendarData, type CalendarJob, type AvailabilityOverride } from '@/services/provider-api.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Settings } from '@/components/icons';
+import { Calendar, Settings } from '@/components/icons';
 // A7 — shared empty state for the selected-day job list.
 import { EmptyState } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
@@ -250,7 +250,7 @@ export default function ProviderCalendarScreen(): React.ReactElement {
 
         {selectedJobs.length === 0 ? (
           <EmptyState
-            icon="📅"
+            icon={<Calendar size={48} color={colors.textTertiary} />}
             title="No jobs scheduled"
             description="You have no jobs on this day."
           />

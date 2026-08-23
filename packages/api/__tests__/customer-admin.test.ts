@@ -46,6 +46,10 @@ import * as svc from '../src/services/customer-admin.service';
 beforeEach(() => {
   dbQueryMock.mockReset();
   dbTransactionMock.mockReset();
+  dbTransactionMock.mockImplementation(
+    (cb: (client: { query: (...args: unknown[]) => unknown }) => unknown) =>
+      cb({ query: (...args: unknown[]) => dbQueryMock(...args) }),
+  );
 });
 
 function rows<T>(data: T[]): { rows: T[]; rowCount: number } {
@@ -161,7 +165,9 @@ describe('getCustomerProfile', () => {
         ]),
       )
       .mockResolvedValueOnce(
-        rows([{ lifetime_bookings: '0', lifetime_spent: '0', avg_rating: null, total_reviews: '0' }]),
+        rows([
+          { lifetime_bookings: '0', lifetime_spent: '0', avg_rating: null, total_reviews: '0' },
+        ]),
       )
       .mockResolvedValueOnce(rows([]))
       .mockResolvedValueOnce(rows([]));
@@ -192,7 +198,9 @@ describe('getCustomerProfile', () => {
         ]),
       )
       .mockResolvedValueOnce(
-        rows([{ lifetime_bookings: '0', lifetime_spent: '0', avg_rating: null, total_reviews: '0' }]),
+        rows([
+          { lifetime_bookings: '0', lifetime_spent: '0', avg_rating: null, total_reviews: '0' },
+        ]),
       )
       .mockResolvedValueOnce(rows([]))
       .mockResolvedValueOnce(rows([]));
@@ -227,13 +235,14 @@ describe('getCustomerProfile', () => {
 // ─── revealCustomerContact ──────────────────────────────────────────────────
 
 describe('revealCustomerContact', () => {
-  it('returns raw contact and writes a pii_reveal audit row', async () => {
+  it('Bug UX-014 — returns contact only through an audit-logged transaction', async () => {
     dbQueryMock
       .mockResolvedValueOnce(rows([{ phone: '+639171234567', email: 'joe@example.com' }]))
       .mockResolvedValueOnce(rows([])); // INSERT into admin_actions
 
     const out = await svc.revealCustomerContact(CUSTOMER_ID, ADMIN_ID);
     expect(out).toEqual({ phone: '+639171234567', email: 'joe@example.com' });
+    expect(dbTransactionMock).toHaveBeenCalledTimes(1);
 
     const insertCall = dbQueryMock.mock.calls[1];
     expect(insertCall[0]).toMatch(/INSERT INTO admin_actions/);
@@ -254,24 +263,22 @@ describe('revealCustomerContact', () => {
 
 describe('getCustomerBookings', () => {
   it('clamps page/pageSize and returns rows + total', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ count: '17' }]))
-      .mockResolvedValueOnce(
-        rows([
-          {
-            id: 'b1',
-            provider_id: 'p1',
-            business_name: 'Acme',
-            category_name: 'Plumbing',
-            status: 'confirmed',
-            total_amount: 100000,
-            scheduled_at: new Date('2024-01-15T08:00:00Z'),
-            completed_at: new Date('2024-01-15T10:00:00Z'),
-            rating_given: 4,
-            has_dispute: false,
-          },
-        ]),
-      );
+    dbQueryMock.mockResolvedValueOnce(rows([{ count: '17' }])).mockResolvedValueOnce(
+      rows([
+        {
+          id: 'b1',
+          provider_id: 'p1',
+          business_name: 'Acme',
+          category_name: 'Plumbing',
+          status: 'confirmed',
+          total_amount: 100000,
+          scheduled_at: new Date('2024-01-15T08:00:00Z'),
+          completed_at: new Date('2024-01-15T10:00:00Z'),
+          rating_given: 4,
+          has_dispute: false,
+        },
+      ]),
+    );
     const out = await svc.getCustomerBookings(CUSTOMER_ID, 0, 9999);
     expect(out.page).toBe(1);
     expect(out.pageSize).toBe(100);
@@ -281,9 +288,7 @@ describe('getCustomerBookings', () => {
   });
 
   it('applies status filter via $2 placeholder', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ count: '0' }]))
-      .mockResolvedValueOnce(rows([]));
+    dbQueryMock.mockResolvedValueOnce(rows([{ count: '0' }])).mockResolvedValueOnce(rows([]));
     await svc.getCustomerBookings(CUSTOMER_ID, 1, 20, 'confirmed');
     const countSql = dbQueryMock.mock.calls[0][0] as string;
     expect(countSql).toMatch(/b\.status = \$2/);
@@ -293,24 +298,22 @@ describe('getCustomerBookings', () => {
   });
 
   it('coerces null category to "Uncategorized"', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ count: '1' }]))
-      .mockResolvedValueOnce(
-        rows([
-          {
-            id: 'b1',
-            provider_id: null,
-            business_name: null,
-            category_name: null as unknown as string,
-            status: 'requested',
-            total_amount: 0,
-            scheduled_at: new Date('2024-01-01T00:00:00Z'),
-            completed_at: null,
-            rating_given: null,
-            has_dispute: false,
-          },
-        ]),
-      );
+    dbQueryMock.mockResolvedValueOnce(rows([{ count: '1' }])).mockResolvedValueOnce(
+      rows([
+        {
+          id: 'b1',
+          provider_id: null,
+          business_name: null,
+          category_name: null as unknown as string,
+          status: 'requested',
+          total_amount: 0,
+          scheduled_at: new Date('2024-01-01T00:00:00Z'),
+          completed_at: null,
+          rating_given: null,
+          has_dispute: false,
+        },
+      ]),
+    );
     const out = await svc.getCustomerBookings(CUSTOMER_ID, 1, 10);
     expect(out.rows[0].categoryName).toBe('Uncategorized');
     expect(out.rows[0].providerBusinessName).toBeNull();
@@ -606,22 +609,20 @@ describe('getCustomerActivity', () => {
 // ─── updateCustomerStatus ───────────────────────────────────────────────────
 
 describe('updateCustomerStatus', () => {
-  function setupTransaction(
-    selectRows: { id: string; is_active: boolean }[],
-  ): { calls: { sql: string; params: unknown[] }[] } {
+  function setupTransaction(selectRows: { id: string; is_active: boolean }[]): {
+    calls: { sql: string; params: unknown[] }[];
+  } {
     const calls: { sql: string; params: unknown[] }[] = [];
-    dbTransactionMock.mockImplementation(
-      async (cb: (client: { query: jest.Mock }) => unknown) => {
-        const clientQuery = jest.fn(async (sql: string, params: unknown[]) => {
-          calls.push({ sql, params });
-          if (sql.includes('SELECT id, is_active')) return rows(selectRows);
-          if (sql.startsWith('UPDATE users')) return { rows: [], rowCount: 1 };
-          if (sql.startsWith('INSERT INTO admin_actions')) return rows([]);
-          return rows([]);
-        });
-        return cb({ query: clientQuery as unknown as jest.Mock });
-      },
-    );
+    dbTransactionMock.mockImplementation(async (cb: (client: { query: jest.Mock }) => unknown) => {
+      const clientQuery = jest.fn(async (sql: string, params: unknown[]) => {
+        calls.push({ sql, params });
+        if (sql.includes('SELECT id, is_active')) return rows(selectRows);
+        if (sql.startsWith('UPDATE users')) return { rows: [], rowCount: 1 };
+        if (sql.startsWith('INSERT INTO admin_actions')) return rows([]);
+        return rows([]);
+      });
+      return cb({ query: clientQuery as unknown as jest.Mock });
+    });
     return { calls };
   }
 
@@ -688,7 +689,9 @@ describe('updateCustomerStatus', () => {
     // The is_active UPDATE must NOT run.
     expect(calls.some((c) => c.sql.startsWith('UPDATE users SET is_active'))).toBe(false);
     // BUT the is_flagged_fraud UPDATE MUST run (MED-N15).
-    expect(calls.some((c) => c.sql.startsWith('UPDATE users SET is_flagged_fraud = TRUE'))).toBe(true);
+    expect(calls.some((c) => c.sql.startsWith('UPDATE users SET is_flagged_fraud = TRUE'))).toBe(
+      true,
+    );
     const insertCall = calls.find((c) => c.sql.startsWith('INSERT INTO admin_actions'))!;
     // MED-N15: action_type now correctly recorded; reason no longer needs the prefix.
     expect(insertCall.params[1]).toBe('customer_flagged_fraud');
@@ -718,35 +721,36 @@ describe('creditCustomerWallet', () => {
   }): { calls: { sql: string; params: unknown[] }[] } {
     const calls: { sql: string; params: unknown[] }[] = [];
     let walletSelectCount = 0;
-    dbTransactionMock.mockImplementation(
-      async (cb: (client: { query: jest.Mock }) => unknown) => {
-        const clientQuery = jest.fn(async (sql: string, params: unknown[]) => {
-          calls.push({ sql, params });
-          if (sql.includes("FROM users WHERE id = $1 AND role = 'customer'")) {
-            return rows(opts.customerExists ? [{ id: CUSTOMER_ID }] : []);
-          }
-          if (sql.includes('SELECT id, available_balance FROM wallets') && sql.includes("type = 'customer'")) {
-            walletSelectCount += 1;
-            return rows(opts.walletRows);
-          }
-          if (sql.startsWith('INSERT INTO wallets')) {
-            return rows(opts.insertWallet ? [opts.insertWallet] : []);
-          }
-          if (sql.includes('SELECT id, available_balance FROM wallets WHERE id = $1 FOR UPDATE')) {
-            return rows(opts.insertWallet ? [opts.insertWallet] : []);
-          }
-          if (sql.startsWith('UPDATE wallets')) return { rows: [], rowCount: 1 };
-          if (sql.startsWith('INSERT INTO wallet_transactions')) {
-            return rows(opts.insertTxId ? [{ id: opts.insertTxId }] : []);
-          }
-          if (sql.startsWith('INSERT INTO admin_actions')) return rows([]);
-          return rows([]);
-        });
-        // walletSelectCount referenced to satisfy linter and aid debugging
-        void walletSelectCount;
-        return cb({ query: clientQuery as unknown as jest.Mock });
-      },
-    );
+    dbTransactionMock.mockImplementation(async (cb: (client: { query: jest.Mock }) => unknown) => {
+      const clientQuery = jest.fn(async (sql: string, params: unknown[]) => {
+        calls.push({ sql, params });
+        if (sql.includes("FROM users WHERE id = $1 AND role = 'customer'")) {
+          return rows(opts.customerExists ? [{ id: CUSTOMER_ID }] : []);
+        }
+        if (
+          sql.includes('SELECT id, available_balance FROM wallets') &&
+          sql.includes("type = 'customer'")
+        ) {
+          walletSelectCount += 1;
+          return rows(opts.walletRows);
+        }
+        if (sql.startsWith('INSERT INTO wallets')) {
+          return rows(opts.insertWallet ? [opts.insertWallet] : []);
+        }
+        if (sql.includes('SELECT id, available_balance FROM wallets WHERE id = $1 FOR UPDATE')) {
+          return rows(opts.insertWallet ? [opts.insertWallet] : []);
+        }
+        if (sql.startsWith('UPDATE wallets')) return { rows: [], rowCount: 1 };
+        if (sql.startsWith('INSERT INTO wallet_transactions')) {
+          return rows(opts.insertTxId ? [{ id: opts.insertTxId }] : []);
+        }
+        if (sql.startsWith('INSERT INTO admin_actions')) return rows([]);
+        return rows([]);
+      });
+      // walletSelectCount referenced to satisfy linter and aid debugging
+      void walletSelectCount;
+      return cb({ query: clientQuery as unknown as jest.Mock });
+    });
     return { calls };
   }
 
@@ -761,9 +765,9 @@ describe('creditCustomerWallet', () => {
   });
 
   it.each(['', '   ', 'tiny'])('rejects bad reason %p', async (r) => {
-    await expect(
-      svc.creditCustomerWallet(CUSTOMER_ID, 100, r, ADMIN_ID),
-    ).rejects.toMatchObject({ statusCode: 400 });
+    await expect(svc.creditCustomerWallet(CUSTOMER_ID, 100, r, ADMIN_ID)).rejects.toMatchObject({
+      statusCode: 400,
+    });
   });
 
   it('404 when customer missing', async () => {

@@ -10,6 +10,7 @@ export default [
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
+      '**/dist-web/**',
       '**/build/**',
       '**/.expo/**',
       '**/coverage/**',
@@ -103,6 +104,8 @@ export default [
         allowDirectConstAssertionInArrowFunctions: true,
       }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-redeclare': 'off',
+      '@typescript-eslint/no-redeclare': 'error',
       'react/react-in-jsx-scope': 'off',
     },
   },

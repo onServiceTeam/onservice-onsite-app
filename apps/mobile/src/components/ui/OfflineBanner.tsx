@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Animated, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, typography } from '@/config/theme';
+import { WifiOff } from '@/components/icons';
 
 interface NetInfoState {
   isConnected: boolean | null;
@@ -79,7 +80,7 @@ export function OfflineBanner(): React.ReactElement | null {
       accessibilityLabel="You are offline. Some features may not be available."
     >
       <View style={[styles.inner, { paddingTop: insets.top + spacing.xs }]}>
-        <Text style={styles.icon}>📡</Text>
+        <WifiOff size={16} color={colors.text} accessibilityElementsHidden={true} />
         <Text style={styles.text}>You're offline. Some features may not be available.</Text>
       </View>
     </Animated.View>
@@ -103,7 +104,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     gap: spacing.sm,
   },
-  icon: { fontSize: 14 },
   text: {
     ...typography.caption,
     color: colors.text,

@@ -40,7 +40,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { Button, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ScrollText } from '@/components/icons';
+import { Check, ScrollText } from '@/components/icons';
 // Phase 14 R5-complete — NbiStatusBanner mounts at the top of the
 // certifications page so the provider sees expiry warnings on the
 // same screen where they manage cert documents.
@@ -388,7 +388,7 @@ export default function CertificationsScreen(): React.ReactElement {
       >
         {certifications.length === 0 ? (
           <EmptyState
-            icon="📜"
+            icon={<ScrollText size={48} color={colors.textTertiary} />}
             title="No Certifications Yet"
             description="Add your TESDA certifications, training certificates, or professional licenses to build trust and unlock Elite tier benefits."
             actionLabel="Add Certification"
@@ -404,7 +404,8 @@ export default function CertificationsScreen(): React.ReactElement {
                 </View>
                 {cert.isVerified ? (
                   <View style={styles.verifiedBadge}>
-                    <Text style={styles.verifiedText}>✓ Verified</Text>
+                    <Check size={13} color={colors.success} />
+                    <Text style={styles.verifiedText}>Verified</Text>
                   </View>
                 ) : (
                   <View style={styles.pendingBadge}>
@@ -527,6 +528,7 @@ const styles = StyleSheet.create({
   certName: { ...typography.body, color: colors.text, fontWeight: '600' },
   certIssuer: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },
   verifiedBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
     backgroundColor: colors.successLight,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,

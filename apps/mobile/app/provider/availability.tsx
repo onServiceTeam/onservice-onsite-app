@@ -27,7 +27,7 @@ import { Button, SkeletonCard, EmptyState, ErrorState, SectionHeader } from '@/c
 import { showToast } from '@/lib/toast';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ClipboardList } from '@/components/icons';
+import { Calendar, ClipboardList, X } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 export default function AvailabilitySettingsScreen(): React.ReactElement {
@@ -291,7 +291,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
 
         {futureOverrides.length === 0 ? (
           <EmptyState
-            icon="📅"
+            icon={<Calendar size={48} color={colors.textTertiary} />}
             title="No Date Overrides"
             description="Your weekly schedule is active. Add overrides to block specific dates or set custom hours when you need time off."
           />
@@ -311,7 +311,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
                 onPress={(): void => { handleRemoveOverride(o); }}
                 style={styles.removeBtn}
               >
-                <Text style={styles.removeBtnText}>✕</Text>
+                <X size={18} color={colors.error} />
               </TouchableOpacity>
             </View>
           ))

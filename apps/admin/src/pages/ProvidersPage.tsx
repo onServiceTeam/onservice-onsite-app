@@ -5,6 +5,7 @@ import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
 import { VettingChecklist, buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
+import { Star } from '@/components/icons';
 
 interface Provider {
   id: string;
@@ -176,8 +177,8 @@ export default function ProvidersPage(): React.ReactElement {
       key: 'rating',
       header: 'Rating',
       render: (r) => (
-        <span className="text-[var(--color-text)]">
-          {r.rating != null ? `${r.rating.toFixed(1)} ★` : '—'}
+        <span className="inline-flex items-center gap-1 text-[var(--color-text)]">
+          {r.rating != null ? <>{r.rating.toFixed(1)} <Star size={13} className="text-amber-500" fill="currentColor" aria-hidden="true" /></> : '—'}
         </span>
       ),
     },

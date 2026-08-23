@@ -16,7 +16,7 @@ import { formatPHP } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
-import { Filter, Repeat, Hammer } from '@/components/icons';
+import { ClipboardList, Filter, Repeat, Hammer } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 // Phase 14 Remediation #5 — Bug 889/911/918 (filter chips), Bug 891/916/923
@@ -222,7 +222,7 @@ export default function BookingsScreen(): React.ReactElement {
           // sub-filter, not the genuine no-history case).
           ListEmptyComponent={
             <EmptyState
-              icon="📋"
+              icon={<ClipboardList size={48} color={colors.textTertiary} />}
               title="No bookings yet"
               description={filter === 'all'
                 ? 'Your booking history will appear here.'

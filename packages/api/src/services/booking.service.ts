@@ -8,7 +8,7 @@ import * as slotWaitlistService from './slot-waitlist.service';
 import * as sukiService from './suki.service';
 import * as socketService from './socket.service';
 import { resolvePromo, recordPromoRedemption } from './booking/promo.service';
-import { resolveHourlyCap, roundBillableHours, type HourlyConfig } from './booking/pricing.service';
+import { resolveHourlyCap, type HourlyConfig } from './booking/pricing.service';
 import * as businessService from './business.service';
 
 interface BookingRow {

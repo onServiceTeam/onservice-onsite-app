@@ -9,7 +9,7 @@ import { useOnboardingStore } from '@/stores/onboarding.store';
 import { Input, Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import type { ComponentType } from 'react';
-import { Sparkles, Wrench, Zap, Paintbrush2, Snowflake, Bug, Package, Hammer, Plug, AlertTriangle } from '@/components/icons';
+import { Sparkles, Wrench, Zap, Paintbrush2, Snowflake, Bug, Package, Hammer, Plug, AlertTriangle, Check } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -72,7 +72,7 @@ export default function CategoriesScreen(): React.ReactElement {
         <Text style={[styles.catLabel, isSelected && styles.catLabelSelected]} numberOfLines={2}>
           {item.name}
         </Text>
-        {isSelected && <Text style={styles.catCheck}>✓</Text>}
+        {isSelected && <Check style={styles.catCheck} size={16} color={colors.primary} />}
       </TouchableOpacity>
     );
   };

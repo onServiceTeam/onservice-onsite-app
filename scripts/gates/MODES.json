@@ -1,8 +1,8 @@
 {
   "_about": "Per-fragment / per-article mode declaration. The gate aggregators (run-gate-a.sh, c-constitution.sh) read this file to decide whether a failing fragment fails the gate (BLOCKING) or only logs (REPORT). Modes change as their owning dispatch lands. See scripts/gates/EXPECTED-FAILURES.md for the human-readable timeline and .ai-coder/governance/GATE-AMENDMENTS.md for the amendment process. This file is the machine-readable source of truth.",
   "_schema_version": 1,
-  "_updated_by_dispatch": "D14r-8",
-  "_updated_at_commit": "phase/14r-8-gate-promotion",
+  "_updated_by_dispatch": "UX-AUDIT-2026-08-23",
+  "_updated_at_commit": "master UX audit follow-up",
 
   "gate_a_fragments": {
     "a-cross-source-cancellation-policy": {
@@ -36,10 +36,10 @@
       "rationale": "Bug 1271 fixed for clients (admin in D01, mobile in D02 Part 5). Scope: apps/ only — server outbound axios excluded by design."
     },
     "a-cross-source-no-emoji-icons": {
-      "mode": "REPORT",
+      "mode": "BLOCKING",
       "owning_dispatch": "D12",
-      "promoted_in": null,
-      "rationale": "Phase 13 baseline shows 1089 absolute / 412 introduced; per-screen polish in D11/D12 replaces all emoji with lucide. Promotes to BLOCKING after D12."
+      "promoted_in": "UX-AUDIT-2026-08-23",
+      "rationale": "Promoted after the 2026-08-23 UX audit replaced the remaining production emoji iconography with the central vector icon set and the corrected scanner reported zero violations. Future regressions now block CI."
     },
     "a-cross-source-no-google-maps-placeholder": {
       "mode": "BLOCKING",
@@ -75,10 +75,10 @@
       "rationale": "Promoted to BLOCKING in D14r-8. Production code uses logger.* throughout (apps/admin/src + apps/mobile/src + apps/mobile/app + packages/api/src); a fresh grep finds 0 console.* violations. The gate now blocks any future regression. Allowed exceptions remain inline `// gate-c-allowed:` markers."
     },
     "article-4.6-no-emoji": {
-      "mode": "REPORT",
+      "mode": "BLOCKING",
       "owning_dispatch": "D12",
-      "promoted_in": null,
-      "rationale": "Overlaps with Gate A no-emoji-icons (redundant by design). Same timeline."
+      "promoted_in": "UX-AUDIT-2026-08-23",
+      "rationale": "Redundant defense for Gate A's emoji check. Promoted after the 2026-08-23 zero-violation production scan so either gate blocks a future regression."
     },
     "article-7.1-no-axios": {
       "mode": "BLOCKING",

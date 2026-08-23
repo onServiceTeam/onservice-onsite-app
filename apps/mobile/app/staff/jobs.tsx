@@ -9,9 +9,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
 import { getMyAssignedJobs, type StaffAssignedJob } from '@/services/provider-staff.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { MapPin, Clock, LogOut } from '@/components/icons';
+import { ClipboardList, MapPin, Clock, LogOut } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { Routes } from '@/config/navigation';
 
 function formatWhen(iso: string | null): string {
   if (!iso) return 'Not scheduled';
@@ -37,7 +38,7 @@ export default function StaffJobsScreen(): React.ReactElement {
 
   function handleLogout(): void {
     logout();
-    router.replace('/');
+    router.replace(Routes.ROOT);
   }
 
   const list = jobs ?? [];
@@ -77,7 +78,7 @@ export default function StaffJobsScreen(): React.ReactElement {
         )}
         {!isLoading && !isError && list.length === 0 && (
           <EmptyState
-            icon="📋"
+            icon={<ClipboardList size={48} color={colors.textTertiary} />}
             title="No jobs assigned yet"
             description="When your provider assigns you a job, it shows up here."
           />

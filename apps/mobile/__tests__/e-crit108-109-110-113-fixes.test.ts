@@ -7,6 +7,16 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import React from 'react';
+import { render } from '@testing-library/react';
+import ProviderSkillsScreen from '../app/provider/skills';
+import { Routes } from '@/config/navigation';
+
+const mockReplace = jest.fn();
+
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ replace: mockReplace }),
+}));
 
 const WITHDRAW = readFileSync(
   resolve(__dirname, '../app/provider/withdraw.tsx'),
@@ -63,7 +73,8 @@ describe('Phase E CRIT-110 — skills.tsx deprecated and redirects', () => {
     expect(SKILLS).not.toMatch(/CATEGORIES: CategoryDef\[\]/);
   });
   it('CRIT-110 — replaces with redirect to /provider/services on mount', () => {
-    expect(SKILLS).toMatch(/router\.replace\(['"]\/provider\/services['"]\)/);
+    render(React.createElement(ProviderSkillsScreen));
+    expect(mockReplace).toHaveBeenCalledWith(Routes.PROVIDER.SERVICES);
   });
   it('CRIT-110 — explanatory message points user at the real services screen', () => {
     expect(SKILLS).toMatch(/Manage Your Services/);

@@ -36,6 +36,7 @@ import {
   Gift,
   Repeat,
   Coins,
+  TrendingDown,
 } from '@/components/icons';
 import type { ComponentType } from 'react';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -204,7 +205,7 @@ export default function EarningsScreen(): React.ReactElement {
               <SkeletonCard />
             ) : trendsQuery.isError ? (
               <EmptyState
-                icon="📉"
+                icon={<TrendingDown size={48} color={colors.textTertiary} />}
                 title="Couldn't load earnings trend"
                 description="Pull to refresh to try again."
               />
@@ -217,7 +218,7 @@ export default function EarningsScreen(): React.ReactElement {
               />
             ) : (
               <EmptyState
-                icon="📊"
+                icon={<BarChart3 size={48} color={colors.textTertiary} />}
                 title="No earnings trend yet"
                 description="Complete jobs to see your daily earnings here."
               />
@@ -334,7 +335,7 @@ export default function EarningsScreen(): React.ReactElement {
               </View>
             ) : (
               <EmptyState
-                icon="💸"
+                icon={<Banknote size={48} color={colors.textTertiary} />}
                 title="No transactions yet"
                 description="Complete jobs to start earning."
               />

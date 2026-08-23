@@ -9,7 +9,7 @@ import { formatRelative } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
-import { ChevronLeft } from '@/components/icons';
+import { ChevronLeft, Users } from '@/components/icons';
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 
 export default function ProviderClientsScreen(): React.ReactElement {
@@ -74,7 +74,7 @@ export default function ProviderClientsScreen(): React.ReactElement {
           }
           ListEmptyComponent={
             <EmptyState
-              icon="👥"
+              icon={<Users size={48} color={colors.textTertiary} />}
               title="No clients yet"
               description="Once you complete jobs, the customers you've served show up here so you can see your repeat business."
             />

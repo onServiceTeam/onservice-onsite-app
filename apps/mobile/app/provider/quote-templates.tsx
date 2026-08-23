@@ -9,7 +9,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { showToast } from '@/lib/toast';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft } from '@/components/icons';
+import { ChevronLeft, Pencil } from '@/components/icons';
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 
 type DraftItem = Omit<TemplateItem, 'id' | 'sortOrder'>;
@@ -97,7 +97,7 @@ export default function QuoteTemplatesScreen(): React.ReactElement {
         ) : q.isError ? (
           <ErrorState message={getErrorMessage(q.error, 'Could not load templates.')} onRetry={() => q.refetch()} />
         ) : (q.data ?? []).length === 0 && !creating ? (
-          <EmptyState icon="📝" title="No templates yet" description="Create a template once and reuse it on every similar quote." />
+          <EmptyState icon={<Pencil size={48} color={colors.textTertiary} />} title="No templates yet" description="Create a template once and reuse it on every similar quote." />
         ) : (
           (q.data ?? []).map((t) => (
             <View key={t.id} style={styles.tplCard}>

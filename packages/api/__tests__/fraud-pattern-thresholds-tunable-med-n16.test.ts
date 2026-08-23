@@ -1,79 +1,84 @@
-// MED-N16 fix verified — fraud-pattern detection thresholds are
-// now read from platform_settings instead of being hardcoded.
-//
-// Pre-fix: customer-admin.service.getCustomerDisputes had magic
-// numbers (5 disputes / 30 days / 80% favor-provider rate). Ops
-// couldn't tune as real-world dispute patterns revealed themselves.
-//
-// Post-fix: 3 new SETTING_DEFAULTS keys
-// (fraud_pattern_dispute_count_threshold, fraud_pattern_window_days,
-// fraud_pattern_favor_provider_rate) read at flag-evaluation time
-// with built-in defaults that match the prior constants.
+// MED-N16 — fraud-pattern thresholds must be admin-tunable and retain safe
+// built-in behavior if the settings store cannot be read.
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+const mockDbQuery = jest.fn();
+
+jest.mock('../src/models/db', () => ({
+  db: { query: (...args: unknown[]) => mockDbQuery(...args) },
+}));
+
 import * as settingsService from '../src/services/settings.service';
+import { getCustomerDisputes } from '../src/services/customer-admin.service';
 
-const SVC = readFileSync(
-  resolve(__dirname, '../src/services/customer-admin.service.ts'),
-  'utf8',
-);
+function disputeRow(index: number, favorsProvider: boolean): Record<string, unknown> {
+  return {
+    id: `dispute-${index}`,
+    booking_id: `booking-${index}`,
+    business_name: 'Test Provider',
+    type: 'quality',
+    status: 'resolved',
+    resolution_type: favorsProvider ? 'no_refund' : 'full_refund',
+    refund_amount: favorsProvider ? 0 : 10000,
+    created_at: new Date(Date.now() - index * 24 * 60 * 60 * 1000),
+  };
+}
 
-describe('MED-N16 — settings.service SETTING_DEFAULTS contains the 3 fraud-pattern keys', () => {
-  it('fraud_pattern_dispute_count_threshold default = 5 (matches pre-fix const)', () => {
-    expect(settingsService.SETTING_DEFAULTS['fraud_pattern_dispute_count_threshold']).toBe('5');
+describe('fraud-pattern threshold settings', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+    mockDbQuery.mockReset();
   });
 
-  it('fraud_pattern_window_days default = 30 (matches pre-fix const)', () => {
-    expect(settingsService.SETTING_DEFAULTS['fraud_pattern_window_days']).toBe('30');
-  });
+  it('MED-N16 — applies configured thresholds and falls back to the documented defaults when settings are unavailable', async () => {
+    expect(settingsService.SETTING_DEFAULTS.fraud_pattern_dispute_count_threshold).toBe('5');
+    expect(settingsService.SETTING_DEFAULTS.fraud_pattern_window_days).toBe('30');
+    expect(settingsService.SETTING_DEFAULTS.fraud_pattern_favor_provider_rate).toBe('0.80');
 
-  it('fraud_pattern_favor_provider_rate default = 0.80 (matches pre-fix const)', () => {
-    expect(settingsService.SETTING_DEFAULTS['fraud_pattern_favor_provider_rate']).toBe('0.80');
-  });
-});
+    const integerSetting = jest
+      .spyOn(settingsService, 'getSettingInteger')
+      .mockImplementation(async (key: string) => {
+        if (key === 'fraud_pattern_dispute_count_threshold') return 2;
+        if (key === 'fraud_pattern_window_days') return 7;
+        throw new Error(`Unexpected setting: ${key}`);
+      });
+    const decimalSetting = jest
+      .spyOn(settingsService, 'getSetting')
+      .mockResolvedValue('0.50');
 
-describe('MED-N16 — customer-admin.service.getCustomerDisputes reads the 3 settings', () => {
-  it('imports settingsService', () => {
-    expect(SVC).toMatch(/import \* as settingsService from '\.\/settings\.service'/);
-  });
+    mockDbQuery.mockResolvedValueOnce({
+      rows: [disputeRow(1, true), disputeRow(2, true)],
+    });
 
-  it('reads fraud_pattern_dispute_count_threshold via getSettingInteger', () => {
-    expect(SVC).toMatch(/settingsService\.getSettingInteger\('fraud_pattern_dispute_count_threshold'\)/);
-  });
+    const configured = await getCustomerDisputes('customer-1');
 
-  it('reads fraud_pattern_window_days via getSettingInteger', () => {
-    expect(SVC).toMatch(/settingsService\.getSettingInteger\('fraud_pattern_window_days'\)/);
-  });
+    expect(integerSetting).toHaveBeenCalledWith('fraud_pattern_dispute_count_threshold');
+    expect(integerSetting).toHaveBeenCalledWith('fraud_pattern_window_days');
+    expect(decimalSetting).toHaveBeenCalledWith('fraud_pattern_favor_provider_rate');
+    expect(configured.fraudPattern).toMatchObject({
+      disputesLast30Days: 2,
+      favorProviderRate: 1,
+      flagged: true,
+      reason: expect.stringContaining('in 7 days'),
+    });
 
-  it('reads fraud_pattern_favor_provider_rate via getSetting + Number', () => {
-    expect(SVC).toMatch(/Number\(await settingsService\.getSetting\('fraud_pattern_favor_provider_rate'\)\)/);
-  });
+    integerSetting.mockRejectedValue(new Error('settings unavailable'));
+    mockDbQuery.mockResolvedValueOnce({
+      rows: [
+        disputeRow(1, true),
+        disputeRow(2, true),
+        disputeRow(3, true),
+        disputeRow(4, true),
+        disputeRow(5, false),
+      ],
+    });
 
-  it('uses the dynamic windowDays in the cutoff math (not hardcoded 30)', () => {
-    expect(SVC).toMatch(/now - windowDays \* 24 \* 60 \* 60 \* 1000/);
-  });
+    const fallback = await getCustomerDisputes('customer-1');
 
-  it('uses the dynamic countThreshold + favorRateThreshold in the flagged check', () => {
-    expect(SVC).toMatch(/recent\.length >= countThreshold/);
-    expect(SVC).toMatch(/favorProviderRate >= favorRateThreshold/);
-  });
-
-  it('reason string uses the dynamic windowDays (not hardcoded 30)', () => {
-    expect(SVC).toMatch(/in \$\{windowDays\} days/);
-  });
-
-  it('falls back to built-in defaults when settings unreadable (no exception escapes)', () => {
-    // Source-level: the 3 settings reads sit inside a single try/catch,
-    // and the catch logs a warn + falls through with the in-scope let
-    // bindings still holding their initialized defaults.
-    expect(SVC).toMatch(/Fraud-pattern threshold settings unreadable; using built-in defaults/);
-    expect(SVC).toMatch(/let countThreshold = 5/);
-    expect(SVC).toMatch(/let windowDays = 30/);
-    expect(SVC).toMatch(/let favorRateThreshold = 0\.80/);
-  });
-
-  it('Number.isFinite guard on the parsed favor-rate (rejects NaN)', () => {
-    expect(SVC).toMatch(/if \(!Number\.isFinite\(favorRateThreshold\)\) favorRateThreshold = 0\.80/);
+    expect(fallback.fraudPattern).toMatchObject({
+      disputesLast30Days: 5,
+      favorProviderRate: 0.8,
+      flagged: true,
+      reason: expect.stringContaining('in 30 days'),
+    });
   });
 });

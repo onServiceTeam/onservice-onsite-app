@@ -18,7 +18,7 @@ import { useImagePicker } from '@/hooks/useImagePicker';
 import { Button, Input } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Star, Lock } from '@/components/icons';
+import { Check, Star, Lock } from '@/components/icons';
 
 const STAR_OPTIONS = [1, 2, 3, 4, 5];
 const SUB_CATEGORIES = [
@@ -262,8 +262,9 @@ export default function ReviewScreen(): React.ReactElement {
                   accessibilityState={{ checked: selected }}
                   accessibilityLabel={tag.label}
                 >
+                  {selected ? <Check size={14} color={colors.primary} /> : null}
                   <Text style={[styles.tagChipText, selected && styles.tagChipTextSelected]}>
-                    {selected ? '✓ ' : ''}{tag.label}
+                    {tag.label}
                   </Text>
                 </TouchableOpacity>
               );
@@ -366,6 +367,7 @@ const styles = StyleSheet.create({
   tagLabel: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '500', marginBottom: spacing.sm },
   tagGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   tagChip: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,

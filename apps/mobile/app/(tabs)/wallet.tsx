@@ -198,7 +198,7 @@ export default function WalletScreen(): React.ReactElement {
           </View>
         ) : (
           <EmptyState
-            icon="💳"
+            icon={<CreditCard size={48} color={colors.textTertiary} />}
             title={
               allTransactions.length === 0
                 ? 'No transactions yet'

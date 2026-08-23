@@ -14,6 +14,7 @@ import api, { storage } from '@/services/api';
 import { getErrorMessage } from '@/utils/errors';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { Check } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
 export default function TermsScreen(): React.ReactElement {
@@ -230,7 +231,7 @@ export default function TermsScreen(): React.ReactElement {
           activeOpacity={0.7}
         >
           <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-            {agreed && <Text style={styles.checkmark}>✓</Text>}
+            {agreed && <Check size={16} color={colors.white} />}
           </View>
           <Text style={styles.checkboxLabel}>
             I have read, understood, and agree to the Independent Contractor Agreement

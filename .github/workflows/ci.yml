@@ -123,23 +123,62 @@ jobs:
     timeout-minutes: 15
     needs: [api-check]
 
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: onservice_test
+          POSTGRES_PASSWORD: onservice_test
+          POSTGRES_DB: onservice_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U onservice_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v7
 
       - name: Build API Docker image
         run: docker build -f packages/api/Dockerfile -t onservice-api:ci-${{ github.sha }} .
 
-      - name: Verify image built successfully
+      - name: Verify the API image boots and serves liveness
         run: |
-          # Phase 14 R2: runtime smoke test ('docker run' + boot check)
-          # surfaces an ESM import-resolution bug that is OUT OF SCOPE for
-          # the mobile-deps remediation. The build step above already
-          # validates Dockerfile syntax + dependency install + tsc compile.
-          # Runtime smoke is tracked as a follow-up — packages/api emits
-          # ESM (module: "ESNext") under the root "type": "module" but
-          # tsc-compiled .js imports lack file extensions, so Node ESM
-          # resolution fails. Fix path: either move api to "type":
-          # "commonjs" + module: "CommonJS", or add a build step that
-          # rewrites imports to add .js suffixes.
-          docker images onservice-api:ci-${{ github.sha }} | grep ci-${{ github.sha }}
-          echo "Image built successfully — runtime smoke deferred"
+          set -euo pipefail
+          container="onservice-api-ci-${{ github.run_id }}"
+          cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+
+          docker run -d --name "$container" --network host \
+            -e NODE_ENV=test \
+            -e PORT=7381 \
+            -e DATABASE_URL=postgresql://onservice_test:onservice_test@127.0.0.1:5432/onservice_test \
+            -e REDIS_HOST=127.0.0.1 \
+            -e REDIS_PORT=6379 \
+            -e JWT_SECRET=ci-test-secret-do-not-use-in-production \
+            onservice-api:ci-${{ github.sha }}
+
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:7381/health >/dev/null; then
+              echo "API image booted and served /health"
+              exit 0
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker logs "$container"
+              echo "API image failed its runtime boot check" >&2
+              exit 1
+            fi
+            sleep 2
+          done

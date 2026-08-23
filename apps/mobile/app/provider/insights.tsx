@@ -7,7 +7,7 @@ import { getCategoryInsights, type CategoryInsight } from '@/services/provider-c
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft, Star } from '@/components/icons';
+import { BarChart3, ChevronLeft, Star } from '@/components/icons';
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 
 export default function InsightsScreen(): React.ReactElement {
@@ -64,7 +64,7 @@ export default function InsightsScreen(): React.ReactElement {
           contentContainerStyle={styles.body}
           refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} />}
           ListHeaderComponent={(q.data?.length ?? 0) > 0 ? <Text style={styles.intro}>How your work breaks down across the services you offer. Job value is gross, before platform commission.</Text> : null}
-          ListEmptyComponent={<EmptyState icon="📊" title="No insights yet" description="Once you complete jobs, your performance by service category shows up here." />}
+          ListEmptyComponent={<EmptyState icon={<BarChart3 size={48} color={colors.textTertiary} />} title="No insights yet" description="Once you complete jobs, your performance by service category shows up here." />}
         />
       )}
     </SafeAreaView>

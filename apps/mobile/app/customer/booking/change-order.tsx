@@ -11,7 +11,7 @@ import {
 import { getWalletBalance } from '@/services/payment.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft, Wallet, Check } from '@/components/icons';
+import { ChevronLeft, Wallet, Check, ClipboardList } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
 import { SkeletonCard, EmptyState, ErrorState, TrustStrip } from '@/components/ui';
 import { showToast } from '@/lib/toast';
@@ -194,7 +194,7 @@ export default function ChangeOrderScreen(): React.ReactElement {
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
           {(orders ?? []).length === 0 ? (
             <EmptyState
-              icon="📋"
+              icon={<ClipboardList size={48} color={colors.textTertiary} />}
               title="No Change Orders"
               description="If the provider finds additional work is needed, change orders will appear here."
             />
