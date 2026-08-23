@@ -103,6 +103,7 @@ export const Routes = {
 
   PROVIDER: {
     JOB_DETAIL: '/provider/job/[id]',
+    JOB_NAVIGATE: '/provider/job/[id]/navigate',
     CHAT: '/provider/chat/[id]',
     // D27 Phase 1 — open custom-quote requests (leads) the provider can quote.
     LEADS: '/provider/leads',

@@ -8,8 +8,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Linking,
-  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +26,7 @@ import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/co
 import { MapIcon, ChevronLeft } from '@/components/icons';
 import { useLocation } from '@/hooks/useLocation';
 import { useResponsive } from '@/hooks/useResponsive';
+import { buildRoute, Routes } from '@/config/navigation';
 
 const STATUS_LABELS: Record<string, string> = {
   requested: 'New Request',
@@ -70,6 +69,9 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   const queryClient = useQueryClient();
   const { getCurrentLocation, isLoading: isGettingLocation } = useLocation();
   const { isPhone } = useResponsive();
+  const navigationRoute = id
+    ? buildRoute(Routes.PROVIDER.JOB_NAVIGATE, { id })
+    : null;
 
   const { data: booking, isLoading, isError, refetch } = useQuery({
     queryKey: ['booking', id],
@@ -99,9 +101,12 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   const statusMutation = useMutation({
     mutationFn: ({ newStatus, location }: { newStatus: string; location?: { latitude: number; longitude: number } }) =>
       updateBookingStatus(id, newStatus, undefined, location),
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['booking', id] });
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
+      if (variables.newStatus === 'provider_en_route' && navigationRoute) {
+        router.push(navigationRoute as never);
+      }
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
@@ -173,26 +178,9 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
     setShowCancelForm(true);
   };
 
-  const handleNavigate = async (): Promise<void> => {
-    if (!booking?.latitude || !booking?.longitude) {
-      showToast('No GPS coordinates available for this job.', 'warning');
-      return;
-    }
-    const lat = booking.latitude;
-    const lng = booking.longitude;
-    const label = encodeURIComponent(booking.address);
-    const url = Platform.select({
-      ios: `maps:0,0?q=${label}@${lat},${lng}`,
-      android: `geo:${lat},${lng}?q=${lat},${lng}(${label})`,
-    });
-    if (url) {
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-      } else {
-        showToast('Could not open the maps application.', 'error');
-      }
-    }
+  const handleNavigate = (): void => {
+    if (!navigationRoute) return;
+    router.push(navigationRoute as never);
   };
 
   if (isLoading) {
@@ -239,6 +227,9 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   const isActiveJob = ['paid', 'provider_en_route', 'provider_arrived', 'in_progress'].includes(booking.status);
   const canSubmitQuote = booking.bookingType === 'quote_based' && booking.status === 'requested';
   const canSubmitChangeOrder = booking.status === 'in_progress';
+  const hasJobDestination = (
+    booking.latitude != null && booking.longitude != null
+  ) || [booking.address, booking.barangay, booking.city, booking.province].some(Boolean);
   const tierRate = platformConfig.commissionRates[providerTier] ?? platformConfig.commissionRates.new ?? 0.15;
   const commissionAmount = Math.round(booking.servicePrice * tierRate);
   const netEarnings = booking.servicePrice - commissionAmount;
@@ -429,10 +420,15 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           <Text style={styles.detailText}>
             {[booking.address, booking.barangay, booking.city].filter(Boolean).join(', ')}
           </Text>
-          {booking.latitude && booking.longitude && (
-            <TouchableOpacity onPress={handleNavigate} style={[styles.navigateButton, { backgroundColor: navTint.bg }]}>
+          {hasJobDestination && (
+            <TouchableOpacity
+              onPress={handleNavigate}
+              style={[styles.navigateButton, { backgroundColor: navTint.bg }]}
+              accessibilityRole="button"
+              accessibilityLabel="Directions and arrival"
+            >
               <View style={styles.navigateIconWrap}><MapIcon size={20} color={navTint.fg} /></View>
-              <Text style={[styles.navigateText, { color: navTint.fg }]}>Open in Maps</Text>
+              <Text style={[styles.navigateText, { color: navTint.fg }]}>Directions &amp; arrival</Text>
             </TouchableOpacity>
           )}
         </Card>

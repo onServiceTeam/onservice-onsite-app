@@ -26,6 +26,7 @@ import {
   Navigation,
   CheckCircle2,
 } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 // BUG-PHASE59-02 fix — pre-fix this screen ALWAYS used a hardcoded
 // fallback ("Maria Santos, 123 Sample St, Quezon City") regardless
@@ -43,6 +44,7 @@ export default function NavigateToJobScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [marking, setMarking] = useState(false);
   const { getCurrentLocation, isLoading: locating } = useLocation();
+  const { isPhone } = useResponsive();
 
   const bookingQuery = useQuery({
     queryKey: ['booking', id],
@@ -68,6 +70,8 @@ export default function NavigateToJobScreen(): React.ReactElement {
   const encodedAddress = encodeURIComponent(fullAddress);
   // Prefer GPS coords when available — more accurate than address text.
   const hasCoords = booking?.latitude != null && booking?.longitude != null;
+  const hasDestination = hasCoords || fullAddress.length > 0;
+  const canMarkArrived = booking?.status === 'provider_en_route' && hasCoords;
   const coordParam = hasCoords
     ? `${booking!.latitude},${booking!.longitude}`
     : encodedAddress;
@@ -129,78 +133,122 @@ export default function NavigateToJobScreen(): React.ReactElement {
 
       <ScrollView
         style={styles.body}
-        contentContainerStyle={styles.bodyContent}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
         showsVerticalScrollIndicator={false}
       >
-        {bookingQuery.isLoading && (
-          <View style={{ marginBottom: spacing.base }}>
-            <SkeletonCard />
-          </View>
-        )}
-        {bookingQuery.isError && (
-          <ErrorState
-            compact
-            message="We couldn't load this job. Please check your connection and try again."
-            onRetry={() => void bookingQuery.refetch()}
-          />
-        )}
-        {!bookingQuery.isLoading && !bookingQuery.isError && (
-          <View style={styles.addressCard}>
-            <View style={[styles.addressIconWrap, { backgroundColor: tint.bg }]}>
-              <MapPin size={22} color={tint.fg} />
-            </View>
-            <View style={styles.addressInfo}>
-              <Text style={styles.customerName}>{customerName}</Text>
-              <Text style={styles.addressText}>{fullAddress || '(no address on file)'}</Text>
-            </View>
-          </View>
-        )}
-
-        <SectionHeader title="Open in maps app" />
-
-        <TouchableOpacity
-          style={styles.mapBtn}
-          onPress={() => openExternal(googleMapsUrl, 'Google Maps')}
-          activeOpacity={0.7}
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={isPhone ? 'Job directions' : 'Desktop job directions workspace'}
         >
-          <Navigation size={22} color={colors.white} />
-          <Text style={styles.mapBtnText}>Open in Google Maps</Text>
-        </TouchableOpacity>
+          <View style={styles.jobColumn}>
+            {bookingQuery.isLoading && (
+              <View style={{ marginBottom: spacing.base }}>
+                <SkeletonCard />
+              </View>
+            )}
+            {bookingQuery.isError && (
+              <ErrorState
+                compact
+                message="We couldn't load this job. Please check your connection and try again."
+                onRetry={() => void bookingQuery.refetch()}
+              />
+            )}
+            {!bookingQuery.isLoading && !bookingQuery.isError && booking && (
+              <View style={styles.addressCard}>
+                <View style={[styles.addressIconWrap, { backgroundColor: tint.bg }]}>
+                  <MapPin size={22} color={tint.fg} />
+                </View>
+                <View style={styles.addressInfo}>
+                  <Text style={styles.customerName}>{customerName}</Text>
+                  <Text style={styles.addressText}>{fullAddress || '(no address on file)'}</Text>
+                </View>
+              </View>
+            )}
+          </View>
 
-        <TouchableOpacity
-          style={[styles.mapBtn, styles.wazeBtn]}
-          onPress={() => openExternal(wazeUrl, 'Waze')}
-          activeOpacity={0.7}
-        >
-          <Navigation size={22} color={colors.white} />
-          <Text style={styles.mapBtnText}>Open in Waze</Text>
-        </TouchableOpacity>
+          <View style={styles.actionColumn}>
+            <SectionHeader title="Open in maps app" />
 
-        {/* BUG-PHASE59-02 — pre-fix this card showed a hardcoded
-             "ETA: ~25 min" regardless of real distance. The
-             external maps app provides real ETA. Removing the
-             fake card prevents misleading the provider; can be
-             added back once we wire a real distance/duration
-             query (Google Distance Matrix or Mapbox Directions). */}
+            {bookingQuery.isLoading && <SkeletonCard />}
+
+            {!bookingQuery.isLoading && !bookingQuery.isError && booking && !hasDestination && (
+              <View style={styles.destinationNotice} accessibilityLabel="Missing job destination">
+                <Text style={styles.destinationNoticeTitle}>No usable destination yet</Text>
+                <Text style={styles.destinationNoticeText}>
+                  This booking has neither GPS coordinates nor a service address. Contact the
+                  customer before travelling and ask support to correct the booking if needed.
+                </Text>
+              </View>
+            )}
+
+            {!bookingQuery.isLoading && !bookingQuery.isError && booking && hasDestination && (
+              <>
+                <TouchableOpacity
+                  style={styles.mapBtn}
+                  onPress={() => openExternal(googleMapsUrl, 'Google Maps')}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open directions in Google Maps"
+                >
+                  <Navigation size={22} color={colors.white} />
+                  <Text style={styles.mapBtnText}>Open in Google Maps</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.mapBtn, styles.wazeBtn]}
+                  onPress={() => openExternal(wazeUrl, 'Waze')}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open directions in Waze"
+                >
+                  <Navigation size={22} color={colors.white} />
+                  <Text style={styles.mapBtnText}>Open in Waze</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {!bookingQuery.isLoading && !bookingQuery.isError && booking && hasDestination && (
+              <Text style={styles.mapsNote}>
+                Maps opens outside onService. Check the customer’s written address before you leave.
+              </Text>
+            )}
+          </View>
+        </View>
       </ScrollView>
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.arrivedBtn, (marking || locating) && styles.arrivedBtnDisabled]}
-          onPress={handleArrived}
-          activeOpacity={0.7}
-          disabled={marking || locating}
-        >
-          {(marking || locating) ? (
-            <ActivityIndicator size="small" color={colors.white} />
-          ) : (
-            <>
-              <CheckCircle2 size={20} color={colors.white} />
-              <Text style={styles.arrivedBtnText}>Mark Arrived</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
+      {booking?.status === 'provider_en_route' && (
+        <View style={[styles.footer, !isPhone && styles.footerWide]}>
+          <View style={!isPhone ? styles.footerActionWide : undefined}>
+            <TouchableOpacity
+              style={[
+                styles.arrivedBtn,
+                (!canMarkArrived || marking || locating) && styles.arrivedBtnDisabled,
+              ]}
+              onPress={handleArrived}
+              activeOpacity={0.7}
+              disabled={!canMarkArrived || marking || locating}
+              accessibilityRole="button"
+              accessibilityLabel="Mark arrived at job"
+              accessibilityState={{ disabled: !canMarkArrived || marking || locating }}
+            >
+              {(marking || locating) ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <>
+                  <CheckCircle2 size={20} color={colors.white} />
+                  <Text style={styles.arrivedBtnText}>Mark Arrived</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            {!hasCoords && (
+              <Text style={styles.arrivalNote}>
+                Arrival verification needs GPS coordinates on the booking. Contact support before
+                attempting to start the service.
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -221,6 +269,19 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: spacing.xl },
+  bodyContentWide: { width: '100%', maxWidth: 1040, alignSelf: 'center', padding: spacing.xl },
+  workspace: { width: '100%', gap: spacing.base },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  jobColumn: { flex: 1, minWidth: 0 },
+  actionColumn: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+  },
   addressCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -255,6 +316,16 @@ const styles = StyleSheet.create({
   },
   wazeBtn: { backgroundColor: colors.info },
   mapBtnText: { ...typography.button, color: colors.white },
+  destinationNotice: {
+    backgroundColor: colors.warningLight,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+  },
+  destinationNoticeTitle: { ...typography.body, color: colors.text, fontWeight: '700' },
+  destinationNoticeText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: spacing.xs },
+  mapsNote: { ...typography.caption, color: colors.textTertiary, lineHeight: 18 },
   footer: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
@@ -262,6 +333,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  footerWide: { alignItems: 'flex-end', paddingHorizontal: spacing.xl },
+  footerActionWide: { width: 360 },
   arrivedBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -273,4 +346,5 @@ const styles = StyleSheet.create({
   },
   arrivedBtnDisabled: { opacity: 0.6 },
   arrivedBtnText: { ...typography.button, color: colors.white },
+  arrivalNote: { ...typography.caption, color: colors.error, lineHeight: 18, marginTop: spacing.sm },
 });

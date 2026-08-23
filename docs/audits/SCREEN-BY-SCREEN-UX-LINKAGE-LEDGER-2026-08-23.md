@@ -130,14 +130,14 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/provider/clients/[id].tsx` | RETENTION/BOOKING | provider CRM | S | SOURCE/RENDER. Client history/detail split pending. |
 | `app/provider/help.tsx` | SUPPORT | support/help links | W | SOURCE/RENDER. Shared support inbox/case workflow is linked and displayed staffed hours match the canonical 8 AM-6 PM PHT SOP. |
 | `app/provider/insights.tsx` | RETENTION | provider CRM | S | SOURCE/RENDER. Metric definitions/source/freshness are required. |
-| `app/provider/job/[id].tsx` | BOOKING/SUPPORT | booking, provider | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bug UX-028. Job record keeps canonical earnings and execution actions in a persistent side rail without overflow. |
+| `app/provider/job/[id].tsx` | BOOKING/SUPPORT | booking, provider | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bugs UX-028/075/079. Job record keeps canonical earnings and execution actions in a persistent side rail, sends every browser/native direction entry to the real navigation workspace, supports address-only destinations, and opens that workspace after a successful Start Navigation transition. |
 | `app/provider/job/[id]/change-order.tsx` | BOOKING/MONEY | booking API | S/HOLD | SOURCE/RENDER. Customer approval/admin money linkage exists. |
 | `app/provider/job/[id]/checklist.tsx` | BOOKING/SUPPORT | booking photos/API | S/HOLD | SOURCE/RENDER. `Report Issue` remains E05; do not invent endpoint. |
 | `app/provider/job/[id]/complete.tsx` | BOOKING/MONEY | booking, photos | S | SOURCE/RENDER. Completion/customer confirmation/admin booking link exists. |
-| `app/provider/job/[id]/navigate.tsx` | BOOKING | booking, provider | S/N | SOURCE/RENDER. Real external navigation fallback only; no fake live map. |
+| `app/provider/job/[id]/navigate.tsx` | BOOKING | booking, provider | W/N | SOURCE/RENDER/WIDE/BROWSER 768/1280 via Bugs UX-075/076/079. The real job flow now reaches this bounded directions workspace; Google Maps/Waze actions require a loaded address or coordinates, and arrival remains disabled without server-verifiable job coordinates. No fake map or ETA. |
 | `app/provider/job/[id]/photos.tsx` | BOOKING/SUPPORT | booking photos | S/N | SOURCE/RENDER. Device capture/browser upload evidence pending. |
 | `app/provider/job/[id]/quote.tsx` | BOOKING/MONEY | booking, CRM templates | S | SOURCE/RENDER. Customer quotes/admin booking counterpart linked. Wide builder pending. |
-| `app/provider/job/active.tsx` | BOOKING/SUPPORT | booking, provider staff | S | SOURCE/RENDER. Job execution should follow Stitch evidence/checklist hierarchy. |
+| `app/provider/job/active.tsx` | BOOKING/SUPPORT | booking, provider staff | S | SOURCE/RENDER via Bug UX-078. Its address-only browser directions control now reaches the canonical navigation workspace; broader Stitch evidence/checklist hierarchy remains open. |
 | `app/provider/leads.tsx` | BOOKING | booking API/socket | W | SOURCE/RENDER. Responsive lead grid exists. |
 | `app/provider/notifications.tsx` | BOOKING/SUPPORT | notification service | S | SOURCE/RENDER. Deep-link correctness and wide inbox pending. |
 | `app/provider/payout-settings.tsx` | MONEY | API | W/HOLD | SOURCE/RENDER via Bugs UX-069-072. Launch mode is truthfully manual-only, legacy non-manual preferences are preserved and identified as inactive, saved rails use canonical destination validation, and the desktop/tablet workspace is bounded. A full automatic engine remains deferred under launch limitation 38. |
@@ -146,7 +146,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/provider/quote-templates.tsx` | BOOKING/RETENTION | provider CRM | S | SOURCE/RENDER. Desktop template editor pending. |
 | `app/provider/reminders.tsx` | RETENTION | provider CRM | S | SOURCE/RENDER. Client/job linkage and wide list pending. |
 | `app/provider/reviews.tsx` | DISCOVERY/RETENTION | provider/review API | S | SOURCE/RENDER. Customer review/admin moderation linkage exists. |
-| `app/provider/schedule.tsx` | RETENTION/BOOKING | provider schedule | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bug UX-022. Seven-day grid and desktop operations rail verified without overflow. |
+| `app/provider/schedule.tsx` | RETENTION/BOOKING | provider schedule | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bugs UX-022/077. Seven-day grid and desktop operations rail verified without overflow; a load failure locks editing instead of exposing fallback hours that could overwrite saved availability. |
 | `app/provider/service-area.tsx` | DISCOVERY/BOOKING | provider/API | S | SOURCE/RENDER. Admin market controls counterpart exists. |
 | `app/provider/services.tsx` | DISCOVERY/BOOKING | catalog, provider | S | SOURCE/RENDER. Admin catalog eligibility linkage exists; wide editor pending. |
 | `app/provider/settings.tsx` | GOVERNANCE | push service | S | SOURCE/RENDER. Notification/account routes need grouped wide settings. |
@@ -214,6 +214,7 @@ Every admin page below is reopened for first-principles review. `Existing` means
 5. Fine-grained staff permissions, cancellation math, provider dispute response, checklist issue reporting, legal disclaimer text, and milestone escrow remain explicit holds. Visual work cannot silently decide them.
 6. Production tester feedback was operationally orphaned: 10 submissions remained `new` because no employee queue, owner, decision note, or dismissal path existed. The new Tester Feedback workspace closes that company-process gap; the underlying screen reports still require individual current-code verification.
 7. Provider automatic-payout controls were storage-only and two production providers had inactive non-manual preferences. E15 resolved launch posture to honest manual withdrawals without changing those production rows; a complete automatic engine remains a future finance/product decision.
+8. Provider navigation had two browser-dead callers, an unreachable directions screen, and actions that were usable without a loaded destination. Bugs UX-075/076/078/079 connect the real job flow and successful en-route transition to one guarded external-navigation workspace without inventing a map or ETA. Bug UX-077 prevents schedule defaults from overwriting real hours after a load failure.
 
 ## Completion rule for future updates
 

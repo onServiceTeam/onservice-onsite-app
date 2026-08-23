@@ -42,8 +42,8 @@ Only the first three are screen evidence. The other three support spam/quality t
 | Duplicate requested bookings appeared after a failed payment attempt | Home, bookings, payment failed | Booking queue, Financials, Audit Log | E03 was resolved on 2026-06-19 after the report; do not reopen from old evidence alone | Keep as a regression scenario and verify current idempotency before any new fix |
 | Help, cancellation, dispute, and live-support entry points are hard to find | Help, Safety & Support, support inbox, booking detail, payment failure | Support Queue, Customer 360, Provider 360, Booking 360 | Confirmed: production had zero support tickets; payment failure discarded booking/error context, booking detail had no support action, safety reports opened a blank generic form, and admin labeled provider tickets as customers | Bugs UX-055 through UX-065 add contextual case entry, booking ownership enforcement, correct customer/provider linkage, account/booking reverse links, search, agent-created cases, waiting-case reactivation, and wide support workspaces. E05 still blocks checklist issue reporting. |
 | Provider checklist issue reporting is missing/broken | Provider job checklist | Booking 360, Support Queue | Hard stop E05: no approved endpoint or escalation behavior | Do not invent; preserve as an explicit decision/escalation item |
-| Provider navigation/location failed | Provider job navigation and active job | Dispatch, Booking 360, Service Areas | Current-code and external-navigation fallback verification required | Test coordinates, missing-location state, external map handoff, and browser behavior |
-| Provider cannot confidently edit services or availability | Provider Services, Skills, Schedule, Availability | Catalog, provider 360, Service Areas | Plausible discoverability/validation gaps | Verify edit affordances, disabled/re-enabled days, allowed catalog scope, and save feedback |
+| Provider navigation/location failed | Provider job navigation and active job | Dispatch, Booking 360, Service Areas | Confirmed: both real job-detail and active-job map callers had no browser implementation; the dedicated navigation route had no caller and exposed blank external URLs before a destination loaded | Bugs UX-075/076/078/079 route both callers and a successful Start Navigation transition into one address-or-coordinate workspace, gate external map actions, gate arrival on booking coordinates/en-route state, and add an explicit desktop split without inventing map/ETA data |
+| Provider cannot confidently edit services or availability | Provider Services, Skills, Schedule, Availability | Catalog, provider 360, Service Areas | Confirmed schedule data-risk defect: a fetch failure displayed editable fallback hours and allowed them to be saved over the unknown real schedule | Bug UX-077 replaces the editable fallback with retry-only error recovery. Services and Availability remain next for canonical-scope/save-feedback review. |
 | Provider team contact validation is weak | Provider Team, staff invites | Provider 360 Staff, Staff & Roles | Current-code verification required | Check phone/email validation and provider-owner scope without changing staff authorization architecture |
 | Certification dates and photo uploads are cumbersome or fail | Certifications, portfolio, onboarding documents/selfie | Provider 360 vetting | Browser/device fallback gap likely | Test date picker/manual date parsing and browser file upload states separately from native camera behavior |
 | Payout methods and net-pay explanation lack trust | Earnings, payout settings, payouts, withdraw | Payouts, Financials, provider 360 | Confirmed: the settings screen promised automatic cadences that no runtime worker consumed; two production providers had inactive non-manual preferences; bank rail validation was split; admin relabeled pending requests as scheduled | E15 selected manual-only launch mode. Bugs UX-069 through UX-074 preserve legacy values without running them, reject new unsupported schedules, align/validate the four manual rails, prefill editable manual requests, and remove the fake admin schedule KPI. Net-pay source and wide payout-ledger review remain. |
@@ -90,7 +90,7 @@ Behavior is covered by Bugs UX-043 through UX-049. Provider-profile regressions 
 
 ## Next verification order
 
-1. Provider navigation, Services, Schedule/Availability, Team, Certifications, and upload states.
+1. Provider Services/Availability, Team, Certifications, and upload states. Navigation and schedule load safety are covered by Bugs UX-075 through UX-079; visual browser verification remains part of the deployment gate.
 2. PayMongo hosted checkout and top-up recovery after E14 is decided and test keys are available.
 3. Provider earnings/payout ledger presentation and net-pay source review without changing manual-only money behavior.
 4. Admin dashboard/reporting requests only after metric definitions and privacy boundaries exist.
@@ -104,3 +104,7 @@ claim that a live support team or automated SLA timers exist. Production had no
 support cases or messages at the time of the read-only audit, so the zero-use
 finding is preserved as operational evidence rather than presented as proof of
 future staffing or response speed.
+
+Provider navigation and schedule load safety are covered by Bugs UX-075 through
+UX-079. External maps remain an honest handoff to Google Maps or Waze; the app
+does not claim an in-app route, ETA, traffic feed, or map provider integration.

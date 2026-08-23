@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,6 +15,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MapIcon, MapPin, MessageSquare } from '@/components/icons';
 import { useLocation } from '@/hooks/useLocation';
+import { buildRoute, Routes } from '@/config/navigation';
 
 const STATUS_LABELS: Record<string, string> = {
   paid: 'Navigate to job',
@@ -95,23 +96,9 @@ export default function ActiveJobScreen(): React.ReactElement {
     ]);
   };
 
-  const handleNavigateToJob = async (): Promise<void> => {
-    if (!booking?.latitude || !booking?.longitude) return;
-    const lat = booking.latitude;
-    const lng = booking.longitude;
-    const label = encodeURIComponent(booking.address);
-    const url = Platform.select({
-      ios: `maps:0,0?q=${label}@${lat},${lng}`,
-      android: `geo:${lat},${lng}?q=${lat},${lng}(${label})`,
-    });
-    if (url) {
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert('Navigation', 'Could not open the maps application.');
-      }
-    }
+  const handleNavigateToJob = (): void => {
+    if (!booking) return;
+    router.push(buildRoute(Routes.PROVIDER.JOB_NAVIGATE, { id: booking.id }) as never);
   };
 
   const bookingRegion: Region | undefined = booking?.latitude && booking?.longitude
@@ -204,8 +191,15 @@ export default function ActiveJobScreen(): React.ReactElement {
               style={styles.actionButton}
             />
           )}
-          {booking.status === 'provider_en_route' && booking.latitude && booking.longitude && (
-            <TouchableOpacity style={styles.navButton} onPress={handleNavigateToJob}>
+          {booking.status === 'provider_en_route'
+            && ((booking.latitude != null && booking.longitude != null) || booking.address)
+            && (
+            <TouchableOpacity
+              style={styles.navButton}
+              onPress={handleNavigateToJob}
+              accessibilityRole="button"
+              accessibilityLabel="Open directions"
+            >
               <MapIcon size={22} color={colors.primary} />
             </TouchableOpacity>
           )}

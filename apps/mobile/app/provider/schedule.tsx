@@ -15,7 +15,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMySchedule, setMySchedule, type ScheduleSlot } from '@/services/provider-api.service';
 import { getErrorMessage } from '@/utils/errors';
 // A7 — shared UI kit for loading state + toast feedback.
-import { Button, SkeletonCard } from '@/components/ui';
+import { Button, SkeletonCard, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Check, ChevronLeft } from '@/components/icons';
@@ -141,6 +141,23 @@ export default function ScheduleScreen(): React.ReactElement {
     );
   }
 
+  if (scheduleError) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Weekly Schedule</Text>
+        </View>
+        <ErrorState
+          message="We couldn't load your saved schedule. Editing is locked so the fallback hours cannot overwrite your real availability."
+          onRetry={() => void refetchSchedule()}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -153,11 +170,6 @@ export default function ScheduleScreen(): React.ReactElement {
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={scheduleRefetching} onRefresh={() => void refetchSchedule()} tintColor={colors.secondary} />}
       >
-        {scheduleError && (
-          <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: 12 }}>
-            <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load your saved schedule. Showing defaults.</Text>
-          </View>
-        )}
         <Text style={styles.description}>
           Set your weekly availability. Customers will only see you as available during these hours.
         </Text>
