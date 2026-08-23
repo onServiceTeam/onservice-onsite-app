@@ -187,6 +187,7 @@ Provider findings:
 - Fixed: browser builds no longer request the unavailable native animation driver; a clean production export rendered without console warnings.
 - Fixed in the current continuation: provider weekly schedule becomes a tablet/desktop grid with a bounded desktop save action.
 - Fixed in the current responsive batch: provider job detail keeps canonical earnings and execution actions beside the job record; calendar separates the month grid from the selected-day schedule; chat keeps customer/job context beside the thread and now shows providers why the on-app record matters for support.
+- Fixed in the provider-operations continuation: Withdrawal Preferences now uses a bounded Stitch-aligned two-column workspace, states the manual-only launch mode, preserves and exposes inactive legacy cadences, saves only canonical withdrawal details, and links directly to Withdraw and Payout History. Admin Financials no longer presents pending requests as an invented schedule (Bugs UX-069 through UX-074; E15; launch limitation 38).
 - Open: jobs, clients, earnings, and the quote builder need per-screen wide-layout verification at 768, 1024, 1280, and 1440 pixels.
 - Open hard stop: provider response inside a dispute is not implemented.
 - Open hard stop: checklist `Report Issue` has no approved API endpoint.

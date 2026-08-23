@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 // Phase E CRIT-113 fix — withdraw screen no longer ships a fake
 // EarningsChart that synthesised 7 identical bars from availableBalance/7.
@@ -38,6 +38,15 @@ const PAYOUT_METHODS = [
 
 type PayoutMethod = typeof PAYOUT_METHODS[number]['id'];
 
+interface PayoutPreferences {
+  preferredMethod: string;
+  destinationAccount: string | null;
+}
+
+function isPayoutMethod(value: string): value is PayoutMethod {
+  return PAYOUT_METHODS.some((method) => method.id === value);
+}
+
 export default function WithdrawScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -46,12 +55,35 @@ export default function WithdrawScreen(): React.ReactElement {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<PayoutMethod | null>(null);
   const [account, setAccount] = useState('');
+  const [preferencesApplied, setPreferencesApplied] = useState(false);
 
   const walletQuery = useQuery({
     queryKey: ['wallet'],
     queryFn: getWalletBalance,
     staleTime: 60 * 1000,
   });
+
+  // UX-074 — the old Payout Settings page stored a preferred destination but
+  // the withdrawal flow never read it. Saved details now prefill the manual
+  // request and remain fully editable before any money movement is submitted.
+  const payoutPreferencesQuery = useQuery<PayoutPreferences>({
+    queryKey: ['payout-preferences'],
+    queryFn: async () => {
+      const res = await api.get<{ data: PayoutPreferences }>('/api/v1/wallet/payout-preferences');
+      return res.data.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (preferencesApplied || !payoutPreferencesQuery.data) return;
+    if (method === null && account.length === 0) {
+      const saved = payoutPreferencesQuery.data;
+      if (isPayoutMethod(saved.preferredMethod)) setMethod(saved.preferredMethod);
+      if (saved.destinationAccount) setAccount(saved.destinationAccount);
+    }
+    setPreferencesApplied(true);
+  }, [account.length, method, payoutPreferencesQuery.data, preferencesApplied]);
 
   // Phase E CRIT-113 fix — real /providers/me/earnings/trends data
   // for the chart preview (was 7 bars of availableBalance/7). 7-day

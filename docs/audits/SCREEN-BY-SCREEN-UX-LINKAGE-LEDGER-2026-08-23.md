@@ -140,7 +140,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/provider/job/active.tsx` | BOOKING/SUPPORT | booking, provider staff | S | SOURCE/RENDER. Job execution should follow Stitch evidence/checklist hierarchy. |
 | `app/provider/leads.tsx` | BOOKING | booking API/socket | W | SOURCE/RENDER. Responsive lead grid exists. |
 | `app/provider/notifications.tsx` | BOOKING/SUPPORT | notification service | S | SOURCE/RENDER. Deep-link correctness and wide inbox pending. |
-| `app/provider/payout-settings.tsx` | MONEY | API | S/HOLD | SOURCE/RENDER. Bank/wallet configuration remains money-sensitive. |
+| `app/provider/payout-settings.tsx` | MONEY | API | W/HOLD | SOURCE/RENDER via Bugs UX-069-072. Launch mode is truthfully manual-only, legacy non-manual preferences are preserved and identified as inactive, saved rails use canonical destination validation, and the desktop/tablet workspace is bounded. A full automatic engine remains deferred under launch limitation 38. |
 | `app/provider/payouts.tsx` | MONEY | payout API | S/HOLD | SOURCE/RENDER. Admin Payouts counterpart linked; wide ledger pending. |
 | `app/provider/portfolio.tsx` | DISCOVERY/RETENTION | provider, upload | S/N | SOURCE/RENDER. Stitch before/after hierarchy pending. |
 | `app/provider/quote-templates.tsx` | BOOKING/RETENTION | provider CRM | S | SOURCE/RENDER. Desktop template editor pending. |
@@ -155,7 +155,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/provider/suki-customers.tsx` | RETENTION | Suki service | S | SOURCE/RENDER. Customer Suki counterpart linked; wide list pending. |
 | `app/provider/team.tsx` | IDENTITY/BOOKING | provider staff | S | SOURCE/RENDER. Staff assignment/admin provider-team review linkage exists. |
 | `app/provider/tier-progression.tsx` | RETENTION/DISCOVERY | provider API | S | SOURCE/RENDER. Tier rules and admin provider actions linked. |
-| `app/provider/withdraw.tsx` | MONEY | payment/API | S/HOLD | SOURCE/RENDER. Provider-only withdrawal; admin Payouts counterpart linked. |
+| `app/provider/withdraw.tsx` | MONEY | payment/API | S/HOLD | SOURCE/RENDER via Bug UX-074. Provider-only manual withdrawal now prefills saved method/account while keeping them editable; admin Payouts counterpart is linked. Wide layout verification remains. |
 | `app/staff/invites.tsx` | IDENTITY/BOOKING | provider staff | S | SOURCE/RENDER. Scoped provider-staff role checks exist. |
 | `app/staff/jobs.tsx` | BOOKING | provider staff | S | SOURCE/RENDER. Desktop scoped job list pending. |
 | `app/staff/job/[id].tsx` | BOOKING/SUPPORT | booking, provider | S | SOURCE/RENDER. Must not expose provider-owner controls. |
@@ -189,7 +189,7 @@ Every admin page below is reopened for first-principles review. `Existing` means
 | `/support-tickets` | triage, owner, public/internal conversation | shared support routes | case workspace | W via Bugs UX-056-063. Search, booking/account filters, deep-linked cases, correct customer/provider identity, named owner, account/booking reverse links, and audited create-on-behalf intake are wired. SLA clocks remain deliberately absent. |
 | `/communications` | reported-message moderation | customer/provider chat | trust and safety | Reworked via Bugs UX-033 through UX-036. Opens on the review queue, preserves the exact reported-message focus, links booking/customer/provider case records, and requires an audit rationale before clearing a report. Populated/loading/empty/error visual baselines pass at 1280/1440/1920. Global record search remains open. |
 | `/feedback` | own and triage third-party product research | customer/provider/admin feedback form | case workspace | Added via Bugs UX-037 through UX-041. Defaults to new, filters by app area, preserves original evidence, masks contact/free-text PII for ordinary admins, and requires a named owner plus audited note for triaged/done work. Populated/loading/empty/error baselines pass at 1280/1440/1920. |
-| `/financials` | reconciliation, escrow, tax, receipt control | customer pay/provider earnings | payout/command | Existing; money actions remain server-authoritative |
+| `/financials` | reconciliation, escrow, tax, receipt control | customer pay/provider earnings | payout/command | W via Bug UX-073. Manual withdrawal operations are explicit and the fake Upcoming Scheduled KPI is removed; money actions remain server-authoritative. |
 | `/payouts` | provider disbursement queue | provider payouts/withdrawal | payout management | Existing; batch preview/dual-control decision open |
 | `/pricing-rules` | canonical price policy | booking configure/quotes | catalog config | Existing; customer impact preview open |
 | `/settings/cancellation-policy` | approved policy display/editor | cancellation UI | governance | HOLD E09 due server/display contradiction |
@@ -213,6 +213,7 @@ Every admin page below is reopened for first-principles review. `Existing` means
 4. The admin shell and support/booking/dispute improvements are foundations. They do not make every page a coherent case workspace.
 5. Fine-grained staff permissions, cancellation math, provider dispute response, checklist issue reporting, legal disclaimer text, and milestone escrow remain explicit holds. Visual work cannot silently decide them.
 6. Production tester feedback was operationally orphaned: 10 submissions remained `new` because no employee queue, owner, decision note, or dismissal path existed. The new Tester Feedback workspace closes that company-process gap; the underlying screen reports still require individual current-code verification.
+7. Provider automatic-payout controls were storage-only and two production providers had inactive non-manual preferences. E15 resolved launch posture to honest manual withdrawals without changing those production rows; a complete automatic engine remains a future finance/product decision.
 
 ## Completion rule for future updates
 

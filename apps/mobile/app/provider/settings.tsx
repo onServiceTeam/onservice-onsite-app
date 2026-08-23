@@ -187,7 +187,7 @@ export default function ProviderSettingsScreen(): React.ReactElement {
             style={styles.row}
             onPress={() => router.push(Routes.PROVIDER.PAYOUT_SETTINGS)}
           >
-            <Text style={styles.rowLabel}>Payout Settings</Text>
+            <Text style={styles.rowLabel}>Withdrawal Preferences</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity

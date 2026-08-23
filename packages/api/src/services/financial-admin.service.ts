@@ -138,7 +138,6 @@ export interface PayoutsSummary {
     failedAt: string;
     failureReason: string | null;
   }>;
-  upcomingScheduledCount: number;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -655,8 +654,8 @@ interface PayoutFailedRow {
  *    tracked separately on the existing `payouts` schema; we use the row
  *    creation time as a best-effort surrogate)
  *  - "today" uses the database server clock (UTC).
- *  - `upcomingScheduledCount` mirrors `pendingCount` because there is no
- *    separate "scheduled" status in the payouts state machine yet.
+ *  - Automatic payout schedules are not active for launch. Do not manufacture
+ *    an "upcoming" count from pending manual requests (UX-073).
  */
 export async function getPayoutsSummary(): Promise<PayoutsSummary> {
   if (!(await tableExists('payouts'))) {
@@ -668,7 +667,6 @@ export async function getPayoutsSummary(): Promise<PayoutsSummary> {
       todayCompletedCentavos: 0,
       failedCount: 0,
       recentFailed: [],
-      upcomingScheduledCount: 0,
     };
   }
 
@@ -715,7 +713,6 @@ export async function getPayoutsSummary(): Promise<PayoutsSummary> {
       failedAt: row.failed_at.toISOString(),
       failureReason: row.failure_reason,
     })),
-    upcomingScheduledCount: pendingCount,
   };
 }
 

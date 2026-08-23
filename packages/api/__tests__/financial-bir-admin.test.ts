@@ -1365,7 +1365,6 @@ describe('financial-admin.service.getPayoutsSummary', () => {
       todayCompletedCentavos: 0,
       failedCount: 0,
       recentFailed: [],
-      upcomingScheduledCount: 0,
     });
   });
 });

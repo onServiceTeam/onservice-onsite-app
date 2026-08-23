@@ -571,8 +571,6 @@ interface PayoutsData {
   todayCompletedTotal: number;
   todayCompletedCentavos?: number;
   failedCount: number;
-  upcomingScheduled: number;
-  upcomingScheduledCount?: number;
   recentFailed: PayoutFailed[];
 }
 
@@ -583,7 +581,6 @@ function normalizePayouts(data: PayoutsData): PayoutsData {
     todayCompletedCount: Number(data.todayCompletedCount ?? 0),
     todayCompletedTotal: Number(data.todayCompletedTotal ?? data.todayCompletedCentavos ?? 0),
     failedCount: Number(data.failedCount ?? 0),
-    upcomingScheduled: Number(data.upcomingScheduled ?? data.upcomingScheduledCount ?? 0),
     recentFailed: (data.recentFailed ?? []).map((row) => ({
       id: row.id,
       providerName: row.providerName,
@@ -594,7 +591,7 @@ function normalizePayouts(data: PayoutsData): PayoutsData {
   };
 }
 
-function PayoutsPanel(): React.ReactElement {
+export function PayoutsPanel(): React.ReactElement {
   const q = useQuery({
     queryKey: ['fin-payouts'],
     queryFn: async () => {
@@ -610,13 +607,20 @@ function PayoutsPanel(): React.ReactElement {
 
   return (
     <div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+      <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+        <p className="font-semibold text-amber-950">Manual withdrawals only</p>
+        <p className="mt-1 text-sm text-amber-900">
+          Automatic payout schedules are not active. Providers request withdrawals from their
+          Earnings workspace, then authorized staff review each request in Payouts.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
         <KpiCard title="Pending (count)" value={String(d.pendingCount)} icon={null} />
         <KpiCard title="Pending (total)" value={formatCurrency(d.pendingTotal)} icon={null} />
         <KpiCard title="Today Completed (count)" value={String(d.todayCompletedCount)} icon={null} />
         <KpiCard title="Today Completed (total)" value={formatCurrency(d.todayCompletedTotal)} icon={null} />
         <KpiCard title="Failed" value={String(d.failedCount)} icon={null} />
-        <KpiCard title="Upcoming Scheduled" value={String(d.upcomingScheduled)} icon={null} />
       </div>
 
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-5">

@@ -76,7 +76,8 @@ Money actions (refund, payout, escrow release) always stay with super-admin staf
 ## 5. Payout and wallet questions
 
 Facts to know:
-- Providers withdraw from wallet available balance via `POST /wallet/payout`. Methods: GCash or Maya (11-digit `09XXXXXXXXX`), or bank InstaPay / PesoNet (8 to 16 digit account).
+- Providers withdraw from wallet available balance via `POST /api/v1/wallet/withdraw`. Methods: GCash or Maya (11-digit `09XXXXXXXXX`), or bank InstaPay / PESONet (8 to 16 digit account).
+- Automatic payout schedules are not active for launch. A saved historical cadence is preserved but inactive; it does not create a payout. Providers must submit each withdrawal manually from Earnings.
 - Minimum withdrawal: ₱100.
 - Provider must be `status='approved'` to request a payout.
 - Only one payout in flight at a time (pending, approved, or processing). A second request returns an error until the first clears.
@@ -97,6 +98,7 @@ Payout playbook:
    - Payout shows aml_review_pending: large-amount AML hold. Escalate to Finance to clear.
    - Payout shows completed but provider says not received: confirm the destination account number on file matches what the provider expects. If it matches and money is missing past 3 business days, escalate to Finance with the payout ID and PayMongo transfer ID.
 4. For any approve/reject/complete action, escalate to Finance. You cannot move payouts yourself.
+5. If a provider expected a daily/weekly/bi-weekly/monthly automatic payout, explain the manual-only launch mode, confirm no payout was silently created, and help them submit from Earnings. Do not rewrite their stored historical cadence unless the provider explicitly chooses manual through an approved account flow.
 
 Macro: payout timing
 

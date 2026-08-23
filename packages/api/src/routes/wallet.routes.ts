@@ -260,25 +260,27 @@ router.put(
         throw createAppError('Only providers can update payout preferences.', 403);
       }
 
-      const { frequency, minThreshold, preferredMethod, destinationAccount } = req.body;
+      const { frequency, preferredMethod, destinationAccount } = req.body;
 
-      // Zod already validated frequency / preferredMethod enums and
-      // destinationAccount length. Below remains as a domain-rule
-      // check (minimum threshold must clear the platform floor).
-      if (minThreshold !== undefined && minThreshold < platformConfig.minimumPayoutThreshold) {
-        throw createAppError(`Minimum threshold must be at least ${formatPHP(platformConfig.minimumPayoutThreshold)}.`, 400);
+      // UX-072 — saved withdrawal details must pass the same destination
+      // validation as a real withdrawal. Require method + account together so
+      // changing one side cannot leave a mismatched destination on the account.
+      if ((preferredMethod === undefined) !== (destinationAccount === undefined)) {
+        throw createAppError('Payout method and destination account must be updated together.', 400);
+      }
+      if (preferredMethod !== undefined && destinationAccount !== undefined) {
+        payoutService.validateDestinationAccount(preferredMethod, destinationAccount);
       }
 
       const result = await db.query<PayoutPrefsRow>(
         `UPDATE providers
          SET payout_frequency = COALESCE($1, payout_frequency),
-             payout_min_threshold = COALESCE($2, payout_min_threshold),
-             payout_preferred_method = COALESCE($3, payout_preferred_method),
-             payout_destination_account = COALESCE($4, payout_destination_account),
+             payout_preferred_method = COALESCE($2, payout_preferred_method),
+             payout_destination_account = COALESCE($3, payout_destination_account),
              updated_at = NOW()
-         WHERE user_id = $5
+         WHERE user_id = $4
          RETURNING payout_frequency, payout_min_threshold, payout_preferred_method, payout_destination_account`,
-        [frequency ?? null, minThreshold ?? null, preferredMethod ?? null, destinationAccount ?? null, req.user!.userId],
+        [frequency ?? null, preferredMethod ?? null, destinationAccount ?? null, req.user!.userId],
       );
 
       if (result.rows.length === 0) throw createAppError('Provider not found.', 404);

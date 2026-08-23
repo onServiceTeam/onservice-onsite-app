@@ -1,19 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
-// Phase 14 remediation — audited (D14r-9 markers pass)
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, TextInput,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { platformConfig } from '@/config/platform.config';
-import { formatPHP } from '@/utils/currency';
-import { getErrorMessage } from '@/utils/errors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
-// A7 — shared UI kit for loading state + toast feedback.
-import { SkeletonCard } from '@/components/ui';
+import { SkeletonCard, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
+import { getErrorMessage } from '@/utils/errors';
+import { useResponsive } from '@/hooks/useResponsive';
+import { Routes } from '@/config/navigation';
+import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 interface PayoutPrefs {
   frequency: string;
@@ -22,324 +25,382 @@ interface PayoutPrefs {
   destinationAccount: string | null;
 }
 
-const FREQUENCIES = [
-  { value: 'manual', label: 'Manual', desc: 'Withdraw when you want' },
-  { value: 'daily', label: 'Daily', desc: 'Automatic payout every day' },
-  { value: 'weekly', label: 'Weekly', desc: 'Automatic payout every Monday' },
-  { value: 'biweekly', label: 'Bi-weekly', desc: 'Payout every 1st and 15th' },
-  { value: 'monthly', label: 'Monthly', desc: 'Automatic payout on the 1st' },
-];
-
-// BUG-PHASE48-01 fix — pre-fix this list had a single
-// 'bank_transfer' option that did not match any value the
-// WithdrawScreen accepts (gcash|maya|bank_instapay|bank_pesonet
-// per `apps/mobile/app/provider/withdraw.tsx`). If a provider
-// chose Bank Transfer here, their auto-payout would have a
-// preferredMethod that fails server-side bank-rail routing
-// (PayMongo splits InstaPay vs PESONet by amount). Now: the two
-// rails are presented separately, matching the withdraw flow.
 const METHODS = [
   { value: 'gcash', label: 'GCash' },
   { value: 'maya', label: 'Maya' },
   { value: 'bank_instapay', label: 'Bank Transfer (InstaPay)' },
   { value: 'bank_pesonet', label: 'Bank Transfer (PESONet)' },
-];
+] as const;
+
+type PayoutMethod = typeof METHODS[number]['value'];
+
+const FREQUENCY_LABELS: Record<string, string> = {
+  daily: 'daily',
+  weekly: 'weekly',
+  biweekly: 'bi-weekly',
+  monthly: 'monthly',
+};
+
+function isPayoutMethod(value: string): value is PayoutMethod {
+  return METHODS.some((method) => method.value === value);
+}
 
 export default function PayoutSettingsScreen(): React.ReactElement {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isDesktop } = useResponsive();
 
   const [frequency, setFrequency] = useState('manual');
-  const [method, setMethod] = useState('gcash');
-  const [threshold, setThreshold] = useState('500');
+  const [method, setMethod] = useState<PayoutMethod>('gcash');
   const [account, setAccount] = useState('');
   const [dirty, setDirty] = useState(false);
 
-  const { data: prefs, isLoading, error } = useQuery({
+  const { data: prefs, isLoading, isError, refetch } = useQuery({
     queryKey: ['payout-preferences'],
     queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: PayoutPrefs }>('/api/v1/wallet/payout-preferences');
+      const res = await api.get<{ success: boolean; data: PayoutPrefs }>(
+        '/api/v1/wallet/payout-preferences',
+      );
       return res.data.data;
     },
   });
 
   useEffect(() => {
-    if (prefs) {
-      setFrequency(prefs.frequency);
-      setMethod(prefs.preferredMethod);
-      setThreshold(String(prefs.minThreshold / 100));
-      setAccount(prefs.destinationAccount ?? '');
-    }
+    if (!prefs) return;
+    setFrequency(prefs.frequency);
+    if (isPayoutMethod(prefs.preferredMethod)) setMethod(prefs.preferredMethod);
+    setAccount(prefs.destinationAccount ?? '');
   }, [prefs]);
 
   const updateMutation = useMutation({
-    mutationFn: async (body: Record<string, unknown>) => {
-      const res = await api.put<{ success: boolean; data: PayoutPrefs }>('/api/v1/wallet/payout-preferences', body);
+    mutationFn: async (body: { preferredMethod: PayoutMethod; destinationAccount: string | null }) => {
+      const res = await api.put<{ success: boolean; data: PayoutPrefs }>(
+        '/api/v1/wallet/payout-preferences',
+        body,
+      );
       return res.data.data;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['payout-preferences'] });
       setDirty(false);
-      showToast('Your payout preferences have been updated.', 'success');
+      showToast('Your withdrawal details have been updated.', 'success');
     },
     onError: (err: unknown) => {
-      // Phase K MED-K04 fix — canonical error helper.
-      showToast(getErrorMessage(err, 'Failed to save preferences.'), 'error');
+      showToast(getErrorMessage(err, 'Failed to save withdrawal details.'), 'error');
     },
   });
 
-  // BUG-PHASE92-01 fix — strip every non-digit so a "09XX XXX XXXX"
-  // entry round-trips through the server's strict /^09\d{9}$/ regex
-  // (payout.service.validateDestinationAccount). Same normalization
-  // as withdraw.tsx — both screens write to the same row.
+  // BUG-PHASE92-01 — payout destinations are sent as digits only, matching
+  // the canonical validation used by manual withdrawal requests.
   const normalizeAccount = (raw: string): string => raw.replace(/\D+/g, '');
 
-  const handleSave = useCallback(() => {
-    const thresholdCentavos = Math.round(Number(threshold) * 100);
-    if (isNaN(thresholdCentavos) || thresholdCentavos < platformConfig.minimumPayoutThreshold) {
-      showToast(`Minimum payout threshold is ${formatPHP(platformConfig.minimumPayoutThreshold)}.`, 'warning');
-      return;
-    }
+  const handleSave = useCallback((): void => {
     const normalizedAccount = normalizeAccount(account);
     if (frequency !== 'manual' && normalizedAccount.length === 0) {
-      showToast('Please enter your payout account number.', 'warning');
+      showToast('Enter a withdrawal account before saving these manual payout details.', 'warning');
       return;
     }
+    if (normalizedAccount.length === 0) {
+      showToast('Please enter your withdrawal account number.', 'warning');
+      return;
+    }
+    const isMobileWallet = method === 'gcash' || method === 'maya';
+    if (isMobileWallet && !/^09\d{9}$/.test(normalizedAccount)) {
+      showToast(`${method === 'gcash' ? 'GCash' : 'Maya'} needs an 11-digit PH mobile number starting with 09.`, 'warning');
+      return;
+    }
+    if (!isMobileWallet && !/^\d{8,16}$/.test(normalizedAccount)) {
+      showToast('Bank account numbers must contain 8 to 16 digits.', 'warning');
+      return;
+    }
+
     updateMutation.mutate({
-      frequency,
-      minThreshold: thresholdCentavos,
       preferredMethod: method,
       destinationAccount: normalizedAccount || null,
     });
-  }, [frequency, method, threshold, account, updateMutation]);
+  }, [account, frequency, method, updateMutation]);
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, padding: spacing.base }}>
-        <SkeletonCard />
-        <SkeletonCard />
-        <SkeletonCard />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>Failed to load payout settings.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.retryBtn}>
-          <Text style={styles.retryText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Payout Settings</Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Payout Frequency</Text>
-        <Text style={styles.sectionDesc}>Choose how often you receive payouts</Text>
-
-        {FREQUENCIES.map((f) => (
-          <TouchableOpacity
-            key={f.value}
-            style={[styles.optionCard, frequency === f.value && styles.optionCardActive]}
-            onPress={() => { setFrequency(f.value); setDirty(true); }}
-          >
-            <View style={[styles.radio, frequency === f.value && styles.radioActive]}>
-              {frequency === f.value && <View style={styles.radioInner} />}
-            </View>
-            <View style={styles.optionInfo}>
-              <Text style={[styles.optionLabel, frequency === f.value && styles.optionLabelActive]}>
-                {f.label}
-              </Text>
-              <Text style={styles.optionDesc}>{f.desc}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Payout Method</Text>
-
-        <View style={styles.methodRow}>
-          {METHODS.map((m) => (
-            <TouchableOpacity
-              key={m.value}
-              style={[styles.methodChip, method === m.value && styles.methodChipActive]}
-              onPress={() => { setMethod(m.value); setDirty(true); }}
-            >
-              <Text
-                style={[styles.methodText, method === m.value && styles.methodTextActive]}
-                numberOfLines={1}
-              >
-                {m.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.loadingContent}>
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
       </View>
+    );
+  }
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account Number</Text>
-        {/* BUG-PHASE199-01 fix — pre-fix the Account Number TextInput
-            had no maxLength. Server-side payout_destination_account
-            column is VARCHAR(255), and the route now caps at 255 via
-            updatePayoutPreferencesSchema. Same maxLength-sweep family
-            as Phase 145/194/195/197/198. */}
-        <TextInput
-          style={styles.input}
-          value={account}
-          onChangeText={(v) => { setAccount(v); setDirty(true); }}
-          placeholder={method === 'gcash' ? '09XX XXX XXXX' : method === 'maya' ? '09XX XXX XXXX' : 'Account number'}
-          keyboardType="default"
-          maxLength={255}
+  if (isError) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          message="We couldn't load your withdrawal preferences. Please check your connection and try again."
+          onRetry={() => void refetch()}
         />
       </View>
+    );
+  }
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Minimum Payout Threshold</Text>
-        <Text style={styles.sectionDesc}>
-          Auto-payouts trigger only when your balance exceeds this amount
-        </Text>
-        <View style={styles.thresholdRow}>
-          <Text style={styles.currencySymbol}>{platformConfig.currencySymbol}</Text>
-          <TextInput
-            style={styles.thresholdInput}
-            value={threshold}
-            onChangeText={(v) => { setThreshold(v.replace(/[^0-9.]/g, '')); setDirty(true); }}
-            keyboardType="decimal-pad"
-            placeholder="500"
-          />
-        </View>
+  const legacyFrequency = frequency !== 'manual'
+    ? (FREQUENCY_LABELS[frequency] ?? frequency)
+    : null;
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityLabel="Go back">
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Withdrawal Preferences</Text>
       </View>
 
-      <TouchableOpacity
-        style={[styles.saveBtn, (!dirty || updateMutation.isPending) && styles.saveBtnDisabled]}
-        onPress={handleSave}
-        disabled={!dirty || updateMutation.isPending}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        {updateMutation.isPending ? (
-          <ActivityIndicator size="small" color={colors.white} />
-        ) : (
-          <Text style={styles.saveBtnText}>Save Preferences</Text>
-        )}
-      </TouchableOpacity>
+        <View
+          style={[styles.workspace, isDesktop && styles.desktopWorkspace]}
+          accessibilityLabel={isDesktop ? 'Desktop withdrawal preferences workspace' : undefined}
+        >
+          <View style={styles.guidanceColumn}>
+            <View style={styles.noticeCard}>
+              <Text style={styles.noticeEyebrow}>LAUNCH PAYOUT MODE</Text>
+              <Text style={styles.noticeTitle}>Manual withdrawals only</Text>
+              <Text style={styles.noticeText}>
+                Automatic payout schedules are not active. Request each withdrawal from Earnings,
+                then track its review and completion in Payout History.
+              </Text>
+            </View>
 
-      <View style={styles.bottomSpacer} />
-    </ScrollView>
+            {legacyFrequency && (
+              <View style={styles.legacyCard} accessibilityLabel="Inactive saved payout cadence">
+                <Text style={styles.legacyTitle}>Saved preference is inactive</Text>
+                <Text style={styles.legacyText}>
+                  Your saved {legacyFrequency} preference is preserved, but it has not scheduled a
+                  payout and will not run automatically.
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.actionCard}>
+              <Text style={styles.actionTitle}>Ready to move available funds?</Text>
+              <Text style={styles.actionText}>
+                Your wallet balance, minimum amount, destination check, and request confirmation
+                are handled in the withdrawal flow.
+              </Text>
+              <TouchableOpacity
+                style={styles.primaryAction}
+                onPress={() => router.push(Routes.PROVIDER.WITHDRAW)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.primaryActionText}>Withdraw funds</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.secondaryAction}
+                onPress={() => router.push(Routes.PROVIDER.PAYOUTS)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.secondaryActionText}>View payout history</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.detailsCard}>
+            <Text style={styles.sectionTitle}>Saved withdrawal details</Text>
+            <Text style={styles.sectionDesc}>
+              These details prefill manual withdrawal requests. You can review and change them
+              before submitting any request.
+            </Text>
+
+            <Text style={styles.fieldLabel}>Payout method</Text>
+            <View style={styles.methodGrid}>
+              {METHODS.map((item) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[styles.methodChip, method === item.value && styles.methodChipActive]}
+                  onPress={() => {
+                    setMethod(item.value);
+                    setDirty(true);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: method === item.value }}
+                >
+                  <Text style={[styles.methodText, method === item.value && styles.methodTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.fieldLabel}>
+              {method.startsWith('bank_') ? 'Bank account number' : 'Phone number'}
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={account}
+              onChangeText={(value) => {
+                setAccount(value);
+                setDirty(true);
+              }}
+              placeholder={method.startsWith('bank_') ? '8 to 16 digit account number' : '09XX XXX XXXX'}
+              placeholderTextColor={colors.textTertiary}
+              keyboardType={method.startsWith('bank_') ? 'default' : 'phone-pad'}
+              maxLength={255}
+              accessibilityLabel="Withdrawal account number"
+            />
+            <Text style={styles.fieldHint}>
+              Saving details does not create a withdrawal or move money.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.saveButton, (!dirty || updateMutation.isPending) && styles.disabledButton]}
+              onPress={handleSave}
+              disabled={!dirty || updateMutation.isPending}
+              accessibilityRole="button"
+            >
+              <Text style={styles.saveButtonText}>
+                {updateMutation.isPending ? 'Saving…' : 'Save withdrawal details'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  // App design refresh — soft canvas so the white setting cards lift off the page.
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
-  content: { paddingBottom: spacing.xxl },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg, backgroundColor: colors.surfaceMuted },
-  errorText: { ...typography.body, color: colors.error, textAlign: 'center' },
-  retryBtn: { marginTop: spacing.base },
-  retryText: { ...typography.body, color: colors.primary, fontWeight: '600' },
-
-  header: { paddingHorizontal: spacing.base, paddingTop: spacing.xxl, paddingBottom: spacing.base },
-  backBtn: { padding: spacing.xs, marginBottom: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
-  backText: { ...typography.body, color: colors.primary },
-  title: { ...typography.h2, color: colors.text },
-
-  // App design refresh — white surface card with a hairline border on the canvas.
-  section: {
+  loadingContent: { width: '100%', maxWidth: 920, alignSelf: 'center', padding: spacing.lg },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
     backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    marginHorizontal: spacing.base,
-    marginBottom: spacing.base,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  backButton: {
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+    padding: spacing.sm,
+  },
+  backIcon: { fontSize: 24, color: colors.text },
+  title: { ...typography.h3, color: colors.text, flex: 1 },
+  scroll: { flex: 1 },
+  scrollContent: { padding: spacing.base, paddingBottom: 80 },
+  workspace: { width: '100%', maxWidth: 980, alignSelf: 'center', gap: spacing.base },
+  desktopWorkspace: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  guidanceColumn: { flex: 1, minWidth: 0, gap: spacing.base },
+  noticeCard: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  noticeEyebrow: {
+    ...typography.caption,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  noticeTitle: { ...typography.h2, color: colors.white, marginTop: spacing.sm },
+  noticeText: { ...typography.body, color: colors.white, lineHeight: 22, marginTop: spacing.sm },
+  legacyCard: {
+    backgroundColor: colors.warningLight,
+    borderWidth: 1,
+    borderColor: colors.warning,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
   },
-  sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
-  sectionDesc: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.md },
-
-  optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
+  legacyTitle: { ...typography.body, color: colors.text, fontWeight: '700' },
+  legacyText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: spacing.xs },
+  actionCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+  },
+  actionTitle: { ...typography.h3, color: colors.text },
+  actionText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: spacing.xs },
+  primaryAction: {
+    minHeight: 44,
     borderRadius: borderRadius.md,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    marginBottom: spacing.sm,
-    gap: spacing.md,
-  },
-  optionCardActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: colors.border,
-    justifyContent: 'center',
+    backgroundColor: colors.secondary,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.base,
+    paddingHorizontal: spacing.base,
   },
-  radioActive: { borderColor: colors.primary },
-  radioInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.primary },
-  optionInfo: { flex: 1 },
-  optionLabel: { ...typography.body, fontWeight: '600', color: colors.text },
-  optionLabelActive: { color: colors.primary },
-  optionDesc: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
-
-  methodRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  primaryActionText: { ...typography.button, color: colors.white },
+  secondaryAction: {
+    minHeight: 44,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.base,
+  },
+  secondaryActionText: { ...typography.button, color: colors.primary },
+  detailsCard: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+  },
+  sectionTitle: { ...typography.h2, color: colors.text },
+  sectionDesc: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: spacing.xs },
+  fieldLabel: { ...typography.bodySmall, color: colors.text, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm },
+  methodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   methodChip: {
+    minHeight: 44,
     minWidth: '47%',
     flexGrow: 1,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
   },
   methodChipActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
-  methodText: { ...typography.bodySmall, fontWeight: '600', color: colors.textSecondary },
+  methodText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600', textAlign: 'center' },
   methodTextActive: { color: colors.primary },
-
   input: {
+    minHeight: 48,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     ...typography.body,
     color: colors.text,
   },
-
-  thresholdRow: { flexDirection: 'row', alignItems: 'center' },
-  currencySymbol: { ...typography.h3, color: colors.text, marginRight: spacing.sm },
-  thresholdInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.border,
+  fieldHint: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.xs },
+  saveButton: {
+    minHeight: 48,
     borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    ...typography.body,
-    color: colors.text,
-  },
-
-  saveBtn: {
     backgroundColor: colors.primary,
-    marginHorizontal: spacing.base,
-    paddingVertical: spacing.base,
-    borderRadius: borderRadius.md,
     alignItems: 'center',
-    marginTop: spacing.sm,
+    justifyContent: 'center',
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.base,
   },
-  saveBtnDisabled: { opacity: 0.5 },
-  saveBtnText: { ...typography.button, color: colors.white },
-
-  bottomSpacer: { height: 40 },
+  disabledButton: { opacity: 0.5 },
+  saveButtonText: { ...typography.button, color: colors.white },
 });

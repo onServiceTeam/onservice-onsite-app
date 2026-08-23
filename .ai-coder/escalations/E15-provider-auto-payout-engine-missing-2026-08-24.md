@@ -1,7 +1,7 @@
 # E15 — Provider auto-payout settings have no execution engine
 
 **Date:** 2026-08-24  
-**Status:** OPEN — Ken decision required  
+**Status:** RESOLVED FOR LAUNCH — Option A approved through Ken's instruction to continue according to the documented plan
 **Hard-stop reason:** Money-path behavior and production providers are affected.
 
 ## Bad news first
@@ -140,3 +140,23 @@ Choose Option A or Option B. If Option B, provide or approve the payout policy
 answers above and confirm the live transfer provider/rails. No payout settings,
 production rows, payout records, or external transfers will be changed until
 that decision is recorded.
+
+## Resolution record
+
+Ken instructed the implementation to continue carefully and according to the
+plan after Option A was recommended twice. Option A is therefore the approved
+launch posture:
+
+- provider UI states that withdrawals are manual;
+- existing non-manual production preference values remain unchanged and are
+  shown to their owners as preserved but inactive;
+- the API rejects new automatic cadence promises;
+- saved withdrawal methods use the same four rails and destination validation
+  as a manual withdrawal;
+- saved details prefill the editable manual-withdrawal form;
+- admin Financials no longer presents pending requests as an upcoming schedule;
+- no payout row, provider production row, wallet balance, or external transfer
+  was changed by this remediation.
+
+The full Option B engine remains deferred and requires a new explicit decision
+covering the policy questions above.

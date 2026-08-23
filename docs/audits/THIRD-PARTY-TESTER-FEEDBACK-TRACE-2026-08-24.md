@@ -46,7 +46,7 @@ Only the first three are screen evidence. The other three support spam/quality t
 | Provider cannot confidently edit services or availability | Provider Services, Skills, Schedule, Availability | Catalog, provider 360, Service Areas | Plausible discoverability/validation gaps | Verify edit affordances, disabled/re-enabled days, allowed catalog scope, and save feedback |
 | Provider team contact validation is weak | Provider Team, staff invites | Provider 360 Staff, Staff & Roles | Current-code verification required | Check phone/email validation and provider-owner scope without changing staff authorization architecture |
 | Certification dates and photo uploads are cumbersome or fail | Certifications, portfolio, onboarding documents/selfie | Provider 360 vetting | Browser/device fallback gap likely | Test date picker/manual date parsing and browser file upload states separately from native camera behavior |
-| Payout methods and net-pay explanation lack trust | Earnings, payout settings, payouts, withdraw | Payouts, Financials, provider 360 | Money-sensitive; presentation can improve only around canonical server values | Verify method labels/logos, commission/net math source, destination masking, and failure recovery |
+| Payout methods and net-pay explanation lack trust | Earnings, payout settings, payouts, withdraw | Payouts, Financials, provider 360 | Confirmed: the settings screen promised automatic cadences that no runtime worker consumed; two production providers had inactive non-manual preferences; bank rail validation was split; admin relabeled pending requests as scheduled | E15 selected manual-only launch mode. Bugs UX-069 through UX-074 preserve legacy values without running them, reject new unsupported schedules, align/validate the four manual rails, prefill editable manual requests, and remove the fake admin schedule KPI. Net-pay source and wide payout-ledger review remain. |
 | Provider dashboard priorities are unclear | Provider dashboard | Dispatch, Analytics | Directional design signal | Keep today's schedule, availability, and earnings ahead of secondary metrics on wide and phone layouts |
 | Admin dashboard and support organization do not reflect operator work | Dashboard, Support Queue, Tester Feedback | all user-side lifecycle events | Confirmed by the suspicion-first admin audit | Continue queue-first, owner-first case workspaces; do not invent unsupported SLAs |
 | Customer/provider feedback should be separable and owned | Tester Feedback | customer/provider/admin research | Confirmed company-process defect | Implemented as a dedicated Support & Trust queue with area filters, named owner, note, and audited status |
@@ -92,7 +92,7 @@ Behavior is covered by Bugs UX-043 through UX-049. Provider-profile regressions 
 
 1. Provider navigation, Services, Schedule/Availability, Team, Certifications, and upload states.
 2. PayMongo hosted checkout and top-up recovery after E14 is decided and test keys are available.
-3. Provider earnings/payout presentation without changing money behavior.
+3. Provider earnings/payout ledger presentation and net-pay source review without changing manual-only money behavior.
 4. Admin dashboard/reporting requests only after metric definitions and privacy boundaries exist.
 
 The Cebu address regression and safe browser fallback are covered by Bugs

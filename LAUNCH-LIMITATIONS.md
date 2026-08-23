@@ -1274,3 +1274,30 @@ port is bound) throws and refuses to boot if `ADMIN_DISABLE_2FA` is truthy AND
 prod deploy with it still set crashes on startup with a clear message. Staging
 (where it is currently ON) is unaffected. This does not by itself satisfy the
 "do ONE of" list above; it just makes option 1 mandatory before prod boot.
+
+---
+
+## 38. Automatic provider payouts are not active for launch
+
+The schema can retain a provider's historical daily, weekly, bi-weekly, or
+monthly payout preference, but no scheduler or transfer worker exists to run
+those cadences. The previous provider screen incorrectly presented them as
+working automatic payouts, and Admin Financials relabeled pending manual
+requests as “Upcoming Scheduled.” E15 documented this money-path hard stop.
+
+**Launch decision (Ken, 2026-08-24): manual withdrawals only.** Providers request
+withdrawals from Earnings. Saved GCash, Maya, InstaPay, or PESONet details can
+prefill that request, but saving details never creates a withdrawal or moves
+money. Existing non-manual production preference values are preserved and
+shown as inactive; this remediation does not rewrite them.
+
+The API rejects new automatic cadence settings, uses the same payout rails as
+manual withdrawal, and validates saved destinations through the canonical
+payout validator. Admin Financials states the manual workflow and no longer
+manufactures a schedule KPI.
+
+A future automatic payout engine requires a separate product/finance decision
+covering Manila-time cutoffs, weekends and bank holidays, fees, wallet holds,
+AML, concurrency, retries, destination verification, transfer rails, admin
+exceptions, reconciliation, and customer/provider notification behavior. See
+`.ai-coder/escalations/E15-provider-auto-payout-engine-missing-2026-08-24.md`.
