@@ -16,6 +16,7 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { validatePortfolioPublication } from '../src/services/provider.service';
 
 const BOOKING_ROUTES = readFileSync(
   resolve(__dirname, '../src/routes/booking.routes.ts'),
@@ -90,18 +91,19 @@ describe('MED-N89 — mimeFromUrl helper behavior (smoke test against the same l
 
 describe('MED-N97 — provider portfolio POST validates HTTP/HTTPS URL', () => {
   it('rejects file:// URIs in imageUrl', () => {
-    // The route must run the same `^https?://` guard the booking
-    // photo route uses (Bug 36/461/1224 family).
-    const portfolioPost = PROVIDER_ROUTES.match(/router\.post\(\s*'\/me\/portfolio',[\s\S]*?(?=router\.[a-z]+\(|export default)/);
-    expect(portfolioPost).not.toBeNull();
-    expect(portfolioPost![0]).toMatch(/\/\^https\?:\\\/\\\//);
-    expect(portfolioPost![0]).toMatch(/\.test\(imageUrl\)/);
+    expect(() => validatePortfolioPublication(
+      'file:///private/work.jpg',
+      '22222222-2222-4222-8222-222222222222',
+      true,
+    )).toThrow(/Invalid imageUrl/);
   });
 
   it('error message mentions /api/v1/uploads as the source of truth', () => {
-    const portfolioPost = PROVIDER_ROUTES.match(/router\.post\(\s*'\/me\/portfolio',[\s\S]*?(?=router\.[a-z]+\(|export default)/);
-    expect(portfolioPost).not.toBeNull();
-    expect(portfolioPost![0]).toMatch(/uploaded via \/api\/v1\/uploads/);
+    expect(() => validatePortfolioPublication(
+      'file:///private/work.jpg',
+      '22222222-2222-4222-8222-222222222222',
+      true,
+    )).toThrow(/uploaded via \/api\/v1\/uploads/);
   });
 
   it('caps portfolio at 50 items per provider', () => {

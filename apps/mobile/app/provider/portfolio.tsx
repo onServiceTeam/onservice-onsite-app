@@ -10,7 +10,7 @@ import React, { useState, useCallback } from 'react';
 // at submit. The screen was technically wired but unusable.
 //
 // Post-fix: tap "Add Photo" → camera-or-gallery picker → optional
-// caption → uploadImages('onboarding') returns a real https URL →
+// caption → uploadImages('portfolio') returns a public https URL →
 // POST /providers/me/portfolio with that URL. Same multipart pattern
 // the rest of the app uses (chat, change-orders, identity-verify).
 import {
@@ -44,6 +44,7 @@ import { Button, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Camera } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type ModalMode = 'add' | 'edit' | null;
 
@@ -51,6 +52,7 @@ export default function PortfolioScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isPhone, isTablet } = useResponsive();
 
   const [mode, setMode] = useState<ModalMode>(null);
   const [editItem, setEditItem] = useState<PortfolioItem | null>(null);
@@ -69,7 +71,8 @@ export default function PortfolioScreen(): React.ReactElement {
   }, [queryClient]);
 
   const addMutation = useMutation({
-    mutationFn: (data: { imageUrl: string; caption?: string }) => addPortfolioItem(data),
+    mutationFn: (data: { imageUrl: string; caption?: string; customerConsentConfirmed: true }) =>
+      addPortfolioItem(data),
     onSuccess: () => {
       invalidate();
       resetForm();
@@ -168,31 +171,43 @@ export default function PortfolioScreen(): React.ReactElement {
     ]);
   }, [pickFromCamera, pickFromGallery]);
 
+  const publishPortfolioPhoto = useCallback(async (): Promise<void> => {
+    if (!pendingLocalUri) return;
+    setIsUploading(true);
+    try {
+      const uploaded = await uploadImages([pendingLocalUri], 'portfolio');
+      const url = uploaded[0]?.url;
+      if (!url) throw new Error('Upload returned no URL.');
+      addMutation.mutate({
+        imageUrl: url,
+        caption: caption.trim() || undefined,
+        customerConsentConfirmed: true,
+      });
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Could not upload photo.'), 'error');
+    } finally {
+      setIsUploading(false);
+    }
+  }, [pendingLocalUri, caption, addMutation]);
+
   const handleSubmit = useCallback((): void => {
     if (mode === 'add') {
-      // Phase E CRIT-108 fix — upload the picked file first to get a
-      // real https URL, then POST it to /providers/me/portfolio.
       if (!pendingLocalUri) {
         showToast('Please pick a photo to add.', 'warning');
         return;
       }
-      void (async () => {
-        setIsUploading(true);
-        try {
-          const uploaded = await uploadImages([pendingLocalUri], 'onboarding');
-          const url = uploaded[0]?.url;
-          if (!url) throw new Error('Upload returned no URL.');
-          addMutation.mutate({ imageUrl: url, caption: caption.trim() || undefined });
-        } catch (err) {
-          showToast(getErrorMessage(err, 'Could not upload photo.'), 'error');
-        } finally {
-          setIsUploading(false);
-        }
-      })();
+      Alert.alert(
+        'Customer consent required',
+        'Do you have written consent from the customer to use this photo?',
+        [
+          { text: 'No, cancel', style: 'cancel' },
+          { text: 'Yes, I have consent', onPress: () => { void publishPortfolioPhoto(); } },
+        ],
+      );
     } else if (mode === 'edit' && editItem) {
       updateMutation.mutate({ itemId: editItem.id, caption: caption.trim() || undefined });
     }
-  }, [mode, pendingLocalUri, caption, editItem, addMutation, updateMutation]);
+  }, [mode, pendingLocalUri, caption, editItem, publishPortfolioPhoto, updateMutation]);
 
   const handleRemove = useCallback((item: PortfolioItem): void => {
     Alert.alert('Remove Photo', `Remove "${item.caption || 'this photo'}" from your portfolio?`, [
@@ -229,17 +244,19 @@ export default function PortfolioScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={(): void => { router.back(); }} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Portfolio Photos</Text>
-        <TouchableOpacity onPress={handleAdd} style={styles.addButton}>
-          <Text style={styles.addButtonText}>+ Add</Text>
-        </TouchableOpacity>
+        <View style={styles.headerInner}>
+          <TouchableOpacity onPress={(): void => { router.back(); }} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Portfolio Photos</Text>
+          <TouchableOpacity onPress={handleAdd} style={styles.addButton}>
+            <Text style={styles.addButtonText}>+ Add</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {mode && (
-        <View style={styles.formCard}>
+        <View style={[styles.formCard, !isPhone && styles.formCardWide]}>
           <Text style={styles.formTitle}>{mode === 'add' ? 'Add Photo' : 'Edit Caption'}</Text>
           {/* Phase E CRIT-108 fix — picker preview replaces the
                paste-URL TextInput. */}
@@ -295,6 +312,12 @@ export default function PortfolioScreen(): React.ReactElement {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.secondary} />}
       >
+        <View style={[styles.publicNotice, !isPhone && styles.publicNoticeWide]}>
+          <Text style={styles.publicNoticeTitle}>Visible to customers</Text>
+          <Text style={styles.publicNoticeText}>
+            Publish only your own work. Remove faces, addresses, documents, and other personal details. Written customer consent is required for every photo.
+          </Text>
+        </View>
         {portfolio.length === 0 ? (
           <EmptyState
             icon={<Camera size={48} color={colors.textTertiary} />}
@@ -304,9 +327,15 @@ export default function PortfolioScreen(): React.ReactElement {
             onAction={handleAdd}
           />
         ) : (
-          <View style={styles.grid}>
+          <View style={[styles.grid, !isPhone && styles.gridWide]}>
             {portfolio.map((item) => (
-              <View key={item.id} style={styles.photoCard}>
+              <View
+                key={item.id}
+                style={[
+                  styles.photoCard,
+                  { width: (isPhone ? '48%' : isTablet ? '31.5%' : '23.5%') as DimensionValue },
+                ]}
+              >
                 <Image source={{ uri: item.imageUrl }} style={styles.photo} resizeMode="cover" />
                 {item.caption ? (
                   <Text style={styles.photoCaption} numberOfLines={2}>{item.caption}</Text>
@@ -337,13 +366,18 @@ export default function PortfolioScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  headerInner: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
   },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
@@ -365,6 +399,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     gap: spacing.sm,
   },
+  formCardWide: { width: '100%', maxWidth: 760, alignSelf: 'center' },
   formTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   input: {
     ...typography.body,
@@ -384,7 +419,18 @@ const styles = StyleSheet.create({
   },
 
   scroll: { flex: 1 },
-  scrollContent: { padding: spacing.base },
+  scrollContent: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.base },
+  publicNotice: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.base,
+  },
+  publicNoticeWide: { paddingHorizontal: spacing.lg, paddingVertical: spacing.base },
+  publicNoticeTitle: { ...typography.body, color: colors.primary, fontWeight: '700', marginBottom: spacing.xs },
+  publicNoticeText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20 },
 
   emptyState: { alignItems: 'center', paddingTop: spacing.xxl },
   emptyIcon: { marginBottom: spacing.base },
@@ -402,8 +448,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
+  gridWide: { gap: spacing.base },
   photoCard: {
-    width: '48%' as DimensionValue,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,

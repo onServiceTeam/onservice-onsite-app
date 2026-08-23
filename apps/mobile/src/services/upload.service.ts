@@ -13,7 +13,7 @@ export interface UploadedFile {
 
 export async function uploadImages(
   uris: string[],
-  context: 'job-request' | 'change-order' | 'dispute' | 'chat' | 'review' | 'onboarding' | 'general',
+  context: 'job-request' | 'change-order' | 'dispute' | 'chat' | 'review' | 'onboarding' | 'portfolio' | 'general',
 ): Promise<UploadedFile[]> {
   if (uris.length === 0) return [];
   if (uris.length > platformConfig.maxImagesPerBooking) {

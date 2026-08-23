@@ -81,6 +81,10 @@ export interface UploadedFile {
   sizeBytes: number;
 }
 
+export function getUploadVisibility(context: string): 'public' | 'private' {
+  return context === 'onboarding' ? 'private' : 'public';
+}
+
 async function ensureUploadDir(): Promise<void> {
   try {
     await fs.mkdir(UPLOAD_DIR, { recursive: true });

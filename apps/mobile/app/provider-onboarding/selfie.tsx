@@ -8,13 +8,16 @@ import { useOnboardingStore } from '@/stores/onboarding.store';
 import { uploadImages } from '@/services/upload.service';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Camera } from '@/components/icons';
+import { Camera, Check } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 export default function SelfieScreen(): React.ReactElement {
   const router = useRouter();
   const { selfieUri, setDocument } = useOnboardingStore();
+  const { isPhone } = useResponsive();
   const [uploading, setUploading] = useState(false);
+  const [localPreviewUri, setLocalPreviewUri] = useState<string | null>(null);
 
   const takeSelfie = async (): Promise<void> => {
     const capture = await captureImageAsync({ quality: 0.8, allowsEditing: false });
@@ -28,8 +31,10 @@ export default function SelfieScreen(): React.ReactElement {
 
     setUploading(true);
     try {
-      const uploaded = await uploadImages([result.assets[0]!.uri], 'onboarding');
+      const localUri = result.assets[0]!.uri;
+      const uploaded = await uploadImages([localUri], 'onboarding');
       setDocument('selfieUri', uploaded[0]!.url);
+      setLocalPreviewUri(localUri);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Upload failed';
       Alert.alert('Upload Error', msg);
@@ -63,7 +68,7 @@ export default function SelfieScreen(): React.ReactElement {
         <Text style={styles.step}>5 / 6</Text>
       </View>
 
-      <View style={styles.body}>
+      <View style={[styles.body, !isPhone && styles.bodyWide]}>
         <Text style={styles.title}>Selfie Verification</Text>
         <Text style={styles.subtitle}>
           Take a clear selfie of your face. This will be compared with your government ID
@@ -76,8 +81,14 @@ export default function SelfieScreen(): React.ReactElement {
               <ActivityIndicator size="large" color={colors.primary} />
               <Text style={styles.uploadingText}>Uploading...</Text>
             </View>
+          ) : localPreviewUri ? (
+            <Image source={{ uri: localPreviewUri }} style={styles.selfieImage} testID="selfie-local-preview" />
           ) : selfieUri ? (
-            <Image source={{ uri: selfieUri }} style={styles.selfieImage} />
+            <View style={[styles.selfiePlaceholder, styles.selfieOnFile]}>
+              <Check size={48} color={colors.success} />
+              <Text style={styles.selfieOnFileTitle}>Selfie on file</Text>
+              <Text style={styles.selfieHint}>Stored privately for identity review</Text>
+            </View>
           ) : (
             <View style={styles.selfiePlaceholder}>
               <Camera size={48} color={colors.textTertiary} style={styles.selfieIcon} />
@@ -109,7 +120,9 @@ export default function SelfieScreen(): React.ReactElement {
       </View>
 
       <View style={styles.footer}>
-        <Button title="Next" onPress={handleNext} disabled={!selfieUri} />
+        <View style={styles.footerInner}>
+          <Button title="Next" onPress={handleNext} disabled={!selfieUri} />
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -134,9 +147,13 @@ const styles = StyleSheet.create({
   step: { ...typography.caption, color: colors.textTertiary, marginLeft: spacing.sm },
   body: {
     flex: 1,
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
   },
+  bodyWide: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
   title: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
   subtitle: {
     ...typography.bodySmall,
@@ -163,6 +180,8 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.success,
   },
+  selfieOnFile: { borderColor: colors.success, backgroundColor: colors.successLight },
+  selfieOnFileTitle: { ...typography.body, color: colors.success, fontWeight: '700', marginTop: spacing.sm },
   selfieIcon: { marginBottom: spacing.sm },
   selfieHint: { ...typography.caption, color: colors.textTertiary },
   uploadingText: { ...typography.caption, color: colors.primary, marginTop: spacing.sm },
@@ -184,9 +203,9 @@ const styles = StyleSheet.create({
   tipsTitle: { ...typography.body, fontWeight: '700', color: colors.warning, marginBottom: spacing.sm },
   tipItem: { ...typography.bodySmall, color: colors.warning, marginBottom: 4, lineHeight: 18 },
   footer: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    backgroundColor: colors.surface,
   },
+  footerInner: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: spacing.base, paddingVertical: spacing.md },
 });

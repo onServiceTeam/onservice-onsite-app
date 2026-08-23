@@ -335,6 +335,25 @@ export interface ProviderApplicationInput {
   };
 }
 
+function normalizeOwnedOnboardingReference(
+  value: string,
+  userId: string,
+  fieldName: string,
+): string {
+  const objectKey = uploadService.extractObjectKey(value);
+  const safeUserId = userId.replace(/[^a-f0-9-]/gi, '');
+  const expectedPrefix = `onboarding/${safeUserId}/`;
+
+  if (!objectKey || !objectKey.startsWith(expectedPrefix)) {
+    throw createAppError(
+      `${fieldName} must reference an onboarding upload owned by this account.`,
+      400,
+    );
+  }
+
+  return objectKey;
+}
+
 export async function createProviderApplication(
   userId: string,
   input: ProviderApplicationInput,
@@ -347,12 +366,31 @@ export async function createProviderApplication(
     throw createAppError('A provider application already exists for this account.', 409);
   }
 
-  return db.transaction(async (client) => {
-    await client.query(
-      `UPDATE users SET role = 'provider' WHERE id = $1`,
-      [userId],
-    );
+  // KYC uploads are private bearer references. Accept the full URL returned by
+  // the upload endpoint, but persist only an owned onboarding object key. This
+  // prevents an applicant from attaching another user's identity document.
+  const governmentIdFrontKey = normalizeOwnedOnboardingReference(
+    input.governmentIdFrontUrl,
+    userId,
+    'governmentIdFrontUrl',
+  );
+  const governmentIdBackKey = normalizeOwnedOnboardingReference(
+    input.governmentIdBackUrl,
+    userId,
+    'governmentIdBackUrl',
+  );
+  const nbiClearanceKey = normalizeOwnedOnboardingReference(
+    input.nbiClearanceUrl,
+    userId,
+    'nbiClearanceUrl',
+  );
+  const selfieKey = normalizeOwnedOnboardingReference(
+    input.selfieUrl,
+    userId,
+    'selfieUrl',
+  );
 
+  return db.transaction(async (client) => {
     // Phase K MED-K07: optional nbi_expiry_date + government_id_number.
     // Both columns nullable so legacy clients (or admins backfilling
     // later) still work. The 42703 fallback handles deployments where
@@ -379,8 +417,8 @@ export async function createProviderApplication(
         [
           userId, input.businessName, input.serviceRadiusKm,
           input.latitude, input.longitude, input.city, input.province,
-          input.governmentIdFrontUrl, input.governmentIdBackUrl,
-          input.nbiClearanceUrl, input.selfieUrl,
+          governmentIdFrontKey, governmentIdBackKey,
+          nbiClearanceKey, selfieKey,
           input.nbiExpiryDate ?? null,
           input.governmentIdNumber ?? null,
           input.yearsExperience ?? null,
@@ -402,8 +440,8 @@ export async function createProviderApplication(
           [
             userId, input.businessName, input.serviceRadiusKm,
             input.latitude, input.longitude, input.city, input.province,
-            input.governmentIdFrontUrl, input.governmentIdBackUrl,
-            input.nbiClearanceUrl, input.selfieUrl,
+            governmentIdFrontKey, governmentIdBackKey,
+            nbiClearanceKey, selfieKey,
           ],
         );
       } else {
@@ -511,6 +549,7 @@ interface PortfolioRow {
   category_id: string | null;
   display_order: number;
   is_active: boolean;
+  customer_consent_confirmed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -523,13 +562,47 @@ export async function getPortfolio(providerId: string): Promise<PortfolioRow[]> 
   return result.rows;
 }
 
+export function validatePortfolioPublication(
+  imageUrl: string,
+  userId: string,
+  customerConsentConfirmed: unknown,
+): void {
+  if (customerConsentConfirmed !== true) {
+    throw createAppError('Customer consent must be confirmed before publishing a portfolio photo.', 400);
+  }
+  if (!/^https?:\/\//i.test(imageUrl)) {
+    throw createAppError(
+      'Invalid imageUrl. Portfolio images must be uploaded via /api/v1/uploads first; raw file:// URIs are not accepted.',
+      400,
+    );
+  }
+
+  const portfolioKey = uploadService.extractObjectKey(imageUrl);
+  const safeUserId = userId.replace(/[^a-f0-9-]/gi, '');
+  if (!portfolioKey || !portfolioKey.startsWith(`portfolio/${safeUserId}/`)) {
+    throw createAppError(
+      'Invalid imageUrl. Portfolio photos must be uploaded by this account using the portfolio upload context.',
+      400,
+    );
+  }
+}
+
 export async function addPortfolioItem(
   providerId: string,
-  data: { imageUrl: string; caption?: string; categoryId?: string; displayOrder?: number },
+  data: {
+    imageUrl: string;
+    caption?: string;
+    categoryId?: string;
+    displayOrder?: number;
+    customerConsentConfirmed: true;
+  },
 ): Promise<PortfolioRow> {
   const result = await db.query<PortfolioRow>(
-    `INSERT INTO provider_portfolios (provider_id, image_url, caption, category_id, display_order)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO provider_portfolios (
+       provider_id, image_url, caption, category_id, display_order,
+       customer_consent_confirmed_at
+     )
+     VALUES ($1, $2, $3, $4, $5, NOW())
      RETURNING *`,
     [providerId, data.imageUrl, data.caption ?? null, data.categoryId ?? null, data.displayOrder ?? 0],
   );
@@ -579,6 +652,7 @@ export function formatPortfolioItem(p: PortfolioRow): Record<string, unknown> {
     caption: p.caption,
     categoryId: p.category_id,
     displayOrder: p.display_order,
+    customerConsentConfirmed: p.customer_consent_confirmed_at !== null,
     createdAt: p.created_at,
   };
 }

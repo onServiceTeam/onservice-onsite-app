@@ -77,7 +77,7 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
     });
     dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
       const clientQuery = jest.fn(async (sql: string) => {
-        if (/UPDATE providers/.test(sql)) return { rows: [{ id: 'p-1' }], rowCount: 1 };
+        if (/UPDATE providers/.test(sql)) return { rows: [{ id: 'p-1', user_id: 'u-1' }], rowCount: 1 };
         return { rows: [{ user_id: 'u-1' }], rowCount: 1 };
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

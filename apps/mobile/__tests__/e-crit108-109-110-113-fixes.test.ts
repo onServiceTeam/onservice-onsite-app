@@ -93,7 +93,7 @@ describe('Phase E CRIT-108 — portfolio.tsx replaces paste-URL with real picker
     expect(PORTFOLIO).not.toMatch(/placeholder=["']Image URL/);
   });
   it('CRIT-108 — handleSubmit uploads pendingLocalUri before POST', () => {
-    expect(PORTFOLIO).toMatch(/uploadImages\(\[pendingLocalUri\], ['"]onboarding['"]\)/);
+    expect(PORTFOLIO).toMatch(/uploadImages\(\[pendingLocalUri\], ['"]portfolio['"]\)/);
   });
   it('CRIT-108 — picker UI exposes both camera and gallery', () => {
     // Camera capture goes through the web-aware helper (utils/image-capture)

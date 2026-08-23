@@ -63,7 +63,7 @@ router.post(
       }
 
       const context = (req.body.context as string) || 'general';
-      const allowedContexts = ['job-request', 'change-order', 'dispute', 'chat', 'review', 'onboarding', 'general'];
+      const allowedContexts = ['job-request', 'change-order', 'dispute', 'chat', 'review', 'onboarding', 'portfolio', 'general'];
       if (!allowedContexts.includes(context)) {
         throw createAppError(`Invalid upload context "${context}".`, 400);
       }
@@ -74,7 +74,7 @@ router.post(
       // are personal data and must be stored privately, never publicly readable
       // by their storage URL. Everything else (booking photos, chat, etc.) stays
       // public as before.
-      const visibility = context === 'onboarding' ? 'private' : 'public';
+      const visibility = uploadService.getUploadVisibility(context);
 
       for (const file of files) {
         // MED-N144 — validateFile is async (reads admin-tunable allowlist).

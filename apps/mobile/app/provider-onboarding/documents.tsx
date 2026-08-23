@@ -18,6 +18,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Check, FileText } from '@/components/icons';
 
 import { Routes } from '@/config/navigation';
+import { useResponsive } from '@/hooks/useResponsive';
 type DocField = 'governmentIdFrontUri' | 'governmentIdBackUri' | 'nbiClearanceUri';
 
 interface DocSlot {
@@ -35,7 +36,9 @@ const DOC_SLOTS: DocSlot[] = [
 export default function DocumentsScreen(): React.ReactElement {
   const router = useRouter();
   const store = useOnboardingStore();
+  const { isPhone } = useResponsive();
   const [uploading, setUploading] = useState<DocField | null>(null);
+  const [localPreviews, setLocalPreviews] = useState<Partial<Record<DocField, string>>>({});
 
   const pickAndUpload = async (field: DocField): Promise<void> => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -54,8 +57,10 @@ export default function DocumentsScreen(): React.ReactElement {
 
     setUploading(field);
     try {
-      const uploaded = await uploadImages([result.assets[0]!.uri], 'onboarding');
+      const localUri = result.assets[0]!.uri;
+      const uploaded = await uploadImages([localUri], 'onboarding');
       store.setDocument(field, uploaded[0]!.url);
+      setLocalPreviews((current) => ({ ...current, [field]: localUri }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Upload failed';
       Alert.alert('Upload Error', msg);
@@ -117,7 +122,11 @@ export default function DocumentsScreen(): React.ReactElement {
         <Text style={styles.step}>4 / 6</Text>
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: spacing.lg }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>Verification Documents</Text>
         <Text style={styles.subtitle}>
           Upload your government ID and NBI clearance for identity verification.
@@ -126,6 +135,7 @@ export default function DocumentsScreen(): React.ReactElement {
 
         {DOC_SLOTS.map(({ field, label, hint }) => {
           const uri = store[field];
+          const localPreview = localPreviews[field];
           const isLoading = uploading === field;
 
           return (
@@ -138,11 +148,15 @@ export default function DocumentsScreen(): React.ReactElement {
             >
               {isLoading ? (
                 <ActivityIndicator size="small" color={colors.primary} />
-              ) : uri ? (
-                <Image source={{ uri }} style={styles.docThumb} />
+              ) : localPreview ? (
+                <Image
+                  source={{ uri: localPreview }}
+                  style={styles.docThumb}
+                  testID={`document-preview-${field}`}
+                />
               ) : (
-                <View style={styles.docPlaceholder}>
-                  <FileText size={20} color={colors.textTertiary} />
+                <View style={[styles.docPlaceholder, uri && styles.docPlaceholderDone]}>
+                  <FileText size={20} color={uri ? colors.success : colors.textTertiary} />
                 </View>
               )}
               <View style={styles.docInfo}>
@@ -150,7 +164,10 @@ export default function DocumentsScreen(): React.ReactElement {
                 <Text style={styles.docHint}>{hint}</Text>
               </View>
               {uri
-                ? <Check size={20} color={colors.success} accessibilityLabel="Uploaded" />
+                ? <View style={styles.uploadedStatus}>
+                    <Text style={styles.onFileText}>On file</Text>
+                    <Check size={20} color={colors.success} accessibilityLabel="Uploaded securely" />
+                  </View>
                 : <Text style={styles.docStatus}>Upload</Text>}
             </TouchableOpacity>
           );
@@ -190,7 +207,9 @@ export default function DocumentsScreen(): React.ReactElement {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button title="Next" onPress={handleNext} disabled={!allUploaded} />
+        <View style={styles.footerInner}>
+          <Button title="Next" onPress={handleNext} disabled={!allUploaded} />
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -215,9 +234,16 @@ const styles = StyleSheet.create({
   step: { ...typography.caption, color: colors.textTertiary, marginLeft: spacing.sm },
   body: {
     flex: 1,
+  },
+  bodyContent: {
+    width: '100%',
+    maxWidth: 840,
+    alignSelf: 'center',
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
+    paddingBottom: spacing.lg,
   },
+  bodyContentWide: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
   title: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
   subtitle: {
     ...typography.bodySmall,
@@ -246,18 +272,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: spacing.base,
   },
+  docPlaceholderDone: { backgroundColor: colors.successLight },
   docPlaceholderIcon: { fontSize: 20 },
   docInfo: { flex: 1 },
   docLabel: { ...typography.body, fontWeight: '600', color: colors.text, marginBottom: 2 },
   docHint: { ...typography.caption, color: colors.textTertiary, lineHeight: 16 },
   docStatus: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
   docStatusDone: { color: colors.success },
+  uploadedStatus: { alignItems: 'flex-end', gap: 2 },
+  onFileText: { ...typography.caption, color: colors.success, fontWeight: '700' },
   footer: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    backgroundColor: colors.surface,
   },
+  footerInner: { width: '100%', maxWidth: 840, alignSelf: 'center', paddingHorizontal: spacing.base, paddingVertical: spacing.md },
   // Phase K MED-K07 styles.
   fieldLabel: { ...typography.body, fontWeight: '600', color: colors.text, marginTop: spacing.md, marginBottom: 2 },
   fieldHint: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.sm },

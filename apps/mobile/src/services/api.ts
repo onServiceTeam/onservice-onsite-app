@@ -224,6 +224,15 @@ async function refreshOnce(): Promise<string | null> {
   return inFlightRefresh;
 }
 
+/**
+ * Rotate the current mobile token pair on demand. Approval and staff-role
+ * transitions use this before entering a workspace whose API authorization is
+ * carried in the access-token role claim.
+ */
+export async function refreshAuthSession(): Promise<boolean> {
+  return (await refreshOnce()) !== null;
+}
+
 async function request<T>(url: string, init: ApiRequestInit, isRetry = false): Promise<ApiAxiosLikeResponse<T>> {
   try {
     return await rawFetch<T>(url, init);

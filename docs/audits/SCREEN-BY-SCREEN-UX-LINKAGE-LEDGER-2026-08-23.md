@@ -111,13 +111,13 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/provider-onboarding/role-select.tsx` | IDENTITY | auth API | S | SOURCE/RENDER. Sequence continuity pending. |
 | `app/provider-onboarding/categories.tsx` | IDENTITY/DISCOVERY | catalog service | W | SOURCE/RENDER. Responsive category grid exists. |
 | `app/provider-onboarding/service-area.tsx` | IDENTITY/DISCOVERY | onboarding state | S | SOURCE/RENDER. Admin service-area linkage needs visual explanation. |
-| `app/provider-onboarding/documents.tsx` | IDENTITY/GOVERNANCE | upload service | S/N | SOURCE/RENDER. Device capture and document-state evidence pending. |
+| `app/provider-onboarding/documents.tsx` | IDENTITY/GOVERNANCE | upload service, Provider 360 | W/N | SOURCE/RENDER via UX-113/120. Private stored references are ownership-checked server-side and render as secure on-file states; only the local picker URI is previewed. Bounded phone/tablet/desktop composition is present. Native capture evidence remains F#3/device work. |
 | `app/provider-onboarding/identity-verification.tsx` | IDENTITY/GOVERNANCE | verification flow | S/HOLD | SOURCE/RENDER. Must follow approved identity vendor/contract. |
-| `app/provider-onboarding/selfie.tsx` | IDENTITY/GOVERNANCE | upload/camera | S/N | SOURCE/RENDER. Real camera evidence remains F#3/device work. |
+| `app/provider-onboarding/selfie.tsx` | IDENTITY/GOVERNANCE | upload/camera, Provider 360 | W/N | SOURCE/RENDER via UX-113/121. Private stored selfie references are ownership-checked and never loaded as anonymous images; only the current local capture is previewed. Bounded tablet/desktop composition is present. Real camera evidence remains F#3/device work. |
 | `app/provider-onboarding/vetting.tsx` | IDENTITY/GOVERNANCE | onboarding answers | S | SOURCE/RENDER. Stitch step/status hierarchy should be applied. |
 | `app/provider-onboarding/terms.tsx` | GOVERNANCE | auth/provider API | S/HOLD | SOURCE/RENDER. Legal text remains canonical. |
 | `app/provider-onboarding/background-check-status.tsx` | IDENTITY/GOVERNANCE | provider API | S | SOURCE/RENDER. Admin provider-review counterpart exists. |
-| `app/provider-onboarding/review-pending.tsx` | IDENTITY | provider API | S | SOURCE/RENDER. Status and support exit need wide check. |
+| `app/provider-onboarding/review-pending.tsx` | IDENTITY | auth-only application status, admin approval, token rotation | W | SERVICE/RENDER via Phase95-01/UX-110-115. Submission keeps customer access, approval atomically grants provider role, rejection repairs legacy early promotion, and approval rotates the token pair before routing so the provider API claim matches the displayed role. Outages are visible, rejection reason is shown, and no unsupported review stage or SLA is claimed. Bounded tablet/desktop composition is present. |
 | `app/(provider-tabs)/dashboard.tsx` | BOOKING/RETENTION | provider, booking | W | SOURCE/RENDER/LIVE 820/1280. Tablet fills the viewport; desktop uses the provider operations rail. |
 | `app/(provider-tabs)/jobs.tsx` | BOOKING | provider bookings | W | SOURCE/RENDER. Two-column list exists; 768/1024/1280 visual evidence pending. |
 | `app/(provider-tabs)/earnings.tsx` | MONEY | payment/API | W/HOLD | SOURCE/RENDER. Wide stat composition exists; financial labels need source/freshness review. |
@@ -143,7 +143,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/provider/notifications.tsx` | BOOKING/SUPPORT | notification service | S | SOURCE/RENDER. Deep-link correctness and wide inbox pending. |
 | `app/provider/payout-settings.tsx` | MONEY | API | W/HOLD | SOURCE/RENDER via Bugs UX-069-072. Launch mode is truthfully manual-only, legacy non-manual preferences are preserved and identified as inactive, saved rails use canonical destination validation, and the desktop/tablet workspace is bounded. A full automatic engine remains deferred under launch limitation 38. |
 | `app/provider/payouts.tsx` | MONEY | payout API | S/HOLD | SOURCE/RENDER. Admin Payouts counterpart linked; wide ledger pending. |
-| `app/provider/portfolio.tsx` | DISCOVERY/RETENTION | provider, upload | S/N | SOURCE/RENDER. Stitch before/after hierarchy pending. |
+| `app/provider/portfolio.tsx` | DISCOVERY/RETENTION | provider, public upload, customer profile, Provider 360 | W/N | SERVICE/RENDER via UX-116-122. Uses an owned public portfolio context, requires written-customer-consent affirmation, records timestamped evidence, explains public visibility/privacy, and renders 2/3/4-column phone/tablet/desktop grids. Provider 360 shows the exact published set and consent record. Browser upload verification remains required before deployment; native capture remains F#3/device work. |
 | `app/provider/quote-templates.tsx` | BOOKING/RETENTION | provider CRM | S | SOURCE/RENDER. Desktop template editor pending. |
 | `app/provider/reminders.tsx` | RETENTION | provider CRM | S | SOURCE/RENDER. Client/job linkage and wide list pending. |
 | `app/provider/reviews.tsx` | DISCOVERY/RETENTION | provider/review API | S | SOURCE/RENDER. Customer review/admin moderation linkage exists. |

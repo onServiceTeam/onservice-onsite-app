@@ -90,6 +90,15 @@ export interface ProviderProfile {
   categories: { id: string; name: string; basePrice: number | null }[];
   serviceAreas: { id: string; name: string; isPrimary: boolean }[];
   certifications: ProviderCertification[];
+  portfolio: ProviderPortfolioItem[];
+}
+
+export interface ProviderPortfolioItem {
+  id: string;
+  imageUrl: string;
+  caption: string | null;
+  customerConsentConfirmedAt: string | null;
+  createdAt: string;
 }
 
 export interface ProviderCertification {
@@ -283,7 +292,7 @@ export async function getProviderProfile(
   const p = providerResult.rows[0];
   if (!p) throw createAppError('Provider not found.', 404);
 
-  const [categoriesResult, areasResult, certificationsResult] = await Promise.all([
+  const [categoriesResult, areasResult, certificationsResult, portfolioResult] = await Promise.all([
     db.query<{ id: string; name: string; base_price: number | null }>(
       `SELECT sc.id, sc.name, ps.base_price
          FROM provider_services ps
@@ -307,6 +316,19 @@ export async function getProviderProfile(
          FROM provider_certifications
         WHERE provider_id = $1 AND is_active = TRUE
         ORDER BY is_verified DESC, created_at DESC`,
+      [providerId],
+    ),
+    db.query<{
+      id: string;
+      image_url: string;
+      caption: string | null;
+      customer_consent_confirmed_at: Date | null;
+      created_at: Date;
+    }>(
+      `SELECT id, image_url, caption, customer_consent_confirmed_at, created_at
+         FROM provider_portfolios
+        WHERE provider_id = $1 AND is_active = TRUE
+        ORDER BY display_order ASC, created_at DESC`,
       [providerId],
     ),
   ]);
@@ -379,6 +401,13 @@ export async function getProviderProfile(
       isPrimary: r.is_primary,
     })),
     certifications: certificationsResult.rows.map(formatProviderCertification),
+    portfolio: portfolioResult.rows.map((row) => ({
+      id: row.id,
+      imageUrl: row.image_url,
+      caption: row.caption,
+      customerConsentConfirmedAt: row.customer_consent_confirmed_at?.toISOString() ?? null,
+      createdAt: row.created_at.toISOString(),
+    })),
   };
 }
 

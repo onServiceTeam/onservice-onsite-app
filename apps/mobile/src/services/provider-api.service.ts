@@ -59,6 +59,7 @@ export interface PortfolioItem {
   caption: string | null;
   categoryId: string | null;
   displayOrder: number;
+  customerConsentConfirmed: boolean;
   createdAt: string;
 }
 
@@ -82,6 +83,18 @@ export interface ProviderDashboard extends ProviderSelf {
   ratings: ReviewAggregate;
   portfolio: PortfolioItem[];
   certifications: Certification[];
+}
+
+export interface ProviderApplicationStatus {
+  status: ProviderSelf['status'];
+  rejectionReason: string | null;
+}
+
+export async function getApplicationStatus(): Promise<ProviderApplicationStatus | null> {
+  const res = await api.get<ApiResponse<ProviderApplicationStatus | null>>(
+    '/api/v1/providers/application-status',
+  );
+  return res.data.data;
 }
 
 export async function getMyProfile(): Promise<ProviderDashboard> {
@@ -148,6 +161,7 @@ export async function addPortfolioItem(data: {
   caption?: string;
   categoryId?: string;
   displayOrder?: number;
+  customerConsentConfirmed: true;
 }): Promise<PortfolioItem> {
   const res = await api.post<ApiResponse<PortfolioItem>>('/api/v1/providers/me/portfolio', data);
   return res.data.data;

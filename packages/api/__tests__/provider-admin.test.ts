@@ -108,6 +108,13 @@ describe('getProviderProfile', () => {
         certificate_number: 'TESDA-42', certificate_url: 'https://x/onboarding/cert.jpg',
         issued_date: '2025-01-02', expiry_date: '2030-01-02', is_verified: true,
         verified_at: new Date('2026-01-01T00:00:00Z'), created_at: new Date('2025-01-02T00:00:00Z'),
+      }]))
+      .mockResolvedValueOnce(rows([{
+        id: 'portfolio-1',
+        image_url: 'https://cdn.example/portfolio/user-1/work.jpg',
+        caption: 'Completed work',
+        customer_consent_confirmed_at: new Date('2026-08-24T08:00:00Z'),
+        created_at: new Date('2026-08-24T08:00:00Z'),
       }]));
   }
 
@@ -128,6 +135,11 @@ describe('getProviderProfile', () => {
       isVerified: true,
       hasDocument: true,
       documentUrl: `/api/v1/admin/providers/${PROVIDER_ID}/certifications/cert-1/document`,
+    });
+    expect(out.portfolio[0]).toMatchObject({
+      id: 'portfolio-1',
+      caption: 'Completed work',
+      customerConsentConfirmedAt: '2026-08-24T08:00:00.000Z',
     });
     expect(out.averageRating).toBe(4.5);
     expect(out.latitude).toBe(14.5);

@@ -1,7 +1,7 @@
 // BUG-PHASE107-01 — provider/portfolio.tsx still carried `imageUrl`
 // + `setImageUrl` useState from the pre-fix paste-URL UX, even though
 // Phase E CRIT-108 replaced that flow with a picker that uploads
-// directly to S3 via uploadImages('onboarding').
+// directly to storage via uploadImages('portfolio').
 //
 // Pre-fix: setImageUrl was only called to clear the value (in
 // resetForm and handleAdd). imageUrl was read NOWHERE. Pure dead
@@ -35,7 +35,7 @@ describe('BUG-PHASE107-01 — provider portfolio dead imageUrl state removed', (
   });
 
   it('BUG-PHASE107-01 — picker flow still uploads via uploadImages then mutates with the returned URL (regression guard)', () => {
-    expect(PORTFOLIO).toMatch(/await uploadImages\(\[pendingLocalUri\], 'onboarding'\)/);
-    expect(PORTFOLIO).toMatch(/addMutation\.mutate\(\{ imageUrl: url, caption:/);
+    expect(PORTFOLIO).toMatch(/await uploadImages\(\[pendingLocalUri\], 'portfolio'\)/);
+    expect(PORTFOLIO).toMatch(/addMutation\.mutate\(\{[\s\S]{0,160}imageUrl: url,[\s\S]{0,160}caption:/);
   });
 });

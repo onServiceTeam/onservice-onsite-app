@@ -1,162 +1,222 @@
-import React, { useEffect } from 'react';
-// Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
-import { Button } from '@/components/ui';
+import { Button, ErrorState } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ClipboardList, Lightbulb } from '@/components/icons';
-import api, { type ApiResponse } from '@/services/api';
-import { getMyProfile } from '@/services/provider-api.service';
+import api, { refreshAuthSession, type ApiResponse } from '@/services/api';
+import { getApplicationStatus } from '@/services/provider-api.service';
 import { useAuthStore, type User } from '@/stores/auth.store';
-
+import { useResponsive } from '@/hooks/useResponsive';
 import { Routes } from '@/config/navigation';
 
-// BUG-PHASE95-01 fix — pre-fix this screen showed a static timeline
-// and a "Go to Home" button. The terms.tsx submit comment claimed
-// "REVIEW_PENDING screen polls /provider/me for status and the
-// customer/provider tab routing follows the canonical role from the
-// auth store" — but the screen never actually polled. Providers had
-// to manually re-login (or fully restart the app) for the role flip
-// to take effect after admin approval.
-//
-// Now: polls /api/v1/providers/me every 15s. When the application
-// flips to status='approved', re-fetches /api/v1/auth/me to pick up
-// the new users.role from the backend, updates the auth store, and
-// auto-navigates to the provider dashboard. status='rejected' shows
-// an inline rejection notice instead of the timeline.
 const POLL_INTERVAL_MS = 15_000;
 
 export default function ReviewPendingScreen(): React.ReactElement {
   const router = useRouter();
   const { setUser } = useAuthStore();
+  const { isPhone } = useResponsive();
+  const [activationError, setActivationError] = useState<string | null>(null);
+  const [activationRefreshing, setActivationRefreshing] = useState(false);
 
-  const providerStatusQuery = useQuery({
+  const applicationQuery = useQuery({
     queryKey: ['providerOnboardingStatus'],
-    queryFn: async () => {
-      try {
-        const profile = await getMyProfile();
-        return profile.status;
-      } catch {
-        // 404 (no provider row yet) is expected during the first poll
-        // before the application row is committed. Treat as still
-        // pending so the timeline keeps rendering.
-        return 'pending' as const;
-      }
-    },
+    queryFn: getApplicationStatus,
     refetchInterval: POLL_INTERVAL_MS,
     staleTime: 0,
   });
 
-  const status = providerStatusQuery.data ?? 'pending';
+  const application = applicationQuery.data;
+  const status = application?.status;
+
+  const activateProviderWorkspace = useCallback(async (): Promise<void> => {
+    setActivationError(null);
+    setActivationRefreshing(true);
+    try {
+      const tokensRefreshed = await refreshAuthSession();
+      if (!tokensRefreshed) {
+        throw new Error('Could not refresh the approved session.');
+      }
+      const res = await api.get<ApiResponse<User>>('/api/v1/auth/me');
+      const refreshedUser = res.data.data;
+      if (!refreshedUser || refreshedUser.role !== 'provider') {
+        throw new Error('Your approved provider access is not active yet.');
+      }
+      setUser(refreshedUser);
+      router.replace(Routes.PROVIDER_TABS.DASHBOARD);
+    } catch {
+      setActivationError(
+        'Your application is approved, but provider access could not be refreshed. Try again before opening the provider workspace.',
+      );
+    } finally {
+      setActivationRefreshing(false);
+    }
+  }, [router, setUser]);
 
   useEffect(() => {
     if (status !== 'approved') return;
-    let cancelled = false;
-    (async () => {
-      try {
-        // Refresh the user profile so the auth-store role reflects
-        // the backend's post-approval users.role = 'provider'.
-        const res = await api.get<ApiResponse<User>>('/api/v1/auth/me');
-        if (cancelled) return;
-        const refreshedUser = res.data.data;
-        if (refreshedUser) setUser(refreshedUser);
-      } catch {
-        // Best-effort refresh; the role will catch up on the next
-        // sign-in if this fails for any reason.
-      } finally {
-        if (!cancelled) {
-          router.replace(Routes.PROVIDER_TABS.DASHBOARD);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [status, setUser, router]);
+    void activateProviderWorkspace();
+  }, [status, activateProviderWorkspace]);
+
+  if (applicationQuery.isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.loading} accessibilityRole="progressbar">
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Checking application status…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (applicationQuery.isError || !application) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <ErrorState
+          title={applicationQuery.isError ? 'Status unavailable' : 'Application not found'}
+          message={applicationQuery.isError
+            ? 'We could not check your provider application. Your submission has not been changed.'
+            : 'We could not find a submitted provider application for this account.'}
+          onRetry={() => { void applicationQuery.refetch(); }}
+        />
+      </SafeAreaView>
+    );
+  }
 
   const isRejected = status === 'rejected';
+  const isApproved = status === 'approved';
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.content}>
-        <View style={styles.iconWrap}><ClipboardList size={64} color={isRejected ? colors.error : colors.primary} /></View>
-        <Text style={styles.title}>{isRejected ? 'Application Not Approved' : 'Application Under Review'}</Text>
-        <Text style={styles.subtitle}>
-          {isRejected
-            ? 'Your application could not be approved at this time. Please contact support to discuss next steps.'
-            : 'Thank you for applying to become an onService provider! Our team will review your documents and verify your identity.'}
-        </Text>
-
-        {!isRejected && (
-          <View style={[styles.card, styles.timeline]}>
-            <View style={styles.timelineItem}>
-              <View style={[styles.timelineDot, styles.timelineDotDone]} />
-              <View style={styles.timelineContent}>
-                <Text style={styles.timelineLabel}>Application Submitted</Text>
-                <Text style={styles.timelineHint}>Just now</Text>
-              </View>
-            </View>
-            <View style={styles.timelineLine} />
-            <View style={styles.timelineItem}>
-              <View style={[styles.timelineDot, styles.timelineDotActive]} />
-              <View style={styles.timelineContent}>
-                <Text style={styles.timelineLabel}>Identity Verification</Text>
-                <Text style={styles.timelineHint}>In progress</Text>
-              </View>
-            </View>
-            <View style={styles.timelineLine} />
-            <View style={styles.timelineItem}>
-              <View style={styles.timelineDot} />
-              <View style={styles.timelineContent}>
-                <Text style={styles.timelineLabelPending}>NBI Clearance Check</Text>
-                <Text style={styles.timelineHint}>Pending</Text>
-              </View>
-            </View>
-            <View style={styles.timelineLine} />
-            <View style={styles.timelineItem}>
-              <View style={styles.timelineDot} />
-              <View style={styles.timelineContent}>
-                <Text style={styles.timelineLabelPending}>Profile Activated</Text>
-                <Text style={styles.timelineHint}>24-48 hours</Text>
-              </View>
-            </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={[styles.content, !isPhone && styles.contentWide]}>
+          <View style={styles.iconWrap}>
+            <ClipboardList size={64} color={isRejected ? colors.error : isApproved ? colors.success : colors.primary} />
           </View>
-        )}
-
-        <View style={styles.infoCard}>
-          <Lightbulb size={18} color={colors.info} style={styles.infoIcon} />
-          <Text style={styles.infoText}>
-            {isRejected
-              ? "If you believe this was a mistake, our support team can review the decision and let you know what's needed to re-apply."
-              : "We'll notify you via SMS and push notification once your application is approved. This screen also auto-refreshes every 15 seconds — when you're approved we'll take you to your provider dashboard."}
+          <Text style={styles.title}>
+            {isRejected ? 'Application Not Approved' : isApproved ? 'Application Approved' : 'Application Under Review'}
           </Text>
-        </View>
+          <Text style={styles.subtitle}>
+            {isRejected
+              ? 'Your provider application was reviewed and was not approved.'
+              : isApproved
+                ? 'Your application was approved. We are refreshing your account access now.'
+                : 'Your documents were submitted for manual review. You can keep using the customer side while the review is pending.'}
+          </Text>
 
-        <Button
-          title="Go to Home"
-          onPress={() => router.replace(Routes.TABS.HOME)}
-        />
-      </View>
+          {isRejected ? (
+            <View style={[styles.card, styles.rejectionCard]} accessibilityRole="alert">
+              <Text style={styles.cardEyebrow}>REVIEW DECISION</Text>
+              <Text style={styles.cardTitle}>Reason provided</Text>
+              <Text style={styles.cardBody}>
+                {application.rejectionReason?.trim() || 'No reason was included. Contact support for clarification.'}
+              </Text>
+            </View>
+          ) : isApproved ? (
+            <View style={styles.card}>
+              {activationError ? (
+                <>
+                  <Text style={styles.cardTitle}>Access refresh needs attention</Text>
+                  <Text style={styles.cardBody}>{activationError}</Text>
+                  <Button
+                    title={activationRefreshing ? 'Refreshing…' : 'Try Again'}
+                    onPress={() => { void activateProviderWorkspace(); }}
+                    loading={activationRefreshing}
+                    disabled={activationRefreshing}
+                  />
+                </>
+              ) : (
+                <View style={styles.activationRow} accessibilityRole="progressbar">
+                  <ActivityIndicator color={colors.primary} />
+                  <Text style={styles.cardBody}>Activating provider workspace…</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={[styles.card, styles.timeline]}>
+              <TimelineRow label="Application submitted" state="done" detail="Complete" />
+              <View style={styles.timelineLine} />
+              <TimelineRow label="Manual document review" state="active" detail="In review" />
+              <View style={styles.timelineLine} />
+              <TimelineRow label="Decision" state="pending" detail="Not decided" />
+            </View>
+          )}
+
+          <View style={styles.infoCard}>
+            <Lightbulb size={18} color={colors.info} style={styles.infoIcon} />
+            <Text style={styles.infoText}>
+              {isRejected
+                ? 'Contact support if you need clarification about the decision or what would be required before applying again.'
+                : isApproved
+                  ? 'Do not close this screen until your provider workspace opens or an access message appears.'
+                  : 'We will notify you when an admin records a decision. This screen checks for updates automatically.'}
+            </Text>
+          </View>
+
+          {!isApproved && (
+            <Button
+              title="Go to Customer Home"
+              onPress={() => router.replace(Routes.TABS.HOME)}
+            />
+          )}
+        </View>
+      </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function TimelineRow({
+  label,
+  state,
+  detail,
+}: {
+  label: string;
+  state: 'done' | 'active' | 'pending';
+  detail: string;
+}): React.ReactElement {
+  return (
+    <View style={styles.timelineItem}>
+      <View style={[
+        styles.timelineDot,
+        state === 'done' && styles.timelineDotDone,
+        state === 'active' && styles.timelineDotActive,
+      ]} />
+      <View style={styles.timelineContent}>
+        <Text style={state === 'pending' ? styles.timelineLabelPending : styles.timelineLabel}>{label}</Text>
+        <Text style={styles.timelineHint}>{detail}</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingVertical: spacing.xl },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
+  loadingText: { ...typography.body, color: colors.textSecondary },
+  content: {
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  contentWide: { paddingHorizontal: spacing.xl },
   card: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.base,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxl,
-  },
-  icon: { fontSize: 64, textAlign: 'center', marginBottom: spacing.base },
-  iconWrap: { marginBottom: spacing.base, alignItems: 'center' as const },
+  rejectionCard: { borderColor: colors.error },
+  cardEyebrow: { ...typography.caption, color: colors.error, fontWeight: '700', marginBottom: spacing.xs },
+  cardTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
+  cardBody: { ...typography.body, color: colors.textSecondary, lineHeight: 22, marginBottom: spacing.md },
+  activationRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  iconWrap: { marginBottom: spacing.base, alignItems: 'center' },
   title: { ...typography.h1, color: colors.text, textAlign: 'center', marginBottom: spacing.sm },
   subtitle: {
     ...typography.body,
@@ -176,12 +236,7 @@ const styles = StyleSheet.create({
   },
   timelineDotDone: { backgroundColor: colors.success },
   timelineDotActive: { backgroundColor: colors.primary },
-  timelineLine: {
-    width: 2,
-    height: 24,
-    backgroundColor: colors.border,
-    marginLeft: 7,
-  },
+  timelineLine: { width: 2, height: 24, backgroundColor: colors.border, marginLeft: 7 },
   timelineContent: { flex: 1, paddingVertical: spacing.xs },
   timelineLabel: { ...typography.body, fontWeight: '600', color: colors.text },
   timelineLabelPending: { ...typography.body, color: colors.textTertiary },
@@ -190,6 +245,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.infoLight,
     borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.info,
     padding: spacing.base,
     marginBottom: spacing.xl,
     alignItems: 'flex-start',

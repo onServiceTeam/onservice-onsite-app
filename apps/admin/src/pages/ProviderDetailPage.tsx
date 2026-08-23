@@ -40,7 +40,7 @@ import { useAuthStore } from '@/stores/auth.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
-interface ProviderProfile {
+export interface ProviderProfile {
   id: string;
   userId: string;
   businessName: string;
@@ -97,6 +97,13 @@ interface ProviderProfile {
   categories: { id: string; name: string; basePrice: number | null }[];
   serviceAreas: { id: string; name: string; isPrimary: boolean }[];
   certifications: ProviderCertification[];
+  portfolio: Array<{
+    id: string;
+    imageUrl: string;
+    caption: string | null;
+    customerConsentConfirmedAt: string | null;
+    createdAt: string;
+  }>;
 }
 
 export interface ProviderCertification {
@@ -519,7 +526,7 @@ function ApprovalPanel({ profile }: { profile: ProviderProfile }): React.ReactEl
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────
 
-function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactElement {
+export function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactElement {
   // Phase L MED-L04 fix — guard the documents sub-object so the
   // verification card renders even if the API hasn't sent it yet.
   const docs = profile.documents ?? {
@@ -546,6 +553,43 @@ function ProfileTab({ profile }: { profile: ProviderProfile }): React.ReactEleme
           extra={docs.selfieUrl ? null : 'Not available in this record'} />
         {/* Phase 200 — avatar lives on the user object, not documents. */}
         <DocLine label="Avatar" url={profile.user?.avatarUrl ?? null} extra={null} />
+      </Card>
+
+      <Card className="p-4 md:col-span-2">
+        <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--color-text)]">Customer-facing portfolio</h3>
+            <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+              This is the exact work-photo set customers can see on the provider profile.
+            </p>
+          </div>
+          <Badge label={`${(profile.portfolio ?? []).length} published`} variant="info" />
+        </div>
+        {(profile.portfolio ?? []).length === 0 ? (
+          <p className="text-sm text-[var(--color-text-secondary)]">No published portfolio photos.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {(profile.portfolio ?? []).map((item) => (
+              <figure key={item.id} className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+                <img
+                  src={item.imageUrl}
+                  alt={item.caption || 'Provider portfolio work'}
+                  className="aspect-square w-full object-cover bg-[var(--color-background)]"
+                />
+                <figcaption className="p-3 space-y-1">
+                  <p className="text-sm text-[var(--color-text)]">{item.caption || 'No caption'}</p>
+                  <p className={item.customerConsentConfirmedAt
+                    ? 'text-xs font-medium text-[var(--color-success)]'
+                    : 'text-xs font-medium text-[var(--color-error)]'}>
+                    {item.customerConsentConfirmedAt
+                      ? `Consent confirmed ${formatDate(item.customerConsentConfirmedAt)}`
+                      : 'Legacy item: no consent record'}
+                  </p>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        )}
       </Card>
 
       <Card className="p-4">

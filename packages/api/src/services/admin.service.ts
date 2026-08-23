@@ -235,11 +235,19 @@ export async function approveProvider(providerId: string, adminId: string): Prom
   }
 
   await db.transaction(async (client) => {
-    const result = await client.query(
-      `UPDATE providers SET status = 'approved', reviewed_at = NOW(), updated_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING id`,
+    const result = await client.query<{ id: string; user_id: string }>(
+      `UPDATE providers SET status = 'approved', reviewed_at = NOW(), updated_at = NOW()
+        WHERE id = $1 AND status = 'pending'
+        RETURNING id, user_id`,
       [providerId],
     );
     if (result.rowCount === 0) throw createAppError('Provider not found or not in pending status.', 404);
+
+    const userId = result.rows[0]!.user_id;
+    await client.query(
+      `UPDATE users SET role = 'provider', updated_at = NOW() WHERE id = $1`,
+      [userId],
+    );
 
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
@@ -247,22 +255,18 @@ export async function approveProvider(providerId: string, adminId: string): Prom
       [adminId, providerId],
     );
 
-    interface UserIdRow { user_id: string }
-    const provider = await client.query<UserIdRow>(`SELECT user_id FROM providers WHERE id = $1`, [providerId]);
-    if (provider.rows[0]) {
-      // MED-N71 fix — pre-fix used type='tier_upgrade' which is the
-      // notification type for suki tier promotions, not for first-
-      // time provider account approval. Mobile clients route on
-      // notification.type so the wrong type sent the user to the
-      // wrong landing screen. Post-fix uses 'provider_approved' (now
-      // in the NotificationType union per MED-N72) which mobile maps
-      // to the dedicated approval screen.
-      await client.query(
-        `INSERT INTO notifications (user_id, type, title, body, data)
-         VALUES ($1, 'provider_approved', 'Account Approved', 'Congratulations! Your provider account has been approved. You can now start accepting jobs.', $2)`,
-        [provider.rows[0].user_id, JSON.stringify({ providerId })],
-      );
-    }
+    // MED-N71 fix — pre-fix used type='tier_upgrade' which is the
+    // notification type for suki tier promotions, not for first-
+    // time provider account approval. Mobile clients route on
+    // notification.type so the wrong type sent the user to the
+    // wrong landing screen. Post-fix uses 'provider_approved' (now
+    // in the NotificationType union per MED-N72) which mobile maps
+    // to the dedicated approval screen.
+    await client.query(
+      `INSERT INTO notifications (user_id, type, title, body, data)
+       VALUES ($1, 'provider_approved', 'Account Approved', 'Congratulations! Your provider account has been approved. You can now start accepting jobs.', $2)`,
+      [userId, JSON.stringify({ providerId })],
+    );
   });
 
   logger.info('Provider approved', { providerId, adminId });
@@ -270,11 +274,22 @@ export async function approveProvider(providerId: string, adminId: string): Prom
 
 export async function rejectProvider(providerId: string, adminId: string, reason: string): Promise<void> {
   await db.transaction(async (client) => {
-    const result = await client.query(
-      `UPDATE providers SET status = 'rejected', rejection_reason = $2, reviewed_at = NOW(), updated_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING id`,
+    const result = await client.query<{ id: string; user_id: string }>(
+      `UPDATE providers SET status = 'rejected', rejection_reason = $2, reviewed_at = NOW(), updated_at = NOW()
+        WHERE id = $1 AND status = 'pending'
+        RETURNING id, user_id`,
       [providerId, reason],
     );
     if (result.rowCount === 0) throw createAppError('Provider not found or not in pending status.', 404);
+
+    const userId = result.rows[0]!.user_id;
+    // Repair accounts created by older releases that promoted applicants at
+    // submission time. Never demote an admin or any other role here.
+    await client.query(
+      `UPDATE users SET role = 'customer', updated_at = NOW()
+        WHERE id = $1 AND role = 'provider'`,
+      [userId],
+    );
 
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
@@ -282,17 +297,13 @@ export async function rejectProvider(providerId: string, adminId: string, reason
       [adminId, providerId, reason],
     );
 
-    interface UserIdRow { user_id: string }
-    const provider = await client.query<UserIdRow>(`SELECT user_id FROM providers WHERE id = $1`, [providerId]);
-    if (provider.rows[0]) {
-      await client.query(
-        `INSERT INTO notifications (user_id, type, title, body, data)
-         VALUES ($1, 'provider_rejected', 'Application Declined', $2, $3)`,
-        [provider.rows[0].user_id,
-         `Your provider application has been declined. Reason: ${reason}. Please contact support for more information.`,
-         JSON.stringify({ providerId, reason })],
-      );
-    }
+    await client.query(
+      `INSERT INTO notifications (user_id, type, title, body, data)
+       VALUES ($1, 'provider_rejected', 'Application Declined', $2, $3)`,
+      [userId,
+       `Your provider application has been declined. Reason: ${reason}. Please contact support for more information.`,
+       JSON.stringify({ providerId, reason })],
+    );
   });
 
   logger.info('Provider rejected', { providerId, adminId, reason });

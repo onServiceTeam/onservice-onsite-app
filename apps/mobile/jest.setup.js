@@ -32,6 +32,7 @@ jest.mock('@/services/api', () => {
   return {
     __esModule: true,
     ApiError,
+    refreshAuthSession: jest.fn().mockResolvedValue(true),
     default: {
       get: jest.fn().mockResolvedValue({ data: {} }),
       post: jest.fn().mockResolvedValue({ data: {} }),
