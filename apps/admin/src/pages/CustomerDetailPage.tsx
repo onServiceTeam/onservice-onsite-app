@@ -412,13 +412,25 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
           </div>
         </div>
 
-        {isSuperAdmin && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            to={`/support-tickets?new=1&userId=${encodeURIComponent(profile.id)}&userRole=customer&userName=${encodeURIComponent(profile.fullName)}`}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[var(--color-primary)] px-4 text-sm font-semibold text-white"
+          >
+            <MessageSquare size={14} /> Create support case
+          </Link>
+          <Link
+            to={`/support-tickets?userId=${encodeURIComponent(profile.id)}&userRole=customer&userName=${encodeURIComponent(profile.fullName)}`}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--color-border)] bg-white px-4 text-sm font-semibold text-[var(--color-primary)]"
+          >
+            View support history
+          </Link>
+          {isSuperAdmin && (
             <Button variant="secondary" size="sm" onClick={() => setShowStatus((s) => !s)}>
               <Flag size={14} /> Manage status
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {showStatus && isSuperAdmin && (

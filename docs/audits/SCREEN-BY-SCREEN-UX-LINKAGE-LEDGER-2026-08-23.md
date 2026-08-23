@@ -77,7 +77,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/customer/booking/job-request.tsx` | BOOKING | booking service | W | SOURCE/RENDER/WIDE via Bugs UX-043/046. Quote/per-unit scope is retained from discovery and shown before request submission; the wide form is constrained for reading. |
 | `app/customer/booking/make-recurring.tsx` | RETENTION/BOOKING | booking API | S | SOURCE/RENDER. Recurring-admin linkage exists; wide schedule preview pending. |
 | `app/customer/booking/pay.tsx` | MONEY/BOOKING | booking, payment | S/HOLD | SOURCE/RENDER. Payment-failure and confirm exits linked. |
-| `app/customer/booking/payment-failed.tsx` | MONEY/SUPPORT | booking service | S | SOURCE/RENDER. Retry/support hierarchy and wide state pending. |
+| `app/customer/booking/payment-failed.tsx` | MONEY/SUPPORT | booking + support services | W/HOLD | SOURCE/RENDER via Bug UX-055. Contact Support opens a prefilled payment case with booking and failure context instead of detouring through generic Help. The PayMongo recovery path remains E14. |
 | `app/customer/booking/photos.tsx` | BOOKING/SUPPORT | booking photo/upload | S/N | SOURCE/RENDER. Device capture and browser upload fallback need evidence. |
 | `app/customer/booking/quotes.tsx` | BOOKING/MONEY | booking quotes | W | SOURCE/RENDER/WIDE via Bugs UX-020/021. Tablet/desktop comparison grid and vector empty state added. |
 | `app/customer/booking/review.tsx` | BOOKING/RETENTION | review service | S | SOURCE/RENDER. Provider/admin review linkage exists; wide form pending. |
@@ -86,7 +86,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/customer/category/[id].tsx` | DISCOVERY | catalog service | W | SOURCE/RENDER via Bug UX-043. Responsive provider grid exists; every service has published scope or an honest pricing-aware fallback, and a confirmation step preserves the selected category/service context. Wide live visual evidence remains. |
 | `app/customer/chat/[id].tsx` | BOOKING/SUPPORT | messaging, socket, upload | W | SOURCE/RENDER/WIDE via Bug UX-030. Booking status, schedule, location, details, and tracker exits stay beside the conversation. Live authenticated customer visual evidence remains. |
 | `app/customer/data-rights.tsx` | GOVERNANCE | compliance service | S/HOLD | SOURCE/RENDER. Admin DSR linkage exists; identity/legal states must stay canonical. |
-| `app/customer/help.tsx` | SUPPORT | static help links | S | SOURCE/RENDER. Must route users into real support cases where appropriate. |
+| `app/customer/help.tsx` | SUPPORT | support routes + static help | W | SOURCE/RENDER. Real support inbox and case creation are primary; displayed staffed hours now match the canonical 8 AM-6 PM PHT SOP. |
 | `app/customer/notification-settings.tsx` | GOVERNANCE | API settings | S | SOURCE/RENDER. Admin template linkage exists; wide grouping pending. |
 | `app/customer/notifications.tsx` | BOOKING/SUPPORT | notification service | S | SOURCE/RENDER. Booking deep links exist; wide inbox composition pending. |
 | `app/customer/payment-methods.tsx` | MONEY | payment presentation | S/HOLD | SOURCE/RENDER. Saved-method behavior and live payment provider remain launch-sensitive. |
@@ -97,7 +97,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/customer/recurring/index.tsx` | RETENTION | recurring API | W | SOURCE/RENDER. Responsive list exists; admin Recurring counterpart linked. |
 | `app/customer/recurring/[id].tsx` | RETENTION/BOOKING | recurring API | S | SOURCE/RENDER. Edit/cancel implications and wide preview pending. |
 | `app/customer/referral.tsx` | RETENTION | referral service | S | SOURCE/RENDER. Marketing/analytics counterpart exists; metric truth review pending. |
-| `app/customer/safety-and-support.tsx` | SUPPORT/GOVERNANCE | support routes | S/HOLD | SOURCE/RENDER. Must not promise unresolved guarantee coverage. |
+| `app/customer/safety-and-support.tsx` | SUPPORT/GOVERNANCE | support routes | W/HOLD | SOURCE/RENDER via Bug UX-065. Safety reporting opens a prefilled urgent case while 911 remains the immediate-danger path. Unresolved guarantee/legal wording stays on hold. |
 | `app/customer/search.tsx` | DISCOVERY | catalog/search API | S | SOURCE/RENDER via Bug UX-046. Results retain category/service/scope/pricing context and hourly services no longer enter the custom-quote path. Wide filters remain. |
 | `app/customer/suki-pros.tsx` | RETENTION/DISCOVERY | Suki service | S | SOURCE/RENDER. Provider loyalty counterpart exists; wide card grid pending. |
 | `app/customer/terms.tsx` | GOVERNANCE | canonical legal content | S/HOLD | SOURCE/RENDER. Final disclaimer remains F#10. |
@@ -128,7 +128,7 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/provider/chat/[id].tsx` | BOOKING/SUPPORT | messaging, socket, upload | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bugs UX-031/032. Customer/job context stays beside the thread, and support-record guidance is visible without overflow. |
 | `app/provider/clients.tsx` | RETENTION | provider CRM | W | SOURCE/RENDER. Two-column list exists; wide spacing/visual evidence pending. |
 | `app/provider/clients/[id].tsx` | RETENTION/BOOKING | provider CRM | S | SOURCE/RENDER. Client history/detail split pending. |
-| `app/provider/help.tsx` | SUPPORT | support/help links | S | SOURCE/RENDER. Must route into shared support case workflow. |
+| `app/provider/help.tsx` | SUPPORT | support/help links | W | SOURCE/RENDER. Shared support inbox/case workflow is linked and displayed staffed hours match the canonical 8 AM-6 PM PHT SOP. |
 | `app/provider/insights.tsx` | RETENTION | provider CRM | S | SOURCE/RENDER. Metric definitions/source/freshness are required. |
 | `app/provider/job/[id].tsx` | BOOKING/SUPPORT | booking, provider | W | SOURCE/RENDER/WIDE/LIVE 820/1280 via Bug UX-028. Job record keeps canonical earnings and execution actions in a persistent side rail without overflow. |
 | `app/provider/job/[id]/change-order.tsx` | BOOKING/MONEY | booking API | S/HOLD | SOURCE/RENDER. Customer approval/admin money linkage exists. |
@@ -159,9 +159,9 @@ No row is considered UX-complete until its main task, empty/loading/error states
 | `app/staff/invites.tsx` | IDENTITY/BOOKING | provider staff | S | SOURCE/RENDER. Scoped provider-staff role checks exist. |
 | `app/staff/jobs.tsx` | BOOKING | provider staff | S | SOURCE/RENDER. Desktop scoped job list pending. |
 | `app/staff/job/[id].tsx` | BOOKING/SUPPORT | booking, provider | S | SOURCE/RENDER. Must not expose provider-owner controls. |
-| `app/support/index.tsx` | SUPPORT | support service | S | SOURCE/RENDER. Shared customer/provider inbox; desktop case list pending. |
-| `app/support/new.tsx` | SUPPORT | support service | S | SOURCE/RENDER. Booking/context attachment and wide form pending. |
-| `app/support/[id].tsx` | SUPPORT | support service | S | SOURCE/RENDER. Desktop conversation/case-context split pending. |
+| `app/support/index.tsx` | SUPPORT | support service | W | SOURCE/RENDER/WIDE via Bug UX-062. Shared customer/provider inbox uses a bounded desktop workspace and two-column case grid. |
+| `app/support/new.tsx` | SUPPORT | support service | W | SOURCE/RENDER/WIDE via Bugs UX-055/062/064/065. Booking, type, priority, subject, and description context survive entry; the server verifies booking ownership. |
+| `app/support/[id].tsx` | SUPPORT | support service | W | SOURCE/RENDER/WIDE via Bugs UX-058/062. Desktop conversation width is bounded, send failures are visible, user replies reactivate waiting cases, and terminal cases remain read-only. |
 
 ## Admin pages, company purpose, and suspicion-first status
 
@@ -186,7 +186,7 @@ Every admin page below is reopened for first-principles review. `Existing` means
 | `/service-areas` | market launch, capacity, coverage | address/search/provider area | catalog config | Existing; impact preview and safe activation open |
 | `/disputes` | trust queue and assignment | customer dispute/provider context | trust and safety | Existing; SLA model absent, do not invent countdowns |
 | `/disputes/:id` | evidence, messages, decision record | customer dispute/provider response | case workspace | Reworked partly; provider response remains E04 |
-| `/support-tickets` | triage, owner, public/internal conversation | shared support routes | case workspace | Reworked; record-level search still open |
+| `/support-tickets` | triage, owner, public/internal conversation | shared support routes | case workspace | W via Bugs UX-056-063. Search, booking/account filters, deep-linked cases, correct customer/provider identity, named owner, account/booking reverse links, and audited create-on-behalf intake are wired. SLA clocks remain deliberately absent. |
 | `/communications` | reported-message moderation | customer/provider chat | trust and safety | Reworked via Bugs UX-033 through UX-036. Opens on the review queue, preserves the exact reported-message focus, links booking/customer/provider case records, and requires an audit rationale before clearing a report. Populated/loading/empty/error visual baselines pass at 1280/1440/1920. Global record search remains open. |
 | `/feedback` | own and triage third-party product research | customer/provider/admin feedback form | case workspace | Added via Bugs UX-037 through UX-041. Defaults to new, filters by app area, preserves original evidence, masks contact/free-text PII for ordinary admins, and requires a named owner plus audited note for triaged/done work. Populated/loading/empty/error baselines pass at 1280/1440/1920. |
 | `/financials` | reconciliation, escrow, tax, receipt control | customer pay/provider earnings | payout/command | Existing; money actions remain server-authoritative |
@@ -208,7 +208,7 @@ Every admin page below is reopened for first-principles review. `Existing` means
 ## Immediate findings generated by this ledger
 
 1. Only 21 of 103 routed mobile screens currently have explicit internal responsive logic after this batch. The other 82 are shell-constrained and require task-specific wide review; this is not recorded as completion.
-2. The next high-use desktop gaps are customer projects/support/notifications and provider earnings/client detail/quote builder, followed by the remaining shell-only settings and onboarding forms.
+2. The next high-use desktop gaps are customer projects/notifications and provider earnings/client detail/quote builder, followed by the remaining shell-only settings and onboarding forms.
 3. Admin still contains raw user-ID entry in staff access and dozens of generic browser-confirm operations across staff, analytics, catalog, money, compliance, and settings workflows. Confirmation itself is valid, but high-impact actions need consistent context, impact preview, reasons, and audit evidence rather than a generic browser prompt.
 4. The admin shell and support/booking/dispute improvements are foundations. They do not make every page a coherent case workspace.
 5. Fine-grained staff permissions, cancellation math, provider dispute response, checklist issue reporting, legal disclaimer text, and milestone escrow remain explicit holds. Visual work cannot silently decide them.

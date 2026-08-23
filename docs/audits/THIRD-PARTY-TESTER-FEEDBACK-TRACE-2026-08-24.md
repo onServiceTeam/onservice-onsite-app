@@ -40,7 +40,7 @@ Only the first three are screen evidence. The other three support spam/quality t
 | Wallet top-up QR did not return cleanly | Wallet top-up, wallet, payment failed | Financials, Support Queue | Confirmed: production has 12 top-up intents and all 12 remain `awaiting_payment`; there is no return route or top-up status endpoint | Blocked under E14 pending an approved PayMongo flow and test-mode end-to-end validation |
 | Cebu address could not be recognized | Address picker, saved addresses, booking form | Service Areas, Dispatch, booking detail | Confirmed follow-on defects: shared-province matching misclassified Mandaue as Cebu City; coordinate-less saved addresses received fake Cebu coordinates; bookings were not coverage-gated | Bugs UX-050 through UX-054 now use configured areas, require exact coordinates/barangay, verify active coverage, classify overlapping areas by nearest center, and support browser geolocation; paid autocomplete remains D24 |
 | Duplicate requested bookings appeared after a failed payment attempt | Home, bookings, payment failed | Booking queue, Financials, Audit Log | E03 was resolved on 2026-06-19 after the report; do not reopen from old evidence alone | Keep as a regression scenario and verify current idempotency before any new fix |
-| Help, cancellation, dispute, and live-support entry points are hard to find | Help, Safety & Support, support inbox, booking detail | Support Queue, Disputes, Communications | Current information-architecture issue likely remains on shell-only screens | Put real support cases ahead of `mailto:` exits and keep booking/user context attached |
+| Help, cancellation, dispute, and live-support entry points are hard to find | Help, Safety & Support, support inbox, booking detail, payment failure | Support Queue, Customer 360, Provider 360, Booking 360 | Confirmed: production had zero support tickets; payment failure discarded booking/error context, booking detail had no support action, safety reports opened a blank generic form, and admin labeled provider tickets as customers | Bugs UX-055 through UX-065 add contextual case entry, booking ownership enforcement, correct customer/provider linkage, account/booking reverse links, search, agent-created cases, waiting-case reactivation, and wide support workspaces. E05 still blocks checklist issue reporting. |
 | Provider checklist issue reporting is missing/broken | Provider job checklist | Booking 360, Support Queue | Hard stop E05: no approved endpoint or escalation behavior | Do not invent; preserve as an explicit decision/escalation item |
 | Provider navigation/location failed | Provider job navigation and active job | Dispatch, Booking 360, Service Areas | Current-code and external-navigation fallback verification required | Test coordinates, missing-location state, external map handoff, and browser behavior |
 | Provider cannot confidently edit services or availability | Provider Services, Skills, Schedule, Availability | Catalog, provider 360, Service Areas | Plausible discoverability/validation gaps | Verify edit affordances, disabled/re-enabled days, allowed catalog scope, and save feedback |
@@ -90,12 +90,17 @@ Behavior is covered by Bugs UX-043 through UX-049. Provider-profile regressions 
 
 ## Next verification order
 
-1. Customer Help, Safety & Support, and shared support case linkage.
-2. Provider navigation, Services, Schedule/Availability, Team, Certifications, and upload states.
-3. PayMongo hosted checkout and top-up recovery after E14 is decided and test keys are available.
+1. Provider navigation, Services, Schedule/Availability, Team, Certifications, and upload states.
+2. PayMongo hosted checkout and top-up recovery after E14 is decided and test keys are available.
+3. Provider earnings/payout presentation without changing money behavior.
+4. Admin dashboard/reporting requests only after metric definitions and privacy boundaries exist.
 
 The Cebu address regression and safe browser fallback are covered by Bugs
 UX-050 through UX-054. D24 remains open only for third-party autocomplete and
 geocoding of a property other than the browser user's current location.
-5. Provider earnings/payout presentation without changing money behavior.
-6. Admin dashboard/reporting requests only after metric definitions and privacy boundaries exist.
+
+The shared support batch is covered by Bugs UX-055 through UX-068. It does not
+claim that a live support team or automated SLA timers exist. Production had no
+support cases or messages at the time of the read-only audit, so the zero-use
+finding is preserved as operational evidence rather than presented as proof of
+future staffing or response speed.

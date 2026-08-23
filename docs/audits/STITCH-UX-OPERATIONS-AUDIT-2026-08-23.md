@@ -214,6 +214,9 @@ Admin findings:
 - Fixed: support queue and case workspace now expose purpose, visible-page signals, linked customer and booking context, public versus internal conversation, named owner assignment, and explicit status confirmation.
 - Fixed: ordinary-admin support list and detail responses now apply the existing PII mask.
 - Fixed: support assignment now validates active admin roles and writes an audit event in the same transaction.
+- Fixed in the tester-backed support batch: support search covers ticket, subject, account contact, and provider business; account and booking filters/deep links connect Support to Customer 360, Provider 360, and Booking 360; provider cases no longer route to Customer 360.
+- Fixed in the tester-backed support batch: agents can create an audited account-owned case from Customer or Provider 360 for email/Messenger intake, and booking-linked cases are rejected unless that booking belongs to the customer, provider owner, or assigned provider staff member.
+- Fixed in the tester-backed support batch: customer booking, payment-failure, and safety entry points preserve case context; waiting cases return to the active queue when the user replies; terminal user threads stay read-only; support inbox, form, and thread are bounded for tablet/desktop browsers.
 - Fixed in the current admin trust-and-safety batch: Communications now starts on the actionable review queue, opens the exact reported message, keeps booking/customer/provider case links beside the conversation, and requires an audit rationale before a report is cleared.
 - Fixed in the tester-feedback operations batch: production tester research now has a dedicated queue, customer/provider/admin area filters, preserved issue/questionnaire/screenshot evidence, named active-admin ownership, a written decision note, and a transactional audit event. Ordinary-admin contact and free-text PII are masked.
 - Fixed: navigating directly to a lower sidebar workspace scrolls its active destination into the visible navigation region instead of leaving the current page hidden below the fold.
@@ -234,7 +237,7 @@ Admin findings:
 ## Documentation and environment findings
 
 - Production admin demo auto-login is intentionally disabled; demo documentation now states that admin access requires an authorized account.
-- Several operations documents still state that in-app support ticketing is absent, but customer and provider support inbox, create, and thread routes now exist.
+- Support documentation now describes the implemented in-app and agent-created intake paths. The former claim that waiting cases automatically send reminders and close after five days is explicitly marked unimplemented; staff must not rely on an automation that does not exist.
 - Fixed: the deployment workflow no longer targets the obsolete `main` branch or auto-runs without configured production secrets; the release guide now describes the actual shared Hetzner topology.
 - Fresh dependency installation still requires `npm ci --legacy-peer-deps` because ESLint 10 is outside `eslint-plugin-react`'s declared peer range.
 - The current local Node 24.13 runtime is below one installed dependency's preferred 24.15 engine range.
@@ -295,6 +298,7 @@ Admin findings:
 39. Corrected provider-profile hourly booking linkage so the displayed and drafted rate comes from the canonical catalog hourly rate, not the provider service's generic base price; Bug UX-048 renders and proves the complete interaction.
 40. Caught a production-artifact cache mismatch in live browser QA, rebuilt with a cleared Metro cache, verified the controlled demo entry in the compiled and live bundle, and made `--clear` mandatory in both deployment guides.
 41. Corrected quote-priced provider cards so a legacy provider base price cannot appear as the booking price; Bug UX-049 proves the card says Get Quote and starts the quote-request path.
+42. Closed the tester-backed support linkage gap across customer, provider, and admin surfaces with contextual entry, secure booking ownership, correct persona links, searchable case context, audited agent intake, and responsive shared support screens.
 
 ## Verification record for this batch
 

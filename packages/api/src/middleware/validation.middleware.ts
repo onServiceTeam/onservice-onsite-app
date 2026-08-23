@@ -44,9 +44,16 @@ export function validationMiddleware(schemaOrMulti: ZodSchema | MultiSchema) {
           req.body = schemaOrMulti.body.parse(req.body) as typeof req.body;
         }
         if (schemaOrMulti.query) {
-          // Express 5: req.query is a getter, but we can cast and
-          // mutate the underlying record for downstream handlers.
-          (req as unknown as { query: unknown }).query = schemaOrMulti.query.parse(req.query);
+          // Express 5 exposes req.query as a getter on the request prototype,
+          // so direct assignment throws in strict mode. Shadow that getter on
+          // this request with the parsed value for downstream handlers.
+          const parsedQuery = schemaOrMulti.query.parse(req.query);
+          Object.defineProperty(req, 'query', {
+            value: parsedQuery,
+            writable: true,
+            enumerable: true,
+            configurable: true,
+          });
         }
         if (schemaOrMulti.params) {
           req.params = schemaOrMulti.params.parse(req.params) as typeof req.params;

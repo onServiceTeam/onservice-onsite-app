@@ -258,6 +258,18 @@ export default function BookingDetailScreen(): React.ReactElement {
           variant="ghost"
         />
       )}
+      <Button
+        title="Get Support"
+        onPress={() => router.push({
+          pathname: '/support/new',
+          params: {
+            bookingId: id,
+            type: 'booking_issue',
+            subject: `Help with booking ${formatBookingRef(booking.id, booking.createdAt)}`,
+          },
+        })}
+        variant="outline"
+      />
       {COMPLETED_STATUSES.has(booking.status) && booking.status !== 'completed_by_provider' && (
         <View style={styles.completedActions}>
           <Button

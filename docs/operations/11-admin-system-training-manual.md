@@ -302,11 +302,12 @@ The ticket queue. Types: `booking_issue`, `payment_issue`, `provider_no_show`, `
 Customers and providers can open and follow their own tickets in the shared in-app Support screens. Those tickets enter this queue automatically. Contacts received through email (support@onservice.ph for customers, providers@onservice.ph for providers) or Messenger still need an agent-created ticket so they use the same case record.
 
 How to work a ticket:
-1. Open it, confirm priority, and assign it from the active-agent list.
-2. Reply to the user, or post an internal note (internal notes are admin-only).
-3. Update status as you go. To mark `resolved` or `closed` you must add resolution notes of at least 10 characters.
+1. Find it by ticket number, subject, customer/provider name, phone, email, or provider business. Account and Booking 360 link back to their exact case views.
+2. Open it, confirm priority, and assign it from the active-agent list. Provider cases link to Provider 360; customer cases link to Customer 360.
+3. Reply to the user, or post an internal note (internal notes are admin-only).
+4. Update status as you go. To mark `resolved` or `closed` you must add resolution notes of at least 10 characters.
 
-A ticket sitting in `waiting_on_customer` auto-closes after 5 days with no reply (two reminders go out first). See `06-customer-support-sop.md` and `07-provider-support-sop.md` for triage and SLA targets.
+When a user replies to a waiting case, it returns to the active queue. Automated reminders and five-day auto-close are not implemented. Staff must review waiting cases manually and must not assume reminders were sent. See `06-customer-support-sop.md` and `07-provider-support-sop.md` for triage and SLA targets.
 
 ### 2.26 Staff & Roles (`/staff`)
 
@@ -413,7 +414,7 @@ Sign-off: ___________________________ (super_admin)    Date: ____________
 - Reason fields are permanent and public-to-audit. Most need at least 10 chars; dispute resolve, reopen, and force-complete need at least 20.
 - "Online" provider = approved AND available. Suspension removes a provider from dispatch instantly.
 - Escrow auto-confirms and releases after 24h if the customer does nothing. Dispute window is 48h after completion. DSR SLA is 15 days.
-- A ticket in `waiting_on_customer` auto-closes after 5 days of no reply (two reminders first).
+- Waiting support tickets require manual follow-up. The proposed five-day auto-close and two reminders are not implemented.
 - If you are not super_admin and a money/destructive button is locked, that is correct. Escalate, do not work around it.
 - When unsure, stop and ask. The audit log remembers everything.
 

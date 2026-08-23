@@ -55,6 +55,7 @@
 - **Evidence:** CustomerDetailPage.tsx DisputesTab (line 872-969): displays fraud alert (line 889-901) but no CTA. CustomerHeader (lines 374-430) has status actions but requires navigating away from DisputesTab to access them.
 
 ### H11. SupportTicketsPage — missing-feature (small)
+**Status: RESOLVED 2026-08-24 (Bug UX-059).** Search now covers ticket number, subject, account name, phone, email, and provider business, with validated account and booking filters.
 - **Observation:** The ticket filters (status, type, priority) are dropdowns, but there is no 'Search by subject/user name' input field. An operator looking for a specific customer's ticket must browse all tickets in the current filter, or use browser find.
 - **Fix:** 1) In support-ticket.service.ts: Add `search?: string` to ListTicketsParams interface. Add ILIKE search clause (like dispute.service.ts lines 804-808) that searches st.subject, u.first_name, u.last_name, u.phone. 2) In support-ticket.routes.ts: Extract `req.query.search` (line 25) and pass to listTickets(). 3) In SupportTicketsPage.tsx: Add search state (lines 67-68 from DisputesPage), add search form input (lines 282-294), include search in queryKey (line 146), pass search param in API call (lines 148-152). Mirror the DisputesPage search implementation exactly.
 - **Evidence:** SupportTicketsPage.tsx:482-509 (filters only); support-ticket.routes.ts does not expose a search query param
@@ -302,21 +303,25 @@
 - **Evidence:** DisputeDetailPage.tsx:745-759 (refund percent input); 663-679 (estimatedRefund calc)
 
 ### M34. SupportTicketsPage — missing-feature (small)
+**Status: RESOLVED 2026-08-24 (Bug UX-060).** The queue now shows a named Case owner column and calls out unassigned cases.
 - **Observation:** The support tickets list does not display 'assigned agent' as a column, yet the detail view shows who the ticket is assigned to (line 326). An operator scanning the ticket list cannot see at a glance which tickets are unassigned vs. assigned to them, forcing a click to check assignment.
 - **Fix:** Add an "Assigned To" column to the columns array in SupportTicketsPage.tsx (after line 242, the "User" column). Render as: `{r.agent_first_name ? \`${r.agent_first_name} ${r.agent_last_name ?? ''}\`.trim() : 'Unassigned'}` — reusing the same pattern from the detail view (line 326). This requires no backend changes, no new queries, and no schema updates. The data is already flowing through the API response.
 - **Evidence:** SupportTicketsPage.tsx:225-267 (columns); 326 (assigned_agent shown in detail)
 
 ### M35. SupportTicketsPage detail — ux-friction (small)
+**Status: RESOLVED 2026-08-23 (Bug UX-008).** Assignment uses a server-validated active-admin picker and writes an assignment audit event.
 - **Observation:** When assigning an agent to a ticket (line 335-355), the operator must input a raw user ID (UUID format) into a text box. There is no autocomplete, no dropdown of available agents, or a hint about valid IDs. An operator may enter an invalid user ID and only discover the error after clicking 'Assign'.
 - **Fix:** 1. Frontend: Add useQuery hook to fetch active admin staff from /api/v1/staff?isActive=true in SupportTicketsPage.tsx. Replace the raw text input (lines 335-342) with a Combobox/Autocomplete component that filters staff by first_name, last_name, or phone. 2. Backend: In support-ticket.service.ts assignTicket(), before the UPDATE query, validate that the agentId exists in admin_staff table and is_active=true: `SELECT user_id FROM admin_staff WHERE user_id = $1 AND is_active = true`. Throw 404 if not found or 400 if inactive. This prevents silent failures and ensures only valid agents can be assigned.
 - **Evidence:** SupportTicketsPage.tsx:335-355
 
 ### M36. SupportTicketsPage — correctness (small)
+**Status: RESOLVED 2026-08-24 (Bug UX-067).** The route and service now validate a trimmed minimum ten-character resolution note for both resolved and closed transitions, in addition to the UI gate.
 - **Observation:** When a support ticket status is changed to 'resolved' or 'closed', the modal (line 393-442) requires resolution notes with a minimum of 10 characters. However, the confirm dialog (line 429) does NOT verify that the notes field is populated before allowing the mutation to fire. If an operator clears the field after opening the dialog, the validation is bypassed and an empty string is sent to the server.
 - **Fix:** In packages/api/src/services/support-ticket.service.ts, updateTicketStatus function (line 264-308): Add validation after line 281 to check if the status is 'resolved' or 'closed', and if resolutionNotes is provided but shorter than 10 characters, throw createAppError('Resolution notes must be at least 10 characters.', 400). This mirrors the pattern used for subject/description caps and aligns with the frontend UX contract (placeholder says "min 10 characters"). Include a fix-comment referencing this finding for the audit trail.
 - **Evidence:** SupportTicketsPage.tsx:405-435 (validation); 432 (mutation fire)
 
 ### M37. SupportTicketsPage message reply — ux-friction (small)
+**Status: RESOLVED 2026-08-24 (Bug UX-066).** The reply composer now shows a live character count and warns visually after 4,500 characters.
 - **Observation:** When replying to a support ticket, the message textarea (line 448-456) has a maxLength of 5000 characters, but the submit button label does not indicate this limit. An operator composing a long response may exceed the limit unknowingly and see a truncated message sent.
 - **Fix:** Add a character counter below the textarea in SupportTicketsPage.tsx (after line 457). Display "X / 5000 characters" using the replyMessage.length value. Optionally add a visual warning (e.g., text color change to orange/red) when approaching the limit (e.g., >4500 characters). The counter should be minimal and styled consistently with the rest of the form (e.g., "text-sm text-[var(--color-text-secondary)]"). Implementation: add a div after the closing textarea tag showing `${replyMessage.length} / 5000 characters` with conditional styling for the warning state.</concreteFix> </invoke>
 - **Evidence:** SupportTicketsPage.tsx:448-470

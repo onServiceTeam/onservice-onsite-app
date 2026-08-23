@@ -103,8 +103,9 @@ describe('MED-N134 — joinSlotWaitlist dedup is race-safe (trx + FOR UPDATE)', 
 
 describe('MED-N135 — createTicket writes admin_actions audit when admin acts on behalf of user', () => {
   it('MED-N135 — admin-acting-on-behalf-of-user writes audit row in trx', async () => {
-    // generateTicketNumber probably calls db.query — we mock as returning a count.
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 }); // ticket number generator
+    // Account validation then ticket-number sequence.
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ role: 'customer' }], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ nextval: '1' }], rowCount: 1 });
     // INSERT support_tickets
     dbQueryMock.mockResolvedValueOnce({
       rows: [{ id: 't1', ticket_number: 'TK-001', user_id: 'user-1', type: 'booking_issue', priority: 'medium' }],
@@ -140,7 +141,8 @@ describe('MED-N135 — createTicket writes admin_actions audit when admin acts o
   });
 
   it('MED-N135 — no audit row when user creates their own ticket (createdByAdminId === userId or omitted)', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ role: 'customer' }], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ nextval: '2' }], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({
       rows: [{ id: 't1', ticket_number: 'TK-002', user_id: 'user-1', type: 'general_inquiry', priority: 'low' }],
       rowCount: 1,
@@ -163,6 +165,10 @@ describe('MED-N135 — createTicket writes admin_actions audit when admin acts o
 
 describe('MED-N136 — addMessage wraps INSERT + UPDATE in single trx', () => {
   it('MED-N136 — INSERT message + UPDATE ticket timestamp both run on the trx client', async () => {
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [{ status: 'open', assigned_agent_id: null }],
+      rowCount: 1,
+    });
     dbQueryMock.mockResolvedValueOnce({
       rows: [{
         id: 'msg-1', ticket_id: 't1', sender_id: 'u1', sender_role: 'customer',

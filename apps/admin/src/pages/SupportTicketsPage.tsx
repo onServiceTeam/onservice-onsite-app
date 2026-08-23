@@ -23,8 +23,12 @@ interface Ticket {
   created_at: string;
   updated_at: string;
   user_phone?: string;
+  user_email?: string;
   user_first_name?: string;
   user_last_name?: string;
+  user_role?: string;
+  provider_id?: string | null;
+  provider_business_name?: string | null;
   agent_first_name?: string;
   agent_last_name?: string;
   message_count?: number;
@@ -101,6 +105,33 @@ function parseOption(value: string | null, allowed: readonly string[]): string {
   return value && allowed.includes(value) ? value : '';
 }
 
+function isProviderTicket(ticket: Ticket): boolean {
+  return ticket.user_role === 'provider' || ticket.user_role === 'provider_staff';
+}
+
+function ticketPersonaLabel(ticket: Ticket): string {
+  if (ticket.user_role === 'provider_staff') return 'Provider staff';
+  if (ticket.user_role === 'provider') return 'Provider';
+  return 'Customer';
+}
+
+function ticketAccountPath(ticket: Ticket): string | null {
+  if (isProviderTicket(ticket)) {
+    return ticket.provider_id ? `/providers/${ticket.provider_id}` : null;
+  }
+  return `/customers/${ticket.user_id}`;
+}
+
+function ticketUserName(ticket: Ticket): string {
+  const personName = `${ticket.user_first_name ?? ''} ${ticket.user_last_name ?? ''}`.trim();
+  if (ticket.provider_business_name) {
+    return personName
+      ? `${ticket.provider_business_name} · ${personName}`
+      : ticket.provider_business_name;
+  }
+  return personName || ticket.user_phone || 'Unknown account';
+}
+
 export default function SupportTicketsPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -108,7 +139,15 @@ export default function SupportTicketsPage(): React.ReactElement {
   const statusFilter = parseOption(searchParams.get('status'), STATUSES);
   const typeFilter = parseOption(searchParams.get('type'), TICKET_TYPES);
   const priorityFilter = parseOption(searchParams.get('priority'), PRIORITIES);
-  const [selected, setSelected] = useState<Ticket | null>(null);
+  const searchFilter = (searchParams.get('search') ?? '').trim();
+  const bookingFilter = searchParams.get('bookingId') ?? '';
+  const userFilter = searchParams.get('userId') ?? '';
+  const [selectedOverride, setSelectedOverride] = useState('');
+  const selectedId = searchParams.get('ticketId') ?? selectedOverride;
+  const createRequested = searchParams.get('new') === '1' && !!userFilter;
+  const newUserName = searchParams.get('userName') ?? 'Selected account';
+  const newUserRole = searchParams.get('userRole') ?? 'customer';
+  const [searchDraft, setSearchDraft] = useState(searchFilter);
   const [replyMessage, setReplyMessage] = useState('');
   const [isInternalNote, setIsInternalNote] = useState(false);
   const [error, setError] = useState('');
@@ -121,6 +160,12 @@ export default function SupportTicketsPage(): React.ReactElement {
   // open a confirm dialog asking for resolution notes.
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
+  const [newTicketType, setNewTicketType] = useState(
+    parseOption(searchParams.get('type'), TICKET_TYPES) || 'general_inquiry',
+  );
+  const [newTicketPriority, setNewTicketPriority] = useState('medium');
+  const [newTicketSubject, setNewTicketSubject] = useState('');
+  const [newTicketDescription, setNewTicketDescription] = useState('');
   const limit = adminConfig.defaultPageSize;
 
   function setPage(nextPage: number): void {
@@ -143,7 +188,13 @@ export default function SupportTicketsPage(): React.ReactElement {
   }
 
   function handleSelectTicket(ticket: Ticket): void {
-    setSelected(ticket);
+    setSelectedOverride(ticket.id);
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('ticketId', ticket.id);
+      params.delete('new');
+      return params;
+    });
     setReplyMessage('');
     setIsInternalNote(false);
     setError('');
@@ -151,7 +202,13 @@ export default function SupportTicketsPage(): React.ReactElement {
   }
 
   function handleBack(): void {
-    setSelected(null);
+    setSelectedOverride('');
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('ticketId');
+      params.delete('new');
+      return params;
+    });
     setReplyMessage('');
     setIsInternalNote(false);
     setError('');
@@ -159,12 +216,24 @@ export default function SupportTicketsPage(): React.ReactElement {
   }
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['adminSupportTickets', page, statusFilter, typeFilter, priorityFilter],
+    queryKey: [
+      'adminSupportTickets',
+      page,
+      statusFilter,
+      typeFilter,
+      priorityFilter,
+      searchFilter,
+      bookingFilter,
+      userFilter,
+    ],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
       if (statusFilter) params.set('status', statusFilter);
       if (typeFilter) params.set('type', typeFilter);
       if (priorityFilter) params.set('priority', priorityFilter);
+      if (searchFilter) params.set('search', searchFilter);
+      if (bookingFilter) params.set('bookingId', bookingFilter);
+      if (userFilter) params.set('userId', userFilter);
       const res = await api.get(`/api/v1/support-tickets?${params}`);
       return res.data as { data: Ticket[]; meta: { total: number } };
     },
@@ -179,12 +248,12 @@ export default function SupportTicketsPage(): React.ReactElement {
   });
 
   const detailQuery = useQuery({
-    queryKey: ['adminSupportTicket', selected?.id],
+    queryKey: ['adminSupportTicket', selectedId],
     queryFn: async () => {
-      const res = await api.get(`/api/v1/support-tickets/${selected!.id}`);
+      const res = await api.get(`/api/v1/support-tickets/${selectedId}`);
       return res.data.data as Ticket;
     },
-    enabled: !!selected,
+    enabled: !!selectedId,
   });
 
   const updateStatusMutation = useMutation({
@@ -244,11 +313,37 @@ export default function SupportTicketsPage(): React.ReactElement {
     onError: (e) => setError(getErrorMessage(e)),
   });
 
+  const createTicketMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post('/api/v1/support-tickets/admin', {
+        userId: userFilter,
+        type: newTicketType,
+        priority: newTicketPriority,
+        subject: newTicketSubject.trim(),
+        description: newTicketDescription.trim(),
+        ...(bookingFilter ? { bookingId: bookingFilter } : {}),
+      });
+      return res.data.data as Ticket;
+    },
+    onSuccess: (ticket) => {
+      void queryClient.invalidateQueries({ queryKey: ['adminSupportTickets'] });
+      setError('');
+      setSelectedOverride(ticket.id);
+      setSearchParams((current) => {
+        const params = new URLSearchParams(current);
+        params.delete('new');
+        params.set('ticketId', ticket.id);
+        return params;
+      });
+    },
+    onError: (e) => setError(getErrorMessage(e)),
+  });
+
   const handleReply = (e: FormEvent): void => {
     e.preventDefault();
-    if (!selected || !replyMessage.trim()) return;
+    if (!selectedId || !replyMessage.trim()) return;
     replyMutation.mutate({
-      ticketId: selected.id,
+      ticketId: selectedId,
       message: replyMessage.trim(),
       isInternalNote,
     });
@@ -286,10 +381,29 @@ export default function SupportTicketsPage(): React.ReactElement {
     {
       key: 'user',
       header: 'User',
+      render: (r) => {
+        const accountPath = ticketAccountPath(r);
+        return (
+        <div>
+          {accountPath ? (
+            <Link className="block font-medium text-[var(--color-primary)] hover:underline" to={accountPath}>
+              {ticketUserName(r)}
+            </Link>
+          ) : (
+            <span className="block font-medium text-[var(--color-text)]">{ticketUserName(r)}</span>
+          )}
+          <span className="text-xs text-[var(--color-text-tertiary)]">{ticketPersonaLabel(r)}</span>
+        </div>
+        );
+      },
+    },
+    {
+      key: 'owner',
+      header: 'Case owner',
       render: (r) =>
-        r.user_first_name
-          ? `${r.user_first_name} ${r.user_last_name ?? ''}`.trim()
-          : (r.user_phone ?? '—'),
+        r.agent_first_name
+          ? `${r.agent_first_name} ${r.agent_last_name ?? ''}`.trim()
+          : <span className="font-medium text-orange-700">Unassigned</span>,
     },
     {
       key: 'messages',
@@ -329,8 +443,134 @@ export default function SupportTicketsPage(): React.ReactElement {
   const urgentOnPage = visibleTickets.filter((ticket) => ticket.priority === 'urgent').length;
   const unassignedOnPage = visibleTickets.filter((ticket) => !ticket.assigned_agent_id).length;
 
-  if (selected) {
-    const ticket = detailQuery.data ?? selected;
+  if (createRequested) {
+    const accountKind = newUserRole === 'provider_staff'
+      ? 'provider staff account'
+      : `${newUserRole} account`;
+    const canSubmit =
+      newTicketSubject.trim().length >= 3 &&
+      newTicketDescription.trim().length >= 5 &&
+      !createTicketMutation.isPending;
+
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <button
+          type="button"
+          className="min-h-11 text-sm font-semibold text-[var(--color-primary)] hover:underline"
+          onClick={handleBack}
+        >
+          ← Back to support queue
+        </button>
+
+        <form
+          className="space-y-5 rounded-lg border border-[var(--color-border)] bg-white p-5 sm:p-6"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (canSubmit) createTicketMutation.mutate();
+          }}
+        >
+          <div>
+            <p className="mb-1 text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-text-tertiary)]">
+              Agent-created case
+            </p>
+            <h1 className="text-2xl font-bold text-[var(--color-text)]">Create support request</h1>
+            <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
+              Open this case for <strong>{newUserName}</strong> ({accountKind}). The case is owned
+              by their account, and your admin identity is recorded in the audit trail.
+            </p>
+            {bookingFilter && (
+              <p className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                Linked booking: <span className="font-mono">{bookingFilter}</span>
+              </p>
+            )}
+          </div>
+
+          {error && (
+            <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </p>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="text-sm font-semibold text-[var(--color-text)]">
+              Case type
+              <select
+                aria-label="New support case type"
+                value={newTicketType}
+                onChange={(event) => setNewTicketType(event.target.value)}
+                className="mt-1.5 h-11 w-full rounded-md border border-[var(--color-border)] bg-white px-3 font-normal"
+              >
+                {TICKET_TYPES.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}
+              </select>
+            </label>
+            <label className="text-sm font-semibold text-[var(--color-text)]">
+              Priority
+              <select
+                aria-label="New support case priority"
+                value={newTicketPriority}
+                onChange={(event) => setNewTicketPriority(event.target.value)}
+                className="mt-1.5 h-11 w-full rounded-md border border-[var(--color-border)] bg-white px-3 font-normal"
+              >
+                {PRIORITIES.map((priority) => <option key={priority} value={priority}>{formatLabel(priority)}</option>)}
+              </select>
+            </label>
+          </div>
+
+          <label className="block text-sm font-semibold text-[var(--color-text)]">
+            Subject
+            <input
+              aria-label="New support case subject"
+              value={newTicketSubject}
+              onChange={(event) => setNewTicketSubject(event.target.value)}
+              minLength={3}
+              maxLength={200}
+              className="mt-1.5 h-11 w-full rounded-md border border-[var(--color-border)] px-3 font-normal"
+              placeholder="What does this account need help with?"
+            />
+          </label>
+
+          <label className="block text-sm font-semibold text-[var(--color-text)]">
+            Original report
+            <textarea
+              aria-label="New support case description"
+              value={newTicketDescription}
+              onChange={(event) => setNewTicketDescription(event.target.value)}
+              minLength={5}
+              maxLength={5000}
+              rows={7}
+              className="mt-1.5 w-full rounded-md border border-[var(--color-border)] p-3 font-normal"
+              placeholder="Record what the user reported, the channel they used, and the help they requested."
+            />
+          </label>
+
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={handleBack} className="min-h-11 rounded-md border border-[var(--color-border)] px-4 text-sm font-semibold">
+              Cancel
+            </button>
+            <button type="submit" disabled={!canSubmit} className="min-h-11 rounded-md bg-[var(--color-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50">
+              {createTicketMutation.isPending ? 'Creating…' : 'Create case'}
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  if (selectedId) {
+    const fallbackTicket = visibleTickets.find((candidate) => candidate.id === selectedId);
+    const ticket = detailQuery.data ?? fallbackTicket;
+    if (!ticket) {
+      return (
+        <div className="space-y-4">
+          <button type="button" className="min-h-11 text-sm font-semibold text-[var(--color-primary)] hover:underline" onClick={handleBack}>
+            ← Back to support queue
+          </button>
+          <div className="rounded-lg border border-[var(--color-border)] bg-white p-8 text-center text-sm text-[var(--color-text-secondary)]">
+            {detailQuery.isError ? 'Failed to load ticket details.' : 'Loading support case…'}
+          </div>
+        </div>
+      );
+    }
     const isDetailLoading = detailQuery.isLoading;
     const statusNeedsResolution = pendingStatus === 'resolved' || pendingStatus === 'closed';
     return (
@@ -410,15 +650,19 @@ export default function SupportTicketsPage(): React.ReactElement {
 
           <div className="mb-4 grid gap-3 rounded-md bg-[var(--color-bg)] p-4 text-sm text-[var(--color-text-secondary)] md:grid-cols-2 xl:grid-cols-4">
             <p>
-              <strong className="block text-xs uppercase tracking-wide">Customer</strong>{' '}
-              <Link
-                className="font-semibold text-[var(--color-primary)] hover:underline"
-                to={`/customers/${ticket.user_id}`}
-              >
-                {ticket.user_first_name ?? ''} {ticket.user_last_name ?? ''}
-              </Link>
+              <strong className="block text-xs uppercase tracking-wide">{ticketPersonaLabel(ticket)}</strong>{' '}
+              {ticketAccountPath(ticket) ? (
+                <Link
+                  className="font-semibold text-[var(--color-primary)] hover:underline"
+                  to={ticketAccountPath(ticket)!}
+                >
+                  {ticketUserName(ticket)}
+                </Link>
+              ) : (
+                <span className="font-semibold text-[var(--color-text)]">{ticketUserName(ticket)}</span>
+              )}
               <br />
-              {ticket.user_phone ?? 'Contact masked'}
+              {ticket.user_phone ?? ticket.user_email ?? 'Contact masked'}
             </p>
             <p>
               <strong>Created:</strong>{' '}
@@ -497,7 +741,7 @@ export default function SupportTicketsPage(): React.ReactElement {
 
           <div className="border-t border-[var(--color-border)] pt-4">
             <h2 className="mb-2 text-sm font-bold text-[var(--color-text)]">
-              Customer’s original report
+              {ticketPersonaLabel(ticket)}’s original report
             </h2>
             <p className="whitespace-pre-wrap text-sm leading-6 text-[var(--color-text-secondary)]">
               {ticket.description}
@@ -638,7 +882,7 @@ export default function SupportTicketsPage(): React.ReactElement {
             </div>
           )}
 
-          {ticket.status !== 'closed' && (
+          {ticket.status !== 'resolved' && ticket.status !== 'closed' && (
             <form onSubmit={handleReply} className="border-t border-[var(--color-border)] pt-4">
               <label htmlFor="ticket-reply-message" className="sr-only">
                 Reply message
@@ -653,6 +897,12 @@ export default function SupportTicketsPage(): React.ReactElement {
                 onChange={(e) => setReplyMessage(e.target.value)}
                 aria-label="Reply message"
               />
+              <p
+                aria-live="polite"
+                className={`mt-1 text-right text-xs ${replyMessage.length > 4500 ? 'font-semibold text-orange-700' : 'text-[var(--color-text-tertiary)]'}`}
+              >
+                {replyMessage.length} / 5000 characters
+              </p>
               <div className="flex items-center justify-between mt-2">
                 <label
                   htmlFor="ticket-internal-note"
@@ -701,6 +951,49 @@ export default function SupportTicketsPage(): React.ReactElement {
           cases
         </div>
       </div>
+
+      {(bookingFilter || userFilter) && (
+        <div className="flex flex-col justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950 md:flex-row md:items-center">
+          <div>
+            <strong className="block">Linked-case view</strong>
+            {userFilter && <span>Account: {newUserName}</span>}
+            {userFilter && bookingFilter && <span> · </span>}
+            {bookingFilter && <span>Booking: <span className="font-mono">{bookingFilter}</span></span>}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {userFilter && (
+              <button
+                type="button"
+                className="min-h-11 rounded-md bg-[var(--color-primary)] px-4 font-semibold text-white"
+                onClick={() => setSearchParams((current) => {
+                  const params = new URLSearchParams(current);
+                  params.set('new', '1');
+                  params.delete('ticketId');
+                  return params;
+                })}
+              >
+                Create case for account
+              </button>
+            )}
+            <button
+              type="button"
+              className="min-h-11 rounded-md border border-blue-300 bg-white px-4 font-semibold"
+              onClick={() => setSearchParams((current) => {
+                const params = new URLSearchParams(current);
+                params.delete('userId');
+                params.delete('userName');
+                params.delete('userRole');
+                params.delete('bookingId');
+                params.delete('new');
+                params.delete('page');
+                return params;
+              })}
+            >
+              Clear linked view
+            </button>
+          </div>
+        </div>
+      )}
 
       <section
         aria-label="Current page support signals"
@@ -751,6 +1044,33 @@ export default function SupportTicketsPage(): React.ReactElement {
         <span className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">
           Queue filters
         </span>
+        <form
+          role="search"
+          className="flex min-w-64 flex-1 gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setSearchParams((current) => {
+              const params = new URLSearchParams(current);
+              params.delete('page');
+              const value = searchDraft.trim();
+              if (value) params.set('search', value);
+              else params.delete('search');
+              return params;
+            });
+          }}
+        >
+          <label htmlFor="support-ticket-search" className="sr-only">Search support cases</label>
+          <input
+            id="support-ticket-search"
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
+            placeholder="Ticket, subject, name, phone, email, provider"
+            className="h-11 min-w-0 flex-1 rounded-md border border-[var(--color-border)] px-3 text-sm"
+          />
+          <button type="submit" className="min-h-11 rounded-md bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">
+            Search
+          </button>
+        </form>
         <select
           value={statusFilter}
           onChange={(e) => setFilter('status', e.target.value)}

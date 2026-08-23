@@ -189,7 +189,7 @@ export default function HelpScreen(): React.ReactElement {
         <View style={styles.contactSection}>
           <Text style={styles.contactTitle}>Still need help?</Text>
           <Text style={styles.contactSubtitle}>
-            Our support team is available Monday to Saturday, 8 AM to 8 PM (PHT). Messaging us in the app is the fastest way to get help, and it keeps a record tied to your booking.
+            Our support team is available Monday to Saturday, 8 AM to 6 PM (PHT). Messaging us in the app is the fastest way to get help, and it keeps a record tied to your booking.
           </Text>
 
           <TouchableOpacity

@@ -14,6 +14,7 @@ import {
   type SupportTicket,
   type SupportTicketStatus,
 } from '@/services/support.service';
+import { useResponsive } from '@/hooks/useResponsive';
 
 // Colour cue for the ticket status chip. Open/active = info, waiting-on-you =
 // warning, resolved/closed = muted, escalated = danger.
@@ -39,6 +40,7 @@ function formatWhen(iso: string): string {
 
 export default function SupportInboxScreen(): React.ReactElement {
   const router = useRouter();
+  const { isPhone } = useResponsive();
 
   const ticketsQuery = useQuery({
     queryKey: ['support', 'mine'],
@@ -57,7 +59,12 @@ export default function SupportInboxScreen(): React.ReactElement {
         <Text style={styles.title}>Support</Text>
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+        showsVerticalScrollIndicator={false}
+        accessibilityLabel={isPhone ? 'Support requests' : 'Desktop support requests workspace'}
+      >
         <Text style={styles.subtitle}>
           Message our support team and keep the whole conversation here, so we can help fast and back you up if anything goes wrong with a booking.
         </Text>
@@ -88,13 +95,14 @@ export default function SupportInboxScreen(): React.ReactElement {
             description="When you message support, your conversations show up here."
           />
         ) : (
-          tickets.map((t: SupportTicket) => {
+          <View style={[styles.ticketGrid, !isPhone && styles.ticketGridWide]}>
+          {tickets.map((t: SupportTicket) => {
             const sc = statusColor(t.status);
             const unread = parseInt(t.message_count ?? '0', 10);
             return (
               <TouchableOpacity
                 key={t.id}
-                style={styles.ticketCard}
+                style={[styles.ticketCard, !isPhone && styles.ticketCardWide]}
                 onPress={() => router.push(buildRoute(Routes.SUPPORT.THREAD, { id: t.id }))}
                 activeOpacity={0.7}
                 accessibilityRole="button"
@@ -118,7 +126,8 @@ export default function SupportInboxScreen(): React.ReactElement {
                 </View>
               </TouchableOpacity>
             );
-          })
+          })}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -140,6 +149,7 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   body: { flex: 1 },
   bodyContent: { paddingHorizontal: spacing.base, paddingBottom: spacing.xl },
+  bodyContentWide: { width: '100%', maxWidth: 1040, alignSelf: 'center', paddingHorizontal: spacing.xl },
   subtitle: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: spacing.base, marginBottom: spacing.base },
   newBtn: {
     flexDirection: 'row',
@@ -150,6 +160,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.base,
     marginBottom: spacing.lg,
   },
+  ticketGrid: { width: '100%' },
+  ticketGridWide: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -spacing.xs },
   newBtnIcon: { marginRight: spacing.sm },
   newBtnText: { ...typography.body, fontWeight: '700', color: colors.white },
   sectionLabel: { ...typography.caption, color: colors.textTertiary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
@@ -165,6 +177,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  ticketCardWide: { flexBasis: '48%', flexGrow: 1, marginHorizontal: spacing.xs },
   ticketTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs },
   statusChip: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: borderRadius.full },
   statusChipText: { ...typography.caption, fontWeight: '700' },

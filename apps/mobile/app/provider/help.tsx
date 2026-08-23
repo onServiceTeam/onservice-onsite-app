@@ -178,7 +178,7 @@ export default function ProviderHelpScreen(): React.ReactElement {
         <View style={styles.contactSection}>
           <Text style={styles.contactTitle}>Need more help?</Text>
           <Text style={styles.contactSubtitle}>
-            Our provider support team is available Monday to Saturday, 8 AM to 8 PM (PHT). Messaging in the app is the fastest way to get help on a job.
+            Our provider support team is available Monday to Saturday, 8 AM to 6 PM (PHT). Messaging in the app is the fastest way to get help on a job.
           </Text>
 
           <TouchableOpacity

@@ -86,6 +86,8 @@ Rules:
 - One issue, one ticket. If a customer raises two unrelated things, open two tickets so SLAs and resolution notes stay clean.
 - Resolving or closing requires a resolution note of at least 10 characters. Write what you actually did, not "resolved."
 - Internal notes are for us. Never put anything in a reply-to-user message that you meant as an internal note.
+- If the ticket is waiting on the customer or provider and that user replies, the system returns it to `in_progress` when assigned or `open` when unassigned. Resolved and closed user threads are read-only; create a new case if a genuinely new issue remains.
+- For email or Messenger intake, first open Customer 360 or Provider 360, then use **Create support case**. Do not paste an arbitrary user or booking ID. The resulting case belongs to that account and records the acting admin.
 
 ---
 
@@ -340,7 +342,7 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 - [ ] No P1 ticket older than 15 minutes without a human reply.
 - [ ] No P2 ticket sitting past first-response SLA.
 - [ ] Anything money-moving or account-changing is escalated, not sat on.
-- [ ] `waiting_on_customer` tickets get two reminders, then auto-close after 5 days with no reply.
+- [ ] Manually review `waiting_on_customer` tickets. Automated reminders and five-day auto-close are not implemented; do not tell users they were sent.
 - [ ] Resolved tickets have a real resolution note (min 10 chars), not "fixed."
 - [ ] Safety and fraud flags logged and escalated same shift.
 - [ ] Hand off open P1/P2 at shift change with a one-line status each.
@@ -355,4 +357,4 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 - **Money-action gating:** wire refund/payout/escrow-release behind a finance/super-admin gate before launch; support agents get a limited admin login. (editable)
 - **Reschedule:** cancel-and-rebook is the standard at launch; no separate reschedule flow. (editable)
 - **Phone-number-change identity proof:** most recent booking reference + registered full name + OTP to the number on file; escalate to super-admin if the old number is lost. (editable)
-- **`waiting_on_customer` auto-close:** auto-close after 5 days with no reply, two reminders first. (editable)
+- **`waiting_on_customer` follow-up:** manual until reminder and auto-close automation is implemented and tested. The intended five-day/two-reminder policy is not current system behavior. (editable)

@@ -76,6 +76,9 @@ export interface SupportTicket {
   user_email?: string;
   user_first_name?: string;
   user_last_name?: string;
+  user_role?: string;
+  provider_id?: string | null;
+  provider_business_name?: string | null;
   agent_first_name?: string;
   agent_last_name?: string;
   message_count?: string;
@@ -107,12 +110,15 @@ interface ListTicketsParams {
   type?: string;
   priority?: string;
   assignedAgentId?: string;
+  search?: string;
+  bookingId?: string;
+  userId?: string;
 }
 
 export async function listTickets(
   params: ListTicketsParams,
 ): Promise<{ tickets: SupportTicket[]; total: number }> {
-  const { page, limit, status, type, priority, assignedAgentId } = params;
+  const { page, limit, status, type, priority, assignedAgentId, search, bookingId, userId } = params;
   const offset = (page - 1) * limit;
   const conditions: string[] = [];
   const values: unknown[] = [];
@@ -134,21 +140,62 @@ export async function listTickets(
     conditions.push(`st.assigned_agent_id = $${idx++}`);
     values.push(assignedAgentId);
   }
+  if (bookingId) {
+    conditions.push(`st.booking_id = $${idx++}`);
+    values.push(bookingId);
+  }
+  if (userId) {
+    conditions.push(`st.user_id = $${idx++}`);
+    values.push(userId);
+  }
+  if (search) {
+    conditions.push(`(
+      st.ticket_number ILIKE $${idx}
+      OR st.subject ILIKE $${idx}
+      OR CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${idx}
+      OR COALESCE(u.phone, '') ILIKE $${idx}
+      OR COALESCE(u.email, '') ILIKE $${idx}
+      OR COALESCE(direct_provider.business_name, staff_provider.business_name, '') ILIKE $${idx}
+    )`);
+    values.push(`%${search}%`);
+    idx += 1;
+  }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const joins = `
+    LEFT JOIN users u ON st.user_id = u.id
+    LEFT JOIN LATERAL (
+      SELECT p.id, p.business_name
+        FROM providers p
+       WHERE p.user_id = u.id
+       ORDER BY p.id
+       LIMIT 1
+    ) direct_provider ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT ps.provider_id
+        FROM provider_staff ps
+       WHERE ps.user_id = u.id
+       ORDER BY ps.created_at DESC, ps.id
+       LIMIT 1
+    ) staff_account ON TRUE
+    LEFT JOIN providers staff_provider ON staff_provider.id = staff_account.provider_id`;
 
   const countResult = await db.query<{ count: string }>(
-    `SELECT COUNT(*) AS count FROM support_tickets st ${where}`,
+    `SELECT COUNT(*) AS count FROM support_tickets st ${joins} ${where}`,
     values,
   );
 
   const result = await db.query<SupportTicket>(
     `SELECT st.*,
-            u.phone AS user_phone, u.first_name AS user_first_name, u.last_name AS user_last_name,
+            u.phone AS user_phone, u.email AS user_email,
+            u.first_name AS user_first_name, u.last_name AS user_last_name,
+            u.role AS user_role,
+            COALESCE(direct_provider.id, staff_account.provider_id) AS provider_id,
+            COALESCE(direct_provider.business_name, staff_provider.business_name) AS provider_business_name,
             ag.first_name AS agent_first_name, ag.last_name AS agent_last_name,
             (SELECT COUNT(*) FROM support_ticket_messages stm WHERE stm.ticket_id = st.id) AS message_count
      FROM support_tickets st
-     LEFT JOIN users u ON st.user_id = u.id
+     ${joins}
      LEFT JOIN users ag ON st.assigned_agent_id = ag.id
      ${where}
      ORDER BY
@@ -207,10 +254,29 @@ export async function listMyTickets(params: {
 export async function getTicketById(ticketId: string): Promise<SupportTicket | null> {
   const result = await db.query<SupportTicket>(
     `SELECT st.*,
-            u.phone AS user_phone, u.first_name AS user_first_name, u.last_name AS user_last_name,
+            u.phone AS user_phone, u.email AS user_email,
+            u.first_name AS user_first_name, u.last_name AS user_last_name,
+            u.role AS user_role,
+            COALESCE(direct_provider.id, staff_account.provider_id) AS provider_id,
+            COALESCE(direct_provider.business_name, staff_provider.business_name) AS provider_business_name,
             ag.first_name AS agent_first_name, ag.last_name AS agent_last_name
      FROM support_tickets st
      LEFT JOIN users u ON st.user_id = u.id
+     LEFT JOIN LATERAL (
+       SELECT p.id, p.business_name
+         FROM providers p
+        WHERE p.user_id = u.id
+        ORDER BY p.id
+        LIMIT 1
+     ) direct_provider ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT ps.provider_id
+         FROM provider_staff ps
+        WHERE ps.user_id = u.id
+        ORDER BY ps.created_at DESC, ps.id
+        LIMIT 1
+     ) staff_account ON TRUE
+     LEFT JOIN providers staff_provider ON staff_provider.id = staff_account.provider_id
      LEFT JOIN users ag ON st.assigned_agent_id = ag.id
      WHERE st.id = $1`,
     [ticketId],
@@ -269,6 +335,48 @@ export async function createTicket(params: {
   if (params.description.length > 5000) {
     throw createAppError('Description must be 5000 characters or fewer.', 400);
   }
+
+  const subject = params.subject.trim();
+  const description = params.description.trim();
+  if (subject.length < 3) {
+    throw createAppError('Subject must be at least 3 characters.', 400);
+  }
+  if (description.length < 5) {
+    throw createAppError('Description must be at least 5 characters.', 400);
+  }
+
+  // A support case is an account record. Validate the owner before consuming
+  // a ticket number or entering the insert transaction. For booking-linked
+  // cases, the booking must belong to that customer, provider owner, or the
+  // provider staff member assigned to perform it.
+  const userResult = await db.query<{ role: string }>(
+    `SELECT role FROM users WHERE id = $1`,
+    [params.userId],
+  );
+  if (!userResult.rows[0]) {
+    throw createAppError('Support ticket account not found.', 404);
+  }
+
+  if (params.bookingId) {
+    const bookingResult = await db.query<{ allowed: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+           FROM bookings b
+           LEFT JOIN providers p ON p.id = b.provider_id
+           LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+          WHERE b.id = $1
+            AND (
+              b.customer_id = $2
+              OR p.user_id = $2
+              OR ps.user_id = $2
+            )
+       ) AS allowed`,
+      [params.bookingId, params.userId],
+    );
+    if (bookingResult.rows[0]?.allowed !== true) {
+      throw createAppError('Booking not found for this account.', 404);
+    }
+  }
   const ticketNumber = await generateTicketNumber();
 
   // MED-N135 fix — wrap INSERT + (optional) admin_actions audit in trx.
@@ -282,8 +390,8 @@ export async function createTicket(params: {
         params.userId,
         params.type,
         params.priority,
-        params.subject,
-        params.description,
+        subject,
+        description,
         params.bookingId ?? null,
       ],
     );
@@ -323,6 +431,10 @@ export async function addMessage(params: {
   if (params.message.length > 5000) {
     throw createAppError('Message must be 5000 characters or fewer.', 400);
   }
+  const message = params.message.trim();
+  if (!message) {
+    throw createAppError('Message is required.', 400);
+  }
 
   // MED-N136 fix — INSERT message + UPDATE ticket timestamp in single
   // trx. Pre-fix the two queries were separate; if the UPDATE failed
@@ -330,6 +442,27 @@ export async function addMessage(params: {
   // affected sort order in conversation listings + "new message"
   // notification ordering.
   return db.transaction(async (client) => {
+    const ticketResult = await client.query<{
+      status: string;
+      assigned_agent_id: string | null;
+    }>(
+      `SELECT status, assigned_agent_id
+         FROM support_tickets
+        WHERE id = $1
+        FOR UPDATE`,
+      [params.ticketId],
+    );
+    const ticket = ticketResult.rows[0];
+    if (!ticket) throw createAppError('Ticket not found.', 404);
+
+    const isUserReply = params.senderRole === 'customer' || params.senderRole === 'provider';
+    if (isUserReply && (ticket.status === 'resolved' || ticket.status === 'closed')) {
+      throw createAppError(
+        'This support request is closed. Start a new request if you still need help.',
+        409,
+      );
+    }
+
     const result = await client.query<TicketMessage>(
       `INSERT INTO support_ticket_messages (ticket_id, sender_id, sender_role, message, is_internal_note)
        VALUES ($1, $2, $3, $4, $5)
@@ -338,13 +471,25 @@ export async function addMessage(params: {
         params.ticketId,
         params.senderId,
         params.senderRole,
-        params.message,
+        message,
         params.isInternalNote ?? false,
       ],
     );
-    await client.query(`UPDATE support_tickets SET updated_at = NOW() WHERE id = $1`, [
-      params.ticketId,
-    ]);
+    const shouldResume =
+      isUserReply &&
+      (ticket.status === 'waiting_on_customer' || ticket.status === 'waiting_on_provider');
+    if (shouldResume) {
+      await client.query(
+        `UPDATE support_tickets
+            SET status = $2, updated_at = NOW()
+          WHERE id = $1`,
+        [params.ticketId, ticket.assigned_agent_id ? 'in_progress' : 'open'],
+      );
+    } else {
+      await client.query(`UPDATE support_tickets SET updated_at = NOW() WHERE id = $1`, [
+        params.ticketId,
+      ]);
+    }
     const msg = result.rows[0];
     if (!msg) throw new Error('Failed to add message.');
     return msg;
@@ -372,6 +517,13 @@ export async function updateTicketStatus(
   if (typeof resolutionNotes === 'string' && resolutionNotes.length > 5000) {
     throw createAppError('resolutionNotes must be 5000 characters or fewer.', 400);
   }
+  const normalizedResolutionNotes = resolutionNotes?.trim();
+  if (
+    (status === 'resolved' || status === 'closed') &&
+    (normalizedResolutionNotes?.length ?? 0) < 10
+  ) {
+    throw createAppError('Resolution notes must be at least 10 characters.', 400);
+  }
   const extras: string[] = ['status = $2', 'updated_at = NOW()'];
   const values: unknown[] = [ticketId, status];
   let idx = 3;
@@ -382,9 +534,9 @@ export async function updateTicketStatus(
   if (status === 'closed') {
     extras.push(`closed_at = NOW()`);
   }
-  if ((status === 'resolved' || status === 'closed') && resolutionNotes) {
+  if ((status === 'resolved' || status === 'closed') && normalizedResolutionNotes) {
     extras.push(`resolution_notes = $${idx}`);
-    values.push(resolutionNotes);
+    values.push(normalizedResolutionNotes);
   }
 
   const result = await db.query<SupportTicket>(

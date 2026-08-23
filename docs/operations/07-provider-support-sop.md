@@ -51,10 +51,11 @@ Map these to the admin ticket priority field (low/medium/high/urgent) and ticket
 1. Read the message. Identify the provider (business name, phone, or email) and find them on the Providers page (`/providers`).
 2. Open Provider 360 (`/providers/:id`). Check status (pending / approved / rejected / suspended / deactivated), tier, NBI status, and any open disputes.
 3. Pick the ticket type and priority from the table above.
-4. Open the existing ticket if it came through the app. For email or Messenger, create it in `/support-tickets`; the `createdByAdminId` path records that you opened it on the provider's behalf.
-5. Work the playbook for that issue (sections 5 to 14).
-6. If the issue needs Finance or Trust & Safety, escalate per section 4 and set status `escalated`.
-7. Resolve with a clear reply. Resolution notes need at least 10 characters in admin.
+4. Open the existing ticket if it came through the app. For email or Messenger, open Provider 360 and choose **Create support case**; the account is selected for you and the `createdByAdminId` path records that you opened it on the provider's behalf. Do not paste an arbitrary provider user ID or booking ID.
+5. If the provider or assigned provider staff member replies while the case is waiting, the system returns an assigned case to `in_progress` or an unassigned case to `open`. Resolved and closed provider threads are read-only; open a new case for a genuinely new issue.
+6. Work the playbook for that issue (sections 5 to 14).
+7. If the issue needs Finance or Trust & Safety, escalate per section 4 and set status `escalated`.
+8. Resolve with a clear reply. Resolution notes need at least 10 characters in admin.
 
 ---
 

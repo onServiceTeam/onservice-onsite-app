@@ -402,6 +402,21 @@ function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactE
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] pt-4">
+        <Link
+          to={`/support-tickets?new=1&userId=${encodeURIComponent(profile.userId)}&userRole=provider&userName=${encodeURIComponent(profile.businessName || user.fullName || 'Provider')}`}
+          className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[var(--color-primary)] px-4 text-sm font-semibold text-white"
+        >
+          <MessageSquare size={14} /> Create support case
+        </Link>
+        <Link
+          to={`/support-tickets?userId=${encodeURIComponent(profile.userId)}&userRole=provider&userName=${encodeURIComponent(profile.businessName || user.fullName || 'Provider')}`}
+          className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--color-border)] bg-white px-4 text-sm font-semibold text-[var(--color-primary)]"
+        >
+          View support history
+        </Link>
+      </div>
+
       {profile.status === 'pending' && <ApprovalPanel profile={profile} />}
     </Card>
   );

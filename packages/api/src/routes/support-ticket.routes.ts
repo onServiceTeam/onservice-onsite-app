@@ -3,7 +3,16 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { rbacMiddleware } from '../middleware/rbac.middleware';
 import * as supportTicketService from '../services/support-ticket.service';
 import { createAppError } from '../middleware/error.middleware';
-import { platformConfig } from '../config/platform.config';
+import { validationMiddleware } from '../middleware/validation.middleware';
+import {
+  adminCreateSupportTicketSchema,
+  assignSupportTicketSchema,
+  createSupportTicketSchema,
+  mySupportTicketListQuerySchema,
+  supportTicketListQuerySchema,
+  supportTicketMessageSchema,
+  updateSupportTicketStatusSchema,
+} from '../validators/support-ticket.validators';
 
 const router = Router();
 
@@ -18,17 +27,21 @@ router.get(
   '/',
   authMiddleware,
   rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware({ query: supportTicketListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const page = parseInt(req.query.page as string, 10) || 1;
-      const limit = Math.min(
-        parseInt(req.query.limit as string, 10) || platformConfig.defaultPageSize,
-        platformConfig.maxPageSize,
-      );
-      const { status, type, priority, assignedAgentId } = req.query as Record<
-        string,
-        string | undefined
-      >;
+      const { page, limit, status, type, priority, assignedAgentId, search, bookingId, userId } =
+        req.query as unknown as {
+          page: number;
+          limit: number;
+          status?: string;
+          type?: string;
+          priority?: string;
+          assignedAgentId?: string;
+          search?: string;
+          bookingId?: string;
+          userId?: string;
+        };
       const result = await supportTicketService.listTickets({
         page,
         limit,
@@ -36,6 +49,9 @@ router.get(
         type,
         priority,
         assignedAgentId,
+        search,
+        bookingId,
+        userId,
       });
       const tickets = result.tickets.map((ticket) =>
         supportTicketService.maskTicketForRole(ticket, req.user!.role),
@@ -63,6 +79,34 @@ router.get(
   },
 );
 
+// Create a case on behalf of a customer or provider after the support agent
+// has opened that account in the admin workspace. Keeping this as an explicit
+// admin route preserves the acting-admin audit trail and prevents a caller
+// from changing the owner on the normal self-service endpoint.
+router.post(
+  '/admin',
+  authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware(adminCreateSupportTicketSchema),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const { userId, type, priority, subject, description, bookingId } = req.body;
+      const ticket = await supportTicketService.createTicket({
+        userId,
+        type,
+        priority,
+        subject,
+        description,
+        bookingId,
+        createdByAdminId: req.user!.userId,
+      });
+      res.status(201).json({ success: true, data: ticket });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 // ── Owner-scoped routes (any authenticated user, their OWN tickets) ──
 // Registered BEFORE '/:id' so the literal '/mine' segment is not captured
 // as an :id param by the admin route below.
@@ -71,14 +115,14 @@ router.get(
 router.get(
   '/mine',
   authMiddleware,
+  validationMiddleware({ query: mySupportTicketListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const page = parseInt(req.query.page as string, 10) || 1;
-      const limit = Math.min(
-        parseInt(req.query.limit as string, 10) || platformConfig.defaultPageSize,
-        platformConfig.maxPageSize,
-      );
-      const { status } = req.query as Record<string, string | undefined>;
+      const { page, limit, status } = req.query as unknown as {
+        page: number;
+        limit: number;
+        status?: string;
+      };
       const result = await supportTicketService.listMyTickets({
         userId: req.user!.userId,
         page,
@@ -137,16 +181,14 @@ router.get(
 router.post(
   '/',
   authMiddleware,
+  validationMiddleware(createSupportTicketSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { type, priority, subject, description, bookingId } = req.body;
-      if (!type || !subject || !description) {
-        throw createAppError('Type, subject, and description are required.', 400);
-      }
       const ticket = await supportTicketService.createTicket({
         userId: req.user!.userId,
         type,
-        priority: priority || 'medium',
+        priority,
         subject,
         description,
         bookingId,
@@ -162,10 +204,10 @@ router.post(
 router.post(
   '/:id/messages',
   authMiddleware,
+  validationMiddleware(supportTicketMessageSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { message, isInternalNote } = req.body;
-      if (!message) throw createAppError('Message is required.', 400);
 
       const ticket = await supportTicketService.getTicketById(getParamId(req));
       if (!ticket) throw createAppError('Ticket not found.', 404);
@@ -183,10 +225,11 @@ router.post(
         throw createAppError('Only admins can post internal notes.', 403);
       }
 
+      const senderRole = role === 'provider_staff' ? 'provider' : role;
       const msg = await supportTicketService.addMessage({
         ticketId: getParamId(req),
         senderId: req.user!.userId,
-        senderRole: role,
+        senderRole,
         message,
         isInternalNote: isInternalNote && isAdmin,
       });
@@ -202,10 +245,10 @@ router.patch(
   '/:id/status',
   authMiddleware,
   rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware(updateSupportTicketStatusSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { status, resolutionNotes } = req.body;
-      if (!status) throw createAppError('Status is required.', 400);
       const ticket = await supportTicketService.updateTicketStatus(
         getParamId(req),
         status,
@@ -223,10 +266,10 @@ router.patch(
   '/:id/assign',
   authMiddleware,
   rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware(assignSupportTicketSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { agentId } = req.body;
-      if (!agentId) throw createAppError('Agent ID is required.', 400);
       const ticket = await supportTicketService.assignTicket(
         getParamId(req),
         agentId,

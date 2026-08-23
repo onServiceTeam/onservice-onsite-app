@@ -132,7 +132,15 @@ export default function PaymentFailedScreen(): React.ReactElement {
 
           <TouchableOpacity
             style={styles.linkBtn}
-            onPress={() => router.push(Routes.CUSTOMER.HELP)}
+            onPress={() => router.push({
+              pathname: Routes.SUPPORT.NEW,
+              params: {
+                ...(bookingId ? { bookingId } : {}),
+                type: 'payment_issue',
+                subject: bookingId ? 'Payment failed for my booking' : 'Payment failed',
+                description: failureMessage,
+              },
+            })}
             activeOpacity={0.7}
           >
             <Text style={styles.linkBtnText}>Contact Support</Text>

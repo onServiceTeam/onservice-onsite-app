@@ -194,7 +194,15 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.push(Routes.SUPPORT.NEW)}
+            onPress={() => router.push({
+              pathname: Routes.SUPPORT.NEW,
+              params: {
+                type: 'booking_issue',
+                priority: 'urgent',
+                subject: 'Safety concern',
+                description: 'I need help with a safety concern. ',
+              },
+            })}
             style={styles.reportButton}
             activeOpacity={0.7}
           >

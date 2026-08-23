@@ -16,6 +16,7 @@ import {
   SUPPORT_STATUS_LABELS,
   type SupportTicketMessage,
 } from '@/services/support.service';
+import { useResponsive } from '@/hooks/useResponsive';
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -25,6 +26,7 @@ function formatTime(iso: string): string {
 
 export default function SupportThreadScreen(): React.ReactElement {
   const router = useRouter();
+  const { isPhone } = useResponsive();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
   const myUserId = useAuthStore((s) => s.user?.id);
@@ -90,10 +92,16 @@ export default function SupportThreadScreen(): React.ReactElement {
           </View>
         ) : (
           <>
-            <ScrollView ref={scrollRef} style={styles.thread} contentContainerStyle={styles.threadContent} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              ref={scrollRef}
+              style={styles.thread}
+              contentContainerStyle={[styles.threadContent, !isPhone && styles.threadContentWide]}
+              showsVerticalScrollIndicator={false}
+              accessibilityLabel={isPhone ? 'Support conversation' : 'Desktop support conversation workspace'}
+            >
               {/* The ticket body is the opening message from the customer. */}
               <View style={[styles.bubbleRow, styles.bubbleRowMine]}>
-                <View style={[styles.bubble, styles.bubbleMine]}>
+                <View style={[styles.bubble, !isPhone && styles.bubbleWide, styles.bubbleMine]}>
                   <Text style={[styles.bubbleText, styles.bubbleTextMine]}>{ticket.description}</Text>
                   <Text style={[styles.bubbleTime, styles.bubbleTimeMine]}>{formatTime(ticket.created_at)}</Text>
                 </View>
@@ -103,7 +111,7 @@ export default function SupportThreadScreen(): React.ReactElement {
                 const mine = m.sender_id === myUserId;
                 return (
                   <View key={m.id} style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-                    <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
+                    <View style={[styles.bubble, !isPhone && styles.bubbleWide, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
                       {!mine ? (
                         <Text style={styles.senderName}>
                           {m.sender_first_name ? `${m.sender_first_name} · Support` : 'Support'}
@@ -126,7 +134,12 @@ export default function SupportThreadScreen(): React.ReactElement {
             </ScrollView>
 
             {open ? (
-              <View style={styles.composer}>
+              <View style={[styles.composer, !isPhone && styles.composerWide]}>
+                {mutation.isError ? (
+                  <Text style={styles.sendError} accessibilityRole="alert">
+                    Message not sent. Check your connection and try again.
+                  </Text>
+                ) : null}
                 <TextInput
                   style={styles.composerInput}
                   value={draft}
@@ -176,10 +189,12 @@ const styles = StyleSheet.create({
   retryText: { ...typography.body, color: colors.primary, fontWeight: '600' },
   thread: { flex: 1 },
   threadContent: { padding: spacing.base, paddingBottom: spacing.lg },
+  threadContentWide: { width: '100%', maxWidth: 900, alignSelf: 'center', paddingHorizontal: spacing.xl },
   bubbleRow: { flexDirection: 'row', marginBottom: spacing.sm },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowTheirs: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '82%', borderRadius: borderRadius.lg, paddingHorizontal: spacing.base, paddingVertical: spacing.sm },
+  bubbleWide: { maxWidth: '70%' },
   bubbleMine: { backgroundColor: colors.primary, borderBottomRightRadius: borderRadius.sm },
   bubbleTheirs: { backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderBottomLeftRadius: borderRadius.sm },
   senderName: { ...typography.caption, color: colors.primary, fontWeight: '700', marginBottom: 2 },
@@ -191,6 +206,7 @@ const styles = StyleSheet.create({
   closedNoteText: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center' },
   composer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'flex-end',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
@@ -198,6 +214,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  composerWide: { width: '100%', maxWidth: 900, alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.border },
+  sendError: { width: '100%', ...typography.caption, color: colors.error, marginBottom: spacing.xs },
   composerInput: {
     flex: 1,
     maxHeight: 120,

@@ -7,6 +7,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft } from '@/components/icons';
 import { Button } from '@/components/ui';
 import { Routes, buildRoute } from '@/config/navigation';
+import { useResponsive } from '@/hooks/useResponsive';
 import {
   createTicket,
   SUPPORT_TYPE_LABELS,
@@ -26,15 +27,25 @@ const TYPE_ORDER: SupportTicketType[] = [
 export default function NewSupportRequestScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const params = useLocalSearchParams<{ bookingId?: string; type?: string }>();
+  const { isPhone } = useResponsive();
+  const params = useLocalSearchParams<{
+    bookingId?: string;
+    type?: string;
+    priority?: string;
+    subject?: string;
+    description?: string;
+  }>();
 
   const initialType = (TYPE_ORDER.includes(params.type as SupportTicketType)
     ? (params.type as SupportTicketType)
     : 'general_inquiry');
 
   const [type, setType] = useState<SupportTicketType>(initialType);
-  const [subject, setSubject] = useState('');
-  const [description, setDescription] = useState('');
+  const initialPriority = (['low', 'medium', 'high', 'urgent'] as const).find(
+    (priority) => priority === params.priority,
+  );
+  const [subject, setSubject] = useState(params.subject ?? '');
+  const [description, setDescription] = useState(params.description ?? '');
 
   const mutation = useMutation({
     mutationFn: (payload: CreateTicketPayload) => createTicket(payload),
@@ -64,6 +75,7 @@ export default function NewSupportRequestScreen(): React.ReactElement {
       subject: trimmedSubject,
       description: trimmedBody,
       bookingId: params.bookingId || undefined,
+      priority: initialPriority,
     });
   };
 
@@ -77,10 +89,16 @@ export default function NewSupportRequestScreen(): React.ReactElement {
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          style={styles.body}
+          contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          accessibilityLabel={isPhone ? 'Support request form' : 'Desktop support request workspace'}
+        >
           {params.bookingId ? (
             <View style={styles.bookingTag}>
-              <Text style={styles.bookingTagText}>Linked to your booking</Text>
+              <Text style={styles.bookingTagText}>Linked to booking {params.bookingId.slice(0, 8)}</Text>
             </View>
           ) : null}
 
@@ -159,6 +177,18 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   body: { flex: 1 },
   bodyContent: { paddingHorizontal: spacing.base, paddingTop: spacing.base, paddingBottom: spacing.xl },
+  bodyContentWide: {
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+    marginTop: spacing.lg,
+    marginBottom: spacing.xl,
+    padding: spacing.xl,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+  },
   bookingTag: { alignSelf: 'flex-start', backgroundColor: colors.infoLight, borderRadius: borderRadius.full, paddingHorizontal: spacing.base, paddingVertical: spacing.xs, marginBottom: spacing.base },
   bookingTagText: { ...typography.caption, color: colors.infoDark, fontWeight: '600' },
   label: { ...typography.body, fontWeight: '600', color: colors.text, marginBottom: spacing.sm, marginTop: spacing.sm },

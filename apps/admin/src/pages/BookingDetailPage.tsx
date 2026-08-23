@@ -278,11 +278,17 @@ function BookingHeader({ detail }: { detail: BookingDetail }): React.ReactElemen
             )}
           </div>
         </div>
-        <div className="text-right">
+        <div className="flex flex-col items-end gap-3 text-right">
           <p className="text-xs text-[var(--color-text-secondary)]">Total</p>
           <p className="text-2xl font-bold text-[var(--color-text)]">
             {fmtCentavos(detail.totalAmount)}
           </p>
+          <Link
+            to={`/support-tickets?bookingId=${encodeURIComponent(detail.id)}`}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--color-border)] bg-white px-4 text-sm font-semibold text-[var(--color-primary)]"
+          >
+            <MessageSquare size={14} /> Support cases
+          </Link>
         </div>
       </div>
     </Card>
