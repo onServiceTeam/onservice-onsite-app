@@ -1,20 +1,18 @@
 /**
  * Design system tokens — onService brand.
- * Bug 1324 fix verified — primary brand color is #1B3A4B (deep teal),
- * sourced from docs/design-system/tokens.json. The August 2026 product
- * redesign keeps these server-canonical brand values while increasing
- * contrast, spacing, and type size. Runtime overrides via platform_settings
+ * Canonical August 2026 Stitch-aligned product palette, sourced from
+ * docs/design-system/tokens.json. Runtime overrides via platform_settings
  * remain deferred (LAUNCH-LIMITATIONS §brand-color-mobile-runtime).
  */
 export const colors = {
-  primary: '#1B3A4B',
-  primaryDark: '#142D3B',
-  primaryLight: '#E6EEF1',
+  primary: '#003D9B',
+  primaryDark: '#00327E',
+  primaryLight: '#E7EEFF',
 
-  secondary: '#00B4D8',
-  secondaryDark: '#0096B0',
+  secondary: '#0052CC',
+  secondaryDark: '#003D9B',
 
-  success: '#007A4D',
+  success: '#006844',
   successLight: '#DEFBE6',
   successDark: '#047857',
   warning: '#B85C00',
@@ -59,7 +57,7 @@ export const colors = {
   tierElite: '#F59E0B',
 
   statusPending: '#F59E0B',
-  statusConfirmed: '#1B3A4B',
+  statusConfirmed: '#003D9B',
   statusInProgress: '#10B981',
   statusCompleted: '#10B981',
   statusDisputed: '#EF4444',

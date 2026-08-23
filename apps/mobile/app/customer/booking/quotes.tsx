@@ -7,7 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getBookingQuotes, acceptQuote, declineQuote, type BookingQuote } from '@/services/booking.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, borderRadius } from '@/config/theme';
-import { Star, ChevronLeft } from '@/components/icons';
+import { Star, ChevronLeft, Clock } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
@@ -123,6 +124,7 @@ export default function QuotesScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
   const { data: quotes, isLoading, isError, refetch } = useQuery({
     queryKey: ['bookingQuotes', bookingId],
     queryFn: () => getBookingQuotes(bookingId ?? ''),
@@ -205,27 +207,36 @@ export default function QuotesScreen(): React.ReactElement {
           onRetry={() => void refetch()}
         />
       ) : (
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        <ScrollView
+          style={styles.body}
+          contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+        >
           <Text style={styles.quotesCount}>
             {quotes?.length ?? 0} quote{(quotes?.length ?? 0) !== 1 ? 's' : ''} received
           </Text>
 
           {(quotes ?? []).length === 0 ? (
             <EmptyState
-              icon="⏳"
+              icon={<Clock size={48} color={colors.textTertiary} />}
               title="Waiting for Quotes"
               description="Providers will send quotes soon. You'll be notified when new quotes arrive."
             />
           ) : (
-            quotes?.map((quote) => (
-              <QuoteCard
-                key={quote.id}
-                quote={quote}
-                onAccept={() => handleAccept(quote.id)}
-                onDecline={() => handleDecline(quote.id)}
-                isPending={acceptMutation.isPending || declineMutation.isPending}
-              />
-            ))
+            <View
+              style={[styles.quoteGrid, !isPhone && styles.quoteGridWide]}
+              accessibilityLabel={isPhone ? 'Quote list' : 'Quote comparison grid'}
+            >
+              {quotes?.map((quote) => (
+                <View key={quote.id} style={[styles.quoteCell, !isPhone && styles.quoteCellWide]}>
+                  <QuoteCard
+                    quote={quote}
+                    onAccept={() => handleAccept(quote.id)}
+                    onDecline={() => handleDecline(quote.id)}
+                    isPending={acceptMutation.isPending || declineMutation.isPending}
+                  />
+                </View>
+              ))}
+            </View>
           )}
         </ScrollView>
       )}
@@ -242,6 +253,11 @@ const styles = StyleSheet.create({
   placeholder: { width: 30 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  bodyContentWide: { padding: spacing.xl, paddingBottom: spacing.xl },
+  quoteGrid: { width: '100%' },
+  quoteGridWide: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.base },
+  quoteCell: { width: '100%' },
+  quoteCellWide: { flexBasis: '48%', flexGrow: 1, minWidth: 300 },
   centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   errorText: { fontSize: 15, color: colors.textSecondary, marginBottom: spacing.md },
   retryBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.info, borderRadius: 8 },
@@ -251,7 +267,7 @@ const styles = StyleSheet.create({
   emptyEmoji: { fontSize: 48, marginBottom: spacing.md },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 6 },
   emptyDesc: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-  quoteCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  quoteCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, height: '100%' },
   quoteResolved: { opacity: 0.7 },
   quoteHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md },
   providerName: { fontSize: 16, fontWeight: '700', color: colors.text },

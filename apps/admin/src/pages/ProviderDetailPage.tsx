@@ -1138,6 +1138,11 @@ const STAFF_STATUS_BADGE: Record<StaffMember['status'], 'success' | 'warning' | 
 export function StaffTab({ providerId }: { providerId: string }): React.ReactElement {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState('');
+  const [reviewDialog, setReviewDialog] = useState<{
+    staff: StaffMember;
+    decision: 'rejected' | 'sent_back';
+  } | null>(null);
+  const [reviewReason, setReviewReason] = useState('');
 
   const q = useQuery({
     queryKey: ['admin-provider-staff', providerId],
@@ -1160,7 +1165,12 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
         reason: vars.reason,
       });
     },
-    onSuccess: () => { setActionError(''); invalidate(); },
+    onSuccess: () => {
+      setActionError('');
+      setReviewDialog(null);
+      setReviewReason('');
+      invalidate();
+    },
     onError: (e) => setActionError(getErrorMessage(e)),
   });
 
@@ -1184,14 +1194,12 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
     review.mutate({ staffId: s.id, decision: 'approved' });
   }
   function reject(s: StaffMember): void {
-    const reason = window.prompt('Reason for rejecting this team member? (required, shared with the provider)');
-    if (reason == null || !reason.trim()) return;
-    review.mutate({ staffId: s.id, decision: 'rejected', reason: reason.trim() });
+    setReviewReason('');
+    setReviewDialog({ staff: s, decision: 'rejected' });
   }
   function sendBack(s: StaffMember): void {
-    const reason = window.prompt('What does the team member need to fix? (optional)');
-    if (reason == null) return;
-    review.mutate({ staffId: s.id, decision: 'sent_back', reason: reason.trim() || undefined });
+    setReviewReason('');
+    setReviewDialog({ staff: s, decision: 'sent_back' });
   }
   function setSuspend(s: StaffMember, doSuspend: boolean): void {
     if (doSuspend && !window.confirm(`Suspend ${s.userName || s.roleTitle || 'this member'}? They will not be assignable to jobs.`)) return;
@@ -1253,6 +1261,61 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
             </div>
           </Card>
         ))
+      )}
+
+      {reviewDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="provider-staff-review-title"
+            className="w-full max-w-lg rounded-lg border border-[var(--color-border)] bg-white p-5"
+          >
+            <h3 id="provider-staff-review-title" className="text-lg font-semibold text-[var(--color-text)]">
+              {reviewDialog.decision === 'rejected' ? 'Reject team member' : 'Send application back'}
+            </h3>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+              {reviewDialog.staff.userName || reviewDialog.staff.roleTitle || 'Invited member'}
+            </p>
+            <p className="mt-3 text-sm text-[var(--color-text-secondary)]">
+              This explanation is saved with the decision and shared with the provider.
+            </p>
+            <label htmlFor="provider-staff-review-reason" className="mt-4 block text-sm font-medium text-[var(--color-text)]">
+              {reviewDialog.decision === 'rejected' ? 'Rejection reason' : 'What needs to be fixed'}
+            </label>
+            <Textarea
+              id="provider-staff-review-reason"
+              aria-label="Provider team review reason"
+              className="mt-1"
+              value={reviewReason}
+              onChange={(e) => setReviewReason(e.target.value)}
+              placeholder="Give the provider a clear, actionable explanation"
+            />
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => { setReviewDialog(null); setReviewReason(''); }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant={reviewDialog.decision === 'rejected' ? 'destructive' : 'default'}
+                disabled={review.isPending || reviewReason.trim().length < 3}
+                onClick={() => review.mutate({
+                  staffId: reviewDialog.staff.id,
+                  decision: reviewDialog.decision,
+                  reason: reviewReason.trim(),
+                })}
+              >
+                {review.isPending
+                  ? 'Saving...'
+                  : reviewDialog.decision === 'rejected'
+                    ? 'Reject member'
+                    : 'Send back'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

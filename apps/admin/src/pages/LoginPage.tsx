@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, type FormEvent } from 'react';
+import React, { useState, useRef, useEffect, type FormEvent, type ReactNode } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { useNavigate, Navigate } from 'react-router-dom';
 import QRCode from 'qrcode';
@@ -6,6 +6,81 @@ import { useAuthStore, type AdminUser } from '@/stores/auth.store';
 import api, { getErrorMessage } from '@/lib/api';
 import { Label, Input } from '@/components/ui';
 import { DEMO_MODE, DEMO_ADMIN } from '@/config/demo';
+
+function AdminAuthShell({
+  title,
+  description,
+  children,
+  wide = false,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+  wide?: boolean;
+}): React.ReactElement {
+  return (
+    <main className="min-h-screen bg-[var(--color-bg)] md:grid md:grid-cols-[minmax(280px,0.85fr)_minmax(420px,1.15fr)]">
+      <section
+        aria-label="onService operations context"
+        className="relative hidden overflow-hidden bg-[var(--color-primary)] px-10 py-12 text-white md:flex md:flex-col md:justify-between lg:px-16 lg:py-16"
+      >
+        <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full border border-white/15" />
+        <div className="absolute -bottom-40 -left-32 h-96 w-96 rounded-full bg-[var(--color-secondary)]/25" />
+        <div className="relative z-10">
+          <p className="text-2xl font-bold tracking-tight">
+            <span className="text-[var(--color-accent)]">on</span>Service
+          </p>
+          <p className="mt-2 text-sm font-medium text-white/75">Philippines operations console</p>
+        </div>
+
+        <div className="relative z-10 max-w-lg">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">Company workspace</p>
+          <h2 className="mt-4 text-3xl font-semibold leading-tight lg:text-4xl">
+            Operate every service journey from one trusted workspace.
+          </h2>
+          <p className="mt-4 max-w-md text-sm leading-6 text-white/75 lg:text-base">
+            Support customers, coordinate providers, resolve exceptions, and protect the business with a connected record of every action.
+          </p>
+          <ul className="mt-8 space-y-4 text-sm text-white/90" aria-label="Operations workspace capabilities">
+            {[
+              'Booking, dispatch, and support context in one place',
+              'Provider vetting, quality, compliance, and payouts',
+              'Auditable decisions for customer and company protection',
+            ].map((item) => (
+              <li key={item} className="flex items-start gap-3">
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--color-accent)]" aria-hidden="true" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="relative z-10 text-xs text-white/60">Restricted to authorized onService personnel</p>
+      </section>
+
+      <section
+        aria-label="Admin authentication workspace"
+        className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-8 md:px-10 lg:px-16"
+      >
+        <div className={`w-full ${wide ? 'max-w-xl' : 'max-w-md'}`}>
+          <div className="mb-8 md:hidden">
+            <p className="text-2xl font-bold tracking-tight text-[var(--color-text)]">
+              <span className="text-[var(--color-primary)]">on</span>Service
+            </p>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Philippines operations console</p>
+          </div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">Admin operations</p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--color-text)]">{title}</h1>
+          <p className="mt-3 text-sm leading-6 text-[var(--color-text-secondary)]">{description}</p>
+          <div className="mt-8">{children}</div>
+          <p className="mt-5 text-sm text-[var(--color-text-secondary)]">
+            Access is monitored and administrative actions are recorded.
+          </p>
+        </div>
+      </section>
+    </main>
+  );
+}
 
 export default function LoginPage(): React.ReactElement {
   const navigate = useNavigate();
@@ -210,23 +285,15 @@ export default function LoginPage(): React.ReactElement {
   // 2FA force-enrollment step (admin/super_admin without TOTP)
   if (requires2FASetup) {
     return (
-      <main className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-[var(--color-text)]">
-              <span className="text-[var(--color-primary)]">on</span>Service
-            </h1>
-            <p className="text-sm text-[var(--color-text-secondary)] mt-1">Admin Panel</p>
-          </div>
-
+      <AdminAuthShell
+        title="Secure your admin account"
+        description="Set up two-factor authentication before entering the operations console."
+        wide
+      >
           <form
             onSubmit={(e) => void handle2FAEnrol(e)}
-            className="bg-white rounded-xl border border-[var(--color-border)] p-6 shadow-sm"
+            className="rounded-xl border border-[var(--color-border)] bg-white p-6 md:p-8"
           >
-            <h2 className="text-lg font-semibold text-[var(--color-text)] mb-2">Set Up Two-Factor Authentication</h2>
-            <p className="text-sm text-[var(--color-text-secondary)] mb-4">
-              This is a one-time setup, required for all admin accounts.
-            </p>
             <ol className="text-sm text-[var(--color-text-secondary)] mb-4 list-decimal pl-5 space-y-1">
               <li>Install an authenticator app on your phone (Google Authenticator, Microsoft Authenticator, or Authy).</li>
               <li>Scan the QR code below with that app (or tap &ldquo;Enter a setup key&rdquo; and type the secret).</li>
@@ -305,32 +372,21 @@ export default function LoginPage(): React.ReactElement {
               Back to login
             </button>
           </form>
-        </div>
-      </main>
+      </AdminAuthShell>
     );
   }
 
   // 2FA verification step
   if (requires2FA) {
     return (
-      <main className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-[var(--color-text)]">
-              <span className="text-[var(--color-primary)]">on</span>Service
-            </h1>
-            <p className="text-sm text-[var(--color-text-secondary)] mt-1">Admin Panel</p>
-          </div>
-
+      <AdminAuthShell
+        title="Verify it’s you"
+        description="Enter the current six-digit code from your authenticator app."
+      >
           <form
             onSubmit={(e) => void handle2FAVerify(e)}
-            className="bg-white rounded-xl border border-[var(--color-border)] p-6 shadow-sm"
+            className="rounded-xl border border-[var(--color-border)] bg-white p-6 md:p-8"
           >
-            <h2 className="text-lg font-semibold text-[var(--color-text)] mb-2">Two-Factor Authentication</h2>
-            <p className="text-sm text-[var(--color-text-secondary)] mb-5">
-              Enter the 6-digit code from your authenticator app.
-            </p>
-
             {error && (
               <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {error}
@@ -370,26 +426,20 @@ export default function LoginPage(): React.ReactElement {
               Back to login
             </button>
           </form>
-        </div>
-      </main>
+      </AdminAuthShell>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-[var(--color-text)]">
-            <span className="text-[var(--color-primary)]">on</span>Service
-          </h1>
-          <p className="text-sm text-[var(--color-text-secondary)] mt-1">Admin Panel</p>
-        </div>
-
+    <AdminAuthShell
+      title="Welcome back"
+      description="Sign in to manage customers, providers, bookings, support, and company operations."
+    >
         <form
           onSubmit={(e) => void handleSubmit(e)}
-          className="bg-white rounded-xl border border-[var(--color-border)] p-6 shadow-sm"
+          className="rounded-xl border border-[var(--color-border)] bg-white p-6 md:p-8"
         >
-          <h2 className="text-lg font-semibold text-[var(--color-text)] mb-5">Sign In</h2>
+          <h2 className="text-lg font-semibold text-[var(--color-text)] mb-5">Sign in to onService</h2>
 
           {error && (
             <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -407,7 +457,7 @@ export default function LoginPage(): React.ReactElement {
               required
               autoFocus
               placeholder="admin@onservice.ph"
-              className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)] focus:border-transparent"
+              className="h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)] focus:border-transparent"
             />
           </div>
 
@@ -420,14 +470,14 @@ export default function LoginPage(): React.ReactElement {
               onChange={(e) => setPassword(e.target.value)}
               required
               placeholder="••••••••"
-              className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)] focus:border-transparent"
+              className="h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)] focus:border-transparent"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading || !email || !password}
-            className="w-full py-2.5 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
+            className="min-h-11 w-full py-2.5 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:bg-[var(--color-primary-dark)] disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
@@ -443,11 +493,6 @@ export default function LoginPage(): React.ReactElement {
             </button>
           )}
         </form>
-
-        <p className="text-center text-xs text-[var(--color-text-secondary)] mt-4">
-          Authorized personnel only
-        </p>
-      </div>
-    </main>
+    </AdminAuthShell>
   );
 }

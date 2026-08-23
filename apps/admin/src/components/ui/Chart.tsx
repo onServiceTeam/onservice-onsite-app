@@ -50,9 +50,9 @@ export {
 };
 
 export const CHART_COLORS = {
-  primary: '#1B3A4B',
-  secondary: '#00B4D8',
-  accent: '#FF6B35',
+  primary: '#003D9B',
+  secondary: '#0052CC',
+  accent: '#FE8A00',
   success: '#10B981',
   warning: '#F59E0B',
   danger: '#EF4444',

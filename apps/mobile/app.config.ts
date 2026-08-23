@@ -68,7 +68,7 @@ const config: ExpoConfig = {
   splash: {
     image: './assets/splash.png',
     resizeMode: 'contain',
-    backgroundColor: '#1B3A4B',
+    backgroundColor: '#003D9B',
   },
   // Phase 14 Remediation #2 — `notification` removed from top-level
   // ExpoConfig in SDK 55. Equivalent settings now live under
@@ -125,7 +125,7 @@ const config: ExpoConfig = {
   android: {
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#1B3A4B',
+      backgroundColor: '#003D9B',
     },
     package: 'ph.onservice.app',
     versionCode: 1,
@@ -172,7 +172,7 @@ const config: ExpoConfig = {
       'expo-notifications',
       {
         icon: './assets/notification-icon.png',
-        color: '#1B3A4B',
+        color: '#003D9B',
       },
     ],
   ],

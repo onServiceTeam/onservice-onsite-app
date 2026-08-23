@@ -2,7 +2,7 @@
 
 Date: 2026-08-23
 Status: living implementation audit
-Repository baseline: `3b656d6ace1c353f0b5b7bc0e144e77feaf0fc5e`
+Repository baseline for this continuation: `57e72ba71bb31f5a386a392b6023b929d3104429`
 Reference package SHA-256: `31AB0DF4D9A16CF4C7A29489EF85037BF1B90C54936BF77B57CBB4B9D5704AD5`
 
 ## Executive finding
@@ -135,10 +135,11 @@ All routes below exist. `Desktop shell` means the new shared role workspace cove
 Customer findings:
 
 - Fixed: desktop now has persistent Home, Bookings, Wallet, Projects, Suki Pros, Support, and Profile destinations.
-- Fixed: shared design tokens preserve the server-canonical teal/cyan/orange brand while adopting Stitch's stronger contrast, hierarchy, and accessible default body sizing.
+- Fixed in the current continuation: the canonical token source, mobile theme, native app chrome, admin CSS/chart palette, API fallback, and runtime branding settings now use the approved Stitch deep-blue/action-blue/orange/green palette together. Historical migration 072 remains immutable and migration 146 supersedes its defaults.
 - Fixed: web animations use the JavaScript driver in browsers, eliminating the unsupported native-driver warning while retaining native acceleration on iOS and Android.
 - Fixed: content padding now scales for phone, tablet, and desktop.
-- Open: several complex screens remain single-column inside the desktop content area. Booking detail, quotes, tracker, projects, and support should use context side panels where that materially helps.
+- Fixed in the current continuation: booking detail now places its summary and actions beside service context on desktop; quote review becomes a tablet/desktop comparison grid.
+- Open: tracker, project detail, chat, and support remain single-column inside the desktop content area and need context side panels where that materially helps.
 - Open: wallet labels must be reviewed to ensure customer credit, refund balance, and provider withdrawal are never conflated.
 - Open hard stop: cancellation presentation and server refund math are contradictory.
 - Open hard stop: final guarantee/disclaimer language requires approved wording.
@@ -183,6 +184,7 @@ Provider findings:
 - Fixed: provider staff receives a smaller, scoped desktop workspace instead of provider-owner navigation.
 - Fixed: bottom tabs are hidden when persistent desktop navigation is active, removing duplicate navigation.
 - Fixed: browser builds no longer request the unavailable native animation driver; a clean production export rendered without console warnings.
+- Fixed in the current continuation: provider weekly schedule becomes a tablet/desktop grid with a bounded desktop save action.
 - Open: jobs, calendar, clients, and earnings need per-screen wide-layout verification at 768, 1024, 1280, and 1440 pixels.
 - Open hard stop: provider response inside a dispute is not implemented.
 - Open hard stop: checklist `Report Issue` has no approved API endpoint.
@@ -212,6 +214,10 @@ Admin findings:
 - Fixed: support assignment now validates active admin roles and writes an audit event in the same transaction.
 - Fixed: booking reassignment uses a named online-provider picker rather than asking an employee to paste a UUID.
 - Fixed: dispute assignment uses a named active-admin picker rather than asking an employee to paste a UUID.
+- Fixed in the current continuation: provider-team reject/send-back decisions use an in-page reason dialog instead of a browser prompt.
+- Fixed in the current continuation: business-account manager assignment uses named active staff instead of a pasted UUID.
+- Fixed in the current continuation: business invoice payment recording uses a labelled, auditable in-page dialog instead of a browser prompt.
+- Fixed in the current continuation: admin sign-in now uses a Stitch-aligned company operations workspace instead of a phone-sized card floating in an empty desktop canvas; verified at 390, 820, and 1280 px.
 - Open high: global entity search by booking number, ticket number, person, phone, payout, or provider is absent.
 - Open high: custom `admin_roles.permissions` are metadata and are not the enforcement source for page/API access. The app still fundamentally authorizes `admin`, `super_admin`, and `dpo` user roles.
 - Open high: several admin pages remain collections of local cards and tabs rather than linked case workspaces.
@@ -258,6 +264,11 @@ Admin findings:
 13. Removed the customer-profile link that incorrectly exposed a provider-staff invitation route.
 14. Removed unsupported native-driver requests from every shared browser animation component.
 15. Added rendered-output and route/service behavior tests for each claimed change.
+16. Added the explicit 103-screen, 8-layout, and 34-admin-page linkage ledger; shell-only responsive coverage is no longer counted as per-screen completion.
+17. Switched all canonical brand sources and runtime branding rows to the approved Stitch palette through migration 146.
+18. Added wide customer booking detail, quote comparison, and provider schedule compositions.
+19. Replaced provider-team and invoice-payment browser prompts, plus business-account manager UUID entry, with named, auditable workflows.
+20. Rebuilt the admin login composition for phone, tablet, and desktop and verified its palette, overflow, and 44 px control sizing in a real browser.
 
 ## Verification record for this batch
 

@@ -15,7 +15,7 @@
       "mode": "BLOCKING",
       "owning_dispatch": "D02",
       "promoted_in": "D02",
-      "rationale": "Bug 1324 fixed; mobile theme.ts uses canonical #1B3A4B."
+      "rationale": "Bug UX-018 supersedes Bug 1324; mobile theme.ts uses canonical Stitch primary #003D9B."
     },
     "a-cross-source-routes": {
       "mode": "BLOCKING",

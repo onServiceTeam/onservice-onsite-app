@@ -40,6 +40,16 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import Badge from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/Dialog';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -129,6 +139,16 @@ interface PaginatedResult<T> {
   success: boolean;
   data: T[];
   pagination: PageInfo;
+}
+
+interface AdminStaffOption {
+  id: string;
+  user_id: string;
+  is_active: boolean;
+  user_first_name?: string;
+  user_last_name?: string;
+  user_email?: string;
+  role_name?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -353,7 +373,7 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
 
 // ─── Billing settings + assign manager ─────────────────────────────────────
 
-function BillingSettingsCard({ account }: { account: BusinessAccount }): React.ReactElement {
+export function BillingSettingsCard({ account }: { account: BusinessAccount }): React.ReactElement {
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
   const queryClient = useQueryClient();
@@ -364,7 +384,16 @@ function BillingSettingsCard({ account }: { account: BusinessAccount }): React.R
   const [creditLimitPesos, setCreditLimitPesos] = useState(
     account.monthlyCreditLimit != null ? String(account.monthlyCreditLimit / 100) : '',
   );
-  const [managerId, setManagerId] = useState('');
+  const [managerId, setManagerId] = useState(account.accountManagerId ?? '');
+
+  const managersQuery = useQuery({
+    queryKey: ['adminStaff', 'active-manager-options'],
+    queryFn: async () => {
+      const res = await api.get('/api/v1/staff?page=1&limit=100&isActive=true');
+      return (res.data.data ?? []) as AdminStaffOption[];
+    },
+    enabled: isSuperAdmin,
+  });
 
   const setDiscount = useMutation({
     mutationFn: async (input: { volumeDiscountRate?: number; monthlyCreditLimit?: number }) => {
@@ -387,9 +416,9 @@ function BillingSettingsCard({ account }: { account: BusinessAccount }): React.R
       );
       return res.data.data;
     },
-    onSuccess: () => {
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['admin-business-account', account.id] });
-      setManagerId('');
+      setManagerId(updated.accountManagerId ?? '');
     },
   });
 
@@ -490,16 +519,27 @@ function BillingSettingsCard({ account }: { account: BusinessAccount }): React.R
         <div className="flex items-end gap-2 flex-wrap">
           <div className="flex-1 min-w-[260px]">
             <label htmlFor="ba-manager-id" className="text-xs text-[var(--color-text-secondary)]">
-              Staff user UUID
+              Active account manager
             </label>
-            <input
+            <select
               id="ba-manager-id"
-              type="text"
               value={managerId}
               onChange={(e) => setManagerId(e.target.value)}
-              placeholder="00000000-0000-0000-0000-000000000000"
-              className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm font-mono"
-            />
+              aria-label="Active account manager"
+              className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm"
+              disabled={managersQuery.isLoading || managersQuery.isError}
+            >
+              <option value="">Select an active staff member</option>
+              {(managersQuery.data ?? []).filter((staff) => staff.is_active).map((staff) => {
+                const name = `${staff.user_first_name ?? ''} ${staff.user_last_name ?? ''}`.trim();
+                const label = name || staff.user_email || 'Unnamed staff member';
+                return (
+                  <option key={staff.id} value={staff.user_id}>
+                    {label}{staff.role_name ? ` · ${fmtLabel(staff.role_name)}` : ''}
+                  </option>
+                );
+              })}
+            </select>
           </div>
           <Button
             size="sm"
@@ -510,6 +550,9 @@ function BillingSettingsCard({ account }: { account: BusinessAccount }): React.R
           </Button>
         </div>
         <div className="mt-2 flex items-center gap-2 flex-wrap">
+          {managersQuery.isError && (
+            <span role="alert" className="text-xs text-red-600">Could not load active staff members.</span>
+          )}
           {assignManager.isError && (
             <span role="alert" className="text-xs text-red-600">{getErrorMessage(assignManager.error)}</span>
           )}
@@ -698,12 +741,14 @@ function ContractsTab({ accountId }: { accountId: string }): React.ReactElement 
 
 // ─── InvoicesTab ─────────────────────────────────────────────────────────────
 
-function InvoicesTab({ accountId }: { accountId: string }): React.ReactElement {
+export function InvoicesTab({ accountId }: { accountId: string }): React.ReactElement {
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState('');
   const [actionInfo, setActionInfo] = useState('');
+  const [markPaidTarget, setMarkPaidTarget] = useState<BusinessInvoice | null>(null);
+  const [paymentReference, setPaymentReference] = useState('');
 
   const q = useQuery({
     queryKey: ['admin-business-account-invoices', accountId, page],
@@ -723,6 +768,9 @@ function InvoicesTab({ accountId }: { accountId: string }): React.ReactElement {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-business-account-invoices', accountId] });
       setActionError('');
+      setActionInfo('Invoice marked paid with the recorded payment reference.');
+      setMarkPaidTarget(null);
+      setPaymentReference('');
     },
     onError: (e) => setActionError(getErrorMessage(e)),
   });
@@ -744,16 +792,20 @@ function InvoicesTab({ accountId }: { accountId: string }): React.ReactElement {
   });
 
   function handleMarkPaid(invoice: BusinessInvoice): void {
-    const ref = window.prompt(
-      `Payment reference for invoice ${invoice.invoiceNumber} (e.g. bank transfer / OR number):`,
-    );
-    if (ref === null) return; // cancelled
-    const trimmed = ref.trim();
+    setActionError('');
+    setActionInfo('');
+    setPaymentReference('');
+    setMarkPaidTarget(invoice);
+  }
+
+  function submitMarkPaid(): void {
+    if (!markPaidTarget) return;
+    const trimmed = paymentReference.trim();
     if (trimmed.length === 0) {
       setActionError('Payment reference is required.');
       return;
     }
-    markPaid.mutate({ invoiceId: invoice.id, paymentReference: trimmed });
+    markPaid.mutate({ invoiceId: markPaidTarget.id, paymentReference: trimmed });
   }
 
   if (q.isLoading) return <LoadingState />;
@@ -853,6 +905,52 @@ function InvoicesTab({ accountId }: { accountId: string }): React.ReactElement {
           onPageChange={setPage}
         />
       )}
+      <Dialog
+        open={markPaidTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !markPaid.isPending) {
+            setMarkPaidTarget(null);
+            setPaymentReference('');
+            setActionError('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark invoice paid</DialogTitle>
+            <DialogDescription>
+              Record the external payment reference for invoice{' '}
+              {markPaidTarget?.invoiceNumber ?? ''}. This becomes part of the account&apos;s audit trail.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="invoice-payment-reference">Payment reference</Label>
+            <Input
+              id="invoice-payment-reference"
+              value={paymentReference}
+              onChange={(event) => setPaymentReference(event.target.value)}
+              placeholder="Bank transfer, deposit, or official receipt number"
+              autoComplete="off"
+            />
+            {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setMarkPaidTarget(null)}
+              disabled={markPaid.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submitMarkPaid}
+              disabled={markPaid.isPending || paymentReference.trim().length === 0}
+            >
+              {markPaid.isPending ? 'Saving…' : 'Confirm paid'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -692,9 +692,9 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     // match these so a fresh build looks identical when the API is
     // unreachable.
     branding: {
-      primary: lookup('brand_color_primary', '#1B3A4B'),
-      secondary: lookup('brand_color_secondary', '#00B4D8'),
-      accent: lookup('brand_color_accent', '#FF6B35'),
+      primary: lookup('brand_color_primary', '#003D9B'),
+      secondary: lookup('brand_color_secondary', '#0052CC'),
+      accent: lookup('brand_color_accent', '#FE8A00'),
     },
   };
 }

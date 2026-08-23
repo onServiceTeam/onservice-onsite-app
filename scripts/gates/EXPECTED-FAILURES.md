@@ -22,9 +22,10 @@ The Phase 14 design accepts these failures during Dispatches 01–13 because eac
 ### `a-cross-source-brand-color.sh`
 - **Expected to fail on master:** NO (resolved by D02 Part 2).
 - **Reason:** Bug 1324 fixed — `apps/mobile/src/config/theme.ts` updated to
-  the canonical `#1B3A4B` (and supporting hex values from `tokens.json`).
-  Migration 072 seeds the same values as `platform_settings` rows; admin
-  edits them via the existing `/admin/settings` page. Mobile dynamic
+  the canonical Stitch primary `#003D9B` (and supporting values from `tokens.json`).
+  Migration 146 supersedes migration 072 and updates the same
+  `platform_settings` rows; admin edits them via the existing `/admin/settings`
+  page. Mobile dynamic
   theme override is tracked in LAUNCH-LIMITATIONS.md §brand-color-mobile-runtime.
 - **Status:** BLOCKING immediately on D02 Part 2 branch and going forward.
 

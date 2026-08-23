@@ -18,7 +18,8 @@ import { getErrorMessage } from '@/utils/errors';
 import { Button, SkeletonCard } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Check } from '@/components/icons';
+import { Check, ChevronLeft } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -40,6 +41,7 @@ export default function ScheduleScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isPhone, isDesktop } = useResponsive();
 
   const { data: existingSchedule, isLoading, isError: scheduleError, refetch: refetchSchedule, isRefetching: scheduleRefetching } = useQuery({
     queryKey: ['providerSchedule'],
@@ -143,12 +145,12 @@ export default function ScheduleScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+          <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Weekly Schedule</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={scheduleRefetching} onRefresh={() => void refetchSchedule()} tintColor={colors.secondary} />}
       >
         {scheduleError && (
@@ -160,8 +162,16 @@ export default function ScheduleScreen(): React.ReactElement {
           Set your weekly availability. Customers will only see you as available during these hours.
         </Text>
 
+        <View
+          style={[styles.scheduleGrid, !isPhone && styles.scheduleGridWide]}
+          accessibilityLabel={isPhone ? 'Weekly schedule list' : 'Weekly schedule grid'}
+        >
         {schedule.map((day) => (
-          <View key={day.dayOfWeek} style={[styles.dayCard, !day.isAvailable && styles.dayCardDisabled]}>
+          <View
+            key={day.dayOfWeek}
+            style={[styles.dayCard, !isPhone && styles.dayCardWide, !day.isAvailable && styles.dayCardDisabled]}
+            accessibilityLabel={`${DAY_NAMES[day.dayOfWeek]} schedule`}
+          >
             <TouchableOpacity
               style={styles.dayToggle}
               onPress={() => toggleDay(day.dayOfWeek)}
@@ -198,15 +208,18 @@ export default function ScheduleScreen(): React.ReactElement {
             )}
           </View>
         ))}
+        </View>
       </ScrollView>
 
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
-        <Button
-          title={saveMutation.isPending ? 'Saving...' : 'Save Schedule'}
-          onPress={() => saveMutation.mutate()}
-          loading={saveMutation.isPending}
-          disabled={!hasChanges || saveMutation.isPending}
-        />
+      <View style={[styles.bottomBar, isDesktop && styles.bottomBarDesktop, { paddingBottom: insets.bottom + spacing.base }]}>
+        <View style={isDesktop ? styles.desktopSaveAction : undefined}>
+          <Button
+            title={saveMutation.isPending ? 'Saving...' : 'Save Schedule'}
+            onPress={() => saveMutation.mutate()}
+            loading={saveMutation.isPending}
+            disabled={!hasChanges || saveMutation.isPending}
+          />
+        </View>
       </View>
     </View>
   );
@@ -225,10 +238,12 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
   },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
-  backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 120 },
+  scrollContentWide: { padding: spacing.xl, paddingBottom: 120 },
+  scheduleGrid: { width: '100%' },
+  scheduleGridWide: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
 
   description: {
     ...typography.body,
@@ -244,6 +259,7 @@ const styles = StyleSheet.create({
     padding: spacing.base,
     marginBottom: spacing.sm,
   },
+  dayCardWide: { flexBasis: '48%', flexGrow: 1, minWidth: 280, marginBottom: 0 },
   dayCardDisabled: { opacity: 0.6 },
   dayToggle: { flexDirection: 'row', alignItems: 'center' },
   checkbox: {
@@ -288,4 +304,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.divider,
   },
+  bottomBarDesktop: { alignItems: 'flex-end' },
+  desktopSaveAction: { width: 320 },
 });

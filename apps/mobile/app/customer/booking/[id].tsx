@@ -29,6 +29,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import StatusBadge from '@/components/StatusBadge';
 import PulsingDot from '@/components/PulsingDot';
 import Avatar from '@/components/Avatar';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const ACTIVE_STATUSES = new Set([
   'matched', 'paid', 'provider_en_route', 'provider_arrived', 'in_progress',
@@ -44,6 +45,8 @@ export default function BookingDetailScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
+  const isWide = !isPhone;
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
 
@@ -157,6 +160,116 @@ export default function BookingDetailScreen(): React.ReactElement {
     (booking.jobPhotos?.length ?? 0) > 0 ||
     (photosCountQuery.data?.length ?? 0) > 0;
 
+  const bookingActions = (
+    <>
+      {canViewQuotes && (
+        <Button
+          title="View Quotes"
+          onPress={() => router.push(`/customer/booking/quotes?bookingId=${id}`)}
+        />
+      )}
+      {needsPayment && (
+        <Button
+          title="Complete Payment"
+          onPress={() => router.push(`/customer/booking/pay?bookingId=${id}`)}
+        />
+      )}
+      {isActive && (
+        <Button
+          title="Track Booking"
+          onPress={() => router.push(`/customer/booking/tracker?bookingId=${id}`)}
+        />
+      )}
+      {needsConfirmation && (
+        <Button
+          title="Confirm & Review"
+          onPress={() => router.push(`/customer/booking/complete?bookingId=${id}`)}
+        />
+      )}
+      {canViewChangeOrders && (
+        <>
+          <Button
+            title="Parts & Materials / Change Orders"
+            onPress={() => router.push(`/customer/booking/change-order?bookingId=${id}`)}
+            variant="outline"
+          />
+          <Text style={styles.changeOrderNote}>
+            Extra parts or materials are handled here as a change order. Nothing extra is charged until you approve it in the app, and it stays protected by escrow.
+          </Text>
+        </>
+      )}
+      {hasPhotos && (
+        <Button
+          title="View Job Photos"
+          onPress={() => router.push(`/customer/booking/photos?bookingId=${id}`)}
+          variant="outline"
+        />
+      )}
+      {(isActive || needsConfirmation) && booking.providerId && (
+        <Button
+          title="Chat with Provider"
+          onPress={() => router.push(`/customer/chat/${booking.id}`)}
+          variant="outline"
+          style={styles.chatButton}
+        />
+      )}
+      {canCancel && !showCancelForm && (
+        <Button
+          title="Cancel Booking"
+          onPress={() => setShowCancelForm(true)}
+          variant="ghost"
+          style={styles.cancelButton}
+        />
+      )}
+      {canCancel && showCancelForm && (
+        <View style={styles.cancelForm}>
+          <Text style={styles.cancelFormLabel}>Reason for cancellation (optional)</Text>
+          <TextInput
+            style={styles.cancelReasonInput}
+            placeholder="Tell us why..."
+            placeholderTextColor={colors.textTertiary}
+            multiline
+            numberOfLines={2}
+            // BUG-PHASE146-01 fix — match the server cancellationReason.max(500) contract.
+            maxLength={500}
+            value={cancelReason}
+            onChangeText={setCancelReason}
+            textAlignVertical="top"
+          />
+          <Button
+            title={cancelMutation.isPending ? 'Cancelling...' : 'Confirm Cancellation'}
+            onPress={handleCancelConfirm}
+            loading={cancelMutation.isPending}
+            disabled={cancelMutation.isPending}
+            style={styles.cancelConfirmBtn}
+          />
+          <TouchableOpacity
+            onPress={() => { setShowCancelForm(false); setCancelReason(''); }}
+            style={styles.cancelFormDismiss}
+          >
+            <Text style={styles.cancelFormDismissText}>Never mind</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {canFileDispute && (
+        <Button
+          title="File a Dispute"
+          onPress={() => router.push(`/customer/booking/dispute?bookingId=${id}`)}
+          variant="ghost"
+        />
+      )}
+      {COMPLETED_STATUSES.has(booking.status) && booking.status !== 'completed_by_provider' && (
+        <View style={styles.completedActions}>
+          <Button
+            title="Leave a Review"
+            onPress={() => router.push(`/customer/booking/review?bookingId=${id}`)}
+            variant="outline"
+          />
+        </View>
+      )}
+    </>
+  );
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -169,7 +282,7 @@ export default function BookingDetailScreen(): React.ReactElement {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, isWide && styles.desktopScrollContent]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
@@ -184,6 +297,12 @@ export default function BookingDetailScreen(): React.ReactElement {
           )}
           <Text style={styles.bookingId}>#{formatBookingRef(booking.id, booking.createdAt)}</Text>
         </View>
+
+        <View
+          style={[styles.detailLayout, isWide && styles.desktopDetailLayout]}
+          accessibilityLabel="Booking details workspace"
+        >
+          <View style={styles.detailMain} accessibilityLabel="Booking service details">
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Service</Text>
@@ -217,6 +336,19 @@ export default function BookingDetailScreen(): React.ReactElement {
             </TouchableOpacity>
           </View>
         )}
+
+        {booking.completedAt && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Completed</Text>
+            <Text style={styles.detailText}>{formatDateTime(booking.completedAt)}</Text>
+          </View>
+        )}
+          </View>
+
+          <View
+            style={[styles.detailSidebar, isWide && styles.desktopDetailSidebar]}
+            accessibilityLabel="Booking summary and actions"
+          >
 
         <View style={styles.receipt}>
           <Text style={styles.receiptTitle}>Receipt</Text>
@@ -272,127 +404,17 @@ export default function BookingDetailScreen(): React.ReactElement {
             </View>
           )}
         </View>
-
-        {booking.completedAt && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Completed</Text>
-            <Text style={styles.detailText}>{formatDateTime(booking.completedAt)}</Text>
+            {isWide && <View style={styles.desktopActions}>{bookingActions}</View>}
           </View>
-        )}
+        </View>
       </ScrollView>
       </KeyboardAvoidingView>
 
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
-        {canViewQuotes && (
-          <Button
-            title="View Quotes"
-            onPress={() => router.push(`/customer/booking/quotes?bookingId=${id}`)}
-          />
-        )}
-        {/* BUG-PHASE86-01 — wire the new pay-existing-booking screen. */}
-        {needsPayment && (
-          <Button
-            title="Complete Payment"
-            onPress={() => router.push(`/customer/booking/pay?bookingId=${id}`)}
-          />
-        )}
-        {isActive && (
-          <Button
-            title="Track Booking"
-            onPress={() => router.push(`/customer/booking/tracker?bookingId=${id}`)}
-          />
-        )}
-        {needsConfirmation && (
-          <Button
-            title="Confirm & Review"
-            onPress={() => router.push(`/customer/booking/complete?bookingId=${id}`)}
-          />
-        )}
-        {canViewChangeOrders && (
-          <>
-            <Button
-              title="Parts & Materials / Change Orders"
-              onPress={() => router.push(`/customer/booking/change-order?bookingId=${id}`)}
-              variant="outline"
-            />
-            <Text style={styles.changeOrderNote}>
-              Extra parts or materials are handled here as a change order. Nothing extra is charged until you approve it in the app, and it stays protected by escrow.
-            </Text>
-          </>
-        )}
-        {hasPhotos && (
-          <Button
-            title="View Job Photos"
-            onPress={() => router.push(`/customer/booking/photos?bookingId=${id}`)}
-            variant="outline"
-          />
-        )}
-        {(isActive || needsConfirmation) && booking.providerId && (
-          <Button
-            title="Chat with Provider"
-            onPress={() => router.push(`/customer/chat/${booking.id}`)}
-            variant="outline"
-            style={styles.chatButton}
-          />
-        )}
-        {canCancel && !showCancelForm && (
-          <Button
-            title="Cancel Booking"
-            onPress={() => setShowCancelForm(true)}
-            variant="ghost"
-            style={styles.cancelButton}
-          />
-        )}
-        {canCancel && showCancelForm && (
-          <View style={styles.cancelForm}>
-            <Text style={styles.cancelFormLabel}>Reason for cancellation (optional)</Text>
-            {/* BUG-PHASE146-01 fix — pre-fix this input had no
-                maxLength. Server's updateBookingStatusSchema caps
-                cancellationReason at 500 (booking.validators.ts:61).
-                Same fix shape as Phase 145 (review). */}
-            <TextInput
-              style={styles.cancelReasonInput}
-              placeholder="Tell us why..."
-              placeholderTextColor={colors.textTertiary}
-              multiline
-              numberOfLines={2}
-              maxLength={500}
-              value={cancelReason}
-              onChangeText={setCancelReason}
-              textAlignVertical="top"
-            />
-            <Button
-              title={cancelMutation.isPending ? 'Cancelling...' : 'Confirm Cancellation'}
-              onPress={handleCancelConfirm}
-              loading={cancelMutation.isPending}
-              disabled={cancelMutation.isPending}
-              style={styles.cancelConfirmBtn}
-            />
-            <TouchableOpacity
-              onPress={() => { setShowCancelForm(false); setCancelReason(''); }}
-              style={styles.cancelFormDismiss}
-            >
-              <Text style={styles.cancelFormDismissText}>Never mind</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        {canFileDispute && (
-          <Button
-            title="File a Dispute"
-            onPress={() => router.push(`/customer/booking/dispute?bookingId=${id}`)}
-            variant="ghost"
-          />
-        )}
-        {COMPLETED_STATUSES.has(booking.status) && booking.status !== 'completed_by_provider' && (
-          <View style={styles.completedActions}>
-            <Button
-              title="Leave a Review"
-              onPress={() => router.push(`/customer/booking/review?bookingId=${id}`)}
-              variant="outline"
-            />
-          </View>
-        )}
-      </View>
+      {!isWide && (
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
+          {bookingActions}
+        </View>
+      )}
       {/* Phase 14 Remediation #5 — Bug 998 cancel confirmation */}
       <ConfirmModal
         visible={showCancelConfirm}
@@ -429,6 +451,7 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 160 },
+  desktopScrollContent: { padding: spacing.xl, paddingBottom: spacing.xl },
   errorText: { ...typography.body, color: colors.error, marginBottom: spacing.lg },
 
   statusCard: {
@@ -438,6 +461,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   bookingId: { ...typography.caption, color: colors.textTertiary, fontWeight: '600' },
+  detailLayout: { width: '100%' },
+  desktopDetailLayout: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  detailMain: { flex: 1, minWidth: 0 },
+  detailSidebar: { minWidth: 0 },
+  desktopDetailSidebar: { width: 340 },
+  desktopActions: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    gap: spacing.sm,
+  },
 
   section: {
     backgroundColor: colors.surface,
