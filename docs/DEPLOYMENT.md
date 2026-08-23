@@ -66,14 +66,17 @@ cd apps/mobile
 EXPO_OS=web \
 EXPO_PUBLIC_API_URL=https://app.onservice.ph \
 EXPO_PUBLIC_DEMO_MODE=1 \
-npx expo export -p web --output-dir dist-web
+npx expo export -p web --output-dir dist-web --clear
 
 cd ../admin
 npm run build
 ```
 
 Before transfer, verify the mobile bundle contains the production host and
-does not contain `DEV_MISSING` or `localhost:7381`.
+does not contain `DEV_MISSING` or `localhost:7381`. For a controlled demo
+build, also open the freshly built login page and confirm the customer and
+provider demo buttons render. The `--clear` flag is required because Metro can
+otherwise reuse a transform compiled under the opposite demo-mode value.
 
 Package each artifact from inside its output directory so extraction does not
 add an extra folder level:

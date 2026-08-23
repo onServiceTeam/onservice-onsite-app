@@ -303,7 +303,9 @@ export default function ProviderProfileScreen(): React.ReactElement {
                   </Text>
                 </View>
                 <View style={styles.serviceRowRight}>
-                  {svc.pricingType === 'hourly' && svc.hourlyRate != null ? (
+                  {svc.pricingType === 'quote' ? (
+                    <Text style={styles.serviceQuote}>Get Quote</Text>
+                  ) : svc.pricingType === 'hourly' && svc.hourlyRate != null ? (
                     <Text style={styles.servicePrice}>{formatPHP(svc.hourlyRate)}/hr</Text>
                   ) : svc.pricingType === 'per_unit' && svc.unitPrice != null ? (
                     <Text style={styles.servicePrice}>{formatPHP(svc.unitPrice)}/{svc.unitLabel ?? 'unit'}</Text>

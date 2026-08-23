@@ -293,13 +293,15 @@ Admin findings:
 37. Aligned Catalog controls with the existing API boundary: ordinary admins retain evidence inspection while category, service, pricing, add-on, and intake mutations are shown only to superadmins.
 38. Repaired Catalog visual tests that had intercepted the wrong endpoint, then verified seven real states at 1280, 1440, and 1920 pixels. Nine new baselines raise admin visual coverage from 378 to 387 snapshots.
 39. Corrected provider-profile hourly booking linkage so the displayed and drafted rate comes from the canonical catalog hourly rate, not the provider service's generic base price; Bug UX-048 renders and proves the complete interaction.
+40. Caught a production-artifact cache mismatch in live browser QA, rebuilt with a cleared Metro cache, verified the controlled demo entry in the compiled and live bundle, and made `--clear` mandatory in both deployment guides.
+41. Corrected quote-priced provider cards so a legacy provider base price cannot appear as the booking price; Bug UX-049 proves the card says Get Quote and starts the quote-request path.
 
 ## Verification record for this batch
 
 - Admin TypeScript: passed.
 - Mobile TypeScript: passed.
 - API TypeScript: passed.
-- Mobile suite after the service-scope batch: 191 suites passed, 717 tests passed, 88 explicit todos.
+- Mobile suite after the service-scope batch: 192 suites passed, 718 tests passed, 88 explicit todos.
 - Admin suite after the service-scope batch: 63 files passed, 1 skipped, 176 tests passed, 3 explicit todos.
 - API suite after the service-scope batch: 286 suites passed, 3020 tests passed.
 - Admin and mobile lint: passed with zero warnings or errors.

@@ -179,7 +179,7 @@ on the server never updates them. They are built locally and transferred:
 # build time, otherwise a production build throws (platform.config.ts).
 cd apps/mobile
 EXPO_OS=web EXPO_PUBLIC_API_URL=https://app.onservice.ph \
-  EXPO_PUBLIC_DEMO_MODE=1 npx expo export -p web --output-dir dist-web
+  EXPO_PUBLIC_DEMO_MODE=1 npx expo export -p web --output-dir dist-web --clear
 # EXPO_OS=web tells app.config.ts to omit native-only EAS Update and Google Maps
 # values. The app URL is intentionally same-origin because nginx proxies /api,
 # /socket.io, and /uploads for the browser build. Omit EXPO_PUBLIC_DEMO_MODE for
