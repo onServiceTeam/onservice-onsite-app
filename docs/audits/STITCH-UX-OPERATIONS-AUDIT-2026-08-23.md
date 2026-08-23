@@ -135,6 +135,7 @@ All routes below exist. `Desktop shell` means the new shared role workspace cove
 Customer findings:
 
 - Fixed: desktop now has persistent Home, Bookings, Wallet, Projects, Suki Pros, Support, and Profile destinations.
+- Fixed in the route-isolation continuation: every customer route family and customer tab group now requires a customer session. Provider and provider-staff sessions are returned to their own workspace before customer content or navigation mounts (Bugs UX-106/109).
 - Fixed in the current continuation: the canonical token source, mobile theme, native app chrome, admin CSS/chart palette, API fallback, and runtime branding settings now use the approved Stitch deep-blue/action-blue/orange/green palette together. Historical migration 072 remains immutable and migration 146 supersedes its defaults.
 - Fixed: web animations use the JavaScript driver in browsers, eliminating the unsupported native-driver warning while retaining native acceleration on iOS and Android.
 - Fixed: content padding now scales for phone, tablet, and desktop.
@@ -183,6 +184,7 @@ Provider findings:
 
 - Fixed: desktop now has persistent Dashboard, Jobs, Job Requests, Schedule, Clients, Earnings, Team, Support, and Profile destinations.
 - Fixed: provider staff receives a smaller, scoped desktop workspace instead of provider-owner navigation.
+- Fixed in the route-isolation continuation: provider standalone routes, provider tabs, and the newly registered staff route group have explicit role boundaries. Cross-persona direct URLs return the signed-in user to the correct home, anonymous support routes return to login, and the desktop frame cannot render one persona's navigation around another persona's screen (Bugs CRIT-K02 and UX-105 through UX-109).
 - Fixed: bottom tabs are hidden when persistent desktop navigation is active, removing duplicate navigation.
 - Fixed: browser builds no longer request the unavailable native animation driver; a clean production export rendered without console warnings.
 - Fixed in the current continuation: provider weekly schedule becomes a tablet/desktop grid with a bounded desktop save action.
@@ -309,20 +311,21 @@ Admin findings:
 46. Normalized database schedule/override times to editable HH:MM, tightened server time-window validation, and rebuilt Availability as a wide controls/overrides workspace through Bugs UX-083-088.
 47. Rebuilt provider certification entry and evidence review across provider mobile web, the shared multipart uploader, the API, public discovery privacy, tier eligibility, and Admin Provider 360 through Bugs UX-091-104. Production-bundle browser evidence covers the provider workspace at 768/1366 and the admin review tab at 1280/1440/1920.
 48. Repaired Provider 360 visual coverage that had mislabeled an invalid array payload as an empty detail record and captured its retrying error request as a loading spinner. The suite now waits for real missing-provider and settled server-error alerts before taking those baselines.
+49. Closed cross-persona route leakage through Bugs CRIT-K02 and UX-105-109. Customer, provider-owner, and provider-staff route families now enforce their owning role, shared support requires an authenticated app persona, the staff group is registered explicitly, and the desktop shell only mounts when the route belongs to the signed-in role.
 
 ## Verification record for this batch
 
 - Admin TypeScript: passed.
 - Mobile TypeScript: passed.
 - API TypeScript: passed.
-- Mobile suite after the certification batch: 221 suites passed, 754 tests passed, 84 explicit todos.
+- Mobile suite after the route-isolation batch: 227 suites passed, 758 tests passed, 84 explicit todos.
 - Admin suite after the certification batch: 68 files passed, 1 skipped, 181 tests passed, 3 explicit todos.
 - API suite after the certification batch: 307 suites passed, 3041 tests passed.
 - Admin and mobile lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
 - Mobile production web export: passed with `EXPO_OS=web` and the production same-origin API URL.
-- Production baseline entering the certification batch: local, GitHub, and the server were aligned at provider team/availability commit `3dd37d347a64a4a01ea9c47fe5e44230702bdc17`, with six healthy compose services. This batch must pass GitHub CI before the source and affected production assets advance together.
-- Browser smoke: the provider certification workspace was inspected from the clean production-config export with populated controlled data at 768/1366. The real browser file chooser produced a private onboarding upload, Chrome supplied the multipart boundary, the returned URL reached the certification PATCH, each date control measured 48 px high, tablet controls remained wide enough to show complete values, and neither viewport had horizontal overflow, console errors, or page errors. Provider 360 certification review baselines pass at 1280/1440/1920. Customer tracker/chat still need an authenticated customer browser session; their rendered behavior tests pass.
+- Production baseline entering the route-isolation batch: local, GitHub, and the server were aligned at certification commit `37bbb0819f4c9e8f2aa6cddc3d16a292759a1f4f`, with all six compose services healthy.
+- Browser smoke: the provider certification workspace was inspected from the clean production-config export with populated controlled data at 768/1366. The real browser file chooser produced a private onboarding upload, Chrome supplied the multipart boundary, the returned URL reached the certification PATCH, each date control measured 48 px high, tablet controls remained wide enough to show complete values, and neither viewport had horizontal overflow, console errors, or page errors. Provider 360 certification review baselines pass at 1280/1440/1920. The route-isolation export additionally proves customer-to-provider, provider-to-customer, and customer-to-staff direct URLs return to the correct role home at 768/1366; provider certification remains available to a provider; anonymous support returns to login; and all checked states have zero horizontal overflow and no browser page errors. Customer tracker/chat still need an authenticated customer browser session; their rendered behavior tests pass.
 - Production asset and service smoke: admin and mobile `index.html` SHA-256 hashes matched the local production builds; the public config endpoint returned `#003D9B`, `#0052CC`, and `#FE8A00`; every onService compose service remained healthy.
 - Local visual regression record: three Provider 360 certification baselines raise the admin inventory from 387 to 390 PNGs. Existing Provider 360 snapshots were re-captured against the current app, and the former false empty/error states now wait for real missing-record and settled server-error output.
 

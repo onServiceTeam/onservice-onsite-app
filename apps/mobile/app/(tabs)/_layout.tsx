@@ -5,6 +5,7 @@ import { Platform, StyleSheet, useWindowDimensions } from 'react-native';
 import { colors, typography } from '@/config/theme';
 import { Home, ClipboardList, Wallet, User } from '@/components/icons';
 import { DESKTOP_SHELL_MIN_WIDTH } from '@/utils/responsive';
+import { RoleRouteGuard } from '@/components/RoleRouteGuard';
 
 type TabIconProps = { focused: boolean; color: string };
 
@@ -24,7 +25,8 @@ export default function TabLayout(): React.ReactElement {
   const hideForDesktopShell = Platform.OS === 'web' && width >= DESKTOP_SHELL_MIN_WIDTH;
 
   return (
-    <Tabs
+    <RoleRouteGuard allowedRoles={['customer']}>
+      <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
@@ -61,7 +63,8 @@ export default function TabLayout(): React.ReactElement {
           tabBarIcon: tabIcon(User),
         }}
       />
-    </Tabs>
+      </Tabs>
+    </RoleRouteGuard>
   );
 }
 

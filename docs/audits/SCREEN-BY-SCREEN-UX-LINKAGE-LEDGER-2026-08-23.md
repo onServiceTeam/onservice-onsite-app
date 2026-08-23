@@ -2,7 +2,7 @@
 
 Date: 2026-08-23
 Status: active audit, not a completion certificate
-Scope: 103 routed mobile screens, 8 mobile layouts, 35 admin pages, shared services, and cross-role operating links
+Scope: 103 routed mobile screens, 9 mobile layouts, 35 admin pages, shared services, and cross-role operating links
 
 ## How to read this ledger
 
@@ -41,14 +41,15 @@ No row is considered UX-complete until its main task, empty/loading/error states
 
 | Layout | Role/purpose | Responsive state | Finding |
 | --- | --- | --- | --- |
-| `app/_layout.tsx` | global providers, auth hydration, app frame | L | Shared frame is not proof of inner-screen composition. |
-| `app/(tabs)/_layout.tsx` | customer bottom tabs and desktop navigation handoff | L/W | Bottom tabs hide when the persistent desktop workspace is active. |
-| `app/(provider-tabs)/_layout.tsx` | provider tabs and desktop navigation handoff | L/W | Provider owner navigation is role aware. |
+| `app/_layout.tsx` | global providers, auth hydration, app frame | L | SOURCE/RENDER via UX-109. The desktop shell only mounts when the current route belongs to the signed-in role; the staff route group is registered explicitly. Shared frame coverage is not proof of inner-screen composition. |
+| `app/(tabs)/_layout.tsx` | customer bottom tabs and desktop navigation handoff | L/W | SOURCE/RENDER/BROWSER 768/1366 via UX-106/109. Customer role is required before tabs mount; provider sessions return to the provider dashboard. Bottom tabs hide when the persistent desktop workspace is active. |
+| `app/(provider-tabs)/_layout.tsx` | provider tabs and desktop navigation handoff | L/W | SOURCE/RENDER/BROWSER 768/1366 via CRIT-K02/UX-109. Provider role is required before tabs or the new-job overlay mount; other sessions return to their own entry point. |
 | `app/auth/_layout.tsx` | public identity stack | L | Auth screens remain centered/constrained rather than task-dense. |
-| `app/customer/_layout.tsx` | customer nested stack | L | Relies on global frame. |
-| `app/provider/_layout.tsx` | provider nested stack | L | Relies on global frame. |
+| `app/customer/_layout.tsx` | customer nested stack | L | SOURCE/RENDER/BROWSER 768/1366 via UX-106. Customer role is required before any nested customer screen mounts. |
+| `app/provider/_layout.tsx` | provider nested stack | L | SOURCE/RENDER/BROWSER 768/1366 via UX-105. Provider role is required before any nested provider screen mounts. |
 | `app/provider-onboarding/_layout.tsx` | provider application sequence | L | Needs step continuity checks across all ten screens. |
-| `app/support/_layout.tsx` | shared customer/provider support stack | L | Correct shared ownership, but role-specific context must stay visible. |
+| `app/support/_layout.tsx` | shared customer/provider/staff support stack | L | SOURCE/RENDER/BROWSER 1366 via UX-108. An authenticated customer, provider owner, or provider-staff role is required; anonymous sessions return to login. Role-specific context must stay visible. |
+| `app/staff/_layout.tsx` | provider-staff job and invitation stack | L/W | SOURCE/RENDER/BROWSER 768/1366 via UX-107/109. Provider-staff role is required; owner and customer navigation cannot wrap staff screens. |
 
 ## Entry, auth, and customer screens
 

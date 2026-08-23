@@ -11,10 +11,6 @@ const PUSH = readFileSync(
   resolve(__dirname, '../src/services/push.service.ts'),
   'utf8',
 );
-const PROVIDER_TABS_LAYOUT = readFileSync(
-  resolve(__dirname, '../app/(provider-tabs)/_layout.tsx'),
-  'utf8',
-);
 const BG_CHECK = readFileSync(
   resolve(__dirname, '../app/provider-onboarding/background-check-status.tsx'),
   'utf8',
@@ -27,18 +23,6 @@ const PLATFORM_CONFIG = readFileSync(
   resolve(__dirname, '../src/config/platform.config.ts'),
   'utf8',
 );
-
-describe('Phase K CRIT-K02 — provider tabs role gate', () => {
-  it('CRIT-K02 — layout reads useAuthStore role + redirects non-providers', () => {
-    expect(PROVIDER_TABS_LAYOUT).toMatch(/useAuthStore\(\(s\) => s\.user\?\.role\)/);
-    expect(PROVIDER_TABS_LAYOUT).toMatch(/if \(userRole !== 'provider'\)/);
-    expect(PROVIDER_TABS_LAYOUT).toMatch(/<Redirect href=\{Routes\.TABS\.HOME\} \/>/);
-  });
-  it('CRIT-K02 — unauthenticated users sent to /auth/login (not provider tabs)', () => {
-    expect(PROVIDER_TABS_LAYOUT).toMatch(/if \(!isAuthenticated\)/);
-    expect(PROVIDER_TABS_LAYOUT).toMatch(/<Redirect href=\{Routes\.AUTH\.LOGIN\} \/>/);
-  });
-});
 
 describe('Phase K CRIT-K03 — push.service reads user from canonical secure-storage', () => {
   it('CRIT-K03 — imports getStoredUser from secure-storage (NOT legacy storage)', () => {

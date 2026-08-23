@@ -129,10 +129,7 @@ function RootLayout(): React.ReactElement {
                   and provider through the shared support route. Declared here so the
                   group does not log a "No route named support" warning on boot. */}
               <Stack.Screen name="support" />
-              {/* No <Stack.Screen name="staff" /> — there is no app/staff/
-                  _layout.tsx, so the segments register as staff/invites,
-                  staff/jobs, staff/job/[id] and a "staff" entry only logs
-                  a "No route named staff" warning on every boot. */}
+              <Stack.Screen name="staff" />
             </Stack>
           </WebAppFrame>
         </ErrorBoundary>

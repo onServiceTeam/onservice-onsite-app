@@ -1,6 +1,6 @@
 import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { Tabs, Redirect } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { colors, typography } from '@/config/theme';
 import NewJobModal from '@/components/provider/NewJobModal';
@@ -12,9 +12,8 @@ import { LayoutDashboard, Wrench, Coins, User } from '@/components/icons';
 // and see the provider dashboard chrome. Real data didn't load
 // (server gates per-endpoint), but the UI revealed the existence /
 // shape of provider features to non-providers.
-import { useAuthStore } from '@/stores/auth.store';
-import { Routes } from '@/config/navigation';
 import { DESKTOP_SHELL_MIN_WIDTH } from '@/utils/responsive';
+import { RoleRouteGuard } from '@/components/RoleRouteGuard';
 
 type TabIconProps = { focused: boolean; color: string };
 
@@ -32,21 +31,10 @@ function tabIcon(
 export default function ProviderTabLayout(): React.ReactElement {
   const { width } = useWindowDimensions();
   const hideForDesktopShell = Platform.OS === 'web' && width >= DESKTOP_SHELL_MIN_WIDTH;
-  // Phase K CRIT-K02 — role gate. Customer / anonymous / not-yet-
-  // approved applicants get bounced to the customer tabs (or auth
-  // landing if not signed in).
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const userRole = useAuthStore((s) => s.user?.role);
-  if (!isAuthenticated) {
-    return <Redirect href={Routes.AUTH.LOGIN} />;
-  }
-  if (userRole !== 'provider') {
-    return <Redirect href={Routes.TABS.HOME} />;
-  }
-
   return (
-    <View style={{ flex: 1 }}>
-      <Tabs
+    <RoleRouteGuard allowedRoles={['provider']}>
+      <View style={{ flex: 1 }}>
+        <Tabs
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: colors.primary,
@@ -83,11 +71,12 @@ export default function ProviderTabLayout(): React.ReactElement {
             tabBarIcon: tabIcon(User),
           }}
         />
-      </Tabs>
+        </Tabs>
 
-      {/* Global new-job notification overlay — renders over any tab */}
-      <NewJobModal />
-    </View>
+        {/* Global new-job notification overlay — renders over any tab */}
+        <NewJobModal />
+      </View>
+    </RoleRouteGuard>
   );
 }
 

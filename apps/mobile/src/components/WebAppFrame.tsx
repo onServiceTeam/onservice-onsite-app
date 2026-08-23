@@ -188,6 +188,24 @@ export function isDesktopShellRoute(pathname: string): boolean {
   );
 }
 
+export function isRouteOwnedByRole(pathname: string, role: string): boolean {
+  const providerTabRoute = ['/dashboard', '/jobs', '/earnings', '/provider-profile']
+    .some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  const customerTabRoute = ['/home', '/bookings', '/wallet', '/profile']
+    .some((route) => pathname === route || pathname.startsWith(`${route}/`));
+
+  if (pathname === '/provider' || pathname.startsWith('/provider/') || providerTabRoute) {
+    return role === 'provider';
+  }
+  if (pathname === '/customer' || pathname.startsWith('/customer/') || customerTabRoute) {
+    return role === 'customer';
+  }
+  if (pathname === '/staff' || pathname.startsWith('/staff/')) {
+    return role === 'provider_staff';
+  }
+  return true;
+}
+
 export function DesktopNavigation({
   role,
   pathname,
@@ -286,7 +304,11 @@ export function WebAppFrame({ children }: { children: React.ReactNode }): React.
   }
 
   const useDesktopShell =
-    width >= DESKTOP_SHELL_MIN_WIDTH && isAuthenticated && isDesktopShellRoute(pathname);
+    width >= DESKTOP_SHELL_MIN_WIDTH
+    && isAuthenticated
+    && user !== null
+    && isDesktopShellRoute(pathname)
+    && isRouteOwnedByRole(pathname, user.role);
 
   if (useDesktopShell && user) {
     const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Account';

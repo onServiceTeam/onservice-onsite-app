@@ -2,10 +2,12 @@ import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { Stack } from 'expo-router';
 import { colors } from '@/config/theme';
+import { RoleRouteGuard } from '@/components/RoleRouteGuard';
 
 export default function ProviderLayout(): React.ReactElement {
   return (
-    <Stack
+    <RoleRouteGuard allowedRoles={['provider']}>
+      <Stack
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
@@ -30,6 +32,7 @@ export default function ProviderLayout(): React.ReactElement {
       <Stack.Screen name="job/[id]/checklist" />
       <Stack.Screen name="job/[id]/photos" />
       <Stack.Screen name="account-management" />
-    </Stack>
+      </Stack>
+    </RoleRouteGuard>
   );
 }
