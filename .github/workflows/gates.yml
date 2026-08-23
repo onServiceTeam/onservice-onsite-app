@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
       - run: bash scripts/gates/run-gate-a.sh
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         # mode-lookup.sh wraps a tiny python3 helper to read MODES.json.
         # Ubuntu runners have python3 by default but pinning the version
         # makes the tier-lookup deterministic across runners.
@@ -70,7 +70,7 @@ jobs:
       - name: Provision local dev env file
         if: steps.mode.outputs.value == 'BLOCKING'
         run: cp infra/docker/.env.docker.example infra/docker/.env.docker
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
         if: steps.mode.outputs.value == 'BLOCKING'
         with:
           version: 9
@@ -109,7 +109,7 @@ jobs:
         continue-on-error: true
       - name: Upload visual diffs (on failure)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: visual-diffs
           path: apps/admin/test-results/
@@ -127,7 +127,7 @@ jobs:
       - name: Provision local dev env file
         if: steps.mode.outputs.value == 'BLOCKING'
         run: cp infra/docker/.env.docker.example infra/docker/.env.docker
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
         if: steps.mode.outputs.value == 'BLOCKING'
         with:
           version: 9
@@ -165,8 +165,8 @@ jobs:
         run: docker compose -f infra/docker/docker-compose.dev.yml --env-file infra/docker/.env.docker down -v --remove-orphans
         continue-on-error: true
       - name: Upload mutation report
-        if: always()
-        uses: actions/upload-artifact@v4
+        if: always() && steps.mode.outputs.value == 'BLOCKING'
+        uses: actions/upload-artifact@v7
         with:
           name: mutation-report
           path: packages/api/reports/mutation/
