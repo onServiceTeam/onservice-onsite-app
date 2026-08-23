@@ -189,6 +189,7 @@ Provider findings:
 - Fixed in the current responsive batch: provider job detail keeps canonical earnings and execution actions beside the job record; calendar separates the month grid from the selected-day schedule; chat keeps customer/job context beside the thread and now shows providers why the on-app record matters for support.
 - Fixed in the provider-operations continuation: Withdrawal Preferences now uses a bounded Stitch-aligned two-column workspace, states the manual-only launch mode, preserves and exposes inactive legacy cadences, saves only canonical withdrawal details, and links directly to Withdraw and Payout History. Admin Financials no longer presents pending requests as an invented schedule (Bugs UX-069 through UX-074; E15; launch limitation 38).
 - Fixed in the provider-operations continuation: job details and the legacy active-job surface now route browser/native direction actions into one bounded navigation workspace, and a successful Start Navigation transition opens it immediately. External maps require a loaded address or coordinates, arrival requires booking coordinates and the en-route state, and schedule load failures expose retry instead of editable defaults (Bugs UX-075 through UX-079).
+- Fixed in the certification continuation: provider certification dates use a 48 px browser calendar input, stack before their values truncate, and have strict server validation; impossible, future-issued, and reversed ranges are rejected; browser photo selection is supported; the shared browser uploader lets fetch generate the required multipart boundary; existing private evidence uses an on-file state; replacement-photo state cannot carry into another credential; private storage keys never enter public profiles; and any provider edit returns the record to pending review. The provider screen becomes a bounded tablet/desktop evidence workspace, while Provider 360 gains a provider-scoped review tab with secure document access and a required reason when verification is removed (Bugs UX-091 through UX-104).
 - Open: jobs, clients, earnings, and the quote builder need per-screen wide-layout verification at 768, 1024, 1280, and 1440 pixels.
 - Open hard stop: provider response inside a dispute is not implemented.
 - Open hard stop: checklist `Report Issue` has no approved API endpoint.
@@ -222,6 +223,7 @@ Admin findings:
 - Fixed in the current admin trust-and-safety batch: Communications now starts on the actionable review queue, opens the exact reported message, keeps booking/customer/provider case links beside the conversation, and requires an audit rationale before a report is cleared.
 - Fixed in the tester-feedback operations batch: production tester research now has a dedicated queue, customer/provider/admin area filters, preserved issue/questionnaire/screenshot evidence, named active-admin ownership, a written decision note, and a transactional audit event. Ordinary-admin contact and free-text PII are masked.
 - Fixed: navigating directly to a lower sidebar workspace scrolls its active destination into the visible navigation region instead of leaving the current page hidden below the fold.
+- Fixed in the certification continuation: Provider 360 now links the provider's certification evidence to an explicit review decision. Only an active, documented, unexpired certification can be verified; removing verification requires a reason and notifies the provider.
 - Fixed: booking reassignment uses a named online-provider picker rather than asking an employee to paste a UUID.
 - Fixed: dispute assignment uses a named active-admin picker rather than asking an employee to paste a UUID.
 - Fixed in the current continuation: provider-team reject/send-back decisions use an in-page reason dialog instead of a browser prompt.
@@ -305,28 +307,30 @@ Admin findings:
 44. Repaired provider team invitation validation and contact matching through Bugs UX-080/081, including honest in-app delivery copy and field-specific errors.
 45. Reconnected customer invite discovery and added bounded team/invitation workspaces for tablet and desktop through Bugs UX-082/089/090.
 46. Normalized database schedule/override times to editable HH:MM, tightened server time-window validation, and rebuilt Availability as a wide controls/overrides workspace through Bugs UX-083-088.
+47. Rebuilt provider certification entry and evidence review across provider mobile web, the shared multipart uploader, the API, public discovery privacy, tier eligibility, and Admin Provider 360 through Bugs UX-091-104. Production-bundle browser evidence covers the provider workspace at 768/1366 and the admin review tab at 1280/1440/1920.
+48. Repaired Provider 360 visual coverage that had mislabeled an invalid array payload as an empty detail record and captured its retrying error request as a loading spinner. The suite now waits for real missing-provider and settled server-error alerts before taking those baselines.
 
 ## Verification record for this batch
 
 - Admin TypeScript: passed.
 - Mobile TypeScript: passed.
 - API TypeScript: passed.
-- Mobile suite after the provider team/availability batch: 212 suites passed, 750 tests passed, 84 explicit todos.
-- Admin suite after the service-scope batch: 63 files passed, 1 skipped, 176 tests passed, 3 explicit todos.
-- API suite after the provider team/availability batch: 302 suites passed, 3036 tests passed.
+- Mobile suite after the certification batch: 221 suites passed, 754 tests passed, 84 explicit todos.
+- Admin suite after the certification batch: 68 files passed, 1 skipped, 181 tests passed, 3 explicit todos.
+- API suite after the certification batch: 307 suites passed, 3041 tests passed.
 - Admin and mobile lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
 - Mobile production web export: passed with `EXPO_OS=web` and the production same-origin API URL.
-- Production baseline entering the provider team/availability batch: local, GitHub, and the server were aligned at provider navigation commit `fa2e1c042090a5c50b7fbf3d016f95f14580b19c`, with healthy API/admin/mobile services. This batch must pass GitHub CI before the source and affected production assets advance together.
-- Browser smoke: admin login rendered the Stitch operations workspace live at 1280 with 44 px controls and no overflow. Provider dashboard and Schedule were verified at 820/1280. Provider calendar, job detail, chat, Team, and Availability render their paired workspaces without horizontal overflow. Team and Availability were inspected from the production-config export with populated controlled data at 768/1366 and no page or console errors. Customer tracker/chat still need an authenticated customer browser session; their rendered behavior tests pass.
+- Production baseline entering the certification batch: local, GitHub, and the server were aligned at provider team/availability commit `3dd37d347a64a4a01ea9c47fe5e44230702bdc17`, with six healthy compose services. This batch must pass GitHub CI before the source and affected production assets advance together.
+- Browser smoke: the provider certification workspace was inspected from the clean production-config export with populated controlled data at 768/1366. The real browser file chooser produced a private onboarding upload, Chrome supplied the multipart boundary, the returned URL reached the certification PATCH, each date control measured 48 px high, tablet controls remained wide enough to show complete values, and neither viewport had horizontal overflow, console errors, or page errors. Provider 360 certification review baselines pass at 1280/1440/1920. Customer tracker/chat still need an authenticated customer browser session; their rendered behavior tests pass.
 - Production asset and service smoke: admin and mobile `index.html` SHA-256 hashes matched the local production builds; the public config endpoint returned `#003D9B`, `#0052CC`, and `#FE8A00`; every onService compose service remained healthy.
-- Local visual regression record: all 21 Catalog states replayed cleanly after the endpoint interception was corrected. Populated scope queue, customer preview, and ordinary-admin read-only images were inspected directly at 1280 pixels. The admin baseline inventory is now 387 PNGs.
+- Local visual regression record: three Provider 360 certification baselines raise the admin inventory from 387 to 390 PNGs. Existing Provider 360 snapshots were re-captured against the current app, and the former false empty/error states now wait for real missing-record and settled server-error output.
 
 ## Next implementation order
 
-1. Continue the tester-backed customer findings in evidence order: wallet top-up recovery, Cebu address recognition, and support entry/linkage.
-2. Work the tester-backed provider findings: job navigation, service editing, availability validation, team contact validation, certification/upload states, and payout presentation.
-3. Audit and improve the remaining high-use wide layouts: customer projects, support, and notifications; provider earnings, client detail, and quote builder.
+1. Continue the tester-backed provider upload findings in evidence order: portfolio media and onboarding document/selfie states. Provider Services pricing remains paused under E16.
+2. Audit provider earnings and payout presentation without changing money movement, then continue into client detail and quote builder.
+3. Audit and improve the remaining high-use customer wide layouts: projects and notifications. Payment recovery, Cebu address recognition, and support entry/linkage are covered by the completed customer batches.
 4. Continue the admin suspicion-first pass page by page, replacing generic confirmations only where impact preview, reason capture, and audit context are required.
 5. Add real admin entity search after defining safe searchable fields and PII visibility.
 6. Reconcile fine-grained staff authorization through an explicit architecture decision.

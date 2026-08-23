@@ -96,6 +96,21 @@ interface ProviderProfile {
   };
   categories: { id: string; name: string; basePrice: number | null }[];
   serviceAreas: { id: string; name: string; isPrimary: boolean }[];
+  certifications: ProviderCertification[];
+}
+
+export interface ProviderCertification {
+  id: string;
+  name: string;
+  issuingBody: string;
+  certificateNumber: string | null;
+  issuedDate: string | null;
+  expiryDate: string | null;
+  isVerified: boolean;
+  verifiedAt: string | null;
+  hasDocument: boolean;
+  documentUrl: string | null;
+  createdAt: string;
 }
 
 interface JobsResult {
@@ -176,7 +191,7 @@ interface Note {
   updatedAt: string;
 }
 
-const TABS = ['profile', 'jobs', 'financials', 'reviews', 'staff', 'disputes', 'activity', 'notes'] as const;
+const TABS = ['profile', 'certifications', 'jobs', 'financials', 'reviews', 'staff', 'disputes', 'activity', 'notes'] as const;
 type TabId = (typeof TABS)[number];
 void TABS;
 
@@ -275,6 +290,7 @@ export default function ProviderDetailPage(): React.ReactElement {
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="certifications">Certifications</TabsTrigger>
           <TabsTrigger value="jobs">Jobs</TabsTrigger>
           <TabsTrigger value="financials">Financials</TabsTrigger>
           <TabsTrigger value="reviews">Reviews</TabsTrigger>
@@ -286,6 +302,9 @@ export default function ProviderDetailPage(): React.ReactElement {
 
         <TabsContent value="profile">
           <ProfileTab profile={p} />
+        </TabsContent>
+        <TabsContent value="certifications">
+          <CertificationsTab providerId={id} certifications={p.certifications ?? []} />
         </TabsContent>
         <TabsContent value="jobs">
           <JobsTab providerId={id} />
@@ -705,6 +724,164 @@ function DefRow({ k, v }: { k: string; v: React.ReactNode }): React.ReactElement
     <div className="flex justify-between py-1.5 text-sm border-b border-slate-100 last:border-0">
       <span className="text-[var(--color-text-secondary)]">{k}</span>
       <span className="text-[var(--color-text)] font-medium truncate ml-3">{v}</span>
+    </div>
+  );
+}
+
+const CERTIFICATION_STATUS_BADGE = {
+  verified: 'success',
+  pending: 'warning',
+  expired: 'danger',
+} as const;
+
+export function CertificationsTab({
+  providerId,
+  certifications,
+}: {
+  providerId: string;
+  certifications: ProviderCertification[];
+}): React.ReactElement {
+  const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState('');
+  const [unverifyTarget, setUnverifyTarget] = useState<ProviderCertification | null>(null);
+  const [reason, setReason] = useState('');
+  const todayManila = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+
+  const review = useMutation({
+    mutationFn: async (args: { certId: string; isVerified: boolean; reason?: string }) => {
+      await api.post(`/api/v1/admin/providers/${providerId}/certifications/${args.certId}/review`, {
+        isVerified: args.isVerified,
+        reason: args.reason,
+      });
+    },
+    onSuccess: () => {
+      setActionError('');
+      setUnverifyTarget(null);
+      setReason('');
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-profile', providerId] });
+    },
+    onError: (error) => setActionError(getErrorMessage(error)),
+  });
+
+  const currentVerified = certifications.filter((cert) =>
+    cert.isVerified && (!cert.expiryDate || cert.expiryDate >= todayManila),
+  ).length;
+  const awaitingReview = certifications.filter((cert) => !cert.isVerified).length;
+
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Card className="border border-[var(--color-border)] p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Current verified</p>
+          <p className="mt-1 text-2xl font-bold text-[var(--color-text)]">{currentVerified}</p>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Visible on the customer profile and eligible for tier checks.</p>
+        </Card>
+        <Card className="border border-[var(--color-border)] p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Awaiting review</p>
+          <p className="mt-1 text-2xl font-bold text-[var(--color-text)]">{awaitingReview}</p>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Review the private document before adding verification.</p>
+        </Card>
+      </div>
+
+      <p className="text-sm text-[var(--color-text-secondary)]">
+        Only verified, unexpired certifications appear to customers. Any provider edit automatically removes verification and returns the credential here for review.
+      </p>
+      {actionError && <p role="alert" className="text-sm text-[var(--color-danger)]">{actionError}</p>}
+
+      {certifications.length === 0 ? (
+        <EmptyState title="No certifications" description="This provider has not added a certification yet." />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {certifications.map((cert) => {
+            const expired = Boolean(cert.expiryDate && cert.expiryDate < todayManila);
+            const status = expired ? 'expired' : cert.isVerified ? 'verified' : 'pending';
+            return (
+              <Card key={cert.id} className="border border-[var(--color-border)] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-[var(--color-text)]">{cert.name}</h3>
+                      <Badge label={status} variant={CERTIFICATION_STATUS_BADGE[status]} />
+                    </div>
+                    <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{cert.issuingBody}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {!cert.isVerified && (
+                      <Button
+                        size="sm"
+                        className="min-h-11"
+                        disabled={review.isPending || !cert.hasDocument || expired}
+                        onClick={() => review.mutate({ certId: cert.id, isVerified: true })}
+                      >
+                        Verify
+                      </Button>
+                    )}
+                    {cert.isVerified && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="min-h-11"
+                        disabled={review.isPending}
+                        onClick={() => { setActionError(''); setReason(''); setUnverifyTarget(cert); }}
+                      >
+                        Remove verification
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-x-5 sm:grid-cols-2">
+                  <DefRow k="Certificate number" v={cert.certificateNumber || '—'} />
+                  <DefRow k="Issued" v={formatDateOnly(cert.issuedDate)} />
+                  <DefRow k="Expires" v={formatDateOnly(cert.expiryDate)} />
+                  <DefRow k="Verified at" v={formatDate(cert.verifiedAt)} />
+                </div>
+                <div className="mt-3 border-t border-[var(--color-border)] pt-2">
+                  <DocLine label="Private certificate photo" url={cert.documentUrl} extra={cert.hasDocument ? 'private admin-only access' : 'required for verification'} />
+                </div>
+                {!cert.hasDocument && (
+                  <p className="mt-2 text-xs text-[var(--color-warning)]">The provider must add a certificate photo before this can be verified.</p>
+                )}
+                {expired && (
+                  <p className="mt-2 text-xs text-[var(--color-danger)]">This credential is expired and cannot be verified or count toward Elite tier.</p>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {unverifyTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="cert-unverify-title" className="w-full max-w-lg rounded-lg border border-[var(--color-border)] bg-white p-5">
+            <h3 id="cert-unverify-title" className="text-lg font-semibold text-[var(--color-text)]">Remove certification verification</h3>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{unverifyTarget.name}</p>
+            <p className="mt-3 text-sm text-[var(--color-text-secondary)]">
+              The certification will stop appearing to customers and stop counting toward tier eligibility. The provider receives this reason in their notifications.
+            </p>
+            <label htmlFor="cert-unverify-reason" className="mt-4 block text-sm font-medium text-[var(--color-text)]">Reason</label>
+            <Textarea
+              id="cert-unverify-reason"
+              aria-label="Certification verification removal reason"
+              className="mt-1"
+              value={reason}
+              maxLength={1000}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Explain what is invalid, expired, or needs replacement"
+            />
+            <div className="mt-5 flex justify-end gap-2">
+              <Button className="min-h-11" variant="outline" onClick={() => { setUnverifyTarget(null); setReason(''); }}>Cancel</Button>
+              <Button
+                className="min-h-11"
+                variant="destructive"
+                disabled={review.isPending || reason.trim().length < 3}
+                onClick={() => review.mutate({ certId: unverifyTarget.id, isVerified: false, reason: reason.trim() })}
+              >
+                {review.isPending ? 'Saving...' : 'Remove verification'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

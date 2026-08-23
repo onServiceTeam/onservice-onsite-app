@@ -14,6 +14,8 @@ import { createAppError } from '../middleware/error.middleware';
 import * as providerAdminService from '../services/provider-admin.service';
 import * as providerStaffService from '../services/provider-staff.service';
 import * as kycDocumentService from '../services/kyc-document.service';
+import { validationMiddleware } from '../middleware/validation.middleware';
+import { providerCertificationReviewSchema } from '../validators/provider.validators';
 
 const router = Router();
 
@@ -398,6 +400,52 @@ router.post(
         reason: typeof req.body?.reason === 'string' ? req.body.reason : undefined,
       });
       res.json({ success: true, data: providerStaffService.formatProviderStaff(updated) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// ─── Provider certifications ────────────────────────────────────────────────
+// Credential documents are private uploads. Admins review them through the
+// authenticated proxy below, then explicitly add or remove verification.
+
+router.post(
+  '/:id/certifications/:certId/review',
+  authMiddleware,
+  validationMiddleware(providerCertificationReviewSchema),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const data = await providerAdminService.reviewProviderCertification({
+        providerId: req.params.id as string,
+        certId: req.params.certId as string,
+        adminId: req.user!.userId,
+        isVerified: req.body.isVerified,
+        reason: req.body.reason,
+      });
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/:id/certifications/:certId/document',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const stream = await providerAdminService.getProviderCertificationDocumentStream(
+        req.params.id as string,
+        req.params.certId as string,
+      );
+      res.setHeader('Content-Type', stream.contentType);
+      res.setHeader('Cache-Control', 'private, no-store');
+      if (stream.contentLength != null) res.setHeader('Content-Length', String(stream.contentLength));
+      stream.body.on('error', (err: Error) => next(err));
+      stream.body.pipe(res);
     } catch (error) {
       next(error);
     }

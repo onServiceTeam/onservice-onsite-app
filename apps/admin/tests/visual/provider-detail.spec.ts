@@ -1,7 +1,7 @@
 // Phase 14 Remediation #4 — visual baseline spec for ProviderDetailPage
 // Page: apps/admin/src/pages/ProviderDetailPage.tsx
 //
-// Captures 4 states (loading, empty, error, success) at 3 viewport
+// Captures 5 states (loading, missing, error, success, certification review) at 3 viewport
 // widths (1280, 1440, 1920). Operator runs
 //   pnpm exec playwright test tests/visual/provider-detail.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
@@ -18,6 +18,17 @@ test.describe('ProviderDetailPage', () => {
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
         await expect(page).toHaveScreenshot(`provider-detail-default-${width}.png`, {
+          fullPage: true,
+          maxDiffPixelRatio: 0.01,
+        });
+      });
+
+      test('certification review workspace', async ({ page }) => {
+        await page.goto(ROUTE);
+        await page.getByRole('tab', { name: 'Certifications' }).click();
+        await expect(page.getByText('Electrical Installation NC II')).toBeVisible();
+        await expect(page.getByText('Plumbing NC II')).toBeVisible();
+        await expect(page).toHaveScreenshot(`provider-detail-certifications-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
         });
@@ -41,43 +52,37 @@ test.describe('ProviderDetailPage', () => {
         });
       });
 
-      test('empty state', async ({ page }) => {
-        // Force every admin GET to return an empty list so EmptyState renders.
-        await page.route('**/api/v1/admin/**', (route) => {
-          if (route.request().method() === 'GET') {
-            route.fulfill({
-              status: 200,
-              contentType: 'application/json',
-              body: JSON.stringify({ data: [], pagination: { total: 0, page: 1 } }),
-            });
-          } else {
-            route.continue();
-          }
+      test('missing provider state', async ({ page }) => {
+        // A detail page has no list-style empty state. Prove the real missing
+        // record response instead of passing an invalid [] profile shape.
+        await page.route('**/api/v1/admin/providers/*/profile', (route) => {
+          route.fulfill({
+            status: 404,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: false, error: { message: 'Provider not found.' } }),
+          });
         });
         await page.goto(ROUTE);
+        await expect(page.getByRole('alert')).toContainText('Provider not found.', { timeout: 15_000 });
         await expect(page).toHaveScreenshot(`provider-detail-empty-${width}.png`, {
           fullPage: true,
-          maxDiffPixelRatio: 0.01,
+          maxDiffPixelRatio: 0.001,
         });
       });
 
       test('error state', async ({ page }) => {
-        // 500 on every admin GET so ErrorState renders.
-        await page.route('**/api/v1/admin/**', (route) => {
-          if (route.request().method() === 'GET') {
-            route.fulfill({
-              status: 500,
-              contentType: 'application/json',
-              body: JSON.stringify({ error: { message: 'server_error' } }),
-            });
-          } else {
-            route.continue();
-          }
+        await page.route('**/api/v1/admin/providers/*/profile', (route) => {
+          route.fulfill({
+            status: 500,
+            contentType: 'application/json',
+            body: JSON.stringify({ success: false, error: { message: 'Provider service unavailable.' } }),
+          });
         });
         await page.goto(ROUTE);
+        await expect(page.getByRole('alert')).toContainText('Provider service unavailable.', { timeout: 15_000 });
         await expect(page).toHaveScreenshot(`provider-detail-error-${width}.png`, {
           fullPage: true,
-          maxDiffPixelRatio: 0.01,
+          maxDiffPixelRatio: 0.001,
         });
       });
     });

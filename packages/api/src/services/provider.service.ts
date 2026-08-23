@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import * as uploadService from './upload.service';
 
 interface ProviderRow {
   id: string;
@@ -591,8 +592,8 @@ interface CertificationRow {
   issuing_body: string;
   certificate_number: string | null;
   certificate_url: string | null;
-  issued_date: string | null;
-  expiry_date: string | null;
+  issued_date: string | Date | null;
+  expiry_date: string | Date | null;
   is_verified: boolean;
   verified_at: Date | null;
   is_active: boolean;
@@ -608,15 +609,28 @@ export async function getCertifications(providerId: string): Promise<Certificati
   return result.rows;
 }
 
+export async function getPublicCertifications(providerId: string): Promise<CertificationRow[]> {
+  const result = await db.query<CertificationRow>(
+    `SELECT * FROM provider_certifications
+      WHERE provider_id = $1
+        AND is_active = TRUE
+        AND is_verified = TRUE
+        AND (expiry_date IS NULL OR expiry_date >= (NOW() AT TIME ZONE 'Asia/Manila')::date)
+      ORDER BY created_at DESC`,
+    [providerId],
+  );
+  return result.rows;
+}
+
 export async function addCertification(
   providerId: string,
   data: {
     name: string;
     issuingBody?: string;
-    certificateNumber?: string;
-    certificateUrl?: string;
-    issuedDate?: string;
-    expiryDate?: string;
+    certificateNumber?: string | null;
+    certificateUrl?: string | null;
+    issuedDate?: string | null;
+    expiryDate?: string | null;
   },
 ): Promise<CertificationRow> {
   const result = await db.query<CertificationRow>(
@@ -643,30 +657,60 @@ export async function updateCertification(
   data: {
     name?: string;
     issuingBody?: string;
-    certificateNumber?: string;
-    certificateUrl?: string;
-    issuedDate?: string;
-    expiryDate?: string;
+    certificateNumber?: string | null;
+    certificateUrl?: string | null;
+    issuedDate?: string | null;
+    expiryDate?: string | null;
   },
 ): Promise<CertificationRow> {
-  const setClauses: string[] = ['updated_at = NOW()'];
-  const values: (string | null)[] = [];
-  let paramIndex = 1;
+  return db.transaction(async (client) => {
+    const currentResult = await client.query<CertificationRow>(
+      `SELECT * FROM provider_certifications
+        WHERE id = $1 AND provider_id = $2 AND is_active = TRUE
+        FOR UPDATE`,
+      [certId, providerId],
+    );
+    const current = currentResult.rows[0];
+    if (!current) throw createAppError('Certification not found.', 404);
 
-  if (data.name !== undefined) { setClauses.push(`name = $${paramIndex++}`); values.push(data.name); }
-  if (data.issuingBody !== undefined) { setClauses.push(`issuing_body = $${paramIndex++}`); values.push(data.issuingBody); }
-  if (data.certificateNumber !== undefined) { setClauses.push(`certificate_number = $${paramIndex++}`); values.push(data.certificateNumber); }
-  if (data.certificateUrl !== undefined) { setClauses.push(`certificate_url = $${paramIndex++}`); values.push(data.certificateUrl); }
-  if (data.issuedDate !== undefined) { setClauses.push(`issued_date = $${paramIndex++}`); values.push(data.issuedDate); }
-  if (data.expiryDate !== undefined) { setClauses.push(`expiry_date = $${paramIndex++}`); values.push(data.expiryDate); }
+    const effectiveIssued = data.issuedDate !== undefined
+      ? data.issuedDate
+      : formatDateKey(current.issued_date);
+    const effectiveExpiry = data.expiryDate !== undefined
+      ? data.expiryDate
+      : formatDateKey(current.expiry_date);
+    if (effectiveIssued && effectiveExpiry && effectiveExpiry < effectiveIssued) {
+      throw createAppError('Expiry date must be on or after the issued date.', 400);
+    }
 
-  values.push(certId, providerId);
-  const result = await db.query<CertificationRow>(
-    `UPDATE provider_certifications SET ${setClauses.join(', ')} WHERE id = $${paramIndex++} AND provider_id = $${paramIndex} RETURNING *`,
-    values,
-  );
-  if (result.rows.length === 0) throw createAppError('Certification not found.', 404);
-  return result.rows[0]!;
+    // Any provider edit changes the evidence an admin reviewed. Return the
+    // credential to pending review instead of leaving a stale verified badge.
+    // The row lock keeps this reset and the effective-date validation atomic
+    // with an admin review or another provider edit.
+    const setClauses: string[] = [
+      'updated_at = NOW()',
+      'is_verified = FALSE',
+      'verified_at = NULL',
+      'verified_by = NULL',
+    ];
+    const values: (string | null)[] = [];
+    let paramIndex = 1;
+
+    if (data.name !== undefined) { setClauses.push(`name = $${paramIndex++}`); values.push(data.name); }
+    if (data.issuingBody !== undefined) { setClauses.push(`issuing_body = $${paramIndex++}`); values.push(data.issuingBody); }
+    if (data.certificateNumber !== undefined) { setClauses.push(`certificate_number = $${paramIndex++}`); values.push(data.certificateNumber); }
+    if (data.certificateUrl !== undefined) { setClauses.push(`certificate_url = $${paramIndex++}`); values.push(data.certificateUrl); }
+    if (data.issuedDate !== undefined) { setClauses.push(`issued_date = $${paramIndex++}`); values.push(data.issuedDate); }
+    if (data.expiryDate !== undefined) { setClauses.push(`expiry_date = $${paramIndex++}`); values.push(data.expiryDate); }
+
+    values.push(certId, providerId);
+    const result = await client.query<CertificationRow>(
+      `UPDATE provider_certifications SET ${setClauses.join(', ')} WHERE id = $${paramIndex++} AND provider_id = $${paramIndex} RETURNING *`,
+      values,
+    );
+    if (result.rows.length === 0) throw createAppError('Certification not found.', 404);
+    return result.rows[0]!;
+  });
 }
 
 export async function removeCertification(providerId: string, certId: string): Promise<void> {
@@ -677,18 +721,53 @@ export async function removeCertification(providerId: string, certId: string): P
   if (result.rowCount === 0) throw createAppError('Certification not found.', 404);
 }
 
+export async function getCertificationDocumentStream(
+  providerId: string,
+  certId: string,
+): Promise<uploadService.ObjectStream> {
+  const result = await db.query<{ certificate_url: string | null }>(
+    `SELECT certificate_url
+       FROM provider_certifications
+      WHERE id = $1 AND provider_id = $2 AND is_active = TRUE`,
+    [certId, providerId],
+  );
+  const certificateUrl = result.rows[0]?.certificate_url;
+  if (!certificateUrl) throw createAppError('Certificate document not found.', 404);
+  return uploadService.getObjectStream(certificateUrl);
+}
+
+export function formatDateKey(value: string | Date | null): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+  return match?.[1] ?? null;
+}
+
 export function formatCertification(c: CertificationRow): Record<string, unknown> {
   return {
     id: c.id,
     name: c.name,
     issuingBody: c.issuing_body,
     certificateNumber: c.certificate_number,
-    certificateUrl: c.certificate_url,
-    issuedDate: c.issued_date,
-    expiryDate: c.expiry_date,
+    hasDocument: Boolean(c.certificate_url),
+    documentUrl: c.certificate_url ? `/api/v1/providers/me/certifications/${c.id}/document` : null,
+    issuedDate: formatDateKey(c.issued_date),
+    expiryDate: formatDateKey(c.expiry_date),
     isVerified: c.is_verified,
     verifiedAt: c.verified_at,
     createdAt: c.created_at,
+  };
+}
+
+export function formatPublicCertification(c: CertificationRow): Record<string, unknown> {
+  return {
+    id: c.id,
+    name: c.name,
+    issuingBody: c.issuing_body,
+    issuedDate: formatDateKey(c.issued_date),
+    expiryDate: formatDateKey(c.expiry_date),
+    isVerified: c.is_verified,
+    verifiedAt: c.verified_at,
   };
 }
 
@@ -949,7 +1028,12 @@ export async function getTierProgression(providerId: string): Promise<TierProgre
   }
 
   const certResult = await db.query<{ count: string }>(
-    `SELECT COUNT(*)::text as count FROM provider_certifications WHERE provider_id = $1 AND is_verified = TRUE`,
+    `SELECT COUNT(*)::text as count
+       FROM provider_certifications
+      WHERE provider_id = $1
+        AND is_verified = TRUE
+        AND is_active = TRUE
+        AND (expiry_date IS NULL OR expiry_date >= (NOW() AT TIME ZONE 'Asia/Manila')::date)`,
     [providerId],
   );
   const hasCert = Number(certResult.rows[0]?.count ?? 0) > 0;

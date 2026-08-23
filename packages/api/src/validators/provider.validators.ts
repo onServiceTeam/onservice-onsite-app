@@ -20,6 +20,113 @@ const isoDateString = z.string().regex(
   'Date must be in YYYY-MM-DD format',
 );
 
+function isRealCalendarDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day;
+}
+
+const certificationDate = z.string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+  .refine(isRealCalendarDate, 'Enter a real calendar date');
+
+const nullableCertificationDate = z.preprocess(
+  (value) => typeof value === 'string' && value.trim().length === 0 ? null : value,
+  certificationDate.nullable().optional(),
+);
+
+const nullableCertificationText = (max: number, message: string) => z.preprocess(
+  (value) => typeof value === 'string' && value.trim().length === 0 ? null : value,
+  z.string().trim().max(max, message).nullable().optional(),
+);
+
+const certificationUrl = z.preprocess(
+  (value) => typeof value === 'string' && value.trim().length === 0 ? null : value,
+  z.string()
+    .trim()
+    .url('Certificate photo must be a valid URL')
+    .refine((value) => /^https?:\/\//i.test(value), 'Certificate photo must use HTTP or HTTPS')
+    .nullable()
+    .optional(),
+);
+
+function validateCertificationDates(
+  data: { issuedDate?: string | null; expiryDate?: string | null },
+  ctx: z.RefinementCtx,
+): void {
+  if (data.issuedDate && data.expiryDate && data.expiryDate < data.issuedDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['expiryDate'],
+      message: 'Expiry date must be on or after the issued date',
+    });
+  }
+  if (data.issuedDate) {
+    const todayManila = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+    if (data.issuedDate > todayManila) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['issuedDate'],
+        message: 'Issued date cannot be in the future',
+      });
+    }
+  }
+}
+
+const certificationFields = {
+  name: z.string().trim().min(1, 'Certification name is required').max(200, 'Certification name must be 200 characters or less'),
+  issuingBody: z.preprocess(
+    (value) => typeof value === 'string' && value.trim().length === 0 ? undefined : value,
+    z.string().trim().max(200, 'Issuing body must be 200 characters or less').optional(),
+  ),
+  certificateNumber: nullableCertificationText(100, 'Certificate number must be 100 characters or less'),
+  certificateUrl: certificationUrl,
+  issuedDate: nullableCertificationDate,
+  expiryDate: nullableCertificationDate,
+};
+
+// Bug UX-091 — certification writes previously trusted manual route checks.
+// That accepted impossible dates such as 2026-02-31, arbitrary URL schemes,
+// unknown keys, and PATCH bodies that changed no fields.
+export const providerCertificationCreateSchema = z.object(certificationFields)
+  .strict()
+  .superRefine(validateCertificationDates);
+
+export const providerCertificationUpdateSchema = z.object({
+  name: certificationFields.name.optional(),
+  issuingBody: certificationFields.issuingBody,
+  certificateNumber: certificationFields.certificateNumber,
+  certificateUrl: certificationFields.certificateUrl,
+  issuedDate: certificationFields.issuedDate,
+  expiryDate: certificationFields.expiryDate,
+}).strict()
+  .refine((data) => Object.values(data).some((value) => value !== undefined), {
+    message: 'At least one certification field must be provided',
+  })
+  .superRefine(validateCertificationDates);
+
+export const providerCertificationReviewSchema = z.object({
+  isVerified: z.boolean(),
+  reason: z.preprocess(
+    (value) => typeof value === 'string' && value.trim().length === 0 ? undefined : value,
+    z.string().trim().min(3, 'Reason must be at least 3 characters').max(1000, 'Reason must be 1000 characters or less').optional(),
+  ),
+}).strict().superRefine((data, ctx) => {
+  if (!data.isVerified && !data.reason) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['reason'],
+      message: 'A reason is required when removing verification',
+    });
+  }
+});
+
 export const providerApplicationSchema = z.object({
   businessName: z.string().min(2, 'Business name must be at least 2 characters').max(200),
   categoryIds: z.array(z.string().uuid()).min(1, 'Select at least one service category').max(10),

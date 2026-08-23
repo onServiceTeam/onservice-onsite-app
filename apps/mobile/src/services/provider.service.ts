@@ -61,8 +61,6 @@ export interface Certification {
   id: string;
   name: string;
   issuingBody: string;
-  certificateNumber: string | null;
-  certificateUrl: string | null;
   issuedDate: string | null;
   expiryDate: string | null;
   isVerified: boolean;

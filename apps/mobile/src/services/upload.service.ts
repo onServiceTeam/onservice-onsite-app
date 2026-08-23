@@ -54,7 +54,6 @@ export async function uploadImages(
   const res = await api.post<{ success: boolean; data: UploadedFile[] }>(
     '/api/v1/uploads',
     formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
   );
 
   return res.data.data;

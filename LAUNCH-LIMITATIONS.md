@@ -1323,3 +1323,23 @@ matches the existing booking/escrow source with the smallest money-path change.
 Provider Services pricing/edit behavior remains paused until that decision is
 recorded. See
 `.ai-coder/escalations/E16-provider-service-price-source-contradiction-2026-08-24.md`.
+
+---
+
+## 40. Bare `onservice.ph` is missing from the production TLS certificate
+
+The production server and DNS correctly route `onservice.ph` to
+`46.62.207.225`, but the certificate served for that hostname does not include
+the apex domain in its Subject Alternative Names. Browsers therefore reject
+`https://onservice.ph` before nginx can send its intended redirect to
+`https://app.onservice.ph`.
+
+The current certificate is otherwise valid and covers `api.onservice.ph`,
+`admin.onservice.ph`, `app.onservice.ph`, and `www.onservice.ph`. Those four
+hosts continue to serve normally. The repository's former “DNS + TLS done”
+statement was too broad and has been corrected.
+
+Do not remove the apex redirect or weaken certificate checks. Expand or reissue
+the existing certificate with `onservice.ph` included, confirm renewal keeps
+all five names, reload nginx, and verify every hostname externally. See
+`.ai-coder/escalations/E17-apex-domain-tls-certificate-2026-08-24.md`.

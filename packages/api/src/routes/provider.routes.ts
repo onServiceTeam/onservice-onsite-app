@@ -8,8 +8,11 @@ import {
   setScheduleSchema,
   availabilityOverrideSchema,
   providerStaffInviteSchema,
+  providerCertificationCreateSchema,
+  providerCertificationUpdateSchema,
 } from '../validators/provider.validators';
 import * as providerService from '../services/provider.service';
+import * as uploadService from '../services/upload.service';
 import * as providerCrmService from '../services/provider-crm.service';
 import { addClientNoteSchema, addReminderSchema, createTemplateSchema } from '../validators/provider-crm.validators';
 import * as jobLeadsService from '../services/job-leads.service';
@@ -137,7 +140,7 @@ router.get(
         providerService.getSchedule(provider.id),
         reviewService.getProviderAggregateRating(provider.id),
         providerService.getPortfolio(provider.id),
-        providerService.getCertifications(provider.id),
+        providerService.getPublicCertifications(provider.id),
         providerService.getSukiCount(provider.id),
       ]);
       const providerName = [provider.first_name, provider.last_name].filter(Boolean).join(' ') || null;
@@ -151,7 +154,7 @@ router.get(
           schedule: schedule.map(providerService.formatScheduleSlot),
           ratings,
           portfolio: portfolio.map(providerService.formatPortfolioItem),
-          certifications: certifications.map(providerService.formatCertification),
+          certifications: certifications.map(providerService.formatPublicCertification),
           sukiCount,
         },
       });
@@ -538,22 +541,35 @@ function validateCertText(value: string | undefined, field: string, max: number)
   }
 }
 
+function requireOwnedCertificationUpload(certificateUrl: string | null | undefined, userId: string): void {
+  if (!certificateUrl) return;
+  const objectKey = uploadService.extractObjectKey(certificateUrl);
+  if (!objectKey || !objectKey.startsWith(`onboarding/${userId}/`)) {
+    throw createAppError(
+      'Certificate photos must be uploaded from this account before the certification is saved.',
+      400,
+    );
+  }
+}
+
 router.post(
   '/me/certifications',
   authMiddleware,
+  validationMiddleware(providerCertificationCreateSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireProvider(req);
       const provider = await providerService.getProviderByUserId(req.user!.userId);
       const { name, issuingBody, certificateNumber, certificateUrl, issuedDate, expiryDate } = req.body as {
-        name: string; issuingBody?: string; certificateNumber?: string;
-        certificateUrl?: string; issuedDate?: string; expiryDate?: string;
+        name: string; issuingBody?: string; certificateNumber?: string | null;
+        certificateUrl?: string | null; issuedDate?: string | null; expiryDate?: string | null;
       };
       if (!name || typeof name !== 'string') throw createAppError('Certification name is required.', 400);
       // BUG-PHASE152-01 fix — server-side length validation.
       validateCertText(name, 'name', CERT_NAME_MAX);
       validateCertText(issuingBody, 'issuingBody', CERT_ISSUING_BODY_MAX);
-      validateCertText(certificateNumber, 'certificateNumber', CERT_NUMBER_MAX);
+      validateCertText(certificateNumber ?? undefined, 'certificateNumber', CERT_NUMBER_MAX);
+      requireOwnedCertificationUpload(certificateUrl, req.user!.userId);
       const cert = await providerService.addCertification(provider.id, {
         name, issuingBody, certificateNumber, certificateUrl, issuedDate, expiryDate,
       });
@@ -567,23 +583,45 @@ router.post(
 router.patch(
   '/me/certifications/:certId',
   authMiddleware,
+  validationMiddleware(providerCertificationUpdateSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireProvider(req);
       const provider = await providerService.getProviderByUserId(req.user!.userId);
       const certId = req.params['certId'] as string;
       const { name, issuingBody, certificateNumber, certificateUrl, issuedDate, expiryDate } = req.body as {
-        name?: string; issuingBody?: string; certificateNumber?: string;
-        certificateUrl?: string; issuedDate?: string; expiryDate?: string;
+        name?: string; issuingBody?: string; certificateNumber?: string | null;
+        certificateUrl?: string | null; issuedDate?: string | null; expiryDate?: string | null;
       };
       // BUG-PHASE152-01 fix — server-side length validation on PATCH too.
       validateCertText(name, 'name', CERT_NAME_MAX);
       validateCertText(issuingBody, 'issuingBody', CERT_ISSUING_BODY_MAX);
-      validateCertText(certificateNumber, 'certificateNumber', CERT_NUMBER_MAX);
+      validateCertText(certificateNumber ?? undefined, 'certificateNumber', CERT_NUMBER_MAX);
+      requireOwnedCertificationUpload(certificateUrl, req.user!.userId);
       const cert = await providerService.updateCertification(provider.id, certId, {
         name, issuingBody, certificateNumber, certificateUrl, issuedDate, expiryDate,
       });
       res.json({ success: true, data: providerService.formatCertification(cert) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/me/certifications/:certId/document',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const certId = req.params['certId'] as string;
+      const stream = await providerService.getCertificationDocumentStream(provider.id, certId);
+      res.setHeader('Content-Type', stream.contentType);
+      res.setHeader('Cache-Control', 'private, no-store');
+      if (stream.contentLength != null) res.setHeader('Content-Length', String(stream.contentLength));
+      stream.body.on('error', (err: Error) => next(err));
+      stream.body.pipe(res);
     } catch (error) {
       next(error);
     }

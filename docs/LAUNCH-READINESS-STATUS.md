@@ -32,8 +32,10 @@ These are shipped to production and verified:
   (non-executable script); fixed. Now backs up the DB **and** uploaded files
   nightly, keeps 7 days, and a dump has been restore-tested. Runbook:
   `docs/runbooks/postgres-restore.md`.
-- **TLS** — TLS 1.2/1.3, HSTS preload, OCSP stapling, session resumption (A+
-  target). Verified TLS 1.3 + valid cert in production.
+- **TLS configuration** — TLS 1.2/1.3, HSTS preload, OCSP stapling, and session
+  resumption are configured. The installed certificate is valid for `app`,
+  `admin`, `api`, and `www`, but not for the bare `onservice.ph` hostname. The
+  apex certificate gap is open under E17 and launch limitation 40.
 - **Sentry** — wiring fixed to accept the env name the runbook documents, so
   error tracking turns on the moment you add a DSN.
 - **Security posture** — firewall is 22/80/443 only; Postgres/redis/monitoring
@@ -54,7 +56,7 @@ These are shipped to production and verified:
 | 7 | PayMongo live mode | You | YES | KYC onboarding + live keys (you paste secrets). ~14–30 days. |
 | 8 | BIR receipt long-term retention | You / me | gated on #2 | Was specced as S3 Object Lock; on Hetzner we'll do WORM-style local + off-site. Not needed until BIR pipeline is live. |
 | 9 | Backups | done | — | **Covered.** Hetzner's server-level Automatic Backups + snapshots already back up the whole volume (DB + uploads) OFF the box — that's disaster recovery. On top of that, the app-level nightly logical DB+files dump (whose cron I fixed — it had been failing) gives a portable, restore-tested copy. Off-site is therefore NOT a blocker; can add a dedicated off-site target later if desired. |
-| 10 | DNS + TLS | done | — | Live on HTTPS; A+ config shipped. |
+| 10 | DNS + TLS | me / certificate authority | YES | `app`, `admin`, `api`, and `www` are valid. The bare `onservice.ph` resolves to production but is missing from the installed certificate SANs. Reissue/expand and verify under E17. |
 | 11 | Admin SSO | optional | no | Deferrable per the runbook. |
 | 12 | BIR e-receipt verification | You / me | gated on #2 | Verifiable once the ATP serial range exists. |
 | — | **Legal docs (F#10 + Terms/Privacy/IC)** | done (opt. attorney) | no | Drafted to a complete PH-law-grounded standard: finalized no-insurance disclaimer + full Terms (20 sections), Privacy Policy (RA 10173), and provider IC agreement. See `docs/LEGAL-REVIEW-2026-06-05.md`. Only left: drop in the registered entity/DPO details, and an optional belt-and-suspenders attorney read. |
@@ -62,11 +64,8 @@ These are shipped to production and verified:
 | — | In-app chat send reliability (§25) | me (v1.1) | no | Mobile real-time client issue; needs device testing. Spec-deferred to v1.1; "Call provider" + photo/dispute flows work. |
 
 ### The short version
-The **app and its infrastructure are launch-ready from a code, data-durability,
-and security standpoint.** What stands between here and "open to all users" is
-almost entirely **external/administrative**: the government registrations
-(NPC/BIR/DTI/Mayor), going live on PayMongo, and creating a Sentry project. On
-the technical side the only thing I need *from* you is the free **Cloudflare
-Turnstile keys** — the captcha is now wired end to end (server + mobile) and just
-needs the keys pasted into the env. The rest are forms, KYC, and sign-offs that
-only you can submit.
+The app still has launch blockers. In addition to the external registrations,
+PayMongo live setup, Sentry, and CAPTCHA decision above, the bare-domain TLS
+certificate must be corrected under E17. This status snapshot is historical in
+places and must be read with `LAUNCH-LIMITATIONS.md` and the current escalation
+files rather than treated as a launch certificate.

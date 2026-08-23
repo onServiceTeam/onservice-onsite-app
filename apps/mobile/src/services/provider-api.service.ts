@@ -67,7 +67,8 @@ export interface Certification {
   name: string;
   issuingBody: string;
   certificateNumber: string | null;
-  certificateUrl: string | null;
+  hasDocument: boolean;
+  documentUrl: string | null;
   issuedDate: string | null;
   expiryDate: string | null;
   isVerified: boolean;
@@ -174,10 +175,10 @@ export async function getMyCertifications(): Promise<Certification[]> {
 export async function addCertification(data: {
   name: string;
   issuingBody?: string;
-  certificateNumber?: string;
-  certificateUrl?: string;
-  issuedDate?: string;
-  expiryDate?: string;
+  certificateNumber?: string | null;
+  certificateUrl?: string | null;
+  issuedDate?: string | null;
+  expiryDate?: string | null;
 }): Promise<Certification> {
   const res = await api.post<ApiResponse<Certification>>('/api/v1/providers/me/certifications', data);
   return res.data.data;
@@ -186,10 +187,10 @@ export async function addCertification(data: {
 export async function updateCertification(certId: string, data: {
   name?: string;
   issuingBody?: string;
-  certificateNumber?: string;
-  certificateUrl?: string;
-  issuedDate?: string;
-  expiryDate?: string;
+  certificateNumber?: string | null;
+  certificateUrl?: string | null;
+  issuedDate?: string | null;
+  expiryDate?: string | null;
 }): Promise<Certification> {
   const res = await api.patch<ApiResponse<Certification>>(`/api/v1/providers/me/certifications/${certId}`, data);
   return res.data.data;

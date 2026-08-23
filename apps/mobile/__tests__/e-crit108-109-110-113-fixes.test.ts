@@ -132,7 +132,7 @@ describe('Phase E CRIT-109 — certifications.tsx replaces paste-URL with real p
     expect(CERTIFICATIONS).toMatch(/import \{ getErrorMessage \} from/);
     expect(CERTIFICATIONS).not.toMatch(/onError: \(err: Error\) => Alert\.alert\('Error', err\.message\)/);
   });
-  it('CRIT-109 — preview shows existing certUrl in edit mode if no new pick', () => {
-    expect(CERTIFICATIONS).toMatch(/uri: pendingLocalUri \?\? certUrl/);
-  });
+  // The former raw-URL preview contract was intentionally superseded by
+  // Bug UX-100. Its rendered test proves an existing private document is
+  // represented as “on file” without placing the storage URL in the UI.
 });

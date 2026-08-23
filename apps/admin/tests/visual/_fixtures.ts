@@ -145,7 +145,36 @@ const PROVIDER_PROFILE = {
   // Sub-fields some sub-pages destructure
   totalEarnings: 0, lifetimeRevenue: 0, walletBalance: 0,
   pendingPayouts: 0, services: [], schedule: [], portfolio: [],
-  certifications: [], notes: [],
+  certifications: [
+    {
+      id: 'CERT-0001', name: 'Electrical Installation NC II', issuingBody: 'TESDA',
+      certificateNumber: 'TESDA-EI-1001', issuedDate: '2025-01-15', expiryDate: '2030-01-15',
+      isVerified: true, verifiedAt: '2025-02-01T00:00:00.000Z', hasDocument: true,
+      documentUrl: '/api/v1/admin/providers/PV-0001/certifications/CERT-0001/document',
+      createdAt: '2025-01-15T00:00:00.000Z',
+    },
+    {
+      id: 'CERT-0002', name: 'Plumbing NC II', issuingBody: 'TESDA',
+      certificateNumber: 'TESDA-PL-1002', issuedDate: '2026-03-10', expiryDate: '2031-03-10',
+      isVerified: false, verifiedAt: null, hasDocument: true,
+      documentUrl: '/api/v1/admin/providers/PV-0001/certifications/CERT-0002/document',
+      createdAt: '2026-03-10T00:00:00.000Z',
+    },
+    {
+      id: 'CERT-0003', name: 'Air Conditioning Servicing NC II', issuingBody: 'TESDA',
+      certificateNumber: 'TESDA-AC-1003', issuedDate: '2021-05-20', expiryDate: '2025-05-20',
+      isVerified: false, verifiedAt: null, hasDocument: true,
+      documentUrl: '/api/v1/admin/providers/PV-0001/certifications/CERT-0003/document',
+      createdAt: '2021-05-20T00:00:00.000Z',
+    },
+    {
+      id: 'CERT-0004', name: 'Basic Occupational Safety and Health', issuingBody: 'DOLE',
+      certificateNumber: null, issuedDate: '2026-06-01', expiryDate: null,
+      isVerified: false, verifiedAt: null, hasDocument: false, documentUrl: null,
+      createdAt: '2026-06-01T00:00:00.000Z',
+    },
+  ],
+  notes: [],
 };
 
 // Booking detail shape — BookingDetailPage hits /admin/bookings/:id.

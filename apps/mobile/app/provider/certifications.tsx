@@ -20,6 +20,7 @@ import {
   TextInput,
   Alert,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Routes } from '@/config/navigation';
@@ -45,20 +46,120 @@ import { Check, ScrollText } from '@/components/icons';
 // certifications page so the provider sees expiry warnings on the
 // same screen where they manage cert documents.
 import NbiStatusBanner from '@/components/provider/NbiStatusBanner';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type ModalMode = 'add' | 'edit' | null;
+
+export function normalizeCertificationDate(value: string | null | undefined): string {
+  if (!value) return '';
+  return /^(\d{4}-\d{2}-\d{2})/.exec(value)?.[1] ?? '';
+}
+
+function isRealCertificationDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day;
+}
+
+export function formatCertificationDate(value: string | null | undefined): string {
+  const key = normalizeCertificationDate(value);
+  if (!key || !isRealCertificationDate(key)) return 'Date unavailable';
+  const [year, month, day] = key.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'Asia/Manila',
+  }).format(new Date(Date.UTC(year!, month! - 1, day!, 4)));
+}
+
+export function validateCertificationDates(issuedDate: string, expiryDate: string): string | null {
+  const issued = issuedDate.trim();
+  const expiry = expiryDate.trim();
+  if (issued && !isRealCertificationDate(issued)) return 'Enter a real issued date in YYYY-MM-DD format.';
+  if (expiry && !isRealCertificationDate(expiry)) return 'Enter a real expiry date in YYYY-MM-DD format.';
+  const todayManila = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  if (issued && issued > todayManila) return 'Issued date cannot be in the future.';
+  if (issued && expiry && expiry < issued) return 'Expiry date must be on or after the issued date.';
+  return null;
+}
+
+function CertificationDateField({
+  label,
+  value,
+  onChange,
+  minimum,
+  maximum,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  minimum?: string;
+  maximum?: string;
+}): React.ReactElement {
+  const webInput = Platform.OS === 'web'
+    ? React.createElement('input', {
+      type: 'date',
+      value,
+      min: minimum,
+      max: maximum,
+      onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChange(event.target.value),
+      'aria-label': label,
+      // Raw DOM inputs do not understand React Native's unit conventions.
+      // In particular, RN lineHeight: 24 becomes the CSS multiplier 24 and
+      // stretches the control to roughly 384 px. Use explicit CSS units.
+      style: {
+        boxSizing: 'border-box',
+        width: '100%',
+        height: 48,
+        minHeight: 48,
+        padding: `0 ${spacing.base}px`,
+        fontSize: 16,
+        fontWeight: 400,
+        lineHeight: '24px',
+        color: colors.text,
+        backgroundColor: colors.background,
+        border: `1px solid ${colors.border}`,
+        borderRadius: borderRadius.md,
+      },
+    })
+    : (
+      <TextInput
+        style={[styles.input, styles.dateInput]}
+        value={value}
+        onChangeText={onChange}
+        placeholder="YYYY-MM-DD"
+        placeholderTextColor={colors.textTertiary}
+        accessibilityLabel={label}
+        maxLength={10}
+      />
+    );
+
+  return (
+    <View style={styles.dateField}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      {webInput}
+    </View>
+  );
+}
 
 export default function CertificationsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { width, isPhone } = useResponsive();
 
   const [mode, setMode] = useState<ModalMode>(null);
   const [editTarget, setEditTarget] = useState<Certification | null>(null);
   const [name, setName] = useState('');
   const [issuingBody, setIssuingBody] = useState('TESDA');
   const [certNumber, setCertNumber] = useState('');
-  const [certUrl, setCertUrl] = useState('');
   const [issuedDate, setIssuedDate] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   // Phase E CRIT-109 fix — local file URI from picker, before upload.
@@ -76,8 +177,8 @@ export default function CertificationsScreen(): React.ReactElement {
 
   const addMutation = useMutation({
     mutationFn: (data: {
-      name: string; issuingBody?: string; certificateNumber?: string;
-      certificateUrl?: string; issuedDate?: string; expiryDate?: string;
+      name: string; issuingBody?: string; certificateNumber?: string | null;
+      certificateUrl?: string | null; issuedDate?: string | null; expiryDate?: string | null;
     }) => addCertification(data),
     onSuccess: () => {
       invalidate();
@@ -90,8 +191,8 @@ export default function CertificationsScreen(): React.ReactElement {
 
   const updateMutation = useMutation({
     mutationFn: (data: {
-      certId: string; name?: string; issuingBody?: string; certificateNumber?: string;
-      certificateUrl?: string; issuedDate?: string; expiryDate?: string;
+      certId: string; name?: string; issuingBody?: string; certificateNumber?: string | null;
+      certificateUrl?: string | null; issuedDate?: string | null; expiryDate?: string | null;
     }) => {
       const { certId, ...rest } = data;
       return updateCertification(certId, rest);
@@ -121,7 +222,6 @@ export default function CertificationsScreen(): React.ReactElement {
     setName('');
     setIssuingBody('TESDA');
     setCertNumber('');
-    setCertUrl('');
     setIssuedDate('');
     setExpiryDate('');
     setPendingLocalUri(null);
@@ -178,12 +278,14 @@ export default function CertificationsScreen(): React.ReactElement {
   const handleEdit = useCallback((cert: Certification): void => {
     setMode('edit');
     setEditTarget(cert);
+    // A replacement selected for one credential must never carry into another
+    // credential when the provider switches cards without closing the form.
+    setPendingLocalUri(null);
     setName(cert.name);
     setIssuingBody(cert.issuingBody);
     setCertNumber(cert.certificateNumber ?? '');
-    setCertUrl(cert.certificateUrl ?? '');
-    setIssuedDate(cert.issuedDate ?? '');
-    setExpiryDate(cert.expiryDate ?? '');
+    setIssuedDate(normalizeCertificationDate(cert.issuedDate));
+    setExpiryDate(normalizeCertificationDate(cert.expiryDate));
   }, []);
 
   const handleSubmit = useCallback((): void => {
@@ -191,34 +293,19 @@ export default function CertificationsScreen(): React.ReactElement {
       Alert.alert('Required', 'Certification name is required.');
       return;
     }
-    // BUG-PHASE60-01 fix — pre-fix the date fields accepted any
-    // string. Server validators (provider.validators.ts) reject
-    // non-YYYY-MM-DD values with a Zod error the user can't easily
-    // map back to a field; entering "2025/01/15" would silently
-    // 4xx the whole form. Provider could also save expiry < issued
-    // (a "valid until last year" cert that the platform would then
-    // surface to customers as a verification credential).
-    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
     const issued = issuedDate.trim();
     const expiry = expiryDate.trim();
-    if (issued.length > 0 && !dateRe.test(issued)) {
-      Alert.alert('Invalid Issued Date', 'Use format YYYY-MM-DD (e.g. 2024-03-15).');
-      return;
-    }
-    if (expiry.length > 0 && !dateRe.test(expiry)) {
-      Alert.alert('Invalid Expiry Date', 'Use format YYYY-MM-DD (e.g. 2027-03-15).');
-      return;
-    }
-    if (issued.length > 0 && expiry.length > 0 && expiry < issued) {
-      Alert.alert('Invalid Dates', 'Expiry date must be later than the issued date.');
+    const dateError = validateCertificationDates(issued, expiry);
+    if (dateError) {
+      Alert.alert('Check certification dates', dateError);
       return;
     }
     // Phase E CRIT-109 fix — if a new photo was picked, upload it
     // first to get an https URL; then send that URL through. If the
-    // user is editing and didn't pick a new photo, keep the existing
-    // certUrl unchanged.
+    // user is editing and didn't pick a new photo, omit certificateUrl so the
+    // private document already stored by the API remains unchanged.
     void (async () => {
-      let finalCertUrl: string | undefined = certUrl.trim() || undefined;
+      let finalCertUrl: string | undefined;
       if (pendingLocalUri) {
         setIsUploading(true);
         try {
@@ -237,10 +324,10 @@ export default function CertificationsScreen(): React.ReactElement {
       const payload = {
         name: name.trim(),
         issuingBody: issuingBody.trim() || undefined,
-        certificateNumber: certNumber.trim() || undefined,
-        certificateUrl: finalCertUrl,
-        issuedDate: issuedDate.trim() || undefined,
-        expiryDate: expiryDate.trim() || undefined,
+        certificateNumber: certNumber.trim() || null,
+        issuedDate: issued || null,
+        expiryDate: expiry || null,
+        ...(finalCertUrl ? { certificateUrl: finalCertUrl } : {}),
       };
       if (mode === 'add') {
         addMutation.mutate(payload);
@@ -248,7 +335,7 @@ export default function CertificationsScreen(): React.ReactElement {
         updateMutation.mutate({ certId: editTarget.id, ...payload });
       }
     })();
-  }, [mode, editTarget, name, issuingBody, certNumber, certUrl, issuedDate, expiryDate, pendingLocalUri, addMutation, updateMutation]);
+  }, [mode, editTarget, name, issuingBody, certNumber, issuedDate, expiryDate, pendingLocalUri, addMutation, updateMutation]);
 
   const handleRemove = useCallback((cert: Certification): void => {
     Alert.alert('Remove Certification', `Remove "${cert.name}"?`, [
@@ -258,6 +345,7 @@ export default function CertificationsScreen(): React.ReactElement {
   }, [removeMutation]);
 
   const isPending = addMutation.isPending || updateMutation.isPending || isUploading;
+  const todayManila = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 
   if (isLoading) {
     return (
@@ -296,151 +384,146 @@ export default function CertificationsScreen(): React.ReactElement {
         </TouchableOpacity>
       </View>
 
-      {mode && (
-        <View style={styles.formCard}>
-          <Text style={styles.formTitle}>{mode === 'add' ? 'Add Certification' : 'Edit Certification'}</Text>
-          {/* BUG-PHASE197-02 fix — pre-fix all three text inputs had
-              no maxLength. Phase 152 set CERT_NAME_MAX=200,
-              CERT_ISSUING_BODY_MAX=200, CERT_NUMBER_MAX=100 at the
-              route. A provider typing past those caps got a 400 with
-              no field-level guidance. Same Phase 145/194/195/197-01
-              maxLength-sweep fix family. */}
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Certification Name *"
-            placeholderTextColor={colors.textTertiary}
-            maxLength={200}
-          />
-          <TextInput
-            style={styles.input}
-            value={issuingBody}
-            onChangeText={setIssuingBody}
-            placeholder="Issuing Body (e.g. TESDA)"
-            placeholderTextColor={colors.textTertiary}
-            maxLength={200}
-          />
-          <TextInput
-            style={styles.input}
-            value={certNumber}
-            onChangeText={setCertNumber}
-            placeholder="Certificate Number"
-            placeholderTextColor={colors.textTertiary}
-            maxLength={100}
-          />
-          {/* Phase E CRIT-109 fix — picker preview replaces the
-               paste-URL TextInput. If editing and a previous URL
-               exists but no new photo picked, show that as preview. */}
-          {pendingLocalUri || certUrl ? (
-            <View style={styles.previewWrap}>
-              <Image
-                source={{ uri: pendingLocalUri ?? certUrl }}
-                style={styles.previewImg}
-                resizeMode="cover"
-              />
-              <TouchableOpacity onPress={showPickerOptions} style={styles.changeBtn} disabled={isPending}>
-                <Text style={styles.changeBtnText}>{pendingLocalUri ? 'Change' : 'Replace'}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity
-              onPress={showPickerOptions}
-              style={styles.pickerCard}
-              activeOpacity={0.8}
-              disabled={isPending}
-            >
-              <ScrollText size={36} color={colors.textTertiary} style={styles.pickerIcon} />
-              <Text style={styles.pickerTitle}>Tap to add certificate photo</Text>
-              <Text style={styles.pickerHint}>Camera or photo library (optional)</Text>
-            </TouchableOpacity>
-          )}
-          <View style={styles.dateRow}>
-            <TextInput
-              style={[styles.input, styles.dateInput]}
-              value={issuedDate}
-              onChangeText={setIssuedDate}
-              placeholder="Issued Date (YYYY-MM-DD)"
-              placeholderTextColor={colors.textTertiary}
-            />
-            <TextInput
-              style={[styles.input, styles.dateInput]}
-              value={expiryDate}
-              onChangeText={setExpiryDate}
-              placeholder="Expiry Date (YYYY-MM-DD)"
-              placeholderTextColor={colors.textTertiary}
-            />
-          </View>
-          <View style={styles.formActions}>
-            <Button title="Cancel" onPress={resetForm} variant="ghost" />
-            <Button
-              title={isUploading ? 'Uploading...' : isPending ? 'Saving...' : 'Save'}
-              onPress={handleSubmit}
-              loading={isPending}
-              disabled={isPending}
-            />
-          </View>
-        </View>
-      )}
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.secondary} />}
       >
-        {certifications.length === 0 ? (
-          <EmptyState
-            icon={<ScrollText size={48} color={colors.textTertiary} />}
-            title="No Certifications Yet"
-            description="Add your TESDA certifications, training certificates, or professional licenses to build trust and unlock Elite tier benefits."
-            actionLabel="Add Certification"
-            onAction={handleAdd}
-          />
-        ) : (
-          certifications.map((cert) => (
-            <View key={cert.id} style={styles.certCard}>
-              <View style={styles.certHeader}>
-                <View style={styles.certInfo}>
-                  <Text style={styles.certName}>{cert.name}</Text>
-                  <Text style={styles.certIssuer}>{cert.issuingBody}</Text>
-                </View>
-                {cert.isVerified ? (
-                  <View style={styles.verifiedBadge}>
-                    <Check size={13} color={colors.success} />
-                    <Text style={styles.verifiedText}>Verified</Text>
+        <View style={styles.introCard}>
+          <Text style={styles.introTitle}>Build trust with verified credentials</Text>
+          <Text style={styles.introText}>Add TESDA certificates, professional licenses, and training credentials. Only current credentials verified by onService appear to customers. Editing a verified credential returns it for review.</Text>
+        </View>
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={!isPhone ? 'Tablet and desktop certification management workspace' : undefined}
+        >
+          {mode && (
+            <View style={styles.formColumn}>
+              <View style={styles.formCard}>
+                <Text style={styles.formTitle}>{mode === 'add' ? 'Add Certification' : 'Edit Certification'}</Text>
+                <Text style={styles.fieldLabel}>Certification name</Text>
+                    {/* BUG-PHASE197-02 — keep client limits aligned with the API. */}
+                    <TextInput
+                      style={styles.input}
+                      value={name}
+                      onChangeText={setName}
+                      placeholder="e.g. Electrical Installation NC II"
+                      placeholderTextColor={colors.textTertiary}
+                      accessibilityLabel="Certification name"
+                      maxLength={200}
+                    />
+                <Text style={styles.fieldLabel}>Issuing body</Text>
+                <TextInput
+                  style={styles.input}
+                  value={issuingBody}
+                  onChangeText={setIssuingBody}
+                  placeholder="e.g. TESDA or PRC"
+                  placeholderTextColor={colors.textTertiary}
+                  accessibilityLabel="Certification issuing body"
+                  maxLength={200}
+                />
+                <Text style={styles.fieldLabel}>Certificate number</Text>
+                <TextInput
+                  style={styles.input}
+                  value={certNumber}
+                  onChangeText={setCertNumber}
+                  placeholder="Enter the number exactly as shown"
+                  placeholderTextColor={colors.textTertiary}
+                  accessibilityLabel="Certification number"
+                  maxLength={100}
+                />
+                <Text style={styles.fieldLabel}>Certificate photo</Text>
+                {pendingLocalUri ? (
+                  <View style={styles.previewWrap}>
+                    <Image source={{ uri: pendingLocalUri }} style={styles.previewImg} resizeMode="cover" />
+                    <TouchableOpacity onPress={showPickerOptions} style={styles.changeBtn} disabled={isPending}>
+                      <Text style={styles.changeBtnText}>Change</Text>
+                    </TouchableOpacity>
                   </View>
+                ) : editTarget?.hasDocument ? (
+                  <TouchableOpacity onPress={showPickerOptions} style={styles.documentOnFile} disabled={isPending}>
+                    <Check size={20} color={colors.success} />
+                    <View style={styles.documentOnFileCopy}>
+                      <Text style={styles.pickerTitle}>Certificate photo on file</Text>
+                      <Text style={styles.pickerHint}>Choose a new photo to replace it</Text>
+                    </View>
+                    <Text style={styles.replaceText}>Replace</Text>
+                  </TouchableOpacity>
                 ) : (
-                  <View style={styles.pendingBadge}>
-                    <Text style={styles.pendingText}>Pending Review</Text>
-                  </View>
+                  <TouchableOpacity onPress={showPickerOptions} style={styles.pickerCard} activeOpacity={0.8} disabled={isPending}>
+                    <ScrollText size={36} color={colors.textTertiary} style={styles.pickerIcon} />
+                    <Text style={styles.pickerTitle}>Add certificate photo</Text>
+                    <Text style={styles.pickerHint}>Required before onService can verify this credential</Text>
+                  </TouchableOpacity>
                 )}
-              </View>
-              {cert.certificateNumber && (
-                <Text style={styles.certDetail}>No. {cert.certificateNumber}</Text>
-              )}
-              <View style={styles.certDates}>
-                {cert.issuedDate && (
-                  <Text style={styles.certDateText}>Issued: {cert.issuedDate}</Text>
-                )}
-                {cert.expiryDate && (
-                  <Text style={styles.certDateText}>Expires: {cert.expiryDate}</Text>
-                )}
-              </View>
-              <View style={styles.certActions}>
-                <TouchableOpacity
-                  onPress={(): void => { handleEdit(cert); }}
-                  style={styles.certActionBtn}
+                <View
+                  style={[styles.dateRow, width < 900 && styles.dateRowPhone]}
+                  accessibilityLabel={width < 900 ? 'Stacked certification date fields' : 'Side-by-side certification date fields'}
                 >
-                  <Text style={styles.editText}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={(): void => { handleRemove(cert); }}
-                  style={styles.certActionBtn}
-                >
-                  <Text style={styles.removeText}>Remove</Text>
-                </TouchableOpacity>
+                  <CertificationDateField label="Issued date" value={issuedDate} onChange={setIssuedDate} maximum={todayManila} />
+                  <CertificationDateField label="Expiry date" value={expiryDate} onChange={setExpiryDate} minimum={issuedDate || undefined} />
+                </View>
+                <View style={styles.formActions}>
+                  <Button title="Cancel" onPress={resetForm} variant="ghost" />
+                  <Button title={isUploading ? 'Uploading...' : isPending ? 'Saving...' : 'Save certification'} onPress={handleSubmit} loading={isPending} disabled={isPending} />
+                </View>
               </View>
             </View>
-          ))
-        )}
+          )}
+
+          <View style={styles.listColumn}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Your certifications ({certifications.length})</Text>
+              {!mode && <Text style={styles.sectionHint}>Pull to refresh review status</Text>}
+            </View>
+            {certifications.length === 0 ? (
+              <EmptyState
+                icon={<ScrollText size={48} color={colors.textTertiary} />}
+                title="No Certifications Yet"
+                description="Add a certification or license, then include a clear photo so the onService team can review it."
+                actionLabel="Add Certification"
+                onAction={handleAdd}
+              />
+            ) : (
+              <View style={[styles.certGrid, !isPhone && styles.certGridWide]}>
+                {certifications.map((cert) => {
+                  const expired = Boolean(cert.expiryDate && cert.expiryDate < todayManila);
+                  return (
+                    <View key={cert.id} style={[styles.certCard, !isPhone && styles.certCardWide]}>
+                      <View style={styles.certHeader}>
+                        <View style={styles.certInfo}>
+                          <Text style={styles.certName}>{cert.name}</Text>
+                          <Text style={styles.certIssuer}>{cert.issuingBody}</Text>
+                        </View>
+                        {expired ? (
+                          <View style={styles.expiredBadge}><Text style={styles.expiredText}>Expired</Text></View>
+                        ) : cert.isVerified ? (
+                          <View style={styles.verifiedBadge}><Check size={13} color={colors.success} /><Text style={styles.verifiedText}>Verified</Text></View>
+                        ) : (
+                          <View style={styles.pendingBadge}><Text style={styles.pendingText}>Pending Review</Text></View>
+                        )}
+                      </View>
+                      {cert.certificateNumber && <Text style={styles.certDetail}>No. {cert.certificateNumber}</Text>}
+                      <View style={styles.certDates}>
+                        {cert.issuedDate && <Text style={styles.certDateText}>Issued: {formatCertificationDate(cert.issuedDate)}</Text>}
+                        {cert.expiryDate && <Text style={styles.certDateText}>Expires: {formatCertificationDate(cert.expiryDate)}</Text>}
+                      </View>
+                      <Text style={cert.hasDocument ? styles.documentReady : styles.documentMissing}>
+                        {cert.hasDocument ? 'Certificate photo attached' : 'Add a photo before verification'}
+                      </Text>
+                      <View style={styles.certActions}>
+                        <TouchableOpacity onPress={(): void => { handleEdit(cert); }} style={styles.certActionBtn} accessibilityLabel={`Edit ${cert.name}`}>
+                          <Text style={styles.editText}>Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={(): void => { handleRemove(cert); }} style={styles.certActionBtn} accessibilityLabel={`Remove ${cert.name}`}>
+                          <Text style={styles.removeText}>Remove</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -465,19 +548,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   addButtonText: { ...typography.bodySmall, color: colors.white, fontWeight: '600' },
 
   formCard: {
     backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
-    margin: spacing.base,
     padding: spacing.base,
     borderRadius: borderRadius.lg,
     gap: spacing.sm,
   },
   formTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
+  fieldLabel: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
   input: {
     ...typography.body,
     color: colors.text,
@@ -488,8 +573,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
   },
-  dateRow: { flexDirection: 'row', gap: spacing.sm },
-  dateInput: { flex: 1 },
+  dateRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
+  dateRowPhone: { flexDirection: 'column' },
+  dateField: { flex: 1, width: '100%', gap: spacing.xs },
+  dateInput: { width: '100%', minHeight: 48 },
   formActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -498,7 +585,26 @@ const styles = StyleSheet.create({
   },
 
   scroll: { flex: 1 },
-  scrollContent: { padding: spacing.base, gap: spacing.sm },
+  scrollContent: { padding: spacing.base, paddingBottom: 48, gap: spacing.base },
+  scrollContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.xl },
+  introCard: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+  },
+  introTitle: { ...typography.body, color: colors.primary, fontWeight: '700' },
+  introText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: spacing.xs },
+  workspace: { width: '100%', gap: spacing.base },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  formColumn: { flex: 1, minWidth: 300 },
+  listColumn: { flex: 1.35, minWidth: 0 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.sm },
+  sectionTitle: { ...typography.body, color: colors.text, fontWeight: '700' },
+  sectionHint: { ...typography.caption, color: colors.textTertiary },
+  certGrid: { gap: spacing.sm },
+  certGridWide: { flexDirection: 'row', flexWrap: 'wrap' },
 
   emptyState: { alignItems: 'center', paddingTop: spacing.xxl },
   emptyIcon: { marginBottom: spacing.base },
@@ -518,6 +624,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     padding: spacing.base,
   },
+  certCardWide: { width: '48.8%', minWidth: 270 },
   certHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -542,9 +649,18 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
   },
   pendingText: { ...typography.caption, color: colors.warning, fontWeight: '600' },
+  expiredBadge: {
+    backgroundColor: colors.errorLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: borderRadius.sm,
+  },
+  expiredText: { ...typography.caption, color: colors.error, fontWeight: '600' },
   certDetail: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.xs },
-  certDates: { flexDirection: 'row', gap: spacing.base, marginBottom: spacing.sm },
+  certDates: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.base, marginBottom: spacing.sm },
   certDateText: { ...typography.caption, color: colors.textTertiary },
+  documentReady: { ...typography.caption, color: colors.success, marginBottom: spacing.sm },
+  documentMissing: { ...typography.caption, color: colors.warning, marginBottom: spacing.sm },
   certActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -571,6 +687,19 @@ const styles = StyleSheet.create({
   pickerIcon: { marginBottom: spacing.xs },
   pickerTitle: { ...typography.body, color: colors.text, fontWeight: '600' },
   pickerHint: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  documentOnFile: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.successLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+  },
+  documentOnFileCopy: { flex: 1 },
+  replaceText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
   previewWrap: {
     position: 'relative',
     borderRadius: borderRadius.lg,

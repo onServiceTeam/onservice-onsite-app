@@ -6,13 +6,15 @@
  * `adjustProviderWallet` (super-admin manual adjustment). That single function
  * is gated by super-admin role + always writes a paired wallet_transaction
  * within a transaction so money conservation holds. All other functions are
- * read-only or write to provider_admin_notes / providers metadata only.
+ * read-only or write provider review metadata, notes, or certification state.
  */
 
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as kycDocumentService from './kyc-document.service';
+import * as uploadService from './upload.service';
+import * as notificationService from './notification.service';
 import { maskPhilippinePhone, maskEmail } from '../utils/pii-mask';
 
 // ─────────────────────────────────────────────────────────────────
@@ -87,6 +89,59 @@ export interface ProviderProfile {
   };
   categories: { id: string; name: string; basePrice: number | null }[];
   serviceAreas: { id: string; name: string; isPrimary: boolean }[];
+  certifications: ProviderCertification[];
+}
+
+export interface ProviderCertification {
+  id: string;
+  name: string;
+  issuingBody: string;
+  certificateNumber: string | null;
+  issuedDate: string | null;
+  expiryDate: string | null;
+  isVerified: boolean;
+  verifiedAt: string | null;
+  hasDocument: boolean;
+  documentUrl: string | null;
+  createdAt: string;
+}
+
+interface ProviderCertificationRow {
+  id: string;
+  provider_id: string;
+  name: string;
+  issuing_body: string;
+  certificate_number: string | null;
+  certificate_url: string | null;
+  issued_date: string | Date | null;
+  expiry_date: string | Date | null;
+  is_verified: boolean;
+  verified_at: Date | null;
+  created_at: Date;
+}
+
+function certificationDateKey(value: string | Date | null): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return /^(\d{4}-\d{2}-\d{2})/.exec(value)?.[1] ?? null;
+}
+
+function formatProviderCertification(row: ProviderCertificationRow): ProviderCertification {
+  return {
+    id: row.id,
+    name: row.name,
+    issuingBody: row.issuing_body,
+    certificateNumber: row.certificate_number,
+    issuedDate: certificationDateKey(row.issued_date),
+    expiryDate: certificationDateKey(row.expiry_date),
+    isVerified: row.is_verified,
+    verifiedAt: row.verified_at?.toISOString() ?? null,
+    hasDocument: Boolean(row.certificate_url),
+    documentUrl: row.certificate_url
+      ? `/api/v1/admin/providers/${row.provider_id}/certifications/${row.id}/document`
+      : null,
+    createdAt: row.created_at.toISOString(),
+  };
 }
 
 export interface JobRow {
@@ -228,7 +283,7 @@ export async function getProviderProfile(
   const p = providerResult.rows[0];
   if (!p) throw createAppError('Provider not found.', 404);
 
-  const [categoriesResult, areasResult] = await Promise.all([
+  const [categoriesResult, areasResult, certificationsResult] = await Promise.all([
     db.query<{ id: string; name: string; base_price: number | null }>(
       `SELECT sc.id, sc.name, ps.base_price
          FROM provider_services ps
@@ -243,6 +298,15 @@ export async function getProviderProfile(
          JOIN service_areas sa ON sa.id = psa.service_area_id
         WHERE psa.provider_id = $1
         ORDER BY psa.is_primary DESC, sa.name`,
+      [providerId],
+    ),
+    db.query<ProviderCertificationRow>(
+      `SELECT id, provider_id, name, issuing_body, certificate_number,
+              certificate_url, issued_date, expiry_date, is_verified,
+              verified_at, created_at
+         FROM provider_certifications
+        WHERE provider_id = $1 AND is_active = TRUE
+        ORDER BY is_verified DESC, created_at DESC`,
       [providerId],
     ),
   ]);
@@ -314,7 +378,91 @@ export async function getProviderProfile(
       name: r.name,
       isPrimary: r.is_primary,
     })),
+    certifications: certificationsResult.rows.map(formatProviderCertification),
   };
+}
+
+export async function reviewProviderCertification(params: {
+  providerId: string;
+  certId: string;
+  adminId: string;
+  isVerified: boolean;
+  reason?: string;
+}): Promise<ProviderCertification> {
+  if (!params.isVerified && (!params.reason || params.reason.trim().length < 3)) {
+    throw createAppError('A reason is required when removing verification.', 400);
+  }
+
+  const reviewed = await db.transaction(async (client) => {
+    const currentResult = await client.query<ProviderCertificationRow & { owner_user_id: string }>(
+      `SELECT pc.*, p.user_id AS owner_user_id
+         FROM provider_certifications pc
+         JOIN providers p ON p.id = pc.provider_id
+        WHERE pc.id = $1 AND pc.provider_id = $2 AND pc.is_active = TRUE
+        FOR UPDATE`,
+      [params.certId, params.providerId],
+    );
+    const current = currentResult.rows[0];
+    if (!current) throw createAppError('Certification not found for this provider.', 404);
+
+    if (params.isVerified) {
+      if (!current.certificate_url) {
+        throw createAppError('A certificate document is required before verification.', 409);
+      }
+      const expiryDate = certificationDateKey(current.expiry_date);
+      const todayManila = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+      if (expiryDate && expiryDate < todayManila) {
+        throw createAppError('An expired certification cannot be verified.', 409);
+      }
+    }
+
+    const updatedResult = await client.query<ProviderCertificationRow>(
+      `UPDATE provider_certifications
+          SET is_verified = $1,
+              verified_at = CASE WHEN $1 THEN NOW() ELSE NULL END,
+              verified_by = CASE WHEN $1 THEN $2 ELSE NULL END,
+              updated_at = NOW()
+        WHERE id = $3 AND provider_id = $4
+        RETURNING *`,
+      [params.isVerified, params.adminId, params.certId, params.providerId],
+    );
+    return { row: updatedResult.rows[0]!, ownerUserId: current.owner_user_id };
+  });
+
+  try {
+    await notificationService.createNotification({
+      userId: reviewed.ownerUserId,
+      type: params.isVerified ? 'provider_certification_verified' : 'provider_certification_unverified',
+      title: params.isVerified ? 'Certification verified' : 'Certification needs attention',
+      body: params.isVerified
+        ? `${reviewed.row.name} is verified and can now appear on your customer profile.`
+        : `${reviewed.row.name} is no longer verified. ${params.reason!.trim()}`,
+      data: { certificationId: params.certId, route: '/provider/certifications' },
+    });
+  } catch (error) {
+    logger.error('Provider certification review notification failed (non-fatal)', {
+      providerId: params.providerId,
+      certId: params.certId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return formatProviderCertification(reviewed.row);
+}
+
+export async function getProviderCertificationDocumentStream(
+  providerId: string,
+  certId: string,
+): Promise<uploadService.ObjectStream> {
+  const result = await db.query<{ certificate_url: string | null }>(
+    `SELECT certificate_url
+       FROM provider_certifications
+      WHERE id = $1 AND provider_id = $2 AND is_active = TRUE`,
+    [certId, providerId],
+  );
+  const certificateUrl = result.rows[0]?.certificate_url;
+  if (!certificateUrl) throw createAppError('Certificate document not found.', 404);
+  return uploadService.getObjectStream(certificateUrl);
 }
 
 /**

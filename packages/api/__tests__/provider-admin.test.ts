@@ -102,7 +102,13 @@ describe('getProviderProfile', () => {
     dbQueryMock
       .mockResolvedValueOnce(rows([providerRow()]))
       .mockResolvedValueOnce(rows([{ id: 'c1', name: 'Plumbing', base_price: 50000 }]))
-      .mockResolvedValueOnce(rows([{ id: 'a1', name: 'Makati', is_primary: true }]));
+      .mockResolvedValueOnce(rows([{ id: 'a1', name: 'Makati', is_primary: true }]))
+      .mockResolvedValueOnce(rows([{
+        id: 'cert-1', provider_id: PROVIDER_ID, name: 'NC II', issuing_body: 'TESDA',
+        certificate_number: 'TESDA-42', certificate_url: 'https://x/onboarding/cert.jpg',
+        issued_date: '2025-01-02', expiry_date: '2030-01-02', is_verified: true,
+        verified_at: new Date('2026-01-01T00:00:00Z'), created_at: new Date('2025-01-02T00:00:00Z'),
+      }]));
   }
 
   it('joins user row and projects nested shape', async () => {
@@ -115,6 +121,14 @@ describe('getProviderProfile', () => {
     expect(out.documents.selfieUrl).toBeNull();
     expect(out.categories).toEqual([{ id: 'c1', name: 'Plumbing', basePrice: 50000 }]);
     expect(out.serviceAreas).toEqual([{ id: 'a1', name: 'Makati', isPrimary: true }]);
+    expect(out.certifications[0]).toMatchObject({
+      id: 'cert-1',
+      issuedDate: '2025-01-02',
+      expiryDate: '2030-01-02',
+      isVerified: true,
+      hasDocument: true,
+      documentUrl: `/api/v1/admin/providers/${PROVIDER_ID}/certifications/cert-1/document`,
+    });
     expect(out.averageRating).toBe(4.5);
     expect(out.latitude).toBe(14.5);
   });
