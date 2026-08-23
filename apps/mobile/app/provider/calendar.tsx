@@ -433,7 +433,9 @@ const styles = StyleSheet.create({
 
   detailScroll: { flex: 1 },
   detailScrollTablet: {
+    flex: 0,
     flexGrow: 0,
+    flexShrink: 0,
     width: 300,
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -441,6 +443,9 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
   },
   detailScrollWide: {
+    flex: 0,
+    flexGrow: 0,
+    flexShrink: 0,
     width: 360,
   },
   detailContent: {
