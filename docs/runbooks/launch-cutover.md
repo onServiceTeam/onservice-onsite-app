@@ -346,7 +346,10 @@ bash scripts/verify-postgres-pitr.sh
    - `api.onservice.ph` → API load balancer
    - `admin.onservice.ph` → admin web app CDN
 3. Issue ACM certificates (auto-renew).
-4. ALB listener: TLS 1.2+, HSTS preload, OCSP stapling.
+4. TLS endpoint: TLS 1.2+ and HSTS preload. Use the certificate authority's
+   current revocation mechanism. Let's Encrypt certificates use CRL
+   distribution points and no longer support OCSP stapling; do not re-enable
+   nginx stapling for those certificates.
 5. Cloudflare/AWS WAF: rate limit auth + compliance routes; block known bot UAs + malicious IPs.
 6. Test ssllabs.com → must score A+ (HSTS, TLS 1.3, no weak ciphers).
 
