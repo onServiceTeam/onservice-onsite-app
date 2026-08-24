@@ -58,6 +58,11 @@ function parseStatus(value: string | null): string {
   return value && STATUS_OPTIONS.has(value) ? value : '';
 }
 
+function payoutStatusLabel(status: string): string {
+  if (status === 'aml_review_pending') return 'internal large payout review';
+  return status.replace(/_/g, ' ');
+}
+
 export default function PayoutsPage(): React.ReactElement {
   const queryClient = useQueryClient();
   // Phase 200 fix — approve/reject/complete are super_admin-only on the
@@ -230,7 +235,7 @@ export default function PayoutsPage(): React.ReactElement {
       // each row to see why. Now visible inline below the badge.
       render: (r) => (
         <div>
-          <Badge label={r.status.replace(/_/g, ' ')} variant={STATUS_VARIANT[r.status] ?? 'default'} />
+          <Badge label={payoutStatusLabel(r.status)} variant={STATUS_VARIANT[r.status] ?? 'default'} />
           {r.status === 'failed' && r.failureReason && (
             <p className="text-[10px] text-red-600 mt-0.5 max-w-[180px] line-clamp-2" title={r.failureReason}>
               {r.failureReason}
@@ -360,7 +365,7 @@ export default function PayoutsPage(): React.ReactElement {
           className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Statuses</option>
-          <option value="aml_review_pending">Compliance Review</option>
+          <option value="aml_review_pending">Internal Large Payout Review</option>
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>
           <option value="processing">Processing</option>

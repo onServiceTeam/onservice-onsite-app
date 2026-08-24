@@ -1,10 +1,10 @@
 /**
- * Phase 08 — Monthly VAT report service (BIR Form 2550M-equivalent).
- * Aggregates non-cancellation official_receipts for an Asia/Manila wall
- * month into vat_monthly_reports. Idempotent until finalized; once
- * finalized_at is non-null the row is locked (409 on regenerate).
- * input_vat=0 (marketplace — accountant overlays before BIR submission).
- * Audit writes wrapped in try/catch so failures never roll back the report.
+ * Internal monthly VAT reconciliation workpaper.
+ * Aggregates non-cancellation sales-document records for an Asia/Manila wall
+ * month into vat_monthly_reports. This is not a BIR return. Idempotent until
+ * finalized; once finalized_at is non-null the row is locked (409 on
+ * regenerate). Audit writes are wrapped in try/catch so failures never roll
+ * back the report.
  */
 
 import { Buffer } from 'buffer';
@@ -14,6 +14,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { uploadBirDocument } from '../utils/s3-bir';
+import { assertBirDocumentWritesEnabled } from './bir-compliance-hold.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Public types
@@ -203,7 +204,7 @@ async function buildVatPdf(
       doc.on('error', (err: Error) => reject(err));
 
       // Header
-      doc.fontSize(18).text('Monthly VAT Report (BIR Form 2550M-equivalent)', {
+      doc.fontSize(18).text('Internal Monthly VAT Reconciliation', {
         align: 'center',
       });
       doc.moveDown(0.3);
@@ -236,7 +237,7 @@ async function buildVatPdf(
       // Totals block
       doc.fontSize(11).text('Sales & Output VAT:');
       doc.fontSize(9);
-      doc.text(`Official Receipts Counted:   ${report.orCount}`);
+      doc.text(`Recorded Sales Documents:    ${report.orCount}`);
       doc.text(`Total Gross Sales:           ${formatPeso(report.totalGrossSales)}`);
       doc.text(`Output VAT (12%, inclusive): ${formatPeso(report.outputVat)}`);
       doc.moveDown(0.5);
@@ -265,7 +266,7 @@ async function buildVatPdf(
         .fontSize(8)
         .fillColor('gray')
         .text(
-          'DRAFT — Reviewed by accountant before BIR submission.',
+          'INTERNAL WORKPAPER — Not a BIR tax return. Accountant review and the current applicable filing are required.',
           { align: 'center' },
         );
       doc.fillColor('black');
@@ -305,6 +306,7 @@ export async function generateMonthlyVatReport(
   month: number,
   adminUserId?: string | null,
 ): Promise<VatMonthlyReport> {
+  assertBirDocumentWritesEnabled();
   validateYearMonth(year, month);
   if (isFutureMonth(year, month)) {
     throw createAppError('Cannot generate VAT report for future periods', 400);
@@ -496,6 +498,7 @@ export async function finalizeVatReport(
   month: number,
   adminUserId: string,
 ): Promise<VatMonthlyReport> {
+  assertBirDocumentWritesEnabled();
   validateYearMonth(year, month);
   if (!adminUserId) {
     throw createAppError('adminUserId is required.', 400);

@@ -9,17 +9,12 @@
 // loses the accepted quote.
 //
 // This screen takes a `bookingId` query param, fetches the booking,
-// shows the receipt total + payment-method picker, and triggers
-// `createPaymentIntent(bookingId, method)`. On wallet, the API
-// debits + funds escrow synchronously and the success path replaces
-// to /customer/booking/confirm. On gcash/maya/card/qrph, the
-// returned `checkoutUrl` is opened via Linking and the user is
-// redirected back when PayMongo completes.
+// shows the receipt total + payment-method picker, and triggers the atomic
+// wallet payment path. External methods remain visible but disabled under E14
+// so a customer cannot enter the known-invalid authorization flow.
 
 import React, { useState } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Linking,
-} from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -46,14 +41,15 @@ interface PaymentOption {
   label: string;
   icon: IconComponent;
   description: string;
+  available: boolean;
 }
 
 const PAYMENT_METHODS: PaymentOption[] = [
-  { id: 'gcash', label: 'GCash', icon: Smartphone, description: 'Pay with GCash e-wallet' },
-  { id: 'maya', label: 'Maya', icon: Smartphone, description: 'Pay with Maya e-wallet' },
-  { id: 'card', label: 'Credit/Debit Card', icon: CreditCard, description: 'Visa, Mastercard' },
-  { id: 'wallet', label: 'Wallet Balance', icon: Wallet, description: 'Pay from your onService wallet' },
-  { id: 'qrph', label: 'QR Ph', icon: ScanLine, description: 'Scan to pay via QR Ph' },
+  { id: 'gcash', label: 'GCash', icon: Smartphone, description: 'Temporarily unavailable', available: false },
+  { id: 'maya', label: 'Maya', icon: Smartphone, description: 'Temporarily unavailable', available: false },
+  { id: 'card', label: 'Credit/Debit Card', icon: CreditCard, description: 'Temporarily unavailable', available: false },
+  { id: 'wallet', label: 'Wallet Balance', icon: Wallet, description: 'Pay from your existing onService balance', available: true },
+  { id: 'qrph', label: 'QR Ph', icon: ScanLine, description: 'Temporarily unavailable', available: false },
 ];
 
 export default function PayExistingBookingScreen(): React.ReactElement {
@@ -74,41 +70,32 @@ export default function PayExistingBookingScreen(): React.ReactElement {
   const walletQuery = useQuery({ queryKey: ['wallet'], queryFn: getWalletBalance, staleTime: 30_000 });
   const walletBalance = walletQuery.data?.availableBalance ?? 0;
   const total = booking?.totalAmount ?? 0;
-  const walletShort = selectedMethod === 'wallet' && walletBalance < total;
+  const walletSelected = selectedMethod === 'wallet';
+  const walletShort = walletSelected && walletQuery.isSuccess && walletBalance < total;
+  const walletUnavailable = walletSelected && walletQuery.isError;
+  const walletChecking = walletSelected && walletQuery.isPending;
 
   const handlePay = async (): Promise<void> => {
     if (!selectedMethod || !bookingId) {
       showToast('Please select a payment method.', 'warning');
       return;
     }
+    if (selectedMethod !== 'wallet') {
+      showToast('That payment method is temporarily unavailable.', 'warning');
+      return;
+    }
+    if (!walletQuery.isSuccess) {
+      showToast('We could not verify your wallet balance. Please wait a moment and try again.', 'warning');
+      return;
+    }
     if (selectedMethod === 'wallet' && walletBalance < total) {
-      showToast(`Your wallet balance (${formatPHP(walletBalance)}) is below the total. Top up or choose another method.`, 'warning');
+      showToast(`Your wallet balance (${formatPHP(walletBalance)}) is below the total. External payments and wallet top-ups are temporarily unavailable.`, 'warning');
       return;
     }
     setLoading(true);
     try {
-      const intent = await createPaymentIntent(bookingId, selectedMethod);
-
-      // Wallet charges synchronously server-side — safe to land on confirm.
-      if (selectedMethod === 'wallet') {
-        router.replace({ pathname: '/customer/booking/confirm', params: { bookingId } });
-        return;
-      }
-
-      // Phase 200 — non-wallet methods must open the PayMongo checkout.
-      // Only route to confirm once it actually opens; otherwise the customer
-      // would see "submitted" without having paid. If it can't open, route
-      // to payment-failed so they can retry.
-      if (intent.checkoutUrl && (await Linking.canOpenURL(intent.checkoutUrl))) {
-        router.replace({ pathname: '/customer/booking/confirm', params: { bookingId } });
-        await Linking.openURL(intent.checkoutUrl);
-        return;
-      }
-
-      router.replace({
-        pathname: '/customer/booking/payment-failed',
-        params: { bookingId, reason: 'We could not open the payment page. Your booking is saved — please retry payment.' },
-      });
+      await createPaymentIntent(bookingId, selectedMethod);
+      router.replace({ pathname: '/customer/booking/confirm', params: { bookingId } });
     } catch (err: unknown) {
       const msg = getErrorMessage(err, 'Could not start payment. Please try again.');
       Alert.alert('Payment Failed', msg);
@@ -200,14 +187,22 @@ export default function PayExistingBookingScreen(): React.ReactElement {
         </View>
 
         <Text style={styles.sectionTitle}>Choose Payment Method</Text>
+        <View style={styles.paymentHoldNotice} accessibilityRole="alert">
+          <Text style={styles.paymentHoldTitle}>External payments temporarily unavailable</Text>
+          <Text style={styles.paymentHoldText}>
+            Card, GCash, Maya, and QR Ph are paused while we correct the payment authorization flow. No external payment will be created. You can still use an existing wallet balance.
+          </Text>
+        </View>
         {PAYMENT_METHODS.map((m) => {
           const MIcon = m.icon;
           const isSelected = selectedMethod === m.id;
           return (
             <TouchableOpacity
               key={m.id}
-              style={[styles.methodCard, isSelected && styles.methodSelected]}
+              style={[styles.methodCard, isSelected && styles.methodSelected, !m.available && styles.methodUnavailable]}
               onPress={() => setSelectedMethod(m.id)}
+              disabled={!m.available}
+              accessibilityState={{ disabled: !m.available, selected: isSelected }}
               activeOpacity={0.7}
             >
               <View style={styles.methodIconWrap}><MIcon size={24} color={colors.primary} /></View>
@@ -237,14 +232,18 @@ export default function PayExistingBookingScreen(): React.ReactElement {
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
         {walletShort && (
           <Text style={styles.walletShortHint}>
-            Wallet balance ({formatPHP(walletBalance)}) is below the total. Top up or pick another method.
+            Wallet balance ({formatPHP(walletBalance)}) is below the total. External payments and wallet top-ups are temporarily unavailable.
           </Text>
         )}
+        {walletChecking ? <Text style={styles.walletShortHint}>Checking your wallet balance…</Text> : null}
+        {walletUnavailable ? (
+          <Text style={styles.walletShortHint}>We could not verify your wallet balance. Please try again.</Text>
+        ) : null}
         <Button
           title={loading ? 'Processing…' : `Pay ${formatPHP(booking.totalAmount)}`}
           onPress={handlePay}
           loading={loading}
-          disabled={!selectedMethod || loading || walletShort}
+          disabled={!selectedMethod || loading || walletShort || walletChecking || walletUnavailable}
         />
       </View>
     </View>
@@ -300,10 +299,21 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   methodSelected: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+  methodUnavailable: { opacity: 0.55 },
   methodIconWrap: { marginRight: spacing.md, width: 28, alignItems: 'center' as const },
   methodInfo: { flex: 1 },
   methodLabel: { ...typography.body, fontWeight: '600', color: colors.text },
   methodDesc: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  paymentHoldNotice: {
+    backgroundColor: colors.warningLight,
+    borderColor: colors.warning,
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  paymentHoldTitle: { ...typography.bodySmall, color: colors.text, fontWeight: '700' },
+  paymentHoldText: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 18 },
   radio: {
     width: 22, height: 22, borderRadius: 11,
     borderWidth: 2, borderColor: colors.border,

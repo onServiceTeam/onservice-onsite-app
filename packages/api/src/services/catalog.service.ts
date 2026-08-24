@@ -894,12 +894,16 @@ export async function searchProviders(query: string, limit = 10): Promise<Record
   const escaped = query.toLowerCase().replace(/[%_\\]/g, '\\$&');
   const searchTerm = `%${escaped}%`;
 
+  const fixtureExclusion = process.env.ENABLE_TEST_FIXTURES === '1'
+    ? ''
+    : `AND COALESCE(u.email, '') NOT LIKE '%@test.ph'`;
   const result = await db.query<ProviderSearchRow>(
     `SELECT p.id, p.user_id, p.business_name, p.tier, p.rating, p.total_reviews,
             p.city, u.avatar_url
      FROM providers p
      JOIN users u ON u.id = p.user_id
      WHERE p.status = 'approved' AND u.is_active = TRUE
+       ${fixtureExclusion}
        AND (LOWER(p.business_name) LIKE $1
             OR LOWER(CONCAT(u.first_name, ' ', u.last_name)) LIKE $1)
      ORDER BY p.rating DESC NULLS LAST, p.total_reviews DESC

@@ -68,7 +68,7 @@ Cannot launch without DPO registration. If NPC review delays past target launch 
 
 ---
 
-## Item 2 — BIR invoice series allocation (Official Receipts)
+## Item 2 — BIR principal-invoice authority and serial allocation
 
 **Owner:** Ken (or accountant)
 **Estimated time:** 14–21 business days
@@ -77,24 +77,31 @@ Cannot launch without DPO registration. If NPC review delays past target launch 
 
 ### Steps
 
-1. Visit RDO (Revenue District Office) where onService PH is registered.
-2. File BIR Form 1906 — Application for Authority to Print Receipts and Invoices.
-3. Specify: Official Receipt for service; serial range starting at `0000001`; quantity = 50,000 OR (v1.0 launch + 6 months runway).
-4. Pay ATP processing fee.
-5. Receive ATP within 14 days.
-6. Configure server `.env.production`:
-   ```bash
-   BIR_OR_SERIES_PREFIX=ONS
-   BIR_OR_SERIES_START=0000001
-   BIR_OR_SERIES_END=0050000
-   ```
-7. Verify OR generation pipeline (Item 12).
+1. Give the actual entity registration, taxpayer profile, marketplace money
+   flow, and sample customer/provider documents to the Philippine accountant.
+2. Resolve escalation E22 in writing: principal document type, seller and tax
+   basis, ATP/CAS/e-invoicing path, required fields, cancellation mechanism,
+   serial format/range/reset rules, retention, and recurring filing calendar.
+3. File the current BIR application/permit required for the approved path. BIR
+   Form 1906 is currently titled Application for Authority to Print Invoices;
+   do not request an Official Receipt as the principal document based on this
+   software's legacy naming.
+4. Save the authority/permit and accountant sign-off in the encrypted
+   compliance evidence store.
+5. Implement the approved document model and bounded serial allocation. The
+   removed `BIR_OR_SERIES_*` variables were dead configuration and must not be
+   restored as launch evidence.
+6. Verify the real invoice pipeline against the actual API, database table,
+   generated document, delivery path, and retained artifact (Item 12).
 
 ### Verification
 
 ```bash
 bash scripts/verify-bir-or-series.sh
 ```
+
+This command intentionally fails while E22 is open. A non-zero result is the
+correct behavior until the approved document model and real verifier land.
 
 ### Sign-off
 
@@ -265,7 +272,7 @@ E14 by itself; attach test-mode end-to-end evidence to the sign-off.
 
 ---
 
-## Item 8 — S3 BIR bucket Object Lock + retention
+## Item 8 — Approved tax-document immutable retention
 
 **Owner:** API platform engineer
 **Estimated time:** 1 day
@@ -273,12 +280,14 @@ E14 by itself; attach test-mode end-to-end evidence to the sign-off.
 
 ### Steps
 
-1. Create dedicated bucket `onservice-bir-receipts-prod`.
+1. After E22 identifies the approved document type, create a dedicated
+   tax-document archive (the historical Terraform name is
+   `onservice-bir-receipts-prod`; the legal document name is not yet approved).
 2. Enable versioning.
 3. Enable Object Lock with default retention 10 years (compliance requirement).
 4. Bucket policy denies non-TLS access.
 5. Enable KMS-SSE.
-6. Configure OR generation service to write here.
+6. Configure the approved invoice/document service to write here.
 
 Terraform spec lives in `infra/terraform/s3-bir-receipts.tf` (this dispatch).
 
@@ -298,7 +307,7 @@ bash scripts/verify-s3-bir.sh
 
 > **Progress (2026-06-04):** A nightly backup is now live and verified — it dumps
 > the database AND tars the uploads volume (booking photos + KYC docs) to
-> `/opt/onservice/backups/`, keeps 7 days, and the dump has been restore-tested
+> `/opt/onservice/backups/`, keeps 14 days, and the dump has been restore-tested
 > (loads into a scratch DB with real rows). This fixes a latent bug where the
 > cron had been failing every night (non-executable script). Runbook:
 > `docs/runbooks/postgres-restore.md`. Hetzner Automatic Backups/snapshots and
@@ -387,7 +396,7 @@ Optional but strongly recommended — eliminates password-sharing risk; central 
 
 ---
 
-## Item 12 — Server-side BIR e-receipt issuance verification
+## Item 12 — Server-side approved BIR invoice issuance verification
 
 **Owner:** API platform engineer
 **Estimated time:** 2 days
@@ -396,20 +405,26 @@ Optional but strongly recommended — eliminates password-sharing risk; central 
 
 ### Steps
 
-1. Create test booking on staging that hits production-like OR series.
-2. Confirm `bir_receipts` table receives row with:
-   - Sequential OR number
-   - PDF generated to S3 BIR bucket
-   - VAT (12%) calculated correctly
-   - Customer email sent with PDF attached
-3. Run reconciliation: total VAT = sum(OR amounts) × 12% / 112%.
-4. Verify OR PDF format matches BIR template.
+1. Complete Item 2 and close E22 with accountant-approved requirements.
+2. Create a staging booking that exercises the approved principal-document
+   and authorized serial range.
+3. Verify the implemented table and API, not a runbook-invented name. The
+   current legacy table is `official_receipts`; it is held and is not proof of
+   compliant invoicing.
+4. Confirm the stored amounts use the accountant-approved seller/tax basis,
+   the number is inside the authorized range, the immutable artifact exists,
+   and delivery reaches the intended party.
+5. Confirm cancellation/credit handling, reconciliation, document wording,
+   and filing export against the accountant-approved test cases.
 
 ### Verification
 
 ```bash
 bash scripts/verify-bir-pipeline.sh
 ```
+
+This command intentionally fails while E22 is open and no real end-to-end
+verifier exists.
 
 ### Sign-off
 
@@ -425,7 +440,7 @@ After Items 1–12 complete, run the full Maestro + Playwright suite against sta
 bash scripts/run-full-smoke.sh
 ```
 
-Critical-paths sweep covers 7 end-to-end flows (signup→booking→completion→review; provider signup→approval→job→payout; cancel→refund; dispute→resolution; wallet top-up→spend→withdraw; recurring booking→3 instances→cancel; multi-device session sync).
+Critical-paths sweep covers the launch-safe flows (signup→booking→completion→review; provider signup→approval→job→payout; cancel→refund; dispute→resolution; existing-wallet-balance payment; recurring booking→3 instances→cancel; multi-device session sync). While E14 is open, wallet top-up is a fail-closed assertion, not a payment E2E flow.
 
 Success criterion: all flows pass with no visual diff and no console errors.
 
@@ -433,7 +448,7 @@ Success criterion: all flows pass with no visual diff and no console errors.
 
 - [ ] All catalogued 113 app/admin surfaces have the required behavioral and
       visual evidence; F#3 native baselines are complete
-- [ ] All 7 critical-path E2E flows pass
+- [ ] All launch-safe critical-path E2E flows pass and the E14 top-up/external-payment hold fails closed
 - [ ] Zero console errors in any flow
 
 ---
@@ -445,17 +460,17 @@ After every Item verified + smoke complete:
 | Item | Status | Risk if missing |
 |---|---|---|
 | 1. NPC DPO registration | <pass/fail> | Regulatory action, ₱5M penalty per breach |
-| 2. BIR OR series | <pass/fail> | Cannot issue compliant receipts; tax fraud exposure |
+| 2. BIR principal invoice authority | <pass/fail> | Cannot issue compliant invoices; tax exposure |
 | 3. DTI permit | <pass/fail> | Cannot operate as registered business |
 | 4. Mayor's permit | <pass/fail> | Cannot operate in the launch city (default: Cebu City) |
 | 5. Cloudflare Turnstile | <pass/fail> | Bot abuse; SMS-cost vector |
 | 6. Sentry | <pass/fail> | Production errors invisible; debugging blind |
 | 7. PayMongo | <pass/fail> | Cannot accept payments |
-| 8. S3 BIR Object Lock | <pass/fail> | BIR audit failure |
+| 8. Tax-document immutable retention | <pass/fail> | BIR audit failure |
 | 9. Postgres PITR | <pass/fail> | Data loss; cannot recover |
 | 10. DNS + TLS | <pass/fail> | Customers cannot reach app |
 | 11. Admin SSO | <pass/fail> | Recoverable; non-blocking |
-| 12. BIR e-receipt | <pass/fail> | Same as Item 2 chain |
+| 12. Approved BIR invoice pipeline | <pass/fail> | Same as Item 2 chain |
 
 **Launch readiness rule:** Items 1–10 + 12 must all PASS. Item 11 may defer. If any other FAILs, postpone launch — none are graceful-degradation candidates.
 

@@ -21,13 +21,27 @@ import {
 } from '@/services/provider-api.service';
 import { getCategories, getSubcategories, type Category, type Subcategory } from '@/services/catalog.service';
 // A7 — shared UI kit for loading/empty states + toast feedback.
-import { Button, Input, SkeletonCard, EmptyState } from '@/components/ui';
+import { Button, SkeletonCard, EmptyState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
-import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Wrench, X } from '@/components/icons';
+
+function servicePriceLabel(service: ProviderServiceItem): string {
+  if (service.pricingType === 'hourly' && service.hourlyRate != null) {
+    return `Customer price ${formatPHP(service.hourlyRate)}/hour`;
+  }
+  if (service.pricingType === 'per_unit' && service.unitPrice != null) {
+    return `Customer price ${formatPHP(service.unitPrice)}/${service.unitLabel || 'unit'}`;
+  }
+  if (service.pricingType === 'range' && service.minPrice != null && service.maxPrice != null) {
+    return `Customer range ${formatPHP(service.minPrice)}–${formatPHP(service.maxPrice)}`;
+  }
+  if (service.pricingType === 'quote') return 'Quote after assessment';
+  if (service.basePrice != null) return `Customer price ${formatPHP(service.basePrice)}`;
+  return 'Catalog price pending';
+}
 
 export default function ManageServicesScreen(): React.ReactElement {
   const router = useRouter();
@@ -37,7 +51,6 @@ export default function ManageServicesScreen(): React.ReactElement {
   const [showAdd, setShowAdd] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<Subcategory | null>(null);
-  const [basePrice, setBasePrice] = useState('');
 
   const servicesQuery = useQuery({
     queryKey: ['myServices'],
@@ -65,9 +78,7 @@ export default function ManageServicesScreen(): React.ReactElement {
   const addMutation = useMutation({
     mutationFn: () => {
       if (!selectedSubcategory) throw new Error('No subcategory selected');
-      const rawPrice = parseFloat(basePrice || '0');
-      const price = rawPrice > 0 ? Math.round(rawPrice * 100) : undefined;
-      return addService(selectedSubcategory.id, price);
+      return addService(selectedSubcategory.id);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['myServices'] });
@@ -75,7 +86,6 @@ export default function ManageServicesScreen(): React.ReactElement {
       setShowAdd(false);
       setSelectedCategory(null);
       setSelectedSubcategory(null);
-      setBasePrice('');
       showToast('Service added to your profile.', 'success');
     },
     onError: (err: unknown) => {
@@ -119,6 +129,13 @@ export default function ManageServicesScreen(): React.ReactElement {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={servicesRefetching} onRefresh={() => void servicesQuery.refetch()} tintColor={colors.secondary} />}
       >
+        <View style={styles.contentColumn}>
+        <View style={styles.pricingNotice}>
+          <Text style={styles.pricingNoticeTitle}>Customer prices are set by the catalog</Text>
+          <Text style={styles.pricingNoticeText}>
+            You can add or remove services here. Personal price changes are paused while the platform completes its pricing-policy review, so customers always see the same price they are charged.
+          </Text>
+        </View>
         {servicesError && (
           <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: 12 }}>
             <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load your services. Pull to refresh.</Text>
@@ -142,20 +159,22 @@ export default function ManageServicesScreen(): React.ReactElement {
           />
         ) : (
           services.map((svc) => (
-            <View key={svc.id} style={styles.serviceCard}>
-              <View style={styles.serviceInfo}>
-                <Text style={styles.serviceName}>{svc.subcategoryName}</Text>
-                {svc.basePrice != null && (
-                  <Text style={styles.servicePrice}>Starting at {formatPHP(svc.basePrice)}</Text>
-                )}
+            <View key={svc.id}>
+              <View style={styles.serviceCard}>
+                <View style={styles.serviceInfo}>
+                  <Text style={styles.serviceName}>{svc.subcategoryName}</Text>
+                  <Text style={styles.servicePrice}>{servicePriceLabel(svc)}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.removeButton}
+                  onPress={() => handleRemove(svc)}
+                  disabled={removeMutation.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${svc.subcategoryName}`}
+                >
+                  <X size={16} color={colors.error} />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => handleRemove(svc)}
-                disabled={removeMutation.isPending}
-              >
-                <X size={16} color={colors.error} />
-              </TouchableOpacity>
             </View>
           ))
         )}
@@ -222,16 +241,6 @@ export default function ManageServicesScreen(): React.ReactElement {
               </>
             )}
 
-            {selectedSubcategory && (
-              <Input
-                label={`Your Base Price (${platformConfig.currencySymbol})`}
-                placeholder="e.g. 500"
-                value={basePrice}
-                onChangeText={setBasePrice}
-                keyboardType="decimal-pad"
-              />
-            )}
-
             <View style={styles.addActions}>
               <Button
                 title={addMutation.isPending ? 'Adding...' : 'Add Service'}
@@ -245,13 +254,13 @@ export default function ManageServicesScreen(): React.ReactElement {
                   setShowAdd(false);
                   setSelectedCategory(null);
                   setSelectedSubcategory(null);
-                  setBasePrice('');
                 }}
                 variant="ghost"
               />
             </View>
           </View>
         )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -272,6 +281,17 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 100 },
+  contentColumn: { width: '100%', maxWidth: 920, alignSelf: 'center' },
+  pricingNotice: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.primary,
+    padding: spacing.base,
+    marginBottom: spacing.base,
+  },
+  pricingNoticeTitle: { ...typography.body, color: colors.text, fontWeight: '700' },
+  pricingNoticeText: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 20 },
 
   empty: { alignItems: 'center', paddingTop: spacing.xxl },
   emptyIcon: { fontSize: 48, marginBottom: spacing.base },
@@ -312,7 +332,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   removeText: { color: colors.error, fontSize: 14, fontWeight: '700' },
-
   addButton: { marginTop: spacing.lg },
 
   addForm: {

@@ -1,17 +1,21 @@
 /**
- * Phase 08 — Official Receipt (OR) service.
+ * Legacy Phase 08 Official Receipt (OR) service, held by E22.
  *
- * Issues, cancels, and queries BIR-compliant Official Receipts. Numbering is
+ * The historical implementation below records OR-labelled artifacts. It must
+ * not be described as BIR-compliant or enabled in a deployed environment until
+ * an accountant/counsel approves the principal-invoice model, tax basis, and
+ * authorized numbering. bir-compliance-hold.service fails writes closed.
+ * Historical numbering is
  * monotonic and gap-free per (year, month) via the `or_sequences` atomic
  * counter table. VAT is computed VAT-INCLUSIVE (Philippine standard for
  * receipts): vatable_sales = gross * 100/112, output_vat = gross - vatable.
  *
  * Sacred-file note: this service does NOT mutate wallet balances. Money is
  * already moved by `escrow.service.ts` before `issueOR` is invoked. This
- * service only records the BIR-required receipt artifact and writes paired
+ * service only records the legacy receipt artifact and writes paired
  * `admin_actions` rows for audit. Cancellation creates a NEW negative OR
- * (rather than deleting) so the audit trail is append-only — the BIR
- * requires that issued OR numbers are never reused or removed.
+ * (rather than deleting) so the audit trail is append-only. E22 must be closed
+ * before any retention or numbering behavior is treated as a legal rule.
  */
 
 import { Buffer } from 'buffer';
@@ -22,6 +26,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { uploadBirDocument } from '../utils/s3-bir';
+import { assertBirDocumentWritesEnabled } from './bir-compliance-hold.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -282,6 +287,7 @@ async function uploadPdf(orNumber: string, pdf: Buffer): Promise<string | null> 
  * per (year, month) — required by BIR.
  */
 export async function generateOrNumber(client: TxClient, issuedAt?: Date): Promise<string> {
+  assertBirDocumentWritesEnabled();
   const at = issuedAt ?? new Date();
   const { year, month } = manilaYearMonth(at);
 
@@ -329,6 +335,7 @@ interface IssueLookupRow {
  * platform-retained centavos are passed in (already computed by escrow).
  */
 export async function issueOR(input: IssueOrInput): Promise<OfficialReceipt> {
+  assertBirDocumentWritesEnabled();
   const {
     bookingId,
     commissionAmount,
@@ -538,6 +545,7 @@ export async function cancelOR(
   reason: string,
   cancelledBy: string,
 ): Promise<{ original: OfficialReceipt; cancellation: OfficialReceipt }> {
+  assertBirDocumentWritesEnabled();
   if (!orId) throw createAppError('orId is required.', 400);
   if (!cancelledBy) throw createAppError('cancelledBy is required.', 400);
   const trimmed = (reason ?? '').trim();

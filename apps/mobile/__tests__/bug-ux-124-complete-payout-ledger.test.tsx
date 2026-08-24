@@ -11,7 +11,7 @@ jest.mock('@/services/api', () => ({ __esModule: true, default: { get: jest.fn()
 
 import PayoutsScreen from '../app/provider/payouts';
 
-it('Bug UX-124 — payout ledger renders compliance state and wide workspace from the canonical payout response', async () => {
+it('Bug UX-124 — payout ledger renders the internal large-payout state and wide workspace from the canonical response', async () => {
   jest.mocked(api.get).mockResolvedValueOnce({
     data: {
       success: true,
@@ -26,8 +26,9 @@ it('Bug UX-124 — payout ledger renders compliance state and wide workspace fro
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><PayoutsScreen /></QueryClientProvider>);
 
-  expect(await screen.findByText('Compliance review')).toBeTruthy();
-  expect(screen.getByText(/needs a compliance review before standard payout processing/i)).toBeTruthy();
+  expect(await screen.findByText('Large payout review')).toBeTruthy();
+  expect(screen.getByText(/internal large-payout review hold before standard processing/i)).toBeTruthy();
+  expect(screen.getByText(/does not mean a legal report was filed or required/i)).toBeTruthy();
   expect(screen.getByText('Manual withdrawal history')).toBeTruthy();
   expect(screen.getByLabelText('Wide payout ledger workspace')).toBeTruthy();
   expect(screen.queryByText(/Platform commission/)).toBeNull();

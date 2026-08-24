@@ -1,7 +1,7 @@
 # E16 — Provider service prices contradict the booking price source
 
 **Date:** 2026-08-24  
-**Status:** OPEN — Ken decision required  
+**Status:** OPEN — customer-visible mismatch contained; permanent Ken decision required
 **Hard-stop reason:** The customer-visible price and the amount recorded on a
 booking can differ. Resolving the conflict changes the platform's pricing
 model and money path.
@@ -129,3 +129,16 @@ every visible amount match the server's existing billing source without moving
 money or rewriting production provider rows. No provider price, catalog price,
 booking, wallet, payout, or production record will be changed until the choice
 is recorded.
+
+## Safe containment shipped 2026-08-24
+
+The permanent pricing model remains undecided, but the app no longer shows a
+provider value that booking creation ignores. API responses now use the fixed
+catalog price for provider-service cards, matching booking and escrow. The
+provider screen supports adding/removing service offerings and clearly pauses
+personal price editing. Historical `provider_services.base_price` values remain
+stored and dormant, and older installed clients may still submit bounded values;
+those values do not affect customer-visible or charged prices.
+
+This containment is reversible and changed no production money or pricing row.
+It does not select Option A, B, or C as the permanent business model.

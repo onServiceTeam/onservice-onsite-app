@@ -87,7 +87,20 @@ export interface ProviderProfile {
     governmentIdBackUrl: string | null;
     selfieUrl: string | null;
   };
+  /** @deprecated Use services. Retained for older admin clients. */
   categories: { id: string; name: string; basePrice: number | null }[];
+  services: Array<{
+    id: string;
+    name: string;
+    categoryName: string;
+    pricingType: string;
+    basePrice: number | null;
+    hourlyRate: number | null;
+    unitLabel: string | null;
+    unitPrice: number | null;
+    minPrice: number | null;
+    maxPrice: number | null;
+  }>;
   serviceAreas: { id: string; name: string; isPrimary: boolean }[];
   certifications: ProviderCertification[];
   portfolio: ProviderPortfolioItem[];
@@ -293,12 +306,29 @@ export async function getProviderProfile(
   if (!p) throw createAppError('Provider not found.', 404);
 
   const [categoriesResult, areasResult, certificationsResult, portfolioResult] = await Promise.all([
-    db.query<{ id: string; name: string; base_price: number | null }>(
-      `SELECT sc.id, sc.name, ps.base_price
+    db.query<{
+      id: string;
+      name: string;
+      category_id: string;
+      category_name: string;
+      pricing_type: string;
+      catalog_base_price: number | null;
+      legacy_provider_base_price: number | null;
+      hourly_rate: number | null;
+      unit_label: string | null;
+      unit_price: number | null;
+      min_price: number | null;
+      max_price: number | null;
+    }>(
+      `SELECT ssc.id, ssc.name, sc.id AS category_id, sc.name AS category_name,
+              ssc.pricing_type, ssc.base_price AS catalog_base_price,
+              ps.base_price AS legacy_provider_base_price, ssc.hourly_rate,
+              ssc.unit_label, ssc.unit_price, ssc.min_price, ssc.max_price
          FROM provider_services ps
-         JOIN service_categories sc ON sc.id = ps.category_id
+         JOIN service_subcategories ssc ON ssc.id = ps.subcategory_id
+         JOIN service_categories sc ON sc.id = ssc.category_id
         WHERE ps.provider_id = $1 AND ps.is_active = TRUE
-        ORDER BY sc.name`,
+        ORDER BY sc.name, ssc.name`,
       [providerId],
     ),
     db.query<{ id: string; name: string; is_primary: boolean }>(
@@ -390,10 +420,28 @@ export async function getProviderProfile(
         : null,
       selfieUrl: p.selfie_url ? kycDocumentService.kycProxyPath('admin', 'selfie', p.id) : null,
     },
+    // E16 containment: provider_services.base_price is a dormant legacy field.
+    // Provider 360 must show the same catalog prices booking creation uses.
+    // Keep the old categories key temporarily so older admin builds do not
+    // break while the current UI reads the complete services projection.
     categories: categoriesResult.rows.map((r) => ({
+      id: r.category_id,
+      name: r.category_name,
+      basePrice: r.pricing_type === 'fixed' && r.catalog_base_price !== null
+        ? Number(r.catalog_base_price)
+        : null,
+    })),
+    services: categoriesResult.rows.map((r) => ({
       id: r.id,
       name: r.name,
-      basePrice: r.base_price !== null ? Number(r.base_price) : null,
+      categoryName: r.category_name,
+      pricingType: r.pricing_type,
+      basePrice: r.catalog_base_price !== null ? Number(r.catalog_base_price) : null,
+      hourlyRate: r.hourly_rate !== null ? Number(r.hourly_rate) : null,
+      unitLabel: r.unit_label,
+      unitPrice: r.unit_price !== null ? Number(r.unit_price) : null,
+      minPrice: r.min_price !== null ? Number(r.min_price) : null,
+      maxPrice: r.max_price !== null ? Number(r.max_price) : null,
     })),
     serviceAreas: areasResult.rows.map((r) => ({
       id: r.id,

@@ -219,9 +219,13 @@ How to resolve a dispute:
 
 ### 2.13 Financials (`/financials`)
 
-7 tabs: Overview (GMV, revenue, refunds, net revenue, avg ticket, breakdowns by category/city/tier/payment-method), Escrow (total held plus aging buckets and a pending-release list), Payouts (pending/completed/failed counts), Guarantee Fund (balance, 30d in/out, runway, replenishment status), Reconciliation (PayMongo vs expected balance; super_admin can Run reconciliation and Acknowledge discrepancies), BIR Reports (VAT summaries, monthly 2550M, quarterly 2307; super_admin Generate/Finalize), Receipts (search official receipts).
+7 tabs: Overview (GMV, revenue, refunds, net revenue, avg ticket, breakdowns by category/city/tier/payment-method), Escrow (total held plus aging buckets and a pending-release list), Payouts (pending/completed/failed counts), Guarantee Fund (balance, 30d in/out, runway, replenishment status), Reconciliation (PayMongo vs expected balance; super_admin can Run reconciliation and Acknowledge discrepancies), Tax Workpapers (Held) (internal VAT summaries and retained 2307 data), Legacy Sales Records (search retained OR-labelled records).
 
-Most of this is read-only for plain admins. The Run reconciliation, Generate, and Finalize actions are super_admin only. See `10-money-and-compliance-ops.md` for the BIR cadence.
+Most of this is read-only for plain admins. Run reconciliation remains a
+super_admin action. BIR generation/finalization actions are disabled for every
+role while E22 is open. Staff must not treat workpapers, OR identifiers, or
+historical PDFs as approved returns/invoices. See
+`10-money-and-compliance-ops.md`.
 
 ### 2.14 Payouts (`/payouts`)
 

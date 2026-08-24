@@ -1002,16 +1002,38 @@ specific promise we cannot keep.
 
 ## 33. Wallet top-up webhook idempotency not constraint-enforced (audit, 2026-06-04)
 
-**STATUS: RESOLVED (2026-06-04, migration 133).** Implemented event-level
-idempotency exactly as the refined plan below describes: a `webhook_events`
-table (event_id PK), claimed `'processing'` at the start of `POST /paymongo`,
-marked `'done'` on success, and DELETEd on failure so PayMongo's retry
-reprocesses (which also fixes the lost-credit case). Duplicate/concurrent
-deliveries are skipped via `ON CONFLICT DO NOTHING`. Behavioral test:
-`webhook-idempotency.test.ts`. Original analysis kept below for history.
+**STATUS: RESOLVED (corrected 2026-08-24).** Migration 133's event claim
+prevented duplicate processing, but the first implementation still marked the
+local intent succeeded before the wallet credit or booking escrow transaction.
+The top-up catch also swallowed credit failures. That meant the event could be
+marked done, or a retry could see `succeeded` and skip, while the customer had
+not received the wallet balance or booking escrow state.
 
+The corrected handler now locks each local intent and commits these records in
+one database transaction:
 
-**What works today:** The PayMongo `payment.paid` webhook for a wallet top-up
+- booking status, escrow ledger, and local payment-intent success; or
+- wallet credit ledger and local top-up-intent success.
+
+Failures propagate, roll back every local money write, and delete the event
+claim so PayMongo can retry. A wallet-transaction reference check prevents a
+second valid event id for the same PayMongo payment from crediting twice.
+An interrupted worker's `processing` claim can be atomically reclaimed after
+15 minutes; fresh claims still return the safe concurrent-delivery response.
+Behavioral coverage: `webhook-idempotency.test.ts`,
+`bug-ops-216-webhook-booking-payment-atomic.test.ts`, and
+`bug-ops-217-webhook-topup-atomic.test.ts`. `bug-ops-218-webhook-payment-id-required.test.ts`
+also rejects a paid event without the immutable PayMongo payment id before any
+event claim or money write, and `bug-ops-222-webhook-stale-claim-recovery.test.ts`
+proves the stale-claim lease without weakening live concurrency.
+`bug-ops-225-webhook-intent-lock-idempotency.test.ts` proves a second valid event
+re-reads the serialized local intent and cannot reapply an already-succeeded
+top-up. A read-only production check found no pre-existing
+partial booking, escrow, top-up, missing-payment-id, or duplicate-hold rows.
+Original analysis is retained below
+as historical pre-fix context.
+
+**Historical pre-fix behavior:** The PayMongo `payment.paid` webhook for a wallet top-up
 credits the wallet, and the common replay case is guarded: the handler skips if
 `payment_intents.status === 'succeeded'` (which is flipped before crediting), so
 PayMongo's normal retries do not double-credit.
@@ -1044,16 +1066,18 @@ covers booking-payment events, not just top-ups:
 2. At the start of `POST /paymongo` (after signature verify): claim via
    `INSERT … (event_id,'processing') ON CONFLICT DO NOTHING RETURNING`. If no row,
    look up the existing: `done` → idempotent 200 skip; `processing` → a concurrent
-   delivery, return 200 (PayMongo retries later).
+   delivery, return 200 while the original in-flight handler determines the
+   outcome. If that handler fails, its 5xx response releases the claim and
+   causes a later PayMongo retry.
 3. After the switch completes: `UPDATE … SET status='done'`.
 4. On throw (the outer catch, before `next(error)`): `DELETE` the claim so the
    PayMongo retry reprocesses — this also fixes the "lost credit" case (#1),
    because a `creditWallet` failure no longer leaves the intent permanently
    `succeeded` with no credit.
 
-This is HIGH blast radius (the webhook processes ALL payment events — booking
+This was HIGH blast radius (the webhook processes ALL payment events — booking
 payments + top-ups), so it needs a dedicated session with webhook tests, not a
-tail-of-marathon edit. Until then: the common replay is already guarded by the
+tail-of-marathon edit. Before the corrected 2026-08-24 implementation, the common replay was guarded by the
 `intent.status==='succeeded'` check, and ops should monitor `Wallet top-up credit
 failed` log lines (case 1 = a customer owed a manual credit).
 
@@ -1324,6 +1348,13 @@ manual withdrawal, and validates saved destinations through the canonical
 payout validator. Admin Financials states the manual workflow and no longer
 manufactures a schedule KPI.
 
+The large-payout threshold is an **internal risk-review control**, not a claim
+that the app has made an AML filing or statutory determination. Funds stay
+reserved while the review is open; a super admin must record a reason to clear
+or reject it. Customer/provider/admin labels now say “internal large payout
+review,” and append-only migration 154 corrects the legacy schema comments
+without rewriting historical status values.
+
 A future automatic payout engine requires a separate product/finance decision
 covering Manila-time cutoffs, weekends and bank holidays, fees, wallet holds,
 AML, concurrency, retries, destination verification, transfer rails, admin
@@ -1332,10 +1363,10 @@ exceptions, reconciliation, and customer/provider notification behavior. See
 
 ---
 
-## 39. Fixed provider-service price source is unresolved
+## 39. Fixed provider-service price source is contained; permanent policy is unresolved
 
-Providers can store a personal base price for a fixed service and the customer
-provider-profile screen can display it, but booking creation records the admin
+Providers could store a personal base price for a fixed service and the customer
+provider-profile screen displayed it, while booking creation recorded the admin
 catalog price. A read-only production check on 2026-08-24 found that 15 of 20
 active fixed provider-service rows differ from the matching catalog price.
 
@@ -1348,8 +1379,20 @@ E16 requires a product decision among catalog-authoritative fixed pricing,
 provider-authoritative fixed pricing, or an admin-configured price source per
 subcategory. Catalog-authoritative pricing is recommended for launch because it
 matches the existing booking/escrow source with the smallest money-path change.
-Provider Services pricing/edit behavior remains paused until that decision is
-recorded. See
+Safe containment shipped on 2026-08-24: the API preserves every historical
+provider price but no longer returns it as the customer price. Provider and
+customer service cards now receive the fixed catalog price, which is the same
+source booking creation and escrow already use. The provider screen allows
+adding/removing services but explains why personal price editing is paused.
+Admin Provider 360 now lists the provider's actual subcategory services and the
+catalog-backed fixed/hourly/per-unit/range/quote presentation instead of
+displaying dormant provider values under a misleading category-price list.
+No production provider, catalog, booking, wallet, or payout row was rewritten.
+
+This removes the customer-visible mismatch but does not settle the long-term
+business model. Provider-price creation remains accepted for compatibility
+with older installed clients, stored values remain dormant, and E16 still
+requires a decision before they can affect customer prices. See
 `.ai-coder/escalations/E16-provider-service-price-source-contradiction-2026-08-24.md`.
 
 ---
@@ -1488,3 +1531,65 @@ buttons, Data Rights flow, and Help answer that had still claimed permanent or
 irreversible deletion. Production had zero active deletion requests during the
 read-only 2026-08-24 check. See
 `.ai-coder/escalations/E21-account-erasure-retention-matrix-missing-2026-08-24.md`.
+
+---
+
+## 46. BIR document issuance is held pending an approved tax design
+
+The prior BIR verifiers checked dead environment names, routes, and table
+shapes, while the UI and PDF copy still implied obsolete monthly VAT-return and
+Official Receipt behavior. E22 records the legal/compliance hard stop.
+
+Safe containment now fails closed before Official Receipt, VAT-period, or 2307
+generation/finalization/cancellation outside tests. The admin Financials and
+Compliance pages label these surfaces as held workpapers or legacy sales
+records. Monthly VAT output is explicitly an internal reconciliation, not a BIR
+return. Both verifier scripts now reject the known-invalid contract instead of
+printing a false pass. `BIR_DOCUMENT_ISSUANCE_ENABLED` must remain `0`; code does
+not treat that switch as approval of a replacement.
+
+An attorney/accountant-approved principal-invoice series, taxpayer profile,
+filing calendar, form mapping, retention policy, and real end-to-end verifier
+are required before the hold can be removed. No live tax document was issued or
+cancelled during this remediation. See
+`.ai-coder/escalations/E22-bir-invoice-numbering-and-fake-verifiers-2026-08-24.md`.
+
+---
+
+## 47. Production contains demo fixtures; public discovery is contained
+
+A read-only production audit found 12 seeded `@test.ph` accounts, 120 `[demo]`
+bookings, and 96 `[demo]` reviews. The deploy script had unconditionally run
+development seed files even though `ENABLE_TEST_FIXTURES=0`.
+
+Future deploys now enumerate development seeds only when that flag is exactly
+`1`, and run SQL with fail-fast error handling. With fixtures disabled, public
+provider discovery excludes seeded test accounts and review listings and
+aggregates exclude `[demo]` reviews. This prevents the known rows from shaping
+the customer marketplace while preserving production evidence.
+
+The rows have not been deleted. Removal requires a verified backup, foreign-key
+dependency plan, exact dry-run counts, and explicit approval because seeded and
+real operational records can be linked. See
+`.ai-coder/escalations/E23-production-demo-fixture-cleanup-2026-08-24.md`.
+
+---
+
+## 48. External PayMongo payments and wallet top-ups are held under E14
+
+The legacy non-wallet payment path created a PayMongo Payment Intent and then
+invented a hosted checkout URL that PayMongo does not provide. The result could
+not complete a valid card, GCash, Maya, QR Ph, bank-transfer, or wallet-top-up
+authorization.
+
+API routes now return 503 before booking, database, wallet, or gateway effects.
+Customer checkout/pay screens disable external methods and explain the hold;
+existing wallet balance remains usable through the fully local, transactionally
+atomic wallet path. The wallet top-up screen exposes no amount or submission
+control. `EXTERNAL_PAYMENT_AUTHORIZATION_ENABLED` must remain `0`, and setting
+it to `1` cannot bypass the code hold.
+
+Removing this containment requires the approved replacement architecture,
+PayMongo sandbox evidence, webhook reconciliation, refund/cancellation tests,
+customer/admin support flows, and updated terms. See
+`.ai-coder/escalations/E14-paymongo-client-authorization-missing-2026-08-24.md`.

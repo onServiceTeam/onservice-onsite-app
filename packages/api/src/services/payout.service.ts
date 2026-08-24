@@ -79,7 +79,9 @@ export async function requestPayout(
   // wallet so a typo can't decrement a balance and then bounce.
   validateDestinationAccount(data.method, data.destinationAccount);
 
-  // MED-N77: internal large-transaction review threshold. Read the current
+  // MED-N77 / UX-184: internal large-transaction review threshold. The legacy
+  // database names include "aml" for compatibility, but this control is not a
+  // legal determination or reporting workflow. Read the current
   // admin-tunable threshold and hold a request at/above it for super_admin
   // review before disbursement. This is a conservative platform control, not
   // a legal determination that onService is a covered person or that this
@@ -150,7 +152,8 @@ export async function requestPayout(
       throw createAppError('Insufficient wallet balance.', 400);
     }
 
-    // MED-N77 fix: large payouts enter 'aml_review_pending' status
+    // MED-N77 fix: large payouts enter the legacy-named
+    // 'aml_review_pending' internal review status
     // with requires_aml_review=TRUE and a snapshot of the threshold
     // that triggered the flag.
     const status = requiresAmlReview ? 'aml_review_pending' : 'pending';
@@ -187,7 +190,7 @@ export async function requestPayout(
   });
 }
 
-// MED-N77 fix: super_admin AML clearance step. A payout flagged at
+// MED-N77 fix: super_admin internal large-payout clearance step. A payout flagged at
 // request time (status='aml_review_pending', requires_aml_review=TRUE)
 // is held until super_admin clears it via this function. Clearance
 // transitions the row to standard 'pending' status so the existing

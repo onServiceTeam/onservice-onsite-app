@@ -45,12 +45,12 @@ const TOS_SECTIONS: Section[] = [
   {
     title: '5. Bookings, Pricing & Fees',
     content:
-      'Prices shown at booking are server-calculated and inclusive of the platform service fee and applicable taxes (12% VAT where applicable). The total you approve at checkout is the amount charged. Add-ons, change orders, or additional work agreed on-site may adjust the total through the in-app change-order flow, which requires your approval before any extra charge. Official Receipts are issued electronically in accordance with Bureau of Internal Revenue (BIR) requirements.',
+      'Prices shown at booking are server-calculated. The total you approve at checkout is the amount recorded for payment. Add-ons, change orders, or additional work agreed on-site may adjust the total through the in-app change-order flow, which requires your approval before any extra charge. The app provides an electronic transaction record after payment. It does not currently issue a document represented as an authorized BIR invoice or Official Receipt while the correct invoice model, tax basis, and numbering authority remain under accountant and legal review.',
   },
   {
     title: '6. Escrow Payments',
     content:
-      'All Platform payments are processed through our licensed payment partner (PayMongo) and held in escrow. Funds are released to the provider only after you confirm satisfactory completion or after the 48-hour auto-confirmation window expires without a dispute. No cash or off-Platform payment is permitted; paying a provider directly removes your escrow, dispute, and Platform protections, and may result in account suspension.',
+      'Payment methods shown as available in checkout use the Platform payment and escrow records. External card, GCash, Maya, QR Ph, bank-transfer authorization, and wallet top-up are currently disabled while their payment flow is corrected; the app does not create those payments while they are unavailable. An existing onService wallet balance may be used where checkout offers it. Funds recorded in escrow are released to the provider only after the applicable completion and dispute process. No cash or off-Platform payment is permitted; paying a provider directly removes your escrow, dispute, and Platform protections, and may result in account suspension.',
   },
   {
     title: '7. Dispute Resolution',
@@ -75,7 +75,7 @@ const TOS_SECTIONS: Section[] = [
   {
     title: '10. Provider Obligations',
     content:
-      `Providers represent that they are legally able to offer their Services, hold any required licenses or permits, will perform competently and lawfully, and are responsible for their own taxes, tools, and personnel (including any approved team members they add). Providers must complete identity and NBI verification and maintain accurate availability and pricing. ${ENTITY} may review, suspend, or remove a provider for safety, quality, fraud, or legal reasons.`,
+      `Providers represent that they are legally able to offer their Services, hold any required licenses or permits, will perform competently and lawfully, and are responsible for their own taxes, tools, and personnel (including any approved team members they add). Providers must complete identity and NBI verification and maintain accurate profiles, service selections, and availability. ${ENTITY} may review, suspend, or remove a provider for safety, quality, fraud, or legal reasons.`,
   },
   {
     title: '11. Disclaimer of Warranties',
@@ -143,7 +143,7 @@ const PRIVACY_SECTIONS: Section[] = [
   {
     title: 'Why We Process It (Legal Basis)',
     content:
-      'We process your data to: create and run your account and bookings (performance of our contract with you); process payments and issue receipts, verify providers, prevent fraud and abuse, and keep the Platform safe (our legitimate interests and legal obligations); send service notifications; resolve disputes; and comply with tax, accounting, and other legal requirements. Where we rely on your consent (for example, precise location or optional marketing), you may withdraw it at any time.',
+      'We process your data to: create and run your account and bookings (performance of our contract with you); maintain payment, transaction, tax, and accounting records, verify providers, prevent fraud and abuse, and keep the Platform safe (our legitimate interests and legal obligations); send service notifications; resolve disputes; and comply with legal requirements. Where we rely on your consent (for example, precise location or optional marketing), you may withdraw it at any time.',
   },
   {
     title: 'How We Share It',
@@ -163,7 +163,7 @@ const PRIVACY_SECTIONS: Section[] = [
   {
     title: 'Data Retention',
     content:
-      'We keep account data while your account is active. After account deletion we anonymize or delete personal data within 30 days, except where the law requires longer retention — for example, financial and tax records kept for the period required by the Bureau of Internal Revenue (generally up to 10 years).',
+      'We keep account data while your account is active. A deletion request enters a 30-day cooling-off period and then deactivates and anonymizes the account where the request remains eligible. Some financial, tax, fraud, safety, dispute, and compliance records may be retained where required by law or needed to establish or resolve legal claims. The app does not promise immediate or complete physical erasure of every related record.',
   },
   {
     title: 'Your Rights as a Data Subject',
@@ -264,7 +264,7 @@ export default function TermsScreen(): React.ReactElement {
           <Text style={styles.introTitle}>
             {activeTab === 'terms' ? 'Terms of Service' : 'Privacy Policy'}
           </Text>
-          <Text style={styles.introDate}>Last updated: June 5, 2026</Text>
+          <Text style={styles.introDate}>Interim text updated: August 24, 2026</Text>
         </View>
 
         {sections.map((section, index) => (

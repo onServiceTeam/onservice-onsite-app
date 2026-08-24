@@ -929,7 +929,7 @@ export function InvoicesTab({ accountId }: { accountId: string }): React.ReactEl
               id="invoice-payment-reference"
               value={paymentReference}
               onChange={(event) => setPaymentReference(event.target.value)}
-              placeholder="Bank transfer, deposit, or official receipt number"
+              placeholder="Bank transfer, deposit, or external payment reference"
               autoComplete="off"
             />
             {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}

@@ -101,7 +101,11 @@ describe('getProviderProfile', () => {
   function mockProfileQueries() {
     dbQueryMock
       .mockResolvedValueOnce(rows([providerRow()]))
-      .mockResolvedValueOnce(rows([{ id: 'c1', name: 'Plumbing', base_price: 50000 }]))
+      .mockResolvedValueOnce(rows([{
+        id: 's1', name: 'Pipe repair', category_id: 'c1', category_name: 'Plumbing', pricing_type: 'fixed',
+        catalog_base_price: 50000, legacy_provider_base_price: 90000,
+        hourly_rate: null, unit_label: null, unit_price: null, min_price: null, max_price: null,
+      }]))
       .mockResolvedValueOnce(rows([{ id: 'a1', name: 'Makati', is_primary: true }]))
       .mockResolvedValueOnce(rows([{
         id: 'cert-1', provider_id: PROVIDER_ID, name: 'NC II', issuing_body: 'TESDA',
@@ -127,6 +131,11 @@ describe('getProviderProfile', () => {
     expect(out.documents.governmentIdUrl).toBeNull();
     expect(out.documents.selfieUrl).toBeNull();
     expect(out.categories).toEqual([{ id: 'c1', name: 'Plumbing', basePrice: 50000 }]);
+    expect(out.services).toEqual([{
+      id: 's1', name: 'Pipe repair', categoryName: 'Plumbing', pricingType: 'fixed',
+      basePrice: 50000, hourlyRate: null, unitLabel: null, unitPrice: null,
+      minPrice: null, maxPrice: null,
+    }]);
     expect(out.serviceAreas).toEqual([{ id: 'a1', name: 'Makati', isPrimary: true }]);
     expect(out.certifications[0]).toMatchObject({
       id: 'cert-1',
@@ -143,6 +152,15 @@ describe('getProviderProfile', () => {
     });
     expect(out.averageRating).toBe(4.5);
     expect(out.latitude).toBe(14.5);
+  });
+
+  it('Bug OPS-219 — Provider 360 returns the booking catalog price, not the dormant provider override', async () => {
+    mockProfileQueries();
+
+    const out = await svc.getProviderProfile(PROVIDER_ID, 'super_admin');
+
+    expect(out.services[0]?.basePrice).toBe(50000);
+    expect(out.services[0]?.basePrice).not.toBe(90000);
   });
 
   it('D25 — super_admin sees raw phone + email (contactMasked false)', async () => {

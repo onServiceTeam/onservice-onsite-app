@@ -192,7 +192,6 @@ export const updateProfileSchema = z.object({
 
 export const addServiceSchema = z.object({
   subcategoryId: z.string().uuid('Subcategory ID must be a valid UUID'),
-  basePrice: z.number().int().positive().optional(),
 });
 
 function blankStringToUndefined(value: unknown): unknown {

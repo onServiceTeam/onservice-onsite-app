@@ -138,8 +138,21 @@ router.post(
 
       const eventType: string = event.type;
       const paymentData = event.data?.attributes;
-      const paymongoPaymentId: string = event.data?.id;
+      const paymongoPaymentId: string =
+        typeof event.data?.id === 'string' ? event.data.id : '';
       const bookingId: string | undefined = paymentData?.metadata?.booking_id;
+
+      // A paid event without PayMongo's immutable payment id cannot be safely
+      // deduplicated in the wallet ledger or traced for a later refund. Reject
+      // it before claiming the event or changing any local money state.
+      if (eventType === 'payment.paid' && !paymongoPaymentId.startsWith('pay_')) {
+        logger.warn('PayMongo payment.paid webhook missing a valid payment id');
+        res.status(400).json({
+          success: false,
+          error: { message: 'Invalid payment.paid payload' },
+        });
+        return;
+      }
 
       logger.info('PayMongo webhook received', { eventType, paymongoPaymentId, bookingId });
 
@@ -160,15 +173,21 @@ router.post(
         const claim = await db.query<{ event_id: string }>(
           `INSERT INTO webhook_events (event_id, event_type, status)
            VALUES ($1, $2, 'processing')
-           ON CONFLICT (event_id) DO NOTHING
+           ON CONFLICT (event_id) DO UPDATE
+             SET event_type = EXCLUDED.event_type,
+                 status = 'processing',
+                 received_at = NOW(),
+                 completed_at = NULL
+           WHERE webhook_events.status = 'processing'
+             AND webhook_events.received_at < NOW() - INTERVAL '15 minutes'
            RETURNING event_id`,
           [eventId, eventType],
         );
         if (claim.rows.length === 0) {
-          // Already claimed: 'done' = a true duplicate; 'processing' = a
-          // concurrent delivery still running. Either way, don't reprocess —
-          // ack 200 so PayMongo stops retrying (done) or retries later
-          // (processing resolves to done or gets released on failure).
+          // Already claimed: 'done' = a true duplicate; a recent 'processing'
+          // row = a concurrent delivery still running. Claims left by a dead
+          // process are reclaimed atomically by the INSERT above after 15
+          // minutes. Do not reprocess a recent in-flight delivery.
           const existing = await db.query<{ status: string }>(
             `SELECT status FROM webhook_events WHERE event_id = $1`,
             [eventId],
@@ -194,11 +213,6 @@ router.post(
             : await paymentService.getBookingPaymentIntent(bookingId);
           if (!intent) {
             logger.warn('Webhook: no payment intent found', { bookingId, isTopUp });
-            break;
-          }
-
-          if (intent.status === 'succeeded') {
-            logger.info('Webhook: payment already processed (idempotent skip)', { bookingId, intentId: intent.id });
             break;
           }
 
@@ -243,8 +257,6 @@ router.post(
             break;
           }
 
-          await paymentService.updatePaymentStatus(intent.id, 'succeeded', paymongoPaymentId);
-
           if (isTopUp) {
             const topUpParts = bookingId.split('_');
             const userId = topUpParts.slice(1, -1).join('_');
@@ -256,15 +268,39 @@ router.post(
             }
 
             try {
-              const wallet = await walletService.getUserWallet(userId, 'customer');
-              await walletService.creditWallet(
-                wallet.id,
-                topUpAmount,
-                'payment',
-                `Wallet top-up via ${intent.payment_method}`,
-                undefined,
-                paymongoPaymentId,
-              );
+              await db.transaction(async (client) => {
+                // Serialize different PayMongo event ids for the same intent.
+                const lockedIntent = await client.query<{ status: string }>(
+                  `SELECT status FROM payment_intents WHERE id = $1 FOR UPDATE`,
+                  [intent.id],
+                );
+                if (!lockedIntent.rows[0]) throw new Error('Top-up payment intent disappeared during processing.');
+                if (lockedIntent.rows[0].status === 'succeeded') {
+                  logger.info('Webhook: top-up intent already processed after lock', { intentId: intent.id });
+                  return;
+                }
+                const wallet = await walletService.getUserWalletInTransaction(client, userId, 'customer');
+                const alreadyCredited = await client.query(
+                  `SELECT 1 FROM wallet_transactions
+                    WHERE wallet_id = $1 AND reference_id = $2
+                    LIMIT 1`,
+                  [wallet.id, paymongoPaymentId],
+                );
+                if (alreadyCredited.rows.length === 0) {
+                  await walletService.creditWalletInTransaction(
+                    client,
+                    wallet.id,
+                    topUpAmount,
+                    'payment',
+                    `Wallet top-up via ${intent.payment_method}`,
+                    undefined,
+                    paymongoPaymentId,
+                  );
+                }
+                await paymentService.updatePaymentStatusInTransaction(
+                  client, intent.id, 'succeeded', paymongoPaymentId,
+                );
+              });
               logger.info('Wallet top-up credited', { userId, topUpAmount, paymongoPaymentId });
             } catch (topUpErr) {
               logger.error('Wallet top-up credit failed', {
@@ -272,6 +308,7 @@ router.post(
                 topUpAmount,
                 error: topUpErr instanceof Error ? topUpErr.message : 'Unknown',
               });
+              throw topUpErr;
             }
             break;
           }
@@ -290,6 +327,17 @@ router.post(
           let bookingForNotify: BookingRow | null = null;
           try {
             await db.transaction(async (client) => {
+              // Lock the local intent first so distinct valid event ids for the
+              // same PayMongo payment cannot race this booking/escrow update.
+              const lockedIntent = await client.query<{ status: string }>(
+                `SELECT status FROM payment_intents WHERE id = $1 FOR UPDATE`,
+                [intent.id],
+              );
+              if (!lockedIntent.rows[0]) throw new Error('Booking payment intent disappeared during processing.');
+              if (lockedIntent.rows[0].status === 'succeeded') {
+                logger.info('Webhook: booking intent already processed after lock', { intentId: intent.id });
+                return;
+              }
               const updateResult = await client.query<{ id: string }>(
                 `UPDATE bookings SET status = 'paid', escrow_status = 'held', updated_at = NOW()
                  WHERE id = $1 AND status = 'payment_pending' RETURNING id`,
@@ -300,6 +348,9 @@ router.post(
                 // an unexpected status. Bail out of the trx without
                 // doing anything.
                 logger.info('Webhook: booking already paid or not in payment_pending', { bookingId });
+                await paymentService.updatePaymentStatusInTransaction(
+                  client, intent.id, 'succeeded', paymongoPaymentId,
+                );
                 return;
               }
               const booking = await client.query<BookingRow>(
@@ -314,6 +365,9 @@ router.post(
                 );
                 bookingForNotify = booking.rows[0];
               }
+              await paymentService.updatePaymentStatusInTransaction(
+                client, intent.id, 'succeeded', paymongoPaymentId,
+              );
             });
           } catch (escrowErr) {
             // Both the UPDATE and the escrow hold rolled back. Surface

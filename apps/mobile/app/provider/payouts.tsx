@@ -61,7 +61,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending review',
-  aml_review_pending: 'Compliance review',
+  aml_review_pending: 'Large payout review',
   approved: 'Approved',
   processing: 'Processing',
   completed: 'Completed',
@@ -142,7 +142,7 @@ export default function PayoutsScreen(): React.ReactElement {
       )}
       {item.status === 'aml_review_pending' && (
         <Text style={styles.reviewText}>
-          This withdrawal needs a compliance review before standard payout processing.
+          This withdrawal is on an internal large-payout review hold before standard processing. This does not mean a legal report was filed or required.
         </Text>
       )}
     </View>

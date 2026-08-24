@@ -1,9 +1,10 @@
 # Phase 14 Dispatch 14 — Item 8: S3 BIR receipts bucket.
 #
-# BIR (Bureau of Internal Revenue) requires Official Receipt PDFs to be
-# retained for 10 years. The bucket is dedicated (separate from customer
-# uploads) so BIR audits don't have to scan unrelated objects. Object
-# Lock COMPLIANCE mode prevents tampering during the 10y window.
+# Dedicated immutable archive for future BIR-authorized principal invoices and
+# related records. E22 holds issuance until an accountant/counsel-approved
+# document model and retention matrix replace the obsolete Official Receipt
+# assumptions. The bucket stays separate from customer uploads so tax audits do
+# not have to scan unrelated objects. Object Lock prevents later tampering.
 #
 # DEPLOY: this is the spec. Apply via `terraform apply` AFTER the BIR
 # ATP from Item 2 is in hand and the production AWS account is ready.
