@@ -237,6 +237,7 @@ Every admin page below is reopened for first-principles review. `Existing` means
 22. Account boundaries were incomplete outside secure token storage: a terminal refresh failure deleted credentials without updating the live auth store, and React Query retained prior-account server data across logout or identity replacement. Bugs UX-245/246 now clear the shared query cache on identity transitions and immediately move the live app to signed-out state when refresh is terminally rejected.
 23. OTP resend called the raw request action instead of the shared Turnstile-aware flow used by login and registration. Bug UX-247 now lets verification-screen resend satisfy the server's captcha challenge rather than failing generically after the abuse threshold.
 24. Admin published OTP length, expiry, attempt, and cooldown controls while generation, validation, SMS copy, and mobile still used static constants. Bugs UX-248/249 make that bounded policy server-authoritative and expose its public length/cooldown contract to the mobile verification screen before the app becomes interactive.
+25. The first production web artifact after push-token logout isolation imported the native-only MMKV public-storage bridge at app boot, leaving the customer/provider browser blank. Bug UX-250 adds the missing browser storage implementation, keeps deprecated secure APIs fail-closed, and requires a real deployed browser load before promotion.
 
 ## Completion rule for future updates
 
