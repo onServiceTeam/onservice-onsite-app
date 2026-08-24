@@ -27,6 +27,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { uploadBirDocument } from '../utils/s3-bir';
+import { assertBirDocumentWritesEnabled } from './bir-compliance-hold.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -559,6 +560,7 @@ export async function generateQuarterly2307Batches(
   year: number,
   quarter: 1 | 2 | 3 | 4,
 ): Promise<QuarterlyBatchResult> {
+  assertBirDocumentWritesEnabled();
   assertYearQuarter(year, quarter);
 
   const { startUtc, endUtc } = quarterWindow(year, quarter);
@@ -712,6 +714,7 @@ export async function regenerate2307ForProvider(
   quarter: 1 | 2 | 3 | 4,
   adminUserId: string,
 ): Promise<Bir2307Batch> {
+  assertBirDocumentWritesEnabled();
   if (!providerId) throw createAppError('providerId is required.', 400);
   if (!adminUserId) throw createAppError('adminUserId is required.', 400);
   assertYearQuarter(year, quarter);

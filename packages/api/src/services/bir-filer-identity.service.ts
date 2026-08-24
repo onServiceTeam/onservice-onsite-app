@@ -1,8 +1,8 @@
 // CRIT-N03 + CRIT-N06 fix — shared BIR filer identity loader.
 //
 // Pre-fix: or.service / bir-2307.service / vat-report.service each
-// generated PDFs with hardcoded placeholder TIN/address/PTU values.
-// Launch-blocking BIR compliance.
+// generated legacy PDFs with hardcoded placeholder TIN/address/PTU values.
+// E22 now blocks those deployed writes regardless of configuration.
 //
 // Post-fix: read filer identity from platform_settings (migration 090)
 // at PDF generation time. Refuse to generate a real PDF if any required
@@ -31,14 +31,14 @@ export interface BirFilerIdentity {
  * closed safeguard so an unconfigured launch can never issue a BIR PDF
  * with placeholder values.
  *
- * Allowed callers:
- * - or.service.issueOR (per-booking OR PDF)
- * - bir-2307.service (quarterly batches)
- * - vat-report.service (monthly Form 2550M)
+ * Historical callers (all write paths held by E22):
+ * - or.service.issueOR (legacy per-booking OR-labelled PDF)
+ * - bir-2307.service (quarterly workpaper batches)
+ * - vat-report.service (internal monthly VAT reconciliation)
  *
  * Operator workflow: set the values via the admin Settings UI under
- * the 'bir' category before launch. The Settings page is super_admin-
- * gated per CRIT-N16 fix.
+ * the 'bir' category only after E22's accountant/legal decisions. Settings are
+ * not authorization to remove the code hold. The page is super_admin-gated.
  */
 export async function getBirFilerIdentity(): Promise<BirFilerIdentity> {
   const [companyName, tin, address, ptuNumber, vatStatus] = await Promise.all([

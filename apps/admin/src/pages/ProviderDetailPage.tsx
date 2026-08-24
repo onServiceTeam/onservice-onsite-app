@@ -95,6 +95,18 @@ export interface ProviderProfile {
     selfieUrl: string | null;
   };
   categories: { id: string; name: string; basePrice: number | null }[];
+  services?: Array<{
+    id: string;
+    name: string;
+    categoryName: string;
+    pricingType: string;
+    basePrice: number | null;
+    hourlyRate: number | null;
+    unitLabel: string | null;
+    unitPrice: number | null;
+    minPrice: number | null;
+    maxPrice: number | null;
+  }>;
   serviceAreas: { id: string; name: string; isPrimary: boolean }[];
   certifications: ProviderCertification[];
   portfolio: Array<{
@@ -210,6 +222,22 @@ function formatPHP(centavos: number): string {
     currency: 'PHP',
     minimumFractionDigits: 2,
   }).format(centavos / 100);
+}
+
+function providerServicePriceLabel(service: NonNullable<ProviderProfile['services']>[number]): string {
+  if (service.pricingType === 'fixed' && service.basePrice !== null) {
+    return formatPHP(service.basePrice);
+  }
+  if (service.pricingType === 'hourly' && service.hourlyRate !== null) {
+    return `${formatPHP(service.hourlyRate)}/hour`;
+  }
+  if (service.pricingType === 'per_unit' && service.unitPrice !== null) {
+    return `${formatPHP(service.unitPrice)}/${service.unitLabel || 'unit'}`;
+  }
+  if (service.pricingType === 'range' && service.minPrice !== null && service.maxPrice !== null) {
+    return `${formatPHP(service.minPrice)}–${formatPHP(service.maxPrice)}`;
+  }
+  return 'Quote after assessment';
 }
 
 function formatDate(iso: string | null): string {
@@ -593,16 +621,24 @@ export function ProfileTab({ profile }: { profile: ProviderProfile }): React.Rea
       </Card>
 
       <Card className="p-4">
-        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Service Categories</h3>
-        {(profile.categories ?? []).length === 0 ? (
-          <p className="text-xs text-[var(--color-text-secondary)]">No categories on file.</p>
+        <div className="mb-3">
+          <h3 className="text-sm font-semibold text-[var(--color-text)]">Provider services</h3>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+            Customer prices below come from the admin catalog, which is also used at booking.
+          </p>
+        </div>
+        {(profile.services ?? []).length === 0 ? (
+          <p className="text-xs text-[var(--color-text-secondary)]">No active services on file.</p>
         ) : (
-          <ul className="space-y-1">
-            {(profile.categories ?? []).map((c) => (
-              <li key={c.id} className="text-sm text-[var(--color-text)] flex justify-between">
-                <span>{c.name}</span>
-                <span className="text-xs text-[var(--color-text-secondary)]">
-                  {c.basePrice !== null ? formatPHP(c.basePrice) : '—'}
+          <ul className="divide-y divide-[var(--color-border)]">
+            {(profile.services ?? []).map((service) => (
+              <li key={service.id} className="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-[var(--color-text)]">{service.name}</span>
+                  <span className="block text-xs text-[var(--color-text-secondary)]">{service.categoryName}</span>
+                </span>
+                <span className="shrink-0 text-right text-xs font-medium text-[var(--color-text-secondary)]">
+                  {providerServicePriceLabel(service)}
                 </span>
               </li>
             ))}

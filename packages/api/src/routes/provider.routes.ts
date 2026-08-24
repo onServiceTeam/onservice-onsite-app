@@ -348,7 +348,7 @@ router.post(
       requireProvider(req);
       const provider = await providerService.getProviderByUserId(req.user!.userId);
       const service = await providerService.addProviderService(
-        provider.id, req.body.subcategoryId, req.body.basePrice,
+        provider.id, req.body.subcategoryId,
       );
       res.status(201).json({ success: true, data: providerService.formatProviderService(service) });
     } catch (error) {

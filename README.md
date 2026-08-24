@@ -2,21 +2,22 @@
 
 A mobile-first, on-demand home services marketplace for the
 Philippines. Connects customers with vetted providers across all
-categories of residential and commercial on-site services, with full
-escrow payment protection.
+categories of residential and commercial on-site services. Internal wallet and
+escrow handling are implemented; external PayMongo authorization remains held
+under E14 and the repository is not launch-ready.
 
 ---
 
-## Stack (April 2026 — current)
+## Stack (August 2026)
 
 | Layer | Technology | Version |
 |---|---|---|
 | Mobile | React Native (Expo managed) | SDK 55 / RN 0.83 |
 | Admin Web | React + Tailwind CSS + shadcn/ui | React 19 + Tailwind 4.2 + shadcn v4 |
 | Backend | Node.js + Express + TypeScript | Node 24 LTS + Express 5.2 + TS 6.0 |
-| Database | PostgreSQL | 18.3 |
+| Database | PostgreSQL + PostGIS | 17 + PostGIS 3.5 in production and the supported local stack |
 | Cache / queues | Redis | 8.6 |
-| Payments | PayMongo | Latest |
+| Payments | PayMongo | Integration present; external authorization disabled pending E14 |
 
 ## Custom ports (collision-free)
 
@@ -30,25 +31,30 @@ escrow payment protection.
 
 ## Quick start
 
-```bash
-# 1. Environment
-cp .env.example .env
+Install dependencies, copy the environment template to `.env`, then start the
+supported Docker development stack. The startup script builds the API, starts
+PostgreSQL 17 + PostGIS, PgBouncer, Redis, MinIO, MailHog, Prometheus, and
+Grafana, runs migrations, and loads local demo data.
 
-# 2. Start Postgres + Redis
-docker compose up -d
-
-# 3. Install deps
+```powershell
+# Windows PowerShell
 npm install --legacy-peer-deps
+Copy-Item .env.example .env
+./scripts/dev/up.ps1
+```
 
-# 4. Run migrations + start the API
-npm run api:dev
+```bash
+# macOS or Linux
+npm install --legacy-peer-deps
+cp .env.example .env
+./scripts/dev/up.sh
 ```
 
 In separate terminals:
 
 ```bash
 npm run admin:dev      # http://localhost:7382
-npm run mobile:dev     # opens Expo
+npm run mobile:start   # opens Expo
 ```
 
 ## Project structure
@@ -71,7 +77,7 @@ onservice-onsite-app/
 │   ├── SECURITY-POSTURE.md
 │   └── MONEY-HANDLING.md
 ├── .ai-coder/                # Phase governance + verify-*.sh checkpoints
-├── docker-compose.yml
+├── docker-compose.yml        # Legacy minimal compose; use scripts/dev/up.*
 ├── LAUNCH-LIMITATIONS.md     # Intentional v1 caveats
 ├── INFRA-CHECKLIST.md        # Pre-launch infra gate
 ├── CONTRIBUTING.md

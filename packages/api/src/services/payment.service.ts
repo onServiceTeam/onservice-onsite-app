@@ -8,7 +8,7 @@ import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 import { formatPHP } from '../utils/currency';
 
-interface PaymentIntentRow {
+export interface PaymentIntentRow {
   id: string;
   booking_id: string;
   paymongo_intent_id: string | null;
@@ -26,6 +26,14 @@ interface PaymentIntentRow {
 }
 
 type PaymentMethod = 'gcash' | 'maya' | 'card' | 'qrph' | 'wallet' | 'bank_transfer';
+
+import type { QueryResult, QueryResultRow } from 'pg';
+type PgClient = {
+  query: <R extends QueryResultRow = QueryResultRow>(
+    text: string,
+    params?: unknown[],
+  ) => Promise<QueryResult<R>>;
+};
 
 const PAYMONGO_BASE = 'https://api.paymongo.com/v1';
 
@@ -127,6 +135,34 @@ export async function createPaymentIntent(
   return result.rows[0]!;
 }
 
+/**
+ * Create the local wallet payment record on a caller-owned transaction.
+ * Wallet payments never call PayMongo, so inserting this row alongside the
+ * booking lock, wallet debit, and escrow hold closes the partial-commit gap in
+ * the route's previous implementation.
+ */
+export async function createWalletPaymentIntentInTransaction(
+  client: PgClient,
+  bookingId: string,
+  amount: number,
+): Promise<PaymentIntentRow> {
+  if (amount < platformConfig.minimumPaymentAmount) {
+    throw createAppError(`Minimum payment amount is ${formatPHP(platformConfig.minimumPaymentAmount)}.`, 400);
+  }
+
+  const result = await client.query<PaymentIntentRow>(
+    `INSERT INTO payment_intents
+       (booking_id, topup_id, paymongo_intent_id, amount, payment_method, status, client_key, metadata)
+     VALUES ($1, NULL, NULL, $2, 'wallet', 'processing', NULL, $3::jsonb)
+     RETURNING *`,
+    [bookingId, amount, JSON.stringify({ booking_id: bookingId, intent_kind: 'booking' })],
+  );
+  const intent = result.rows[0];
+  if (!intent) throw createAppError('Wallet payment record could not be created.', 500);
+  logger.info('Wallet payment intent created', { bookingId, amount, intentId: intent.id });
+  return intent;
+}
+
 export async function getPaymentIntent(intentId: string): Promise<PaymentIntentRow> {
   const result = await db.query<PaymentIntentRow>(
     `SELECT * FROM payment_intents WHERE id = $1`,
@@ -202,6 +238,39 @@ export async function updatePaymentStatus(
     }
     throw err;
   }
+}
+
+/**
+ * Transaction-aware status update for webhook money paths. Production has
+ * migration 114, so the dedicated PayMongo payment id is required here; this
+ * helper deliberately has no pre-migration fallback that could escape the
+ * caller's transaction.
+ */
+export async function updatePaymentStatusInTransaction(
+  client: PgClient,
+  intentId: string,
+  status: 'succeeded' | 'failed' | 'refunded' | 'partially_refunded',
+  referenceId?: string,
+): Promise<PaymentIntentRow> {
+  const paymongoPaymentId = typeof referenceId === 'string' && referenceId.startsWith('pay_')
+    ? referenceId
+    : null;
+  const result = await client.query<PaymentIntentRow>(
+    `UPDATE payment_intents
+        SET status = $1,
+            updated_at = NOW(),
+            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
+            paymongo_payment_id = COALESCE($4, paymongo_payment_id)
+      WHERE id = $2 RETURNING *`,
+    [
+      status,
+      intentId,
+      JSON.stringify({ reference_id: referenceId ?? null, updated: new Date().toISOString() }),
+      paymongoPaymentId,
+    ],
+  );
+  if (result.rows.length === 0) throw createAppError('Payment intent not found.', 404);
+  return result.rows[0]!;
 }
 
 /**

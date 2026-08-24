@@ -32,6 +32,7 @@ import {
 import { validateFileSync, assertImageMagicBytes, getUploadDir } from '../services/upload.service';
 import { platformConfig } from '../config/platform.config';
 import { logger } from '../utils/logger';
+import { isPrivateExportSecretUsable } from '../config/boot-guards';
 
 interface MulterFile {
   originalname: string;
@@ -156,7 +157,7 @@ router.post('/', submitLimiter, async (req: Request, res: Response, next: NextFu
 
 function keyOk(req: Request): boolean {
   const expected = process.env.FEEDBACK_EXPORT_KEY;
-  if (!expected) return false;
+  if (!isPrivateExportSecretUsable(expected)) return false;
   const given = (req.query.key ?? req.headers['x-feedback-key'] ?? '').toString();
   // Constant-time compare to avoid leaking the key byte-by-byte via a timing
   // side-channel. timingSafeEqual requires equal-length buffers, so the length
@@ -173,8 +174,8 @@ async function guardedExport(
   send: (rows: Awaited<ReturnType<typeof listFeedback>>, res: Response) => void,
 ): Promise<void> {
   try {
-    if (!process.env.FEEDBACK_EXPORT_KEY) {
-      res.status(503).json({ success: false, error: 'Exports are not configured (FEEDBACK_EXPORT_KEY unset).' });
+    if (!isPrivateExportSecretUsable(process.env.FEEDBACK_EXPORT_KEY)) {
+      res.status(503).json({ success: false, error: 'Exports are not securely configured.' });
       return;
     }
     if (!keyOk(req)) {

@@ -4,7 +4,8 @@
  * Pure, hermetic-friendly functions wrapping the consent_records and
  * data_subject_requests tables (migration 057). Plus utility helpers:
  *   - exportAuditLogCsv: streams a CSV of audit_log rows (RFC 4180).
- *   - getBirCalendar: pure date-math, returns BIR filing schedule status.
+ *   - getBirCalendar: fail-closed until an accountant approves the taxpayer
+ *     profile and current filing schedule (E22).
  *   - getDsrAlerts: DSRs due in <= 2 days, used by dashboard.
  *
  * Audit: every state-changing function writes a paired audit_log entry.
@@ -930,7 +931,7 @@ export async function* exportAuditLogCsvStream(
 }
 
 // ─────────────────────────────────────────────────────────────────
-// BIR filing calendar (pure)
+// BIR filing calendar (held pending accountant-approved taxpayer profile)
 // ─────────────────────────────────────────────────────────────────
 
 export type BirFormStatus = 'not_yet_due' | 'due_soon' | 'overdue';
@@ -943,91 +944,15 @@ export interface BirCalendarEntry {
   status: BirFormStatus;
 }
 
-function isoDate(d: Date): string {
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function statusFor(due: Date, now: Date): BirFormStatus {
-  // BUG-PHASE130-01 fix — pre-fix `due` was constructed with
-  // `Date.UTC(year, m, day)` which produces UTC midnight = 08:00 Manila
-  // of that calendar day. The status compared "now > due" right at
-  // 08:00 AM Manila on the due date and showed 'overdue' for the rest
-  // of the day — but BIR forms are due "by close of business" Manila
-  // and remain on time until end-of-Manila-day. Window of incorrect
-  // 'overdue' display: 16 hours every due-date (08:00 → 23:59 Manila).
-  // Treat `due` as end-of-Manila-day (= UTC midnight + 16h).
-  // Same Manila-anchored idiom as Phases 109/113/117/119/122/123/124/129.
-  const dueEndOfManilaDay = due.getTime() + 16 * 60 * 60 * 1000;
-  const diffMs = dueEndOfManilaDay - now.getTime();
-  const diffDays = diffMs / (24 * 60 * 60 * 1000);
-  if (diffMs < 0) return 'overdue';
-  if (diffDays <= 7) return 'due_soon';
-  return 'not_yet_due';
-}
-
-export function getBirCalendar(year: number, now: Date = new Date()): BirCalendarEntry[] {
+export function getBirCalendar(year: number, _now: Date = new Date()): BirCalendarEntry[] {
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
     throw createAppError('year must be an integer between 2000 and 2100.', 400);
   }
 
-  const entries: BirCalendarEntry[] = [];
-
-  // 1601-EQ: monthly withholding, due 10th of next month.
-  for (let m = 0; m < 12; m++) {
-    const due = new Date(Date.UTC(year, m + 1, 10));
-    entries.push({
-      formNo: '1601-EQ',
-      label: `1601-EQ — Withholding (period ${year}-${String(m + 1).padStart(2, '0')})`,
-      dueDate: isoDate(due),
-      status: statusFor(due, now),
-    });
-  }
-
-  // 2550M: monthly VAT, due 20th of next month.
-  for (let m = 0; m < 12; m++) {
-    const due = new Date(Date.UTC(year, m + 1, 20));
-    entries.push({
-      formNo: '2550M',
-      label: `2550M — Monthly VAT (period ${year}-${String(m + 1).padStart(2, '0')})`,
-      dueDate: isoDate(due),
-      status: statusFor(due, now),
-    });
-  }
-
-  // 1701Q quarterly:
-  //   Q1 (period Jan-Mar) due May 15
-  //   Q2 (period Apr-Jun) due Aug 15
-  //   Q3 (period Jul-Sep) due Nov 15
-  //   Q4/annual (period Oct-Dec) due Apr 15 of next year
-  const quarterly: Array<{ period: string; due: Date }> = [
-    { period: 'Q1', due: new Date(Date.UTC(year, 4, 15)) },
-    { period: 'Q2', due: new Date(Date.UTC(year, 7, 15)) },
-    { period: 'Q3', due: new Date(Date.UTC(year, 10, 15)) },
-    { period: 'Q4', due: new Date(Date.UTC(year + 1, 3, 15)) },
-  ];
-  for (const q of quarterly) {
-    entries.push({
-      formNo: '1701Q',
-      label: `1701Q — Quarterly Income (${year} ${q.period})`,
-      dueDate: isoDate(q.due),
-      status: statusFor(q.due, now),
-    });
-  }
-
-  // 1701: annual income tax, due Apr 15 of next year.
-  const annualDue = new Date(Date.UTC(year + 1, 3, 15));
-  entries.push({
-    formNo: '1701',
-    label: `1701 — Annual Income (${year})`,
-    dueDate: isoDate(annualDue),
-    status: statusFor(annualDue, now),
-  });
-
-  entries.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  return entries;
+  throw createAppError(
+    'BIR filing calendar is disabled pending an accountant-approved taxpayer profile and current form schedule (E22).',
+    503,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────

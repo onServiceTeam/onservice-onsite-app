@@ -10,6 +10,7 @@ import { platformConfig } from '../config/platform.config';
 import { formatPHP } from '../utils/currency';
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
+import { assertExternalPaymentAuthorizationEnabled } from '../services/external-payment-hold.service';
 
 const router = Router();
 
@@ -59,6 +60,10 @@ router.post(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
+      // E14: stop before validation, database writes, or PayMongo calls. The
+      // existing hosted redirect is invalid and must not create more stuck
+      // top-up intents.
+      assertExternalPaymentAuthorizationEnabled();
       const userId = req.user!.userId;
       const { amount, paymentMethod } = req.body as { amount: number; paymentMethod: string };
 

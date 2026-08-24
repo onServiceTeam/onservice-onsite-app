@@ -3,6 +3,8 @@ import { validateProductionSecrets } from '../src/config/boot-guards';
 const baseEnv = (): NodeJS.ProcessEnv => ({
   NODE_ENV: 'production',
   JWT_SECRET: 'j'.repeat(64),
+  DATA_EXPORT_DOWNLOAD_SECRET: 'd'.repeat(64),
+  FEEDBACK_EXPORT_KEY: 'f'.repeat(64),
   TOTP_ENCRYPTION_KEY: 'a'.repeat(64),
   PAYMONGO_WEBHOOK_SECRET: 'paymongo-webhook-live-secret',
   DB_PASSWORD: 'database-production-secret',

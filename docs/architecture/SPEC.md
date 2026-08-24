@@ -7,7 +7,12 @@
 > this document's insurance/guarantee limits, payment-provider prices, revenue
 > projections, or fixed operational policies. Current authority is `AGENTS.md`,
 > active decisions/escalations, the operations handbook, and the current
-> screen/linkage audit.
+> screen/linkage audit. E14 currently disables external PayMongo authorization
+> and wallet top-up; E22 disables BIR document issuance. The admin and
+> customer/provider apps must show those holds honestly. See
+> `docs/audits/STITCH-UX-OPERATIONS-AUDIT-2026-08-23.md`,
+> `docs/audits/THIRD-PARTY-TESTER-FEEDBACK-TRACE-2026-08-24.md`, and
+> `LAUNCH-LIMITATIONS.md` for current implementation status.
 
 ## Master Document v1.0 | April 14, 2026
 
@@ -1181,7 +1186,9 @@ The platform requires the following screens across all user interfaces:
 - Register with the Bureau of Internal Revenue for tax compliance
 - Obtain Tax Identification Number (TIN) for the corporation
 - Register business activities and books of accounts
-- Obtain Authority to Print (ATP) for official receipts or use BIR-accredited electronic invoicing
+- Resolve E22 with the accountant-approved principal-invoice type, tax basis,
+  authorized numbering route (including ATP/CAS/e-invoicing as applicable),
+  and retention model before enabling BIR-labelled document issuance
 - Register for VAT if expected revenue exceeds ₱3,000,000/year (likely within first year)
 - VAT rate: 12% on services (this affects your pricing — you may need to include VAT in the service fee or add it separately)
 
@@ -2242,12 +2249,14 @@ There are NO screens for the custom quoting flow — no job request form, no quo
 
 *END OF DOCUMENT — Version 1.0*
 
-*This document should be used as the master specification for all development, design, and business decisions. Each chapter can be expanded into its own detailed sub-document as development progresses.*
+*This document is preserved as historical design input. It is not the master
+specification and must not override current code, active decisions/escalations,
+the operations handbook, the Stitch/linkage audits, or launch limitations.*
 
 *Recommended next steps:*
 *1. Upload your Google Stitch designs for a visual overlay comparison*
 *2. Start with Chapter 3 screens at Critical priority*
-*3. Set up PayMongo Platform account and test the APIs*
+*3. Resolve E14's payment architecture decision and test the approved replacement with protected PayMongo test credentials*
 *4. Draft the Independent Contractor Agreement with a Philippine labor lawyer*
 *5. Register your SEC corporation and begin BIR/NPC compliance*
 *6. Identify your launch municipality and begin provider recruitment*

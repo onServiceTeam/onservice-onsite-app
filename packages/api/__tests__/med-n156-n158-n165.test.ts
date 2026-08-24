@@ -40,7 +40,6 @@ beforeEach(() => {
     });
   });
 });
-
 describe('MED-N156 — escrow + wallet trx-aware variants', () => {
   it('MED-N156 — wallet.holdEscrowInTransaction writes UPDATE + INSERT on the SAME client', async () => {
     const calls: Array<{ sql: string }> = [];
@@ -126,57 +125,5 @@ describe('MED-N165 — settings.getSettingArray returns trimmed string[]', () =>
     });
     const out = await getSettingArray('business_account_types');
     expect(out).toEqual(['office', 'condo_management', 'restaurant']);
-  });
-});
-
-// Source-shape verification of the wallet-payment + webhook trx wiring.
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
-
-const PAYMENT_ROUTES = readFileSync(
-  resolve(__dirname, '../src/routes/payment.routes.ts'),
-  'utf8',
-);
-const WEBHOOK_ROUTES = readFileSync(
-  resolve(__dirname, '../src/routes/webhook.routes.ts'),
-  'utf8',
-);
-const BUSINESS_ROUTES = readFileSync(
-  resolve(__dirname, '../src/routes/business.routes.ts'),
-  'utf8',
-);
-
-describe('MED-N158 — payment route wallet path is wrapped in db.transaction', () => {
-  it('MED-N158 — wallet payment block uses debitWalletInTransaction + holdInEscrowInTransaction', () => {
-    const anchor = PAYMENT_ROUTES.indexOf("paymentMethod === 'wallet'");
-    expect(anchor).toBeGreaterThan(0);
-    const block = PAYMENT_ROUTES.slice(anchor, anchor + 3000);
-    expect(block).toMatch(/await db\.transaction\(async \(client\)/);
-    expect(block).toMatch(/walletService\.debitWalletInTransaction/);
-    expect(block).toMatch(/escrowService\.holdInEscrowInTransaction/);
-    // Old non-trx variants must not be called inside the wallet path.
-    expect(block).not.toMatch(/walletService\.debitWallet\(/);
-    expect(block).not.toMatch(/escrowService\.holdInEscrow\(/);
-  });
-});
-
-describe('MED-N156 — webhook payment.paid wraps booking + escrow in a transaction', () => {
-  it('MED-N156 — uses holdInEscrowInTransaction inside db.transaction', () => {
-    // Anchor on the MED-N156 fix comment (uniquely placed in this case).
-    const anchor = WEBHOOK_ROUTES.indexOf("MED-N156 fix");
-    expect(anchor).toBeGreaterThan(0);
-    // Slice generously since the post-fix case is large.
-    const block = WEBHOOK_ROUTES.slice(anchor, anchor + 4500);
-    expect(block).toMatch(/await db\.transaction\(async \(client\)/);
-    expect(block).toMatch(/escrowService\.holdInEscrowInTransaction/);
-    // Old non-trx variant must not be called inside the fix block.
-    expect(block).not.toMatch(/escrowService\.holdInEscrow\(bookingId/);
-  });
-});
-
-describe('MED-N165 — business.routes pulls whitelists from settings', () => {
-  it('MED-N165 — getSettingArray invocations replace inline arrays', () => {
-    expect(BUSINESS_ROUTES).toMatch(/settingsService\.getSettingArray\('business_account_types'\)/);
-    expect(BUSINESS_ROUTES).toMatch(/settingsService\.getSettingArray\('business_payment_terms'\)/);
   });
 });

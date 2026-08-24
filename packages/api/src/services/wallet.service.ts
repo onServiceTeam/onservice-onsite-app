@@ -55,6 +55,32 @@ export async function getUserWallet(userId: string, type: 'customer' | 'provider
   return wallet;
 }
 
+/**
+ * Transaction-aware wallet lookup/create used by money paths that must keep
+ * the wallet row and all downstream ledger writes in one transaction.
+ * The conflict update acquires the existing row lock without changing its
+ * balance, and RETURNING gives the caller the canonical wallet id.
+ */
+export async function getUserWalletInTransaction(
+  client: PgClient,
+  userId: string,
+  type: 'customer' | 'provider',
+): Promise<WalletRow> {
+  const result = await client.query<WalletRow>(
+    `INSERT INTO wallets (user_id, type) VALUES ($1, $2)
+     ON CONFLICT (user_id, type) WHERE user_id IS NOT NULL
+     DO UPDATE SET updated_at = wallets.updated_at
+     RETURNING *`,
+    [userId, type],
+  );
+  const wallet = result.rows[0];
+  if (!wallet) throw createAppError('Wallet could not be loaded.', 500);
+  if (wallet.type !== type) {
+    throw createAppError(`Wallet type mismatch: expected "${type}" but found "${wallet.type}".`, 409);
+  }
+  return wallet;
+}
+
 export async function getPlatformWallet(type: 'platform_escrow' | 'platform_revenue' | 'guarantee_fund'): Promise<WalletRow> {
   const result = await db.query<WalletRow>(
     `SELECT * FROM wallets WHERE type = $1 AND user_id IS NULL`,
@@ -79,22 +105,38 @@ export async function creditWallet(
   if (amount <= 0) throw createAppError('Credit amount must be positive.', 400);
 
   return db.transaction(async (client) => {
-    const wallet = await client.query<WalletRow>(
-      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW()
-       WHERE id = $2 RETURNING *`,
-      [amount, walletId],
+    return creditWalletInTransaction(
+      client, walletId, amount, txType, description, bookingId, referenceId,
     );
-
-    if (wallet.rows.length === 0) throw createAppError('Wallet not found.', 404);
-
-    const tx = await client.query<TransactionRow>(
-      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description, reference_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [walletId, bookingId ?? null, txType, amount, wallet.rows[0]!.available_balance, description, referenceId ?? null],
-    );
-
-    return tx.rows[0]!;
   });
+}
+
+/**
+ * Transaction-aware credit used when a caller must commit the wallet ledger
+ * with another money record, such as a PayMongo top-up intent.
+ */
+export async function creditWalletInTransaction(
+  client: PgClient,
+  walletId: string,
+  amount: number,
+  txType: TransactionType,
+  description: string,
+  bookingId?: string,
+  referenceId?: string,
+): Promise<TransactionRow> {
+  if (amount <= 0) throw createAppError('Credit amount must be positive.', 400);
+  const wallet = await client.query<WalletRow>(
+    `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW()
+     WHERE id = $2 RETURNING *`,
+    [amount, walletId],
+  );
+  if (wallet.rows.length === 0) throw createAppError('Wallet not found.', 404);
+  const tx = await client.query<TransactionRow>(
+    `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description, reference_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [walletId, bookingId ?? null, txType, amount, wallet.rows[0]!.available_balance, description, referenceId ?? null],
+  );
+  return tx.rows[0]!;
 }
 
 export async function debitWallet(

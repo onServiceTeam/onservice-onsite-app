@@ -57,24 +57,22 @@ describe('Provider Validators', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should accept service with base price', () => {
+    it('strips the retired provider base-price field', () => {
       const result = addServiceSchema.safeParse({
         subcategoryId: '550e8400-e29b-41d4-a716-446655440000',
         basePrice: 50000,
       });
       expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual({
+          subcategoryId: '550e8400-e29b-41d4-a716-446655440000',
+        });
+      }
     });
 
     it('should reject invalid subcategory ID', () => {
       const result = addServiceSchema.safeParse({ subcategoryId: 'not-uuid' });
       expect(result.success).toBe(false);
-    });
-
-    it('should reject zero or negative base price', () => {
-      expect(addServiceSchema.safeParse({
-        subcategoryId: '550e8400-e29b-41d4-a716-446655440000',
-        basePrice: 0,
-      }).success).toBe(false);
     });
   });
 

@@ -48,8 +48,8 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'payouts', label: 'Payouts' },
   { key: 'guarantee', label: 'Guarantee Fund' },
   { key: 'reconciliation', label: 'Reconciliation' },
-  { key: 'bir', label: 'BIR Reports' },
-  { key: 'receipts', label: 'Receipts' },
+  { key: 'bir', label: 'Tax Workpapers (Held)' },
+  { key: 'receipts', label: 'Legacy Sales Records' },
 ];
 
 const TAB_KEYS = new Set<TabKey>(TABS.map((tab) => tab.key));
@@ -1070,7 +1070,7 @@ function normalizeBirOverview(data: BirOverviewData): BirOverviewData {
   };
 }
 
-function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactElement {
+export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactElement {
   const qc = useQueryClient();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState<number>(currentYear);
@@ -1156,6 +1156,17 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
 
   return (
     <div>
+      <div
+        role="alert"
+        className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+      >
+        <p className="font-semibold">BIR document generation is on compliance hold (E22).</p>
+        <p className="mt-1">
+          Figures below are internal accounting workpapers and historical records, not BIR returns
+          or proof of authorized invoicing. Generate and finalize actions remain disabled until a
+          Philippine accountant approves the taxpayer profile, document type, tax basis, and serial authority.
+        </p>
+      </div>
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-4 mb-6 flex items-end gap-3">
         <div>
           <Label htmlFor="bir-year">Year</Label>
@@ -1174,7 +1185,7 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
 
       {/* Annual summary */}
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 mb-6">
-        <h2 className="text-base font-semibold text-[var(--color-text)] mb-3">Annual Summary ({d.year})</h2>
+        <h2 className="text-base font-semibold text-[var(--color-text)] mb-3">Internal Tax Workpaper Summary ({d.year})</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-[var(--color-text-secondary)] uppercase tracking-wider">Total Output VAT</p>
@@ -1185,7 +1196,7 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
             <p className="text-xl font-bold text-[var(--color-text)] mt-1">{formatCurrency(d.totalVatPayable)}</p>
           </div>
           <div>
-            <p className="text-xs text-[var(--color-text-secondary)] uppercase tracking-wider">Months Finalized</p>
+            <p className="text-xs text-[var(--color-text-secondary)] uppercase tracking-wider">Months Locked</p>
             <p className="text-xl font-bold text-[var(--color-text)] mt-1">{d.monthsFinalized} / 12</p>
           </div>
         </div>
@@ -1193,7 +1204,7 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
 
       {/* Monthly reports */}
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 mb-6 overflow-x-auto">
-        <h2 className="text-base font-semibold text-[var(--color-text)] mb-3">Monthly VAT Reports</h2>
+        <h2 className="text-base font-semibold text-[var(--color-text)] mb-3">Internal Monthly VAT Reconciliation</h2>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--color-border)]">
@@ -1224,11 +1235,12 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          if (window.confirm(`Generate VAT report for ${MonthName(m.month)} ${d.year}?`)) {
+                          if (window.confirm(`Generate internal VAT workpaper for ${MonthName(m.month)} ${d.year}?`)) {
                             generateMonthMut.mutate({ year: d.year, month: m.month });
                           }
                         }}
-                        disabled={generateMonthMut.isPending}
+                        disabled
+                        title="Disabled while BIR compliance escalation E22 is open"
                       >
                         Generate
                       </Button>
@@ -1238,13 +1250,14 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
                         variant="default"
                         size="sm"
                         onClick={() => {
-                          if (window.confirm(`Finalize VAT report for ${MonthName(m.month)} ${d.year}? This cannot be casually reversed.`)) {
+                          if (window.confirm(`Lock internal VAT workpaper for ${MonthName(m.month)} ${d.year}? This cannot be casually reversed.`)) {
                             finalizeMonthMut.mutate({ year: d.year, month: m.month });
                           }
                         }}
-                        disabled={finalizeMonthMut.isPending}
+                        disabled
+                        title="Disabled while BIR compliance escalation E22 is open"
                       >
-                        Finalize
+                        Lock
                       </Button>
                     )}
                     {m.pdfUrl && (
@@ -1294,7 +1307,8 @@ function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.Rea
                             generateQuarterMut.mutate({ year: d.year, quarter: qb.quarter });
                           }
                         }}
-                        disabled={generateQuarterMut.isPending}
+                        disabled
+                        title="Disabled while BIR compliance escalation E22 is open"
                       >
                         Generate
                       </Button>
@@ -1398,7 +1412,7 @@ interface ReceiptSearchParams {
   limit: number;
 }
 
-function ReceiptsPanel(): React.ReactElement {
+export function ReceiptsPanel(): React.ReactElement {
   const [draft, setDraft] = useState<ReceiptSearchParams>({
     orNumber: '',
     customerName: '',
@@ -1461,6 +1475,16 @@ function ReceiptsPanel(): React.ReactElement {
 
   return (
     <div>
+      <div
+        role="alert"
+        className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+      >
+        <p className="font-semibold">These are unapproved legacy sales-document records.</p>
+        <p className="mt-1">
+          The OR identifiers and stored PDFs are retained for audit history. Do not present them as
+          currently authorized BIR principal invoices while compliance escalation E22 is open.
+        </p>
+      </div>
       <form
         onSubmit={onSubmit}
         noValidate
@@ -1537,15 +1561,15 @@ function ReceiptsPanel(): React.ReactElement {
 
       {submitted === null ? (
         <EmptyState
-          title="Search receipts"
-          description="Enter at least one filter and click Search to look up receipts."
+          title="Search legacy sales records"
+          description="Enter at least one filter and click Search to look up retained sales-document records."
         />
       ) : q.isLoading ? (
         <LoadingState />
       ) : q.isError ? (
         <ErrorState description={getErrorMessage(q.error)} />
       ) : !q.data || q.data.length === 0 ? (
-        <EmptyState title="No receipts match your search" />
+        <EmptyState title="No legacy sales records match your search" />
       ) : (
         <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 overflow-x-auto">
           <table className="w-full text-sm">
@@ -1587,9 +1611,9 @@ function ReceiptsPanel(): React.ReactElement {
                   <td className="py-2 px-3 text-right">{formatCurrency(row.vat)}</td>
                   <td className="py-2 px-3 text-center">
                     {row.isCancellation ? (
-                      <Badge label="CANCELLATION" variant="danger" />
+                      <Badge label="CANCELLED ENTRY" variant="danger" />
                     ) : (
-                      <Badge label="OFFICIAL" variant="success" />
+                      <Badge label="LEGACY / REVIEW" variant="warning" />
                     )}
                   </td>
                   <td className="py-2 px-3 text-right">
@@ -1643,7 +1667,7 @@ export default function FinancialsPage(): React.ReactElement {
       <div className="mb-6">
         <h1 className="text-xl font-bold text-[var(--color-text)]">Financials</h1>
         <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
-          Revenue, escrow, payouts, BIR reports and reconciliation.
+          Revenue, escrow, payouts, internal tax workpapers and reconciliation.
         </p>
       </div>
 

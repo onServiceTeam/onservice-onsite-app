@@ -31,7 +31,7 @@ These are shipped to production and verified:
   a persistent volume; booking photos public, KYC private.
 - **Backups** — the nightly backup cron had been **failing every night**
   (non-executable script); fixed. Now backs up the DB **and** uploaded files
-  nightly, keeps 7 days, and a dump has been restore-tested. Runbook:
+  nightly, keeps 14 days, and a dump has been restore-tested. Runbook:
   `docs/runbooks/postgres-restore.md`.
 - **TLS configuration** — TLS 1.2/1.3, HSTS preload, current Let's Encrypt CRL
   revocation metadata, and session resumption are configured. Let's Encrypt
@@ -54,24 +54,24 @@ These are shipped to production and verified:
 | # | Item | Owner | Blocker? | Note |
 |---|------|-------|----------|------|
 | 1 | NPC DPO registration | You | YES | Government, ~21 days. Start ASAP. |
-| 2 | BIR Authority to Print (OR series) | You / accountant | YES | Government, ~14–21 days. |
+| 2 | BIR principal-invoice authority and serial model | You / accountant | YES | E22: accountant must approve document type, taxpayer profile, tax basis, authority route, numbering, cancellation, and filing schedule before implementation. |
 | 3 | DTI permit current | You | YES | Verify active. |
 | 4 | Mayor's / business permit (Cebu) | You | YES | Verify current. |
 | 5 | Cloudflare Turnstile production keys/evidence | You / me | YES | Provider decision and client/server wiring are complete. The live host has no real secret or Cloudflare API token, so it cannot yet switch to `NODE_ENV=production`. Add separate production keys, run `verify-turnstile.sh`, and exercise the threshold-triggered OTP challenge on deployed web/native. |
 | 6 | Sentry production DSN | You | YES | Code ready; just create the project + paste the DSN. |
 | 7 | PayMongo onboarding plus a valid external authorization flow | You / me | YES | Live-looking keys are present, but that is not launch evidence. E14 blocks the current invalid hosted URL; approve and test Checkout Sessions or the client Payment Method flow before live use. |
-| 8 | BIR receipt long-term retention | You / me | gated on #2 | Was specced as S3 Object Lock; on Hetzner we'll do WORM-style local + off-site. Not needed until BIR pipeline is live. |
+| 8 | Approved tax-document long-term retention | You / me | gated on #2 | Was specced as S3 Object Lock; on Hetzner we'll do WORM-style local + off-site after E22 identifies the legally approved document. |
 | 9 | Backups and PITR/RPO sign-off | You / me | YES | Nightly logical DB+upload backups and Hetzner snapshots exist and a restore was tested. Continuous PITR is not proven; launch needs an explicit recovery objective and restore evidence under Item 9. |
 | 10 | DNS + TLS | me / certificate authority | YES | `app`, `admin`, `api`, and `www` are valid. The bare `onservice.ph` resolves to production but is missing from the installed certificate SANs. Reissue/expand and verify under E17. |
 | 11 | Admin SSO | optional | no | Deferrable per the runbook. |
-| 12 | BIR e-receipt verification | You / me | gated on #2 | Verifiable once the ATP serial range exists. |
+| 12 | Approved BIR invoice-pipeline verification | You / me | gated on #2 | The old scripts targeted dead routes/tables and now fail closed. Build real verification only after E22 is resolved. |
 | — | **Legal docs (F#10/E10 + Terms/Privacy/IC)** | You / attorney | YES | The June draft is historical, not attorney approval. Final disclaimer/guarantee wording, entity identity, DPO details, and Philippine counsel review remain launch requirements. |
 | — | F#3 / F#4 visual baselines | CI/me | F#3 YES | F#4's 354 admin baselines are done. F#3 still needs the committed 84 Maestro flows captured on a supported simulator/emulator. |
 | — | In-app chat send reliability (§25) | me (v1.1) | no | Mobile real-time client issue; needs device testing. Spec-deferred to v1.1; "Call provider" + photo/dispute flows work. |
 
 ### The short version
 The app still has launch blockers. In addition to the external registrations,
-PayMongo E14 remediation, Sentry and Turnstile production evidence, the
+PayMongo E14 remediation, BIR E22 remediation, Sentry and Turnstile production evidence, the
 F#10/E10 legal review, F#3 native baselines, and the bare-domain TLS
 certificate must be corrected under E17. This status snapshot is historical in
 places and must be read with `LAUNCH-LIMITATIONS.md` and the current escalation

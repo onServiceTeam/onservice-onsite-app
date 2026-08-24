@@ -17,11 +17,15 @@ if [ ! -f .env ]; then
   REDIS_PW=$(openssl rand -hex 24)
   GRAFANA_PW=$(openssl rand -hex 16)
   JWT=$(openssl rand -hex 64)
+  DATA_EXPORT_SECRET=$(openssl rand -hex 64)
+  FEEDBACK_EXPORT_SECRET=$(openssl rand -hex 64)
   TOTP=$(openssl rand -hex 32)
   sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PW}|" .env
   sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=${REDIS_PW}|" .env
   sed -i "s|^GRAFANA_ADMIN_PASSWORD=.*|GRAFANA_ADMIN_PASSWORD=${GRAFANA_PW}|" .env
   sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${JWT}|" .env
+  sed -i "s|^DATA_EXPORT_DOWNLOAD_SECRET=.*|DATA_EXPORT_DOWNLOAD_SECRET=${DATA_EXPORT_SECRET}|" .env
+  sed -i "s|^FEEDBACK_EXPORT_KEY=.*|FEEDBACK_EXPORT_KEY=${FEEDBACK_EXPORT_SECRET}|" .env
   sed -i "s|^TOTP_ENCRYPTION_KEY=.*|TOTP_ENCRYPTION_KEY=${TOTP}|" .env
   sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql://onservice_user:${DB_PW}@pgbouncer:6432/onservice|" .env
   sed -i "s|^DATABASE_DIRECT_URL=.*|DATABASE_DIRECT_URL=postgresql://onservice_user:${DB_PW}@postgres:5432/onservice|" .env
@@ -62,11 +66,17 @@ for i in $(seq 1 40); do
   sleep 3
 done
 
-echo "==> [7/7] Seed catalog + Cebu service areas + demo data"
-for f in packages/api/seeds/*.sql; do
-  echo "    applying $(basename "$f")..."
-  $COMPOSE exec -T postgres psql -v ON_ERROR_STOP=0 -U onservice_user -d onservice < "$f" >/dev/null 2>&1 || echo "      (warning: $(basename "$f") had issues; non-fatal)"
-done
+echo "==> [7/7] Apply explicitly enabled development fixtures"
+mapfile -t SEED_FILES < <(bash scripts/server/list-enabled-seeds.sh .env)
+if [ "${#SEED_FILES[@]}" -eq 0 ]; then
+  echo "    skipped (ENABLE_TEST_FIXTURES is not 1)"
+else
+  echo "    WARNING: development fixture mode is enabled"
+  for f in "${SEED_FILES[@]}"; do
+    echo "    applying $(basename "$f")..."
+    $COMPOSE exec -T postgres psql -v ON_ERROR_STOP=1 -U onservice_user -d onservice < "$f" >/dev/null
+  done
+fi
 
 echo "==> Data plane up. API health:"
 for i in $(seq 1 20); do

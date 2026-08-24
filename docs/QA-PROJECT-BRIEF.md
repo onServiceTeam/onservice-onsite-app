@@ -48,7 +48,7 @@ This is not a light smoke test. We want the kind of rigor that a serious fintech
 - **B2B / business accounts** — companies (condos, offices, hotels) with contracts, negotiated rates, monthly invoicing, and volume discounts.
 
 **Compliance context (Philippines-specific, important):**
-- **Money:** all amounts in centavos; currency is PHP (₱). 12% VAT. **BIR** official receipts must be issued. Payments via **PayMongo** (GCash, Maya, cards, QR Ph). Provider payouts via PayMongo transfers. Customer funds are held in **escrow** and released to the provider only after the job is confirmed complete.
+- **Money:** all amounts in centavos; currency is PHP (₱). The intended external gateway is **PayMongo**, but E14 currently blocks card, GCash, Maya, QR Ph, bank-transfer authorization, and wallet top-up because the old hosted URL is invalid. Existing wallet-balance payment and the internal escrow ledger can be tested with fixtures. E22 holds BIR document issuance until the accountant-approved invoice model and numbering authority are configured. Do not infer that a configured method or screen is live.
 - **Data privacy:** **RA 10173 (Data Privacy Act)** — consent tracking, data-subject rights (export/erase), a Data Protection Officer role, NPC registration.
 - **Time/locale:** all dates anchored to **Asia/Manila** timezone; phone numbers in **+63** format.
 
@@ -64,7 +64,7 @@ Three front-ends + one backend + one database. You do not need to be able to mod
 | **Provider app** | What providers and their staff use (same app, role-gated) | React Native + Expo (iOS, Android, web) | 52 provider/onboarding/staff routes plus the same 8 shared routes |
 | **Admin web app** | Company back office | React + Vite (web browser) | 34 routed page components |
 | **API (backend)** | The "brain" — all logic + money | Node.js + Express + PostgreSQL | 47 route modules |
-| **Database** | All data | PostgreSQL 18 | ~130 migrations |
+| **Database** | All data | PostgreSQL 17 + PostGIS 3.5 in the production Compose stack | 154 append-only migrations |
 | **Supporting services** | Cache, file storage, email, monitoring | Redis, S3/MinIO, MailHog, Prometheus/Grafana | — |
 
 There are also existing **automated tests** you should run, extend, and not break:
@@ -127,7 +127,7 @@ Walk complete real-world journeys across roles, e.g. the core booking lifecycle:
 4. Admin sees the booking, the money math, and the queued payout.
 5. Support handles a dispute or a support ticket on it.
 
-Also test: recurring bookings, change-orders (extra work mid-job), cancellations and refunds at each stage, disputes, B2B contract bookings and monthly invoices, wallet top-up and wallet payment, promos/loyalty/referrals, and provider onboarding from scratch.
+Also test: recurring bookings, change-orders (extra work mid-job), cancellations and refunds at each stage, disputes, B2B contract bookings and internal monthly billing records, existing-balance wallet payment, promos/loyalty/referrals, and provider onboarding from scratch. For E14, verify that external booking payments and wallet top-ups fail closed without creating an attempt; do not perform a gateway payment.
 
 ### 6.3 Money & financial correctness (highest priority)
 This app moves real money. Verify with a calculator:
@@ -135,7 +135,7 @@ This app moves real money. Verify with a calculator:
 - Escrow holds the right amount, and **releases only after confirmation**.
 - **Refunds** at each cancellation stage are correct and not double-paid.
 - **Commission and provider payout** amounts are correct.
-- **VAT (12%)** and **BIR official receipts** are correct and sequential.
+- **VAT (12%)** calculations reconcile in internal workpapers. Verify that BIR document generation is visibly held under E22; do not test or claim an official invoice/receipt sequence until the approved document model is implemented.
 - **Currency rounding** (centavos) never loses or invents money.
 - No way for a customer or provider to manipulate a price client-side.
 - Wallet balance can never go negative or be double-spent.
@@ -220,9 +220,9 @@ So you dig in the right places and don't waste time re-reporting things we alrea
 - **Hourly-priced services** — not supported in v1.0 (fixed-price and quote-based only).
 - **B2B contract pricing** — the engine exists but is **not yet wired into the mobile checkout** (no "book for my company" button yet); it's an opt-in foundation.
 - **Provider onboarding approval is manual** (admin reviews KYC) — by design for launch.
-- **Auto-dispatch** requires vetted providers seeded in the launch city; with demo data, providers are in Cebu.
+- **Auto-dispatch** requires vetted providers in the selected service area. Demo fixtures are local/test-only and must never be treated as marketplace supply on the public server.
 
-**Still-pending launch (operational, non-software) items** — see `docs/runbooks/launch-cutover.md`: NPC DPO registration, BIR Authority-to-Print receipts, DTI permit, PayMongo live-mode keys, production S3/backups/DNS/TLS. The team should be aware these gate launch even when the software is perfect.
+**Still-pending launch items** — see `docs/runbooks/launch-cutover.md`: NPC/DPO work, accountant-approved BIR principal-invoice model and numbering authority, E14 PayMongo authorization replacement, DTI work, BIR immutable archive, production backup/PITR evidence, DNS/TLS, and the remaining sign-offs. Configured keys alone do not close a launch item.
 
 ---
 
@@ -299,7 +299,7 @@ We don't just want a bug list; we want the product to get **better**. Please als
 ## 12. Guardrails (please read)
 
 - **Never test against production or real customer/payment data.** Use the local or staging environment and demo data only.
-- Use **PayMongo test mode** for any payment testing — never real cards or real GCash money.
+- While E14 is open, verify the fail-closed response only. After Ken approves the replacement architecture, use protected **PayMongo test mode** for end-to-end payment testing. Never use real cards, real GCash/Maya money, or the live server for payment integration development.
 - Handle any real or sample **PII** carefully; do not export or share it.
 - **Do not commit secrets** (API keys, passwords) to the repository or share them in tickets.
 - Report **security issues privately** to the founder, not in a public tracker.

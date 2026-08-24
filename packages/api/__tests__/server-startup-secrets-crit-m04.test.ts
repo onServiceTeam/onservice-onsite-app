@@ -3,6 +3,8 @@ import { validateProductionSecrets } from '../src/config/boot-guards';
 const validProductionEnv = (): NodeJS.ProcessEnv => ({
   NODE_ENV: 'production',
   JWT_SECRET: 'j'.repeat(64),
+  DATA_EXPORT_DOWNLOAD_SECRET: 'd'.repeat(64),
+  FEEDBACK_EXPORT_KEY: 'f'.repeat(64),
   TOTP_ENCRYPTION_KEY: 'a'.repeat(64),
   TURNSTILE_SECRET_KEY: 'turnstile-live-secret',
   PAYMONGO_WEBHOOK_SECRET: 'paymongo-webhook-live-secret',
@@ -32,6 +34,8 @@ describe('production startup secrets', () => {
     expect(() => validateProductionSecrets({ ...validProductionEnv(), TOTP_ENCRYPTION_KEY: 'not-hex' }))
       .toThrow(/64 hex/);
     expect(() => validateProductionSecrets({ ...validProductionEnv(), DB_PASSWORD: 'onservice_dev' }))
+      .toThrow(/known dev/);
+    expect(() => validateProductionSecrets({ ...validProductionEnv(), DB_PASSWORD: 'CHANGE_ME_STRONG_PASSWORD' }))
       .toThrow(/known dev/);
     expect(() => validateProductionSecrets({ NODE_ENV: 'test' })).not.toThrow();
   });

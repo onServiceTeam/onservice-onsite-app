@@ -1,6 +1,7 @@
 /**
  * Phase 13 — Shared S3 upload helper for BIR/regulatory PDF artifacts
- * (BIR-2307 batches, official receipts, monthly VAT reports).
+ * (held BIR-2307 workpapers, legacy OR-labelled artifacts, and internal monthly
+ * VAT reconciliation). E22 blocks deployed document writes.
  *
  * Uses @aws-sdk/client-s3 with `ServerSideEncryption: 'AES256'` per
  * platform security baseline. Bucket-level hardening (versioning,

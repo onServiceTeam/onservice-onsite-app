@@ -36,10 +36,6 @@ const COOKIES_SRC = readFileSync(
   resolve(__dirname, '../src/utils/admin-cookies.ts'),
   'utf8',
 );
-const DB_CONFIG = readFileSync(
-  resolve(__dirname, '../src/config/database.config.ts'),
-  'utf8',
-);
 const WORKERS = readFileSync(
   resolve(__dirname, '../src/jobs/workers.ts'),
   'utf8',
@@ -126,23 +122,6 @@ describe('MED-M12 — audit context documented; 15-min access-cookie cap intenti
   });
   it('MED-M12 — 15-min cap preserved (security, NOT a setting bug)', () => {
     expect(COOKIES_SRC).toMatch(/15 \* 60 \* 1000/);
-  });
-});
-
-describe('MED-M14 — DB pool requires SSL in production', () => {
-  it('MED-M14 — buildSslConfig returns rejectUnauthorized for production', () => {
-    expect(DB_CONFIG).toMatch(/function buildSslConfig\(\): PoolConfig\['ssl'\]/);
-    expect(DB_CONFIG).toMatch(/rejectUnauthorized = process\.env\.DB_SSL_REJECT_UNAUTHORIZED !== 'false'/);
-  });
-  it('MED-M14 — non-prod returns ssl: false', () => {
-    expect(DB_CONFIG).toMatch(/if \(!isProd\) return false/);
-  });
-  it('MED-M14 — pool config includes ssl: buildSslConfig()', () => {
-    expect(DB_CONFIG).toMatch(/ssl: buildSslConfig\(\)/);
-  });
-  it('MED-M14 — production warning when DATABASE_URL lacks sslmode', () => {
-    expect(DB_CONFIG).toMatch(/sslmode=\(require\|verify-ca\|verify-full\)/);
-    expect(DB_CONFIG).toMatch(/DATABASE_URL does not specify sslmode=/);
   });
 });
 

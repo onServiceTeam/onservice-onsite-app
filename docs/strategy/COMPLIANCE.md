@@ -6,7 +6,7 @@
 > deadlines, and agency processes can change. A Philippine lawyer, accountant,
 > and privacy professional must verify every applicable item before it becomes
 > an operating instruction. Current product/launch holds include E10/F#10, E14,
-> E16, and the compliance determination for large-payout review. Use
+> E16, E22, and the compliance determination for large-payout review. Use
 > `docs/runbooks/launch-cutover.md` and `docs/operations/10-money-and-compliance-ops.md`
 > for current internal status, without treating either as professional advice.
 
@@ -37,42 +37,47 @@ Plus:
 1. Get a TIN (Tax Identification Number) for the business
 2. Register the business at the RDO (Revenue District Office) covering your principal office
 3. Register your books of accounts (or computerized accounting system)
-4. Get authority to print receipts (sequential OR numbering — Phase 08 implements this)
+4. Obtain the current authority/permit for the accountant-approved principal
+   invoice route. Legacy Phase 08 OR numbering is not an approved series.
 5. Have the accountant determine VAT/non-VAT registration and effective timing
    from the entity's expected and actual activity under current BIR rules. Do
    not assume a status from this planning draft.
 
 ### Ongoing obligations
 
-| Form | Frequency | Description | Due |
-|---|---|---|---|
-| 2550M | Monthly | VAT return | 20th of following month |
-| 1601-EQ | Monthly | Expanded withholding (withheld from providers) | 10th of following month |
-| 1701Q | Quarterly | Income tax return for sole prop / OPC | 60 days after quarter end |
-| 1701 | Annually | Annual income tax return | April 15 |
-| 1604-E | Annually | Alphalist of withholding | January 31 |
-| 2307 | Quarterly | Certificate of withholding to each provider | At quarter end |
+No recurring form table is approved for onService yet. The previous table was
+unsafe: it listed abolished monthly Form 2550M deadlines, treated quarterly
+1601-EQ as monthly, and assumed individual-income-tax Forms 1701/1701Q without
+an approved taxpayer profile. Current BIR material identifies Form 2550Q as
+quarterly and 1601-EQ as quarterly, but applicability still depends on the
+registered entity and transactions. The admin calendar therefore fails closed
+under E22 until the accountant supplies a signed schedule.
 
-The platform automation (Phase 08) generates 2307s, 2550M, and OR records. Annual filings need an accountant.
+Phase 08's 2307, monthly VAT, and OR-labelled records are retained internal
+data, not proof that a return was filed or an invoice was legally issued.
 
 ### Withholding on providers (per RR 16-2023)
 
-You withhold 1% of gross income from each provider once their YTD income from your platform crosses ₱500,000. The withheld amount goes to BIR; you issue Form 2307 to the provider showing the withholding.
+Phase 08 encodes a 1% withholding calculation above a ₱500,000 provider YTD
+threshold as its interpretation of RR 16-2023. Generation is held under E22;
+the accountant must confirm applicability, threshold treatment, tax base, and
+certificate/filing mechanics before use.
 
 **Important:** The mechanic of when exactly to withhold (cumulative threshold vs per-payment threshold) has nuances. The Phase 08 code computes it but Ken's accountant must verify before the first 2307 batch is filed.
 
 ### VAT mechanics
 
-- Your output VAT is 12% of gross sales (the customer pays this; you remit it to BIR monthly)
+- The accountant must identify whose sale is being documented and which amount
+  is onService's VAT base; do not assume the full marketplace service amount.
 - Your input VAT is 12% of qualifying purchases (rent, supplies, professional fees) — credits against output
 - Net VAT payable = output - input
-- Phase 08 generates the monthly VAT report
+- Phase 08 retains an internal monthly reconciliation workpaper. It is not a BIR return.
 
 ### Penalties for getting this wrong
-- Late filing: ₱1,000-25,000 surcharge per form
-- Underpayment: 25% surcharge + 12% interest annually
-- Failure to register: ₱20,000 + criminal liability (in extreme cases)
-- Fake or missing receipts: criminal, ₱100K-500K fine + jail
+
+Tax penalties and enforcement consequences can be financial and criminal. Do
+not rely on historical amounts in a software repository; have Philippine tax
+counsel/accounting identify the current exposure for the actual entity and issue.
 
 **Do not skip BIR. Hire an accountant.**
 
@@ -205,7 +210,7 @@ If Ken is a foreigner (US citizen, etc.) and the business holds title in a Filip
 Mark each as Done / In Progress / Not Started:
 
 - [ ] Business entity registered (DTI or SEC)
-- [ ] BIR registered, RDO assigned, books registered, OR authority issued
+- [ ] BIR registered, RDO assigned, books registered, and the approved principal-invoice authority issued
 - [ ] DPO designated and registered with NPC
 - [ ] Privacy notice published in app
 - [ ] Customer ToS finalized and lawyer-reviewed

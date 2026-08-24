@@ -35,6 +35,12 @@ interface ProviderServiceRow {
   created_at: Date;
 }
 
+interface ActiveSubcategory {
+  id: string;
+  name: string;
+  category_id: string;
+}
+
 interface AvailabilityRow {
   id: string;
   provider_id: string;
@@ -140,9 +146,12 @@ export async function getProviderServices(
   subcategory_name: string;
   subcategory_description: string;
   pricing_type: string;
+  catalog_base_price: number | null;
   hourly_rate: number | null;
   unit_label: string | null;
   unit_price: number | null;
+  min_price: number | null;
+  max_price: number | null;
   category_name: string;
   category_slug: string;
 })[]> {
@@ -150,9 +159,12 @@ export async function getProviderServices(
     subcategory_name: string;
     subcategory_description: string;
     pricing_type: string;
+    catalog_base_price: number | null;
     hourly_rate: number | null;
     unit_label: string | null;
     unit_price: number | null;
+    min_price: number | null;
+    max_price: number | null;
     category_name: string;
     category_slug: string;
   }>(
@@ -163,7 +175,9 @@ export async function getProviderServices(
     // route with and dead-ended on an empty booking form.
     `SELECT ps.*, sc.name as subcategory_name,
             sc.description as subcategory_description, sc.pricing_type,
+            sc.base_price as catalog_base_price,
             sc.hourly_rate, sc.unit_label, sc.unit_price,
+            sc.min_price, sc.max_price,
             c.name as category_name, c.slug as category_slug
      FROM provider_services ps
      JOIN service_subcategories sc ON sc.id = ps.subcategory_id
@@ -175,74 +189,25 @@ export async function getProviderServices(
   return result.rows;
 }
 
-/**
- * Add (or re-add / re-activate) a provider's service offering.
+/** Add a catalog service to a provider profile.
  *
- * Phase 14 Dispatch 05 — Bug 1230. Validates basePrice against
- * subcategory min/max bounds.
- *
- * MED-N23 documentation — UPSERT semantics:
- *   - Insert path (no existing row): basePrice (or NULL) is written.
- *   - Update path (row exists, was deactivated): is_active flips to
- *     TRUE; basePrice behavior:
- *       - basePrice supplied (number) → overwrites the existing
- *         base_price.
- *       - basePrice undefined → KEEPS the existing base_price
- *         (COALESCE($4, provider_services.base_price)).
- *   This means "re-add without passing basePrice" preserves the
- *   provider's previously-saved price. To explicitly clear the
- *   override and revert to the subcategory default, call
- *   updateProviderService(..., {basePrice: null}) instead.
+ * E16 containment deliberately accepts no provider price. A new row stores
+ * NULL, while reactivating an old row preserves its dormant historical value.
+ * Customer/provider responses and booking creation all use catalog pricing.
  */
 export async function addProviderService(
   providerId: string,
   subcategoryId: string,
-  basePrice?: number,
 ): Promise<ProviderServiceRow> {
-  // Phase 14 Dispatch 05 — Bug 1230.
-  // Lookup subcategory bounds (min_price, max_price); reject any
-  // provider-supplied basePrice that falls outside.
-  interface SubcatWithBounds {
-    id: string;
-    name: string;
-    category_id: string;
-    min_price: number | null;
-    max_price: number | null;
-  }
-  const subcat = await db.query<SubcatWithBounds>(
-    `SELECT id, name, category_id, min_price, max_price
-       FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
-    [subcategoryId],
-  );
-  if (subcat.rows.length === 0) throw createAppError('Service subcategory not found or inactive.', 404);
-  const subcatRow = subcat.rows[0]!;
-
-  if (basePrice !== undefined && basePrice !== null) {
-    if (!Number.isInteger(basePrice) || !Number.isFinite(basePrice) || basePrice <= 0) {
-      throw createAppError('basePrice must be a positive integer (centavos).', 400);
-    }
-    const min = subcatRow.min_price !== null ? Number(subcatRow.min_price) : null;
-    const max = subcatRow.max_price !== null ? Number(subcatRow.max_price) : null;
-    if (min !== null && basePrice < min) {
-      throw createAppError(
-        `basePrice ${basePrice} below subcategory minimum (${min}).`,
-        400,
-      );
-    }
-    if (max !== null && basePrice > max) {
-      throw createAppError(
-        `basePrice ${basePrice} above subcategory maximum (${max}).`,
-        400,
-      );
-    }
-  }
+  const subcatRow = await getActiveSubcategory(subcategoryId);
 
   const result = await db.query<ProviderServiceRow>(
     `INSERT INTO provider_services (provider_id, subcategory_id, category_id, base_price)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (provider_id, subcategory_id) DO UPDATE SET is_active = TRUE, base_price = COALESCE($4, provider_services.base_price)
+     VALUES ($1, $2, $3, NULL)
+     ON CONFLICT (provider_id, subcategory_id) DO UPDATE
+     SET is_active = TRUE, base_price = provider_services.base_price
      RETURNING *`,
-    [providerId, subcategoryId, subcatRow.category_id, basePrice ?? null],
+    [providerId, subcategoryId, subcatRow.category_id],
   );
 
   logger.info('Provider service added', { providerId, subcategoryId });
@@ -500,9 +465,12 @@ export function formatProviderService(
     subcategory_name?: string;
     subcategory_description?: string;
     pricing_type?: string;
+    catalog_base_price?: number | null;
     hourly_rate?: number | null;
     unit_label?: string | null;
     unit_price?: number | null;
+    min_price?: number | null;
+    max_price?: number | null;
     category_name?: string;
     category_slug?: string;
   },
@@ -517,11 +485,18 @@ export function formatProviderService(
     hourlyRate: ps.hourly_rate != null ? Number(ps.hourly_rate) : null,
     unitLabel: ps.unit_label ?? null,
     unitPrice: ps.unit_price != null ? Number(ps.unit_price) : null,
+    minPrice: ps.min_price != null ? Number(ps.min_price) : null,
+    maxPrice: ps.max_price != null ? Number(ps.max_price) : null,
     // Phase 200 — category context so the customer app can book this service.
     categoryId: ps.category_id ?? null,
     categoryName: ps.category_name ?? null,
     categorySlug: ps.category_slug ?? null,
-    basePrice: ps.base_price != null ? Number(ps.base_price) : null,
+    // E16 containment: fixed-price cards and booking creation use the same
+    // catalog source. Preserve provider_services.base_price in storage, but do
+    // not expose it as a customer price until the product policy is resolved.
+    basePrice: ps.pricing_type === 'fixed' && ps.catalog_base_price != null
+      ? Number(ps.catalog_base_price)
+      : null,
     isActive: ps.is_active,
   };
 }
@@ -694,6 +669,16 @@ export async function getPublicCertifications(providerId: string): Promise<Certi
     [providerId],
   );
   return result.rows;
+}
+
+async function getActiveSubcategory(subcategoryId: string): Promise<ActiveSubcategory> {
+  const subcat = await db.query<ActiveSubcategory>(
+    `SELECT id, name, category_id
+       FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
+    [subcategoryId],
+  );
+  if (subcat.rows.length === 0) throw createAppError('Service subcategory not found or inactive.', 404);
+  return subcat.rows[0]!;
 }
 
 export async function addCertification(

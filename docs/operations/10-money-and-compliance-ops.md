@@ -52,7 +52,7 @@ Other fees on top of the service price:
 
 - Service fee: currently 0% with a ₱0 floor (Ken, 2026-06-28; migration 137). New bookings therefore use `total_amount = service_price` unless another approved charge applies. The setting remains admin-tunable; re-enabling it changes customer totals and requires Ken's approval plus money-path testing.
 - Guarantee-fund contribution: the release path calculates 1.5% of the service fee and carves it out of platform revenue. At the current zero customer service fee, that contribution is zero. Guarantee wording and claim terms remain subject to E10/F#10 and must not be invented from this accounting rule.
-- VAT: 12%, used for invoicing and official receipts, not deducted in the escrow split.
+- VAT: 12%, used in internal invoice/tax workpapers, not deducted in the escrow split. E22 holds customer tax-document issuance until the principal-invoice design is approved.
 
 The pricing preview and escrow release use different meanings for a field named
 `platformRetains`, but the money-conservation tests show the live release path
@@ -144,29 +144,53 @@ Run reconciliation at least weekly during launch, then settle into the month-end
 
 ---
 
-## 7. BIR: registration, receipts, invoicing
+## 7. BIR: registration, invoicing, and filing hold
 
-We register and remit as a VAT taxpayer (projected gross sales over ₱3M/yr means VAT from day one).
+**Compliance hold E22 is active.** The repository does not establish the
+company's final taxpayer/entity profile, approved principal document, seller
+and tax basis, authorized serial model, cancellation mechanism, or recurring
+filing schedule. A Philippine accountant must approve those items before the
+app may generate or finalize BIR-labelled documents.
 
 Launch-cutover Item 2 (Ken / accountant):
 
-- [ ] File BIR Form 1906 (Authority to Print) for official receipts.
-- [ ] Serial range from `0000001`, quantity about 50,000. ATP fee about ₱500.
-- [ ] Configure production env: `BIR_OR_SERIES_PREFIX=ONS`, plus START and END of the serial range.
+- [ ] Provide the real entity registration, BIR certificate, books/CAS status,
+      and marketplace money flow to the accountant.
+- [ ] Approve in writing: VAT/non-VAT status, principal invoice type, seller
+      and tax basis, ATP/CAS/e-invoicing route, required fields, authorized
+      serial range/reset rules, cancellation/credit treatment, retention, and
+      every applicable return/deadline.
+- [ ] File the current authority/permit required for that approved route.
+- [ ] Keep `BIR_DOCUMENT_ISSUANCE_ENABLED=0`. Closing E22 requires the approved
+      tax design and a reviewed code change; an environment value alone cannot
+      authorize issuance, and the server rejects deployed writes with 503.
 
-How receipts work in the app: on escrow release we issue an official receipt (best-effort) with a sequential OR number. The PDF is stored to the BIR S3 bucket. VAT is 12%. Reconciliation check: VAT should equal `sum(OR) x 12/112`.
+The current `official_receipts` table and `OR-YYYY-MM-######` identifiers are
+legacy accounting records. They are retained for audit history but are not
+represented as authorized principal invoices. The former `BIR_OR_SERIES_*`
+environment variables were never connected to runtime code and are removed.
 
-Admin Financials -> BIR Reports (super_admin):
+Admin Financials -> Tax Workpapers (Held):
 
-- Monthly VAT (Form 2550M): Generate, review, then Finalize.
-- Quarterly 2307 withholding batches: Generate and view the per-provider list.
-- PDF downloads available.
+- Monthly VAT rows are internal reconciliation workpapers, not Form 2550M or
+  another tax return. BIR stopped requiring monthly 2550M declarations for
+  transactions beginning January 1, 2023; the accountant must approve the
+  current 2550Q filing and tax basis.
+- Retained 2307 batch data may be viewed, but generation remains held until the
+  accountant approves the withholding interpretation and provider cases.
+- Historical PDFs may be viewed as audit evidence but must not be presented as
+  proof of BIR-authorized invoicing or filing.
 
 Provider withholding: once a provider's year-to-date platform income crosses ₱500,000, we withhold 1% (RR 16-2023) and issue Form 2307 to that provider.
 
 > **Set (editable):** collect a provider's TIN before their first payout (not required at application), and confirm it is on file before the provider's YTD platform income reaches ₱500,000 for BIR withholding. _Recommended default. To change it, edit here and anywhere this value is referenced._ See `05-provider-onboarding-sop.md`.
 
-Records retention: BIR-required financial records (official receipts) are kept 10 years. The S3 bucket `onservice-bir-receipts-prod` uses Object Lock with a 10-year default retention (launch-cutover Item 8), so receipts cannot be deleted or altered, even by us. This also means a customer "delete my account" request removes personal identifiers but keeps the financial receipts (see section 8).
+Records retention: preserve financial transaction evidence and legacy sales
+documents while E22 is resolved. The final legal retention period, immutable
+archive design, and permitted treatment during a data-erasure request must be
+approved by the accountant/DPO and evidenced under launch-cutover Item 8. Do
+not claim the currently proposed S3/Object-Lock design is active until its
+verifier passes.
 
 > **Set (editable):** BIR registration, RDO, books of account, ATP filing, VAT returns, and the 2307 mechanics are set up and reviewed by a PH accountant. The app generates the numbers; the accountant owns filing and correctness. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
@@ -232,11 +256,15 @@ Run this in the first 3 business days of each month for the prior month. Owner: 
 - [ ] Review escrow aging buckets (Financials -> Escrow). Investigate anything stuck in 48h+ or 168h+. These are usually suspended-provider holds or failed releases.
 - [ ] Clear the `gateway_retry_queue` backlog (failed refunds/releases). Confirm none are silently stuck.
 - [ ] Review failed payouts (Financials -> Payouts). Re-issue or refund as needed.
-- [ ] Generate and Finalize the monthly VAT 2550M report (super_admin). Hand to the accountant.
-- [ ] Generate the quarterly 2307 withholding batch when the quarter closes; verify per-provider amounts.
-- [ ] Confirm VAT reconciliation: `sum(OR) x 12/112` matches the VAT report.
+- [ ] Export the prior month's internal VAT reconciliation workpaper for the
+      accountant. Do not generate/finalize a BIR return in the app while E22 is open.
+- [ ] When a quarter closes, have the accountant determine and file the current
+      applicable VAT/withholding forms; retained 2307 generation remains held.
+- [ ] Reconcile recorded sales, platform revenue, provider amounts, output VAT,
+      input VAT, cancellations, and gateway settlement using the accountant-approved tax basis.
 - [ ] Check the guarantee fund balance and runway (Financials -> Guarantee Fund). If the replenishment warning is on, escalate to Ken.
-- [ ] Confirm the BIR receipt S3 bucket is writing (no gap in OR sequence).
+- [ ] Confirm financial evidence backups are current. Do not use legacy OR
+      sequence continuity as proof of an authorized invoice series.
 - [ ] Review any internally held payouts; clear, reject, or escalate with written evidence.
 - [ ] Confirm the DSR queue is clear of overdue items.
 

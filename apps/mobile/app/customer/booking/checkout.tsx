@@ -27,30 +27,35 @@ interface PaymentOption {
   label: string;
   icon: IconComponent;
   description: string;
+  available: boolean;
 }
 
 const PAYMENT_METHODS: PaymentOption[] = [
-  { id: 'gcash', label: 'GCash', icon: Smartphone, description: 'Pay with GCash e-wallet' },
-  { id: 'maya', label: 'Maya', icon: Smartphone, description: 'Pay with Maya e-wallet' },
-  { id: 'card', label: 'Credit/Debit Card', icon: CreditCard, description: 'Visa, Mastercard' },
-  { id: 'wallet', label: 'Wallet Balance', icon: Wallet, description: 'Pay from your onService wallet' },
-  { id: 'qrph', label: 'QR Ph', icon: ScanLine, description: 'Scan to pay via QR Ph' },
+  { id: 'gcash', label: 'GCash', icon: Smartphone, description: 'Temporarily unavailable', available: false },
+  { id: 'maya', label: 'Maya', icon: Smartphone, description: 'Temporarily unavailable', available: false },
+  { id: 'card', label: 'Credit/Debit Card', icon: CreditCard, description: 'Temporarily unavailable', available: false },
+  { id: 'wallet', label: 'Wallet Balance', icon: Wallet, description: 'Pay from your existing onService balance', available: true },
+  { id: 'qrph', label: 'QR Ph', icon: ScanLine, description: 'Temporarily unavailable', available: false },
 ];
 
 export default function CheckoutScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { draft, serviceFee, total, addonsTotal, setPaymentMethod, reset } = useBookingStore();
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(draft.paymentMethod);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
+    draft.paymentMethod === 'wallet' ? 'wallet' : null,
+  );
   const [loading, setLoading] = useState(false);
   // B2 — inline field error for the payment-method picker (was a modal alert).
   const [methodError, setMethodError] = useState<string | null>(null);
-  // Phase 200 — know the wallet balance so we can stop a wallet payment that
-  // would fail server-side (insufficient funds) and point the customer to
-  // top up, instead of creating the booking and then hitting a raw error.
+  // Know the wallet balance so we can stop a wallet payment that would fail
+  // server-side before creating the booking.
   const walletQuery = useQuery({ queryKey: ['wallet'], queryFn: getWalletBalance, staleTime: 30_000 });
   const walletBalance = walletQuery.data?.availableBalance ?? 0;
-  const walletShort = selectedMethod === 'wallet' && walletBalance < total;
+  const walletSelected = selectedMethod === 'wallet';
+  const walletShort = walletSelected && walletQuery.isSuccess && walletBalance < total;
+  const walletUnavailable = walletSelected && walletQuery.isError;
+  const walletChecking = walletSelected && walletQuery.isPending;
   // Phase 200 — dedupe protection: once the booking is created, remember its
   // id so a retry after a payment-intent failure re-uses it instead of
   // creating a second booking. Cleared once we successfully navigate away.
@@ -75,14 +80,15 @@ export default function CheckoutScreen(): React.ReactElement {
       showToast('Booking details are incomplete. Please go back and complete all fields.', 'error');
       return;
     }
+    if (selectedMethod === 'wallet' && !walletQuery.isSuccess) {
+      showToast('We could not verify your wallet balance. Please wait a moment and try again.', 'warning');
+      return;
+    }
     if (selectedMethod === 'wallet' && walletBalance < total) {
       Alert.alert(
-        'Insufficient wallet balance',
-        'Your wallet balance is lower than the total. Top up your wallet or choose another payment method.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Top Up', onPress: () => router.push(Routes.CUSTOMER.WALLET) },
-        ],
+        'Payment unavailable',
+        'Your wallet balance is lower than the total, and external payments and wallet top-ups are temporarily unavailable. No booking or payment was created.',
+        [{ text: 'OK' }],
       );
       return;
     }
@@ -214,6 +220,12 @@ export default function CheckoutScreen(): React.ReactElement {
         <Text style={[styles.sectionTitle, methodError ? styles.sectionTitleError : null]}>
           Choose Payment Method
         </Text>
+        <View style={styles.paymentHoldNotice} accessibilityRole="alert">
+          <Text style={styles.paymentHoldTitle}>External payments temporarily unavailable</Text>
+          <Text style={styles.paymentHoldText}>
+            Card, GCash, Maya, and QR Ph are paused while we correct the payment authorization flow. No external payment will be created. You can still use an existing wallet balance.
+          </Text>
+        </View>
         {methodError ? (
           <Text
             style={styles.fieldError}
@@ -228,8 +240,14 @@ export default function CheckoutScreen(): React.ReactElement {
           return (
             <TouchableOpacity
               key={method.id}
-              style={[styles.methodCard, selectedMethod === method.id && styles.methodSelected]}
+              style={[
+                styles.methodCard,
+                selectedMethod === method.id && styles.methodSelected,
+                !method.available && styles.methodUnavailable,
+              ]}
               onPress={() => handleMethodSelect(method.id)}
+              disabled={!method.available}
+              accessibilityState={{ disabled: !method.available, selected: selectedMethod === method.id }}
               activeOpacity={0.7}
             >
               <View style={styles.methodIconWrap}><MIcon size={24} color={colors.primary} /></View>
@@ -337,14 +355,18 @@ export default function CheckoutScreen(): React.ReactElement {
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
         {walletShort && (
           <Text style={styles.walletShortHint}>
-            Wallet balance ({formatPHP(walletBalance)}) is below the total. Top up or pick another method.
+            Wallet balance ({formatPHP(walletBalance)}) is below the total. External payments and wallet top-ups are temporarily unavailable.
           </Text>
         )}
+        {walletChecking ? <Text style={styles.walletShortHint}>Checking your wallet balance…</Text> : null}
+        {walletUnavailable ? (
+          <Text style={styles.walletShortHint}>We could not verify your wallet balance. Please try again.</Text>
+        ) : null}
         <Button
           title={loading ? 'Processing...' : `Pay ${formatPHP(total)}`}
           onPress={handlePay}
           loading={loading}
-          disabled={!selectedMethod || loading}
+          disabled={!selectedMethod || loading || walletShort || walletChecking || walletUnavailable}
         />
       </View>
     </View>
@@ -407,11 +429,22 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     backgroundColor: colors.primaryLight,
   },
+  methodUnavailable: { opacity: 0.55 },
   methodIcon: { fontSize: 24, marginRight: spacing.md },
   methodIconWrap: { marginRight: spacing.md, width: 28, alignItems: 'center' as const },
   methodInfo: { flex: 1 },
   methodLabel: { ...typography.body, fontWeight: '600', color: colors.text },
   methodDesc: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  paymentHoldNotice: {
+    backgroundColor: colors.warningLight,
+    borderColor: colors.warning,
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  paymentHoldTitle: { ...typography.bodySmall, color: colors.text, fontWeight: '700' },
+  paymentHoldText: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 18 },
   radio: {
     width: 22,
     height: 22,

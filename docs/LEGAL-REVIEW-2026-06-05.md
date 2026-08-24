@@ -20,7 +20,8 @@ attorney-approved or as a promised insurance/guarantee benefit.
 Expanded from 8 thin sections to a complete 20-section agreement:
 acceptance/eligibility (18+, e-contract under RA 8792), marketplace-only status
 + independent-contractor relationship, accounts, cancellation (live policy),
-bookings/pricing/fees (VAT, BIR receipts), escrow, dispute resolution, **§8
+bookings/pricing/fees (the June draft's VAT/BIR receipt promise is now removed
+under E22), escrow, dispute resolution, **§8
 Platform Protections — No Insurance (finalized, see below)**, user conduct,
 provider obligations, **disclaimer of warranties**, **limitation of liability**
 (capped at service fees / escrow held), **indemnification**, intellectual
@@ -56,7 +57,7 @@ final legal conclusion or authority to advertise a protection limit.
 - **RA 7394** — Consumer Act (non-waivable consumer rights preserved).
 - **RA 8792** — E-Commerce Act (electronic contracts enforceable).
 - **Civil Code** — independent-contractor relationship, obligations, indemnity.
-- **BIR** rules — VAT, official receipts, 10-year financial-record retention.
+- **BIR** rules — VAT, principal-invoice/document requirements, numbering authority, and financial-record retention. The June draft's “official receipt” wording is superseded by E22 and requires accountant/counsel review against current BIR rules before issuance is enabled.
 
 ## Human work still required before launch
 1. **Entity & DPO details.** The Terms/Privacy use `ENTITY = 'onService PH'` and
@@ -71,3 +72,10 @@ final legal conclusion or authority to advertise a protection limit.
 
 The June changes passed the then-current legal-screen tests. Those tests prove
 rendering and consistency only; they do not prove legal sufficiency.
+
+On 2026-08-24, safe operational corrections removed promises that the app was
+currently issuing authorized BIR Official Receipts or accepting external
+PayMongo payments. The screen now states the E22/E14 holds and describes the
+implemented deletion cooling-off/anonymization behavior without claiming
+complete physical erasure. This was not attorney approval; E10/F#10, E21, and
+E22 remain open.

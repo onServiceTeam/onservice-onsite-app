@@ -890,8 +890,8 @@ interface BatchRow {
 
 /**
  * Tab 7 — BIR reports overview for one tax year (defaults to the current
- * year). Returns: monthly VAT 2550M-equivalent rows, a per-quarter rollup
- * of 2307 batches issued for that year, and an annual summary derived from
+ * year). Returns: internal monthly VAT reconciliation rows, a per-quarter
+ * rollup of retained 2307 batch records, and an annual summary derived from
  * the same monthly rows so we don't issue an extra query. Both Phase-08
  * tables are guarded.
  */

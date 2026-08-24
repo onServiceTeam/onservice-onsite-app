@@ -5,6 +5,28 @@
 // which binds a port and opens DB/Redis connections on import and therefore
 // can't be unit-tested cleanly. server.ts calls these during boot.
 
+const privateExportPlaceholderMarkers = [
+  /dev-only/i,
+  /change[-_ ]?me/i,
+  /change[-_ ]?this/i,
+  /not[-_ ]?for[-_ ]?prod/i,
+  /xxxxxxxx/i,
+  /x{8,}/,
+];
+
+/**
+ * Export links expose private customer or tester records, including on public
+ * staging hosts where NODE_ENV is not production. Their shared keys must be
+ * independently strong at runtime, not merely present.
+ */
+export function isPrivateExportSecretUsable(value: string | undefined): value is string {
+  return Boolean(
+    value
+      && value.length >= 32
+      && !privateExportPlaceholderMarkers.some((pattern) => pattern.test(value)),
+  );
+}
+
 /**
  * True when ADMIN_DISABLE_2FA is set to a recognized truthy value.
  *
@@ -53,6 +75,8 @@ export function validateProductionSecrets(env: NodeJS.ProcessEnv = process.env):
 
   const required: Record<string, string | undefined> = {
     JWT_SECRET: env.JWT_SECRET,
+    DATA_EXPORT_DOWNLOAD_SECRET: env.DATA_EXPORT_DOWNLOAD_SECRET,
+    FEEDBACK_EXPORT_KEY: env.FEEDBACK_EXPORT_KEY,
     TOTP_ENCRYPTION_KEY: env.TOTP_ENCRYPTION_KEY,
     TURNSTILE_SECRET_KEY: env.TURNSTILE_SECRET_KEY || env.CAPTCHA_SECRET_KEY,
     PAYMONGO_WEBHOOK_SECRET: env.PAYMONGO_WEBHOOK_SECRET,
@@ -73,7 +97,7 @@ export function validateProductionSecrets(env: NodeJS.ProcessEnv = process.env):
     'whsk_xxxxxxxxxxxx',
     'onservice_dev',
   ]);
-  const placeholderMarkers = [/dev-only/i, /change-me/i, /change-this/i, /not-for-prod/i, /xxxxxxxx/i, /x{8,}/];
+  const placeholderMarkers = privateExportPlaceholderMarkers;
   for (const [key, value] of Object.entries(required)) {
     if (!value) continue;
     if (devDefaults.has(value) || placeholderMarkers.some((pattern) => pattern.test(value))) {
@@ -83,6 +107,12 @@ export function validateProductionSecrets(env: NodeJS.ProcessEnv = process.env):
 
   if (env.JWT_SECRET && env.JWT_SECRET.length < 32) {
     problems.push('JWT_SECRET must be at least 32 characters');
+  }
+  if (env.DATA_EXPORT_DOWNLOAD_SECRET && env.DATA_EXPORT_DOWNLOAD_SECRET.length < 32) {
+    problems.push('DATA_EXPORT_DOWNLOAD_SECRET must be at least 32 characters');
+  }
+  if (env.FEEDBACK_EXPORT_KEY && env.FEEDBACK_EXPORT_KEY.length < 32) {
+    problems.push('FEEDBACK_EXPORT_KEY must be at least 32 characters');
   }
   if (env.TOTP_ENCRYPTION_KEY && !/^[0-9a-fA-F]{64}$/.test(env.TOTP_ENCRYPTION_KEY)) {
     problems.push('TOTP_ENCRYPTION_KEY must be exactly 64 hex characters');

@@ -31,7 +31,17 @@ export interface ProviderServiceItem {
   providerId: string;
   subcategoryId: string;
   subcategoryName: string;
+  description?: string;
+  pricingType?: 'fixed' | 'hourly' | 'per_unit' | 'range' | 'quote' | string;
   basePrice: number | null;
+  hourlyRate?: number | null;
+  unitLabel?: string | null;
+  unitPrice?: number | null;
+  minPrice?: number | null;
+  maxPrice?: number | null;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  categorySlug?: string | null;
   isActive: boolean;
 }
 

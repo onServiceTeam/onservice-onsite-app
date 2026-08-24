@@ -6,7 +6,7 @@ server time) writes two files per night to `/opt/onservice/backups/`:
 - `onservice-<TS>.sql.gz` — full database dump
 - `uploads-<TS>.tgz` — all uploaded files (booking photos + KYC docs)
 
-7 days of each are kept. This is **daily** backup: worst-case data loss is the
+14 days of each are kept. This is **daily** backup: worst-case data loss is the
 hours since the last 02:00 run. (Continuous point-in-time recovery is a later
 upgrade — see "Upgrade to PITR" below.)
 

@@ -12,7 +12,7 @@ jest.mock('../src/services/upload.service', () => ({
 import { createDataExportDownloadLink, getDataExportDownload } from '../src/services/data-management.service';
 
 it('BUG-UX-174 — an authorized export download uses a short-lived token and keeps the storage key private', async () => {
-  process.env.JWT_SECRET = 'test-export-secret-at-least-32-characters';
+  process.env.DATA_EXPORT_DOWNLOAD_SECRET = 'test-export-secret-at-least-32-characters';
   const row = {
     id: 'export-1', user_id: 'customer-1', status: 'completed', format: 'json',
     file_url: 'private-artifacts/data-exports/customer-1/export-1.json', file_size_bytes: 100,

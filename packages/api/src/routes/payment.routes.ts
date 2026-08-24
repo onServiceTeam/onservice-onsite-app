@@ -10,6 +10,7 @@ import * as bookingOfferService from '../services/booking-offer.service';
 import { createAppError } from '../middleware/error.middleware';
 import { canTransition, BookingStatus } from '../types/booking.types';
 import { db } from '../models/db';
+import { assertExternalPaymentAuthorizationEnabled } from '../services/external-payment-hold.service';
 
 const router = Router();
 
@@ -22,12 +23,89 @@ router.post(
       const { bookingId, paymentMethod } = req.body;
       const userId = req.user!.userId;
 
+      if (paymentMethod === 'wallet') {
+        // OPS-212: lock and re-read the booking inside the same transaction as
+        // every money write. The previous route created the payment intent and
+        // set payment_pending before opening the transaction. A failed debit
+        // therefore left an orphan intent and a stuck booking, while two taps
+        // could race. The booking row lock now serializes retries and all local
+        // wallet/escrow state commits or rolls back together.
+        const intent = await db.transaction(async (client) => {
+          const bookingResult = await client.query<{
+            customer_id: string;
+            status: string;
+            total_amount: string;
+          }>(
+            `SELECT customer_id, status, total_amount
+               FROM bookings
+              WHERE id = $1
+              FOR UPDATE`,
+            [bookingId],
+          );
+          const booking = bookingResult.rows[0];
+          if (!booking) throw createAppError('Booking not found.', 404);
+          if (booking.customer_id !== userId) {
+            throw createAppError('Only the booking customer can create a payment intent.', 403);
+          }
+          if (!canTransition(booking.status as BookingStatus, 'payment_pending')) {
+            throw createAppError(`Cannot pay for a booking in "${booking.status}" status.`, 409);
+          }
+
+          const amount = Number(booking.total_amount);
+          const customerWallet = await walletService.getUserWalletInTransaction(client, userId, 'customer');
+          const walletIntent = await paymentService.createWalletPaymentIntentInTransaction(client, bookingId, amount);
+
+          await walletService.debitWalletInTransaction(
+            client,
+            customerWallet.id,
+            amount,
+            'payment',
+            `Payment for booking`,
+            bookingId,
+          );
+          await client.query(
+            `UPDATE payment_intents SET status = 'succeeded', updated_at = NOW() WHERE id = $1`,
+            [walletIntent.id],
+          );
+          await client.query(
+            `UPDATE bookings
+                SET status = 'paid', escrow_status = 'held', payment_method = 'wallet',
+                    payment_intent_id = $1, updated_at = NOW()
+              WHERE id = $2`,
+            [walletIntent.id, bookingId],
+          );
+          await escrowService.holdInEscrowInTransaction(
+            client,
+            bookingId,
+            amount,
+          );
+          return { ...walletIntent, status: 'succeeded' };
+        });
+
+        // Instant-pay: now that the booking is paid, make sure it is being
+        // offered to a provider (no-op if one is already assigned/pending).
+        await bookingOfferService.dispatchPaidBookingIfNeeded(bookingId);
+
+        res.status(201).json({
+          success: true,
+          data: {
+            ...paymentService.formatPaymentIntent(intent),
+            message: 'Payment completed via wallet balance.',
+          },
+        });
+        return;
+      }
+
+      // E14: the old non-wallet path invents a PayMongo hosted URL. Fail
+      // before reading the booking or creating a gateway/local intent unless a
+      // separately approved replacement flow is deliberately enabled.
+      assertExternalPaymentAuthorizationEnabled();
+
       const booking = await bookingService.getBookingByIdAdmin(bookingId);
       if (!booking) throw createAppError('Booking not found.', 404);
       if (booking.customer_id !== userId) {
         throw createAppError('Only the booking customer can create a payment intent.', 403);
       }
-
       if (!canTransition(booking.status as BookingStatus, 'payment_pending')) {
         throw createAppError(`Cannot pay for a booking in "${booking.status}" status.`, 409);
       }
@@ -43,59 +121,6 @@ router.post(
         `UPDATE bookings SET status = 'payment_pending', payment_method = $1, payment_intent_id = $2, updated_at = NOW() WHERE id = $3`,
         [paymentMethod, intent.paymongo_intent_id, bookingId],
       );
-
-      if (paymentMethod === 'wallet') {
-        // MED-N158 fix — pre-fix this path ran 4 separate operations
-        // (debit wallet, update payment status, UPDATE booking, hold
-        // escrow) as independent db.query calls. ANY failure mid-way
-        // left money in a broken state — wallet debited but no
-        // payment record, or payment marked succeeded but escrow not
-        // funded. Post-fix: all 4 writes share ONE db.transaction
-        // client. Either the customer's payment is fully accepted
-        // (debit + payment + booking + escrow ALL succeed) or NONE
-        // happens and the customer can retry.
-        const customerWallet = await walletService.getUserWallet(userId, 'customer');
-        await db.transaction(async (client) => {
-          // 1. Debit customer wallet (fails fast if insufficient).
-          await walletService.debitWalletInTransaction(
-            client,
-            customerWallet.id,
-            Number(booking.total_amount),
-            'payment',
-            `Payment for booking`,
-            bookingId,
-          );
-          // 2. Mark payment intent succeeded.
-          await client.query(
-            `UPDATE payment_intents SET status = 'succeeded', updated_at = NOW() WHERE id = $1`,
-            [intent.id],
-          );
-          // 3. Flip booking to paid + held.
-          await client.query(
-            `UPDATE bookings SET status = 'paid', escrow_status = 'held', updated_at = NOW() WHERE id = $1`,
-            [bookingId],
-          );
-          // 4. Hold the funds in the platform escrow wallet.
-          await escrowService.holdInEscrowInTransaction(
-            client,
-            bookingId,
-            Number(booking.total_amount),
-          );
-        });
-
-        // Instant-pay: now that the booking is paid, make sure it is being
-        // offered to a provider (no-op if one is already assigned/pending).
-        await bookingOfferService.dispatchPaidBookingIfNeeded(bookingId);
-
-        res.status(201).json({
-          success: true,
-          data: {
-            ...paymentService.formatPaymentIntent({ ...intent, status: 'succeeded' }),
-            message: 'Payment completed via wallet balance.',
-          },
-        });
-        return;
-      }
 
       res.status(201).json({
         success: true,

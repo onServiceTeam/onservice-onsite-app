@@ -43,6 +43,12 @@ interface AggregatedRating {
   totalReviews: number;
 }
 
+function demoReviewExclusion(alias = ''): string {
+  return process.env.ENABLE_TEST_FIXTURES === '1'
+    ? ''
+    : ` AND ${alias}comment NOT LIKE '[demo]%'`;
+}
+
 interface CountRow { count: string }
 
 interface BookingContextRow {
@@ -266,11 +272,11 @@ export async function getReviewsByProvider(
 
   const [countRes, dataRes, aggRes] = await Promise.all([
     db.query<CountRow>(
-      `SELECT COUNT(*)::text as count FROM reviews WHERE provider_id = $1 AND is_visible = TRUE`,
+      `SELECT COUNT(*)::text as count FROM reviews WHERE provider_id = $1 AND is_visible = TRUE${demoReviewExclusion()}`,
       [providerId],
     ),
     db.query<ReviewRow>(
-      `SELECT * FROM reviews WHERE provider_id = $1 AND is_visible = TRUE
+      `SELECT * FROM reviews WHERE provider_id = $1 AND is_visible = TRUE${demoReviewExclusion()}
        ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
       [providerId, pageSize, offset],
     ),
@@ -321,7 +327,7 @@ export async function getProviderAggregateRating(providerId: string): Promise<Ag
        AVG(value_rating) as value,
        COUNT(*)::text as total_reviews
      FROM reviews
-     WHERE provider_id = $1 AND is_visible = TRUE`,
+     WHERE provider_id = $1 AND is_visible = TRUE${demoReviewExclusion()}`,
     [providerId],
   );
 
@@ -344,7 +350,7 @@ async function updateProviderAggregateRating(
   interface AvgRow { avg_rating: string }
   const result = await client.query<AvgRow>(
     `SELECT COALESCE(AVG(rating), 0)::numeric(3,2) as avg_rating
-     FROM reviews WHERE provider_id = $1 AND is_visible = TRUE`,
+     FROM reviews WHERE provider_id = $1 AND is_visible = TRUE${demoReviewExclusion()}`,
     [providerId],
   );
 

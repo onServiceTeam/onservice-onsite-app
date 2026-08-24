@@ -1,35 +1,16 @@
 #!/usr/bin/env bash
-# Phase 14 Dispatch 14 — Item 2 verification: BIR OR series allocation.
+# Phase 14 Dispatch 14 — Item 2 verification: BIR invoice authority + series.
 #
-# Verifies the BIR_OR_SERIES_* env vars are set in the active shell. To run
-# against production, source the production env file first:
-#   set -a; source .env.production; set +a; bash scripts/verify-bir-or-series.sh
+# OPS-205: this verifier deliberately fails closed. The prior version checked
+# three environment variables that no application code reads and could report
+# success without proving that the generated document used an authorized
+# series. See E22 before implementing a replacement.
 
 set -euo pipefail
 
-fail=0
-
-for var in BIR_OR_SERIES_PREFIX BIR_OR_SERIES_START BIR_OR_SERIES_END; do
-  if [ -z "${!var:-}" ]; then
-    echo "FAIL: $var missing"
-    fail=1
-  fi
-done
-
-if [ "$fail" -eq 1 ]; then
-  echo
-  echo "Set these in .env.production after BIR ATP is allocated. See"
-  echo "docs/runbooks/launch-cutover.md Item 2."
-  exit 1
-fi
-
-echo "OK: BIR OR series configured"
-echo "  Prefix: $BIR_OR_SERIES_PREFIX"
-echo "  Range:  $BIR_OR_SERIES_START .. $BIR_OR_SERIES_END"
-
-# Optional: hit the next-or-number endpoint when API is up
-if [ -n "${API_BASE_URL:-}" ]; then
-  if NEXT=$(curl -fsS "$API_BASE_URL/internal/bir/next-or-number" 2>/dev/null); then
-    echo "  Next OR to issue: $NEXT"
-  fi
-fi
+echo "FAIL: BIR invoice authority/series is not wired to the application."
+echo "The previous BIR_OR_SERIES_* variables were dead configuration and the"
+echo "application currently generates its own monthly OR-YYYY-MM-###### sequence."
+echo "Resolve .ai-coder/escalations/E22-bir-invoice-numbering-and-fake-verifiers-2026-08-24.md"
+echo "with the Philippine accountant/tax counsel before this item can pass."
+exit 1

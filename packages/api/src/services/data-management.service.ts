@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 import { neutralizeCsvFormula } from '../utils/csv';
 import * as uploadService from './upload.service';
+import { isPrivateExportSecretUsable } from '../config/boot-guards';
 
 // --- Interfaces ---
 
@@ -80,8 +81,10 @@ export async function getDataExportStatus(
 }
 
 function getExportDownloadSecret(): string {
-  const secret = process.env.DATA_EXPORT_DOWNLOAD_SECRET || process.env.JWT_SECRET;
-  if (!secret) throw createAppError('Data export downloads are not configured.', 503);
+  const secret = process.env.DATA_EXPORT_DOWNLOAD_SECRET;
+  if (!isPrivateExportSecretUsable(secret)) {
+    throw createAppError('Data export downloads are not securely configured.', 503);
+  }
   return secret;
 }
 

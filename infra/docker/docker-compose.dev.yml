@@ -5,7 +5,7 @@ name: onservice-dev
 # Per Phase 14 Dispatch 0.5 (PR #4). Replaces the cloud-staging dependency
 # for ~80% of testing scenarios:
 #
-#   - PostgreSQL 18 + PostGIS  (matches CI fixture postgis/postgis:18-3.5)
+#   - PostgreSQL 17 + PostGIS 3.5 (same pinned image as production)
 #   - Redis 8 alpine
 #   - MinIO (S3-compatible) + auto-created buckets
 #   - MailHog (SMTP testing for email flows)
@@ -28,7 +28,7 @@ services:
     # Pinned to 17-3.5 — postgis/postgis:18-3.5 is not yet published on
     # Docker Hub as of 2026-05-03 (the original pin failed with
     # "not found"). Postgres 17 is the supported pinned version for
-    # local dev; production target remains Postgres 18.
+    # local dev and the current self-hosted production stack.
     image: postgis/postgis:17-3.5
     container_name: onservice-postgres
     environment:

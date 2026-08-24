@@ -29,10 +29,16 @@ After first login, the admin must enroll TOTP 2FA.
 
 ## Existing seed files
 
-Each remaining seed file is dev-only test data, never run in production:
+Each remaining seed file is dev-only test data. `scripts/server/02-deploy.sh`
+runs none of them unless the protected server `.env` explicitly has
+`ENABLE_TEST_FIXTURES=1`. The tracked production template and its verifier
+require `0`.
 
 - `001_categories.sql` — service categories
 - `002_test_users.sql` — test customer accounts (no admin role)
 - `003_test_bookings.sql` — test booking fixtures
+- `003_demo_history.sql` — generated demo bookings and reviews
+- `004_cebu_service_areas.sql`, `004_provider_services.sql`, and
+  `005_cebu_catalog.sql` — development/demo launch-market fixtures
 
 The CI gate `scripts/gates/c-constitution-no-admin-password-seeds.sh` (added in Dispatch 01) blocks any future seed that updates the `password_hash` column on the `users` table or any `*admin*` table.

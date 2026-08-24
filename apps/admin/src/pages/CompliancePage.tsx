@@ -7,7 +7,7 @@
  * Mirrors MarketingPage.tsx layout: header + Tabs from @/components/ui.
  */
 
-import React, { useMemo, useState, type FormEvent } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -82,13 +82,6 @@ interface ConsentRecord {
   userAgent: string | null;
 }
 
-interface BirCalendarEntry {
-  formNo: string;
-  label: string;
-  dueDate: string;
-  status: 'not_yet_due' | 'due_soon' | 'overdue';
-}
-
 interface AuditEntry {
   id: string;
   userId: string | null;
@@ -109,11 +102,6 @@ interface AuditResponse {
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
 }
 
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
-}
-
 function fmtDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
 }
@@ -129,12 +117,6 @@ const COMPLIANCE_TABS = new Set<ComplianceTab>(['npc', 'bir', 'audit', 'tax', 'r
 
 function parseTab(value: string | null): ComplianceTab {
   return value && COMPLIANCE_TABS.has(value as ComplianceTab) ? value as ComplianceTab : 'npc';
-}
-
-function parseYear(value: string | null): number {
-  const fallback = new Date().getFullYear();
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= 2020 && parsed <= 2050 ? parsed : fallback;
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────
@@ -158,15 +140,15 @@ export default function CompliancePage(): React.ReactElement {
           <Shield size={20} /> Compliance
         </h1>
         <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
-          NPC consent &amp; DSR queue, BIR filing calendar, audit log, tax documents,
-          and regulatory reports.
+          NPC consent &amp; DSR queue, audit evidence, held BIR workpapers, and
+          regulatory reports.
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={(value) => selectTab(value as ComplianceTab)}>
         <TabsList>
           <TabsTrigger value="npc">NPC Compliance</TabsTrigger>
-          <TabsTrigger value="bir">BIR Calendar</TabsTrigger>
+          <TabsTrigger value="bir">BIR Hold</TabsTrigger>
           <TabsTrigger value="audit">Audit Log</TabsTrigger>
           <TabsTrigger value="tax">Tax Documents</TabsTrigger>
           <TabsTrigger value="reports">Regulatory Reports</TabsTrigger>
@@ -604,101 +586,28 @@ function ConsentSearchCard(): React.ReactElement {
 
 // ─── BIR tab ───────────────────────────────────────────────────────────────
 
-function BirTab(): React.ReactElement {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const year = parseYear(searchParams.get('year'));
-
-  function setYear(value: number): void {
-    setSearchParams((current) => {
-      const params = new URLSearchParams(current);
-      params.set('tab', 'bir');
-      if (Number.isInteger(value) && value >= 2020 && value <= 2050) params.set('year', String(value));
-      return params;
-    });
-  }
-
-  const calQuery = useQuery({
-    queryKey: ['compliance-bir-calendar', year],
-    queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: BirCalendarEntry[] }>(
-        '/api/v1/admin/compliance/bir-calendar', { params: { year } },
-      );
-      return res.data.data;
-    },
-  });
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, BirCalendarEntry[]>();
-    for (const e of calQuery.data ?? []) {
-      const m = e.dueDate.slice(0, 7); // YYYY-MM
-      if (!map.has(m)) map.set(m, []);
-      map.get(m)!.push(e);
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [calQuery.data]);
-
+export function BirTab(): React.ReactElement {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Calendar size={18} /> BIR Filing Calendar
+          <Calendar size={18} /> BIR Filing Calendar (Held)
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-3 mb-4">
-          <Label htmlFor="bir-year">Year</Label>
-          <Input
-            id="bir-year"
-            type="number"
-            min={2020}
-            max={2050}
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="w-28"
-          />
+        <div
+          role="alert"
+          className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+        >
+          The filing calendar is disabled until a Philippine accountant approves the company taxpayer
+          profile and current form schedule under escalation E22. Do not use old software dates for filing.
         </div>
-
-        {calQuery.isLoading ? (
-          <LoadingState label="Loading calendar..." />
-        ) : calQuery.isError ? (
-          <ErrorState title="Failed to load BIR calendar" description={getErrorMessage(calQuery.error)} />
-        ) : grouped.length === 0 ? (
-          <EmptyState
-            title="No filings for this year"
-            description={`No BIR filing deadlines are scheduled for ${year}.`}
-            icon={<Calendar size={28} className="text-slate-400" />}
-          />
-        ) : (
-          <div className="space-y-4">
-            {grouped.map(([month, items]) => (
-              <div key={month} className="rounded-lg border border-[var(--color-border)] overflow-hidden">
-                <div className="bg-[var(--color-bg)] px-4 py-2 font-medium text-[var(--color-text)]">
-                  {month}
-                </div>
-                <table className="w-full text-sm">
-                  <tbody>
-                    {items.map((e) => (
-                      <tr key={`${e.formNo}-${e.dueDate}`} className="border-t border-[var(--color-border)]">
-                        <td className="px-4 py-2 font-mono w-32">{e.formNo}</td>
-                        <td className="px-4 py-2">{e.label}</td>
-                        <td className="px-4 py-2 w-32">{fmtDate(e.dueDate)}</td>
-                        <td className="px-4 py-2 w-32">
-                          {e.status === 'overdue' ? (
-                            <Badge variant="danger" label="Overdue" />
-                          ) : e.status === 'due_soon' ? (
-                            <Badge variant="warning" label="Due soon" />
-                          ) : (
-                            <Badge variant="outline" label="Not yet due" />
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-4">
+          <p className="text-sm font-medium text-[var(--color-text)]">No filing dates are published in the app.</p>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+            Staff must use the accountant-approved company filing calendar outside this screen until E22 is resolved.
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
@@ -901,7 +810,7 @@ function AuditTab(): React.ReactElement {
 // placeholder paragraph + dummy year/type pickers + an "unwired"
 // empty state. The /api/v1/admin/bir/* endpoints DO exist (mounted
 // in server.ts:46 from bir-admin.routes.ts) and the FinancialsPage
-// > BIR Reports tab actually wires them (VAT 2550M, 2307 quarterly
+// > held tax-workpaper tab actually wires the retained monthly VAT data and 2307 quarterly
 // batches, reconciliation, overview). The TaxTab here was a
 // duplicate stub left over from Phase 11 that leaked a placeholder
 // string into the admin UI.
@@ -920,12 +829,13 @@ function TaxTab(): React.ReactElement {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-[var(--color-text-secondary)]">
-          Tax documents (VAT 2550M, 2307 quarterly batches, BIR reconciliation,
-          and the BIR overview) are managed from the Financials page so they
-          live next to the underlying escrow / payout / commission ledgers.
+          Internal VAT workpapers, retained 2307 batch records, and reconciliation
+          evidence are managed from the Financials page next to the underlying
+          escrow, payout, and commission ledgers. Generation is held under E22;
+          these records are not represented as accountant-approved BIR filings.
         </p>
         <Button onClick={() => navigate('/financials')}>
-          Open Financials → BIR Reports
+          Open Financials → Tax Workpapers
         </Button>
       </CardContent>
     </Card>
