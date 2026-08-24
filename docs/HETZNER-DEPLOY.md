@@ -179,15 +179,17 @@ on the server never updates them. They are built locally and transferred:
 # build time, otherwise a production build throws (platform.config.ts).
 cd apps/mobile
 EXPO_OS=web EXPO_PUBLIC_API_URL=https://app.onservice.ph \
-  EXPO_PUBLIC_DEMO_MODE=1 npx expo export -p web --output-dir dist-web --clear
+  npx expo export -p web --output-dir dist-web --clear
 # EXPO_OS=web tells app.config.ts to omit native-only EAS Update and Google Maps
 # values. The app URL is intentionally same-origin because nginx proxies /api,
-# /socket.io, and /uploads for the browser build. Omit EXPO_PUBLIC_DEMO_MODE for
-# the public launch build. Verify that the bundle has app.onservice.ph and no
-# "DEV_MISSING"/"localhost:7381" string.
+# /socket.io, and /uploads for the browser build. Set EXPO_PUBLIC_DEMO_MODE=1
+# only for a separately authorized controlled-demo build. Verify that the
+# public bundle has app.onservice.ph and no "DEV_MISSING", "localhost:7381",
+# demo credential, or demo login-control string.
 
 # Admin (Vite build):
-cd apps/admin && npm run build
+cd apps/admin
+VITE_API_URL=https://admin.onservice.ph VITE_DEMO_MODE=0 npm run build
 
 # Transfer (example for the web app):
 tar czf /tmp/dist-web.tar.gz -C dist-web .
@@ -201,7 +203,9 @@ and you get stale content or 404s — an `nginx -s reload` does NOT fix it becau
 it re-reads the same orphaned inode. Two safe options:
 
 1. **Extract in place** (preserves the directory inode), e.g.
-   `rm -rf /opt/onservice/apps/mobile/dist-web/* && tar xzf /tmp/dist-web.tar.gz -C /opt/onservice/apps/mobile/dist-web` — note the `/*`, keep the dir itself.
+   `tar xzf /tmp/dist-web.tar.gz -C /opt/onservice/apps/mobile/dist-web`.
+   Current `index.html` references only the new hashed assets, so old hashes
+   can remain until a separately reviewed cleanup.
 2. **Force-recreate** so the mount re-resolves to the current inode:
    `docker compose -f docker-compose.prod.yml up -d --force-recreate nginx`.
 
