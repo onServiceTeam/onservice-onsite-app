@@ -278,6 +278,8 @@ How to launch / pause / set default a city:
 
 Default market today is Metro Cebu (Cebu City, Mandaue, Lapu-Lapu, Talisay). Markets Ken has in mind to add later: Boracay, General Santos, Davao, Metro Manila, Bacolod, and others.
 
+Provider change requests appear above the market table. Each card links to Provider 360 and shows the current and requested market, old and proposed radius, proposed location pin, provider reason, and request time. Support, admin, DPO, and super-admin staff may inspect the queue; only `super_admin` may decide it. Before approval, verify that the pin is the provider's real operating location, lies inside the requested active/soft-launch area, and that the radius is appropriate. Enter a specific decision reason. Approval atomically changes the provider's primary area, radius, coordinates, city, and province; rejection leaves current matching coverage unchanged. The server rechecks the area, pin, live **Max Service Radius** setting, provider approval status, and original area/radius snapshot at decision time. If newer coverage exists, reject the stale request and ask for a new one instead of overwriting it. Every decision writes the audit trail and notifies the provider; a provider-withdrawn request simply leaves the queue and preserves active coverage.
+
 ### 2.20 Analytics (`/analytics`)
 
 5 tabs: A/B Tests (hidden by default in v1.0), Cohort Analysis, Churn Prediction, Quality Scores, Commission. Read-only reporting. See `12-quality-standards-and-kpis.md` for which numbers we actually track.

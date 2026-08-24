@@ -19,7 +19,9 @@ The admin Settings screen now reports one of three server-owned states for every
 - **Launch hold:** code can read the row, but the related product capability is deliberately unavailable. The row is read-only.
 - **Not connected:** an authoritative API, worker, security, or cache path still uses deployed TypeScript/environment configuration. The row is read-only because changing it could otherwise make customer/provider guidance disagree with enforcement.
 
-The current not-connected set is VAT, seven escrow/payment/surge rows, three JWT/admin-session rows, the provider-radius row, and the unused provider-profile cache TTL. Fifty-nine rows are live and three are launch-held. Quote admission/expiry, provider no-show, CAPTCHA escalation, suspicious-IP detection, category cache, and catalog-search cache were connected during the 2026-08-24/25 audit. New or unknown rows fail closed as not connected until their consumer is audited. The `requires_restart` database column is retained for schema compatibility, but it is not treated as evidence that a row becomes effective after restart.
+The current not-connected set is VAT, seven escrow/payment/surge rows, three JWT/admin-session rows, and the unused provider-profile cache TTL. Sixty rows are live and three are launch-held. Quote admission/expiry, provider no-show, provider maximum service radius, CAPTCHA escalation, suspicious-IP detection, category cache, and catalog-search cache were connected during the 2026-08-24/25 audit. New or unknown rows fail closed as not connected until their consumer is audited. The `requires_restart` database column is retained for schema compatibility, but it is not treated as evidence that a row becomes effective after restart.
+
+`max_service_radius_km` is the authoritative provider-radius ceiling. The provider application, provider self-service change request, super-admin approval, and direct Provider 360 override all read it and enforce the migration bounds of 5-100 km. Provider onboarding reads the public config value for its choices. A provider area-change approval also revalidates the proposed location pin against the selected active/soft-launch area before changing matching coordinates.
 
 The internal large-payout review threshold is a live control. It remains capped at ₱500,000 and causes new single-payout requests at or above the saved threshold to enter an internal review hold. It is not a statutory AML classification or filing rule.
 
@@ -168,7 +170,7 @@ INSERT INTO platform_settings (category, key, label, description, value_type, va
 -- ═══ PROVIDER SETTINGS ═══
 ('provider', 'provider_noshow_minutes',  'No-Show Timeout',    'Minutes after scheduled time before flagging as no-show',  'integer', '30', '30', 10, 120, 'minutes', 1),
 ('provider', 'nbi_expiry_warning_days',  'NBI Expiry Warning', 'Days before NBI expiry to send warning notification',      'integer', '30', '30', 7, 90, 'days', 2),
-('provider', 'max_service_radius',       'Max Service Radius', 'Maximum radius a provider can set for their service area', 'integer', '50', '50', 5, 100, 'km', 3),
+('provider', 'max_service_radius_km',    'Max Service Radius', 'Maximum radius a provider can set for their service area', 'integer', '50', '50', 5, 100, 'km', 3),
 ('provider', 'quote_expiry_hours',       'Quote Expiry',       'Hours before a submitted quote expires',                   'integer', '48', '48', 12, 168, 'hours', 4),
 ('provider', 'max_quotes_per_booking',   'Max Quotes/Booking', 'Maximum number of providers who can quote on one job',     'integer', '5', '5', 1, 20, 'quotes', 5),
 

@@ -14,6 +14,10 @@ jest.mock('../../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
+jest.mock('../../src/services/settings.service', () => ({
+  getMaxProviderServiceRadiusKm: jest.fn().mockResolvedValue(50),
+}));
+
 import {
   updateProviderProfile,
   createProviderNote,
@@ -72,21 +76,26 @@ describe('Bug 79 — updateProviderProfile transactional + audit', () => {
     expect(topCalls.find((c) => /UPDATE providers/.test(c.sql))).toBeUndefined();
   });
 
-  it('clamps serviceRadiusKm to [1,200] in audit + UPDATE', async () => {
+  it('rejects radius above the live maximum and audits a valid radius UPDATE', async () => {
+    await expect(
+      updateProviderProfile(PROVIDER_ID, { serviceRadiusKm: 9999 }, ADMIN_ID),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(getTransactionInvocations()).toBe(0);
+
     setTxQueryImpl(makeRouter([
       { match: /SELECT business_name, description, service_radius_km/, rows: [{ business_name: null, description: null, service_radius_km: 50 }], rowCount: 1 },
       { match: /UPDATE providers/, rowCount: 1 },
       { match: /INSERT INTO admin_actions/, rows: [{ id: 'audit-prof' }], rowCount: 1 },
     ]));
 
-    await updateProviderProfile(PROVIDER_ID, { serviceRadiusKm: 9999 }, ADMIN_ID);
+    await updateProviderProfile(PROVIDER_ID, { serviceRadiusKm: 50 }, ADMIN_ID);
 
     const txCalls = getTxCalls();
     const updateCall = txCalls.find((c) => /UPDATE providers/.test(c.sql));
-    expect(updateCall!.params[0]).toBe(200);
+    expect(updateCall!.params[0]).toBe(50);
     const auditCall = txCalls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
     const details = JSON.parse(auditCall!.params[2] as string);
-    expect(details.patch.serviceRadiusKm).toBe(200);
+    expect(details.patch.serviceRadiusKm).toBe(50);
   });
 
   it('no-op early-return when patch is empty (no transaction opened)', async () => {

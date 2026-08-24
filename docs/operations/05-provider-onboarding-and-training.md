@@ -32,7 +32,7 @@ Work top to bottom. Boxes are for the ops owner running the onboarding, not the 
 - [ ] Business name correct (2 to 200 chars)
 - [ ] Service categories set (1 to 10): cleaning, aircon, plumbing, electrical, etc.
 - [ ] Service offerings reviewed against the admin Catalog. Do not train providers to treat their editable base price as the customer booking price while E16 is open; booking creation currently persists the canonical catalog amount, and the provider/catalog price-source decision is unresolved.
-- [ ] Service radius set (onboarding caps at 50 km; admin can widen later up to 200 km)
+- [ ] Service radius set within Admin Settings **Max Service Radius** (50 km at this audit; every later override uses the same live ceiling)
 - [ ] Service area assigned and primary area flagged (e.g. Cebu City). Ops sets the primary area during onboarding; later area changes go through the approval queue (`service_area_change_requests`). See the open decision at the end of this doc.
 - [ ] Profile photo and short bio added (helps acceptance and ratings)
 
@@ -304,6 +304,6 @@ These are recommended defaults. Ken can override any of them. To change one, edi
 
 > **Set (editable):** Train providers that an offer shown by the server as paid/assigned is held in escrow. E03 fixed the internal ordering, but E14 must be resolved before external hosted PayMongo methods are called launch-ready. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-> **Set (editable):** Ops sets the provider's **primary service area during onboarding**. The app does not force it at apply time; later area changes go through the approval queue (`service_area_change_requests`). _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** Ops sets the provider's **primary service area during onboarding**. The application captures a requested radius up to the live **Max Service Radius** setting, but it does not force a primary-area assignment at apply time. After approval, providers use **Profile > Service Area** to submit a new market, fresh location pin, radius, and reason; the current coverage remains active until a super-admin decides the request in Admin **Service Areas**. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 > **Set (editable):** The first-job **buddy is a human ops process**, run by an ops person or a trusted senior provider on standby. There is no "buddy" feature in the platform. Adjust the role to your team size. _Recommended default. To change it, edit here and anywhere this value is referenced._

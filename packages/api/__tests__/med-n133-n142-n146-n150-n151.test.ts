@@ -14,6 +14,10 @@ jest.mock('../src/services/notification.service', () => ({
   createPushNotification: (...args: unknown[]) => createNotificationMock(...args),
 }));
 
+jest.mock('../src/services/settings.service', () => ({
+  getMaxProviderServiceRadiusKm: jest.fn().mockResolvedValue(50),
+}));
+
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
@@ -190,15 +194,22 @@ describe('MED-N146 — service-area-change verifies provider exists before apply
     dbQueryMock.mockResolvedValueOnce({
       rows: [{
         id: 'sa-1', provider_id: 'user-1', requested_area_id: 'area-2',
-        requested_radius_km: 25, status: 'pending',
+        requested_radius_km: 25, requested_latitude: '10.3157', requested_longitude: '123.8854',
+        requested_city: 'Cebu City', requested_province: 'Cebu', status: 'pending',
       }],
+      rowCount: 1,
+    });
+    // Requested area is still active and contains the reviewed pin.
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [{ id: 'area-2', name: 'Cebu City', city: 'Cebu City', province: 'Cebu', center_lat: '10.3157', center_lng: '123.8854', radius_km: 15, status: 'active' }],
       rowCount: 1,
     });
     // UPDATE service_area_change_requests RETURNING.
     dbQueryMock.mockResolvedValueOnce({
       rows: [{
         id: 'sa-1', provider_id: 'user-1', requested_area_id: 'area-2',
-        requested_radius_km: 25, status: 'approved',
+        requested_radius_km: 25, requested_latitude: '10.3157', requested_longitude: '123.8854',
+        requested_city: 'Cebu City', requested_province: 'Cebu', status: 'approved',
       }],
       rowCount: 1,
     });
@@ -219,14 +230,20 @@ describe('MED-N146 — service-area-change verifies provider exists before apply
     dbQueryMock.mockResolvedValueOnce({
       rows: [{
         id: 'sa-1', provider_id: 'user-1', requested_area_id: 'area-2',
-        requested_radius_km: 25, status: 'pending',
+        requested_radius_km: 25, requested_latitude: '10.3157', requested_longitude: '123.8854',
+        requested_city: 'Cebu City', requested_province: 'Cebu', status: 'pending',
       }],
+      rowCount: 1,
+    });
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [{ id: 'area-2', name: 'Cebu City', city: 'Cebu City', province: 'Cebu', center_lat: '10.3157', center_lng: '123.8854', radius_km: 15, status: 'active' }],
       rowCount: 1,
     });
     dbQueryMock.mockResolvedValueOnce({
       rows: [{
         id: 'sa-1', provider_id: 'user-1', requested_area_id: 'area-2',
-        requested_radius_km: 25, status: 'approved',
+        requested_radius_km: 25, requested_latitude: '10.3157', requested_longitude: '123.8854',
+        requested_city: 'Cebu City', requested_province: 'Cebu', status: 'approved',
       }],
       rowCount: 1,
     });
@@ -241,6 +258,6 @@ describe('MED-N146 — service-area-change verifies provider exists before apply
         decision: 'approved',
         reason: 'Approved per policy because area is open',
       }),
-    ).rejects.toThrow(/suspended/);
+    ).rejects.toThrow(/no longer approved/);
   });
 });

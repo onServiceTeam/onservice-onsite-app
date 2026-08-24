@@ -215,37 +215,16 @@ router.get(
 router.post(
   '/provider/areas',
   authMiddleware,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  async (_req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
-      const userId = req.user!.userId;
-      const { serviceAreaId, isPrimary } = req.body as { serviceAreaId: string; isPrimary?: boolean };
-
-      if (!serviceAreaId) {
-        throw createAppError('serviceAreaId is required.', 400);
-      }
-
-      const providerResult = await db.query<{ id: string }>(
-        `SELECT id FROM providers WHERE user_id = $1`,
-        [userId],
+      // Bug UX-263 — this legacy endpoint let an approved provider assign
+      // themselves to any market instantly, bypassing the review queue. Keep a
+      // clear conflict response for older clients instead of silently changing
+      // matching coverage. New clients use /providers/me/service-area/change.
+      throw createAppError(
+        'Service-area changes require admin review. Submit the change from your Service Area screen.',
+        409,
       );
-
-      if (providerResult.rows.length === 0) {
-        throw createAppError('Provider profile not found.', 404);
-      }
-
-      const providerId = providerResult.rows[0]!.id;
-      const assignment = await serviceAreaService.assignProviderToArea(providerId, serviceAreaId, isPrimary);
-
-      res.status(201).json({
-        success: true,
-        data: {
-          id: assignment.id,
-          providerId: assignment.provider_id,
-          serviceAreaId: assignment.service_area_id,
-          isPrimary: assignment.is_primary,
-          createdAt: assignment.created_at,
-        },
-      });
     } catch (err) {
       next(err);
     }

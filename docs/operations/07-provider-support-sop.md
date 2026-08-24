@@ -309,9 +309,16 @@ If this was a mistake on our end, we'll restore your account right away.
 
 ## 14. Service-area change requests
 
-Providers cannot instantly change their service area. A request goes into a queue (`service_area_change_requests`), and only one pending request per provider is allowed. An admin reviews and approves or rejects; both outcomes are audited.
+Providers cannot instantly change their service area or location pin. In **Profile > Service Area**, the provider chooses an active or soft-launch market, captures a fresh pin, selects a radius within the live platform maximum, and supplies a 10-500 character reason. The request goes into `service_area_change_requests`, only one pending request per provider is allowed, and the provider keeps their current coverage until approval. They may use **Withdraw request** after confirmation if the submission is wrong; this leaves current coverage unchanged and lets them submit again.
 
-Playbook: confirm the provider's requested area exists and is active or in soft_launch (Service Areas page). If the area is not live yet, tell the provider when it is planned. Route the pending request to an admin to approve or reject. The provider keeps their current area until approved.
+Playbook:
+
+1. Open Admin **Service Areas** and find the request at the top of the page.
+2. Open its Provider 360 link. Compare the old and requested market and radius, the proposed coordinates, provider history, and the stated reason. Do not treat the area's center as the provider's location.
+3. Confirm the requested area is still `active` or `soft_launch`, the pin lies inside it, and the radius is no higher than Admin Settings **Max Service Radius**. The server rechecks all three at decision time.
+4. If the area is not live, reject with a useful reason and tell the provider when it is planned. Do not move their active coverage manually just to make the request disappear.
+5. An ordinary admin/support/DPO account can inspect the queue. Route the final decision to a `super_admin`, who must enter a 30-5000 character decision reason.
+6. Approval updates the primary area, radius, exact coordinates, city, and province together. If the provider's active area or radius changed after submission, the server rejects the stale approval; reject the old request and ask for a fresh one. Rejection changes none of the active matching fields. Both decisions are audited and notify the provider.
 
 ---
 

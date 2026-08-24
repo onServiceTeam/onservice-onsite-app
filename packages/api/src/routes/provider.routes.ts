@@ -10,6 +10,7 @@ import {
   providerStaffInviteSchema,
   providerCertificationCreateSchema,
   providerCertificationUpdateSchema,
+  providerServiceAreaChangeSchema,
 } from '../validators/provider.validators';
 import * as providerService from '../services/provider.service';
 import * as uploadService from '../services/upload.service';
@@ -21,6 +22,7 @@ import * as providerToolsService from '../services/provider-tools.service';
 import * as providerStaffService from '../services/provider-staff.service';
 import * as kycDocumentService from '../services/kyc-document.service';
 import * as settingsService from '../services/settings.service';
+import * as serviceAreaChangeService from '../services/service-area-change.service';
 import { createAppError } from '../middleware/error.middleware';
 
 const router = Router();
@@ -37,6 +39,13 @@ router.post(
   validationMiddleware(providerApplicationSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
+      const maxServiceRadiusKm = await settingsService.getMaxProviderServiceRadiusKm();
+      if (req.body.serviceRadiusKm > maxServiceRadiusKm) {
+        throw createAppError(
+          `Service radius cannot exceed the current ${maxServiceRadiusKm} km platform maximum.`,
+          400,
+        );
+      }
       const provider = await providerService.createProviderApplication(req.user!.userId, {
         businessName: req.body.businessName,
         categoryIds: req.body.categoryIds,
@@ -63,6 +72,56 @@ router.post(
         success: true,
         data: providerService.formatProvider(provider),
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/me/service-area',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const data = await serviceAreaChangeService.getProviderAreaChangeState(req.user!.userId);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/me/service-area/change',
+  authMiddleware,
+  validationMiddleware(providerServiceAreaChangeSchema),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const data = await serviceAreaChangeService.requestChange({
+        providerId: req.user!.userId,
+        requestedAreaId: req.body.areaId,
+        requestedRadiusKm: req.body.radiusKm,
+        requestedLatitude: req.body.latitude,
+        requestedLongitude: req.body.longitude,
+        reason: req.body.reason,
+      });
+      res.status(201).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/me/service-area/change/cancel',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const data = await serviceAreaChangeService.cancelPending(req.user!.userId);
+      res.json({ success: true, data });
     } catch (error) {
       next(error);
     }
@@ -176,6 +235,16 @@ router.patch(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireProvider(req);
+      if (
+        req.body.serviceRadiusKm !== undefined
+        || req.body.latitude !== undefined
+        || req.body.longitude !== undefined
+      ) {
+        throw createAppError(
+          'Service-area and location changes require admin review. Use the Service Area request screen.',
+          409,
+        );
+      }
       const provider = await providerService.getProviderByUserId(req.user!.userId);
       const updated = await providerService.updateProfile(provider.id, req.body);
       res.json({ success: true, data: providerService.formatProvider(updated) });

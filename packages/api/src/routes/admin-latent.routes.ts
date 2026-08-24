@@ -12,7 +12,9 @@
  *
  * Mounted at `/api/v1/admin` via server.ts. Admin CSRF middleware applies
  * at the mount level for cookie-auth (Bearer auth bypasses per
- * CRIT-PHASE17-02). All routes require super_admin via requireSuperAdmin.
+ * CRIT-PHASE17-02). Mutating decisions and 2FA rotation require
+ * super_admin. The service-area request queue is readable by admin,
+ * super_admin, and DPO staff so support can investigate before escalation.
  */
 
 import { Router, type Response, type NextFunction } from 'express';
@@ -27,6 +29,12 @@ const router = Router();
 function requireSuperAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'super_admin') {
     throw createAppError('Super admin access required.', 403);
+  }
+}
+
+function requireAdmin(req: AuthenticatedRequest): void {
+  if (!['admin', 'super_admin', 'dpo'].includes(req.user!.role)) {
+    throw createAppError('Admin access required.', 403);
   }
 }
 
@@ -45,6 +53,13 @@ function validateDecideReason(value: string): void {
   }
 }
 
+function parseQueueLimit(value: unknown): number {
+  const requested = typeof value === 'string' ? Number(value) : 50;
+  return Number.isFinite(requested)
+    ? Math.max(1, Math.min(Math.floor(requested), 200))
+    : 50;
+}
+
 // ─── Provider applications ─────────────────────────────────────────────────
 
 router.get(
@@ -53,7 +68,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
-      const limit = req.query.limit ? Math.min(Number(req.query.limit) || 50, 200) : 50;
+      const limit = parseQueueLimit(req.query.limit);
       const data = await providerOnboarding.listPendingReview(limit);
       res.json({ success: true, data });
     } catch (error) { next(error); }
@@ -95,8 +110,8 @@ router.get(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireSuperAdmin(req);
-      const limit = req.query.limit ? Math.min(Number(req.query.limit) || 50, 200) : 50;
+      requireAdmin(req);
+      const limit = parseQueueLimit(req.query.limit);
       const data = await areaChange.listPending(limit);
       res.json({ success: true, data });
     } catch (error) { next(error); }

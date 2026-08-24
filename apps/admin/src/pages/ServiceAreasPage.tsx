@@ -1,10 +1,11 @@
 import React, { useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { useAuthStore } from '@/stores/auth.store';
 
 interface ServiceArea {
   id: string;
@@ -43,6 +44,23 @@ interface AreaStats {
     totalWaitlist: number;
     areasByStatus: Record<string, number>;
   };
+}
+
+interface ServiceAreaChangeRequest {
+  id: string;
+  providerId: string;
+  providerRecordId: string | null;
+  providerName: string | null;
+  providerEmail: string | null;
+  providerPhone: string | null;
+  currentAreaName: string | null;
+  requestedAreaName: string | null;
+  currentRadiusKm: number | null;
+  requestedRadiusKm: number;
+  requestedLatitude: number | null;
+  requestedLongitude: number | null;
+  reason: string | null;
+  createdAt: string;
 }
 
 interface CreateAreaForm {
@@ -88,6 +106,7 @@ const EMPTY_FORM: CreateAreaForm = {
 };
 
 export default function ServiceAreasPage(): React.ReactElement {
+  const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
   const statusFilter = parseStatus(searchParams.get('status'));
@@ -103,6 +122,12 @@ export default function ServiceAreasPage(): React.ReactElement {
     name: '', radiusKm: '', minProvidersToLaunch: '',
   });
   const [editError, setEditError] = useState('');
+  const [decisionTarget, setDecisionTarget] = useState<{
+    request: ServiceAreaChangeRequest;
+    decision: 'approved' | 'rejected';
+  } | null>(null);
+  const [decisionReason, setDecisionReason] = useState('');
+  const [decisionError, setDecisionError] = useState('');
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
@@ -122,6 +147,36 @@ export default function ServiceAreasPage(): React.ReactElement {
       const res = await api.get<AreaStats>('/api/v1/admin/service-areas/stats');
       return res.data.data;
     },
+  });
+
+  const changeRequestsQuery = useQuery({
+    queryKey: ['adminServiceAreaChanges'],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: ServiceAreaChangeRequest[] }>(
+        '/api/v1/admin/service-area-changes',
+        { params: { limit: 200 } },
+      );
+      return res.data.data;
+    },
+  });
+
+  const decideChangeMutation = useMutation({
+    mutationFn: async ({ requestId, decision, reason }: {
+      requestId: string;
+      decision: 'approved' | 'rejected';
+      reason: string;
+    }) => {
+      await api.post(`/api/v1/admin/service-area-changes/${requestId}/decide`, { decision, reason });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['adminServiceAreaChanges'] });
+      void queryClient.invalidateQueries({ queryKey: ['adminServiceAreas'] });
+      void queryClient.invalidateQueries({ queryKey: ['adminServiceAreaStats'] });
+      setDecisionTarget(null);
+      setDecisionReason('');
+      setDecisionError('');
+    },
+    onError: (error) => setDecisionError(getErrorMessage(error)),
   });
 
   const createMutation = useMutation({
@@ -294,6 +349,31 @@ export default function ServiceAreasPage(): React.ReactElement {
     setDefaultMutation.mutate(area.id);
   }
 
+  function openDecision(request: ServiceAreaChangeRequest, decision: 'approved' | 'rejected'): void {
+    setDecisionTarget({ request, decision });
+    setDecisionReason('');
+    setDecisionError('');
+  }
+
+  function submitDecision(e: FormEvent): void {
+    e.preventDefault();
+    if (!decisionTarget) return;
+    const trimmed = decisionReason.trim();
+    if (trimmed.length < 30) {
+      setDecisionError('Decision reason must be at least 30 characters.');
+      return;
+    }
+    if (trimmed.length > 5000) {
+      setDecisionError('Decision reason cannot exceed 5,000 characters.');
+      return;
+    }
+    decideChangeMutation.mutate({
+      requestId: decisionTarget.request.id,
+      decision: decisionTarget.decision,
+      reason: trimmed,
+    });
+  }
+
   const columns: Column<ServiceArea>[] = [
     {
       key: 'name',
@@ -418,6 +498,7 @@ export default function ServiceAreasPage(): React.ReactElement {
   const areas = data?.data ?? [];
   const pagination = data?.pagination;
   const stats = statsData;
+  const pendingRequests = changeRequestsQuery.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -453,6 +534,83 @@ export default function ServiceAreasPage(): React.ReactElement {
           </div>
         </div>
       )}
+
+      <section aria-labelledby="provider-area-change-title" className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 id="provider-area-change-title" className="text-lg font-semibold text-[var(--color-text)]">Provider Change Requests</h2>
+              <Badge variant={pendingRequests.length > 0 ? 'warning' : 'success'} label={`${pendingRequests.length} pending`} />
+            </div>
+            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Review the requested market, location pin, and radius before changing provider matching coverage.</p>
+          </div>
+          {!isSuperAdmin && (
+            <p className="rounded-lg bg-[var(--color-surface-muted)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">Visible to support. Approval and rejection require super admin.</p>
+          )}
+        </div>
+
+        {changeRequestsQuery.isLoading && <p className="mt-4 text-sm text-[var(--color-text-secondary)]">Loading provider requests…</p>}
+        {changeRequestsQuery.isError && <p role="alert" className="mt-4 text-sm text-[var(--color-error)]">Failed to load provider service-area requests.</p>}
+        {!changeRequestsQuery.isLoading && !changeRequestsQuery.isError && pendingRequests.length === 0 && (
+          <div className="mt-4 rounded-lg border border-dashed border-[var(--color-border)] p-5 text-center text-sm text-[var(--color-text-secondary)]">No provider service-area changes are waiting for review.</div>
+        )}
+        {pendingRequests.length > 0 && (
+          <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+            {pendingRequests.map((request) => (
+              <article key={request.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    {request.providerRecordId ? (
+                      <Link className="font-semibold text-[var(--color-primary)] hover:underline" to={`/providers/${request.providerRecordId}`}>
+                        {request.providerName || request.providerEmail || request.providerPhone || 'Open Provider 360'}
+                      </Link>
+                    ) : (
+                      <p className="font-semibold text-[var(--color-text)]">{request.providerName || request.providerEmail || request.providerPhone || 'Provider account unavailable'}</p>
+                    )}
+                    <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Submitted {new Date(request.createdAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Manila' })}</p>
+                  </div>
+                  <Badge variant="warning" label="Pending review" />
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg bg-[var(--color-surface)] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Current</p>
+                    <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{request.currentAreaName || 'No primary area'}</p>
+                    <p className="text-xs text-[var(--color-text-secondary)]">{request.currentRadiusKm ?? 0} km radius</p>
+                  </div>
+                  <div className="rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary-light)] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]">Requested</p>
+                    <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{request.requestedAreaName || 'Unknown area'}</p>
+                    <p className="text-xs text-[var(--color-text-secondary)]">{request.requestedRadiusKm} km radius</p>
+                  </div>
+                </div>
+
+                <dl className="mt-3 space-y-2 text-sm">
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <dt className="text-[var(--color-text-secondary)]">Reviewed pin</dt>
+                    <dd className="font-mono text-xs text-[var(--color-text)]">
+                      {request.requestedLatitude != null && request.requestedLongitude != null
+                        ? `${request.requestedLatitude.toFixed(5)}, ${request.requestedLongitude.toFixed(5)}`
+                        : 'Missing'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[var(--color-text-secondary)]">Provider context</dt>
+                    <dd className="mt-1 whitespace-pre-wrap text-[var(--color-text)]">{request.reason || 'No reason supplied.'}</dd>
+                  </div>
+                </dl>
+
+                {isSuperAdmin && (
+                  <div className="mt-4 flex flex-wrap justify-end gap-2">
+                    <button type="button" onClick={() => openDecision(request, 'rejected')} className="rounded-lg border border-[var(--color-error)] px-3 py-2 text-sm font-medium text-[var(--color-error)] hover:bg-red-50">Reject</button>
+                    <button type="button" onClick={() => openDecision(request, 'approved')} className="rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)]">Approve</button>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {showCreateForm && (
         <form onSubmit={handleCreateSubmit} noValidate className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
@@ -574,6 +732,47 @@ export default function ServiceAreasPage(): React.ReactElement {
           pageSize={pagination.pageSize}
           onPageChange={setPage}
         />
+      )}
+
+      {decisionTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="area-change-decision-title" className="w-full max-w-lg rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl">
+            <h3 id="area-change-decision-title" className="text-lg font-semibold text-[var(--color-text)]">
+              {decisionTarget.decision === 'approved' ? 'Approve' : 'Reject'} provider service-area change
+            </h3>
+            <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
+              {decisionTarget.request.providerName || decisionTarget.request.providerEmail || 'Provider'}: {decisionTarget.request.currentAreaName || 'No primary area'} → {decisionTarget.request.requestedAreaName || 'Requested area'} · {decisionTarget.request.requestedRadiusKm} km
+            </p>
+            <form onSubmit={submitDecision} className="mt-4 space-y-3">
+              <div>
+                <label htmlFor="area-change-decision-reason" className="block text-sm font-medium text-[var(--color-text)]">Decision reason</label>
+                <textarea
+                  id="area-change-decision-reason"
+                  value={decisionReason}
+                  onChange={(event) => setDecisionReason(event.target.value)}
+                  rows={5}
+                  maxLength={5000}
+                  placeholder="Record what you checked and why this decision is appropriate. Minimum 30 characters."
+                  className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]"
+                />
+                <p className="mt-1 text-right text-xs text-[var(--color-text-secondary)]">{decisionReason.length}/5,000</p>
+              </div>
+              {decisionError && <p role="alert" className="text-sm text-[var(--color-error)]">{decisionError}</p>}
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setDecisionTarget(null)} disabled={decideChangeMutation.isPending} className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text)] disabled:opacity-50">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={decideChangeMutation.isPending}
+                  className={decisionTarget.decision === 'approved'
+                    ? 'rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50'
+                    : 'rounded-lg bg-[var(--color-error)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50'}
+                >
+                  {decideChangeMutation.isPending ? 'Saving…' : decisionTarget.decision === 'approved' ? 'Approve change' : 'Reject change'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {editTarget && (

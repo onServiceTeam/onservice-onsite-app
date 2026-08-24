@@ -130,7 +130,10 @@ export const providerCertificationReviewSchema = z.object({
 export const providerApplicationSchema = z.object({
   businessName: z.string().min(2, 'Business name must be at least 2 characters').max(200),
   categoryIds: z.array(z.string().uuid()).min(1, 'Select at least one service category').max(10),
-  serviceRadiusKm: z.number().int().min(1, 'Minimum service radius is 1km').max(50, 'Maximum service radius is 50km'),
+  // 100km is the database/admin envelope. The live platform maximum is
+  // enforced after parsing by settings.service so changing the Admin control
+  // does not require a deploy.
+  serviceRadiusKm: z.number().int().min(1, 'Minimum service radius is 1km').max(100, 'Maximum service radius is 100km'),
   latitude: phLatitude,
   longitude: phLongitude,
   city: z.string().min(1).max(100),
@@ -181,7 +184,9 @@ export const providerApplicationSchema = z.object({
 export const updateProfileSchema = z.object({
   bio: z.string().max(1000).optional(),
   yearsExperience: z.number().int().min(0).max(60).optional(),
-  serviceRadiusKm: z.number().min(1).max(50).optional(),
+  // Retained in the parser so older clients receive the explicit review-queue
+  // conflict from provider.routes instead of silently dropping the field.
+  serviceRadiusKm: z.number().int().min(1).max(100).optional(),
   latitude: phLatitude.optional(),
   longitude: phLongitude.optional(),
   isAvailable: z.boolean().optional(),
@@ -189,6 +194,17 @@ export const updateProfileSchema = z.object({
   (data) => Object.values(data).some((v) => v !== undefined),
   { message: 'At least one field must be provided' },
 );
+
+export const providerServiceAreaChangeSchema = z.object({
+  areaId: z.string().uuid('Service area ID must be a valid UUID'),
+  radiusKm: z.number().int().min(1).max(100),
+  latitude: phLatitude,
+  longitude: phLongitude,
+  reason: z.string()
+    .trim()
+    .min(10, 'Reason must be at least 10 characters')
+    .max(500, 'Reason must be 500 characters or less'),
+}).strict();
 
 export const addServiceSchema = z.object({
   subcategoryId: z.string().uuid('Subcategory ID must be a valid UUID'),

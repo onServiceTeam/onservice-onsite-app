@@ -57,6 +57,41 @@ export interface ProviderAreaAssignment {
   createdAt: string;
 }
 
+export interface ProviderServiceAreaChange {
+  id: string;
+  providerId: string;
+  currentAreaId: string | null;
+  requestedAreaId: string;
+  currentRadiusKm: number | null;
+  requestedRadiusKm: number;
+  requestedLatitude: number | null;
+  requestedLongitude: number | null;
+  requestedCity: string | null;
+  requestedProvince: string | null;
+  reason: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  decisionReason: string | null;
+  requestedAreaName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProviderServiceAreaState {
+  currentArea: {
+    id: string;
+    name: string;
+    city: string;
+    province: string;
+    centerLat: number;
+    centerLng: number;
+  } | null;
+  currentRadiusKm: number;
+  currentLatitude: number | null;
+  currentLongitude: number | null;
+  maxRadiusKm: number;
+  latestChange: ProviderServiceAreaChange | null;
+}
+
 export async function getActiveServiceAreas(): Promise<ServiceArea[]> {
   const res = await api.get<ApiResponse<ServiceArea[]>>('/api/v1/service-areas');
   return res.data.data;
@@ -96,13 +131,28 @@ export async function getMyProviderAreas(): Promise<ProviderAreaAssignment[]> {
   return res.data.data;
 }
 
-export async function joinServiceArea(
-  serviceAreaId: string,
-  isPrimary?: boolean,
-): Promise<{ id: string; providerId: string; serviceAreaId: string; isPrimary: boolean }> {
-  const res = await api.post<ApiResponse<{ id: string; providerId: string; serviceAreaId: string; isPrimary: boolean }>>(
-    '/api/v1/service-areas/provider/areas',
-    { serviceAreaId, isPrimary },
+export async function getProviderServiceAreaState(): Promise<ProviderServiceAreaState> {
+  const res = await api.get<ApiResponse<ProviderServiceAreaState>>('/api/v1/providers/me/service-area');
+  return res.data.data;
+}
+
+export async function requestProviderServiceAreaChange(input: {
+  areaId: string;
+  radiusKm: number;
+  latitude: number;
+  longitude: number;
+  reason: string;
+}): Promise<ProviderServiceAreaChange> {
+  const res = await api.post<ApiResponse<ProviderServiceAreaChange>>(
+    '/api/v1/providers/me/service-area/change',
+    input,
+  );
+  return res.data.data;
+}
+
+export async function cancelProviderServiceAreaChange(): Promise<ProviderServiceAreaChange> {
+  const res = await api.post<ApiResponse<ProviderServiceAreaChange>>(
+    '/api/v1/providers/me/service-area/change/cancel',
   );
   return res.data.data;
 }

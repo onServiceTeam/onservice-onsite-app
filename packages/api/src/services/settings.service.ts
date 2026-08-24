@@ -240,7 +240,6 @@ const NOT_CONNECTED_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   jwt_access_expires: 'Access-token lifetime is controlled by deployment configuration, not this database row.',
   jwt_refresh_expires: 'Refresh-token, database, and cookie lifetimes are controlled by deployment configuration, not this database row.',
   admin_session_timeout_hours: 'Admin session and cookie lifetimes are controlled by deployment configuration, not this database row.',
-  max_service_radius_km: 'Provider matching and service-area validation still use deployed configuration.',
   cache_ttl_provider_profile: 'Provider-profile cache lifetime still uses deployed configuration.',
 };
 
@@ -252,6 +251,7 @@ const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
 
 const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   aml_large_transaction_threshold_centavos: 'New single-payout requests at or above this threshold enter an internal compliance-review hold. Existing requests keep their snapshotted threshold.',
+  max_service_radius_km: 'Provider applications, provider change requests, approval review, super-admin edits, and customer/provider guidance enforce this maximum for new changes.',
 };
 
 /**
@@ -360,6 +360,16 @@ export async function getSettingInteger(key: string): Promise<number> {
 export async function getSettingBoolean(key: string): Promise<boolean> {
   const val = await getSetting(key);
   return val === 'true' || val === '1';
+}
+
+/** Maximum provider travel radius accepted by every provider/admin write path. */
+export async function getMaxProviderServiceRadiusKm(): Promise<number> {
+  return boundedInteger(
+    await getSettingInteger('max_service_radius_km'),
+    5,
+    100,
+    50,
+  );
 }
 
 export interface OtpPolicy {
