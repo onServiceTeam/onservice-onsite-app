@@ -182,10 +182,11 @@ EXPO_OS=web EXPO_PUBLIC_API_URL=https://app.onservice.ph \
   npx expo export -p web --output-dir dist-web --clear
 # EXPO_OS=web tells app.config.ts to omit native-only EAS Update and Google Maps
 # values. The app URL is intentionally same-origin because nginx proxies /api,
-# /socket.io, and /uploads for the browser build. Set EXPO_PUBLIC_DEMO_MODE=1
-# only for a separately authorized controlled-demo build. Verify that the
-# public bundle has app.onservice.ph and no "DEV_MISSING", "localhost:7381",
-# demo credential, or demo login-control string.
+# /socket.io, and /uploads for the browser build. A separately authorized
+# controlled-demo build must set EXPO_PUBLIC_DEMO_MODE=1 together with
+# EXPO_PUBLIC_DEMO_CUSTOMER_PHONE, EXPO_PUBLIC_DEMO_PROVIDER_PHONE, and
+# EXPO_PUBLIC_DEMO_OTP. Verify that the public bundle has app.onservice.ph and
+# no "DEV_MISSING", "localhost:7381", or known demo credential.
 
 # Admin (Vite build):
 cd apps/admin

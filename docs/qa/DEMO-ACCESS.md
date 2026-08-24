@@ -1,20 +1,19 @@
 # Demo access — no-login testing (customer, provider, admin)
 
-Updated 2026-08-23. Customer and provider demo entry remains enabled on the
-current test deployment. Admin demo auto-login is disabled on the public build
-because it would grant unauthenticated super-admin access. Admin testing now
-requires a real authorized admin login unless a separately protected staging
-build is created with the demo flag.
+Updated 2026-08-24. Customer, provider, and admin demo auto-login is disabled on
+the public deployment. Customer/provider test phones and the development OTP
+are no longer compiled into the public app. Testing requires normal authorized
+login unless a separately protected demo build is created.
 
 ## Test entry links
 
-Customer and provider links enter their seeded demos without a login. The admin
-link intentionally stops at real login on the public deployment:
+All three links stop at normal login on the public deployment. A `?demo` query
+is ignored when the build has no protected demo configuration:
 
 | Area | Link | Lands on |
 | --- | --- | --- |
-| Customer | https://app.onservice.ph/?demo=customer | Customer home (active bookings + services) |
-| Provider | https://app.onservice.ph/?demo=provider | Provider dashboard (online toggle, jobs, earnings) |
+| Customer | https://app.onservice.ph/?demo=customer | Normal app login |
+| Provider | https://app.onservice.ph/?demo=provider | Normal app login |
 | Admin | https://admin.onservice.ph/login | Real admin login; no public auto-login |
 
 Customer and provider are the **same app** at different links — that is how one
@@ -60,16 +59,19 @@ collected feedback back out.
 
 ## Manual buttons (if you ever land on a login screen)
 
-The login screens also carry one-tap demo buttons:
+The public login screens do not carry one-tap demo buttons. In a separately
+protected demo build:
 
-- App login screen: **Enter as Customer** / **Enter as Provider**.
+- App login screen: **Enter as Customer** / **Enter as Provider**. The build
+  must set `EXPO_PUBLIC_DEMO_MODE=1`, `EXPO_PUBLIC_DEMO_CUSTOMER_PHONE`,
+  `EXPO_PUBLIC_DEMO_PROVIDER_PHONE`, and `EXPO_PUBLIC_DEMO_OTP`.
 - Admin login screen: the demo button appears only in a separately protected build made with `VITE_DEMO_MODE=1`; it is absent from the public deployment.
 
 ## Turning demo + open access OFF for launch
 
 No code to delete. At the production cutover:
 
-- Mobile: build without `EXPO_PUBLIC_DEMO_MODE=1`.
+- Mobile: build without all four `EXPO_PUBLIC_DEMO_*` variables.
 - Admin: build without `VITE_DEMO_MODE=1` (and rotate the demo admin password).
 - nginx: restore the private gate (or rely on real SMS OTP + admin 2FA being on).
 
