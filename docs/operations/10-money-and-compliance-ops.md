@@ -1,6 +1,6 @@
 # Money and Compliance Operations
 
-Purpose: how money moves through onService (escrow, commissions, payouts, refunds), how PayMongo runs in live mode, and what BIR and NPC require of us day to day. This is the finance and compliance operating doc for the ops team.
+Purpose: how money moves through onService (escrow, commissions, payouts, refunds), the intended PayMongo operation and current E14 launch block, and what BIR and NPC require of us day to day. This is the finance and compliance operating doc for the ops team.
 
 Currency is Philippine pesos (₱). All amounts are stored in centavos in the database; the apps display pesos. Every cutoff time below is Asia/Manila.
 
@@ -10,11 +10,11 @@ Related docs: `09-trust-safety-and-disputes.md` (dispute decisions), `07-provide
 
 ## 1. The money model in one paragraph
 
-The intended design is INSTANT-PAY: the customer pays first into escrow, then a provider is matched. The platform holds the money in a single escrow wallet, then releases it to the provider (minus our commission) once the customer confirms the job, or after auto-confirm. We never touch provider funds until the job is done.
+The intended design is INSTANT-PAY: the customer pays first into escrow, then a provider is matched. The platform holds the money in a single escrow wallet, then releases it to the provider (minus our commission) once the customer confirms the job, or after auto-confirm. We never touch provider funds until the job is done. The internal booking, escrow, wallet-payment, and webhook state machine is implemented. The external hosted PayMongo authorization step for card, GCash, Maya, QR Ph, and wallet top-up is not launch-ready under E14.
 
-> **Set (editable):** instant-pay is live as of 2026-06-19 (E03 fixed, merged and deployed). _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** the E03 booking/escrow state-machine defect was fixed on 2026-06-19. Do not describe non-wallet PayMongo checkout as live until E14 is resolved with an approved integration and test-mode evidence. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-Instant-pay is live as of 2026-06-19 (E03 fixed, merged commit `865f55e`, deployed): a customer who reaches checkout creates a booking and pays it immediately, the money holds in escrow, and a provider is matched after. The pay-first flow described here works end to end. See `.ai-coder/escalations/E03-customer-checkout-state-machine-2026-05-05.md` for the history.
+E03 fixed the booking/escrow ordering in merged commit `865f55e`: a booking is created before payment and only verified payment can move it to paid/held. That does not prove the external customer authorization screen works. E14 records that the current API invents a hosted URL from a Payment Intent client key, the URL returns 404, and all 12 production top-up attempts inspected on 2026-08-24 remained `awaiting_payment`. See `.ai-coder/escalations/E03-customer-checkout-state-machine-2026-05-05.md` for the state-machine history and `.ai-coder/escalations/E14-paymongo-hosted-checkout-flow-2026-08-24.md` for the active launch blocker.
 
 ---
 
@@ -27,7 +27,7 @@ Escrow states: `pending` -> `held` -> `released` (or `refunded` / `partially_ref
 | Step | What happens | Trigger |
 |---|---|---|
 | HOLD | Customer pays. Booking goes `paid`, escrow goes `held`. Money lands in the escrow wallet `pending_balance`. | PayMongo `payment.paid` webhook (card / GCash) or wallet debit (instant for wallet method) |
-| RELEASE | Provider wallet gets `service_price - commission`; revenue wallet gets `commission + service_fee - guarantee`; guarantee fund gets about 1.5% of the service fee. Escrow goes `released`, booking goes `payout_ready`. | Customer confirms the job, OR auto-confirm after 24h |
+| RELEASE | Provider wallet gets `service_price - commission`; revenue wallet gets `commission + service_fee - guarantee`; guarantee fund gets 1.5% of the service fee under the current release formula. With the customer service fee currently set to zero, that fee-derived guarantee contribution is also zero. Escrow goes `released`, booking goes `payout_ready`. | Customer confirms the job, OR auto-confirm after 24h |
 | REFUND | Money pushed back to the customer through PayMongo. Escrow goes `refunded` or `partially_refunded`. | Cancellation or dispute resolution |
 
 Auto-confirm: a booking sitting in `completed_by_provider` for longer than 24h (`escrow_auto_confirm_hours`, admin-tunable) is auto-confirmed, escrow released, booking moved to `payout_ready`. The customer is notified.
@@ -50,11 +50,15 @@ Commission is taken off the service price. The provider receives `service_price 
 
 Other fees on top of the service price:
 
-- Service fee: 10% of service price, floored at ₱25, capped at ₱500. Charged to the customer on top. `total_amount = service_price + service_fee`.
-- Guarantee fund: 1.5% of the service fee, carved out of platform revenue on release. Funds the service guarantee. This is a guarantee, not insurance. The operating claim cap is set in `09-trust-safety-and-disputes.md`.
+- Service fee: currently 0% with a ₱0 floor (Ken, 2026-06-28; migration 137). New bookings therefore use `total_amount = service_price` unless another approved charge applies. The setting remains admin-tunable; re-enabling it changes customer totals and requires Ken's approval plus money-path testing.
+- Guarantee-fund contribution: the release path calculates 1.5% of the service fee and carves it out of platform revenue. At the current zero customer service fee, that contribution is zero. Guarantee wording and claim terms remain subject to E10/F#10 and must not be invented from this accounting rule.
 - VAT: 12%, used for invoicing and official receipts, not deducted in the escrow split.
 
-> **Set (editable):** the guarantee-fund base is computed inconsistently between two services; the path that actually moves money (escrow release) uses 1.5% of the service fee and subtracts it from platform revenue. Confirm the correct base with the accountant, then flag to Ken so the code matches the books. _Recommended default. To change it, edit here and anywhere this value is referenced._
+The pricing preview and escrow release use different meanings for a field named
+`platformRetains`, but the money-conservation tests show the live release path
+balances and allocates 1.5% of the service fee. This naming difference is not a
+known ledger mismatch. An accountant still must approve the accounting policy,
+and E10/F#10 separately blocks customer-facing guarantee terms.
 
 This affects revenue recognition, not customer-facing amounts.
 
@@ -75,15 +79,18 @@ Rules:
 
 - Minimum withdrawal ₱100.
 - Provider must be in `approved` status.
-- One payout in flight at a time (`pending` / `approved` / `processing`).
+- One payout in flight at a time (`aml_review_pending` / `pending` / `approved` / `processing`). The check is serialized per provider so two simultaneous requests cannot both reserve funds.
 
-Payout statuses: `pending` -> `approved` -> `processing` -> `completed`, or `rejected`. A large payout (₱500,000 or more, admin-tunable) lands in `aml_review_pending` and requires a super_admin to clear the AML review before it can proceed (RA 9160 anti-money-laundering).
+Current manual payout path: `pending` -> `approved` -> `completed`, or `rejected`. A large payout (₱500,000 or more, admin-tunable) starts at `aml_review_pending`; a super_admin records why the hold can be cleared before it becomes `pending`, or rejects it directly with a reason and returns the reservation. The legacy `processing` status remains readable and continues to count as in flight, but the launch admin flow does not automatically enter it.
+
+The `aml_review_pending` state is an internal, conservative risk control. It does not determine that onService is a covered person, does not determine that a payout is legally reportable, and does not file a report. Philippine AMLA defines the general covered-transaction amount as **in excess of** ₱500,000 within one banking day for covered persons, while suspicious-transaction duties can apply regardless of amount. Confirm onService's covered-person status, aggregation/reporting obligations, and the production review procedure with Philippine counsel or a qualified AML compliance professional before live payout operations. Primary references: [RA 11521 (LawPhil)](https://lawphil.net/statutes/repacts/ra2021/ra_11521_2021.html) and the [AMLC covered-person guidance](https://www.amlc.gov.ph/covered-persons).
 
 Admin actions (Payouts page, super_admin only):
 
-1. Review the request, method, and destination account.
-2. Approve (reason 10+ chars) or Reject (reason 10+ chars, which rebates the money back to available balance).
-3. After sending the money externally, mark Complete (optionally record the PayMongo transfer ID).
+1. Review the request, provider, amount, method, destination account, wallet reservation, and prior payout state.
+2. If it is internally held, complete the review. Record either a clearance reason of at least 10 characters (moves it to pending without approving/sending) or a rejection reason (atomically returns the reserved amount).
+3. Approve (reason 10+ chars) or Reject (reason 10+ chars; the transaction returns the full reserved amount to available balance or rolls back without changing either record).
+4. After sending the money externally, mark Complete with a reason of at least 10 characters and optionally record the PayMongo transfer ID. Completion refuses to proceed if the payout is not approved or the wallet reservation is short.
 
 > **Set (editable):** the actual external transfer (sending pesos to the provider's GCash or bank) is a manual step at launch; "Complete" in admin only records that it happened, it does not itself move money. Maintain a runbook naming who logs into PayMongo or the bank and sends each batch. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
@@ -108,9 +115,11 @@ Provider no-show (displayed-policy rule): the customer gets a 100% refund plus a
 
 ---
 
-## 6. PayMongo live-mode operations
+## 6. PayMongo operations and E14 launch block
 
-PayMongo is our payment provider. Supported methods: GCash, Maya, card, QRPH, bank transfer, plus internal wallet (wallet skips PayMongo).
+PayMongo is the intended external payment provider. Configured method labels include GCash, Maya, card, QR Ph, and bank transfer; internal wallet skips PayMongo. Method configuration is not proof that the customer authorization flow works. E14 blocks launch use of the current external hosted checkout because the API constructs a URL PayMongo did not return.
+
+Until E14 is resolved, do not tell a customer to retry the current hosted link with real money, do not treat a browser redirect as payment, and do not manually mark an `awaiting_payment` attempt paid. The selected replacement must be validated with protected PayMongo test keys and verified webhooks before live mode.
 
 Going live (launch-cutover Item 7, Ken-owned):
 
@@ -118,10 +127,12 @@ Going live (launch-cutover Item 7, Ken-owned):
 - [ ] Set the settlement bank account (where our money lands).
 - [ ] Budget standard fees into margins: 3.5% + ₱15 per transaction.
 - [ ] Set the webhook to `https://api.onservice.ph/webhooks/paymongo`.
-- [ ] Test in sandbox, then switch to live mode and rotate keys to the live set (`pk_live_`, `sk_live_`, `whs_`).
+- [ ] Resolve E14 by approving Checkout Sessions or the client Payment Method flow, then implement return/cancel/pending states.
+- [ ] Test success, cancel, abandonment, duplicate tap/webhook, webhook-before-return, return-before-webhook, app resume, and desktop browser return in sandbox.
+- [ ] Switch to live mode only after test evidence and rotate keys to the live set (`pk_live_`, `sk_live_`, `whs_`).
 - [ ] Confirm `PAYMONGO_WEBHOOK_SECRET` is the live webhook secret. A wrong or missing secret means webhooks fail (503/401) and paid bookings never flip to `paid`.
 
-How a card / GCash payment completes: PayMongo calls our webhook with `payment.paid`. We verify the signature, check the amount matches (a mismatch is treated as tampering, the payment is NOT applied, and a security event is logged), then flip the booking to `paid` and escrow to `held`. This is idempotent and replay-protected.
+How a future external payment is allowed to complete: a valid PayMongo flow collects authorization, then PayMongo calls our webhook with a paid event. We verify the signature, check the amount matches (a mismatch is treated as tampering, the payment is not applied, and a security event is logged), then flip the booking to `paid` and escrow to `held`. The implemented webhook is idempotent and replay-protected, but the current hosted authorization entry remains invalid under E14.
 
 Reconciliation (admin Financials -> Reconciliation, super_admin):
 
@@ -226,7 +237,7 @@ Run this in the first 3 business days of each month for the prior month. Owner: 
 - [ ] Confirm VAT reconciliation: `sum(OR) x 12/112` matches the VAT report.
 - [ ] Check the guarantee fund balance and runway (Financials -> Guarantee Fund). If the replenishment warning is on, escalate to Ken.
 - [ ] Confirm the BIR receipt S3 bucket is writing (no gap in OR sequence).
-- [ ] Review any AML-held payouts; clear or escalate.
+- [ ] Review any internally held payouts; clear, reject, or escalate with written evidence.
 - [ ] Confirm the DSR queue is clear of overdue items.
 
 ---
@@ -257,10 +268,10 @@ If we need anything from you to verify your identity, we will reach out.
 dpo@onservice.ph
 ```
 
-AML hold notice (internal, ops to super_admin):
+Large-transaction hold notice (internal, ops to super_admin):
 
 ```
-Payout {{payoutId}} for provider {{providerName}} is PHP {{amount}}, at/above the AML threshold. Held as aml_review_pending. Needs super_admin AML clearance before processing.
+Payout {{payoutId}} for provider {{providerName}} is PHP {{amount}}, at/above the internal review threshold. Held as aml_review_pending. Needs super_admin compliance clearance before processing. This notice does not state that a legal report was filed or required.
 ```
 
 ---
@@ -270,22 +281,22 @@ Payout {{payoutId}} for provider {{providerName}} is PHP {{amount}}, at/above th
 | Knob | Default | Where to change |
 |---|---|---|
 | Commission (per tier) | 10 / 15 / 13 / 11 / 9% | Settings -> Commissions |
-| Service fee | 10%, ₱25 min, ₱500 max | Settings -> Fees |
-| Guarantee fund rate | 1.5% | Settings -> Fees |
+| Service fee | 0%, ₱0 min (migration 137) | Settings -> Fees; re-enable only with Ken approval |
+| Guarantee fund rate | 1.5% of service fee; currently zero contribution while service fee is zero | Settings -> Fees |
 | VAT | 12% | Settings -> Fees |
 | Auto-confirm window | 24h | Settings -> Escrow |
 | Dispute window | 48h | Settings -> Escrow |
 | Min withdrawal | ₱100 | platform config |
-| AML payout threshold | ₱500,000 | Settings |
+| Internal large-payout review threshold | ₱500,000 | Settings |
 | Min payment | ₱100 | platform config |
 
-All money is in centavos in the database; the admin and apps display pesos. Every privileged money action (escrow release, refund, payout approve, wallet adjust, BIR finalize, reconciliation run, settings edit) is super_admin only and writes an audit row with a typed reason.
+All money is in centavos in the database; the admin and apps display pesos. Every privileged money action (escrow release, refund, AML clearance, payout approve/reject/complete, wallet adjust, BIR finalize, reconciliation run, settings edit) is super_admin only and writes an audit row with a typed reason.
 
 ---
 
 ## Open decisions set in this doc
 
-- Instant-pay is NOT live on master today (launch blocker E03). (editable)
+- The booking/escrow ordering from E03 is implemented, but external hosted PayMongo checkout/top-up is NOT launch-ready until E14 is resolved and proven with test-mode evidence. (editable)
 - Guarantee-fund base on the live money path is 1.5% of the service fee; confirm the correct book base with the accountant. (editable)
 - Payout processing target is 3 business days. (editable)
 - External payout transfer is a manual step at launch; "Complete" only records it. (editable)

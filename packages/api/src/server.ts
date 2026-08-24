@@ -80,80 +80,16 @@ import feedbackAdminRoutes from './routes/feedback-admin.routes';
 import projectRoutes from './routes/project.routes';
 import cancellationPolicyAdminRoutes from './routes/cancellation-policy-admin.routes';
 import * as settingsService from './services/settings.service';
-import { assertAdmin2faNotDisabledInProduction } from './config/boot-guards';
+import {
+  assertAdmin2faNotDisabledInProduction,
+  resolveTrustProxyHops,
+  validateProductionSecrets,
+} from './config/boot-guards';
 import { db } from './models/db';
 import { redis } from './config/redis.config';
 
-// CRIT-M04, M05, MED-N66, N95, N169 fix — startup-time validation of
-// production-required secrets. Pre-fix: each env var was checked at
-// first-request time (TOTP encryption fell back to plaintext, JWT
-// signing threw at sign time, CAPTCHA failed open, PayMongo webhook
-// rejected silently, all without admins noticing). Post-fix: refuse
-// to boot in production with any of these unset so misconfiguration
-// is impossible to ship.
-function validateProductionSecrets(): void {
-  if (process.env.NODE_ENV !== 'production') return;
-  const required: Record<string, string | undefined> = {
-    JWT_SECRET: process.env.JWT_SECRET,
-    TOTP_ENCRYPTION_KEY: process.env.TOTP_ENCRYPTION_KEY,
-    CAPTCHA_SECRET_KEY: process.env.CAPTCHA_SECRET_KEY,
-    PAYMONGO_WEBHOOK_SECRET: process.env.PAYMONGO_WEBHOOK_SECRET,
-    // Datastore credentials supplied via DB_PASSWORD / REDIS_PASSWORD in
-    // docker-compose.prod.yml — reject the dev defaults too (below).
-    DB_PASSWORD: process.env.DB_PASSWORD,
-    REDIS_PASSWORD: process.env.REDIS_PASSWORD,
-  };
-
-  const problems: string[] = [];
-
-  // Reject unset/empty.
-  const missing = Object.entries(required)
-    .filter(([, v]) => !v || v.length === 0)
-    .map(([k]) => k);
-  for (const k of missing) problems.push(`${k} is unset/empty`);
-
-  // Reject known-bad values: the committed dev defaults and any value that
-  // carries a placeholder marker. If an operator copies the dev .env forward
-  // or forgets to rotate, the API would otherwise boot with a publicly-known
-  // signing secret / TOTP encryption key / datastore password.
-  const DEV_DEFAULTS = new Set<string>([
-    // committed in .env (dev) — public values an attacker can read in the repo.
-    'dev-only-jwt-secret-not-for-prod-32-bytes-minimum-please-rotate',
-    '9fdb19af3d5c77a9809173fb496d6a4acf69836bef1e5c7d4b42783360a4c237',
-    // .env.example / .env.docker.example placeholders.
-    'change-this-to-a-secure-random-string',
-    '__GENERATE_64_HEX_CHARS__',
-    'whsk_xxxxxxxxxxxx',
-    // dev datastore password (.env.example).
-    'onservice_dev',
-  ]);
-  const PLACEHOLDER_MARKERS = [/dev-only/i, /change-me/i, /change-this/i, /not-for-prod/i, /xxxxxxxx/i, /x{8,}/];
-  for (const [k, v] of Object.entries(required)) {
-    if (!v) continue; // already reported as missing
-    if (DEV_DEFAULTS.has(v) || PLACEHOLDER_MARKERS.some((re) => re.test(v))) {
-      problems.push(`${k} is a known dev/placeholder default — rotate it`);
-    }
-  }
-
-  // Length / format checks for the cryptographic secrets.
-  const jwt = process.env.JWT_SECRET;
-  if (jwt && jwt.length < 32) {
-    problems.push('JWT_SECRET must be at least 32 characters');
-  }
-  const totpKey = process.env.TOTP_ENCRYPTION_KEY;
-  if (totpKey && !/^[0-9a-fA-F]{64}$/.test(totpKey)) {
-    problems.push('TOTP_ENCRYPTION_KEY must be exactly 64 hex characters');
-  }
-
-  if (problems.length > 0) {
-    // Synchronous throw to prevent the server from binding the port.
-    throw new Error(
-      `FATAL: production startup blocked — secret validation failed: ${problems.join('; ')}. ` +
-        'Each value must be configured (and rotated off the dev defaults) before the API will boot ' +
-        'in production. See packages/api/src/server.ts validateProductionSecrets for the full list.',
-    );
-  }
-}
+// CRIT-M04, M05, MED-N66, N95, N169 — refuse production startup before
+// binding a port when required secrets are absent or unsafe.
 validateProductionSecrets();
 
 // A1 / C1 — refuse to boot if admin 2FA is disabled in production. The flag
@@ -172,8 +108,8 @@ const PORT = process.env.PORT || 3001;
 // limiting (per-IP limits were per-LB limits). The hop count is
 // configurable via TRUST_PROXY_HOPS env var so different deployments
 // (single LB vs LB-in-front-of-CDN) can tune appropriately.
-const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
-if (Number.isFinite(trustProxyHops) && trustProxyHops > 0) {
+const trustProxyHops = resolveTrustProxyHops();
+if (trustProxyHops !== null) {
   app.set('trust proxy', trustProxyHops);
 }
 

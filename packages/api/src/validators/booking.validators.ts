@@ -85,19 +85,19 @@ export const updateBookingStatusSchema = z.object({
 
 export const submitQuoteSchema = z.object({
   quotedPrice: z.number().int().min(platformConfig.minimumQuoteAmount, `Minimum quote is ${formatPHP(platformConfig.minimumQuoteAmount)}`),
-  description: z.string().min(10).max(2000),
+  description: z.string().trim().min(10).max(2000),
   estimatedDurationMinutes: z.number().int().min(15).max(1440).optional(),
   estimatedDays: z.number().int().min(1).max(365).optional(),
   notes: z.string().max(2000).optional(),
   portfolioPhotos: z.array(z.string().url()).max(5).optional(),
   lineItems: z.array(z.object({
-    description: z.string().min(1).max(500),
+    description: z.string().trim().min(1).max(500),
     quantity: z.number().min(0.01).max(99999),
-    unit: z.string().min(1).max(30),
+    unit: z.string().trim().min(1).max(30),
     unitPrice: z.number().int().min(1),
     itemType: z.enum(['labor', 'materials', 'equipment', 'other']).optional(),
-  })).min(1).max(20).optional(),
-});
+  }).strict()).min(1).max(20).optional(),
+}).strict();
 
 export const createJobRequestSchema = z.object({
   categoryId: z.string().uuid('Invalid category ID'),
@@ -139,6 +139,7 @@ export const createChangeOrderSchema = z
   .object({
     description: z
       .string()
+      .trim()
       .min(10, 'Description must be at least 10 characters')
       .max(2000),
     // D27 Phase 3 — additionalAmount is now optional: a change order can be a
@@ -160,9 +161,9 @@ export const createChangeOrderSchema = z
     lineItems: z
       .array(
         z.object({
-          description: z.string().min(1).max(500),
+          description: z.string().trim().min(1).max(500),
           quantity: z.number().min(0.01).max(99999),
-          unit: z.string().min(1).max(30),
+          unit: z.string().trim().min(1).max(30),
           unitPrice: z.number().int().min(1).max(CHANGE_ORDER_HARD_CAP_CENTAVOS),
           itemType: z.enum(['labor', 'materials', 'equipment', 'other']).optional(),
         }),

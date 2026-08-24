@@ -64,9 +64,9 @@ These run through the whole handbook. Each is an editable default. If any is wro
 
 - **Money actions stay with super-admin staff.**
 
-  > **Set (editable):** Refunds, payouts, and escrow release always stay with super-admin staff. Super-admin accounts are Ken plus one Operations Lead only. Before launch, wire money actions behind a finance/super-admin gate so support agents get a limited admin login that cannot reach money buttons. _Recommended default. To change it, edit here and anywhere this value is referenced._
+  > **Set (editable):** Refunds, payouts, and escrow release always stay with super-admin staff. Super-admin accounts are Ken plus one Operations Lead only. The current API and UI gate those actions to `super_admin`; support agents use `admin` accounts and cannot reach the money controls. Fine-grained named roles remain metadata until an authorization architecture is approved. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-- **The instant-pay model is live** (customer pays first into escrow, the provider is matched after). Merged and deployed on 2026-06-19 (PR #44, E03 closed).
+- **The instant-pay state machine is implemented, but external hosted checkout is blocked.** PR #44 closed E03's booking/escrow ordering defect. E14 remains open because the current Payment Intent URL is not a valid PayMongo hosted checkout. Internal wallet behavior and verified webhook handling do not make card/GCash/Maya/QR Ph authorization launch-ready.
 
 ## How to keep this current
 

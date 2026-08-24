@@ -2,6 +2,18 @@ import { z } from 'zod';
 
 // D27 Phase 7b — provider CRM depth validators.
 
+function isCalendarDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day;
+}
+
 export const addClientNoteSchema = z.object({
   body: z.string().trim().min(1).max(4000),
 }).strict();
@@ -9,7 +21,9 @@ export const addClientNoteSchema = z.object({
 export const addReminderSchema = z.object({
   customerId: z.string().uuid().optional().nullable(),
   title: z.string().trim().min(1).max(200),
-  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'dueDate must be YYYY-MM-DD'),
+  dueDate: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'dueDate must be YYYY-MM-DD')
+    .refine(isCalendarDate, 'dueDate must be a real calendar date'),
 }).strict();
 
 export const createTemplateSchema = z.object({

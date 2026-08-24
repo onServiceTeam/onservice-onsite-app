@@ -122,6 +122,6 @@ describe('getOpenJobRequestsForProvider', () => {
     const listSql = dbQueryMock.mock.calls[2][0] as string;
     expect(listSql).toMatch(/NOT EXISTS .*q\.provider_id = \$1/s);
     expect(listSql).toMatch(/q2\.status = 'accepted'/);
-    expect(listSql).toMatch(/b\.status = 'requested'/);
+    expect(listSql).toMatch(/b\.status IN \('requested', 'quoted'\)/);
   });
 });

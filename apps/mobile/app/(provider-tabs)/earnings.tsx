@@ -75,7 +75,7 @@ const FALLBACK_ICON: IconComponent = Repeat;
 export default function EarningsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isDesktop } = useResponsive();
+  const { isPhone } = useResponsive();
 
   const walletQuery = useQuery({
     queryKey: ['wallet'],
@@ -88,37 +88,34 @@ export default function EarningsScreen(): React.ReactElement {
   // with the real /api/v1/providers/me/earnings/trends endpoint.
   // Returns one row per day (or week/month) with the actual net
   // earnings for that period.
-  const trendsQuery = useQuery<Array<{ period: string; netEarned: number }>>({
+  const trendsQuery = useQuery<Array<{
+    period: string;
+    totalEarned: number;
+    totalCommission: number;
+    netEarned: number;
+    jobCount: number;
+  }>>({
     queryKey: ['providerEarningsTrends', 'daily', 7],
     queryFn: async () => {
-      const res = await api.get<{ data: Array<{ period: string; netEarned: number | string }> }>(
+      const res = await api.get<{ data: Array<{
+        period: string;
+        totalEarned: number | string;
+        totalCommission: number | string;
+        netEarned: number | string;
+        jobCount: number | string;
+      }> }>(
         '/api/v1/providers/me/earnings/trends?period=daily&days=7',
       );
       return res.data.data.map((r) => ({
         period: r.period,
+        totalEarned: Number(r.totalEarned) || 0,
+        totalCommission: Number(r.totalCommission) || 0,
         netEarned: Number(r.netEarned) || 0,
+        jobCount: Number(r.jobCount) || 0,
       }));
     },
     staleTime: 60 * 1000,
   });
-
-  // Phase K CRIT-K09 fix — fetch the provider's real tier so the
-  // CommissionBreakdown panel can show the correct rate. Pre-fix
-  // displayed a hardcoded "12%" regardless of tier.
-  const providerQuery = useQuery<{ tier: string }>({
-    queryKey: ['providerMe'],
-    queryFn: async () => {
-      const res = await api.get<{ data: { tier: string } }>('/api/v1/providers/me');
-      return { tier: res.data.data.tier };
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Tier-specific commission rate (live from platformConfig table).
-  const providerTier = providerQuery.data?.tier ?? 'new';
-  const tierCommissionRate =
-    platformConfig.commissionRates[providerTier] ?? platformConfig.commissionRates.new ?? 0.15;
-  const tierCommissionPct = Math.round(tierCommissionRate * 100);
 
   const transactionsQuery = useQuery({
     queryKey: ['walletTransactions'],
@@ -133,20 +130,33 @@ export default function EarningsScreen(): React.ReactElement {
     staleTime: 60 * 1000,
   });
 
-  const isRefreshing = walletQuery.isRefetching || transactionsQuery.isRefetching;
+  const isRefreshing = walletQuery.isRefetching || transactionsQuery.isRefetching || trendsQuery.isRefetching;
   const isError = walletQuery.isError || transactionsQuery.isError;
   const onRefresh = useCallback(() => {
     void walletQuery.refetch();
     void transactionsQuery.refetch();
-  }, [walletQuery, transactionsQuery]);
+    void trendsQuery.refetch();
+  }, [walletQuery, transactionsQuery, trendsQuery]);
 
   const wallet = walletQuery.data;
   const transactions = transactionsQuery.data ?? [];
+  const sevenDayTotals = (trendsQuery.data ?? []).reduce(
+    (total, row) => ({
+      gross: total.gross + row.totalEarned,
+      commission: total.commission + row.totalCommission,
+      net: total.net + row.netEarned,
+      jobs: total.jobs + row.jobCount,
+    }),
+    { gross: 0, commission: 0, net: 0, jobs: 0 },
+  );
 
   const renderHeader = (): React.ReactElement => (
     <View>
-      <View style={[styles.overview, isDesktop && styles.desktopOverview]}>
-        <View style={isDesktop ? styles.desktopSummary : undefined}>
+      <View
+        style={[styles.overview, !isPhone && styles.wideOverview]}
+        accessibilityLabel={isPhone ? 'Provider earnings summary' : 'Wide provider earnings workspace'}
+      >
+        <View style={!isPhone ? styles.wideSummary : undefined}>
           <View style={styles.earningsCard}>
             {walletQuery.isLoading ? (
               <ActivityIndicator size="large" color={colors.white} />
@@ -158,7 +168,7 @@ export default function EarningsScreen(): React.ReactElement {
                 </Text>
                 {wallet && wallet.pendingBalance > 0 && (
                   <Text style={styles.pendingText}>
-                    {formatPHP(wallet.pendingBalance)} in escrow
+                    {formatPHP(wallet.pendingBalance)} reserved for a payout in progress
                   </Text>
                 )}
                 <View style={styles.earningsActions}>
@@ -189,15 +199,15 @@ export default function EarningsScreen(): React.ReactElement {
             </View>
             <View style={styles.infoCard}>
               <BarChart3 size={22} color={colors.primary} style={styles.infoIconImg} />
-              <Text style={styles.infoLabel}>Your Commission</Text>
-              {/* Phase K CRIT-K09 fix — show this provider's actual tier
-               commission, not the platform-wide range. */}
-              <Text style={styles.infoValue}>{`${tierCommissionPct}%`}</Text>
+              <Text style={styles.infoLabel}>7-day net</Text>
+              <Text style={styles.infoValue}>
+                {trendsQuery.isError ? 'Unavailable' : formatPHP(sevenDayTotals.net)}
+              </Text>
             </View>
           </View>
         </View>
 
-        <View style={isDesktop ? styles.desktopInsights : undefined}>
+        <View style={!isPhone ? styles.wideInsights : undefined}>
           {/* Phase K CRIT-K08 fix — EarningsChart driven by REAL backend
            data (provider/me/earnings/trends?period=daily&days=7). */}
           <View style={{ marginBottom: spacing.base }}>
@@ -225,49 +235,29 @@ export default function EarningsScreen(): React.ReactElement {
             )}
           </View>
 
-          {/* Phase K CRIT-K09 fix — CommissionBreakdown uses the provider's
-           ACTUAL tier-specific commission rate (was hardcoded 12%).
-           BUG-PHASE64-04 fix — the commission and guarantee `amount`
-           lines used (1 - commRate) as the denominator, which doesn't
-           match the gross calc (which uses 1 - commRate - guarRate)
-           and leaves a residual: the displayed lines summed to less
-           than gross - net. Now both use the same denominator so the
-           breakdown is internally consistent: gross - commission -
-           guarantee == net exactly. */}
-          {wallet &&
-            wallet.availableBalance > 0 &&
-            (() => {
-              const netRate = 1 - tierCommissionRate - platformConfig.guaranteeFundRate;
-              const gross = Math.round(wallet.availableBalance / netRate);
-              const commission = Math.round(
-                wallet.availableBalance * (tierCommissionRate / netRate),
-              );
-              const guarantee = Math.round(
-                wallet.availableBalance * (platformConfig.guaranteeFundRate / netRate),
-              );
-              return (
-                <View style={{ marginBottom: spacing.base }}>
-                  <CommissionBreakdown
-                    gross={gross}
-                    lines={[
-                      {
-                        label: 'Platform commission',
-                        amount: commission,
-                        pct: tierCommissionPct,
-                        helpText: `Your tier (${providerTier}) commission rate. Earn higher tier for lower commission.`,
-                      },
-                      {
-                        label: 'Guarantee fund',
-                        amount: guarantee,
-                        pct: Math.round(platformConfig.guaranteeFundRate * 100 * 10) / 10,
-                        helpText: 'Funds the platform guarantee program for completed bookings.',
-                      },
-                    ]}
-                    net={wallet.availableBalance}
-                  />
-                </View>
-              );
-            })()}
+          {/* UX-123 — the old card reverse-engineered a fictional gross amount
+              from the current wallet balance. A wallet includes withdrawals
+              and multiple transaction types, so it is not a job-period net.
+              This card now uses the server-recorded seven-day earnings rows. */}
+          {sevenDayTotals.gross > 0 && (
+            <View style={{ marginBottom: spacing.base }}>
+              <Text style={styles.breakdownTitle}>Paid jobs, last 7 days</Text>
+              <CommissionBreakdown
+                gross={sevenDayTotals.gross}
+                lines={[
+                  {
+                    label: 'Recorded platform commission',
+                    amount: sevenDayTotals.commission,
+                    helpText: 'The commission recorded when these completed jobs were released to your wallet.',
+                  },
+                ]}
+                net={sevenDayTotals.net}
+              />
+              <Text style={styles.sourceNote}>
+                {sevenDayTotals.jobs} paid job{sevenDayTotals.jobs === 1 ? '' : 's'} in this period. Your withdrawable balance can differ after payouts, refunds, or other wallet transactions.
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -300,7 +290,7 @@ export default function EarningsScreen(): React.ReactElement {
     <View
       style={[
         styles.container,
-        isDesktop && styles.desktopContainer,
+        !isPhone && styles.wideContainer,
         { paddingTop: insets.top + spacing.base },
       ]}
     >
@@ -349,16 +339,16 @@ export default function EarningsScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
-  desktopContainer: {
+  wideContainer: {
     width: '100%',
     maxWidth: 1040,
     alignSelf: 'center',
     paddingHorizontal: spacing.xl,
   },
   overview: {},
-  desktopOverview: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
-  desktopSummary: { width: 360 },
-  desktopInsights: { flex: 1, minWidth: 0 },
+  wideOverview: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  wideSummary: { width: 360 },
+  wideInsights: { flex: 1, minWidth: 0 },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.lg },
 
   earningsCard: {
@@ -396,6 +386,8 @@ const styles = StyleSheet.create({
   infoValue: { ...typography.body, color: colors.text, fontWeight: '700' },
 
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
+  breakdownTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
+  sourceNote: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.sm, lineHeight: 17 },
 
   list: { paddingBottom: 100 },
   txRow: {

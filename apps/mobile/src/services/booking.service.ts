@@ -63,6 +63,10 @@ export interface Booking {
   // custom quote, keyed by the subcategory's field_key. Null for bookings made
   // before the subcategory had intake fields. Providers read these to quote.
   intakeAnswers?: Record<string, string | number | boolean> | null;
+  urgency?: 'same_day' | 'within_3_days' | 'within_a_week' | 'flexible' | null;
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  jobVideoUrl?: string | null;
 }
 
 // Phase 14 Dispatch 05 — Bug 175 + Bug 176.

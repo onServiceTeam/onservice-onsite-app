@@ -14,9 +14,9 @@ Two things drive every role below:
 
 2. **A second "role" label inside the admin Staff & Roles page** (`super_admin`, `admin`, `support_agent`, `finance`, `moderator`) that is organizational metadata. It documents what a person is supposed to touch, but it does NOT by itself restrict the API. Until that changes, treat job-role separation as a discipline you enforce by hiring and training, not something the app forces.
 
-The granular Staff & Roles permissions (`support_agent`, `finance`, `moderator`) are seeded in the database but do not gate API routes today. That gap is closed before launch:
+The granular Staff & Roles permissions (`support_agent`, `finance`, `moderator`) are seeded in the database but do not gate API routes today. The current launch boundary is the account role:
 
-> **Set (editable):** Before public launch, wire the money actions (refund, payout, escrow release) behind a finance/super-admin gate so a support agent literally cannot open them. Support agents get a limited `admin` login that cannot reach the money buttons. Record this as a pre-launch work item. Until it ships, anyone who is not `super_admin` sees money buttons as read-only, anyone who IS `super_admin` can do everything, and you give `super_admin` to as few people as possible. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** Refund, payout, escrow, reconciliation, and other money controls are currently gated to the single `super_admin` account role in API and UI. Support agents use `admin` and see read-only money surfaces. Do not treat the named `finance` metadata role as authority until the finer authorization architecture is explicitly approved and implemented. Give `super_admin` to as few people as possible. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ---
 
@@ -80,7 +80,7 @@ Pay bands are indicative Cebu monthly starting ranges to confirm against current
 
 - **Purpose:** Owns strategy, money-path decisions, legal/compliance sign-off, and anything the app flags as a hard stop.
 - **Admin permission:** `super_admin`.
-- **Daily responsibilities:** Approve money/compliance decisions that exceed an agent's authority (large refunds, provider bans, wallet adjustments, settings changes). Sign off on which markets turn on in **Service Areas**. Final approver on AML-flagged payouts (≥ ₱500,000) via **Run reconciliation** / payout review. Reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout (see `09-trust-safety-and-disputes.md`). Make the editable-decision calls in this handbook.
+- **Daily responsibilities:** Approve money/compliance decisions that exceed an agent's authority (large refunds, provider bans, wallet adjustments, settings changes). Sign off on which markets turn on in **Service Areas**. Final approver on internally flagged large payouts (currently ≥ ₱500,000) in the Payout queue, with a written clearance reason before ordinary approval. Reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout (see `09-trust-safety-and-disputes.md`). Make the editable-decision calls in this handbook.
 - **KPIs:** platform GMV, take rate, escrow integrity (zero unexplained discrepancies in **Financials → Reconciliation**), launch-readiness items closed.
 
 ### 4.2 Operations Lead
@@ -107,7 +107,7 @@ Pay bands are indicative Cebu monthly starting ranges to confirm against current
 - **KPIs:** % bookings matched within target (starting target: 90% matched within 2 offer cycles), no-provider rate, manual-reassign count, average provider ETA accuracy, quality-flag rate.
 - **Pay band (editable):** ₱20,000 to ₱28,000/month. Starting range to confirm.
 
-> Note on dispatch defaults: the Dispatch Console map still centers on Boracay coordinates in one code path. That is a stale artifact, not the current Cebu-default direction. It does not affect matching; flag it to engineering, do not act on it operationally.
+> Note on dispatch defaults: the Dispatch Console now opens on Cebu City. City/service-area filters remain the operating source for other markets.
 
 ### 4.5 Customer Support Agent
 
@@ -120,8 +120,8 @@ Pay bands are indicative Cebu monthly starting ranges to confirm against current
 ### 4.6 Provider Support
 
 - **Purpose:** Keep providers earning. Handle payouts, account, job, and change-order questions.
-- **Admin permission:** `admin`. Can view **Payouts** and provider **Financials**. **Approve / Reject / Complete payout** and **wallet adjust** are super_admin-only and get escalated. AML-flagged payouts (≥ ₱500,000) require a super_admin to clear the review.
-- **Daily responsibilities:** Work provider-created cases from the in-app Support inbox and the provider email inbox (`providers@onservice.ph`). For external contact, log the ticket in admin on the provider's behalf. Explain payout status and timing (minimum withdrawal ₱100, one pending payout at a time, target 3 business days to complete). Help with change-order disputes (capped at 50% of original service price). Walk providers through NBI-expiry renewals (30-day warning window; support chases manually and manually suspends if ignored, there is no auto-suspend at launch). Handle tier questions (commission is flat per tier: founding 10%, new 15%, verified 13%, pro 11%, elite 9%). Escalate suspensions. See `07-provider-support-sop.md`.
+- **Admin permission:** `admin`. Can view **Payouts** and provider **Financials**. **Clear review / Approve / Reject / Complete payout** and **wallet adjust** are super_admin-only and get escalated. Internally flagged large payouts (currently ≥ ₱500,000) require a super_admin to clear or reject the held request with a written reason.
+- **Daily responsibilities:** Work provider-created cases from the in-app Support inbox and the provider email inbox (`providers@onservice.ph`). For external contact, log the ticket in admin on the provider's behalf. Explain payout status and timing (minimum withdrawal ₱100, one in-flight request including AML-held/pending/approved/legacy-processing, target 3 business days to complete). Help with change-order disputes (capped at 50% of original service price). Walk providers through NBI-expiry renewals (30-day warning window; support chases manually and manually suspends if ignored, there is no auto-suspend at launch). Handle tier questions (commission is flat per tier: founding 10%, new 15%, verified 13%, pro 11%, elite 9%). Escalate suspensions. See `07-provider-support-sop.md`.
 - **KPIs:** payout-query resolution time, provider CSAT, NBI-expiry lapse rate (target: near zero approved providers operating on expired NBI), change-order dispute rate.
 - **Pay band (editable):** ₱22,000 to ₱30,000/month. Starting range to confirm.
 
@@ -129,7 +129,7 @@ Pay bands are indicative Cebu monthly starting ranges to confirm against current
 
 - **Purpose:** Keep the money clean and the company legal. Reconciliation, payouts oversight, BIR, NPC, PayMongo.
 - **Admin permission:** `super_admin` for money actions (the Staff & Roles `finance` label covers financials/payouts/audit/analytics, but the actual money buttons are super_admin-gated). Compliance/privacy work uses the `dpo` role for consent records and DSRs.
-- **Daily responsibilities:** Run **Financials → Reconciliation** (PayMongo vs expected balance) and acknowledge discrepancies. Oversee the payout queue (target 3 business days to process) and clear AML reviews. Watch the **Guarantee Fund** runway and replenishment status, including guarantee-fund claims (starting rule: cap ₱20,000 per claim, eligible for provider-caused property damage or theft with photo evidence filed inside the 48-hour dispute window, payout clawed back from the provider's future payouts, anything above the cap escalates to Ken; needs legal + accountant sign-off). Generate/finalize **BIR Reports** (monthly VAT 2550M, quarterly 2307 withholding). Track the launch-cutover compliance items (NPC DPO registration, BIR ATP, S3 Object Lock). See `10-money-and-compliance-ops.md`.
+- **Daily responsibilities:** Run **Financials → Reconciliation** (PayMongo vs expected balance) and acknowledge discrepancies. Oversee the payout queue (target 3 business days to process) and clear or reject internal large-transaction holds with written evidence. Watch the internal **Guarantee Fund** accounting balance without promising a claim outcome; E10/F#10 requires counsel before any cap, eligibility, clawback, or customer-facing protection rule. Generate/finalize **BIR Reports** only under the accountant-approved process. Track the launch-cutover compliance items (NPC DPO registration, BIR ATP, storage retention/PITR). See `10-money-and-compliance-ops.md`.
 - **KPIs:** reconciliation discrepancies (target: zero unexplained), payout SLA (3 business days), guarantee-fund runway (target: stays above replenishment threshold), BIR filings on time, DSR acknowledged within 2 days and fulfilled within the NPC-required window.
 - **Pay band (editable):** ₱30,000 to ₱45,000/month. Starting range to confirm.
 
@@ -225,7 +225,7 @@ The three options behind that default:
 2. **Hybrid.** Keep an in-house lead who owns disputes, refunds, and anything touching money or PII; outsource overflow/after-hours first-line (FAQ, booking status) to a BPO. Most CS work is reading FAQ answers and booking status, which outsources cleanly; disputes and refunds must stay in-house because they are super_admin money actions.
 3. **Fully outsourced BPO.** Cheapest per seat at scale. Cons: a third party touches customer PII (NPC/DPA exposure, needs a data-processing agreement), weaker product knowledge, and you still cannot give a BPO super_admin for refunds.
 
-**Support channels and hours (editable):** staff email and Facebook Messenger first; add a phone/SMS hotline later as volume warrants. Support hours are **Monday to Saturday, 8:00 AM to 6:00 PM PHT** (regular Philippine business hours). Sunday is closed at launch; urgent safety issues still escalate via the on-call path. Provision a real hotline number before public launch and remove the placeholder `+63 2 8123 4567` from the app as a pre-launch fix (it is not a real number).
+**Support channels and hours (editable):** staff email and Facebook Messenger first; add a phone/SMS hotline later as volume warrants. Support hours are **Monday to Saturday, 8:00 AM to 6:00 PM PHT** (regular Philippine business hours). Sunday is closed at launch; urgent safety issues still escalate via the on-call path. The placeholder has been removed; provision and staff a real number before advertising phone support.
 
 ---
 
@@ -239,8 +239,9 @@ The three options behind that default:
 - [ ] Customer Support can open and assign **Support Tickets** and knows which actions to escalate.
 - [ ] Escalation path written and posted: agent → Operations Lead → Founder/CEO for money and compliance.
 - [ ] RACI above reviewed with the team so everyone knows who is Accountable per process.
-- [ ] Pre-launch: money actions (refund, payout, escrow release) gated behind finance/super-admin so support agents cannot reach them.
-- [ ] Pre-launch: placeholder hotline `+63 2 8123 4567` removed from the app, real number provisioned.
+- [x] Money actions (refund, payout, escrow release) gated to the live `super_admin` role so support agents cannot reach them.
+- [x] Placeholder hotline removed from the app.
+- [ ] Real phone/SMS number provisioned and staffed before it is advertised.
 - [ ] Open decisions in this doc reviewed with Ken (see list below).
 
 ---
@@ -249,7 +250,7 @@ The three options behind that default:
 
 Each value below is a recommended default. Edit it here and anywhere it is referenced to change it.
 
-- **Granular admin roles:** wire money actions behind a finance/super-admin gate before launch; support agents get an `admin` login that cannot reach money buttons. (editable)
+- **Granular admin roles:** current money authority is the `super_admin` account role; named finance/support permissions remain metadata pending an explicit authorization architecture. (editable)
 - **Launch headcount:** 3 to 4 people for the Metro Cebu soft launch. (editable)
 - **Super-admin accounts:** Ken plus one Operations Lead at launch; add Finance & Compliance Lead when hired. (editable)
 - **DPO at launch:** Ken or a fractional/outsourced DPO; the `dpo` account must exist and stay separate from any super_admin. (editable)

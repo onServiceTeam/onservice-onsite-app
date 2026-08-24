@@ -4,7 +4,7 @@ import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator,
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { submitQuote } from '@/services/booking.service';
+import { getBookingById, submitQuote } from '@/services/booking.service';
 import { listTemplates, type QuoteTemplate } from '@/services/provider-crm.service';
 import { showToast } from '@/lib/toast';
 import api from '@/services/api';
@@ -13,6 +13,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import { X } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 interface LineItemDraft {
   id: number;
@@ -29,13 +30,30 @@ function createEmptyItem(): LineItemDraft {
   return { id: nextItemId++, description: '', quantity: '1', unit: 'unit', unitPrice: '', itemType: 'labor' };
 }
 
+const URGENCY_LABELS: Record<string, string> = {
+  same_day: 'Same day',
+  within_3_days: 'Within 3 days',
+  within_a_week: 'Within a week',
+  flexible: 'Flexible',
+};
+
+function humanizeKey(key: string): string {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 export default function QuoteBuilderScreen(): React.ReactElement {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { isPhone } = useResponsive();
   const [description, setDescription] = useState('');
   const [notes, setNotes] = useState('');
   const [estimatedDays, setEstimatedDays] = useState('');
   const [items, setItems] = useState<LineItemDraft[]>([createEmptyItem()]);
+  const bookingQuery = useQuery({
+    queryKey: ['booking', bookingId],
+    queryFn: () => getBookingById(bookingId ?? ''),
+    enabled: !!bookingId,
+  });
 
   const addItem = (): void => setItems([...items, createEmptyItem()]);
 
@@ -63,11 +81,31 @@ export default function QuoteBuilderScreen(): React.ReactElement {
     if (items.length > 1) setItems(items.filter(item => item.id !== id));
   };
 
-  const totalAmount = items.reduce((sum, item) => {
-    const qty = Number(item.quantity) || 0;
-    const price = Math.round((Number(item.unitPrice) || 0) * 100);
-    return sum + Math.round(qty * price);
-  }, 0);
+  // Build one canonical draft used by both the preview and submission. The old
+  // path previewed quantity 0 as zero, then submitted it as quantity 1 via
+  // `Number(value) || 1`, changing the total after the provider tapped Submit.
+  const activeItems = items.filter((item) => item.description.trim() || item.unitPrice.trim());
+  const preparedLineItems = activeItems.map((item) => ({
+    description: item.description.trim(),
+    quantity: Number(item.quantity),
+    unit: item.unit.trim(),
+    unitPrice: Math.round(Number(item.unitPrice) * 100),
+    itemType: item.itemType,
+  }));
+  const lineItemsValid = preparedLineItems.length > 0 && preparedLineItems.every((item) =>
+    item.description.length > 0
+    && item.description.length <= 500
+    && Number.isFinite(item.quantity)
+    && item.quantity >= 0.01
+    && item.quantity <= 99999
+    && item.unit.length > 0
+    && item.unit.length <= 30
+    && Number.isSafeInteger(item.unitPrice)
+    && item.unitPrice >= 1,
+  );
+  const totalAmount = lineItemsValid
+    ? preparedLineItems.reduce((sum, item) => sum + Math.round(item.quantity * item.unitPrice), 0)
+    : 0;
 
   // BUG-PHASE48-02 fix — pre-fix the screen showed only the gross
   // quote total, not the provider's net after platform commission.
@@ -76,40 +114,27 @@ export default function QuoteBuilderScreen(): React.ReactElement {
   // was deducted. Same pattern as Phase E CRIT-101 fix on
   // provider/job/[id].tsx — fetch tier, look up commission rate,
   // render the breakdown.
-  const providerMeQuery = useQuery<{ tier: string }>({
+  const providerMeQuery = useQuery<{ tier: string; commissionRate: number }>({
     queryKey: ['providerMe'],
     queryFn: async () => {
-      const res = await api.get<{ data: { tier: string } }>('/api/v1/providers/me');
-      return { tier: res.data.data.tier };
+      const res = await api.get<{ data: { tier: string; commissionRate: number } }>('/api/v1/providers/me');
+      return { tier: res.data.data.tier, commissionRate: res.data.data.commissionRate };
     },
     staleTime: 5 * 60 * 1000,
   });
-  const providerTier = providerMeQuery.data?.tier ?? 'new';
-  const commissionRate =
-    platformConfig.commissionRates[providerTier]
-    ?? platformConfig.commissionRates.new
-    ?? 0.15;
-  const commissionAmount = Math.round(totalAmount * commissionRate);
-  const netEarnings = totalAmount - commissionAmount;
+  const providerTier = providerMeQuery.data?.tier;
+  const commissionRate = providerMeQuery.data?.commissionRate;
+  const commissionAmount = commissionRate == null ? null : Math.round(totalAmount * commissionRate);
+  const netEarnings = commissionAmount == null ? null : totalAmount - commissionAmount;
 
   const mutation = useMutation({
     mutationFn: () => {
-      const lineItems = items
-        .filter(i => i.description && Number(i.unitPrice) > 0)
-        .map(i => ({
-          description: i.description,
-          quantity: Number(i.quantity) || 1,
-          unit: i.unit || 'unit',
-          unitPrice: Math.round((Number(i.unitPrice) || 0) * 100),
-          itemType: i.itemType as 'labor' | 'materials' | 'equipment' | 'other',
-        }));
-
       return submitQuote(bookingId ?? '', {
         quotedPrice: totalAmount,
-        description,
+        description: description.trim(),
         estimatedDays: estimatedDays ? Number(estimatedDays) : undefined,
-        notes: notes || undefined,
-        lineItems,
+        notes: notes.trim() || undefined,
+        lineItems: preparedLineItems,
       });
     },
     onSuccess: () => {
@@ -123,7 +148,14 @@ export default function QuoteBuilderScreen(): React.ReactElement {
     },
   });
 
-  const isValid = description.length >= 10 && totalAmount >= platformConfig.minimumQuoteAmount && items.some(i => i.description && Number(i.unitPrice) > 0);
+  const estimatedDaysNumber = estimatedDays.trim() ? Number(estimatedDays) : null;
+  const estimatedDaysValid = estimatedDaysNumber == null
+    || (Number.isInteger(estimatedDaysNumber) && estimatedDaysNumber >= 1 && estimatedDaysNumber <= 365);
+  const isValid = !!bookingQuery.data
+    && description.trim().length >= 10
+    && lineItemsValid
+    && totalAmount >= platformConfig.minimumQuoteAmount
+    && estimatedDaysValid;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -135,7 +167,72 @@ export default function QuoteBuilderScreen(): React.ReactElement {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+      >
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={isPhone ? 'Provider quote builder' : 'Wide provider quote workspace'}
+        >
+        <View style={[styles.contextCard, !isPhone && styles.contextColumn]}>
+          <Text style={styles.contextEyebrow}>CUSTOMER REQUEST</Text>
+          {bookingQuery.isLoading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : bookingQuery.isError || !bookingQuery.data ? (
+            <View>
+              <Text style={styles.contextError}>The job details could not be loaded. Review the job before submitting a quote.</Text>
+              <TouchableOpacity style={styles.contextRetry} onPress={() => void bookingQuery.refetch()}>
+                <Text style={styles.contextRetryText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.contextTitle}>{bookingQuery.data.serviceName ?? bookingQuery.data.categoryName ?? 'Custom service'}</Text>
+              <Text style={styles.contextDescription}>{bookingQuery.data.description}</Text>
+              <View style={styles.contextFacts}>
+                {bookingQuery.data.urgency ? (
+                  <View style={styles.contextFact}>
+                    <Text style={styles.contextLabel}>Timing</Text>
+                    <Text style={styles.contextValue}>{URGENCY_LABELS[bookingQuery.data.urgency] ?? bookingQuery.data.urgency}</Text>
+                  </View>
+                ) : null}
+                {(bookingQuery.data.budgetMin != null || bookingQuery.data.budgetMax != null) ? (
+                  <View style={styles.contextFact}>
+                    <Text style={styles.contextLabel}>Customer budget</Text>
+                    <Text style={styles.contextValue}>
+                      {bookingQuery.data.budgetMin != null && bookingQuery.data.budgetMax != null
+                        ? `${formatPHP(bookingQuery.data.budgetMin)} - ${formatPHP(bookingQuery.data.budgetMax)}`
+                        : bookingQuery.data.budgetMin != null
+                          ? `From ${formatPHP(bookingQuery.data.budgetMin)}`
+                          : `Up to ${formatPHP(bookingQuery.data.budgetMax ?? 0)}`}
+                    </Text>
+                  </View>
+                ) : null}
+                {bookingQuery.data.jobPhotos.length > 0 ? (
+                  <View style={styles.contextFact}>
+                    <Text style={styles.contextLabel}>Evidence</Text>
+                    <Text style={styles.contextValue}>{bookingQuery.data.jobPhotos.length} customer photo{bookingQuery.data.jobPhotos.length === 1 ? '' : 's'}</Text>
+                  </View>
+                ) : null}
+              </View>
+              {bookingQuery.data.intakeAnswers && Object.keys(bookingQuery.data.intakeAnswers).length > 0 ? (
+                <View style={styles.intakeBlock}>
+                  <Text style={styles.contextLabel}>Job details</Text>
+                  {Object.entries(bookingQuery.data.intakeAnswers).map(([key, value]) => (
+                    <View key={key} style={styles.intakeRow}>
+                      <Text style={styles.intakeKey}>{humanizeKey(key)}</Text>
+                      <Text style={styles.intakeValue}>{typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              <Text style={styles.contextNote}>Confirm the customer’s scope and evidence before pricing. The customer will see the total and every line item.</Text>
+            </>
+          )}
+        </View>
+
+        <View style={styles.formColumn}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quote Description *</Text>
           <TextInput
@@ -262,6 +359,9 @@ export default function QuoteBuilderScreen(): React.ReactElement {
               )}
             </View>
           ))}
+          {activeItems.length > 0 && !lineItemsValid && (
+            <Text style={styles.fieldError}>Complete or remove every started line item. Quantity must be at least 0.01.</Text>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -277,6 +377,7 @@ export default function QuoteBuilderScreen(): React.ReactElement {
             />
             <Text style={styles.daysLabel}>day(s)</Text>
           </View>
+          {!estimatedDaysValid && <Text style={styles.fieldError}>Use a whole number from 1 to 365.</Text>}
         </View>
 
         <View style={styles.section}>
@@ -299,7 +400,7 @@ export default function QuoteBuilderScreen(): React.ReactElement {
           <Text style={styles.totalValue}>
             {formatPHP(totalAmount)}
           </Text>
-          {totalAmount > 0 && (
+          {totalAmount > 0 && commissionRate != null && commissionAmount != null && providerTier && (
             <View style={styles.commissionRow}>
               <Text style={styles.commissionLabel}>
                 − Platform commission ({Math.round(commissionRate * 100)}% — {providerTier} tier)
@@ -307,7 +408,7 @@ export default function QuoteBuilderScreen(): React.ReactElement {
               <Text style={styles.commissionValue}>−{formatPHP(commissionAmount)}</Text>
             </View>
           )}
-          {totalAmount > 0 && (
+          {totalAmount > 0 && netEarnings != null && (
             <View style={styles.netRow}>
               <Text style={styles.netLabel}>Your net earnings</Text>
               <Text style={styles.netValue}>{formatPHP(netEarnings)}</Text>
@@ -315,6 +416,9 @@ export default function QuoteBuilderScreen(): React.ReactElement {
           )}
           {totalAmount > 0 && totalAmount < platformConfig.minimumQuoteAmount && (
             <Text style={styles.minWarn}>Minimum quote: {formatPHP(platformConfig.minimumQuoteAmount)}</Text>
+          )}
+          {totalAmount > 0 && providerMeQuery.isError && (
+            <Text style={styles.minWarn}>Commission preview unavailable. Your quote total is still shown accurately to the customer.</Text>
           )}
         </View>
 
@@ -329,6 +433,8 @@ export default function QuoteBuilderScreen(): React.ReactElement {
             <Text style={styles.submitText}>Submit Quote</Text>
           )}
         </TouchableOpacity>
+        </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -343,6 +449,27 @@ const styles = StyleSheet.create({
   placeholder: { width: 30 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  bodyContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.xl },
+  workspace: { gap: spacing.base },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl },
+  contextCard: { backgroundColor: colors.infoLight, borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.base },
+  contextColumn: { width: 360 },
+  formColumn: { flex: 1, minWidth: 0 },
+  contextEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1.1, color: colors.primary, marginBottom: spacing.sm },
+  contextTitle: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: spacing.sm },
+  contextDescription: { fontSize: 14, lineHeight: 21, color: colors.textSecondary },
+  contextFacts: { gap: spacing.sm, marginTop: spacing.base },
+  contextFact: { backgroundColor: colors.surface, borderRadius: borderRadius.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, padding: spacing.md },
+  contextLabel: { fontSize: 11, fontWeight: '700', color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.7 },
+  contextValue: { fontSize: 14, fontWeight: '700', color: colors.text, marginTop: 2 },
+  contextNote: { fontSize: 12, lineHeight: 18, color: colors.textSecondary, marginTop: spacing.base },
+  contextError: { fontSize: 14, lineHeight: 20, color: colors.error },
+  contextRetry: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', marginTop: spacing.sm },
+  contextRetryText: { fontSize: 14, color: colors.primary, fontWeight: '700' },
+  intakeBlock: { marginTop: spacing.base, gap: spacing.xs },
+  intakeRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm, paddingVertical: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  intakeKey: { fontSize: 12, color: colors.textSecondary, flex: 1 },
+  intakeValue: { fontSize: 12, color: colors.text, fontWeight: '700', flex: 1, textAlign: 'right' },
   section: { marginBottom: spacing.lg },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
@@ -386,6 +513,7 @@ const styles = StyleSheet.create({
   netLabel: { fontSize: 13, color: colors.white, fontWeight: '700' },
   netValue: { fontSize: 16, color: colors.success, fontWeight: '800' },
   minWarn: { fontSize: 12, color: colors.warning, marginTop: spacing.xs, textAlign: 'center' },
+  fieldError: { fontSize: 12, color: colors.error, marginTop: spacing.xs },
   submitBtn: { backgroundColor: colors.success, borderRadius: borderRadius.lg, paddingVertical: spacing.base, alignItems: 'center' },
   submitDisabled: { opacity: 0.5 },
   submitText: { fontSize: 16, fontWeight: '700', color: colors.white },

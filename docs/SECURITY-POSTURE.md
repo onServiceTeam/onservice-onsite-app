@@ -1,18 +1,18 @@
 # Security Posture (Phase 12)
 
-This document records the verification status of the SEC-001..009 controls
-called out in `COMPREHENSIVE-271-ISSUE-AUDIT.md` Section 14. It is a snapshot
-taken at the close of Phase 12; re-run the verification commands before any
-production cutover.
+This document began as the Phase 12 SEC-001..009 snapshot and now records later
+verified remediations. Re-run behavioral tests and deployment checks before a
+production cutover; line counts or the presence of a source string are not
+proof that a control works.
 
 ## Summary table
 
 | ID | Control | Status | Evidence |
 | --- | --- | --- | --- |
 | SEC-001 | Admin 2FA (TOTP) with force-enrolment | DONE | `packages/api/src/routes/auth.routes.ts` — `/admin/login` issues `pre_auth_2fa_setup` token when an admin/super_admin lacks TOTP; `/admin/2fa/setup` and `/admin/2fa/enable` accept that token; `/admin/2fa/enable` mints full session tokens on success. Existing 2FA verify path unchanged. |
-| SEC-002 | CAPTCHA after N failed OTPs | VERIFIED | `packages/api/src/routes/auth.routes.ts:87-110` checks `lockoutStatus.captchaRequired` and calls `securityService.verifyCaptchaToken`. Threshold defined in `platform.config.ts` as `captchaThreshold: 3`. Env: `CAPTCHA_SECRET_KEY`, `CAPTCHA_SITE_KEY`. |
+| SEC-002 | Turnstile after N failed OTPs | VERIFIED IN CODE; PRODUCTION BLOCKED ON REAL KEYS | OTP login/registration use `useCaptchaOtp` and the native/web `TurnstileModal`; the API calls Cloudflare Siteverify through `securityService.verifyCaptchaToken` and fails closed in production without a secret. Env: `TURNSTILE_SECRET_KEY` and `EXPO_PUBLIC_TURNSTILE_SITE_KEY`; historical `CAPTCHA_*` aliases remain temporarily accepted. Behavioral coverage includes the OTP challenge suites and `bug-sec-010-turnstile-cutover-verifier.test.ts`. A 2026-08-24 live inspection found no server secret or Cloudflare token, so production-mode promotion remains blocked. |
 | SEC-003 | PayMongo webhook signature | VERIFIED | `packages/api/src/routes/webhook.routes.ts:14-50` — HMAC-SHA256 over `${timestamp}.${rawBody}`, 5-minute replay window, `crypto.timingSafeEqual` comparison. Rejects when `PAYMONGO_WEBHOOK_SECRET` is missing. |
-| SEC-004 | Government-ID encryption at rest (S3 SSE) | DEFERRED | `packages/api/src/services/upload.service.ts` issues `PutObjectCommand` without a `ServerSideEncryption` parameter (0 matches for `ServerSideEncryption|SSE|AES256|KMS`). Bucket-level default encryption can be enabled in AWS S3 / DO Spaces console as a stop-gap. See "Known gaps" below. |
+| SEC-004 | Government-ID encryption at rest (S3 SSE) | DONE IN CODE; STORAGE DEPLOYMENT STILL REQUIRES VERIFICATION | Every S3 `PutObjectCommand` uses SSE-KMS when `S3_KMS_KEY_ID` exists and SSE-S3/AES256 otherwise; private KYC objects are owner/admin proxied. `s3-sse-bug-1325.test.ts` executes both encryption branches. The current Hetzner local-volume deployment relies on host-volume security rather than claiming S3 encryption. |
 | SEC-005 | PII masking in logs | DONE (Phase 13 Dispatch D) | `packages/api/src/utils/logger.ts` exports `piiMaskFormat` (winston format factory) inserted into both root and console transport pipelines. Redacts PH phone (+63 / 09xx), email, TIN, SSS, PhilHealth, PayMongo IDs (`cus_/src_/pay_/link_`), JWT, and bcrypt hashes. Idempotent (skips strings that already contain `[REDACTED:`). Tests: `__tests__/logger-pii-masking.test.ts`. |
 | SEC-006 | JWT 15-min access + 30-day refresh | VERIFIED | `packages/api/src/config/platform.config.ts:88-95` — `jwtExpiresIn: '15m'`, `jwtRefreshExpiresIn: '30d'`, plus per-role overrides in `jwtExpiresInByRole`. `auth.service.ts:74-84` honours these in `createTokenPair`. Env overrides: `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`, `JWT_ADMIN_REFRESH_EXPIRES_IN`. |
 | SEC-007 | IP-level OTP brute-force detection | VERIFIED | `packages/api/src/services/security.service.ts` records `(phone, ip_address)` per attempt in `login_attempts`, ramps lockouts via `OTP_LOCKOUT_THRESHOLDS`, and exposes `cleanupOldLoginAttempts` for housekeeping. The auto-block helper at line ~430 ("`Auto-blocked: ${row.fail_count} failed login attempts`") flips offending IPs into the `blocked_ips` table. |
@@ -33,11 +33,11 @@ grep -n "captchaRequired\|verifyCaptchaToken" packages/api/src/routes/auth.route
 # SEC-003 — webhook HMAC
 grep -n "createHmac\|timingSafeEqual" packages/api/src/routes/webhook.routes.ts
 
-# SEC-004 — S3 SSE (expect 0 matches today)
-grep -nE "ServerSideEncryption|SSE|AES256|KMS" packages/api/src/services/upload.service.ts || echo DEFERRED
+# SEC-004 — execute the two S3 encryption branches
+npm --workspace @onservice/api test -- --runInBand s3-sse-bug-1325.test.ts
 
-# SEC-005 — log PII masking (expect 0 matches today)
-grep -nE "mask|redact|sanitize" packages/api/src/utils/logger.ts || echo DEFERRED
+# SEC-005 — execute log redaction behavior
+npm --workspace @onservice/api test -- --runInBand logger-pii-masking.test.ts
 
 # SEC-006 — JWT expiry
 grep -n "jwtExpiresIn\|jwtRefreshExpiresIn" packages/api/src/config/platform.config.ts
@@ -48,17 +48,28 @@ grep -n "blocked_ips\|Auto-blocked" packages/api/src/services/security.service.t
 # SEC-008 — admin route guards
 ls packages/api/src/routes/*admin*.ts | xargs -I {} sh -c "echo {} && grep -c authMiddleware {}"
 
-# SEC-009 — CSP on admin (expect 0 matches today)
-grep -n "Content-Security-Policy" apps/admin/index.html apps/admin/vite.config.ts || echo DEFERRED
+# SEC-009 — inspect the deployed response, not only repository config
+curl -fsSI https://admin.onservice.ph | grep -i "content-security-policy"
 ```
 
-## Known gaps (carried forward)
+## Known deployment gaps
 
-One control remains DEFERRED at the close of Phase 13 Dispatch D.
+The original SEC-004 code gap is closed. Launch still requires deployment-level
+evidence for the active storage backend, Turnstile production keys, CSP response
+headers, Sentry, backups/PITR, and the current items in
+`docs/runbooks/launch-cutover.md`. A green unit test is not that evidence.
 
-- SEC-004 (S3 SSE) — bucket-level default encryption is a one-line AWS console
-  change, but the audited control wants `ServerSideEncryption: 'AES256'` on
-  every `PutObjectCommand` so the contract is explicit in code.
+### Live authentication remediation (2026-08-24)
+
+A boolean-only inspection found the public container using developer OTP,
+relaxed rate limits, and password-only admin access. It also found one active
+privileged account whose password matched a credential formerly published in
+the repository. After a full backup, that account was deactivated, 13 refresh
+sessions were revoked, and a security audit event was written. All three bypass
+flags are now disabled, the fixed OTP value was removed, the API is healthy,
+test fixtures remain off, and the sole remaining active privileged account has
+TOTP enabled. `NODE_ENV=production` remains blocked only by the absent real
+Turnstile secret; see `LAUNCH-LIMITATIONS.md` §41.
 
 ## Phase 13 Dispatch D security hardening (additions)
 
@@ -113,11 +124,11 @@ column directly.
 | Directive | Sources allowed | Why |
 | --- | --- | --- |
 | `default-src` | `'self'` | Deny everything by default. |
-| `script-src` | `'self'`, `browser.sentry-cdn.com`, `hcaptcha.com`, `*.hcaptcha.com` | App bundle, Sentry browser SDK loader, hCaptcha widget. No `'unsafe-inline'` because Vite builds emit external scripts only — verified `apps/admin/index.html` contains no `<script>` blocks beyond the `/src/main.tsx` module loader. |
-| `style-src` | `'self'`, `'unsafe-inline'`, `hcaptcha.com` | `'unsafe-inline'` is required for Vite/React component-level styles and CSS-in-JS; restricting further would break the app. |
-| `img-src` | `'self'`, `data:`, S3 buckets (us-east-1 + ap-southeast-1), `hcaptcha.com` | User avatars and uploaded media live in S3; `data:` covers small inline icons; hCaptcha widget assets. |
-| `connect-src` | `'self'`, `api.onservice.ph`, `*.sentry.io`, `hcaptcha.com`, `*.hcaptcha.com` | XHR/fetch destinations: API, Sentry ingest, hCaptcha. |
-| `frame-src` | `hcaptcha.com`, `*.hcaptcha.com` | hCaptcha challenge iframe. |
+| `script-src` | `'self'`, `browser.sentry-cdn.com` | Admin app bundle and Sentry browser loader. The admin has no CAPTCHA widget. No `'unsafe-inline'` because Vite emits external scripts. |
+| `style-src` | `'self'`, `'unsafe-inline'` | Runtime/component styling requires inline style declarations. |
+| `img-src` | `'self'`, `data:`, configured S3 origins | User avatars and uploaded media plus inline icons. |
+| `connect-src` | `'self'`, `api.onservice.ph`, Sentry ingest | Admin API and error reporting. |
+| `frame-src` | `'none'` | The admin has no third-party frame requirement. Turnstile is confined to the customer/provider app CSP served by nginx. |
 | `frame-ancestors` | `'none'` | Prevents the admin from being framed by another origin (clickjacking). |
 | `form-action` | `'self'` | Forms can only submit to the admin origin. |
 | `base-uri` | `'self'` | Prevents `<base>` injection that could redirect relative URLs. |
@@ -132,9 +143,8 @@ microphone=(), geolocation=()`.
 - Add Subresource Integrity (SRI) hashes for any future CDN-served
   scripts.
 - Enable Cross-Origin-Embedder-Policy (`require-corp`) and
-  Cross-Origin-Opener-Policy (`same-origin`) once we are confident no
-  third-party iframe (other than hCaptcha, which is already isolated)
-  will be embedded.
+  Cross-Origin-Opener-Policy (`same-origin`) after testing all active third-party
+  integrations. The admin currently permits no third-party frame.
 - Stand up a CSP violation reporting endpoint (`Reporting-Endpoints` +
   `report-to` directive) to surface in-the-wild violations in Sentry.
 

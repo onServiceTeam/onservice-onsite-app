@@ -1,5 +1,11 @@
 # onService — Cebu launch plan (founder briefing)
 
+> **STATUS UPDATE (2026-08-24):** Metro Cebu first and city-agnostic operation
+> are now binding. Historical statements below that the app is wired for
+> Boracay, that guarantee funding is launch-ready, that external PayMongo
+> checkout works, or that old pricing/fee assumptions are current are
+> superseded by `AGENTS.md`, E10/F#10, E14, E16, and the operations handbook.
+
 Written 2026-05-30 for Ken. Plain English. This reconciles what is actually
 built in the code today with the direction you described: launch in Metro
 Cebu, lead with popular home services, keep a curated set of vetted pros busy,

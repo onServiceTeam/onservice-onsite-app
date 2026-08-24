@@ -1,5 +1,14 @@
 # PHILIPPINE HOME SERVICES MARKETPLACE — COMPLETE PLATFORM SPECIFICATION
 
+> **HISTORICAL APRIL 2026 DESIGN INPUT, NOT CURRENT SOURCE OF TRUTH.** The app
+> now has 113 catalogued mobile/admin surfaces and later decisions changed the
+> launch market, fees, hourly pricing, payouts, payment readiness, guarantee
+> language, and several workflows. In particular, do not implement or advertise
+> this document's insurance/guarantee limits, payment-provider prices, revenue
+> projections, or fixed operational policies. Current authority is `AGENTS.md`,
+> active decisions/escalations, the operations handbook, and the current
+> screen/linkage audit.
+
 ## Master Document v1.0 | April 14, 2026
 
 **Prepared for:** Ken — onService

@@ -16,20 +16,18 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { formatDateTime, formatRelative } from '@/utils/date';
 // A7 — shared UI kit for loading/empty/error states.
 import { Badge, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { platformConfig } from '@/config/platform.config';
-// Phase 14 R5-complete — PaginationLoader + EarningsChart + CommissionBreakdown panels.
+// Phase 14 R5-complete — paginated real payout ledger.
 import PaginationLoader from '@/components/PaginationLoader';
-import EarningsChart from '@/components/provider/EarningsChart';
-import CommissionBreakdown from '@/components/provider/CommissionBreakdown';
 import { Routes } from '@/config/navigation';
 import { Building2 } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 interface Payout {
   id: string;
@@ -39,6 +37,7 @@ interface Payout {
   destinationAccount: string;
   status: string;
   failureReason: string | null;
+  rejectionReason: string | null;
   createdAt: string;
   completedAt: string | null;
 }
@@ -52,9 +51,22 @@ const METHOD_LABELS: Record<string, string> = {
 
 const STATUS_COLORS: Record<string, string> = {
   pending: colors.statusPending,
+  aml_review_pending: colors.warning,
+  approved: colors.info,
   processing: colors.statusInProgress,
   completed: colors.statusCompleted,
+  rejected: colors.error,
   failed: colors.statusCancelled,
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending review',
+  aml_review_pending: 'Compliance review',
+  approved: 'Approved',
+  processing: 'Processing',
+  completed: 'Completed',
+  rejected: 'Rejected',
+  failed: 'Failed',
 };
 
 async function getPayouts(page: number, pageSize: number): Promise<{
@@ -75,6 +87,7 @@ async function getPayouts(page: number, pageSize: number): Promise<{
 export default function PayoutsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
 
   const {
     data,
@@ -97,55 +110,11 @@ export default function PayoutsScreen(): React.ReactElement {
   const payouts = data?.pages.flatMap((p) => p.payouts) ?? [];
   const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
 
-  // Phase E CRIT-112 fix — real /providers/me/earnings/trends data
-  // for the chart preview (was hardcoded 50000/75000/...). 30-day
-  // window so the chart matches the totals below.
-  const trendsQuery = useQuery<Array<{ period: string; netEarned: number; totalEarned: number; totalCommission: number }>>({
-    queryKey: ['providerEarningsTrends', 'daily', 30],
-    queryFn: async () => {
-      const res = await api.get<{ data: Array<{ period: string; netEarned: number | string; totalEarned: number | string; totalCommission: number | string }> }>(
-        '/api/v1/providers/me/earnings/trends?period=daily&days=30',
-      );
-      return res.data.data.map((r) => ({
-        period: r.period,
-        netEarned: Number(r.netEarned) || 0,
-        totalEarned: Number(r.totalEarned) || 0,
-        totalCommission: Number(r.totalCommission) || 0,
-      }));
-    },
-    staleTime: 60 * 1000,
-  });
-
-  // Provider tier for the commission breakdown.
-  const providerMeQuery = useQuery<{ tier: string }>({
-    queryKey: ['providerMe'],
-    queryFn: async () => {
-      const res = await api.get<{ data: { tier: string } }>('/api/v1/providers/me');
-      return { tier: res.data.data.tier };
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-  const providerTier = providerMeQuery.data?.tier ?? 'new';
-  const tierCommissionRate =
-    platformConfig.commissionRates[providerTier] ?? platformConfig.commissionRates.new ?? 0.15;
-  const tierCommissionPct = Math.round(tierCommissionRate * 100);
-
-  // Aggregate the 30-day trends for the breakdown card.
-  const totals = (trendsQuery.data ?? []).reduce(
-    (acc, row) => ({
-      gross: acc.gross + row.totalEarned,
-      commission: acc.commission + row.totalCommission,
-      net: acc.net + row.netEarned,
-      total: acc.total + 1,
-    }),
-    { gross: 0, commission: 0, net: 0, total: 0 },
-  );
-
   const renderItem = ({ item }: { item: Payout }): React.ReactElement => (
-    <View style={styles.card}>
+    <View style={[styles.card, !isPhone && styles.cardWide]}>
       <View style={styles.cardTop}>
         <Badge
-          label={item.status.toUpperCase()}
+          label={STATUS_LABELS[item.status] ?? item.status.replace(/_/g, ' ')}
           backgroundColor={STATUS_COLORS[item.status] ?? colors.textTertiary}
           size="sm"
         />
@@ -168,6 +137,14 @@ export default function PayoutsScreen(): React.ReactElement {
       {item.failureReason && (
         <Text style={styles.failureText}>Reason: {item.failureReason}</Text>
       )}
+      {item.rejectionReason && (
+        <Text style={styles.failureText}>Reason: {item.rejectionReason}</Text>
+      )}
+      {item.status === 'aml_review_pending' && (
+        <Text style={styles.reviewText}>
+          This withdrawal needs a compliance review before standard payout processing.
+        </Text>
+      )}
     </View>
   );
 
@@ -178,7 +155,7 @@ export default function PayoutsScreen(): React.ReactElement {
           back to the Earnings tab to request a new withdrawal.
           Now: a Request Withdrawal button in the header for direct
           access. Same UX-gap family as Phase 169-170. */}
-      <View style={styles.header}>
+      <View style={[styles.header, !isPhone && styles.headerWide]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
@@ -192,31 +169,14 @@ export default function PayoutsScreen(): React.ReactElement {
         </TouchableOpacity>
       </View>
 
-      {/* Phase E CRIT-112 fix — EarningsChart + CommissionBreakdown
-           now driven by REAL backend data. */}
-      <View style={{ paddingHorizontal: spacing.base, marginTop: spacing.sm }}>
-        <EarningsChart
-          data={(trendsQuery.data ?? []).map((row) => ({
-            date: row.period.split('T')[0] ?? row.period,
-            amount: row.netEarned,
-          }))}
-        />
-        {totals && totals.total > 0 && (
-          <View style={{ marginTop: spacing.sm }}>
-            <CommissionBreakdown
-              gross={totals.gross}
-              lines={[
-                {
-                  label: `Platform commission (${tierCommissionPct}%)`,
-                  amount: totals.commission,
-                  pct: tierCommissionPct,
-                  helpText: `Your tier (${providerTier}). Earn higher tier for lower commission.`,
-                },
-              ]}
-              net={totals.net}
-            />
-          </View>
-        )}
+      <View
+        style={[styles.notice, !isPhone && styles.noticeWide]}
+        accessibilityLabel={isPhone ? 'Payout processing notice' : 'Wide payout ledger workspace'}
+      >
+        <Text style={styles.noticeTitle}>Manual withdrawal history</Text>
+        <Text style={styles.noticeText}>
+          Each request is reviewed by the onService finance team. Status changes and any rejection or failure reason appear here. Pull to refresh for the latest record.
+        </Text>
       </View>
 
       {isError ? (
@@ -229,7 +189,7 @@ export default function PayoutsScreen(): React.ReactElement {
           data={payouts}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, !isPhone && styles.listWide]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.secondary} />
@@ -279,6 +239,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
+  headerWide: { width: '100%', maxWidth: 1040, alignSelf: 'center' },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text, flex: 1 },
@@ -293,7 +254,20 @@ const styles = StyleSheet.create({
   },
   headerCtaText: { color: colors.white, fontWeight: '600', fontSize: 14 },
 
+  notice: {
+    backgroundColor: colors.infoLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginHorizontal: spacing.base,
+    marginTop: spacing.base,
+  },
+  noticeWide: { width: '100%', maxWidth: 1008, alignSelf: 'center', marginHorizontal: 0 },
+  noticeTitle: { ...typography.body, color: colors.text, fontWeight: '700', marginBottom: spacing.xs },
+  noticeText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20 },
   list: { padding: spacing.base, paddingBottom: 80 },
+  listWide: { width: '100%', maxWidth: 1040, alignSelf: 'center', paddingHorizontal: spacing.base },
   // App design refresh — white surface card with hairline border, lifts off canvas.
   card: {
     backgroundColor: colors.surface,
@@ -303,6 +277,7 @@ const styles = StyleSheet.create({
     padding: spacing.base,
     marginBottom: spacing.md,
   },
+  cardWide: { paddingHorizontal: spacing.lg, paddingVertical: spacing.base },
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -321,6 +296,7 @@ const styles = StyleSheet.create({
   cardAccount: { ...typography.bodySmall, color: colors.textTertiary, marginBottom: spacing.xs },
   completedText: { ...typography.caption, color: colors.success, marginTop: spacing.xs },
   failureText: { ...typography.caption, color: colors.error, marginTop: spacing.xs },
+  reviewText: { ...typography.caption, color: colors.warningDark, marginTop: spacing.sm, lineHeight: 17 },
 
   loader: { marginTop: spacing.xl },
   empty: { alignItems: 'center', paddingTop: spacing.xxl },

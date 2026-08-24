@@ -1,6 +1,6 @@
 # MARKETING PLAYBOOK — onService PH
 
-> **STATUS (2026-06-04) — the launch market below is superseded.** The platform is multi-city and city-agnostic (cities configured in admin). Current default / first launch market is **Metro Cebu**; expansion cities (Boracay, General Santos, Davao, Metro Manila, Bacolod, and others) are turned on in admin when ready. The Boracay→Kalibo→Iloilo path below is historical and kept for the B2B tactics it describes, which still apply to any tourist market. Current source of truth: `CLAUDE.md` and `docs/strategy/CEBU-LAUNCH-PLAN.md`.
+> **STATUS (2026-08-24) — the launch market and commercial claims below are superseded.** The platform is city-agnostic with **Metro Cebu** first. Reuse only general channel tactics. Do not reuse historical claims of insurance/guarantee limits, fixed rates, weekly payouts, guaranteed earnings/volume, 24-hour scheduling, or live external checkout. Current blockers include E10/F#10, E14, and E16; current authority is `AGENTS.md` and the operations handbook.
 
 **Launch market (historical):** Boracay Island (Malay, Aklan), expanding to Kalibo (m6) and Iloilo (m12).
 **Strategic frame:** B2B-first via tourism accommodation operators, then C2C via residential and HOA channels. This was settled in the April 16 strategy chat.
@@ -25,7 +25,7 @@ This is the highest-ROI channel for Boracay launch and probably for the first si
 
 **Sales script frame:**
 
-> "We're onService — a vetted, insured booking platform for AC cleaning, deep cleaning, plumbing, and electrical. Your housekeeping team handles daily turnover. We handle the heavier work that breaks the routine — AC quarterly cleaning, deep cleaning between long-term guests, plumbing emergencies, electrical fixes. NBI-cleared technicians, before/after photos, ₱500K guarantee per booking, transparent pricing in the app. Your team books, we dispatch, you approve completion. No more chasing personal kuya numbers."
+> "We're onService, a home-services booking platform for AC cleaning, deep cleaning, plumbing, and electrical. Provider applications include identity and NBI evidence, work can be documented with before/after photos, and the booking keeps one support record. Your team books, we dispatch, and you confirm completion. Exact service scope, price, availability, and any protection terms come from the approved booking, not this sales script."
 
 **Outreach mechanics:**
 - Walk the stations. Knock on managers' offices. 50 hotels in 4 days is realistic.
@@ -39,7 +39,7 @@ This is the highest-ROI channel for Boracay launch and probably for the first si
 
 Boracay has a growing residential condo population (Filipinos plus expat retirees). HOAs in buildings like One Azalea, Sevina Park, Boracay Newcoast, and the various Brgy Yapak/Manoc-Manoc subdivisions.
 
-**Pitch:** "We give your residents a vetted, insured option for home services. You don't manage providers — we do. We give you a 5% kickback on every booking from your members, paid quarterly."
+**Pitch:** "We give your residents an identity-reviewed, on-app option for home services. You do not manage individual providers; the booking keeps provider, work, and support context together." Any HOA revenue share requires a real approved campaign/contract before it is offered.
 
 **Mechanics:**
 - HOA boards meet monthly. Get on the agenda.
@@ -169,17 +169,17 @@ This is conservative. Aggressive (3x ad spend in each city) totals ₱8-10M for 
 
 ### Hotel / condotel cold visit script
 
-> "Hi, I'm [Name] from onService. We're a vetted home services platform that just launched in Boracay. We handle AC cleaning, deep cleaning, plumbing emergencies, and electrical work for properties like yours. Your housekeeping team handles daily — we handle the quarterly and emergency stuff that pulls them off the daily routine. NBI-cleared technicians, ₱500K insurance per booking, app-based scheduling, monthly invoicing. Can I leave you a one-pager and check back Tuesday?"
+> "Hi, I'm [Name] from onService. We're a home-services booking platform for work such as AC cleaning, deep cleaning, plumbing, and electrical. Provider applications include identity and NBI evidence, and the app keeps scheduling, work evidence, and support context together. Can I learn what your property needs and follow up with an approved scope and quote?"
 
 ### Hotel / condotel follow-up Viber message
 
-> Hi [Manager], following up on onService — the home services platform we discussed Tuesday. I attached our rate card for AC cleaning and deep cleaning. We're offering Boracay-based properties our launch rate locked for 12 months: ₱650 per split AC unit (≤2HP), ₱950 per unit (3HP+), 24-hour scheduling. Scheduling via app or Viber, monthly billing. Want to start with a trial booking this week?
+> Hi [Manager], following up on onService, the home-services platform we discussed Tuesday. I attached the current approved service scope and quote for your property. Please review the included work, exclusions, schedule, price source, and billing terms in that document. Would you like to discuss a trial booking?
 
 ### HOA partnership pitch (5 min in-meeting)
 
 > Good morning. I'm [Name] from onService. Three things, then I'll get out of your way:
 >
-> 1. We're a vetted home services platform — AC, cleaning, plumbing, electrical. NBI-cleared, insured, photo-documented work.
+> 1. We're a home-services booking platform for AC, cleaning, plumbing, and electrical, with identity/NBI evidence in provider review and photo-documented work where the booking requires it.
 > 2. We give every HOA we partner with a 5% revenue-share on bookings from your members. Paid quarterly into the HOA account or any charity you specify.
 > 3. We provide ready-to-use lobby and elevator marketing assets, plus a Viber broadcast template, plus a member-only app code that you control.
 >
@@ -190,9 +190,9 @@ This is conservative. Aggressive (3x ad spend in each city) totals ₱8-10M for 
 > 📍 Boracay-based. Looking for AC technicians (RAC NCII) and plumbing/electrical specialists.
 >
 > ✅ Founding provider rate: 10% commission for 12 months (vs standard 15%)
-> ✅ Earn ₱25K-60K/month based on bookings
+> ✅ Earnings depend on accepted and completed bookings; no volume or income guarantee
 > ✅ NBI clearance and skills test required
-> ✅ App-based scheduling, weekly payouts to GCash or bank
+> ✅ App-based job records and manual withdrawal requests to GCash, Maya, or bank
 >
 > First 50 providers across all categories get founding-tier rates locked in.
 >

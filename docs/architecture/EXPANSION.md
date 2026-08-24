@@ -1,6 +1,12 @@
 # PHILIPPINE HOME SERVICES MARKETPLACE — EXPANSION DOCUMENT v2.0 April 14, 2026 (VERSIONS UPDATED)
 # SDLC, SRS, Infrastructure, Detailed Screen Specs, Issues Database, Coding Instructions
 
+> **HISTORICAL PLANNING DOCUMENT.** Timelines, scale targets, screen counts,
+> infrastructure, legal statements, guarantee allocation, and implementation
+> instructions below predate the current code and decisions. Do not use them as
+> launch status or override `AGENTS.md`, active escalations/decisions, current
+> operations docs, or verified runtime behavior.
+
 **Companion to:** COMPLETE-PH-Home-Services-Platform-Specification.md v1.0
 **Purpose:** Fill every gap, fix every vague point, add infrastructure for 1M concurrent users, full SDLC, SRS, page-by-page build plan, issues database, and step-by-step coding instructions
 

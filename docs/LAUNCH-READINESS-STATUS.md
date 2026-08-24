@@ -1,10 +1,11 @@
-# Launch Readiness — status snapshot (2026-06-05)
+# Launch Readiness — status snapshot (updated 2026-08-24)
 
 Single source for "what's done / what's left to go live." For the operational
 detail of each external item, see `docs/runbooks/launch-cutover.md`.
 
-At this snapshot: master = server = green; API 2888 tests, admin 153, mobile 654
-all passing; all 5 CI gates green; api/admin/app all serving HTTPS 200.
+Historical test counts below are not a current release certificate. Current
+authority is `AGENTS.md`, the active escalation/decision files,
+`LAUNCH-LIMITATIONS.md`, and the latest CI/deployment evidence.
 
 ---
 
@@ -39,7 +40,10 @@ These are shipped to production and verified:
 - **Sentry** — wiring fixed to accept the env name the runbook documents, so
   error tracking turns on the moment you add a DSN.
 - **Security posture** — firewall is 22/80/443 only; Postgres/redis/monitoring
-  are not publicly exposed (verified on the server).
+  are not publicly exposed (verified on the server). On 2026-08-24 the public
+  API's developer OTP, relaxed rate limits, and admin-2FA bypass were disabled;
+  a privileged account using a published demo credential was deactivated and
+  its 13 sessions revoked. The remaining privileged account has TOTP.
 
 ---
 
@@ -51,21 +55,22 @@ These are shipped to production and verified:
 | 2 | BIR Authority to Print (OR series) | You / accountant | YES | Government, ~14–21 days. |
 | 3 | DTI permit current | You | YES | Verify active. |
 | 4 | Mayor's / business permit (Cebu) | You | YES | Verify current. |
-| 5 | **CAPTCHA provider decision** | You | medium | See escalation **E07**: code uses Cloudflare Turnstile, runbook says hCaptcha, client widget not wired. Pick a provider and I finish wiring + verify. Baseline today = rate-limit + OTP. |
+| 5 | Cloudflare Turnstile production keys/evidence | You / me | YES | Provider decision and client/server wiring are complete. The live host has no real secret or Cloudflare API token, so it cannot yet switch to `NODE_ENV=production`. Add separate production keys, run `verify-turnstile.sh`, and exercise the threshold-triggered OTP challenge on deployed web/native. |
 | 6 | Sentry production DSN | You | YES | Code ready; just create the project + paste the DSN. |
-| 7 | PayMongo live mode | You | YES | KYC onboarding + live keys (you paste secrets). ~14–30 days. |
+| 7 | PayMongo onboarding plus a valid external authorization flow | You / me | YES | Live-looking keys are present, but that is not launch evidence. E14 blocks the current invalid hosted URL; approve and test Checkout Sessions or the client Payment Method flow before live use. |
 | 8 | BIR receipt long-term retention | You / me | gated on #2 | Was specced as S3 Object Lock; on Hetzner we'll do WORM-style local + off-site. Not needed until BIR pipeline is live. |
-| 9 | Backups | done | — | **Covered.** Hetzner's server-level Automatic Backups + snapshots already back up the whole volume (DB + uploads) OFF the box — that's disaster recovery. On top of that, the app-level nightly logical DB+files dump (whose cron I fixed — it had been failing) gives a portable, restore-tested copy. Off-site is therefore NOT a blocker; can add a dedicated off-site target later if desired. |
+| 9 | Backups and PITR/RPO sign-off | You / me | YES | Nightly logical DB+upload backups and Hetzner snapshots exist and a restore was tested. Continuous PITR is not proven; launch needs an explicit recovery objective and restore evidence under Item 9. |
 | 10 | DNS + TLS | me / certificate authority | YES | `app`, `admin`, `api`, and `www` are valid. The bare `onservice.ph` resolves to production but is missing from the installed certificate SANs. Reissue/expand and verify under E17. |
 | 11 | Admin SSO | optional | no | Deferrable per the runbook. |
 | 12 | BIR e-receipt verification | You / me | gated on #2 | Verifiable once the ATP serial range exists. |
-| — | **Legal docs (F#10 + Terms/Privacy/IC)** | done (opt. attorney) | no | Drafted to a complete PH-law-grounded standard: finalized no-insurance disclaimer + full Terms (20 sections), Privacy Policy (RA 10173), and provider IC agreement. See `docs/LEGAL-REVIEW-2026-06-05.md`. Only left: drop in the registered entity/DPO details, and an optional belt-and-suspenders attorney read. |
-| — | F#3 / F#4 visual baselines | CI/me | no | Need a Linux CI run / mobile simulator to capture correctly (capturing on Windows would produce wrong baselines). Functional tests already pass. |
+| — | **Legal docs (F#10/E10 + Terms/Privacy/IC)** | You / attorney | YES | The June draft is historical, not attorney approval. Final disclaimer/guarantee wording, entity identity, DPO details, and Philippine counsel review remain launch requirements. |
+| — | F#3 / F#4 visual baselines | CI/me | F#3 YES | F#4's 354 admin baselines are done. F#3 still needs the committed 84 Maestro flows captured on a supported simulator/emulator. |
 | — | In-app chat send reliability (§25) | me (v1.1) | no | Mobile real-time client issue; needs device testing. Spec-deferred to v1.1; "Call provider" + photo/dispute flows work. |
 
 ### The short version
 The app still has launch blockers. In addition to the external registrations,
-PayMongo live setup, Sentry, and CAPTCHA decision above, the bare-domain TLS
+PayMongo E14 remediation, Sentry and Turnstile production evidence, the
+F#10/E10 legal review, F#3 native baselines, and the bare-domain TLS
 certificate must be corrected under E17. This status snapshot is historical in
 places and must be read with `LAUNCH-LIMITATIONS.md` and the current escalation
 files rather than treated as a launch certificate.

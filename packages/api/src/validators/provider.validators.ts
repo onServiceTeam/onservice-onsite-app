@@ -41,7 +41,7 @@ const nullableCertificationDate = z.preprocess(
   certificationDate.nullable().optional(),
 );
 
-const nullableCertificationText = (max: number, message: string) => z.preprocess(
+const nullableCertificationText = (max: number, message: string): ReturnType<typeof z.preprocess> => z.preprocess(
   (value) => typeof value === 'string' && value.trim().length === 0 ? null : value,
   z.string().trim().max(max, message).nullable().optional(),
 );

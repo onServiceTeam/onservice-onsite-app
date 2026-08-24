@@ -8,13 +8,13 @@ Related docs: hand applicants to `04-provider-vetting-and-filtering.md` once the
 
 ## 1. What recruiting has to deliver
 
-We win on trust, not on price. The pitch to every provider is simple: you join a platform customers already trust because we ID-verify and NBI-check every pro, hold payment in escrow until the job is confirmed, and let ratings build your reputation. The provider gets steady, pre-paid jobs without chasing payment.
+We win on trust, not on price. The pitch to every provider is simple: you join a platform that ID-verifies and NBI-checks every pro, holds verified booking payment in escrow until the job is confirmed, and lets ratings build your reputation. Do not promise steady volume or claim every external payment method is live; E14 still blocks the current hosted PayMongo authorization link.
 
 Recruiting and vetting are separate jobs. Your job in recruiting is to get qualified people to submit a complete application in the mobile app. Approving them is not your call (see `04-provider-vetting-and-filtering.md`).
 
-### The pre-paid escrow model (say this correctly to providers)
+### The escrow model (say this correctly to providers)
 
-Customers pay first, into escrow, and a provider is matched after. A provider never has to collect cash or wait for the customer to pay. When you accept a job, the money is already held. After the job is confirmed (or auto-confirmed 24 hours after you mark it done), your share lands in your in-app wallet, and you withdraw to GCash, Maya, or bank.
+When the app offers a real paid/assigned job, the server has already verified payment and held it in escrow. A provider does not collect cash from the customer. After the job is confirmed (or auto-confirmed 24 hours after completion), the provider share lands in the in-app wallet and the provider may request a manual withdrawal to GCash, Maya, or bank. E03 fixed that state ordering; E14 still blocks the current external hosted checkout entry, so do not promise that all customer payment methods are launch-ready.
 
 Do not promise instant cash in hand. Money moves through the app.
 
@@ -90,7 +90,7 @@ The informal Facebook economy is our main competitor and our main hunting ground
 - Aircon-cleaning, plumbing, and "labandera/cleaning services" groups
 - Marketplace listings for the categories we are launching
 
-Post in Bisaya or Taglish, not formal English. People skim.
+Post in Bisaya or Taglish, not formal English. People skim. Until E14 closes, lead with verification, on-app records, commission, and manual withdrawal rather than claiming a working prepaid-job supply.
 
 ---
 
@@ -104,8 +104,8 @@ Copy-paste and adjust the city and category. Keep it short. Lead with pre-paid j
 Naa miy trabaho para sa mga RELIABLE nga [aircon tech / plumber / electrician / cleaner] sa [Cebu City].
 
 onService PH - app nga mo-connect nimo sa mga customer nga nag-book ug
-serbisyo. Bayad na daan ang customer (naa sa escrow) bag-o ka i-match,
-mao nga dili na ka maglisod ug singil.
+serbisyo. Kung makita nimo ang paid/assigned nga trabaho sa app, gi-verify
+na sa system ang bayad ug naa sa escrow, mao nga dili ka maningil og cash.
 
 Kinahanglan:
 - Valid government ID
@@ -123,10 +123,10 @@ Interesado? PM lang or download ang onService app ug mag-apply as provider.
 Hi [name], nakita ko yung post mo for [aircon cleaning] sa Cebu. Maganda
 yung work mo.
 
-Nag-launch kami ng onService PH sa Cebu - platform na nagbibigay ng
-pre-paid na jobs. Bayad na agad yung customer (nasa escrow) bago ka
-i-match, so wala kang habulin na bayad. Lalabas yung kita mo sa wallet,
-withdraw mo sa GCash/Maya/bank.
+Nag-launch kami ng onService PH sa Cebu - platform para sa verified home
+service bookings. Kapag paid/assigned na ang job sa app, verified at nasa
+escrow ang bayad, kaya hindi ka maniningil ng cash. Lalabas ang kita sa
+wallet at puwede kang mag-request ng withdrawal sa GCash/Maya/bank.
 
 Founding-batch ka pa pwede - 10% commission lang for 12 months instead
 ng standard 15%.
@@ -150,10 +150,10 @@ ang first 3 jobs. Reply REFER for details.
 
 ```
 onService PH is recruiting NBI-cleared, skilled home-service providers in
-Metro Cebu (cleaning, aircon, plumbing, electrical). Pre-paid jobs through
-the app, weekly payouts to GCash/Maya/bank, and lower commission for our
-founding batch. TESDA-certified techs get priority. Bring a valid ID and
-NBI clearance. Apply in the onService app.
+Metro Cebu (cleaning, aircon, plumbing, electrical). Verified paid/assigned
+jobs use escrow, providers can request manual withdrawals to GCash/Maya/bank,
+and our founding batch has a lower commission. TESDA-certified techs get
+priority. Bring a valid ID and NBI clearance. Apply in the onService app.
 ```
 
 ---
@@ -336,7 +336,7 @@ If submitted-to-approved drops below 50 percent, the problem is upstream: you ar
 - Status after submit: `pending`. Approval is an admin action, not yours.
 - Founding tier: first 50 per city, 10 percent commission, 12 months, admin-assigned.
 - Referral reward: ₱500 to referrer + ₱300 to new provider, paid after the new provider's first 3 completed jobs, capped at 10/month.
-- Money model: customer pays into escrow first, provider matched after, payout to wallet then GCash/Maya/bank.
+- Money model: a provider acts only on a server-verified paid/assigned job; escrow releases to wallet after confirmation, then the provider requests a manual GCash/Maya/bank withdrawal. External hosted checkout remains E14 until approved and tested.
 
 ---
 

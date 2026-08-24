@@ -17,7 +17,7 @@ Two things follow from this:
 
 Also true today and worth knowing before you promise anything:
 
-- The in-app support hotline number `+63 2 8123 4567` is a placeholder. It is not provisioned. Remove it from the app as a pre-launch fix, then provision a real number before public launch (see the hotline decision in section 2). Until a real number is live, do not tell customers to call expecting a pickup.
+- The former placeholder hotline `+63 2 8123 4567` has been removed from the app. No phone support number is provisioned. Until a real number and staffing are live, do not tell customers to call expecting a pickup.
 - There is no masked-number calling between customer and provider, even though one safety screen says there is. Customers reach providers by in-app chat only. Do not tell a customer to "call the provider."
 
 ---
@@ -32,13 +32,13 @@ Also true today and worth knowing before you promise anything:
 | Email (provider) | `providers@onservice.ph` | Provider support | Routed to provider team (see `07-provider-support-sop.md`). |
 | Facebook Messenger | onService PH page | Support agents | Launch channel. Filipino customers expect Messenger. Confirm the page is set up. |
 | In-app support cases | Support inbox in customer/provider workspace | Support agents | Customer opens and follows their own case; internal notes never appear. |
-| Phone / SMS hotline | TBD (provision before launch) | Support agents | No real number yet. Remove the placeholder from the app first, then provision. |
+| Phone / SMS hotline | Not provisioned | Support agents | The former placeholder is removed; do not advertise phone support until a real number and staffing exist. |
 | In-app push (outbound only) | Dispatch Console "Message customer" | Super-admin | Lands as "Message from onService support" notification. Not a two-way channel. |
 | DPO / privacy requests | `dpo@onservice.ph`, `privacy@onservice.ph` | DPO / compliance | Data requests go here, not to general support. See section 9. |
 
 > **Set (editable):** staff email plus Facebook Messenger first (low cost, async, fits a small team), and add a real phone/SMS hotline once volume warrants the staffing. Email is the primary written channel. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-> **Set (editable):** provision a real hotline number before public launch and decide voice vs SMS-only at that time; until then remove the placeholder `+63 2 8123 4567` from the app. Treat the placeholder as a pre-launch fix, not a real number. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** provision a real hotline number before advertising phone support and decide voice vs SMS-only at that time. The placeholder has already been removed from the app. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ### Hours
 
@@ -131,7 +131,7 @@ Notes:
 
 Support agents cannot move money or change account state. Those actions are super-admin only in the admin app and every one writes an audited reason. Know what you can do and what you must hand up.
 
-> **Set (editable):** money actions (refund, payout, escrow release) stay with super-admin/finance staff and never reach a support agent. Before launch, wire the money buttons behind a finance/super-admin gate and give support agents a limited admin login that cannot reach those buttons. Record this as a pre-launch work item. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** money actions (refund, payout, escrow release) stay with `super_admin` staff and never reach a support agent. The live API and admin UI enforce that account-role gate. The finer named `finance` role is metadata until a separate authorization decision is implemented. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 | Situation | Support agent does | Escalate to | Why |
 |---|---|---|---|
@@ -175,9 +175,9 @@ Closers:
 
 ## 8. Playbooks (most common scenarios)
 
-Each playbook is numbered steps. The instant-pay model matters here: the customer pays first into escrow, and a provider is matched after. That order shapes several of these.
+Each playbook is numbered steps. The intended instant-pay order is customer payment into escrow followed by provider matching. Only a server-verified paid/held state proves that happened.
 
-ACCURACY NOTE for everyone: the instant-pay path (pay right after creating the booking) is now live (merged and deployed 2026-06-19, E03 closed). Checkout no longer errors at the pay step. If an older report comes in where a customer says "I tried to pay and got an error but I think the booking went through," that was the pre-fix E03 behavior and is now resolved. Confirm the customer is on the current app and retry. See playbook 8.5.
+ACCURACY NOTE for everyone: E03 fixed the internal booking/escrow ordering. E14 remains a launch blocker for the current external hosted PayMongo link, which is invalid. Do not ask customers to retry card/GCash/Maya/QR Ph or wallet top-up with real money through that link. Preserve the booking/top-up identifier and follow playbook 8.5.
 
 ### 8.1 Booking help (how do I book / I can't finish a booking)
 
@@ -242,14 +242,14 @@ Steps:
 
 ### 8.5 Payment failed / instant-pay confusion
 
-1. First decide which of two things happened: a real payment failure, or the E03 booking-created-but-pay-errored bug.
-2. Look up the booking and the customer's payments in admin.
-   - If you see a booking sitting in `payment_pending` with a failed intent, the payment did not go through. The customer was not charged. Have them retry. Accepted methods: GCash, Maya, card, QRPH bank transfer, or wallet balance.
-   - If you see a booking stuck at `requested` and the customer says they got an error at pay, that is likely E03. The booking exists but the pay step was blocked. This is a known launch blocker. Do not tell them it is their fault. Escalate to engineering/super-admin, and offer to either push the booking forward or cancel it cleanly so they can rebook. Tag the ticket `payment_issue` and reference E03 in internal notes.
+1. Determine whether the customer used internal wallet or an external PayMongo-labelled method, and capture the exact booking/top-up identifier and visible error.
+2. Look up the booking and payment attempt in admin.
+   - For an external attempt in `awaiting_payment`, `payment_pending`, or failed state, do not infer a charge and do not ask the customer to retry the current hosted link. E14 proves that link is invalid. Escalate as `payment_issue`, preserve the gateway identifier, and verify the customer's real statement before saying whether money moved.
+   - For an internal-wallet attempt, use the wallet transaction and booking/escrow records as the authority. If no debit exists, the customer was not charged; if a debit exists without the matching booking/escrow transition, treat it as P1.
 3. Minimum payment is ₱100. If they tried to pay less than that, that is the block. Explain it.
-4. "I paid but no provider came yet" is normal under instant-pay: payment is taken first, then we match. Reassure them the money is held safely and matching is in progress. Check that an offer cycle is actually running (Dispatch can see this); if no provider is available, the system notifies the customer once, and we should follow up about waitlist/refund options.
+4. "I paid but no provider came yet": first verify `paid` plus held escrow. Only then explain that matching follows payment and check that an offer cycle is actually running. If payment is merely pending, do not say money is held.
 5. Double charge or charged-but-no-booking: P1. The webhook checks for amount mismatches and will not apply a tampered or mismatched payment, but a real double charge gets escalated to super-admin for a refund immediately. Do not make the customer wait on a P1 money issue.
-6. Wallet top-up questions: top-up minimum ₱100, max ₱50,000 per transaction. The top-up lands via the same payment webhook; if a top-up "didn't arrive," check the payment intent before assuming it failed.
+6. Wallet top-up questions: top-up minimum ₱100, max ₱50,000 per transaction. All 12 production attempts inspected for E14 remained `awaiting_payment`. Check the attempt and escalate; do not manually credit the wallet or send the customer back through the invalid link.
 
 ### 8.6 Quality complaint -> dispute
 
@@ -309,13 +309,13 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 
 > Hi [name], here is exactly what your cancellation looks like. Your job is scheduled for [time], which is [X hours] away, so the refund is [percent] of the service price (₱[amount]) plus your full service fee back. Refunds to [GCash/Maya/card] usually take a few business days to appear; wallet refunds are near-instant. Want me to go ahead?
 
-### M5 - Payment failed, retry
+### M5 - Payment attempt needs review
 
-> Hi [name], good news, you were not charged. The payment did not complete. Please open the booking and try again with GCash, Maya, card, QRPH, or your wallet balance. The minimum payment is ₱100. If it fails a second time, tell me which method you used and the exact error, and I will dig in.
+> Hi [name], I found payment attempt [reference] in status [status]. I am checking it before asking you to try anything again. Please do not repeat the payment yet. Send me the method, time, exact error, and any bank/e-wallet transaction reference (never your OTP or full card details), and I will confirm the safe next step.
 
 ### M6 - Instant-pay reassurance (paid, no provider yet)
 
-> Hi [name], your payment went through and is being held safely. Under our setup you pay first, then we match you with a vetted provider, so a short wait here is normal. I can see matching is in progress. I will check back if it takes longer than expected.
+> Hi [name], I verified that booking [reference] is paid and held safely in escrow. Under our setup payment comes before matching, so a short wait can be normal. I can see matching is in progress and will check back if it takes longer than expected.
 
 ### M7 - How to file a dispute
 
@@ -329,9 +329,15 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 
 > Hi [name], you can handle this yourself in the app under Account & Data: download your data, correct it, or delete your account. If you would rather we process it, email dpo@onservice.ph and our Data Protection Officer will action it within the required window.
 
-### M10 - No-insurance / liability (use exact approved wording only)
+### M10 - No-insurance / liability (interim E10/F#10 wording)
 
-> onService PH is a marketplace, not an insurer. We verify provider IDs and NBI clearances, hold your payment in escrow until the job is confirmed, and run a service guarantee fund, but we do not provide insurance. For losses beyond those protections, your own homeowner's or renter's insurance applies. (Do not add to or soften this wording. Legal questions beyond it go up, not out.)
+> onService PH is a marketplace, not an insurer. We verify provider identity
+> documents and provide a dispute process. If your booking record shows payment
+> is held, it stays in the platform escrow flow until release, refund, or admin
+> resolution. Final guarantee/protection wording is under legal review, so I
+> cannot promise a coverage amount or outcome. I will escalate any loss beyond
+> the booking amount. (Interim wording only; do not add a guarantee or insurance
+> claim. Legal questions go up, not out.)
 
 ---
 
@@ -352,9 +358,9 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 ## Open decisions set in this doc
 
 - **Channels staffed first:** email plus Facebook Messenger first, add a phone/SMS hotline as volume warrants. (editable)
-- **Support hotline:** provision a real number before public launch (decide voice vs SMS-only then); remove the placeholder `+63 2 8123 4567` from the app now. (editable)
+- **Support hotline:** the placeholder is removed; provision and staff a real number before advertising phone support (decide voice vs SMS-only then). (editable)
 - **Support hours:** Monday to Saturday, 8:00 AM to 6:00 PM PHT; Sunday closed at launch with safety escalation only. (editable)
-- **Money-action gating:** wire refund/payout/escrow-release behind a finance/super-admin gate before launch; support agents get a limited admin login. (editable)
+- **Money-action gating:** the live gate is `super_admin`; support agents use `admin`. Named finance permissions remain metadata until the authorization architecture is resolved. (editable)
 - **Reschedule:** cancel-and-rebook is the standard at launch; no separate reschedule flow. (editable)
 - **Phone-number-change identity proof:** most recent booking reference + registered full name + OTP to the number on file; escalate to super-admin if the old number is lost. (editable)
 - **`waiting_on_customer` follow-up:** manual until reminder and auto-close automation is implemented and tested. The intended five-day/two-reminder policy is not current system behavior. (editable)

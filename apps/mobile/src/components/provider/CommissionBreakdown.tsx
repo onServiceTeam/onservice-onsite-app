@@ -75,9 +75,10 @@ export function CommissionBreakdown({
             <Text style={styles.modalTitle}>How your earnings are calculated</Text>
             <ScrollView style={{ marginVertical: spacing.sm }}>
               <Text style={styles.modalBody}>
-                Gross is the amount the customer paid. We deduct platform fees,
-                tax, and any tip going to the customer's preferred routing. The
-                net amount is what reaches your wallet on next payout.
+                Gross is the service amount for the job or reporting period shown.
+                The deductions below come from the recorded calculation for that
+                same source. Net is the resulting provider amount. Wallet availability
+                and payout timing can differ after later wallet activity.
               </Text>
               {lines.map((line) => (
                 <View key={`help-${line.label}`} style={{ marginTop: spacing.sm }}>

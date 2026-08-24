@@ -9,9 +9,9 @@ How to read this doc:
 - Provider tiers and commission rates are admin-tunable in Settings (`commission_rate_<tier>`). The tier rules below are the current defaults from the tier ladder.
 - Related docs: `06-customer-support-sop.md` (support workflow), `07-provider-support-sop.md`, `08-dispatch-and-live-operations.md`, `09-trust-safety-and-disputes.md`, `04-provider-vetting-and-filtering.md`, `11-admin-system-training-manual.md`.
 
-Money-flow note (important): onService runs an instant-pay escrow model. The customer pays first into the platform escrow wallet, then a provider is matched and dispatched. Money is held in escrow until the customer confirms completion or the 24-hour auto-confirm fires. So "completion" for quality purposes means the booking reached `confirmed` (or auto-confirmed), not just that the provider marked it done.
+Money-flow note (important): onService's target is an instant-pay escrow model. A server-verified payment is held before provider matching and remains in escrow until customer confirmation or the 24-hour auto-confirm. So "completion" for quality purposes means the booking reached `confirmed` (or auto-confirmed), not just that the provider marked it done. E14 currently blocks the external hosted PayMongo authorization entry, so payment-method success metrics are not launch-grade yet.
 
-> **Set (editable):** The quality targets in this doc assume the instant-pay path (`requested` to `payment_pending`) is live, which it now is (merged and deployed 2026-06-19, E03 closed). "Checkout success rate" and "time-to-match" are meaningful to track. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** E03's booking/escrow ordering is implemented. Treat checkout-success targets for external methods as provisional until E14 is resolved and test-mode end-to-end evidence exists. Time-to-match begins only from a verified paid/held booking. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ---
 
@@ -123,7 +123,7 @@ Support runs out of the admin Support Queue (`/support-tickets`). Customers and 
 Other support quality targets:
 
 - Reopen rate: under 8% of resolved tickets reopened within 7 days.
-- Ticket statuses to watch: a ticket sitting in `waiting_on_customer` or `waiting_on_provider` does not count against resolution time, but auto-close it after 5 days of no reply (two reminders first). Manual for now.
+- Ticket statuses to watch: a ticket sitting in `waiting_on_customer` or `waiting_on_provider` does not count against resolution time. Automated reminders and five-day auto-close are not implemented; staff review and follow up manually.
 - Resolution notes are mandatory (10+ char minimum enforced) when moving a ticket to `resolved` or `closed`. No empty closes.
 
 ### CSAT
@@ -158,14 +158,14 @@ These are the platform health numbers. Most come from the Dashboard (`/`), Finan
 | Match rate | Paid bookings that get a provider (`matched` or further) | 90%+ | Bookings monitor; Dispatch Console counters |
 | Time-to-match | Booking paid to provider accepts an offer | Median under 3 min | Booking Timeline; offers run on a 45s cycle, max 10 attempts |
 | No-provider rate | Bookings that hit `no_provider_available` | Under 8% | Dashboard alerts; notification type `no_provider_available` |
-| Checkout success rate | Bookings that reach `paid` vs created | 95%+ | Bookings monitor (depends on the E03 merge, see the money-flow note above) |
+| Checkout success rate | Payment attempts that reach verified `paid` vs started, by method | Provisional until E14 closes; then 95%+ starting target | Booking/payment records plus gateway reconciliation; never infer from redirect |
 | Dispute rate | Disputes filed per 100 confirmed bookings | Under 5 | Disputes queue; Dashboard Pending Disputes |
 | Refund rate | Refunded amount as share of GMV | Under 4% | Financials Overview (refunds, net revenue) |
 | Escrow aging | Funds stuck in `held` past 48h | Near zero past 168h | Financials Escrow tab (aging buckets) |
 | Repeat-customer rate | Customers with 2+ bookings in 30d | 30%+ by month 3 | Dashboard Acquisition Funnel (Registered to First to Repeat) |
 | Auto-confirm share | Bookings closed by the 24h auto-confirm vs customer confirm | Track, no hard target | Bookings; worker `autoConfirmBookings` |
 
-Why these matter for an instant-pay model: the customer has already paid before a provider exists. A high no-provider rate means we are holding money for jobs we cannot fill, which forces refunds and burns trust. Time-to-match and match rate are the early-warning lights for that.
+Why these matter for an instant-pay model: once a booking is verified paid, a high no-provider rate means we are holding money for work we cannot fill, which forces refunds and burns trust. Time-to-match and match rate are the early-warning lights for that; pending or failed authorization attempts are payment reliability, not dispatch demand.
 
 Dispatch-specific watch items (live, from the Dispatch Console):
 
@@ -191,7 +191,7 @@ Escrow and the guarantee fund are part of the trust promise. Pull from Financial
 | PayMongo webhook failures | Zero | `paymongo_webhook_failure` admin alert |
 | DSR on-time rate | 100% within the NPC-required window | Compliance DSR queue; Dashboard overdue/near-due rows |
 
-The guarantee fund is funded by about 1.5% of every service fee. It is a service guarantee, not insurance. Do not describe it as insurance anywhere customer-facing.
+The release formula allocates 1.5% of the customer service fee to the guarantee wallet. The current customer service fee is 0%, so the current fee-derived contribution is zero. Guarantee terms remain subject to E10/F#10; do not describe it as insurance or invent coverage wording.
 
 > **Set (editable):** Guarantee-fund claim cap of ₱20,000 per claim. Eligible claims are provider-caused property damage or theft, with photo evidence filed inside the 48-hour dispute window; the payout is clawed back from the provider's future payouts, and anything above the cap escalates to Ken. This figure needs legal and accountant sign-off, and it must match the claim rule in `09-trust-safety-and-disputes.md`. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
@@ -277,7 +277,7 @@ When you change a target, write the new number here and note the date and reason
 
 - Quality bars (Section 0): approval 80/100; staying 4.5+ rating, under 2 cancellations/30 days, zero safety incidents, current NBI; great 4.7+ rating, 80%+ acceptance, 90%+ on-time, zero open disputes. Mirrors `04-provider-vetting-and-filtering.md` Section 0 (editable).
 - Post-approval monitoring (Section 2): 3-job probation with mandatory photos; 3-strikes-in-90-days suspension review; safety incidents skip the strike count. Full SOP in `04-provider-vetting-and-filtering.md` Section 12 (editable).
-- E03 / instant-pay assumption for the KPIs: treat the E03 merge as a launch blocker before these targets mean anything (editable).
+- Payment KPI assumption: E03 ordering is implemented, but external checkout/top-up metrics remain provisional until E14 closes with an approved integration and test-mode evidence (editable).
 - On-time window: +/- 15 minutes around `scheduled_at` (editable).
 - Provider scorecard acceptance and on-time bands: ops targets only, not code-enforced (editable).
 - CSAT capture: manual post-resolution survey at launch, build into Support Tickets later (editable).

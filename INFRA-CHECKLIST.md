@@ -119,17 +119,17 @@ origins not in the list are rejected by the `cors()` middleware.
 | 9.2 | Verify after deploy by curling `https://api.onservice.ph` from an unlisted origin and confirming the request is rejected. | |
 | 9.3 | Update `ALLOWED_ORIGINS` whenever a new first-party web surface is added. | |
 
-## 10. hCaptcha (Phase 13 Dispatch D)
+## 10. Cloudflare Turnstile (supersedes the Phase 13 hCaptcha plan)
 
-Server-side verification is implemented in
-`packages/api/src/utils/hcaptcha.ts`. It is wired into the API but not yet
-into any user-facing form — see LAUNCH-LIMITATIONS for scope.
+OTP login and registration open the shared Turnstile challenge after the
+failed-attempt threshold. The API validates every returned token at Cloudflare
+Siteverify and fails closed in production if the secret is absent.
 
 | # | Task | Signed off |
 |---|------|------------|
-| 10.1 | Create an hCaptcha account at https://dashboard.hcaptcha.com and provision separate sites (and therefore site-keys + secrets) per environment (dev, staging, prod). | |
-| 10.2 | Set `HCAPTCHA_SECRET` (server-only) in API production secrets. Set `VITE_HCAPTCHA_SITE_KEY` in admin web build env. | |
-| 10.3 | Confirm dashboard monitoring (verification rate, failure reasons) is reviewed weekly during launch month. | |
+| 10.1 | Create separate Cloudflare Turnstile widgets/keys for development, staging, and production; restrict production hostnames to owned app origins. | |
+| 10.2 | Set `TURNSTILE_SECRET_KEY` server-side and `EXPO_PUBLIC_TURNSTILE_SITE_KEY` in the mobile/web build. Never ship the secret to a client bundle. | |
+| 10.3 | Run `bash scripts/verify-turnstile.sh`, exercise OTP challenge success/failure in the deployed app, and review Turnstile analytics weekly during launch month. | |
 
 ## 11. Admin web Content-Security-Policy (Phase 13 Dispatch D, SEC-009)
 
@@ -140,7 +140,7 @@ served by the Vercel edge.
 | # | Task | Signed off |
 |---|------|------------|
 | 11.1 | Verify in deploy preview: open DevTools > Network > main document, confirm `Content-Security-Policy` header is present and matches `apps/admin/vercel.json`. | |
-| 11.2 | After Sentry / hCaptcha real keys are wired, exercise both flows in deploy preview and confirm zero CSP violations in browser console. | |
+| 11.2 | After Sentry is wired, exercise the admin in deploy preview and confirm zero CSP violations. Turnstile belongs to the customer/provider app, not the admin CSP. | |
 | 11.3 | When introducing any new third-party script, update CSP allowlist BEFORE merging. | |
 | 11.4 | Future hardening (post-launch): add Subresource Integrity (SRI) hashes for any CDN-served scripts, enable COEP/COOP, and stand up a CSP `report-to` endpoint. | |
 

@@ -31,7 +31,7 @@ Work top to bottom. Boxes are for the ops owner running the onboarding, not the 
 **Profile completion**
 - [ ] Business name correct (2 to 200 chars)
 - [ ] Service categories set (1 to 10): cleaning, aircon, plumbing, electrical, etc.
-- [ ] Per-service base price set where the provider offers fixed-price work (validated against the subcategory min/max in the catalog)
+- [ ] Service offerings reviewed against the admin Catalog. Do not train providers to treat their editable base price as the customer booking price while E16 is open; booking creation currently persists the canonical catalog amount, and the provider/catalog price-source decision is unresolved.
 - [ ] Service radius set (onboarding caps at 50 km; admin can widen later up to 200 km)
 - [ ] Service area assigned and primary area flagged (e.g. Cebu City). Ops sets the primary area during onboarding; later area changes go through the approval queue (`service_area_change_requests`). See the open decision at the end of this doc.
 - [ ] Profile photo and short bio added (helps acceptance and ratings)
@@ -92,11 +92,11 @@ Tell the provider plainly:
 - 45 seconds is short on purpose. Decide fast.
 - Declining is fine when you genuinely cannot take it, but a pattern of declines pushes you down the ranking.
 
-### 4.3 The money is already paid (instant-pay, escrow)
+### 4.3 How a verified paid offer and escrow work
 
-> NOTE: the fixed-price **instant-pay** model (customer pays first, provider matched after) is now live. It was merged to master and deployed on 2026-06-19 (E03 closed). Train providers on the instant-pay framing because that is how the product works: the job is paid into escrow before they are matched, so when a provider accepts an offer the money is already held.
+> NOTE: E03 fixed the instant-pay booking/escrow ordering, but E14 still blocks the current external hosted PayMongo checkout. Train providers on what a real assigned job means: only a booking the server reports as paid/held is funded in escrow. Do not claim every customer payment method is launch-ready or ask a provider to rely on a browser redirect as payment proof.
 
-Under instant-pay, by the time you see the offer the customer has already paid the full amount into onService escrow. The platform holds that money. You are not chasing the customer for cash. When you finish and the customer confirms (or after 24 hours of auto-confirm), escrow releases your share to your wallet automatically. This is the trust pitch: no haggling, no "balik ko next week," the money is real and waiting.
+For an offer the server has actually released to dispatch, the booking is paid and held in onService escrow. The provider should rely on the in-app paid/assigned state, not a customer's screenshot or claim of payment. They are not chasing the customer for cash. When they finish and the customer confirms (or after 24 hours of auto-confirm), escrow releases the provider share to the wallet.
 
 Key numbers to share:
 - Your commission is flat for your tier (see Section 5). Everything else is yours.
@@ -147,9 +147,9 @@ Never do off-the-books extra work for cash. Use the change order.
 Earnings land in the provider's in-app wallet (`available_balance`). To cash out they request a payout:
 - Minimum ₱100 per withdrawal.
 - Methods: GCash, Maya, bank InstaPay, bank PesoNet.
-- One payout at a time. Wait for the current one to finish before requesting another.
-- Processing target: 3 business days. Admin approves, then marks complete when sent.
-- Large payouts (₱500,000+) get held for an AML review by a senior admin before processing. Routine for compliance, not a problem with the provider.
+- One payout at a time, including one held for AML review. Wait for the current one to finish or be rejected before requesting another.
+- Processing target: 3 business days. Admin records a reason for AML clearance where applicable, approval/rejection, and completion; Complete is recorded only after the external transfer was actually sent.
+- Large payouts (₱500,000+ by the current setting) get held for an internal compliance review by a senior admin before processing. The hold itself does not mean the provider did anything wrong and does not claim that a legal report was filed or required.
 
 ### 4.9 Ratings, reviews, tiers
 
@@ -174,7 +174,7 @@ Commission is flat per tier and comes off the service price. The provider keeps 
 
 Set expectations clearly: tier promotion is **not automatic**. The app shows the provider their progress toward the next tier, but an admin makes the actual tier change. Tell providers what they are working toward and that ops reviews tier eligibility (cadence per `12-quality-standards-and-kpis.md`).
 
-Service fee (charged to the customer, not deducted from the provider) and the guarantee-fund split are covered in `10-money-and-compliance-ops.md`. The guarantee-fund claim rules (cap, eligibility, clawback) are in `09-disputes-and-resolution.md`.
+The customer service fee is currently 0% and is not deducted from the provider. Its admin-tunable setting and the currently zero fee-derived guarantee contribution are covered in `10-money-and-compliance-ops.md`. Guarantee wording remains subject to legal review; do not expand it during provider training.
 
 ---
 
@@ -302,7 +302,7 @@ These are recommended defaults. Ken can override any of them. To change one, edi
 
 > **Set (editable):** Provider TIN is collected **before first payout**, not at application. The app accepts it as optional today; it must be on file before the provider reaches ₱500,000 YTD platform income, when BIR withholding starts (Form 2307). _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-> **Set (editable):** Instant-pay (prepaid-into-escrow) is the framing we train on, and it is now live (merged and deployed 2026-06-19, E03 closed). Providers can be told the job is already paid into escrow when they accept. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** Train providers that an offer shown by the server as paid/assigned is held in escrow. E03 fixed the internal ordering, but E14 must be resolved before external hosted PayMongo methods are called launch-ready. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 > **Set (editable):** Ops sets the provider's **primary service area during onboarding**. The app does not force it at apply time; later area changes go through the approval queue (`service_area_change_requests`). _Recommended default. To change it, edit here and anywhere this value is referenced._
 

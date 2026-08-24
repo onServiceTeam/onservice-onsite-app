@@ -52,7 +52,7 @@ There is also a second, finer permission system in the database (`admin_roles` /
 
 Those finer named roles function today as organizational metadata for how we describe a person's job. They do NOT by themselves grant or block API access, because the live gate reads the single `users.role` value. So when this manual says "super_admin only," it means the single account role, not the named DB role. Giving someone the `finance` named role does not let them approve payouts unless their account role is `super_admin`.
 
-> **Set (editable):** Before public launch, wire the money actions (refund, payout, escrow release) behind a finance/super-admin gate, and give support agents a limited admin login that cannot reach the money buttons. Today those named roles do not gate routes, so this is a tracked pre-launch work item, not current behavior. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** Live money actions remain gated to the single `super_admin` account role. Do not treat the named `finance` metadata role as authority until the fine-grained authorization architecture is explicitly approved and implemented. Support agents use an `admin` account and cannot reach payout, refund, escrow-release, reconciliation, or settings mutation controls. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 Bottom line for a new admin: if a button is greyed out or you see a "requires a super-admin account" banner, that is expected. Ask a super_admin to do that step, or escalate per the SOP.
 
@@ -140,13 +140,13 @@ The all-bookings monitor. Search by booking ID or city. Filter by any of the ~18
 
 The booking lifecycle you will see (simplified): `requested` to `matched/quoted` to `payment_pending` to `paid` to `provider_en_route` to `provider_arrived` to `in_progress` to `completed_by_provider` to `confirmed` to `payout_ready` to `paid_out`. A dispute branches off after `completed_by_provider` into `disputed` to `resolved`. Cancellations end in `cancelled_by_customer` / `_provider` / `_admin`. See `10-money-and-compliance-ops.md` for the money meaning of each state.
 
-Note for support staff: the instant-pay money flow (customer pays first into escrow, provider matched after) is live as of 2026-06-19 (the E03 issue is fixed). Checkout no longer errors at the pay step. If an older "payment failed but I see a booking" report comes in, that was the pre-fix behavior. Confirm the customer is on the current app and retry, and escalate per `06-customer-support-sop.md` if it persists.
+Note for support staff: E03 fixed the booking/escrow ordering, but current external PayMongo hosted checkout and wallet top-up are not launch-ready. E14 proves the constructed hosted URL is invalid and the inspected production top-ups stayed `awaiting_payment`. Do not ask a customer to retry that link with real money, do not say the payment succeeded from a redirect, and do not manually mark it paid. Escalate and preserve the booking/top-up identifier while the approved PayMongo replacement is pending.
 
 ### 2.7 Booking detail / Booking 360 (`/bookings/:id`)
 
 One booking, 5 tabs: Overview (customer/provider blocks, address), Timeline, Evidence (photos, GPS check-ins, chat count, receipts), Money (price/fee/total, linked dispute), Audit.
 
-Super_admin action panel: Manual escrow release, Refund (peso amount), Reassign provider (by UUID), Cancel (with hours-until-scheduled, provider-arrived, customer-no-show flags), Force-complete. Reason minimums are enforced: most actions at least 10 chars, force-complete at least 20 chars.
+Super_admin action panel: Manual escrow release, Refund (peso amount), Reassign provider (from the named online-provider picker), Cancel (with hours-until-scheduled, provider-arrived, customer-no-show flags), Force-complete. Reason minimums are enforced: most actions at least 10 chars, force-complete at least 20 chars.
 
 How to do a manual escrow release (super_admin): open the booking, go to the action panel, click Manual escrow release, type a reason. Use this only when a booking is stuck in `confirmed` but did not auto-release. See `09-trust-safety-and-disputes.md` before touching the money panel.
 
@@ -161,7 +161,7 @@ How to watch the dispatch console during a shift:
 2. Filter to your launch city (default market is Metro Cebu).
 3. Watch the alert tail. A "no provider available" alert means auto-dispatch tried its candidates and ran out. Follow the no-provider playbook in `08-dispatch-and-live-operations.md` (the short version: confirm there really are online providers in range, then a super_admin manually reassigns or messages the customer).
 
-Known quirk: the default map center is still hardcoded to old Boracay coordinates. It does not match the Cebu-default direction. Just pan/zoom to your city. This is a cosmetic artifact, not a data problem.
+The default map center is Cebu City. Use the city filter to move between active service areas; adding another market remains an admin data change, not a code change.
 
 ### 2.9 Catalog / Service Catalog (`/catalog`)
 
@@ -209,7 +209,7 @@ Resolution decision notes must be at least 20 characters. Follow the decision tr
 
 One dispute. Header shows tier, age, priority score. Side-by-side customer claim and provider response. Evidence grouped by who uploaded it. Customer and provider 90-day history with a risk flag (`OK` / `REVIEW_REQUIRED` / `AT_RISK`).
 
-Admin actions: Assign to admin (by UUID), Resolve & notify (shows an estimated-refund preview and a confirm step, super_admin), Escalate (at least 10 chars), Message parties (customer/provider/both, 5-2000), Reopen a resolved dispute (super_admin, reason at least 20).
+Admin actions: Assign to a named active admin, Resolve & notify (shows an estimated-refund preview and a confirm step, super_admin), Escalate (at least 10 chars), Message parties (customer/provider/both, 5-2000), Reopen a resolved dispute (super_admin, reason at least 20).
 
 How to resolve a dispute:
 1. Read both sides and all evidence.
@@ -225,17 +225,18 @@ Most of this is read-only for plain admins. The Run reconciliation, Generate, an
 
 ### 2.14 Payouts (`/payouts`)
 
-The provider payout request queue. Filter by provider ID and status (`pending`, `approved`, `processing`, `completed`, `rejected`, `failed`). Each row shows method and destination account and any failure reason.
+The provider payout request and compliance queue. Filter by provider ID and status (`aml_review_pending`, `pending`, `approved`, `processing`, `completed`, `rejected`, `failed`). Each row shows provider, amount, method, destination account, status context, and any failure or rejection reason.
 
-Super_admin actions: Approve / Reject (reason at least 10) on pending requests, Complete (with optional PayMongo transfer ID) on approved ones. Plain admins are read-only.
+Super_admin actions: Clear compliance review or directly Reject (reason at least 10) on internally held requests; Approve / Reject (reason at least 10) on pending requests; Complete (reason at least 10, optional PayMongo transfer ID) on approved ones. Plain admins are read-only.
 
 How to run a payout (super_admin):
-1. Open a pending request. Confirm the provider is approved and the destination account looks right (GCash/Maya is an 11-digit 09xxxxxxxxx number; bank is 8-16 digits).
-2. Click Approve (reason at least 10). The provider is notified.
-3. After the money is actually sent through PayMongo/bank, click Complete and paste the transfer ID. The provider gets "Payout Sent."
-4. If something is wrong, Reject with a clear reason; the funds go back to the provider's available balance.
+1. Open the request. Confirm the provider is approved, amount matches the reserved pending wallet balance, and destination account looks right (GCash/Maya is an 11-digit 09xxxxxxxxx number; bank is 8-16 digits).
+2. If the status is `aml_review_pending`, complete the required review. Clear with a written reason to move it to `pending`, or reject directly with a written reason to return the reservation. Neither action sends money.
+3. Click Approve and record what was checked (at least 10 characters). The provider is notified.
+4. Send the money through the authorized external PayMongo/bank process. Only after that succeeds, click Complete, record how/when it was sent (at least 10 characters), and paste the transfer ID if available. The provider gets "Payout Sent."
+5. If something is wrong while pending, Reject with a clear reason; the transaction returns the full reserved amount to the provider's available balance. If the reservation is inconsistent, the action rolls back and Finance must investigate rather than manually compensating around it.
 
-Note: a payout at or above the AML threshold (default ₱500,000) lands in `aml_review_pending` and a super_admin must clear the AML review before it can move. See `10-money-and-compliance-ops.md`.
+Note: a payout at or above the internal review threshold (default ₱500,000) lands in `aml_review_pending`. It counts as the provider's one-in-flight request and needs a reasoned super_admin clear-or-reject decision before ordinary approval can continue. This state does not itself mean a legal report was filed or required. See `10-money-and-compliance-ops.md`.
 
 ### 2.15 Notification Templates (`/notification-templates`)
 
@@ -389,7 +390,7 @@ Providers
 Bookings and dispatch
 - [ ] Can read the booking status flow and explain escrow hold vs release.
 - [ ] Can describe the no-provider alert and the first 3 steps of the playbook.
-- [ ] Recognizes the E03 "payment failed but booking exists" symptom and the right response.
+- [ ] Can distinguish E03's fixed booking/escrow ordering from E14's open hosted-checkout blocker, and knows never to retry, mark paid, or dispatch a merely pending external attempt.
 
 Support and disputes
 - [ ] Can create a support ticket on a user's behalf and set priority/assignment.
@@ -425,7 +426,7 @@ Sign-off: ___________________________ (super_admin)    Date: ____________
 Each is a recommended default that Ken can override. Edit the value here and anywhere it is referenced.
 
 - **Super-admin accounts (Section 1):** Ken plus one Operations Lead only. (editable)
-- **Granular admin role gating (Section 1):** wire money actions behind a finance/super-admin gate before launch; support agents get a limited login that cannot reach money buttons. Tracked pre-launch work item. (editable)
+- **Granular admin role gating (Section 1):** live money authority is the `super_admin` account role; named finance/support permissions remain metadata pending an explicit authorization architecture. (editable)
 - **Surge pricing (Section 2.10):** off at launch; enable a modest `peak_hours` rule only after the live demand curve justifies it. (editable)
 - **Cancellation numbers in support (Section 2.28):** quote the live refund money-path numbers until the policy page and the money path are reconciled. (editable)
 - **Read-only period and tier (Section 4):** minimum 2 weeks read-only, then full `admin` tier after the checklist; `super_admin` only by Ken's named approval. (editable)

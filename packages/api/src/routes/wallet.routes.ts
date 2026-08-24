@@ -13,20 +13,6 @@ import { logger } from '../utils/logger';
 
 const router = Router();
 
-interface PayoutRow {
-  id: string;
-  provider_id: string;
-  wallet_id: string;
-  amount: string;
-  method: string;
-  destination_account: string;
-  status: string;
-  paymongo_transfer_id: string | null;
-  failure_reason: string | null;
-  created_at: Date;
-  completed_at: Date | null;
-}
-
 router.get(
   '/',
   authMiddleware,
@@ -166,35 +152,16 @@ router.get(
         throw createAppError('Only providers can view payouts.', 403);
       }
 
-      interface ProviderIdRow { id: string }
-      const providerRow = await db.query<ProviderIdRow>(
-        `SELECT id FROM providers WHERE user_id = $1`,
-        [req.user!.userId],
-      );
-      if (providerRow.rows.length === 0) throw createAppError('Provider profile not found.', 404);
-
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
-      const offset = (page - 1) * pageSize;
-
-      interface CountRow { count: string }
-
-      const [countRes, dataRes] = await Promise.all([
-        db.query<CountRow>(
-          `SELECT COUNT(*)::text as count FROM payouts WHERE provider_id = $1`,
-          [providerRow.rows[0]!.id],
-        ),
-        db.query<PayoutRow>(
-          `SELECT * FROM payouts WHERE provider_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
-          [providerRow.rows[0]!.id, pageSize, offset],
-        ),
-      ]);
-
-      const total = Number(countRes.rows[0]?.count ?? 0);
+      const { payouts, total } = await payoutService.getMyPayouts(
+        req.user!.userId,
+        { page, pageSize },
+      );
 
       res.json({
         success: true,
-        data: dataRes.rows.map(formatPayout),
+        data: payouts.map(payoutService.formatPayout),
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
       });
     } catch (error) {
@@ -302,19 +269,5 @@ router.put(
     }
   },
 );
-
-function formatPayout(p: PayoutRow): Record<string, unknown> {
-  return {
-    id: p.id,
-    providerId: p.provider_id,
-    amount: Number(p.amount),
-    method: p.method,
-    destinationAccount: p.destination_account,
-    status: p.status,
-    failureReason: p.failure_reason,
-    createdAt: p.created_at,
-    completedAt: p.completed_at,
-  };
-}
 
 export default router;

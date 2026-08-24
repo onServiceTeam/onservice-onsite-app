@@ -14,7 +14,11 @@ A great onService provider is someone we would be happy to send to our own mothe
 
 - **A real, traceable person.** Government ID and selfie match the same face and the same name on the application. NBI clearance is current (issued within 6 months) and clean of anything that touches a stranger-in-your-home risk (theft, violence, sexual offenses). No identity gaps we cannot explain.
 - **Genuinely skilled in the category they claim.** They can answer the per-category skills questions in `13-policies-codes-and-templates.md` correctly, including the safety question, and they can show evidence of past work (photos, a short video, a TESDA or PRC certificate where the trade calls for one). They picked categories they can actually do well, not a long list to catch more jobs.
-- **Reliable.** They understand that a job is paid before they are matched, that 45 seconds means decide fast, and that no-shows leave a paying customer stranded. They have a working phone, charged, with notifications on. References describe someone who shows up.
+- **Reliable.** They understand the intended paid-before-match model, that an
+  offer expires quickly, and that no-shows leave a customer stranded. E14 means
+  support must verify a real paid/held state rather than assuming an external
+  browser attempt succeeded. They have a working phone, charged, with
+  notifications on. References describe someone who shows up.
 - **Professional and safe.** Clear communicator in chat, respects a customer's home, wears the shirt and shows the ID, uses change orders instead of side cash, and stops when a job is beyond their competence. On the electrical and aircon trades, they never give a wrong safety answer.
 - **On the platform to stay on the platform.** They get the trust model: escrow, ratings, the dispute window, on-app communication. They are not looking to peel customers off into cash deals.
 
@@ -32,7 +36,11 @@ These three bars are the spine of this document. Section 1 to Section 8 are abou
 
 ## 0a. How we win on trust and quality (market differentiation)
 
-We do not compete on being the cheapest place to find a tradesperson. We compete on being the place a customer can trust without knowing the person. This section is the strategy, not slogans. Every line below is something the app actually does, so the vetting team can hold the bar knowing it is backed by the product.
+We do not compete on being the cheapest place to find a tradesperson. We compete
+on being the place a customer can trust without knowing the person. This section
+describes the intended trust model. E10/F#10, E14, and the chat limitation below
+mean not every historical promise is currently launch-ready; operators must
+distinguish implemented controls from held claims.
 
 Who we are beating, and how:
 
@@ -40,20 +48,34 @@ Who we are beating, and how:
 |---|---|
 | The Facebook-group / word-of-mouth informal economy (a stranger who may not show, may not be who they say, takes cash, leaves no record) | ID + NBI verification on every approved provider, money held in escrow until the job is confirmed, a 48-hour dispute window, and a full on-app record of who did what |
 | Other booking apps that sign up anyone and let ratings sort it out later | A real vetting gate BEFORE the first job: scored scorecard, identity match, skills check, references, and a 3-job probation with mandatory before/after photos |
-| Off-platform cash deals (the thing even a good provider drifts toward) | The trust the customer loses the moment they leave the app: escrow, the dispute path, the guarantee fund, the suki history. Off-platform attempts are flagged and are grounds for suspension |
+| Off-platform cash deals (the thing even a good provider drifts toward) | The trust the customer loses the moment they leave the app: verified payment/escrow records, the dispute path, and suki history. Off-platform attempts can be flagged and are grounds for review/suspension. Do not promise a guarantee amount while E10/F#10 is open. |
 
 The five things that are ours to defend, and what each does for the customer:
 
 1. **Vetting rigor (the front door).** We reject before we admit. A customer never has to be the one who finds out a provider was a fraud, because the scorecard, identity match, NBI check, skills check, and references did it first. This is the single biggest difference from the informal economy and from sign-up-anyone apps. The rest of this document is how we keep this rigorous and honest.
-2. **Escrow (the customer's money is safe).** The customer pays into the platform first; the money sits in escrow until they confirm the job or auto-confirm fires after 24 hours. The provider never has to chase payment and the customer never pays for nothing. If a provider is suspended mid-job, escrow freezes until an admin resolves it.
-3. **The ₱10,000 service guarantee (the safety net, NOT insurance).** We set aside about 1.5% of every service fee into a self-funded guarantee fund. For a provider-caused property-damage or theft claim with photo evidence filed inside the 48-hour window, we make the customer whole up to the cap, then claw it back from the provider's future payouts. This is a service guarantee, not an insurance product. We never say "insured," "insurance," "coverage," or quote it as insurance. See `09-trust-safety-and-disputes.md` for the claim rules and `01-company-foundation.md` Section 8 for why the wording matters legally.
-
-   > **Set (editable):** the customer-facing service-guarantee figure is **₱10,000 per claim**. Note this must be reconciled with `12-quality-standards-and-kpis.md` and `09-trust-safety-and-disputes.md`, which currently carry a ₱20,000 starting cap pending legal and accountant sign-off. Pick one number across all three docs before it goes in front of customers. _Recommended default. To change it, edit here and anywhere this value is referenced._
+2. **Verified payment and escrow controls.** The intended flow holds a
+   server-verified payment before matching and releases it after confirmation or
+   the configured auto-confirm. Provider suspension can freeze in-flight
+   release for admin resolution. E14 blocks the current external hosted
+   authorization entry, so an `awaiting_payment` record or browser redirect is
+   not held money.
+3. **Documented dispute and evidence path.** Customers can file a dispute and
+   attach evidence; support/admin resolve the actual booking and escrow record.
+   E10/F#10 prohibits promising a ₱10,000/₱20,000 guarantee, fund contribution,
+   insurance classification, or automatic make-whole outcome until Philippine
+   counsel approves the exact protection model and wording.
 
 4. **Suki loyalty (repeat trust, both sides).** Customers build a suki history (`new` / `regular` / `suki` / `super_suki`) the more they book. A vetted provider who does good work gets requested again and climbs the provider tier ladder (lower commission as they prove themselves). Trust compounds: the customer trusts the platform, then trusts a specific provider, then keeps coming back. The informal economy cannot offer a verified, rated, repeatable relationship with recourse behind it.
-5. **The on-app communication record (accountability).** Every booking has one chat thread, kept on-platform, with read receipts and photo evidence. If anything goes wrong, there is a record: who said what, when the provider arrived (GPS check-in), the before/after photos. This is the evidence that makes the dispute window and the guarantee fund work, and it is exactly what a cash deal in a Facebook DM does not have.
+5. **The on-app evidence record (accountability).** Booking state, status events,
+   GPS check-in when available, job photos, change orders, and dispute evidence
+   create an auditable record. Customer/provider chat sending and photo delivery
+   remain unreliable under launch limitation §25, so urgent coordination uses
+   the call action and formal evidence uses the job-photo/dispute flows.
 
-What this means for the vetting team: you are the front door for all five. The escrow, the guarantee, suki, and the record only matter because the person on the doorstep was actually vetted. Do not wave someone through to hit a recruiting number. A bad approval does more damage to the brand than a slow queue, because it breaks the one promise the whole product is built on.
+What this means for the vetting team: you are the front door for the trust
+controls above. Verified payment/escrow, suki history, disputes, and evidence
+only help when the person at the customer location was actually vetted. Do not
+wave someone through to hit a recruiting number.
 
 ---
 
@@ -252,7 +274,10 @@ Red flags: treats cancelling lightly, no plan for being reachable, overcommitted
 
 ### Group 4 - Professionalism and the platform model (confirm they will represent us well and stay on-platform)
 
-14. A customer pays onService first, the money is held safely, and you get paid after the job is confirmed. How does that sound to you? (You want comfort with escrow, not someone who insists on cash up front.)
+14. The intended model uses a server-verified customer payment held before
+    matching, then releases provider earnings after confirmation. How does that
+    sound to you? (You want comfort with escrow, not someone who insists on cash
+    up front. Do not imply the current E14 external browser flow is live.)
 15. A happy customer says "next time just contact me directly, skip the app." What do you say? (Right answer: keep it on the app. This is the off-platform test. A wrong answer here is a serious flag.)
 16. The job needs extra work beyond what was booked. How should that be handled? (Right answer: a change order in the app, customer approves and pays first, never side cash.)
 17. What do you wear and bring to a job? (Looking for: the onService shirt, visible ID, own basic tools and supplies.)
@@ -526,7 +551,9 @@ A provider who is genuinely skilled but slipping is worth saving; recruiting and
 ## 13. Open decisions set in this doc
 
 - **Quality bars (Section 0):** approval bar 80/100 + all hard requirements + no auto-fail; staying bar 4.5+ rating, under 2 cancellations/30 days, zero safety incidents, current NBI; great bar 4.7+ rating, 80%+ acceptance, 90%+ on-time, zero open disputes. (editable)
-- **Service-guarantee figure (Section 0a):** ₱10,000 per claim customer-facing; reconcile with the ₱20,000 starting cap in docs 09 and 12 before it goes in front of customers. (editable)
+- **Protection wording (Section 0a):** E10/F#10 is an external legal hold. No
+  guarantee amount, contribution rate, insurance classification, or automatic
+  outcome is an editable operations default; counsel must approve it first.
 - **Interview is a required vetting step (Section 4a):** phone/video call by the vetting owner, answers logged in admin Notes. (editable)
 - **References and skills-test storage:** keep both in the provider's admin Notes for launch (no dedicated `references` or `skills_test_result` field). (editable)
 - **Per-category skills question bank:** yes, a fixed bank per category, maintained as a real section in `13-policies-codes-and-templates.md`. (editable)

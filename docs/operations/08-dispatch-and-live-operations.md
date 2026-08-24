@@ -8,9 +8,9 @@ Related docs: `06-customer-support-sop.md`, `07-provider-support-sop.md`, `09-tr
 
 ## 1. Why dispatch is the most time-sensitive job we have
 
-A booking reaches dispatch already paid (instant-pay). The customer paid first into platform escrow, and the provider is matched after. So when you watch the Dispatch Console, you are not waiting on money. The money is already held. The only thing between the customer and a happy job is finding a provider fast. Treat every unmatched paid booking as a clock that is already running.
+A booking must reach dispatch only after the server records it paid with held escrow. So when you watch a real dispatch row, verify the paid/held state and then focus on finding a provider fast. Treat every unmatched, verified-paid booking as a clock that is already running. A pending browser payment attempt is not a dispatch booking.
 
-> ACCURACY NOTE: the instant-pay money path is live as of 2026-06-19 (merged and deployed, E03 closed). A new fixed-price booking is created and the customer pays it immediately (the money holds in escrow), then a provider is matched. This doc describes that live instant-pay operation. See `.ai-coder/escalations/E03-customer-checkout-state-machine-2026-05-05.md` for the history.
+> ACCURACY NOTE: E03 fixed the booking/escrow ordering, so only verified payment may produce a paid/held dispatch record. E14 still blocks the current external hosted PayMongo authorization link. Dispatchers must not promote a pending attempt into dispatch or tell a customer to retry that link; see `.ai-coder/escalations/E14-paymongo-hosted-checkout-flow-2026-08-24.md`.
 
 ---
 
@@ -55,7 +55,7 @@ What is on screen:
 - **Active Bookings list:** capped at 50 most relevant. Live-updates over the socket (`booking:created`, `booking:status_changed`).
 - **Alert tail:** the last 20 live alerts (`alert:new`).
 
-> KNOWN ISSUE to brief every new dispatcher on: the map default center is still hardcoded to Boracay coordinates `[11.9685, 121.9162]`, zoom 13. That is a stale artifact and does NOT match our Cebu-default direction. Use the city filter to recenter on your actual market. This is cosmetic, not a data problem. Tracked as a code cleanup item.
+The default map center is Cebu City. Use the city filter for the active service area; service areas remain admin data rather than hardcoded launch markets.
 
 ### What requires super_admin
 
@@ -102,7 +102,7 @@ ACTIVE bucket (what counts as "in flight" for metrics): `requested`, `quoted`, `
 
 ## 5. "No provider available" - the playbook
 
-This is the core live-ops skill. The customer already paid. Your job is to get them a provider or, failing that, a clean refund and an honest message. Do not leave them silent.
+This is the core live-ops skill. For a real dispatch row, verify the customer payment and held escrow first. Then get them a provider or, failing that, a clean refund and an honest message. Do not leave them silent.
 
 Trigger: a `no_provider_available` alert, or you spot a `requested` booking sitting with no movement and the offer cycle has stopped (out of candidates or hit the 10-attempt cap).
 
@@ -162,14 +162,14 @@ These are starting numbers. Tune against real data once Cebu volume is steady. S
 
 Use when you have a provider lined up by hand, or when the current provider fell through (no-show, cannot continue, suspended).
 
-Where: **Dispatch Console** row action **Reassign**, or **Booking detail** (`/bookings/:id`) super_admin action panel "Reassign provider" (by provider UUID). Endpoint `POST /api/v1/admin/bookings/:id/reassign`. Super_admin only. Reason required (5+ chars on the console; Booking detail action minimums apply).
+Where: **Dispatch Console** row action **Reassign**, or **Booking detail** (`/bookings/:id`) super_admin action panel "Reassign provider." Both use named eligible-provider choices rather than pasted UUIDs. Endpoint `POST /api/v1/admin/bookings/:id/reassign`. Super_admin only. Reason required (5+ chars on the console; Booking detail action minimums apply).
 
 Steps:
 
 1. [ ] Confirm the new provider is `approved` and online (`is_available = TRUE`). A suspended provider cannot be assigned.
 2. [ ] Confirm they actually cover this service category and area.
 3. [ ] Open the booking (Dispatch row or Booking detail).
-4. [ ] Click **Reassign**, pick the provider (console) or paste their UUID (Booking detail).
+4. [ ] Click **Reassign** and pick the named eligible provider.
 5. [ ] Type a clear reason. It is audited in `admin_actions`. Example: "Original provider declined, reassigned to confirmed nearby pro per phone."
 6. [ ] Confirm. Then message the customer so they know who is coming.
 
@@ -311,13 +311,13 @@ Run at shift start and shift end.
 | Customer dispute filed | Trust & safety | `09-trust-safety-and-disputes.md` |
 | Refund / escrow question | Money ops (super_admin) | `10-money-and-compliance-ops.md` |
 | Provider suspended mid-job, escrow frozen | Super_admin | Booking detail + `07-provider-support-sop.md` |
-| Money-path bug (E03 instant-pay) | Ken decision | E03 escalation, do not work around it |
+| External checkout/top-up blocked | Ken + engineering | E14; do not retry, mark paid, or work around it |
 
 ---
 
 ## 13. One-page summary for a new dispatcher
 
-- A booking in dispatch is already paid. Your only job is speed to a provider.
+- A real dispatch booking is server-verified paid with held escrow. Verify that state, then move quickly to a provider; never dispatch a merely pending payment attempt.
 - Auto-dispatch offers ONE provider at a time, 45 seconds each, up to 10 tries, then it stops and tells the customer once.
 - When it stops, YOU act: re-dispatch by hand, call providers, widen radius, or message + refund. Never go silent on the customer.
 - Reassign and Cancel and Message customer are super_admin only. Every shift needs one reachable.

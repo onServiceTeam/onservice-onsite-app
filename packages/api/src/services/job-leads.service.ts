@@ -138,7 +138,7 @@ export async function getOpenJobRequestsForProvider(
   const dist = haversineSQL('$2', '$3', 'b.latitude', 'b.longitude');
   const whereCore = `
        b.booking_type = 'quote_based'
-       AND b.status = 'requested'
+       AND b.status IN ('requested', 'quoted')
        AND b.category_id IN (
          -- categories the provider serves directly...
          SELECT ps.category_id FROM provider_services ps
