@@ -22,6 +22,8 @@ export default function ProviderLayout(): React.ReactElement {
       <Stack.Screen name="schedule" />
       <Stack.Screen name="services" />
       <Stack.Screen name="notifications" />
+      <Stack.Screen name="disputes" />
+      <Stack.Screen name="dispute/[id]" />
       <Stack.Screen name="withdraw" />
       <Stack.Screen name="chat/[id]" />
       <Stack.Screen name="payouts" />

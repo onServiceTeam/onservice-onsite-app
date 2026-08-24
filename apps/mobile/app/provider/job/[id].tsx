@@ -12,7 +12,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getBookingById } from '@/services/booking.service';
+import { getBookingById, getMyDisputes } from '@/services/booking.service';
 import { updateBookingStatus } from '@/services/provider-api.service';
 // A7 — shared UI kit for loading + error states + toast feedback.
 import { Button, Skeleton, ErrorState, Card, SectionHeader, StatusBadge } from '@/components/ui';
@@ -39,6 +39,8 @@ const STATUS_LABELS: Record<string, string> = {
   confirmed: 'Confirmed by Customer',
   payout_ready: 'Payout Ready',
   paid_out: 'Paid Out',
+  disputed: 'Customer Dispute Open',
+  resolved: 'Dispute Resolved',
 };
 
 // D27 Phase 2 — render a stored intake answer. Booking JSON only keeps the
@@ -94,6 +96,13 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
     },
     staleTime: 5 * 60 * 1000,
   });
+  const disputeQuery = useQuery({
+    queryKey: ['myDisputes', 'provider', id],
+    queryFn: () => getMyDisputes(1, 1, id),
+    enabled: !!id && ['disputed', 'resolved'].includes(booking?.status ?? ''),
+    staleTime: 15 * 1000,
+  });
+  const linkedDispute = disputeQuery.data?.disputes[0];
   const providerTier = providerMeQuery.data?.tier;
 
   const statusMutation = useMutation({
@@ -263,6 +272,12 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
 
   const actionPanel = (
     <>
+      {linkedDispute && (
+        <Button
+          title={linkedDispute.providerRespondedAt ? 'View Dispute Case' : 'Respond to Dispute'}
+          onPress={() => router.push(buildRoute(Routes.PROVIDER.DISPUTE_DETAIL, { id: linkedDispute.id }))}
+        />
+      )}
       {canSubmitQuote && (
         <Button
           title="Submit Quote"
@@ -285,7 +300,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
             variant="outline"
           />
           <Text style={styles.changeOrderNote}>
-            Need extra parts or materials? Send a change order here so the customer approves the added cost in the app before you buy or do extra work. It stays on the record and protected by escrow.
+            Need extra parts or materials? Send a change order before you buy or do extra work. Approval alone is not payment; continue only after the job shows the added charge as paid and held.
           </Text>
         </>
       )}

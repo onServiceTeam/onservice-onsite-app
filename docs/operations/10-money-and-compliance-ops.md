@@ -28,9 +28,9 @@ Escrow states: `pending` -> `held` -> `released` (or `refunded` / `partially_ref
 |---|---|---|
 | HOLD | Customer pays. Booking goes `paid`, escrow goes `held`. Money lands in the escrow wallet `pending_balance`. | PayMongo `payment.paid` webhook (card / GCash) or wallet debit (instant for wallet method) |
 | RELEASE | Provider wallet gets `service_price - commission`; revenue wallet gets `commission + service_fee - guarantee`; guarantee fund gets 1.5% of the service fee under the current release formula. With the customer service fee currently set to zero, that fee-derived guarantee contribution is also zero. Escrow goes `released`, booking goes `payout_ready`. | Customer confirms the job, OR auto-confirm after 24h |
-| REFUND | Money pushed back to the customer through PayMongo. Escrow goes `refunded` or `partially_refunded`. | Cancellation or dispute resolution |
+| REFUND | Internal held funds move according to the approved outcome. A verified historical external payment may also require a PayMongo refund; verify the gateway result before saying it was submitted or completed. Escrow goes `refunded` or `partially_refunded`. | Cancellation or dispute resolution |
 
-Auto-confirm: a booking sitting in `completed_by_provider` for longer than 24h (`escrow_auto_confirm_hours`, admin-tunable) is auto-confirmed, escrow released, booking moved to `payout_ready`. The customer is notified.
+Auto-confirm: a booking sitting in `completed_by_provider` for longer than 24h (`escrow_auto_confirm_hours`, admin-tunable) is auto-confirmed, escrow released, booking moved to `payout_ready`. The customer is notified. This currently conflicts with the 48-hour accepted dispute-filing window. E18 is an open money-path hard stop: do not infer that filing after release reverses the provider credit or safely re-holds booking funds.
 
 Escrow release is refused (held for admin) when the provider was suspended mid-booking, when there is no provider on the booking, or when the amounts do not reconcile. That is by design. Resolve it in the admin Booking detail page, Money tab.
 
@@ -98,7 +98,9 @@ Admin actions (Payouts page, super_admin only):
 
 ## 5. Refunds and cancellations
 
-Refunds run automatically through PayMongo when a booking with escrow `held` is cancelled or a dispute resolves with a refund. If the PayMongo refund fails, it is queued (`gateway_retry_queue`) and retried, not dropped.
+Cancellation and dispute code can record an internal escrow outcome and, for a verified external PayMongo transaction, attempt a gateway refund. E14 blocks new hosted external authorization, so a redirect or `awaiting_payment` row is not refundable money. If a real gateway refund fails, it is queued in `gateway_retry_queue`; a queued row is evidence of an incomplete refund, not proof the customer was paid.
+
+E18 and E24 are also active. A dispute filed after the current 24-hour release is not backed by re-held funds merely because booking state changes, and direct provider acceptance/partial offers/customer partial acceptance are disabled. Route those cases through super-admin review and do not move money around either hold.
 
 > **Set (editable):** support quotes the LIVE refund money-path numbers, not the displayed policy, until the two systems are reconciled. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
@@ -281,7 +283,7 @@ onService: Your payout of PHP {{amount}} has been sent to {{method}} ({{account}
 Refund processed (SMS / push):
 
 ```
-onService: Your refund of PHP {{amount}} for booking {{bookingId}} has been processed. It will return to your original payment method within a few business days.
+onService: The approved refund for booking {{bookingId}} is PHP {{amount}}. Recorded destination: {{wallet_or_verified_original_method}}. Status: {{submitted_completed_or_failed}}. Reference: {{reference}}. We will update you when the recorded status changes.
 ```
 
 DSR acknowledgement (email reply, support handles manually):

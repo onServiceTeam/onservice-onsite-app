@@ -53,6 +53,8 @@ export const Routes = {
     BOOKING_TRACKER: '/customer/booking/tracker',
     BOOKING_COMPLETE: '/customer/booking/complete',
     BOOKING_MAKE_RECURRING: '/customer/booking/make-recurring',
+    DISPUTES: '/customer/disputes',
+    DISPUTE_DETAIL: '/customer/dispute/[id]',
     CHAT: '/customer/chat/[id]',
     // BUG-PHASE81-01 fix (same dead-route pattern as CRIT-80) — pre-fix
     // this pointed at '/customer/wallet' which has no corresponding
@@ -105,6 +107,8 @@ export const Routes = {
 
   PROVIDER: {
     JOB_DETAIL: '/provider/job/[id]',
+    DISPUTES: '/provider/disputes',
+    DISPUTE_DETAIL: '/provider/dispute/[id]',
     JOB_NAVIGATE: '/provider/job/[id]/navigate',
     CHAT: '/provider/chat/[id]',
     // D27 Phase 1 — open custom-quote requests (leads) the provider can quote.

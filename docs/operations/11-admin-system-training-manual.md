@@ -40,7 +40,7 @@ What actually controls what you can click is your single account role on the `us
 
 | Your account role | What you can do |
 |---|---|
-| `super_admin` | Everything, including all money and destructive actions: escrow release/refund, booking force-complete/cancel/reassign, dispute resolve/escalate/reopen, payout approve/reject/complete, provider wallet adjust, BIR finalize, reconciliation run, settings edit/reset, staff and roles management, cancellation-policy edit, service-area set-default, delete notification templates. |
+| `super_admin` | All currently enabled money and destructive actions: escrow release/refund, booking force-complete/cancel/reassign, dispute resolve/escalate/reopen, payout internal-review decisions and approve/reject/complete, provider wallet adjust, reconciliation run, settings edit/reset, staff and roles management, cancellation-policy edit, service-area set-default, delete notification templates. BIR issuance/finalization remains disabled for every role under E22. |
 | `admin` | Read and operational access. You can view every page and do non-money operational work such as provider vetting and support case handling. Catalog publishing is read-only because the API reserves category, service, pricing, add-on, and intake-field changes for `super_admin`. On money, destructive, and catalog-publishing surfaces you see a read-only banner. |
 | `dpo` | Admin-tier, plus the compliance powers: search consent records and handle Data Subject Requests under the Data Privacy Act. This is a real, separate role required by NPC rules, not a nickname for super_admin. |
 
@@ -60,7 +60,7 @@ Bottom line for a new admin: if a button is greyed out or you see a "requires a 
 
 ## 2. Page-by-page guide (35 routed page components)
 
-The left sidebar lists the pages in this order. The version label at the bottom shows the build (currently v0.14.0). For each page below: what it is for, the common tasks, and a short how-to.
+The left sidebar lists the pages in this order. The version label at the bottom is build-derived; do not use a version hardcoded in this manual to identify a live deployment. For each page below: what it is for, the common tasks, and a short how-to.
 
 ### 2.1 Dashboard (`/`)
 
@@ -113,7 +113,7 @@ Tier promotion is NOT automatic. A super_admin changes a tier with Change Tier (
 
 Everything about one provider, in 8 tabs:
 
-- Profile - KYC documents (NBI with expiry, gov ID front/back, selfie, avatar), service categories with prices, service areas, account info. KYC images load through an admin-only proxy, so you see them but raw file links are never exposed.
+- Profile - KYC documents (NBI with expiry, gov ID front/back, selfie, avatar), selected subcategory services with canonical catalog customer pricing, service areas, account info. Historical provider-entered prices are not an active booking source under E16 containment. KYC images load through an admin-only proxy, so you see them but raw file links are never exposed.
 - Jobs - that provider's bookings with status, totals, fees, ratings, dispute flags.
 - Financials - total earned, commission paid, wallet balances, recent payouts. Super_admin can Adjust Wallet (writes an audited ledger entry, reason at least 5 chars).
 - Reviews - show/hide individual reviews.
@@ -231,7 +231,7 @@ historical PDFs as approved returns/invoices. See
 
 The provider payout request and compliance queue. Filter by provider ID and status (`aml_review_pending`, `pending`, `approved`, `processing`, `completed`, `rejected`, `failed`). Each row shows provider, amount, method, destination account, status context, and any failure or rejection reason.
 
-Super_admin actions: Clear compliance review or directly Reject (reason at least 10) on internally held requests; Approve / Reject (reason at least 10) on pending requests; Complete (reason at least 10, optional PayMongo transfer ID) on approved ones. Plain admins are read-only.
+Super_admin actions: Clear internal large-payout review or directly Reject (reason at least 10) on internally held requests; Approve / Reject (reason at least 10) on pending requests; Complete (reason at least 10, optional transfer ID) on approved ones. Plain admins are read-only. These controls do not claim an AMLA filing or legal classification.
 
 How to run a payout (super_admin):
 1. Open the request. Confirm the provider is approved, amount matches the reserved pending wallet balance, and destination account looks right (GCash/Maya is an 11-digit 09xxxxxxxxx number; bank is 8-16 digits).
@@ -288,7 +288,7 @@ The unified read-only log. It combines request-level entries (badge "request") a
 
 ### 2.22 Compliance (`/compliance`)
 
-5 tabs: NPC Compliance (the Data Subject Request queue; filter by status and overdue-only; open a DSR to change status, add notes, set the response URL, or reject; Consent Records search is restricted to super_admin/dpo), BIR Calendar (filings with due dates and status), Audit Log (same data as the Audit Log page plus CSV export), Tax Documents (redirects to Financials, BIR Reports), Regulatory Reports (a v1.1+ stub).
+5 tabs: NPC Compliance (the Data Subject Request queue; filter by status and overdue-only; open a DSR to change status, add notes, set the response URL, or reject; Consent Records search is restricted to super_admin/dpo), BIR Calendar (held under E22 and not an authoritative filing schedule), Audit Log (same data as the Audit Log page plus CSV export), Tax Documents (redirects to held/internal Financials records), Regulatory Reports (a v1.1+ stub).
 
 DSRs have a 15-day SLA. Overdue ones show on the Dashboard alerts too. The DPO owns this work. See `10-money-and-compliance-ops.md`.
 
@@ -320,11 +320,11 @@ Super_admin only. Plain admins get an "access required" notice. 2 tabs: Staff (a
 
 ### 2.27 Settings / Platform Settings (`/settings`)
 
-The runtime knobs, grouped (Commissions, Fees, Escrow, Cancellation, Protection, Auth, Provider, Security, Cache, Dispatch & Map). Each setting shows its value, allowed range, unit, whether it is customized vs default, and its change history.
+The runtime knobs are grouped by operational category. Inactive legacy insurance/protection settings are hidden under D04; do not infer a launch product from rows that remain in historical storage. Each active setting shows its value, allowed range, unit, whether it is customized vs default, and its change history.
 
 Super_admin can Edit (reason at least 10), Reset to default (confirm modal, reason at least 10), and Flush cache (changes take effect within about 60 seconds). Plain admins are read-only.
 
-How to change a setting (super_admin): find it by category, click Edit, set the new value within the allowed range, type a reason, save. If you need it live immediately, Flush cache. Common ones you might be asked to change: commission rate per tier, service fee rate, escrow auto-confirm hours (default 24), dispute window hours (default 48), `auto_dispatch_enabled`, AML threshold. Never change a money setting without Ken's go-ahead. See `10-money-and-compliance-ops.md`.
+How to change a setting (super_admin): find it by category, click Edit, set the new value within the allowed range, type a reason, save. If you need it live immediately, Flush cache. Common ones include commission rate per tier, service fee rate, `auto_dispatch_enabled`, and the internal large-payout review threshold. The escrow auto-confirm default is 24 hours while filing remains 48 hours; E18 makes that pair a hard stop, not two ordinary knobs to tune independently. Never change a money setting without Ken's go-ahead. See `10-money-and-compliance-ops.md`.
 
 ### 2.28 Cancellation Policy (`/settings/cancellation-policy`)
 
@@ -418,7 +418,7 @@ Sign-off: ___________________________ (super_admin)    Date: ____________
 - All times Asia/Manila. Support hours are Monday to Saturday, 8:00 AM to 6:00 PM PHT. All money in pesos (centavos under the hood).
 - Reason fields are permanent and public-to-audit. Most need at least 10 chars; dispute resolve, reopen, and force-complete need at least 20.
 - "Online" provider = approved AND available. Suspension removes a provider from dispatch instantly.
-- Escrow auto-confirms and releases after 24h if the customer does nothing. Dispute window is 48h after completion. DSR SLA is 15 days.
+- Current code auto-confirms/releases after 24h while dispute filing remains open for 48h. This is the E18 money-path contradiction: do not call it settled policy, change either timer independently, or assume a later accepted case still has held funds. DSR SLA is 15 days.
 - Waiting support tickets require manual follow-up. The proposed five-day auto-close and two reminders are not implemented.
 - If you are not super_admin and a money/destructive button is locked, that is correct. Escalate, do not work around it.
 - When unsure, stop and ask. The audit log remembers everything.

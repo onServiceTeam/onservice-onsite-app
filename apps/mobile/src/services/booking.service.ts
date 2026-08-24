@@ -355,12 +355,90 @@ export interface DisputeEvidence {
   description?: string;
 }
 
+export interface DisputeRecord {
+  id: string;
+  bookingId: string;
+  filedBy: string;
+  type: 'no_show' | 'incomplete' | 'substandard' | 'damage' | 'theft' | 'overcharge' | 'other';
+  description: string;
+  status: 'open' | 'under_review' | 'escalated' | 'resolved';
+  tier: number;
+  assignedTo: string | null;
+  resolutionType: string | null;
+  refundAmount: number;
+  refundPercent: number | null;
+  decisionNotes: string | null;
+  providerResponse: string | null;
+  providerRespondedAt: string | null;
+  autoResolved: boolean;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customerName: string | null;
+  providerName: string | null;
+  evidence?: Array<{
+    id: string;
+    disputeId: string;
+    uploadedBy: string;
+    evidenceType: 'photo' | 'video' | 'document';
+    fileUrl: string;
+    description: string | null;
+    createdAt: string;
+  }>;
+}
+
+export interface DisputePage {
+  disputes: DisputeRecord[];
+  page: number;
+  total: number;
+  totalPages: number;
+}
+
 export async function fileDispute(data: {
   bookingId: string;
   type: string;
   description: string;
   evidenceUrls?: DisputeEvidence[];
-}): Promise<unknown> {
-  const res = await api.post<ApiResponse<unknown>>('/api/v1/disputes', data);
+}): Promise<DisputeRecord> {
+  const res = await api.post<ApiResponse<DisputeRecord>>('/api/v1/disputes', data);
+  return res.data.data;
+}
+
+export async function getMyDisputes(
+  page = 1,
+  pageSize = 20,
+  bookingId?: string,
+): Promise<DisputePage> {
+  const res = await api.get<{
+    success: boolean;
+    data: DisputeRecord[];
+    pagination: { page: number; total: number; totalPages: number };
+  }>('/api/v1/disputes/my', { params: { page, pageSize, bookingId } });
+  return {
+    disputes: res.data.data,
+    page: res.data.pagination.page,
+    total: res.data.pagination.total,
+    totalPages: res.data.pagination.totalPages,
+  };
+}
+
+export async function getDisputeById(disputeId: string): Promise<DisputeRecord> {
+  const res = await api.get<ApiResponse<DisputeRecord>>(`/api/v1/disputes/${disputeId}`);
+  return res.data.data;
+}
+
+export async function respondToDispute(
+  disputeId: string,
+  data: {
+    response: string;
+    action: 'accept' | 'contest' | 'partial_offer';
+    partialOfferAmount?: number;
+  },
+): Promise<DisputeRecord> {
+  const res = await api.post<ApiResponse<DisputeRecord>>(
+    `/api/v1/disputes/${disputeId}/provider-response`,
+    data,
+  );
   return res.data.data;
 }

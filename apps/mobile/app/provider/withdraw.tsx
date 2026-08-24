@@ -28,6 +28,7 @@ import { platformConfig } from '@/config/platform.config';
 import { Wallet, Building2 } from '@/components/icons';
 // Phase 14 R5-complete — EarningsChart preview of recent earnings.
 import EarningsChart from '@/components/provider/EarningsChart';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const PAYOUT_METHODS = [
   { id: 'gcash', label: 'GCash', Icon: Wallet },
@@ -51,6 +52,7 @@ export default function WithdrawScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
 
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<PayoutMethod | null>(null);
@@ -126,12 +128,12 @@ export default function WithdrawScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['wallet'] });
       void queryClient.invalidateQueries({ queryKey: ['walletTransactions'] });
-      showToast('Withdrawal requested. It is being processed.', 'success');
+      showToast('Withdrawal request recorded. Track its review status in Earnings.', 'success');
       router.back();
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      showToast(getErrorMessage(err, 'Failed to process withdrawal.'), 'error');
+      showToast(getErrorMessage(err, 'Failed to submit the withdrawal request.'), 'error');
     },
   });
 
@@ -158,8 +160,8 @@ export default function WithdrawScreen(): React.ReactElement {
     }
 
     Alert.alert(
-      'Confirm Withdrawal',
-      `Withdraw ${formatPHP(amountCentavos)} via ${PAYOUT_METHODS.find((m) => m.id === method)?.label}?`,
+      'Submit Withdrawal Request',
+      `Request ${formatPHP(amountCentavos)} via ${PAYOUT_METHODS.find((m) => m.id === method)?.label}? The request enters manual review before any transfer is recorded.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Confirm', onPress: () => withdrawMutation.mutate() },
@@ -176,7 +178,12 @@ export default function WithdrawScreen(): React.ReactElement {
         <Text style={styles.title}>Withdraw Funds</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]}
+        showsVerticalScrollIndicator={false}
+        accessibilityLabel={isPhone ? 'Withdrawal request' : 'Desktop withdrawal request workspace'}
+      >
         <View style={styles.balanceCard}>
           {walletQuery.isLoading ? (
             <ActivityIndicator size="large" color={colors.white} />
@@ -260,26 +267,29 @@ export default function WithdrawScreen(): React.ReactElement {
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
-        <Button
-          title={withdrawMutation.isPending ? 'Processing...' : 'Request Withdrawal'}
-          onPress={handleWithdraw}
-          loading={withdrawMutation.isPending}
-          // BUG-PHASE46-01 fix — disabled condition pre-fix did NOT
-          // include `!account.trim()`. Provider could fill amount
-          // and method, leave account blank, hit Request Withdrawal,
-          // and only get the "Account Required" alert at click time.
-          // Inconsistent with the rest of the disabled gate (which
-          // already checks method + amount). Now: button disabled
-          // until all required fields are filled.
-          disabled={
-            withdrawMutation.isPending
-            || !method
-            || !amount
-            || amountCentavos < minWithdraw
-            || amountCentavos > availableBalance
-            || !account.trim()
-          }
-        />
+        <View style={[styles.bottomBarInner, !isPhone && styles.bottomBarInnerWide]}>
+          <Text style={styles.reviewNote}>Requests are reviewed manually. Large amounts may enter an internal risk review.</Text>
+          <Button
+            title={withdrawMutation.isPending ? 'Submitting...' : 'Request Withdrawal'}
+            onPress={handleWithdraw}
+            loading={withdrawMutation.isPending}
+            // BUG-PHASE46-01 fix — disabled condition pre-fix did NOT
+            // include `!account.trim()`. Provider could fill amount
+            // and method, leave account blank, hit Request Withdrawal,
+            // and only get the "Account Required" alert at click time.
+            // Inconsistent with the rest of the disabled gate (which
+            // already checks method + amount). Now: button disabled
+            // until all required fields are filled.
+            disabled={
+              withdrawMutation.isPending
+              || !method
+              || !amount
+              || amountCentavos < minWithdraw
+              || amountCentavos > availableBalance
+              || !account.trim()
+            }
+          />
+        </View>
       </View>
     </View>
   );
@@ -302,6 +312,7 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 120 },
+  scrollContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: spacing.xl },
 
   balanceCard: {
     backgroundColor: colors.secondary,
@@ -349,4 +360,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.divider,
   },
+  bottomBarInner: { width: '100%' },
+  bottomBarInnerWide: { maxWidth: 760, alignSelf: 'center' },
+  reviewNote: { ...typography.caption, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.sm },
 });

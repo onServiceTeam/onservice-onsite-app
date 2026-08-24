@@ -7,6 +7,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import { Routes } from '@/config/navigation';
 import { Wrench, Mail, MessageSquare, ChevronRight } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const SUPPORT_EMAIL = 'providers@onservice.ph';
 
@@ -49,7 +50,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
     items: [
       {
         q: 'When do I get paid?',
-        a: 'Payment is released to your wallet after the customer confirms job completion. From there, you can withdraw to GCash, Maya, or your bank account.',
+        a: 'For a booking that shows paid and held, release follows customer confirmation or the platform completion timer. The resulting balance appears in Earnings. Withdrawal requests are manual and remain under review until the app records a completed transfer.',
       },
       {
         // BUG-PHASE89-01 fix — pre-fix this answer described commission
@@ -66,7 +67,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'How do withdrawals work?',
-        a: 'Go to the Earnings tab and tap Withdraw. Enter the amount and select your payout method. Withdrawals are processed within 1-3 business days.',
+        a: 'Go to Earnings and tap Withdraw. Enter the amount and destination, then track the request status in the app. Requests are reviewed manually; large requests may enter an internal risk review. Treat a withdrawal as sent only when its status and transfer reference are recorded.',
       },
       {
         q: 'What is a change order?',
@@ -74,7 +75,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'How do I charge for extra parts or materials?',
-        a: 'If a job needs extra parts or materials, send a change order in the app (or a custom quote up front) with the added cost before you buy anything or do the extra work. The customer approves it in the app first, the added amount is held in escrow like the rest of the job, and you get paid for it on completion. Never collect for parts off-platform or in cash, since that work would not be on the record or protected.',
+        a: 'If a job needs extra parts or materials, send a change order in the app (or a custom quote up front) before you buy or do extra work. The customer must approve it. Continue only when the booking shows the added charge as paid and held; a pending approval is not payment. Never collect off-platform or in cash because that work would not be in the support record.',
       },
     ],
   },
@@ -127,6 +128,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
 
 export default function ProviderHelpScreen(): React.ReactElement {
   const router = useRouter();
+  const { isPhone } = useResponsive();
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const toggleFAQ = (key: string): void => {
@@ -142,7 +144,12 @@ export default function ProviderHelpScreen(): React.ReactElement {
         <Text style={styles.title}>Help & Support</Text>
       </View>
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+        showsVerticalScrollIndicator={false}
+        accessibilityLabel={isPhone ? 'Provider help' : 'Desktop provider help workspace'}
+      >
         <View style={styles.heroCard}>
           <View style={styles.heroIconWrap}><Wrench size={36} color={colors.primary} /></View>
           <Text style={styles.heroTitle}>Provider Support</Text>
@@ -248,7 +255,9 @@ const styles = StyleSheet.create({
   backBtn: { padding: spacing.xs, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   title: { ...typography.h3, color: colors.text },
-  body: { flex: 1, paddingHorizontal: spacing.base },
+  body: { flex: 1 },
+  bodyContent: { paddingHorizontal: spacing.base },
+  bodyContentWide: { width: '100%', maxWidth: 900, alignSelf: 'center', paddingHorizontal: spacing.xl },
   heroCard: {
     backgroundColor: colors.primaryLight,
     borderRadius: borderRadius.lg,

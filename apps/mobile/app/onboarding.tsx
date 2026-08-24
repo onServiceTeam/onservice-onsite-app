@@ -44,9 +44,9 @@ const slides: Slide[] = [
     // SiguradoShield language without lifting LAUNCH-LIMITATIONS §23.
     id: '2',
     icon: Lock,
-    title: 'Booked Safely\nWith Escrow',
+    title: 'Booked With\nA Clear Record',
     description:
-      'Your payment is held in escrow until you confirm the job is complete. If a dispute is opened in time, funds stay held while support reviews evidence from both sides.',
+      'When a booking shows paid and held, its payment is in escrow. You can confirm the job or open a case from the booking, and support can review the same evidence.',
     bgColor: colors.secondaryDark,
   },
   {

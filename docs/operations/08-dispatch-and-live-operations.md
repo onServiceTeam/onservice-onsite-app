@@ -89,7 +89,7 @@ You manage by status. Here is the live state machine in plain terms, grouped by 
 | `provider_en_route` | Provider heading to site | Normal. Watch ETA. |
 | `provider_arrived` | Provider on site | Normal. |
 | `in_progress` | Job being done | Normal. Change orders may appear here. |
-| `completed_by_provider` | Provider marked done, awaiting customer confirm | Auto-confirms after 24h. |
+| `completed_by_provider` | Provider marked done, awaiting customer confirm | Current worker auto-confirms after 24h, but E18 records that this conflicts with the 48h dispute window. |
 | `confirmed` | Customer confirmed | Escrow releasing to provider. |
 | `disputed` | Customer filed a dispute | Hand to trust & safety (`09-...`). |
 | `cancelled_by_*` | Cancelled by customer / provider / admin | Terminal. Check refund fired. |
@@ -241,23 +241,25 @@ Use these from the Dispatch Console "Message customer" (lands as "Message from o
 ```
 Hi! This is onService support. We are matching the best available pro for your
 booking right now. Hang tight, we will confirm your provider shortly. Your
-payment is safe in escrow until the job is done.
+booking record currently shows [paid/held status]. We will verify it again before
+any release or refund statement.
 ```
 
 **Taking longer than usual:**
 ```
 Hi, onService support here. Your provider is taking a little longer to match
 because of demand in your area right now. We are working on it personally. We
-will update you within the next few minutes. Your payment is fully protected.
+will update you within the next few minutes. The booking payment status is
+[verified status]; we will not infer payment from a browser redirect.
 ```
 
 **No provider available, offering refund:**
 ```
 Hi, this is onService support. We are sorry. We could not match an available pro
-for your booking at this time. We are cancelling it and refunding you in full to
-your original payment method, plus a PHP 150 credit for the trouble. Nothing was
-lost from your side. Please rebook for a later slot and we will prioritize you.
-Salamat for your patience.
+for your booking at this time. The approved outcome is a full refund plus a PHP
+150 platform credit. Recorded refund destination/status/reference: [details].
+Please do not retry any external payment link while we verify the recorded
+result. Salamat for your patience.
 ```
 
 **Reassigned to a new provider:**
@@ -268,8 +270,8 @@ You can chat with them in the app for a live ETA. Thanks for your patience.
 
 SMS short version (if reaching out off-platform, under 160 chars):
 ```
-onService: still matching a pro for your booking. Payment is safe in escrow.
-We'll confirm shortly. Reply STOP to opt out.
+onService: still matching a pro for your booking. We are verifying the recorded
+payment/escrow status and will confirm shortly. Reply STOP to opt out.
 ```
 
 ---

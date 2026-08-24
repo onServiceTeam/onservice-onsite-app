@@ -96,12 +96,12 @@ Tell the provider plainly:
 
 > NOTE: E03 fixed the instant-pay booking/escrow ordering, but E14 still blocks the current external hosted PayMongo checkout. Train providers on what a real assigned job means: only a booking the server reports as paid/held is funded in escrow. Do not claim every customer payment method is launch-ready or ask a provider to rely on a browser redirect as payment proof.
 
-For an offer the server has actually released to dispatch, the booking is paid and held in onService escrow. The provider should rely on the in-app paid/assigned state, not a customer's screenshot or claim of payment. They are not chasing the customer for cash. When they finish and the customer confirms (or after 24 hours of auto-confirm), escrow releases the provider share to the wallet.
+For an offer the server has actually released to dispatch, the booking is paid and held in onService escrow. The provider should rely on the in-app paid/assigned state, not a customer's screenshot or claim of payment. They are not chasing the customer for cash. Customer confirmation can release the provider share. The worker currently auto-releases after 24 hours while customer filing remains open for 48 hours; E18 records that unsafe contradiction, so do not train the 24-hour timer as a settled protection rule.
 
 Key numbers to share:
 - Your commission is flat for your tier (see Section 5). Everything else is yours.
 - Tips are 100% yours, no commission. Tips are wallet-funded for now.
-- After the customer confirms, or 24 hours pass without a dispute, escrow releases to your wallet.
+- Customer confirmation can release escrow to your wallet. The automatic timer is under the E18 hold because release currently occurs at 24 hours while dispute filing remains open through 48 hours.
 
 ### 4.4 Working a job (status flow the provider drives)
 
@@ -115,7 +115,7 @@ Walk them through the buttons in order. The provider advances these statuses fro
 | Start work | `in_progress` | Take BEFORE photos first |
 | Finish | `completed_by_provider` | Take AFTER photos, then mark complete |
 
-After "completed by provider," it is the customer's move: they confirm (releases your money), or they file a dispute within 48 hours. If they do nothing for 24 hours, the system auto-confirms and pays you.
+After "completed by provider," it is the customer's move: they can confirm or file a dispute within 48 hours. The system currently auto-confirms and credits the provider after 24 hours, but that conflicts with the remaining filing window and is tracked by E18. Tell providers that a later accepted dispute may still require staff review; do not promise the 24-hour credit is final while E18 is open.
 
 ### 4.5 Navigation and ETA
 

@@ -15,11 +15,13 @@ import { getErrorMessage } from '@/utils/errors';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Check } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 export default function TermsScreen(): React.ReactElement {
   const router = useRouter();
   const store = useOnboardingStore();
+  const { isPhone } = useResponsive();
   // Phase K CRIT-K10 fix — setUser import removed; role flip now
   // only happens via canonical backend approval + token refresh.
   const [agreed, setAgreed] = useState(store.icAgreed);
@@ -127,7 +129,12 @@ export default function TermsScreen(): React.ReactElement {
         <Text style={styles.step}>6 / 6</Text>
       </View>
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+        showsVerticalScrollIndicator={false}
+        accessibilityLabel={isPhone ? 'Provider agreement' : 'Desktop provider agreement workspace'}
+      >
         <Text style={styles.title}>Independent Contractor Agreement</Text>
         <Text style={styles.subtitle}>
           Please review and accept the agreement below before submitting your application.
@@ -160,9 +167,10 @@ export default function TermsScreen(): React.ReactElement {
 
           <Text style={styles.clauseTitle}>4. Escrow Payments</Text>
           <Text style={styles.clauseText}>
-            Customer payments are held in escrow until the job is confirmed complete. Funds
-            are released to your wallet minus any applicable commission. You agree not to
-            accept or solicit off-platform or cash payment for jobs booked through onService.
+            For supported in-app payments, rely on the booking's paid and escrow status rather
+            than a customer screenshot or claim. Release follows customer confirmation or the
+            platform completion timer, minus applicable commission. You agree not to accept or
+            solicit off-platform or cash payment for jobs booked through onService.
           </Text>
 
           <Text style={styles.clauseTitle}>5. Verification</Text>
@@ -212,8 +220,10 @@ export default function TermsScreen(): React.ReactElement {
 
           <Text style={styles.clauseTitle}>11. Disputes</Text>
           <Text style={styles.clauseText}>
-            You agree to respond to customer disputes within 48 hours. Failure to respond may
-            result in automatic resolution in the customer's favor and a refund from escrow.
+            You agree to respond promptly to customer disputes in the app. If you do not
+            respond within the stated window, the case moves into onService support review.
+            Refund and release outcomes are recorded by the authorized dispute process; silence
+            alone is not represented by the app as an automatic participant-directed settlement.
           </Text>
 
           <Text style={styles.clauseTitle}>12. Termination</Text>
@@ -241,18 +251,20 @@ export default function TermsScreen(): React.ReactElement {
       </ScrollView>
 
       <View style={styles.footer}>
-        {submitMutation.isPending ? (
-          <View style={styles.submitting}>
-            <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={styles.submittingText}>Submitting your application...</Text>
-          </View>
-        ) : (
-          <Button
-            title="Submit Application"
-            onPress={handleSubmit}
-            disabled={!agreed}
-          />
-        )}
+        <View style={[styles.footerInner, !isPhone && styles.footerInnerWide]}>
+          {submitMutation.isPending ? (
+            <View style={styles.submitting}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.submittingText}>Submitting your application...</Text>
+            </View>
+          ) : (
+            <Button
+              title="Submit Application"
+              onPress={handleSubmit}
+              disabled={!agreed}
+            />
+          )}
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -278,9 +290,12 @@ const styles = StyleSheet.create({
   step: { ...typography.caption, color: colors.textTertiary, marginLeft: spacing.sm },
   body: {
     flex: 1,
+  },
+  bodyContent: {
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
   },
+  bodyContentWide: { width: '100%', maxWidth: 900, alignSelf: 'center', paddingHorizontal: spacing.xl },
   title: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
   subtitle: {
     ...typography.bodySmall,
@@ -325,6 +340,8 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
+  footerInner: { width: '100%' },
+  footerInnerWide: { maxWidth: 900, alignSelf: 'center' },
   submitting: {
     flexDirection: 'row',
     alignItems: 'center',

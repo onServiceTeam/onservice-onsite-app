@@ -131,7 +131,7 @@ export default function ChangeOrderScreen(): React.ReactElement {
               <Check size={18} color={colors.primary} style={{ marginLeft: 'auto' }} />
             </View>
             <Text style={styles.walletNote}>
-              Additional charges are paid from your wallet balance. Top up your wallet in your profile if needed.
+              Additional charges currently use your existing wallet balance. New wallet top-ups and external authorization are temporarily unavailable.
             </Text>
             <Text style={styles.walletNote}>
               Wallet balance: {formatPHP(walletBalance)}
@@ -139,7 +139,7 @@ export default function ChangeOrderScreen(): React.ReactElement {
             {pendingPayment.additionalTotal != null
               && pendingPayment.additionalTotal > walletBalance && (
                 <Text style={[styles.walletNote, { color: colors.error, fontWeight: '600' }]}>
-                  Insufficient wallet balance — top up first.
+                  Insufficient wallet balance. This change order cannot be paid until your existing balance is enough or external authorization is restored. Contact support if you need help with the approved order.
                 </Text>
               )}
           </View>

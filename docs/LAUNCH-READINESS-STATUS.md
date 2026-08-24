@@ -66,7 +66,7 @@ These are shipped to production and verified:
 | 11 | Admin SSO | optional | no | Deferrable per the runbook. |
 | 12 | Approved BIR invoice-pipeline verification | You / me | gated on #2 | The old scripts targeted dead routes/tables and now fail closed. Build real verification only after E22 is resolved. |
 | — | **Legal docs (F#10/E10 + Terms/Privacy/IC)** | You / attorney | YES | The June draft is historical, not attorney approval. Final disclaimer/guarantee wording, entity identity, DPO details, and Philippine counsel review remain launch requirements. |
-| — | F#3 / F#4 visual baselines | CI/me | F#3 YES | F#4's 354 admin baselines are done. F#3 still needs the committed 84 Maestro flows captured on a supported simulator/emulator. |
+| — | F#3 / F#4 visual baselines | CI/me | F#3 YES | F#4's 354 admin baselines are done. F#3 still needs the committed 88 Maestro screen flows captured on a supported simulator/emulator. |
 | — | In-app chat send reliability (§25) | me (v1.1) | no | Mobile real-time client issue; needs device testing. Spec-deferred to v1.1; "Call provider" + photo/dispute flows work. |
 
 ### The short version

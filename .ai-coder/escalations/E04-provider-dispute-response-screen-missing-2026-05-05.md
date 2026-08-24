@@ -1,7 +1,7 @@
 # E04 — Provider has no in-app way to respond to disputes
 
 **Discovered:** 2026-05-05, Phase 144 deep audit pass
-**Status:** AWAITING KEN'S CALL — launch-blocker if not addressed
+**Status:** PARTIALLY RESOLVED 2026-08-24 — contest response shipped; direct settlement held by E18/E24
 **Severity:** HIGH (provider unfairly loses 100% of payment when dispute auto-resolves against them)
 
 ## What's missing
@@ -87,3 +87,22 @@ If timeline is the binding constraint, **Option C** with explicit grace-period e
 This escalation does NOT block continued auditing. Ken's call between A/B/C can land in parallel with the rest of the bug-remediation work. The mobile screen — if Ken picks Option A — would be a separate dedicated commit on top of the current audit chain.
 
 Phase 144 in the audit pass closes out as: real feature gap found, escalated to Ken, no code change.
+
+## 2026-08-24 continuation
+
+Ken's instruction to fix discovered issues authorized the recommended in-app
+case work. Customer and provider dispute inboxes, shared case detail, evidence,
+booking linkage, provider contest response, notification destinations, profile
+entry points, and tablet/desktop workspaces are now implemented. A provider can
+no longer land on a dead-end job screen after a dispute notification.
+
+The money-path trace found E24 while exposing the remaining two response types.
+Direct provider acceptance and partial-refund settlement are therefore held in
+production, while contesting moves the response into the admin review queue.
+This closes the unfair no-response gap without enabling an unsafe direct refund.
+
+The original 2026-05-05 description above is point-in-time evidence and no
+longer describes the worker's current non-response behavior. The current worker
+auto-escalates an unanswered case to tier 3 for staff review; it does not
+auto-resolve a refund. Active app and operations wording now reflects that
+behavior.

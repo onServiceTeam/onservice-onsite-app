@@ -16,6 +16,7 @@ import { getErrorMessage } from '@/utils/errors';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { PartyPopper, Heart } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const TIP_PERCENTAGES = [10, 15, 20] as const;
 
@@ -23,6 +24,7 @@ export default function TipScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
   const [selectedPercent, setSelectedPercent] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState('');
   const [showCustom, setShowCustom] = useState(false);
@@ -127,7 +129,7 @@ export default function TipScreen(): React.ReactElement {
       return;
     }
     if (tipAmount > walletBalance) {
-      showToast(`Your wallet has ${formatPHP(walletBalance)}. Top up first or pick a smaller tip.`, 'warning');
+      showToast(`Your wallet has ${formatPHP(walletBalance)}. Pick a smaller tip; new top-ups are temporarily unavailable.`, 'warning');
       return;
     }
     tipMutation.mutate(tipAmount);
@@ -157,7 +159,10 @@ export default function TipScreen(): React.ReactElement {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.base }]}>
-      <View style={styles.content}>
+      <View
+        style={[styles.content, !isPhone && styles.contentWide]}
+        accessibilityLabel={isPhone ? 'Tip form' : 'Desktop tip workspace'}
+      >
         <PartyPopper size={44} color={colors.primary} style={{ marginBottom: spacing.md }} />
         <Text style={styles.title}>Tip Your Provider</Text>
         <Text style={styles.subtitle}>
@@ -248,7 +253,7 @@ export default function TipScreen(): React.ReactElement {
         </Text>
         {tipAmount > 0 && tipAmount > walletBalance && (
           <Text style={styles.balanceWarn}>
-            Tip exceeds wallet balance — top up first.
+            Tip exceeds your existing wallet balance. Choose a smaller tip; new top-ups are temporarily unavailable.
           </Text>
         )}
         {/* BUG-PHASE74-01 fix — pre-fix the disabled prop gated on
@@ -267,7 +272,7 @@ export default function TipScreen(): React.ReactElement {
         )}
       </View>
 
-      <View style={styles.actions}>
+      <View style={[styles.actions, !isPhone && styles.actionsWide]}>
         <Button
           title={loading ? 'Sending...' : `Send Tip${tipAmount > 0 ? ` • ${formatPHP(tipAmount)}` : ''}`}
           onPress={handleSendTip}
@@ -288,6 +293,16 @@ export default function TipScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.lg },
   content: { flex: 1, alignItems: 'center' },
+  contentWide: {
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+  },
 
   emoji: { fontSize: 64, marginBottom: spacing.base },
   title: { ...typography.h1, color: colors.text, textAlign: 'center', marginBottom: spacing.sm },
@@ -357,4 +372,5 @@ const styles = StyleSheet.create({
   messageCount: { ...typography.caption, color: colors.textTertiary, textAlign: 'right' as const, marginTop: spacing.xs },
 
   actions: { gap: spacing.xs },
+  actionsWide: { width: '100%', maxWidth: 640, alignSelf: 'center', marginTop: spacing.base },
 });

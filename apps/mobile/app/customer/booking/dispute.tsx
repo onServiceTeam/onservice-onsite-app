@@ -12,6 +12,8 @@ import type { ComponentType } from 'react';
 import { Ban, Wrench, ThumbsDown, AlertOctagon, Lock, Coins, CircleHelp, AlertTriangle, ChevronLeft, Check } from '@/components/icons';
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
+import { platformConfig } from '@/config/platform.config';
+import { buildRoute, Routes } from '@/config/navigation';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -50,9 +52,9 @@ export default function DisputeScreen(): React.ReactElement {
         evidenceUrls: evidence.length > 0 ? evidence : undefined,
       });
     },
-    onSuccess: () => {
-      showToast('Dispute submitted. The provider has 48 hours to respond.', 'success');
-      router.back();
+    onSuccess: (dispute) => {
+      showToast(`Dispute submitted. The provider has ${platformConfig.escrowDisputeWindowHours} hours to respond.`, 'success');
+      router.replace(buildRoute(Routes.CUSTOMER.DISPUTE_DETAIL, { id: dispute.id }));
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
@@ -80,7 +82,7 @@ export default function DisputeScreen(): React.ReactElement {
         <View style={styles.warningBox}>
           <View style={styles.warningIconWrap}><AlertTriangle size={22} color={colors.warning} /></View>
           <Text style={styles.warningText}>
-            Disputes must be filed within 48 hours of job completion. Please provide accurate details.
+            Disputes must be filed within {platformConfig.escrowDisputeWindowHours} hours of job completion. Please provide accurate details.
           </Text>
         </View>
 
@@ -166,10 +168,10 @@ export default function DisputeScreen(): React.ReactElement {
 
         <View style={styles.infoBox}>
           <Text style={styles.infoTitle}>What happens next?</Text>
-          <Text style={styles.infoStep}>1. Provider is notified and has 48 hours to respond</Text>
-          <Text style={styles.infoStep}>2. If accepted, refund is processed automatically</Text>
+          <Text style={styles.infoStep}>1. Provider is notified and has {platformConfig.escrowDisputeWindowHours} hours to respond</Text>
+          <Text style={styles.infoStep}>2. The provider can respond and support sees the same evidence</Text>
           <Text style={styles.infoStep}>3. If contested, our support team reviews the case</Text>
-          <Text style={styles.infoStep}>4. Unresponded disputes resolve in your favor</Text>
+          <Text style={styles.infoStep}>4. Unresponded disputes move into support review</Text>
         </View>
 
         <TouchableOpacity

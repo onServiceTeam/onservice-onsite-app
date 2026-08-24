@@ -46,7 +46,7 @@ describe('BUG-PHASE104-01 — confirm screen surfaces direct Complete Payment CT
   });
 
   it('BUG-PHASE104-01 — paid-state subtitle still routes through the same isPaid flag', () => {
-    expect(CONFIRM).toMatch(/Your payment is secured/);
+    expect(CONFIRM).toMatch(/Your booking shows paid/);
     expect(CONFIRM).toMatch(/Complete your payment to confirm this booking\./);
   });
 });

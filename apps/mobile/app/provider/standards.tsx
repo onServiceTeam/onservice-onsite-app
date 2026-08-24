@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import { AlarmClock, ChevronLeft, IdCard, Lock, MessageSquare, Receipt, Star, Wrench } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type StandardIcon = ComponentType<{ size?: number; color?: string }>;
 
@@ -43,12 +44,12 @@ const STANDARDS: Standard[] = [
   {
     icon: Lock,
     title: 'Stay on the platform',
-    body: 'Keep payments, chat, and bookings on onService. It protects you with escrow and our guarantee, and protects the customer. Taking deals off-app is a serious violation.',
+    body: 'Keep payments, chat, and bookings on onService so payment status, approvals, and communication stay in one support record. Taking deals off-app removes that record and is a serious violation.',
   },
   {
     icon: Wrench,
     title: 'Do quality work and stand behind it',
-    body: 'Take before/after photos, finish the checklist, and fix legitimate issues. Escrow releases to you once the customer confirms the job was done right.',
+    body: 'Take before/after photos, finish the checklist, and address legitimate issues. For a paid booking, release follows customer confirmation or the platform completion timer; rely on the booking and earnings status.',
   },
   {
     icon: Star,
@@ -59,6 +60,7 @@ const STANDARDS: Standard[] = [
 
 export default function ProviderStandardsScreen(): React.ReactElement {
   const router = useRouter();
+  const { isPhone } = useResponsive();
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -68,7 +70,10 @@ export default function ProviderStandardsScreen(): React.ReactElement {
         <Text style={styles.title}>Provider Standards</Text>
         <View style={{ width: 24 }} />
       </View>
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView
+        contentContainerStyle={[styles.body, !isPhone && styles.bodyWide]}
+        accessibilityLabel={isPhone ? 'Provider standards' : 'Desktop provider standards workspace'}
+      >
         <Text style={styles.intro}>
           These are the standards that keep onService trusted and keep good providers busy. Living up to
           them is how you earn a strong rating, a higher tier, and more jobs.
@@ -107,6 +112,7 @@ const styles = StyleSheet.create({
   },
   title: { ...typography.h3, color: colors.text },
   body: { padding: spacing.md, gap: spacing.sm },
+  bodyWide: { width: '100%', maxWidth: 900, alignSelf: 'center', paddingHorizontal: spacing.xl },
   intro: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.sm },
   card: {
     backgroundColor: colors.background,

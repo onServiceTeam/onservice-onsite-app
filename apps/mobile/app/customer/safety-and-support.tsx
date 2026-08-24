@@ -7,8 +7,8 @@
 //
 // The renamed screen displays only verifiable trust claims:
 //   - NBI clearance (verifiable — providers must pass an NBI background check).
-//   - Escrow payment (verifiable — payment held until job confirmation).
-//   - Real-time tracking (verifiable — maps integration).
+//   - Server-backed payment and escrow status for supported in-app payments.
+//   - Booking status and service-location context.
 //   - In-app chat keeps your number private (verifiable — messaging is in-app;
 //     phone numbers are never exchanged). NOTE: an earlier version claimed
 //     "masked phone numbers (Twilio)"; that was never built (no Twilio/voice
@@ -48,6 +48,7 @@ import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
 import { CheckCircle2, Lock, MapPin, MessageSquare, AlertTriangle, ChevronLeft } from '@/components/icons';
 import { Routes } from '@/config/navigation';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -61,25 +62,25 @@ const SAFETY_ITEMS: Array<{ icon: IconComponent; iconColor: string; title: strin
     icon: CheckCircle2,
     iconColor: colors.success,
     title: 'NBI-cleared pros',
-    desc: 'Every active provider has passed an NBI clearance check before being approved.',
+    desc: 'Active providers must have an approved identity and NBI-clearance review before taking jobs.',
   },
   {
     icon: Lock,
     iconColor: colors.primary,
-    title: 'Escrow payment',
-    desc: `Your payment is held in escrow until you confirm the job is complete. If a dispute is opened within ${platformConfig.escrowDisputeWindowHours} hours of completion, funds stay held while support reviews evidence.`,
+    title: 'Payment and escrow records',
+    desc: 'For supported in-app payments, the booking shows whether payment is verified and escrow is currently held. Release can follow confirmation or the platform completion timer.',
   },
-  {
-    icon: MapPin,
-    iconColor: colors.primary,
-    title: 'Live status updates',
-    desc: "Get push notifications and on-screen status changes as your provider accepts the job, heads out, and arrives. The booking-tracker screen also shows the service address on a map so you can confirm the location.",
-  },
+      {
+        icon: MapPin,
+        iconColor: colors.primary,
+        title: 'Live status updates',
+        desc: 'Get push notifications and booking-status tracking as the provider accepts, heads out, and arrives. The map shows the recorded service location, not a live provider pin.',
+      },
   {
     icon: MessageSquare,
     iconColor: colors.primary,
-    title: 'Your number stays private',
-    desc: 'Chat with your provider inside the app. Your real phone number is never shared, so everything stays on the platform where support can help if anything goes wrong.',
+    title: 'In-app communication record',
+    desc: 'Use booking chat without displaying personal phone numbers to the other participant. The conversation remains attached to the booking for support review.',
   },
 ];
 
@@ -90,7 +91,7 @@ const TIPS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'What if the provider doesn\'t show up?',
-    a: `Tap "Cancel booking" on the booking detail. You'll receive a refund per the cancellation policy. Report the no-show via "Report a safety concern" so we can take action against the provider.`,
+    a: 'Tap "Cancel booking" on the booking detail and review the recorded cancellation outcome. A refund is confirmed only when the booking shows its method, destination, status, and reference. Report the no-show through support so the provider conduct can be reviewed.',
   },
   {
     q: 'What if something is damaged during the service?',
@@ -104,7 +105,7 @@ const TIPS: Array<{ q: string; a: string }> = [
   // attorney review.
   {
     q: 'Does the platform provide insurance?',
-    a: 'No. onService PH is a marketplace, not an insurance provider. Our platform protections include NBI clearance verification for every provider, escrow payment held until service completion, masked phone numbers, a 48-hour dispute window, and provider rating accountability. For loss or damage that exceeds these protections, please maintain your own homeowner\'s or renter\'s insurance. Providers are independent contractors and are responsible for any property damage they cause; you may pursue claims directly against them through our dispute process.',
+    a: `No. onService PH is a marketplace, not an insurance provider. Platform tools include provider identity and NBI-clearance review, payment and escrow records for supported in-app payments, in-app booking chat, a ${platformConfig.escrowDisputeWindowHours}-hour dispute filing window, and provider accountability review. For loss or damage beyond those tools, please maintain your own homeowner's or renter's insurance. Providers are independent contractors and are responsible for damage they cause; you may pursue them directly and use the platform dispute record.`,
   },
 ];
 
@@ -129,6 +130,7 @@ function Accordion({ title, children, defaultOpen = false }: { title: string; ch
 
 export default function SafetyAndSupportScreen(): React.ReactElement {
   const router = useRouter();
+  const { isPhone } = useResponsive();
 
   const handleEmergencyCall = useCallback(() => {
     Linking.openURL('tel:911');
@@ -144,26 +146,31 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+        showsVerticalScrollIndicator={false}
+        accessibilityLabel={isPhone ? 'Safety and support' : 'Desktop safety and support workspace'}
+      >
         {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroShieldWrap}>
             <CheckCircle2 size={52} color={colors.primary} />
           </View>
-          <Text style={styles.heroTitle}>Booked safely with onService</Text>
+          <Text style={styles.heroTitle}>Safety and booking support</Text>
           <Text style={styles.heroSubtitle}>
-            We protect every booking with verified providers, escrow payment, and real-time tracking.
+            Review provider checks, booking records, status updates, and the right support path in one place.
           </Text>
         </View>
 
         {/* How we keep you safe */}
         <View style={styles.section}>
-          <SectionHeader title="How we keep you safe" />
+          <SectionHeader title="Safety tools and records" />
           <View style={styles.cardsGrid}>
             {SAFETY_ITEMS.map((card) => {
               const CardIcon = card.icon;
               return (
-                <View key={card.title} style={styles.card}>
+                <View key={card.title} style={[styles.card, !isPhone && styles.cardWide]}>
                   <View style={styles.cardIconWrap}><CardIcon size={28} color={card.iconColor} /></View>
                   <Text style={styles.cardTitle}>{card.title}</Text>
                   <Text style={styles.cardDesc}>{card.desc}</Text>
@@ -242,6 +249,7 @@ const styles = StyleSheet.create({
   headerSpacer: { width: 30 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 60 },
+  bodyContentWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: spacing.xl },
 
   hero: {
     alignItems: 'center',
@@ -272,6 +280,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  cardWide: { width: 'auto', flexBasis: '23%', flexGrow: 1 },
   cardIconWrap: { marginBottom: spacing.xs, alignItems: 'flex-start' as const },
   cardTitle: { ...typography.h3, color: colors.text, fontSize: 15, marginBottom: 4 },
   cardDesc: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 17 },

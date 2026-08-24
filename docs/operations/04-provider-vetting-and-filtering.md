@@ -46,7 +46,7 @@ Who we are beating, and how:
 
 | We beat... | by... |
 |---|---|
-| The Facebook-group / word-of-mouth informal economy (a stranger who may not show, may not be who they say, takes cash, leaves no record) | ID + NBI verification on every approved provider, money held in escrow until the job is confirmed, a 48-hour dispute window, and a full on-app record of who did what |
+| The Facebook-group / word-of-mouth informal economy (a stranger who may not show, may not be who they say, takes cash, leaves no record) | ID + NBI review before activation, server-backed paid/escrow status for supported payments, a 48-hour dispute-filing path, and an on-app record of the job. E18 means staff must not claim every accepted case still has held funds. |
 | Other booking apps that sign up anyone and let ratings sort it out later | A real vetting gate BEFORE the first job: scored scorecard, identity match, skills check, references, and a 3-job probation with mandatory before/after photos |
 | Off-platform cash deals (the thing even a good provider drifts toward) | The trust the customer loses the moment they leave the app: verified payment/escrow records, the dispute path, and suki history. Off-platform attempts can be flagged and are grounds for review/suspension. Do not promise a guarantee amount while E10/F#10 is open. |
 

@@ -19,6 +19,7 @@ function openEmail(): void {
 import { fetchCancellationPolicy, policyToHelpAnswer } from '@/utils/cancellation-policy';
 import { platformConfig } from '@/config/platform.config';
 import { Routes } from '@/config/navigation';
+import { useResponsive } from '@/hooks/useResponsive';
 
 interface FAQItem {
   q: string;
@@ -40,7 +41,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'How does the quoting system work?',
-        a: 'For custom job requests, nearby providers will send you quotes. You can compare quotes, view provider ratings, and accept the best one. Payment is held in escrow until the job is confirmed complete.',
+        a: 'For custom job requests, nearby providers will send you quotes. You can compare quotes, view provider ratings, and accept the best one. When checkout succeeds and the booking shows paid and held, the payment is in escrow until the booking reaches its confirmed settlement step.',
       },
       {
         q: 'What is a change order?',
@@ -48,7 +49,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'What if the job needs extra parts or materials?',
-        a: 'If a job needs extra parts or materials, the provider sends you a change order in the app (or a custom quote up front) with the added cost. You review and approve it in the app before any extra work or spend happens. Nothing extra is charged until you approve, the whole record stays in the app, and the amount is held in escrow like the rest of your payment, so you stay protected.',
+        a: 'If a job needs extra parts or materials, the provider sends you a change order in the app (or a custom quote up front) with the added cost. You review and approve it in the app before any extra work or spend happens. Nothing extra is charged until you approve, and the scope, amount, and payment state stay in the booking record.',
       },
     ],
   },
@@ -57,15 +58,15 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
     items: [
       {
         q: 'What payment methods are accepted?',
-        a: 'We accept GCash, Maya, credit/debit cards, QRPH bank transfers, and wallet balance. All payments are secured through our escrow system.',
+        a: 'An existing onService wallet balance is currently available where checkout offers it. New card, GCash, Maya, QR Ph, bank-transfer, and wallet top-up authorization is temporarily disabled while that payment flow is corrected.',
       },
       {
         q: 'How does escrow work?',
-        a: 'When you pay for a booking, the funds are held in escrow (not released to the provider). Once you confirm the job is complete, the payment is released to the provider minus the platform commission.',
+        a: 'After a supported in-app payment succeeds, the booking shows its paid and escrow status. Release can follow your completion confirmation or the platform completion timer. Use the booking record for the current state; filing a case does not by itself prove funds remain held.',
       },
       {
         q: 'How do I get a refund?',
-        a: 'Refunds are processed automatically based on our cancellation policy. For disputes, you can file a complaint within 48 hours of job completion. Refunds are credited to your wallet within 1-3 business days.',
+        a: `Cancellation outcomes follow the policy shown in the app. For a service dispute, file from the completed booking within ${platformConfig.escrowDisputeWindowHours} hours and follow its case status. Support records the decision and any approved refund; timing depends on the payment and escrow state, so the app does not promise a fixed 1–3 day result.`,
       },
     ],
   },
@@ -85,7 +86,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
       // attorney review.
       {
         q: 'Does the platform provide insurance?',
-        a: 'No. onService PH is a marketplace, not an insurance provider. Our platform protections (NBI verification, escrow payment, 48-hour dispute window, masked phone numbers, provider rating accountability) are listed in the Safety & support screen. For loss or damage beyond these protections, please maintain your own homeowner\'s or renter\'s insurance. Providers are independent contractors and are responsible for any property damage they cause.',
+        a: `No. onService PH is a marketplace, not an insurance provider. Platform tools include NBI and identity review, payment and escrow records, in-app booking chat, a ${platformConfig.escrowDisputeWindowHours}-hour dispute filing window, and provider accountability review. For loss or damage beyond those tools, please maintain your own homeowner's or renter's insurance. Providers are independent contractors and are responsible for damage they cause.`,
       },
     ],
   },
@@ -94,7 +95,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
     items: [
       {
         q: 'How do I update my profile?',
-        a: 'Go to the Profile tab and tap on your name or photo to edit your details. You can update your display name, email, and profile photo.',
+        a: 'Open the Profile tab and choose Edit Profile to update your name. Phone-number changes require OTP re-verification through Account & Data. The current app does not offer email or profile-photo editing.',
       },
       {
         q: 'How do I delete my account?',
@@ -106,6 +107,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
 
 export default function HelpScreen(): React.ReactElement {
   const router = useRouter();
+  const { isPhone } = useResponsive();
   const [expanded, setExpanded] = useState<string | null>(null);
 
   // Bug 1170/1198 fix: substitute the cancel-booking FAQ answer with the
@@ -145,7 +147,12 @@ export default function HelpScreen(): React.ReactElement {
         <Text style={styles.title}>Help & Support</Text>
       </View>
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+        showsVerticalScrollIndicator={false}
+        accessibilityLabel={isPhone ? 'Customer help' : 'Desktop customer help workspace'}
+      >
         <View style={styles.heroCard}>
           <MessageSquare size={40} color={colors.primary} style={{ marginBottom: spacing.md }} />
           <Text style={styles.heroTitle}>How can we help?</Text>
@@ -249,7 +256,9 @@ const styles = StyleSheet.create({
   backBtn: { padding: spacing.xs, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   title: { ...typography.h3, color: colors.text },
-  body: { flex: 1, paddingHorizontal: spacing.base },
+  body: { flex: 1 },
+  bodyContent: { paddingHorizontal: spacing.base },
+  bodyContentWide: { width: '100%', maxWidth: 900, alignSelf: 'center', paddingHorizontal: spacing.xl },
   heroCard: {
     backgroundColor: colors.primaryLight,
     borderRadius: borderRadius.lg,

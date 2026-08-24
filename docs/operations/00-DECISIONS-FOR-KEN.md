@@ -1,6 +1,6 @@
 # Decisions Register
 
-Every open question in this handbook has been filled in with a recommended default so the team can start working today. Each one is editable. To change any decision, edit it here and in its home document (the document is named next to each item).
+This register separates working operating defaults from legal, money, compliance, and architecture hard stops. A hard stop is not filled with a convenient default. Change a working decision here and in its home document; resolve a hard stop only through its named decision/escalation process.
 
 Two kinds of items:
 - **Set (editable)** items are decisions, now filled in. Change any you disagree with.
@@ -36,7 +36,7 @@ How to read the markers in the documents: a decision looks like this where it li
 - **Provider TIN:** collected before first payout (not at application).
 - **No-provider failure:** 100% refund plus a ₱150 goodwill credit.
 - **Refund sign-off:** super-admin/Ken reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout.
-- **Guarantee-fund claim (starting rule, needs legal + accountant sign-off):** cap ₱20,000 per claim, eligible for provider-caused property damage or theft with photo evidence inside the 48-hour window, clawed back from the provider's future payouts. Above the cap escalates to Ken.
+- **Guarantee/protection policy - HOLD E10/F#10:** no cap, coverage definition, eligibility rule, clawback rule, or customer payout promise is approved. The former ₱20,000 draft is not an operating default. Attorney and accountant approval is required before any guarantee policy can be adopted or shown to customers.
 - **Support waiting cases:** the proposed two-reminder/five-day auto-close is not implemented. Staff review waiting cases manually and must not claim reminders were sent.
 - **CSAT:** manual post-resolution survey (email/SMS) at launch.
 

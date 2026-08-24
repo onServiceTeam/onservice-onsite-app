@@ -15,6 +15,7 @@ import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import { Smartphone, CreditCard, Wallet, ScanLine, Lock, Check } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -41,6 +42,7 @@ const PAYMENT_METHODS: PaymentOption[] = [
 export default function CheckoutScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
   const { draft, serviceFee, total, addonsTotal, setPaymentMethod, reset } = useBookingStore();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
     draft.paymentMethod === 'wallet' ? 'wallet' : null,
@@ -188,8 +190,9 @@ export default function CheckoutScreen(): React.ReactElement {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]}
         showsVerticalScrollIndicator={false}
+        accessibilityLabel={isPhone ? 'Booking checkout' : 'Desktop booking checkout workspace'}
       >
         {/* Booking summary */}
         <Card style={styles.summaryCard}>
@@ -276,7 +279,7 @@ export default function CheckoutScreen(): React.ReactElement {
         >
           <View style={styles.escrowIconWrap}><Lock size={22} color={colors.primary} /></View>
           <Text style={styles.escrowText}>
-            Your payment is held in escrow until you confirm the job is complete. Tap to learn more about our safety affordances.
+            After a wallet payment succeeds, your booking shows its paid and escrow status. Release follows customer confirmation or the platform completion timer. Tap for details.
           </Text>
         </TouchableOpacity>
 
@@ -307,15 +310,15 @@ export default function CheckoutScreen(): React.ReactElement {
           </View>
         </Card>
 
-        {/* Customer benefits (Ken, 2026-06-28): no app-usage fees; the price you
-            see is the price you pay. Suki points + the escrow + ₱10,000 service
-            guarantee are surfaced so the value is clear at the pay screen. */}
+        {/* Checkout facts only. The deferred insurance/guarantee product must
+            not be advertised here, and E18 means release cannot be described
+            as customer-confirmation-only. */}
         <View style={styles.benefitsCard}>
           {[
-            'No platform fees — you only pay for the service',
-            'Held in escrow, released only when you confirm the job',
-            'Eligible jobs backed by our Service Guarantee, up to ₱10,000 (subject to terms)',
-            'Earn Suki points on this booking',
+            'The itemized total above is the amount this wallet payment will charge',
+            'Server-verified payment and escrow status stays visible in your booking',
+            'Dispute filing and evidence review start from the booking record',
+            'Eligible completed bookings earn Suki points',
           ].map((benefit) => (
             <View key={benefit} style={styles.benefitLine}>
               <Check size={16} color={colors.success} />
@@ -347,27 +350,29 @@ export default function CheckoutScreen(): React.ReactElement {
           >
             Privacy Policy
           </Text>
-          . All payments are processed securely by PayMongo.
+          . Existing wallet payments are processed within onService. External PayMongo payment methods are currently unavailable.
         </Text>
       </ScrollView>
 
       {/* Bottom CTA */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
-        {walletShort && (
-          <Text style={styles.walletShortHint}>
-            Wallet balance ({formatPHP(walletBalance)}) is below the total. External payments and wallet top-ups are temporarily unavailable.
-          </Text>
-        )}
-        {walletChecking ? <Text style={styles.walletShortHint}>Checking your wallet balance…</Text> : null}
-        {walletUnavailable ? (
-          <Text style={styles.walletShortHint}>We could not verify your wallet balance. Please try again.</Text>
-        ) : null}
-        <Button
-          title={loading ? 'Processing...' : `Pay ${formatPHP(total)}`}
-          onPress={handlePay}
-          loading={loading}
-          disabled={!selectedMethod || loading || walletShort || walletChecking || walletUnavailable}
-        />
+        <View style={[styles.bottomBarInner, !isPhone && styles.bottomBarInnerWide]}>
+          {walletShort && (
+            <Text style={styles.walletShortHint}>
+              Wallet balance ({formatPHP(walletBalance)}) is below the total. External payments and wallet top-ups are temporarily unavailable.
+            </Text>
+          )}
+          {walletChecking ? <Text style={styles.walletShortHint}>Checking your wallet balance…</Text> : null}
+          {walletUnavailable ? (
+            <Text style={styles.walletShortHint}>We could not verify your wallet balance. Please try again.</Text>
+          ) : null}
+          <Button
+            title={loading ? 'Processing...' : `Pay ${formatPHP(total)}`}
+            onPress={handlePay}
+            loading={loading}
+            disabled={!selectedMethod || loading || walletShort || walletChecking || walletUnavailable}
+          />
+        </View>
       </View>
     </View>
   );
@@ -388,6 +393,7 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 120 },
+  scrollContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: spacing.xl },
 
   summaryCard: {
     marginBottom: spacing.lg,
@@ -524,6 +530,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.divider,
   },
+  bottomBarInner: { width: '100%' },
+  bottomBarInnerWide: { maxWidth: 760, alignSelf: 'center' },
   walletShortHint: {
     ...typography.bodySmall,
     color: colors.error,

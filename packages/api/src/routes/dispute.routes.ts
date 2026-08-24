@@ -12,6 +12,7 @@ import {
 import * as disputeService from '../services/dispute.service';
 import { createAppError } from '../middleware/error.middleware';
 import { db } from '../models/db';
+import { assertDisputePartySettlementEnabled } from '../services/dispute-party-settlement-hold.service';
 
 const router = Router();
 
@@ -54,10 +55,11 @@ router.get(
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
       const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+      const bookingId = typeof req.query.bookingId === 'string' ? req.query.bookingId : undefined;
 
       const { disputes, total } = await disputeService.listUserDisputes(
         req.user!.userId,
-        { status, page, pageSize },
+        { status, bookingId, page, pageSize },
       );
 
       res.json({
@@ -124,6 +126,7 @@ router.post(
     try {
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Dispute ID is required.', 400);
+      if (req.body.action !== 'contest') assertDisputePartySettlementEnabled();
 
       const dispute = await disputeService.addProviderResponse(
         id,
@@ -147,6 +150,7 @@ router.post(
     try {
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Dispute ID is required.', 400);
+      assertDisputePartySettlementEnabled();
 
       const dispute = await disputeService.acceptPartialOffer(id, req.user!.userId);
       res.json({ success: true, data: disputeService.formatDispute(dispute) });

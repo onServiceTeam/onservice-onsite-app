@@ -9,7 +9,7 @@ How to read this doc:
 - Provider tiers and commission rates are admin-tunable in Settings (`commission_rate_<tier>`). The tier rules below are the current defaults from the tier ladder.
 - Related docs: `06-customer-support-sop.md` (support workflow), `07-provider-support-sop.md`, `08-dispatch-and-live-operations.md`, `09-trust-safety-and-disputes.md`, `04-provider-vetting-and-filtering.md`, `11-admin-system-training-manual.md`.
 
-Money-flow note (important): onService's target is an instant-pay escrow model. A server-verified payment is held before provider matching and remains in escrow until customer confirmation or the 24-hour auto-confirm. So "completion" for quality purposes means the booking reached `confirmed` (or auto-confirmed), not just that the provider marked it done. E14 currently blocks the external hosted PayMongo authorization entry, so payment-method success metrics are not launch-grade yet.
+Money-flow note (important): onService's target is an instant-pay escrow model. A server-verified payment is held before provider matching. Customer confirmation can release it, and the worker currently auto-releases after 24 hours, but dispute filing remains open for 48 hours. E18 makes that timing pair unsafe and not launch-grade policy. Quality reporting must distinguish provider completion, confirmation, release, and later dispute state instead of treating auto-confirm as undisputed finality. E14 also blocks the external hosted PayMongo authorization entry.
 
 > **Set (editable):** E03's booking/escrow ordering is implemented. Treat checkout-success targets for external methods as provisional until E14 is resolved and test-mode end-to-end evidence exists. Time-to-match begins only from a verified paid/held booking. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
@@ -25,7 +25,7 @@ Before the per-job standards, anchor on what we are aiming for. "Good" is not a 
 | **Staying bar** | What keeps a provider in good standing | 4.5+ average rating, under 2 cancellations in any rolling 30 days, zero confirmed safety incidents, current NBI |
 | **Great bar** | The providers we promote, feature, and protect | 4.7+ average rating, 80%+ acceptance, 90%+ on-time, zero open disputes (this is the Pro/Elite gate and the green band below) |
 
-Why this matters for quality: the differentiation strategy (vetting rigor, escrow, the service guarantee, suki loyalty, the on-app record, all in `01-company-foundation.md` and `04-provider-vetting-and-filtering.md`) only holds if the people behind it actually clear and hold these bars. The KPIs in this doc are the instruments that tell us whether they do. A red number here is a trust problem, not just a metric.
+Why this matters for quality: the differentiation strategy relies on vetting rigor, server-backed booking/payment records, Suki loyalty, and the on-app evidence trail. The deferred guarantee product is not a launch claim under E10/F#10. The KPIs in this doc are the instruments that show whether the active controls work. A red number here is a trust problem, not just a metric.
 
 ---
 
@@ -163,7 +163,7 @@ These are the platform health numbers. Most come from the Dashboard (`/`), Finan
 | Refund rate | Refunded amount as share of GMV | Under 4% | Financials Overview (refunds, net revenue) |
 | Escrow aging | Funds stuck in `held` past 48h | Near zero past 168h | Financials Escrow tab (aging buckets) |
 | Repeat-customer rate | Customers with 2+ bookings in 30d | 30%+ by month 3 | Dashboard Acquisition Funnel (Registered to First to Repeat) |
-| Auto-confirm share | Bookings closed by the 24h auto-confirm vs customer confirm | Track, no hard target | Bookings; worker `autoConfirmBookings` |
+| Auto-confirm share | Bookings moved by the current 24h worker vs customer confirm, with later disputes reported separately | Track as E18 risk evidence, not a success target | Bookings; disputes; worker `autoConfirmBookings` |
 
 Why these matter for an instant-pay model: once a booking is verified paid, a high no-provider rate means we are holding money for work we cannot fill, which forces refunds and burns trust. Time-to-match and match rate are the early-warning lights for that; pending or failed authorization attempts are payment reliability, not dispatch demand.
 
@@ -181,7 +181,7 @@ City-level health (Dashboard Cities grid, one row per service area):
 
 ## 5. Money and trust-fund KPIs to watch
 
-Escrow and the guarantee fund are part of the trust promise. Pull from Financials.
+Escrow is an active money ledger. The retained guarantee-fund wallet is an internal financial record, not an approved customer coverage promise while E10/F#10 remains open. Pull both from Financials, but report them separately.
 
 | KPI | Target | Source |
 |---|---|---|
@@ -193,7 +193,7 @@ Escrow and the guarantee fund are part of the trust promise. Pull from Financial
 
 The release formula allocates 1.5% of the customer service fee to the guarantee wallet. The current customer service fee is 0%, so the current fee-derived contribution is zero. Guarantee terms remain subject to E10/F#10; do not describe it as insurance or invent coverage wording.
 
-> **Set (editable):** Guarantee-fund claim cap of ₱20,000 per claim. Eligible claims are provider-caused property damage or theft, with photo evidence filed inside the 48-hour dispute window; the payout is clawed back from the provider's future payouts, and anything above the cap escalates to Ken. This figure needs legal and accountant sign-off, and it must match the claim rule in `09-trust-safety-and-disputes.md`. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Hold (E10/F#10):** There is no approved customer guarantee cap, coverage definition, eligibility rule, clawback policy, or customer-facing claim promise. Do not use the former ₱20,000 draft figure in training, dashboards, support replies, or product copy. Attorney and accountant approval is required before any such policy is adopted.
 
 See `09-trust-safety-and-disputes.md` and `10-money-and-compliance-ops.md`.
 
@@ -256,10 +256,10 @@ Attendees:
 | Payout queue | Payouts `/payouts` | Status filter |
 | Support | Support Tickets `/support-tickets` | Status, priority, assignment |
 | Quality analytics | Analytics `/analytics` | Quality Scores, Cohort, Churn, Commission tabs |
-| Compliance / DSR | Compliance `/compliance` | DSR queue, audit, BIR calendar |
+| Compliance / DSR | Compliance `/compliance` | DSR queue and audit; BIR calendar remains held and non-authoritative under E22 |
 | Who did what | Audit Log `/audit-log` | Request + admin-op rows |
 
-Note: the Analytics page has a "Quality Scores" tab and a "Churn Prediction" tab. Confirm with engineering which are live vs feature-flagged before you rely on them in a review. The Dashboard, Financials, Disputes, and Bookings pages are the dependable sources for the KPIs above.
+Note: the Analytics page has "Quality Scores" and "Churn Prediction" tabs, but metric definitions, source labels, comparison periods, and freshness remain open audit work. Dashboard and Financials summaries need the same verification. Use the underlying booking, dispute, payout, support, and audit records for an operational decision until a metric's definition and freshness are shown in the UI.
 
 ---
 
@@ -281,5 +281,5 @@ When you change a target, write the new number here and note the date and reason
 - On-time window: +/- 15 minutes around `scheduled_at` (editable).
 - Provider scorecard acceptance and on-time bands: ops targets only, not code-enforced (editable).
 - CSAT capture: manual post-resolution survey at launch, build into Support Tickets later (editable).
-- Guarantee-fund claim cap: ₱20,000 per claim, must match `09-trust-safety-and-disputes.md`, needs legal and accountant sign-off (editable).
+- Guarantee policy: held under E10/F#10; no cap, coverage, eligibility, or clawback promise is approved.
 - Support hours: Monday to Saturday, 8:00 AM to 6:00 PM PHT (editable).

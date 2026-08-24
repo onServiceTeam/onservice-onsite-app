@@ -93,7 +93,7 @@ Behavior is covered by Bugs UX-043 through UX-049. Provider-profile regressions 
 
 1. Provider Services remains blocked by E16 until Ken chooses the fixed-price source. Portfolio and onboarding upload/application states are covered through Bug UX-122; native camera evidence remains F#3/device work and real browser upload/status verification remains part of the deployment gate.
 2. PayMongo hosted checkout and top-up recovery after E14 is decided and test keys are available.
-3. Remaining customer/provider settings, booking, payment, and dispute forms. Projects, notifications, recurring, provider job execution, and account-management wide workspaces are now covered, but still require the specific live/browser or device evidence noted below.
+3. Remaining customer/provider settings, booking, and payment forms. Disputes now have participant inboxes, linked case detail, provider contest, booking/profile/notification entry points, and bounded wide workspaces (UX-203-208); direct settlement remains fail-closed under OPS-229/E18/E24. Projects, notifications, recurring, provider job execution, and account-management wide workspaces are covered but still require the specific live/browser or device evidence noted below.
 4. Admin dashboard/reporting requests only after metric definitions and privacy boundaries exist.
 
 The Cebu address regression and safe browser fallback are covered by Bugs

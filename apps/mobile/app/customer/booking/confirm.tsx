@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -9,11 +9,13 @@ import { formatPHP } from '@/utils/currency';
 import { formatDate, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Lock, Check } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 export default function BookingConfirmScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
 
   const { data: booking, isLoading, isError } = useQuery({
@@ -22,10 +24,13 @@ export default function BookingConfirmScreen(): React.ReactElement {
     enabled: !!bookingId,
   });
 
-  const isPaid = booking?.status === 'paid' || booking?.escrowStatus === 'held';
+  const isPaymentHeld = booking?.escrowStatus === 'held';
+  const isPaid = booking?.status === 'paid' || isPaymentHeld;
   const titleText = isPaid ? 'Booking Confirmed!' : 'Booking Submitted!';
   const subtitleText = isPaid
-    ? 'Your payment is secured. We\'re finding the best provider for you.'
+    ? isPaymentHeld
+      ? 'Your booking shows paid with escrow held. We\'re finding the best provider for you.'
+      : 'Your booking shows paid. We\'re finding the best provider for you.'
     : 'Complete your payment to confirm this booking.';
 
   return (
@@ -35,6 +40,12 @@ export default function BookingConfirmScreen(): React.ReactElement {
         { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.base },
       ]}
     >
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]}
+        showsVerticalScrollIndicator={false}
+        accessibilityLabel={isPhone ? 'Booking confirmation' : 'Desktop booking confirmation workspace'}
+      >
       <View style={styles.content}>
         <View style={styles.successCircle}>
           <Check size={40} color={colors.white} />
@@ -89,20 +100,20 @@ export default function BookingConfirmScreen(): React.ReactElement {
 
         <TrustStrip style={styles.trustStrip} />
 
-        {/* Bug 834 — Phase 14 D04 SiguradoShield pull. Strips trademark; */}
-        {/* the escrow guarantee is verifiable on its own. Tap target leads */}
-        {/* to /customer/safety-and-support for users curious about safety. */}
-        <TouchableOpacity
-          style={styles.infoCard}
-          onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.infoIconWrap}><Lock size={22} color={colors.primary} /></View>
-          <Text style={styles.infoText}>
-            Your payment is secured in escrow and will only be released when you confirm
-            the job is done to your satisfaction.
-          </Text>
-        </TouchableOpacity>
+        {/* Show escrow only when the booking response actually reports held.
+            E18 means release cannot be described as confirmation-only. */}
+        {booking && isPaymentHeld && (
+          <TouchableOpacity
+            style={styles.infoCard}
+            onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.infoIconWrap}><Lock size={22} color={colors.primary} /></View>
+            <Text style={styles.infoText}>
+              This booking currently shows escrow held. Release follows customer confirmation or the platform completion timer; check the booking for its current status.
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <Card style={styles.stepsCard}>
           <Text style={styles.stepsTitle}>What happens next?</Text>
@@ -126,8 +137,9 @@ export default function BookingConfirmScreen(): React.ReactElement {
           </View>
         </Card>
       </View>
+      </ScrollView>
 
-      <View style={styles.actions}>
+      <View style={[styles.actions, !isPhone && styles.actionsWide]}>
         {/* BUG-PHASE104-01 fix — pre-fix: when the booking landed here
             in payment_pending (because the PayMongo checkout failed,
             was cancelled, or the user backed out of GCash/Maya), the
@@ -171,6 +183,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
     paddingHorizontal: spacing.lg,
   },
+  scroll: { flex: 1, width: '100%' },
+  scrollContent: { flexGrow: 1, paddingBottom: spacing.lg },
+  scrollContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center' },
   content: { flex: 1, alignItems: 'center' },
   loadingIndicator: { marginBottom: spacing.lg },
 
@@ -265,5 +280,6 @@ const styles = StyleSheet.create({
   stepText: { ...typography.body, color: colors.textSecondary, flex: 1 },
 
   actions: { gap: spacing.md },
+  actionsWide: { width: '100%', maxWidth: 760, alignSelf: 'center' },
   primaryAction: { marginBottom: 0 },
 });

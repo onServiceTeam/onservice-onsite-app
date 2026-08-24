@@ -30,6 +30,7 @@ import { Smartphone, CreditCard, Wallet, ScanLine, Lock, ChevronLeft } from '@/c
 // A7 — shared UI kit for loading/error states + toast feedback.
 import { SkeletonCard, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -55,6 +56,7 @@ const PAYMENT_METHODS: PaymentOption[] = [
 export default function PayExistingBookingScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
   const { bookingId } = useLocalSearchParams<{ bookingId?: string }>();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [loading, setLoading] = useState(false);
@@ -149,7 +151,12 @@ export default function PayExistingBookingScreen(): React.ReactElement {
         <Text style={styles.title}>Complete Payment</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]}
+        showsVerticalScrollIndicator={false}
+        accessibilityLabel={isPhone ? 'Complete booking payment' : 'Desktop booking payment workspace'}
+      >
         <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>Booking #{formatBookingRef(booking.id, booking.createdAt)}</Text>
           <View style={styles.summaryRow}>
@@ -221,7 +228,7 @@ export default function PayExistingBookingScreen(): React.ReactElement {
           <View style={styles.escrowRow}>
             <Lock size={16} color={colors.primary} />
             <Text style={styles.escrowText}>
-              Your payment is held in secure escrow until the job is completed.
+              After this wallet payment succeeds, the booking shows its paid and escrow status. Release follows customer confirmation or the platform completion timer.
             </Text>
           </View>
         </View>
@@ -230,21 +237,23 @@ export default function PayExistingBookingScreen(): React.ReactElement {
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
-        {walletShort && (
-          <Text style={styles.walletShortHint}>
-            Wallet balance ({formatPHP(walletBalance)}) is below the total. External payments and wallet top-ups are temporarily unavailable.
-          </Text>
-        )}
-        {walletChecking ? <Text style={styles.walletShortHint}>Checking your wallet balance…</Text> : null}
-        {walletUnavailable ? (
-          <Text style={styles.walletShortHint}>We could not verify your wallet balance. Please try again.</Text>
-        ) : null}
-        <Button
-          title={loading ? 'Processing…' : `Pay ${formatPHP(booking.totalAmount)}`}
-          onPress={handlePay}
-          loading={loading}
-          disabled={!selectedMethod || loading || walletShort || walletChecking || walletUnavailable}
-        />
+        <View style={[styles.bottomBarInner, !isPhone && styles.bottomBarInnerWide]}>
+          {walletShort && (
+            <Text style={styles.walletShortHint}>
+              Wallet balance ({formatPHP(walletBalance)}) is below the total. External payments and wallet top-ups are temporarily unavailable.
+            </Text>
+          )}
+          {walletChecking ? <Text style={styles.walletShortHint}>Checking your wallet balance…</Text> : null}
+          {walletUnavailable ? (
+            <Text style={styles.walletShortHint}>We could not verify your wallet balance. Please try again.</Text>
+          ) : null}
+          <Button
+            title={loading ? 'Processing…' : `Pay ${formatPHP(booking.totalAmount)}`}
+            onPress={handlePay}
+            loading={loading}
+            disabled={!selectedMethod || loading || walletShort || walletChecking || walletUnavailable}
+          />
+        </View>
       </View>
     </View>
   );
@@ -266,6 +275,7 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 120 },
+  scrollContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: spacing.xl },
 
   summaryCard: {
     backgroundColor: colors.surface,
@@ -340,6 +350,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.divider,
   },
+  bottomBarInner: { width: '100%' },
+  bottomBarInnerWide: { maxWidth: 760, alignSelf: 'center' },
   walletShortHint: {
     ...typography.caption,
     color: colors.error,
