@@ -37,15 +37,37 @@ beforeEach(() => dbQueryMock.mockReset());
 
 describe('createProject', () => {
   it('requires a title', async () => {
-    await expect(svc.createProject(CUSTOMER, { title: '   ' })).rejects.toMatchObject({ statusCode: 400 });
+    await expect(svc.createProject({ userId: CUSTOMER, role: 'customer' }, { title: '   ' })).rejects.toMatchObject({ statusCode: 400 });
     expect(dbQueryMock).not.toHaveBeenCalled();
   });
 
   it('inserts and returns the project owned by the customer', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([projectRow()]));
-    const out = await svc.createProject(CUSTOMER, { title: 'New kitchen' });
+    const out = await svc.createProject({ userId: CUSTOMER, role: 'customer' }, { title: 'New kitchen' });
     expect(out).toMatchObject({ id: PROJECT_ID, customerId: CUSTOMER, status: 'planning' });
     expect(dbQueryMock.mock.calls[0][0]).toMatch(/INSERT INTO projects/);
+  });
+
+  it('Bug SEC-012 — a provider cannot create a project row owned by their user account', async () => {
+    await expect(
+      svc.createProject({ userId: PROVIDER_USER, role: 'provider' }, { title: 'Private project' }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(dbQueryMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('updateProject assignment rules', () => {
+  it('Bug SEC-013 — a customer cannot expose a project by assigning an arbitrary provider UUID', async () => {
+    dbQueryMock.mockResolvedValueOnce(rows([projectRow()]));
+
+    await expect(
+      svc.updateProject(
+        PROJECT_ID,
+        { userId: CUSTOMER, role: 'customer' },
+        { providerId: PROVIDER_ID },
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(dbQueryMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -55,15 +77,15 @@ describe('listProjects scoping', () => {
     dbQueryMock.mockResolvedValueOnce(rows([projectRow()]));
     await svc.listProjects({ userId: CUSTOMER, role: 'customer' });
     const listSql = dbQueryMock.mock.calls[1][0];
-    expect(listSql).toMatch(/customer_id = \$1/);
-    expect(listSql).not.toMatch(/provider_id/);
+    expect(listSql).toMatch(/WHERE p\.customer_id = \$1/);
+    expect(listSql).not.toMatch(/OR p\.provider_id/);
   });
 
   it('a provider sees projects they own or are assigned to', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([{ id: PROVIDER_ID }])); // providerIdForUser
     dbQueryMock.mockResolvedValueOnce(rows([projectRow({ provider_id: PROVIDER_ID })]));
     await svc.listProjects({ userId: PROVIDER_USER, role: 'provider' });
-    expect(dbQueryMock.mock.calls[1][0]).toMatch(/customer_id = \$1 OR provider_id = \$2/);
+    expect(dbQueryMock.mock.calls[1][0]).toMatch(/WHERE \(p\.customer_id = \$1 OR p\.provider_id = \$2\)/);
   });
 
   it('an admin lists all projects without an owner filter', async () => {

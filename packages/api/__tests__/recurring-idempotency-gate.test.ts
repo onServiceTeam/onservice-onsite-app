@@ -12,7 +12,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 const createNotificationMock = jest.fn().mockResolvedValue(undefined);
 jest.mock('../src/services/notification.service', () => ({
-  createNotification: (...a: unknown[]) => createNotificationMock(...a),
+  createPushNotification: (...a: unknown[]) => createNotificationMock(...a),
 }));
 const attemptAutoChargeMock = jest.fn();
 jest.mock('../src/services/recurring-auto-charge.service', () => ({

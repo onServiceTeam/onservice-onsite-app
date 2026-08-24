@@ -13,6 +13,7 @@ import { ChevronLeft } from '@/components/icons';
 // A7 — shared UI kit for loading state + toast feedback.
 import { SkeletonCard } from '@/components/ui';
 import { showToast } from '@/lib/toast';
+import { useResponsive } from '@/hooks/useResponsive';
 
 interface NotificationPrefs {
   bookingUpdates: boolean;
@@ -36,7 +37,6 @@ const PREF_ITEMS: PrefItem[] = [
   { key: 'providerActivity', label: 'Provider Activity', desc: 'Provider en route, arrived, job updates' },
   { key: 'paymentAlerts', label: 'Payment Alerts', desc: 'Payment confirmations, refunds, escrow releases' },
   { key: 'messages', label: 'Messages', desc: 'New chat messages from providers' },
-  { key: 'promotions', label: 'Promotions & Offers', desc: 'Special deals, discounts, seasonal offers' },
   { key: 'sukiRewards', label: 'Suki Rewards', desc: 'Points earned, tier upgrades, loyalty benefits' },
   { key: 'reminders', label: 'Booking Reminders', desc: 'Upcoming scheduled service reminders' },
   { key: 'system', label: 'System Notifications', desc: 'App updates, maintenance, important notices' },
@@ -59,6 +59,7 @@ export default function NotificationSettingsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
   const [dirty, setDirty] = useState(false);
 
@@ -132,12 +133,13 @@ export default function NotificationSettingsScreen(): React.ReactElement {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
+      contentContainerStyle={[styles.content, !isPhone && styles.contentWide, { paddingTop: insets.top }]}
+      accessibilityLabel={!isPhone ? 'Wide notification preference workspace' : undefined}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.primary} />}
     >
       {isError && (
         <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, margin: 16, marginBottom: 0 }}>
-          <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load notification settings. Showing defaults.</Text>
+          <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load notification settings. Retry before making changes so saved choices are not overwritten.</Text>
         </View>
       )}
       <View style={styles.header}>
@@ -146,15 +148,22 @@ export default function NotificationSettingsScreen(): React.ReactElement {
         </TouchableOpacity>
         <Text style={styles.title}>Notification Settings</Text>
         <Text style={styles.subtitle}>
-          Choose which notifications you want to receive
+          Choose which device alerts you want. Your in-app inbox keeps the full activity record.
+        </Text>
+      </View>
+
+      <View style={styles.marketingNotice}>
+        <Text style={styles.marketingNoticeTitle}>Marketing alerts are off</Text>
+        <Text style={styles.marketingNoticeText}>
+          Promotional push, SMS, and email require a separate recorded consent. This screen cannot enable them.
         </Text>
       </View>
 
       <View style={styles.quickActions}>
-        <TouchableOpacity style={styles.quickBtn} onPress={enableAll}>
+        <TouchableOpacity style={[styles.quickBtn, isError && styles.controlDisabled]} onPress={enableAll} disabled={isError}>
           <Text style={styles.quickBtnText}>Enable All</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.quickBtn} onPress={disableOptional}>
+        <TouchableOpacity style={[styles.quickBtn, isError && styles.controlDisabled]} onPress={disableOptional} disabled={isError}>
           <Text style={styles.quickBtnText}>Essentials Only</Text>
         </TouchableOpacity>
       </View>
@@ -172,6 +181,7 @@ export default function NotificationSettingsScreen(): React.ReactElement {
             <Switch
               value={prefs[item.key]}
               onValueChange={() => togglePref(item.key)}
+              disabled={isError}
               trackColor={{ false: colors.border, true: colors.primary }}
               thumbColor={colors.white}
             />
@@ -179,7 +189,7 @@ export default function NotificationSettingsScreen(): React.ReactElement {
         ))}
       </View>
 
-      {dirty && (
+      {dirty && !isError && (
         <TouchableOpacity
           style={[styles.saveBtn, saveMutation.isPending && styles.saveBtnDisabled]}
           onPress={handleSave}
@@ -206,6 +216,7 @@ export default function NotificationSettingsScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   content: { paddingBottom: spacing.xxl },
+  contentWide: { width: '100%', maxWidth: 820, alignSelf: 'center', paddingHorizontal: spacing.xl },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMuted },
 
   header: { paddingHorizontal: spacing.base, paddingTop: spacing.base, paddingBottom: spacing.base },
@@ -230,6 +241,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   quickBtnText: { ...typography.bodySmall, fontWeight: '600', color: colors.primary },
+  controlDisabled: { opacity: 0.5 },
+
+  marketingNotice: { backgroundColor: colors.infoLight, borderWidth: 1, borderColor: colors.info, borderRadius: borderRadius.lg, padding: spacing.base, marginHorizontal: spacing.base, marginBottom: spacing.base },
+  marketingNoticeTitle: { ...typography.body, color: colors.infoDark, fontWeight: '700' },
+  marketingNoticeText: { ...typography.bodySmall, color: colors.infoDark, lineHeight: 20, marginTop: spacing.xs },
 
   section: {
     backgroundColor: colors.surface,

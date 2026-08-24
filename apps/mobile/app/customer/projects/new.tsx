@@ -9,10 +9,12 @@ import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export default function NewProjectScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [city, setCity] = useState('');
@@ -34,7 +36,8 @@ export default function NewProjectScreen(): React.ReactElement {
     onError: (err) => showToast(getErrorMessage(err, 'Could not create the project.'), 'error'),
   });
 
-  const estimateValid = estimate === '' || Number.isFinite(Number(estimate));
+  const estimateValue = Number(estimate);
+  const estimateValid = estimate === '' || (Number.isFinite(estimateValue) && estimateValue >= 0 && estimateValue <= 20_000_000);
   const isValid = title.trim().length > 0 && estimateValid;
 
   return (
@@ -47,11 +50,23 @@ export default function NewProjectScreen(): React.ReactElement {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+        accessibilityLabel={!isPhone ? 'Wide project planning form' : undefined}
+      >
         <Text style={styles.intro}>
           Projects are for big multi-stage jobs (a renovation, a build, an interior fit-out). Plan
           milestones, record your material choices, and keep documents like blueprints together.
         </Text>
+
+        <View style={styles.planningNotice}>
+          <Text style={styles.planningNoticeTitle}>Planning workspace only</Text>
+          <Text style={styles.planningNoticeText}>
+            Creating a project does not book or assign a provider, and no payment is collected here.
+            Book a service or request quotes separately when you are ready to hire.
+          </Text>
+        </View>
 
         <View style={styles.field}>
           <Text style={styles.label}>Project title *</Text>
@@ -71,7 +86,7 @@ export default function NewProjectScreen(): React.ReactElement {
             style={[styles.input, styles.textArea]}
             value={description}
             onChangeText={setDescription}
-            placeholder="What's the project about? Scope, goals, anything a provider should know."
+            placeholder="What's the project about? Add the scope, goals, and planning notes you want to keep."
             placeholderTextColor={colors.textTertiary}
             multiline
             numberOfLines={4}
@@ -105,7 +120,8 @@ export default function NewProjectScreen(): React.ReactElement {
               keyboardType="numeric"
             />
           </View>
-          <Text style={styles.hint}>A planning figure only. Providers confirm real prices in their quotes.</Text>
+          <Text style={styles.hint}>A planning figure only. A future booking or accepted quote determines the real price.</Text>
+          {!estimateValid && <Text style={styles.validationText}>Enter an amount from 0 to {platformConfig.currencySymbol}20,000,000.</Text>}
         </View>
 
         <TouchableOpacity
@@ -126,7 +142,11 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  bodyContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.xl },
   intro: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.lg, lineHeight: 20 },
+  planningNotice: { backgroundColor: colors.infoLight, borderWidth: 1, borderColor: colors.info, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.lg },
+  planningNoticeTitle: { ...typography.body, color: colors.infoDark, fontWeight: '700', marginBottom: spacing.xs },
+  planningNoticeText: { ...typography.bodySmall, color: colors.infoDark, lineHeight: 20 },
   field: { marginBottom: spacing.lg },
   label: { ...typography.body, fontWeight: '600', color: colors.text, marginBottom: spacing.sm },
   input: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, fontSize: 14, color: colors.text },
@@ -135,6 +155,7 @@ const styles = StyleSheet.create({
   prefix: { fontSize: 16, color: colors.textSecondary, marginRight: spacing.xs },
   amountInput: { flex: 1, paddingVertical: spacing.base, fontSize: 16, color: colors.text },
   hint: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.xs },
+  validationText: { ...typography.caption, color: colors.error, marginTop: spacing.xs },
   submit: { backgroundColor: colors.text, borderRadius: borderRadius.lg, paddingVertical: spacing.base, alignItems: 'center', marginTop: spacing.sm },
   submitDisabled: { opacity: 0.5 },
   submitText: { ...typography.body, fontWeight: '700', color: colors.white },

@@ -84,7 +84,7 @@ async function notifyCustomerNoProviderOnce(customerId: string, bookingId: strin
       [customerId, bookingId],
     );
     if (existing.rows.length > 0) return;
-    await notificationService.createNotification({
+    await notificationService.createPushNotification({
       userId: customerId,
       type: 'no_provider_available',
       title: 'Still finding your provider',

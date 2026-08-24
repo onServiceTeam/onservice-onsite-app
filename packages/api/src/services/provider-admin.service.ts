@@ -459,7 +459,7 @@ export async function reviewProviderCertification(params: {
   });
 
   try {
-    await notificationService.createNotification({
+    await notificationService.createPushNotification({
       userId: reviewed.ownerUserId,
       type: params.isVerified ? 'provider_certification_verified' : 'provider_certification_unverified',
       title: params.isVerified ? 'Certification verified' : 'Certification needs attention',

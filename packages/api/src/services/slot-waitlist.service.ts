@@ -184,7 +184,7 @@ export async function processSlotAvailability(
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const notificationService = require('./notification.service');
-      await notificationService.createNotification({
+      await notificationService.createPushNotification({
         userId: entry.customer_id,
         type: 'area_launch',
         title: 'A slot just opened in your wishlist',

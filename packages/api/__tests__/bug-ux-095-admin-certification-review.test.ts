@@ -5,7 +5,7 @@ jest.mock('../src/models/db', () => ({
   db: { query: jest.fn(), transaction: (...args: unknown[]) => transactionMock(...args) },
 }));
 jest.mock('../src/services/notification.service', () => ({
-  createNotification: (...args: unknown[]) => notificationMock(...args),
+  createPushNotification: (...args: unknown[]) => notificationMock(...args),
 }));
 
 import { reviewProviderCertification } from '../src/services/provider-admin.service';

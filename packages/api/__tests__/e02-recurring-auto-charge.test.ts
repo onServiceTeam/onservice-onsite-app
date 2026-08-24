@@ -34,7 +34,7 @@ jest.mock('../src/services/notification.service', () => {
   const actual = jest.requireActual('../src/services/notification.service');
   return {
     ...actual,
-    createNotification: (...args: unknown[]) => createNotificationMock(...args),
+    createPushNotification: (...args: unknown[]) => createNotificationMock(...args),
   };
 });
 

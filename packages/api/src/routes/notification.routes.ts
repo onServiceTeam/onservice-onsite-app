@@ -4,16 +4,19 @@ import { createAppError } from '../middleware/error.middleware';
 import * as notificationService from '../services/notification.service';
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
+import { validationMiddleware } from '../middleware/validation.middleware';
+import { notificationListQuerySchema, notificationPreferencesSchema } from '../validators/notification.validators';
 
 const router = Router();
 
 router.get(
   '/',
   authMiddleware,
+  validationMiddleware({ query: notificationListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const page = Number(req.query.page) || 1;
-      const pageSize = Math.min(Number(req.query.pageSize) || 20, 50);
+      const page = Number(req.query.page);
+      const pageSize = Number(req.query.pageSize);
 
       const result = await notificationService.getUserNotifications(
         req.user!.userId,
@@ -111,6 +114,7 @@ router.get(
 router.put(
   '/preferences',
   authMiddleware,
+  validationMiddleware(notificationPreferencesSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const prefs = await notificationService.updateNotificationPreferences(req.user!.userId, req.body);

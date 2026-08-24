@@ -100,7 +100,7 @@ async function autoConfirmBookings(): Promise<number> {
       // Notification is fire-and-forget (no money risk if it fails);
       // outside the trx so a notification outage doesn't roll back
       // a successful payout-ready transition.
-      await notificationService.createNotification({
+      await notificationService.createPushNotification({
         userId: booking.customer_id,
         type: 'auto_confirmed',
         title: 'Booking Auto-Confirmed',
@@ -145,7 +145,7 @@ async function expireStaleQuotes(): Promise<number> {
         [quote.provider_id],
       );
       if (providerUser.rows[0]) {
-        await notificationService.createNotification({
+        await notificationService.createPushNotification({
           userId: providerUser.rows[0].user_id,
           type: 'quote_expired',
           title: 'Quote Expired',
@@ -184,7 +184,7 @@ async function expireUnmatchedBookings(): Promise<number> {
 
   for (const booking of expired.rows) {
     try {
-      await notificationService.createNotification({
+      await notificationService.createPushNotification({
         userId: booking.customer_id,
         type: 'booking_expired',
         title: 'Booking Expired',
@@ -222,7 +222,7 @@ async function checkNbiExpiry(): Promise<number> {
       const daysLeft = Math.max(0, provider.days_until);
       const isExpired = daysLeft <= 0;
 
-      await notificationService.createNotification({
+      await notificationService.createPushNotification({
         userId: provider.user_id,
         type: 'nbi_expiring',
         title: isExpired ? 'NBI Clearance Expired' : 'NBI Clearance Expiring Soon',
@@ -276,7 +276,7 @@ async function detectNoShows(): Promise<number> {
   let flagged = 0;
   for (const booking of noShows.rows) {
     try {
-      await notificationService.createNotification({
+      await notificationService.createPushNotification({
         userId: booking.customer_id,
         type: 'provider_en_route',
         title: 'Provider May Be Late',
@@ -290,7 +290,7 @@ async function detectNoShows(): Promise<number> {
           [booking.provider_id],
         );
         if (providerUser.rows[0]) {
-          await notificationService.createNotification({
+          await notificationService.createPushNotification({
             userId: providerUser.rows[0].user_id,
             type: 'new_job_available',
             title: 'Check-In Reminder',
@@ -394,7 +394,7 @@ async function detectBypassAttempts(): Promise<number> {
       `SELECT id FROM users WHERE role IN ('admin', 'super_admin') AND is_active = TRUE LIMIT 5`,
     );
     for (const admin of admins.rows) {
-      await notificationService.createNotification({
+      await notificationService.createPushNotification({
         userId: admin.id,
         type: 'dispute_update',
         title: 'Bypass Detection Report',

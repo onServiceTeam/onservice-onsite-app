@@ -90,7 +90,7 @@ The package contains 102 ZIP entries and 63 files. Extraction was checked for ro
 | Payment         | Pay, checkout, saved methods, wallet               | Earnings and payout settings                            | Financials, payouts, pricing                               | Linked server-side; money-language contradictions remain hard stops       |
 | Fulfilment      | Tracker, chat, active booking, changes             | Active job, navigation, checklist, photos, change order | Dispatch, booking detail, communications                   | Core detail/tracker/chat workspaces now adapt wide; remaining states and live customer evidence need work |
 | Completion      | Signature, review, tip, dispute                    | Complete job, reviews, earnings                         | Booking detail, disputes, finance                          | Broad coverage; guarantee and dispute-response decisions remain open      |
-| Retention       | Recurring, projects, referrals, Suki Pros          | Clients, Suki customers, schedule, insights             | Recurring, projects, marketing, analytics                  | Features exist but metrics and lifecycle ownership are fragmented         |
+| Retention       | Recurring, projects, referrals, Suki Pros          | Clients, Suki customers, schedule, insights             | Recurring, projects, marketing, analytics                  | Project planning is now honestly separated from booking/money; recurring and metric ownership remain fragmented |
 | Support         | Support inbox, new request, case thread, safety    | Same shared support routes plus provider help           | Support queue, linked customer and booking, internal notes | PII and assignment defects fixed in this implementation batch             |
 | Governance      | Terms, consent, data rights                        | Terms, standards, account controls                      | Compliance, data protection, consent, audit, settings      | Broad surface coverage; legal wording and operating sign-offs remain open |
 
@@ -141,7 +141,9 @@ Customer findings:
 - Fixed: content padding now scales for phone, tablet, and desktop.
 - Fixed in the current continuation: booking detail now places its summary and actions beside service context on desktop; quote review becomes a tablet/desktop comparison grid.
 - Fixed in the current responsive batch: tracker now becomes an honest map-and-status workspace, and customer chat keeps booking status, schedule, location, details, and tracker actions beside the conversation at tablet/desktop widths.
-- Open: project detail, notifications, and support remain single-column inside the desktop content area and need context side panels where that materially helps.
+- Fixed in the projects/notifications continuation: Project creation and detail are bounded planning workspaces at tablet/desktop widths, with an explicit no-booking/no-provider/no-payment boundary and forward-only milestone actions. The API prevents provider project creation, arbitrary provider assignment, cross-provider list leakage, impossible milestone dates/backward progress, and non-HTTP(S) document references (Bugs UX-128/129/145 and SEC-012-015).
+- Fixed in the projects/notifications continuation: customer notification history paginates beyond the first page, uses the same booking-aware destination contract as device pushes, reports mark-all failures, respects saved channel choices, and cannot record marketing consent through a generic toggle. A failed settings load cannot overwrite saved choices, and transactional payment/referral/Suki/promo values are in the typed preference contract (Bugs UX-134-146).
+- Open: recurring detail, account/settings, and remaining task forms need per-screen tablet/desktop composition and authenticated live evidence.
 - Open: wallet labels must be reviewed to ensure customer credit, refund balance, and provider withdrawal are never conflated.
 - Open hard stop: cancellation presentation and server refund math are contradictory.
 - Open hard stop: final guarantee/disclaimer language requires approved wording.
@@ -196,7 +198,8 @@ Provider findings:
 - Fixed in the onboarding and portfolio continuation: KYC references must belong to the applying account and are stored as private object keys. Documents and selfies retain the local picker URI only for the immediate preview and show a secure on-file state after navigation instead of requesting a private storage URL anonymously (Bugs UX-113, UX-120, and UX-121).
 - Fixed in the onboarding and portfolio continuation: portfolio uploads use a dedicated public context owned by the provider, written customer consent is affirmed before upload and timestamped server-side, and the provider sees an explicit customer-visible privacy notice. The gallery is now a bounded 2/3/4-column phone/tablet/desktop workspace. Provider 360 shows the exact published images and consent evidence without adding an unapproved moderation action (Bugs UX-116 through UX-122).
 - Fixed in the provider money and CRM continuation: Earnings uses recorded seven-day gross/commission/net values and the server's live commission rate; Payout History is a complete bounded ledger; Client Detail links real job records; reminders reject impossible dates; and the quote builder keeps request context beside a server-canonical itemized quote (Bugs UX-123 through UX-126, UX-128/129, and FIN-001).
-- Open: jobs, provider notifications, and remaining owner settings/business screens need per-screen wide-layout verification at 768, 1024, 1280, and 1440 pixels.
+- Fixed in the projects/notifications continuation: provider notification history is paginated and bounded for wide browsers, chat opens by booking ID, and lead/reminder/payout/earnings/review/quality/certification/team/account events open their real workspaces through the shared inbox/device destination contract (Bugs UX-136/137/139/143).
+- Open: jobs and remaining owner settings/business screens need per-screen wide-layout verification at 768, 1024, 1280, and 1440 pixels.
 - Open hard stop: provider response inside a dispute is not implemented.
 - Open hard stop: checklist `Report Issue` has no approved API endpoint.
 - Open hard stop: milestone escrow behavior is unresolved.
@@ -231,6 +234,7 @@ Admin findings:
 - Fixed: navigating directly to a lower sidebar workspace scrolls its active destination into the visible navigation region instead of leaving the current page hidden below the fold.
 - Fixed in the certification continuation: Provider 360 now links the provider's certification evidence to an explicit review decision. Only an active, documented, unexpired certification can be verified; removing verification requires a reason and notifies the provider.
 - Fixed in the provider payout continuation: the Payout queue shows AML-held requests and every status/reason required by provider support. AML clearance, approval, rejection, and completion require a typed rationale; one-in-flight requests are serialized; completion and rejection guard the reserved wallet amount and write audit plus notification inside the same transaction (Bugs UX-127/130 and FIN-002 through FIN-005).
+- Fixed in the projects/notifications continuation: Projects is now an honest planning-record support queue with real status counts and direct Customer 360/Provider 360 linkage. It does not present project rows as bookings, quotes, assignments, or money operations (Bug UX-133).
 - Fixed: booking reassignment uses a named online-provider picker rather than asking an employee to paste a UUID.
 - Fixed: dispute assignment uses a named active-admin picker rather than asking an employee to paste a UUID.
 - Fixed in the current continuation: provider-team reject/send-back decisions use an in-page reason dialog instead of a browser prompt.
@@ -330,16 +334,21 @@ Admin findings:
 57. Closed quote-route authorization and lead-lifecycle gaps: direct quote submission now enforces the same active category/radius boundary as Leads, and `quoted` requests remain available to other eligible providers until acceptance or the configured limit (SEC-011/LINK-133).
 58. Replaced the obsolete hCaptcha launch verifier with a process-tested Cloudflare Turnstile verifier, removed unused hCaptcha origins from the admin CSP, and aligned active environment/security/cutover docs (SEC-010).
 59. Corrected active legal, operations, strategy, QA, and architecture records that falsely described final guarantee wording, fixed protection caps, live hosted checkout, unsupported hourly pricing, optional F#10 review, or complete PITR/native evidence. Historical design docs are retained with explicit authority warnings rather than rewritten as current fact.
+60. Reworked customer Project creation/detail and admin Projects oversight into bounded planning workspaces, added explicit forward-only milestone controls, and linked support staff to Customer 360/Provider 360 without implying a booking or payment workflow (Bugs UX-128/129/133).
+61. Closed project authorization, lifecycle, and query-boundary defects: creation is customer-only, customers cannot assign arbitrary providers, provider/status scoping is grouped correctly, impossible milestone dates and backward progress are rejected, and future document references require HTTP(S) (UX-145 and SEC-012-015).
+62. Unified inbox and device-push navigation around one role-aware booking contract, migrated user-facing server notifications to preference-gated best-effort device delivery, and added strict settings/pagination validation (Bugs UX-134-142).
+63. Rebuilt customer/provider inboxes as paginated wide workspaces, made mutation/load failures safe and visible, and kept marketing alerts off unless the dedicated consent workflow records consent (Bugs UX-138-144).
+64. Added the transactional `payment`, `referral`, `suki`, and `promo` values to the notification type contract and verified each follows its saved device-push preference/consent boundary (Bug UX-146).
 
 ## Verification record for this batch
 
 - Admin TypeScript: passed.
 - Mobile TypeScript: passed.
 - API TypeScript: passed.
-- Mobile suite after the provider money/linkage and fake-test remediation batch: 240 suites passed, 745 tests passed, 84 explicit todos. Thirteen source-regex assertions were removed and replaced by four tests that execute provider push routing, socket authentication, application-status rendering, and commission-tier configuration.
-- Admin suite after the provider money/linkage batch: 72 files passed, 1 skipped, 185 tests passed, 3 explicit todos.
-- API suite after the provider money/linkage and startup-guard batch: 328 suites passed, 3025 tests passed. The lower test count is intentional: eight source-regex/reimplemented startup assertions were replaced by three tests that execute the exported production-secret and trust-proxy behavior, and the 25-assertion D14 file-presence/source-pattern harness was removed in favor of the process-level Turnstile test and actual release-gate execution.
-- Admin and mobile lint: passed with zero warnings or errors.
+- Mobile suite after the projects/notifications continuation: 249 suites passed, 713 tests passed, 84 explicit todos.
+- Admin suite after the projects/notifications continuation: 74 files passed, 1 skipped, 187 tests passed, 3 explicit todos.
+- API suite after the projects/notifications continuation: 338 suites and 3022 tests passed. The affected legacy review and booking-transaction source scans were replaced with tests that execute review delivery, assignment, no-show cancellation, shared transaction clients, and post-commit push order through real service/HTTP behavior.
+- Repository lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
 - Mobile production web export: passed with `EXPO_OS=web` and the production same-origin API URL.
 - Gate A, the Gate C smoke suite, and Gate C passed with zero blocking or report failures. Gate D and Gate E exited successfully in their documented REPORT modes; they do not count as visual-baseline or mutation evidence.
@@ -352,8 +361,8 @@ Admin findings:
 
 ## Next implementation order
 
-1. Audit and improve the remaining high-use customer wide layouts: projects and notifications. Payment recovery remains blocked by E14; Cebu address recognition and support entry/linkage are covered by the completed customer batches.
-2. Continue provider jobs, notifications, and remaining owner settings/business screens; provider fixed-price editing remains blocked by E16.
+1. Audit and improve the remaining high-use customer booking, recurring, dispute, and account/settings linkage. Payment recovery remains blocked by E14.
+2. Continue provider jobs and remaining owner settings/business screens; provider fixed-price editing remains blocked by E16.
 3. Continue the admin suspicion-first pass page by page, replacing generic confirmations only where impact preview, reason capture, and audit context are required.
 4. Add real admin entity search after defining safe searchable fields and PII visibility.
 5. Reconcile fine-grained staff authorization through an explicit architecture decision.

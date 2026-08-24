@@ -14,17 +14,21 @@ import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft } from '@/components/icons';
 import { SkeletonCard, ErrorState } from '@/components/ui';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const MS_LABEL: Record<MilestoneStatus, string> = { pending: 'Pending', in_progress: 'In progress', completed: 'Completed' };
 const MS_COLOR: Record<MilestoneStatus, string> = { pending: colors.textSecondary, in_progress: colors.warning, completed: colors.success };
-// Tap a milestone to advance it to the next state.
-const NEXT_STATUS: Record<MilestoneStatus, MilestoneStatus> = { pending: 'in_progress', in_progress: 'completed', completed: 'pending' };
+const NEXT_STATUS: Record<Exclude<MilestoneStatus, 'completed'>, MilestoneStatus> = {
+  pending: 'in_progress',
+  in_progress: 'completed',
+};
 
 export default function ProjectDetailScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id);
+  const { isPhone } = useResponsive();
 
   const q = useQuery({ queryKey: ['project', id], queryFn: () => getProject(id ?? ''), enabled: !!id });
   const isOwner = !!q.data && q.data.customerId === userId;
@@ -39,7 +43,10 @@ export default function ProjectDetailScreen(): React.ReactElement {
   const invalidate = (): void => { void queryClient.invalidateQueries({ queryKey: ['project', id] }); };
 
   const advanceMs = useMutation({
-    mutationFn: (m: ProjectMilestone) => updateMilestone(m.id, { status: NEXT_STATUS[m.status] }),
+    mutationFn: (m: ProjectMilestone) => {
+      if (m.status === 'completed') return Promise.resolve(m);
+      return updateMilestone(m.id, { status: NEXT_STATUS[m.status] });
+    },
     onSuccess: invalidate,
     onError: (e) => showToast(getErrorMessage(e, 'Could not update the milestone.'), 'error'),
   });
@@ -86,108 +93,128 @@ export default function ProjectDetailScreen(): React.ReactElement {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.body}>
-        {project.description ? <Text style={styles.description}>{project.description}</Text> : null}
-
-        {/* Progress */}
-        <View style={styles.card}>
-          <View style={styles.progressTop}>
-            <Text style={styles.sectionTitle}>Progress</Text>
-            <Text style={styles.progressPct}>{done}/{total} done</Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${pct}%` }]} />
-          </View>
+      <ScrollView
+        style={styles.bodyScroll}
+        contentContainerStyle={[styles.body, !isPhone && styles.bodyWide]}
+        accessibilityLabel={!isPhone ? 'Wide project planning workspace' : undefined}
+      >
+        <View style={styles.planNotice}>
+          <Text style={styles.planNoticeTitle}>Planning only · {project.status.replace('_', ' ')}</Text>
+          <Text style={styles.planNoticeText}>
+            This project is not a booking and has no assigned provider or payment. Milestones,
+            budgets, choices, and documents here are your planning records.
+          </Text>
         </View>
 
-        {/* Milestones */}
-        <View style={styles.card}>
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>Milestones</Text>
-            {isOwner && (
-              <TouchableOpacity onPress={() => setShowAddMs((v) => !v)}><Text style={styles.addLink}>+ Add</Text></TouchableOpacity>
-            )}
-          </View>
-          {project.milestones.length === 0 ? (
-            <Text style={styles.empty}>No milestones yet.</Text>
-          ) : (
-            project.milestones.map((m) => (
-              <TouchableOpacity
-                key={m.id}
-                style={styles.msRow}
-                activeOpacity={0.7}
-                onPress={() => advanceMs.mutate(m)}
-                disabled={advanceMs.isPending}
-              >
-                <View style={[styles.msDot, { backgroundColor: MS_COLOR[m.status] }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.msTitle}>{m.title}</Text>
-                  <Text style={styles.msMeta}>
-                    {MS_LABEL[m.status]}
-                    {m.amount != null ? ` · ${formatPHP(m.amount)}` : ''}
-                    {m.targetDate ? ` · by ${m.targetDate}` : ''}
-                  </Text>
-                </View>
-                <Text style={[styles.msStatus, { color: MS_COLOR[m.status] }]}>tap ›</Text>
-              </TouchableOpacity>
-            ))
-          )}
-          {showAddMs && (
-            <View style={styles.inlineForm}>
-              <TextInput style={styles.inlineInput} value={msTitle} onChangeText={setMsTitle} placeholder="Milestone (e.g. Foundation)" placeholderTextColor={colors.textTertiary} maxLength={160} />
-              <TouchableOpacity style={[styles.inlineBtn, !msTitle.trim() && styles.disabled]} onPress={() => createMs.mutate()} disabled={!msTitle.trim() || createMs.isPending}>
-                {createMs.isPending ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.inlineBtnText}>Add</Text>}
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        <View style={[styles.workspace, !isPhone && styles.workspaceWide]}>
+          <View style={styles.primaryColumn}>
+            {project.description ? <Text style={styles.description}>{project.description}</Text> : null}
 
-        {/* Selections */}
-        <View style={styles.card}>
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>Choices &amp; materials</Text>
-            {isOwner && (
-              <TouchableOpacity onPress={() => setShowAddSel((v) => !v)}><Text style={styles.addLink}>+ Add</Text></TouchableOpacity>
-            )}
-          </View>
-          {project.selections.length === 0 ? (
-            <Text style={styles.empty}>No choices recorded yet (door type, paint colour, materials…).</Text>
-          ) : (
-            project.selections.map((s) => (
-              <View key={s.id} style={styles.selRow}>
-                <Text style={styles.selLabel}>{s.category} · {s.label}</Text>
-                <Text style={styles.selValue}>{s.value}{s.detail ? ` (${s.detail})` : ''}</Text>
+            <View style={styles.card}>
+              <View style={styles.progressTop}>
+                <Text style={styles.sectionTitle}>Progress</Text>
+                <Text style={styles.progressPct}>{done}/{total} done</Text>
               </View>
-            ))
-          )}
-          {showAddSel && (
-            <View style={styles.selForm}>
-              <TextInput style={styles.inlineInput} value={selCat} onChangeText={setSelCat} placeholder="Category (e.g. Door)" placeholderTextColor={colors.textTertiary} maxLength={80} />
-              <TextInput style={styles.inlineInput} value={selLabel} onChangeText={setSelLabel} placeholder="Label (e.g. Material)" placeholderTextColor={colors.textTertiary} maxLength={120} />
-              <TextInput style={styles.inlineInput} value={selValue} onChangeText={setSelValue} placeholder="Value (e.g. Solid oak)" placeholderTextColor={colors.textTertiary} maxLength={200} />
-              <TouchableOpacity style={[styles.inlineBtn, (!selCat.trim() || !selLabel.trim() || !selValue.trim()) && styles.disabled]} onPress={() => createSel.mutate()} disabled={!selCat.trim() || !selLabel.trim() || !selValue.trim() || createSel.isPending}>
-                {createSel.isPending ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.inlineBtnText}>Add choice</Text>}
-              </TouchableOpacity>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${pct}%` }]} />
+              </View>
             </View>
-          )}
+
+            <View style={styles.card}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle}>Choices &amp; materials</Text>
+                {isOwner && (
+                  <TouchableOpacity onPress={() => setShowAddSel((v) => !v)}><Text style={styles.addLink}>+ Add</Text></TouchableOpacity>
+                )}
+              </View>
+              {project.selections.length === 0 ? (
+                <Text style={styles.empty}>No choices recorded yet (door type, paint colour, materials…).</Text>
+              ) : (
+                project.selections.map((s) => (
+                  <View key={s.id} style={styles.selRow}>
+                    <Text style={styles.selLabel}>{s.category} · {s.label}</Text>
+                    <Text style={styles.selValue}>{s.value}{s.detail ? ` (${s.detail})` : ''}</Text>
+                  </View>
+                ))
+              )}
+              {showAddSel && (
+                <View style={styles.selForm}>
+                  <TextInput style={styles.inlineInput} value={selCat} onChangeText={setSelCat} placeholder="Category (e.g. Door)" placeholderTextColor={colors.textTertiary} maxLength={80} />
+                  <TextInput style={styles.inlineInput} value={selLabel} onChangeText={setSelLabel} placeholder="Label (e.g. Material)" placeholderTextColor={colors.textTertiary} maxLength={120} />
+                  <TextInput style={styles.inlineInput} value={selValue} onChangeText={setSelValue} placeholder="Value (e.g. Solid oak)" placeholderTextColor={colors.textTertiary} maxLength={200} />
+                  <TouchableOpacity style={[styles.inlineBtn, (!selCat.trim() || !selLabel.trim() || !selValue.trim()) && styles.disabled]} onPress={() => createSel.mutate()} disabled={!selCat.trim() || !selLabel.trim() || !selValue.trim() || createSel.isPending}>
+                    {createSel.isPending ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.inlineBtnText}>Add choice</Text>}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Documents</Text>
+              {project.documents.length === 0 ? (
+                <Text style={styles.empty}>No documents have been attached to this planning record.</Text>
+              ) : (
+                project.documents.map((d) => (
+                  <TouchableOpacity key={d.id} style={styles.docRow} onPress={() => Linking.openURL(d.fileUrl)}>
+                    <Text style={styles.docLabel}>{d.label}</Text>
+                    <Text style={styles.docType}>{d.docType}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          </View>
+
+          <View style={styles.secondaryColumn}>
+            <View style={styles.card}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle}>Milestones</Text>
+                {isOwner && (
+                  <TouchableOpacity onPress={() => setShowAddMs((v) => !v)}><Text style={styles.addLink}>+ Add</Text></TouchableOpacity>
+                )}
+              </View>
+              {project.milestones.length === 0 ? (
+                <Text style={styles.empty}>No milestones yet.</Text>
+              ) : (
+                project.milestones.map((m) => (
+                  <View key={m.id} style={styles.msRow}>
+                    <View style={[styles.msDot, { backgroundColor: MS_COLOR[m.status] }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.msTitle}>{m.title}</Text>
+                      <Text style={styles.msMeta}>
+                        {MS_LABEL[m.status]}
+                        {m.amount != null ? ` · ${formatPHP(m.amount)}` : ''}
+                        {m.targetDate ? ` · by ${m.targetDate}` : ''}
+                      </Text>
+                    </View>
+                    {isOwner && m.status !== 'completed' ? (
+                      <TouchableOpacity
+                        style={styles.msAction}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${m.status === 'pending' ? 'Start' : 'Complete'} ${m.title}`}
+                        onPress={() => advanceMs.mutate(m)}
+                        disabled={advanceMs.isPending}
+                      >
+                        <Text style={styles.msActionText}>{m.status === 'pending' ? 'Start' : 'Complete'}</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={[styles.msStatus, { color: MS_COLOR[m.status] }]}>{MS_LABEL[m.status]}</Text>
+                    )}
+                  </View>
+                ))
+              )}
+              {showAddMs && (
+                <View style={styles.inlineForm}>
+                  <TextInput style={styles.inlineInput} value={msTitle} onChangeText={setMsTitle} placeholder="Milestone (e.g. Foundation)" placeholderTextColor={colors.textTertiary} maxLength={160} />
+                  <TouchableOpacity style={[styles.inlineBtn, !msTitle.trim() && styles.disabled]} onPress={() => createMs.mutate()} disabled={!msTitle.trim() || createMs.isPending}>
+                    {createMs.isPending ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.inlineBtnText}>Add</Text>}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
         </View>
 
-        {/* Documents */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Documents</Text>
-          {project.documents.length === 0 ? (
-            <Text style={styles.empty}>No documents yet (blueprints, permits, contract).</Text>
-          ) : (
-            project.documents.map((d) => (
-              <TouchableOpacity key={d.id} style={styles.docRow} onPress={() => Linking.openURL(d.fileUrl)}>
-                <Text style={styles.docLabel}>{d.label}</Text>
-                <Text style={styles.docType}>{d.docType}</Text>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-
-        <Text style={styles.footer}>Milestone amounts are planning figures. Real prices are confirmed by your provider's quotes.</Text>
+        <Text style={styles.footer}>To hire a provider or move money, use the separate booking and quote flow.</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -199,6 +226,14 @@ const styles = StyleSheet.create({
   headerTitle: { ...typography.h3, color: colors.text, flex: 1, textAlign: 'center' },
   bodyScroll: { flex: 1 },
   body: { padding: spacing.base, paddingBottom: 40, gap: spacing.md },
+  bodyWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.xl },
+  workspace: { gap: spacing.md },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start' },
+  primaryColumn: { flex: 3, gap: spacing.md, minWidth: 0 },
+  secondaryColumn: { flex: 2, gap: spacing.md, minWidth: 0 },
+  planNotice: { backgroundColor: colors.infoLight, borderWidth: 1, borderColor: colors.info, borderRadius: borderRadius.lg, padding: spacing.base },
+  planNoticeTitle: { ...typography.body, color: colors.infoDark, fontWeight: '700', textTransform: 'capitalize' },
+  planNoticeText: { ...typography.bodySmall, color: colors.infoDark, lineHeight: 20, marginTop: spacing.xs },
   description: { ...typography.body, color: colors.textSecondary, lineHeight: 20 },
   card: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
@@ -214,6 +249,8 @@ const styles = StyleSheet.create({
   msTitle: { ...typography.body, fontWeight: '600', color: colors.text },
   msMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
   msStatus: { fontSize: 12, fontWeight: '600' },
+  msAction: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: borderRadius.md, backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary },
+  msActionText: { ...typography.caption, color: colors.primary, fontWeight: '700' },
   selRow: { paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   selLabel: { ...typography.caption, color: colors.textSecondary },
   selValue: { ...typography.body, color: colors.text, fontWeight: '600', marginTop: 1 },

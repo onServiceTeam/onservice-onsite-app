@@ -337,7 +337,7 @@ export async function reviewStaff(params: {
       const ownerUserId = owner.rows[0]?.user_id;
       const memberName = owner.rows[0]?.member_name ?? updated.role_title ?? 'Your team member';
       if (ownerUserId) {
-        await notificationService.createNotification({
+        await notificationService.createPushNotification({
           userId: ownerUserId,
           type: params.decision === 'approved' ? 'provider_staff_approved' : 'provider_staff_rejected',
           title: params.decision === 'approved' ? 'Team member approved' : 'Team member not approved',

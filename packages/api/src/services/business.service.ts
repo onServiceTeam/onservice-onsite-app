@@ -371,7 +371,7 @@ export async function addMember(
     [businessId],
   );
 
-  await notificationService.createNotification({
+  await notificationService.createPushNotification({
     userId: targetUserId,
     type: 'business_update',
     title: 'Business Account Invitation',

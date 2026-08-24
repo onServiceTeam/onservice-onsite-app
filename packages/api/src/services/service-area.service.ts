@@ -542,7 +542,7 @@ export async function notifyWaitlist(serviceAreaId: string): Promise<number> {
       );
 
       if (userResult.rows[0]) {
-        await notificationService.createNotification({
+        await notificationService.createPushNotification({
           userId: userResult.rows[0].id,
           type: 'area_launch',
           title: `${area.name} is Now Live!`,

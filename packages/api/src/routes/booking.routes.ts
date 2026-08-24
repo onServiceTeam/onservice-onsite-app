@@ -1339,7 +1339,7 @@ router.post(
 
       // Post-commit notification — best-effort only.
       try {
-        await notificationService.createNotification({
+        await notificationService.createPushNotification({
           userId: bk.customer_id,
           type: 'customer_cancelled',
           title: 'Booking Cancelled — No-Show',

@@ -455,7 +455,7 @@ export async function updateRecurringPrice(
     [newServicePrice, serviceFee, totalAmount, recurringId],
   );
 
-  await notificationService.createNotification({
+  await notificationService.createPushNotification({
     userId: rb.rows[0]!.customer_id,
     type: 'recurring_update',
     title: 'Recurring Service Price Updated',
@@ -644,7 +644,7 @@ export async function processRecurringBookings(): Promise<number> {
       // Send the generic "booking created" notification only when
       // auto-charge didn't already send a "succeeded" one.
       if (!autoChargeSucceeded) {
-        await notificationService.createNotification({
+        await notificationService.createPushNotification({
           userId: rb.customer_id,
           type: 'recurring_update',
           title: 'Recurring Booking Created',

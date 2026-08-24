@@ -42,7 +42,7 @@ jest.mock('../src/utils/logger', () => ({
 
 const createNotificationMock = jest.fn();
 jest.mock('../src/services/notification.service', () => ({
-  createNotification: (...args: unknown[]) => createNotificationMock(...args),
+  createPushNotification: (...args: unknown[]) => createNotificationMock(...args),
 }));
 
 import * as invoiceService from '../src/services/invoice.service';

@@ -51,11 +51,11 @@ describe('provider push deep links', () => {
     act(() => {
       mockResponseListener!({
         notification: {
-          request: { content: { data: { type: 'new_message', conversationId: 'conversation-1' } } },
+          request: { content: { data: { type: 'new_message', conversationId: 'conversation-1', bookingId: 'booking-1' } } },
         },
       });
     });
 
-    expect(mockRouterPush).toHaveBeenCalledWith('/provider/chat/conversation-1');
+    expect(mockRouterPush).toHaveBeenCalledWith('/provider/chat/booking-1');
   });
 });

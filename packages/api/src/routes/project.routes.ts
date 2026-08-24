@@ -1,5 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { rbacMiddleware } from '../middleware/rbac.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import * as projectService from '../services/project.service';
@@ -22,10 +23,10 @@ function pathId(req: AuthenticatedRequest, name: string): string {
 }
 
 // ── Projects ──────────────────────────────────────────────────────────────
-router.post('/', authMiddleware, validationMiddleware(createProjectSchema),
+router.post('/', authMiddleware, rbacMiddleware('customer'), validationMiddleware(createProjectSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const out = await projectService.createProject(req.user!.userId, req.body);
+      const out = await projectService.createProject(requester(req), req.body);
       res.status(201).json({ success: true, data: out });
     } catch (e) { next(e); }
   });

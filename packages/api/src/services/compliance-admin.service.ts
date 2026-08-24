@@ -211,7 +211,7 @@ export async function requestDsrMoreInfo(input: {
 
   // Best-effort post-commit notification.
   try {
-    await notificationService.createNotification({
+    await notificationService.createPushNotification({
       userId: current.user_id,
       type: 'dsr_info_requested',
       title: 'More information needed for your data request',

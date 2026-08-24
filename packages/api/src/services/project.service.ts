@@ -28,6 +28,8 @@ interface ProjectRow {
   estimated_total: number | null;
   created_at: Date;
   updated_at: Date;
+  customer_name?: string;
+  provider_name?: string | null;
 }
 
 interface MilestoneRow {
@@ -79,6 +81,8 @@ function formatProject(p: ProjectRow): Record<string, unknown> {
     estimatedTotal: p.estimated_total,
     createdAt: p.created_at,
     updatedAt: p.updated_at,
+    customerName: p.customer_name,
+    providerName: p.provider_name,
   };
 }
 
@@ -150,7 +154,7 @@ function isOwnerOrAdmin(project: ProjectRow, requester: { userId: string; role: 
 }
 
 export async function createProject(
-  customerUserId: string,
+  requester: { userId: string; role: string },
   input: {
     title: string;
     description?: string;
@@ -160,6 +164,10 @@ export async function createProject(
     estimatedTotal?: number | null;
   },
 ): Promise<Record<string, unknown>> {
+  if (requester.role !== 'customer') {
+    throw createAppError('Only customers can create projects.', 403);
+  }
+  const customerUserId = requester.userId;
   const title = input.title?.trim();
   if (!title) throw createAppError('Project title is required.', 400);
 
@@ -190,21 +198,29 @@ export async function listProjects(
   let where = '';
 
   if (isAdmin) {
-    if (opts.status) { params.push(opts.status); where = `WHERE status = $1`; }
+    if (opts.status) { params.push(opts.status); where = `WHERE p.status = $1`; }
   } else {
     const pid = await providerIdForUser(requester.userId);
     if (pid) {
       params.push(requester.userId, pid);
-      where = `WHERE customer_id = $1 OR provider_id = $2`;
+      where = `WHERE (p.customer_id = $1 OR p.provider_id = $2)`;
     } else {
       params.push(requester.userId);
-      where = `WHERE customer_id = $1`;
+      where = `WHERE p.customer_id = $1`;
     }
-    if (opts.status) { params.push(opts.status); where += ` AND status = $${params.length}`; }
+    if (opts.status) { params.push(opts.status); where += ` AND p.status = $${params.length}`; }
   }
 
   const r = await db.query<ProjectRow>(
-    `SELECT * FROM projects ${where} ORDER BY created_at DESC LIMIT 200`,
+    `SELECT p.*,
+            TRIM(CONCAT(customer.first_name, ' ', customer.last_name)) AS customer_name,
+            provider.business_name AS provider_name
+       FROM projects p
+       JOIN users customer ON customer.id = p.customer_id
+       LEFT JOIN providers provider ON provider.id = p.provider_id
+       ${where}
+      ORDER BY p.created_at DESC
+      LIMIT 200`,
     params,
   );
   return r.rows.map(formatProject);
@@ -237,6 +253,13 @@ export async function updateProject(
   if (!isOwnerOrAdmin(project, requester)) {
     throw createAppError('Only the project owner can change project details.', 403);
   }
+  // Projects currently have no provider invitation/acceptance or booking
+  // relationship. Allowing a customer to write an arbitrary provider UUID
+  // would grant that provider access to the project's private details and
+  // documents. Keep assignment closed until that workflow is designed.
+  if (patch.providerId !== undefined) {
+    throw createAppError('Provider assignment is not available for projects.', 400);
+  }
   const sets: string[] = [];
   const values: unknown[] = [];
   const add = (col: string, val: unknown): void => { sets.push(`${col} = $${sets.length + 1}`); values.push(val); };
@@ -250,8 +273,6 @@ export async function updateProject(
   if (patch.address !== undefined) add('address', patch.address?.trim() || null);
   if (patch.city !== undefined) add('city', patch.city?.trim() || null);
   if (patch.estimatedTotal !== undefined) add('estimated_total', patch.estimatedTotal);
-  if (patch.providerId !== undefined) add('provider_id', patch.providerId);
-
   if (sets.length === 0) throw createAppError('No fields to update.', 400);
   sets.push(`updated_at = NOW()`);
   values.push(projectId);
@@ -303,6 +324,18 @@ export async function updateMilestone(
   const statusOnly = !owner;
   if (statusOnly && (patch.title !== undefined || patch.amount !== undefined || patch.description !== undefined || patch.sortOrder !== undefined || patch.targetDate !== undefined)) {
     throw createAppError('Assigned providers can only update milestone status.', 403);
+  }
+
+  if (patch.status !== undefined) {
+    const statusRank: Record<MilestoneStatus, number> = {
+      pending: 0,
+      in_progress: 1,
+      completed: 2,
+    };
+    const currentStatus = row.status as MilestoneStatus;
+    if (statusRank[patch.status] < statusRank[currentStatus]) {
+      throw createAppError('Completed project progress cannot be moved backward.', 409);
+    }
   }
 
   const sets: string[] = [];

@@ -543,7 +543,7 @@ router.post(
       );
 
       try {
-        await notificationService.createNotification({
+        await notificationService.createPushNotification({
           userId: cancelled.customer_id,
           type: 'recurring_update',
           title: 'Recurring booking cancelled',
@@ -755,7 +755,7 @@ router.post(
       );
 
       if (account.rows[0]) {
-        await notificationService.createNotification({
+        await notificationService.createPushNotification({
           userId: account.rows[0].owner_user_id,
           type: 'business_update',
           title: 'Business Account Approved',

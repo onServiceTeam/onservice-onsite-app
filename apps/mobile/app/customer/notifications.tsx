@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getNotifications,
   markNotificationRead,
@@ -18,7 +18,6 @@ import {
   type Notification,
 } from '@/services/notification.service';
 import { formatRelative } from '@/utils/date';
-import { Routes, buildRoute } from '@/config/navigation';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import {
@@ -27,6 +26,10 @@ import {
 } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { showToast } from '@/lib/toast';
+import { getErrorMessage } from '@/utils/errors';
+import { useResponsive } from '@/hooks/useResponsive';
+import { resolveNotificationRoute } from '@/utils/notification-navigation';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -68,34 +71,46 @@ const NOTIFICATION_ICONS: Record<string, IconComponent> = {
   new_quote: Coins,
   quote_accepted: CheckCircle2,
   quote_expired: AlertTriangle,
+  no_provider_available: AlertTriangle,
+  refund_processed: Coins,
+  booking_expired: AlertTriangle,
+  auto_confirmed: CheckCircle2,
+  area_launch: PartyPopper,
 };
 
 export default function NotificationsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
 
-  const { data, isLoading, isRefetching, isError, refetch } = useQuery({
-    queryKey: ['notifications'],
-    queryFn: () => getNotifications(1, 50),
+  const { data, isLoading, isRefetching, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ['notifications', 'customer'],
+    queryFn: ({ pageParam }) => getNotifications(pageParam, 50),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, pages) => {
+      const loaded = pages.reduce((sum, page) => sum + page.notifications.length, 0);
+      return loaded < lastPage.total ? pages.length + 1 : undefined;
+    },
     staleTime: 30 * 1000,
   });
 
   const markAllMutation = useMutation({
     mutationFn: markAllNotificationsRead,
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['notifications'] }); },
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['notifications', 'customer'] }); },
+    onError: (err: unknown) => showToast(getErrorMessage(err, 'Could not mark notifications as read.'), 'error'),
   });
 
   const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
 
-  const notifications = data?.notifications ?? [];
-  const unread = data?.unread ?? 0;
+  const notifications = data?.pages.flatMap((page) => page.notifications) ?? [];
+  const unread = data?.pages[0]?.unread ?? 0;
 
   const handleNotificationPress = async (notif: Notification): Promise<void> => {
     try {
       if (!notif.isRead) {
         await markNotificationRead(notif.id);
-        void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        void queryClient.invalidateQueries({ queryKey: ['notifications', 'customer'] });
       }
     } catch {
       // Best-effort mark as read; don't block navigation
@@ -106,38 +121,8 @@ export default function NotificationsScreen(): React.ReactElement {
     // referral credits) had no destination — tapping them only
     // marked them read with no further action. Now: route to the
     // most specific destination available based on the data payload.
-    const notifData = notif.data as Record<string, string> | null;
-    // BUG-PHASE100-01 fix — chat-related notifications (new_message,
-    // chat_last_message, chat_started) include `bookingId` in their
-    // data payload, but routing them to /customer/booking/[id] dumped
-    // the customer on the booking detail and forced them to tap
-    // "Chat with Provider" again to actually read the message that
-    // just buzzed their phone. Two taps where one should do. Now
-    // these types short-circuit to the chat thread directly.
-    if (
-      (notif.type === 'new_message'
-        || notif.type === 'chat_last_message'
-        || notif.type === 'chat_started')
-      && notifData?.bookingId
-    ) {
-      router.push(buildRoute(Routes.CUSTOMER.CHAT, { id: notifData.bookingId }));
-    } else if (notifData?.bookingId) {
-      router.push(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: notifData.bookingId }));
-    } else if (notifData?.disputeId && notifData?.bookingId === undefined) {
-      // Disputes always tied to a booking server-side, but if the
-      // notification data only has disputeId, fall through to
-      // bookings tab so the customer can find it.
-      router.push(Routes.TABS.BOOKINGS);
-    } else if (notifData?.providerId) {
-      router.push(buildRoute(Routes.CUSTOMER.PROVIDER_PROFILE, { id: notifData.providerId }));
-    } else if (notif.type === 'promo' || notif.type === 'referral') {
-      router.push(Routes.CUSTOMER.REFERRAL);
-    } else if (notif.type === 'rating_received' || notif.type === 'job_completed') {
-      router.push(Routes.TABS.BOOKINGS);
-    } else if (notif.type === 'payment_released') {
-      router.push(Routes.TABS.WALLET);
-    }
-    // Else: no nav, just stays on notifications list (already marked read).
+    const route = resolveNotificationRoute(notif.type, notif.data, 'customer');
+    if (route) router.push(route);
   };
 
   const renderItem = ({ item }: { item: Notification }): React.ReactElement => {
@@ -167,8 +152,8 @@ export default function NotificationsScreen(): React.ReactElement {
         </TouchableOpacity>
         <Text style={styles.title}>Notifications</Text>
         {unread > 0 && (
-          <TouchableOpacity onPress={() => markAllMutation.mutate()} style={styles.markAllButton}>
-            <Text style={styles.markAllText}>Mark all read</Text>
+          <TouchableOpacity onPress={() => markAllMutation.mutate()} style={styles.markAllButton} disabled={markAllMutation.isPending}>
+            <Text style={styles.markAllText}>{markAllMutation.isPending ? 'Marking…' : 'Mark all read'}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -190,7 +175,8 @@ export default function NotificationsScreen(): React.ReactElement {
           data={notifications}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, !isPhone && styles.listWide]}
+          accessibilityLabel={!isPhone ? 'Wide customer notification inbox' : undefined}
           showsVerticalScrollIndicator={false}
           initialNumToRender={15}
           maxToRenderPerBatch={10}
@@ -206,6 +192,11 @@ export default function NotificationsScreen(): React.ReactElement {
               description="Booking updates, provider arrivals, quotes, and promos will appear here."
             />
           }
+          ListFooterComponent={hasNextPage ? (
+            <TouchableOpacity style={styles.loadMoreButton} onPress={() => void fetchNextPage()} disabled={isFetchingNextPage}>
+              <Text style={styles.loadMoreText}>{isFetchingNextPage ? 'Loading…' : 'Load earlier notifications'}</Text>
+            </TouchableOpacity>
+          ) : null}
         />
       )}
     </View>
@@ -230,6 +221,7 @@ const styles = StyleSheet.create({
   markAllText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
 
   list: { padding: spacing.base, paddingBottom: 80 },
+  listWide: { width: '100%', maxWidth: 920, alignSelf: 'center', padding: spacing.xl },
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -265,6 +257,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     marginTop: spacing.sm,
   },
+  loadMoreButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
+  loadMoreText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
 
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { alignItems: 'center', paddingTop: 80 },

@@ -1618,7 +1618,7 @@ export async function expireApprovedChangeOrders(): Promise<number> {
         );
         const ids = customerLookup.rows[0];
         if (!ids) continue;
-        await notif.createNotification({
+        await notif.createPushNotification({
           userId: ids.customer_id,
           type: 'change_order_expired',
           title: 'Change order expired',
@@ -1626,7 +1626,7 @@ export async function expireApprovedChangeOrders(): Promise<number> {
           data: { bookingId: row.booking_id, changeOrderId: row.id },
         });
         if (ids.provider_user_id) {
-          await notif.createNotification({
+          await notif.createPushNotification({
             userId: ids.provider_user_id,
             type: 'change_order_expired',
             title: 'Change order expired',

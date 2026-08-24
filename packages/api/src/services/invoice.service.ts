@@ -384,7 +384,7 @@ async function runInvoiceGeneration(accountId: string | undefined): Promise<numb
     generated++;
 
     try {
-      await notificationService.createNotification({
+      await notificationService.createPushNotification({
         userId: c.account.owner_user_id,
         type: 'business_update',
         title: 'Monthly Invoice Ready',
@@ -582,7 +582,7 @@ export async function checkOverdueInvoices(): Promise<number> {
     for (const inv of result.rows) {
       if (!inv.owner_user_id) continue;
       try {
-        await notificationService.createNotification({
+        await notificationService.createPushNotification({
           userId: inv.owner_user_id,
           type: 'business_update',
           title: 'Invoice Overdue',

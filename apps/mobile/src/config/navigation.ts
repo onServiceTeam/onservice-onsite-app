@@ -50,6 +50,8 @@ export const Routes = {
     BOOKING_CONFIGURE: '/customer/booking/configure',
     BOOKING_JOB_REQUEST: '/customer/booking/job-request',
     BOOKING_QUOTES: '/customer/booking/quotes',
+    BOOKING_TRACKER: '/customer/booking/tracker',
+    BOOKING_COMPLETE: '/customer/booking/complete',
     BOOKING_MAKE_RECURRING: '/customer/booking/make-recurring',
     CHAT: '/customer/chat/[id]',
     // BUG-PHASE81-01 fix (same dead-route pattern as CRIT-80) — pre-fix
@@ -91,7 +93,7 @@ export const Routes = {
     // claims "single source of truth"; entries that 404 contradict
     // that contract and would crash any future caller that wired
     // them. Removed:
-    //   SUBCATEGORY, BOOKING_TRACKER, RATE_REVIEW, PROFILE,
+    //   SUBCATEGORY, RATE_REVIEW, PROFILE,
     //   PROVIDER_LIST, RECURRING_SETUP, BUSINESS_*  (8 entries),
     //   SERVICE_AREAS, SERVICE_AREA_DETAIL, WAITLIST, REBOOKING,
     //   SLOT_WAITLIST, DATA_PRIVACY, DATA_EXPORT, ACCOUNT_DELETION,

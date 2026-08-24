@@ -189,7 +189,7 @@ export async function createReview(
       const providerUserId = providerUser.rows[0]?.user_id;
       if (providerUserId) {
         const stars = '★'.repeat(data.rating) + '☆'.repeat(5 - data.rating);
-        await notificationService.createNotification({
+        await notificationService.createPushNotification({
           userId: providerUserId,
           type: 'rating_received',
           title: `New ${data.rating}-star review`,
@@ -203,7 +203,7 @@ export async function createReview(
         // not punitive — points the provider at the in-app standards/tips so
         // they can improve. Complements the admin Quality Watch alerts.
         if (data.rating <= 2) {
-          await notificationService.createNotification({
+          await notificationService.createPushNotification({
             userId: providerUserId,
             type: 'quality_standing',
             title: 'A customer rated this job low',

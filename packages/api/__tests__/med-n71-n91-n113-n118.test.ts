@@ -11,7 +11,7 @@ jest.mock('../src/models/db', () => ({
 
 const createNotificationMock = jest.fn().mockResolvedValue(undefined);
 jest.mock('../src/services/notification.service', () => ({
-  createNotification: (...args: unknown[]) => createNotificationMock(...args),
+  createPushNotification: (...args: unknown[]) => createNotificationMock(...args),
 }));
 
 jest.mock('../src/utils/logger', () => ({

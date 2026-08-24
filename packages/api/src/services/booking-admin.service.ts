@@ -1148,7 +1148,7 @@ export async function sendAdminMessageToBookingCustomer(
     );
   }
 
-  const notification = await notificationService.createNotification({
+  const notification = await notificationService.createPushNotification({
     userId: booking.customer_id,
     type: 'new_message',
     title: 'Message from onService support',

@@ -144,7 +144,7 @@ router.post(
         message: formatted,
       });
 
-      await notificationService.createNotification({
+      await notificationService.createPushNotification({
         userId: recipientId,
         type: 'new_message',
         title: 'New Message',

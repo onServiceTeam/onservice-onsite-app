@@ -21,6 +21,8 @@ export interface Project {
   estimatedTotal: number | null;
   createdAt: string;
   updatedAt: string;
+  customerName?: string;
+  providerName?: string | null;
 }
 
 export interface ProjectMilestone {

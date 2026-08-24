@@ -13,6 +13,7 @@ import { getStoredUser } from './secure-storage';
 // Phase K MED-K12 fix — publicStorage helpers for pushToken
 // persistence (token isn't PII; survives auth-migration).
 import { getPublicItem, setPublicItem } from './secure-storage.service';
+import { resolveNotificationRoute } from '@/utils/notification-navigation';
 
 interface NotificationBehavior {
   shouldShowAlert: boolean;
@@ -120,79 +121,6 @@ function getUserRole(): string {
 
 type NotificationData = Record<string, unknown>;
 
-function resolveDeepLink(data: NotificationData): string | null {
-  const type = typeof data?.type === 'string' ? data.type : '';
-  const bookingId = typeof data?.bookingId === 'string' ? data.bookingId : null;
-  const conversationId = typeof data?.conversationId === 'string' ? data.conversationId : null;
-  const role = getUserRole();
-  const isProvider = role === 'provider';
-
-  switch (type) {
-    case 'new_message':
-      if (conversationId) {
-        return isProvider
-          ? `/provider/chat/${conversationId}`
-          : `/customer/chat/${conversationId}`;
-      }
-      if (bookingId) {
-        return isProvider ? `/provider/job/${bookingId}` : `/customer/booking/${bookingId}`;
-      }
-      return null;
-
-    case 'new_job_available':
-    case 'quote_expired':
-      return bookingId ? `/provider/job/${bookingId}` : '/(provider-tabs)/jobs';
-
-    case 'provider_assigned':
-    case 'booking_confirmed':
-    case 'auto_confirmed':
-    case 'customer_cancelled':
-    case 'recurring_update':
-      return bookingId
-        ? (isProvider ? `/provider/job/${bookingId}` : `/customer/booking/${bookingId}`)
-        : null;
-
-    case 'provider_en_route':
-    case 'provider_arrived':
-      return bookingId ? `/customer/booking/tracker?bookingId=${bookingId}` : null;
-
-    case 'job_completed':
-      return bookingId ? `/customer/booking/complete?bookingId=${bookingId}` : null;
-
-    case 'payment_released':
-      return isProvider ? '/(provider-tabs)/earnings' : '/(tabs)/wallet';
-
-    case 'dispute_update':
-      return bookingId
-        ? (isProvider ? `/provider/job/${bookingId}` : `/customer/booking/${bookingId}`)
-        : null;
-
-    case 'nbi_expiring':
-      return '/provider/settings';
-
-    case 'rating_received':
-      return '/provider/reviews';
-
-    case 'quality_standing':
-      return '/provider/standards';
-
-    case 'business_update':
-      return '/(provider-tabs)/dashboard';
-
-    case 'area_launch':
-      return '/(tabs)/home';
-
-    default:
-      break;
-  }
-
-  if (bookingId) {
-    return isProvider ? `/provider/job/${bookingId}` : `/customer/booking/${bookingId}`;
-  }
-
-  return null;
-}
-
 export function usePushNotifications(): { isRegistered: boolean; registerForPushNotifications: () => Promise<boolean> } {
   const router = useRouter();
   const [isRegistered, setIsRegistered] = useState(false);
@@ -222,7 +150,9 @@ export function usePushNotifications(): { isRegistered: boolean; registerForPush
       (response) => {
         const data = response.notification.request.content.data as NotificationData | undefined;
         if (!data) return;
-        const route = resolveDeepLink(data);
+        const role = getUserRole() === 'provider' ? 'provider' : 'customer';
+        const type = typeof data.type === 'string' ? data.type : '';
+        const route = resolveNotificationRoute(type, data, role);
         if (route) {
           router.push(route as never);
         }

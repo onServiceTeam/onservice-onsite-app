@@ -340,7 +340,7 @@ export async function attemptAutoCharge(
 
       // Notify customer.
       try {
-        await notificationService.createNotification({
+        await notificationService.createPushNotification({
           userId: ctx.customerId,
           type: 'recurring_auto_charge_succeeded',
           title: 'Auto-charge successful',
@@ -414,7 +414,7 @@ export async function attemptAutoCharge(
 
     // Notify customer (failure).
     try {
-      await notificationService.createNotification({
+      await notificationService.createPushNotification({
         userId: ctx.customerId,
         type: 'recurring_auto_charge_failed',
         title: suspendedNow ? 'Auto-charge suspended' : 'Auto-charge failed',
@@ -439,7 +439,7 @@ export async function attemptAutoCharge(
     if (suspendedNow) {
       // Admin-side notification (target_id = customer for context).
       try {
-        await notificationService.createNotification({
+        await notificationService.createPushNotification({
           userId: ctx.customerId, // customer copy
           type: 'recurring_auto_charge_suspended',
           title: 'Recurring auto-charge suspended',

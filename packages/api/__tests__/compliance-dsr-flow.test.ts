@@ -49,7 +49,7 @@ jest.mock('../src/utils/logger', () => ({
 const createNotificationMock = jest.fn();
 
 jest.mock('../src/services/notification.service', () => ({
-  createNotification: (...args: unknown[]) => createNotificationMock(...args),
+  createPushNotification: (...args: unknown[]) => createNotificationMock(...args),
 }));
 
 import * as customerSvc from '../src/services/compliance.service';

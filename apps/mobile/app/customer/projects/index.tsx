@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   title: { ...typography.h3, color: colors.text },
   newBtn: { ...typography.body, fontWeight: '700', color: colors.info },
-  body: { padding: spacing.base, paddingBottom: 40, gap: spacing.md, flexGrow: 1 },
+  body: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.base, paddingBottom: 40, gap: spacing.md, flexGrow: 1 },
   gridRow: { gap: spacing.md },
   card: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   cardGrid: { flex: 1 },

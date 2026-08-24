@@ -47,7 +47,10 @@ export type NotificationType =
   | 'provider_assigned' | 'provider_en_route' | 'provider_arrived'
   | 'job_completed' | 'auto_confirmed'
   // Payments + disputes
-  | 'refund_processed' | 'dispute_update' | 'payment_released'
+  | 'payment' | 'refund_processed' | 'dispute_update' | 'payment_released'
+  | 'payout'
+  // Retention and marketing values also written by transactional services.
+  | 'referral' | 'suki' | 'promo'
   // Provider-side
   | 'new_job_available' | 'job_accepted'
   | 'rating_received' | 'tier_upgrade' | 'nbi_expiring'
@@ -299,10 +302,14 @@ async function deliverPushToDevice(
   body: string,
   data?: Record<string, unknown>,
 ): Promise<void> {
+  const notificationType = typeof data?.type === 'string' ? data.type : undefined;
+  if (!(await isPushEnabledForType(userId, notificationType, data))) {
+    logger.info('Push suppressed by notification preferences', { userId, type: notificationType });
+    return;
+  }
   // Phase 36a — quiet-hours suppression. The notifications row was
   // already INSERTed by createNotification; we only skip the push
   // wake-up. User sees the message when they next open the app.
-  const notificationType = typeof data?.type === 'string' ? data.type : undefined;
   if (await isInQuietHours(userId, notificationType)) {
     logger.info('Push suppressed by quiet hours', { userId, type: notificationType });
     return;
@@ -402,6 +409,72 @@ async function deliverPushToDevice(
   }
 }
 
+type PushPreferenceKey =
+  | 'bookingUpdates'
+  | 'providerActivity'
+  | 'paymentAlerts'
+  | 'messages'
+  | 'promotions'
+  | 'sukiRewards'
+  | 'reminders'
+  | 'system';
+
+function pushPreferenceForType(
+  type: string | undefined,
+  data?: Record<string, unknown>,
+): PushPreferenceKey {
+  if (!type) return 'system';
+  if (['new_message', 'chat_started', 'chat_last_message'].includes(type)) return 'messages';
+  if (['refund_processed', 'payment_released', 'payout', 'recurring_auto_charge_succeeded', 'recurring_auto_charge_failed', 'recurring_auto_charge_suspended'].includes(type)) return 'paymentAlerts';
+  if (['provider_assigned', 'provider_en_route', 'provider_arrived'].includes(type)) return 'providerActivity';
+  if (['provider_reminder', 'nbi_expiring', 'change_order_expired'].includes(type)) return 'reminders';
+  if (type === 'area_launch' && data?.waitlistId) return 'reminders';
+  if (['promo', 'area_launch'].includes(type)) return 'promotions';
+  if (['referral', 'suki', 'tier_upgrade'].includes(type)) return 'sukiRewards';
+  if (
+    type.startsWith('booking_')
+    || ['no_provider_available', 'customer_cancelled', 'provider_cancelled', 'job_completed', 'auto_confirmed', 'dispute_update', 'new_job_available', 'new_job_request', 'job_accepted', 'new_quote', 'quote_accepted', 'quote_expired', 'recurring_update'].includes(type)
+  ) return 'bookingUpdates';
+  return 'system';
+}
+
+async function isPushEnabledForType(
+  userId: string,
+  type: string | undefined,
+  data?: Record<string, unknown>,
+): Promise<boolean> {
+  const prefs = await getNotificationPreferences(userId);
+  const key = pushPreferenceForType(type, data);
+  if (!prefs[key]) return false;
+  if (key === 'promotions') {
+    return prefs.marketingPushEnabled && prefs.marketingConsentAcknowledgedAt !== null;
+  }
+  return true;
+}
+
+/**
+ * Store an inbox notification and wake the user's device. The database row is
+ * authoritative; device delivery remains best-effort and is retried by the
+ * push retry worker if Expo is unavailable.
+ */
+export async function createPushNotification(params: CreateNotificationParams): Promise<NotificationRow> {
+  const notification = await createNotification(params);
+  void deliverPushToDevice(
+    params.userId,
+    params.title,
+    params.body,
+    { ...params.data, notificationId: notification.id, type: params.type },
+  ).catch((error: unknown) => {
+    logger.error('Push delivery setup failed', {
+      userId: params.userId,
+      notificationId: notification.id,
+      type: params.type,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
+  return notification;
+}
+
 export async function sendPushNotification(
   userId: string,
   title: string,
@@ -409,9 +482,7 @@ export async function sendPushNotification(
   type: NotificationType = 'booking_confirmed',
   data?: Record<string, unknown>,
 ): Promise<void> {
-  const notification = await createNotification({ userId, type, title, body, data });
-
-  void deliverPushToDevice(userId, title, body, { ...data, notificationId: notification.id, type });
+  await createPushNotification({ userId, type, title, body, data });
 }
 
 export async function notifyProviderNewJob(
@@ -434,15 +505,13 @@ export async function notifyProviderNewJob(
     'New Job Available',
     `${serviceName} in ${city} — ${amountStr}`,
   );
-  const n = await createNotification({
+  await createPushNotification({
     userId: providerUserId,
     type: 'new_job_available',
     title,
     body,
     data: { bookingId, serviceName, amount, offerId },
   });
-
-  void deliverPushToDevice(providerUserId, title, body, { bookingId, serviceName, amount, offerId, notificationId: n.id, type: 'new_job_available' });
 
   // Also emit real-time socket event so the in-app modal fires immediately
   emitToUser(providerUserId, 'new:job', { bookingId, serviceName, amount, city, title, body, offerId });
@@ -459,15 +528,13 @@ export async function notifyCustomerProviderAssigned(
     'Provider Assigned',
     `${providerName} has been assigned to your booking. They will contact you shortly.`,
   );
-  const n = await createNotification({
+  await createPushNotification({
     userId: customerId,
     type: 'provider_assigned',
     title,
     body,
     data: { bookingId, providerName },
   });
-
-  void deliverPushToDevice(customerId, title, body, { bookingId, providerName, notificationId: n.id, type: 'provider_assigned' });
 }
 
 export async function notifyBookingStatusChange(
@@ -520,15 +587,13 @@ export async function notifyBookingStatusChange(
 
   const { title, body } = translation;
 
-  const n = await createNotification({
+  await createPushNotification({
     userId,
     type,
     title,
     body,
     data: { bookingId, status, locale },
   });
-
-  void deliverPushToDevice(userId, title, body, { bookingId, status, notificationId: n.id, type });
 }
 
 export function formatNotification(n: NotificationRow): Record<string, unknown> {
