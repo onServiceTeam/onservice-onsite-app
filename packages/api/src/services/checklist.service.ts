@@ -47,6 +47,8 @@ interface BookingRow {
   id: string;
   category_id: string;
   provider_user_id: string | null;
+  staff_user_id: string | null;
+  staff_status: string | null;
   customer_id: string;
   status: string;
 }
@@ -58,13 +60,15 @@ async function loadBookingForActor(
 ): Promise<BookingRow> {
   const result = await db.query<BookingRow>(
     `SELECT b.id,
-            sub.category_id,
+            b.category_id,
             p.user_id   AS provider_user_id,
+            ps.user_id  AS staff_user_id,
+            ps.status   AS staff_status,
             b.customer_id,
             b.status
        FROM bookings b
-       LEFT JOIN service_subcategories sub ON sub.id = b.subcategory_id
        LEFT JOIN providers p ON p.id = b.provider_id
+       LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
       WHERE b.id = $1`,
     [bookingId],
   );
@@ -75,7 +79,8 @@ async function loadBookingForActor(
   if (role === 'customer' && row.customer_id !== userId) {
     throw createAppError('You do not have access to this booking.', 403);
   }
-  if (role === 'provider' && row.provider_user_id !== userId) {
+  const isAssignedApprovedStaff = row.staff_user_id === userId && row.staff_status === 'approved';
+  if (role === 'provider' && row.provider_user_id !== userId && !isAssignedApprovedStaff) {
     throw createAppError('You do not have access to this booking.', 403);
   }
   return row;
@@ -320,6 +325,13 @@ export async function toggleChecklistItem(
   role: 'customer' | 'provider' | 'admin',
   patch: { completed: boolean; photoId?: string | null; notes?: string | null },
 ): Promise<{ id: string; isCompleted: boolean; completedAt: string | null; photoId: string | null }> {
+  // Customers may read the provider's checklist after it exists, but they may
+  // not author the provider's execution record. Customer acceptance belongs in
+  // the separate, customer-controlled closeout flow.
+  if (role === 'customer') {
+    throw createAppError('Customers cannot change provider checklist items.', 403);
+  }
+
   const result = await db.transaction(async (client) => {
     // Fetch item + booking context for authorization + photo_required check.
     const itemRow = await client.query<{
@@ -329,16 +341,21 @@ export async function toggleChecklistItem(
       is_required: boolean;
       booking_id: string;
       provider_user_id: string | null;
+      staff_user_id: string | null;
+      staff_status: string | null;
       customer_id: string;
     }>(
       `SELECT bi.id, bi.title_snapshot, bi.photo_required, bi.is_required,
               bc.booking_id,
               p.user_id    AS provider_user_id,
+              ps.user_id   AS staff_user_id,
+              ps.status    AS staff_status,
               b.customer_id
          FROM booking_checklist_items bi
          JOIN booking_checklists bc ON bc.id = bi.booking_checklist_id
          JOIN bookings b ON b.id = bc.booking_id
          LEFT JOIN providers p ON p.id = b.provider_id
+         LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
         WHERE bi.id = $1
         FOR UPDATE OF bi`,
       [itemId],
@@ -346,10 +363,8 @@ export async function toggleChecklistItem(
     const row = itemRow.rows[0];
     if (!row) throw createAppError('Checklist item not found.', 404);
 
-    if (role === 'customer' && row.customer_id !== userId) {
-      throw createAppError('You do not have access to this booking.', 403);
-    }
-    if (role === 'provider' && row.provider_user_id !== userId) {
+    const isAssignedApprovedStaff = row.staff_user_id === userId && row.staff_status === 'approved';
+    if (role === 'provider' && row.provider_user_id !== userId && !isAssignedApprovedStaff) {
       throw createAppError('You do not have access to this booking.', 403);
     }
 
@@ -364,14 +379,24 @@ export async function toggleChecklistItem(
     // If photoId provided, verify it exists, belongs to the same booking,
     // and is not soft-deleted.
     if (patch.photoId) {
-      const photoCheck = await client.query<{ booking_id: string; deleted_at: Date | null }>(
-        `SELECT booking_id, deleted_at FROM booking_photos WHERE id = $1`,
+      const photoCheck = await client.query<{
+        booking_id: string;
+        deleted_at: Date | null;
+        photo_type: string;
+        uploaded_by_role: string;
+      }>(
+        `SELECT booking_id, deleted_at, photo_type, uploaded_by_role
+           FROM booking_photos
+          WHERE id = $1`,
         [patch.photoId],
       );
       const photo = photoCheck.rows[0];
       if (!photo || photo.deleted_at) throw createAppError('Photo not found.', 400);
       if (photo.booking_id !== row.booking_id) {
         throw createAppError('Photo does not belong to this booking.', 400);
+      }
+      if (photo.photo_type !== 'checklist' || photo.uploaded_by_role !== 'provider') {
+        throw createAppError('Checklist proof must be a provider checklist photo.', 400);
       }
     }
 

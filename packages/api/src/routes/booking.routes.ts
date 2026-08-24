@@ -43,6 +43,8 @@ interface PreTransitionRow {
   latitude: string | null;
   longitude: string | null;
   is_hourly?: boolean;
+  work_started_at: Date | null;
+  updated_at: Date;
 }
 
 function haversineDistanceMeters(
@@ -499,7 +501,7 @@ router.patch(
       const newStatus = req.body.status as BookingStatus;
 
       const preTransitionRow = await db.query<PreTransitionRow>(
-        `SELECT status, escrow_status, latitude, longitude, is_hourly FROM bookings WHERE id = $1`,
+        `SELECT status, escrow_status, latitude, longitude, is_hourly, work_started_at, updated_at FROM bookings WHERE id = $1`,
         [id],
       );
       const oldStatus = preTransitionRow.rows[0]?.status;
@@ -535,13 +537,20 @@ router.patch(
       }
 
       if (newStatus === 'completed_by_provider') {
-        // Enforce minimum time-on-site: provider must have been in_progress for at least N minutes
-        const inProgressRow = await db.query<{ updated_at: Date }>(
-          `SELECT updated_at FROM bookings WHERE id = $1 AND status = 'in_progress'`,
-          [id],
-        );
-        if (inProgressRow.rows[0]) {
-          const elapsedMs = Date.now() - new Date(inProgressRow.rows[0].updated_at).getTime();
+        // Enforce minimum time on site from the immutable server-clocked start
+        // marker. `updated_at` changes when photos or other booking evidence is
+        // saved, so using it here incorrectly restarted the wait after proof was
+        // uploaded. Five production in-progress rows created before the marker
+        // was wired have it NULL, so they retain the prior updated_at fallback;
+        // every current transition stamps work_started_at and uses that stable
+        // value even when later evidence updates the booking row.
+        const startedAt = preTransitionRow.rows[0]?.work_started_at
+          ?? preTransitionRow.rows[0]?.updated_at;
+        if (!startedAt) {
+          throw createAppError('Work start time is missing. Contact support before completing this job.', 409);
+        }
+        {
+          const elapsedMs = Date.now() - new Date(startedAt).getTime();
           const minimumMs = platformConfig.minimumTimeOnSiteMinutes * 60 * 1000;
           if (elapsedMs < minimumMs) {
             const remainingMin = Math.ceil((minimumMs - elapsedMs) / 60000);
