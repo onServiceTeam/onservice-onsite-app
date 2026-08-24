@@ -18,7 +18,7 @@ it('Bug UX-140 — ordinary push preferences cannot falsely opt a customer into 
   render(<QueryClientProvider client={client}><NotificationSettingsScreen /></QueryClientProvider>);
 
   expect(await screen.findByLabelText('Wide notification preference workspace')).toBeTruthy();
-  expect(screen.getByText('Marketing alerts are off')).toBeTruthy();
-  expect(screen.getByText(/require a separate recorded consent/i)).toBeTruthy();
+  expect(screen.getByText('Marketing consent is separate')).toBeTruthy();
+  expect(screen.getByText(/require recorded consent/i)).toBeTruthy();
   expect(screen.queryByText('Promotions & Offers')).toBeNull();
 });

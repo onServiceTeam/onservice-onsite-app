@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View,
@@ -6,16 +6,14 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Switch,
   Alert,
-  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth.store';
-import { usePushNotifications } from '@/services/push.service';
 import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 export default function ProviderSettingsScreen(): React.ReactElement {
@@ -23,32 +21,7 @@ export default function ProviderSettingsScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const { isRegistered, registerForPushNotifications } = usePushNotifications();
-
-  const [pushEnabled, setPushEnabled] = useState(false);
-
-  useEffect(() => {
-    setPushEnabled(isRegistered);
-  }, [isRegistered]);
-
-  const handlePushToggle = async (enabled: boolean): Promise<void> => {
-    if (enabled) {
-      const success = await registerForPushNotifications();
-      setPushEnabled(success);
-      if (!success) {
-        Alert.alert(
-          'Permission Required',
-          'Please enable notifications in your device settings.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: (): void => { void Linking.openSettings(); } },
-          ],
-        );
-      }
-    } else {
-      setPushEnabled(false);
-    }
-  };
+  const { isPhone } = useResponsive();
 
   const handleLogout = (): void => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
@@ -57,8 +30,7 @@ export default function ProviderSettingsScreen(): React.ReactElement {
         text: 'Log Out',
         style: 'destructive',
         onPress: (): void => {
-          logout();
-          router.replace(Routes.AUTH.LOGIN);
+          void logout().finally(() => router.replace(Routes.AUTH.LOGIN));
         },
       },
     ]);
@@ -77,7 +49,12 @@ export default function ProviderSettingsScreen(): React.ReactElement {
         <Text style={styles.title}>Settings</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]}
+        showsVerticalScrollIndicator={false}
+        accessibilityLabel={!isPhone ? 'Wide provider settings workspace' : undefined}
+      >
         <Text style={styles.sectionLabel}>ACCOUNT</Text>
         <View style={styles.section}>
           <View style={styles.row}>
@@ -104,18 +81,26 @@ export default function ProviderSettingsScreen(): React.ReactElement {
 
         <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>
         <View style={styles.section}>
-          <View style={[styles.row, { borderBottomWidth: 0 }]}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push(Routes.PROVIDER.NOTIFICATION_SETTINGS)}
+          >
             <View style={styles.rowLabelGroup}>
-              <Text style={styles.rowLabel}>Push Notifications</Text>
-              <Text style={styles.rowHint}>Get notified about new jobs and updates</Text>
+              <Text style={styles.rowLabel}>Notification Preferences</Text>
+              <Text style={styles.rowHint}>Choose job, payment, message, reminder, and system alerts</Text>
             </View>
-            <Switch
-              value={pushEnabled}
-              onValueChange={(val) => void handlePushToggle(val)}
-              trackColor={{ false: colors.border, true: colors.secondary }}
-              thumbColor={colors.white}
-            />
-          </View>
+            <Text style={styles.rowArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.row, { borderBottomWidth: 0 }]}
+            onPress={() => router.push(Routes.PROVIDER.NOTIFICATIONS)}
+          >
+            <View style={styles.rowLabelGroup}>
+              <Text style={styles.rowLabel}>Notification History</Text>
+              <Text style={styles.rowHint}>Review the complete in-app activity record</Text>
+            </View>
+            <Text style={styles.rowArrow}>›</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionLabel}>PROFILE</Text>
@@ -245,6 +230,7 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base },
+  scrollContentWide: { width: '100%', maxWidth: 900, alignSelf: 'center', paddingHorizontal: spacing.xl },
 
   sectionLabel: {
     ...typography.caption,

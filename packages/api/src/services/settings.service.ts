@@ -273,6 +273,33 @@ export async function getSettingBoolean(key: string): Promise<boolean> {
   return val === 'true' || val === '1';
 }
 
+export interface OtpPolicy {
+  length: number;
+  expiryMinutes: number;
+  maxAttempts: number;
+  cooldownSeconds: number;
+}
+
+function boundedInteger(value: number, min: number, max: number, fallback: number): number {
+  return Number.isSafeInteger(value) && value >= min && value <= max ? value : fallback;
+}
+
+/** Resolve the four admin-owned OTP controls with fail-safe documented bounds. */
+export async function getOtpPolicy(): Promise<OtpPolicy> {
+  const [length, expiryMinutes, maxAttempts, cooldownSeconds] = await Promise.all([
+    getSettingInteger('otp_length'),
+    getSettingInteger('otp_expiry_minutes'),
+    getSettingInteger('otp_max_attempts'),
+    getSettingInteger('otp_cooldown_seconds'),
+  ]);
+  return {
+    length: boundedInteger(length, 4, 8, 6),
+    expiryMinutes: boundedInteger(expiryMinutes, 1, 30, 5),
+    maxAttempts: boundedInteger(maxAttempts, 1, 10, 3),
+    cooldownSeconds: boundedInteger(cooldownSeconds, 30, 300, 60),
+  };
+}
+
 // MED-N165 fix — array settings stored as comma-separated values
 // (e.g. 'office,condo_management,restaurant'). The setting value
 // type is 'string' but the consumer wants string[]. Trims whitespace
@@ -728,8 +755,8 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     serviceFeeMax: lookupNum('service_fee_max', 50000),
     escrowAutoConfirmHours: lookupInt('escrow_auto_confirm_hours', 72),
     escrowDisputeWindowHours: lookupInt('escrow_dispute_window_hours', 48),
-    otpLength: lookupInt('otp_length', 6),
-    otpCooldownSeconds: lookupInt('otp_cooldown_seconds', 60),
+    otpLength: boundedInteger(lookupInt('otp_length', 6), 4, 8, 6),
+    otpCooldownSeconds: boundedInteger(lookupInt('otp_cooldown_seconds', 60), 30, 300, 60),
     minimumPaymentAmount: lookupNum('minimum_payment_amount', 10000),
     minimumWithdrawalAmount: lookupNum('minimum_withdrawal_amount', 10000),
     // SiguradoShield protection-coverage settings deferred to v1.1+

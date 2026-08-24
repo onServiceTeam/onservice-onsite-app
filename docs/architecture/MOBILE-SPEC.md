@@ -179,8 +179,10 @@ Already covered above are screens whose files exist. The 39 missing screens fall
 ### Auth & session
 - Phone + OTP only (no email/password for customer; admin uses email+password+TOTP)
 - Refresh token on app launch
-- Logout on 401 from API
-- Session persists across app close (AsyncStorage)
+- Terminal refresh failure clears encrypted credentials and the live auth state
+- Logout revokes the refresh token and detaches the current device push token on a best-effort basis
+- Session persists across app close in the platform secure-storage implementation
+- Account changes clear shared server-data caches before the next workspace uses them
 
 ### Offline awareness
 - Banner when offline ("You're offline. Some features unavailable.")
@@ -189,7 +191,8 @@ Already covered above are screens whose files exist. The 39 missing screens fall
 - Network retry with exponential backoff
 
 ### Push notifications
-- Expo push tokens registered on login
+- Expo push tokens are registered at authenticated app launch and account change, with one server-side account owner per physical token
+- Logout removes the current account-token association; the next registration repairs ownership after an offline logout
 - Per-event opt-in/out (Phase 09d notification-settings)
 - Deep links to specific screen on tap
 

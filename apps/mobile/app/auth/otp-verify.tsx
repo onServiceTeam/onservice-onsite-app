@@ -8,13 +8,20 @@ import { useAuthStore } from '@/stores/auth.store';
 import { getErrorMessage } from '@/utils/errors';
 import { Button, OTPInput, Card } from '@/components/ui';
 import { formatPHPhone } from '@/utils/phone';
-import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { useResponsive } from '@/hooks/useResponsive';
+import { useCaptchaOtp } from '@/hooks/useCaptchaOtp';
+import { getConfig } from '@/services/config.service';
 
 import { Routes } from '@/config/navigation';
 export default function OTPVerifyScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
+  const { requestOtpWithCaptcha, captchaModal } = useCaptchaOtp();
+  const runtimeConfig = getConfig();
+  const otpLength = runtimeConfig.otpLength;
+  const otpCooldownSeconds = runtimeConfig.otpCooldownSeconds;
   const params = useLocalSearchParams<{
     phone: string;
     mode: 'login' | 'register';
@@ -22,11 +29,11 @@ export default function OTPVerifyScreen(): React.ReactElement {
     lastName?: string;
   }>();
 
-  const { verifyOtp, register, requestOtp } = useAuthStore();
+  const { verifyOtp, register } = useAuthStore();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState<number>(platformConfig.otpCooldownSeconds);
+  const [resendCooldown, setResendCooldown] = useState<number>(otpCooldownSeconds);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -37,7 +44,7 @@ export default function OTPVerifyScreen(): React.ReactElement {
   }, [resendCooldown]);
 
   const handleVerify = useCallback(async (otp: string) => {
-    if (otp.length !== platformConfig.otpLength) return;
+    if (otp.length !== otpLength) return;
 
     setLoading(true);
     setError(false);
@@ -66,12 +73,12 @@ export default function OTPVerifyScreen(): React.ReactElement {
     } finally {
       setLoading(false);
     }
-  }, [params, verifyOtp, register, router]);
+  }, [otpLength, params, verifyOtp, register, router]);
 
   const handleCodeChange = (val: string): void => {
     setCode(val);
     setError(false);
-    if (val.length === platformConfig.otpLength) {
+    if (val.length === otpLength) {
       handleVerify(val);
     }
   };
@@ -79,55 +86,61 @@ export default function OTPVerifyScreen(): React.ReactElement {
   const handleResend = async (): Promise<void> => {
     if (resendCooldown > 0) return;
     try {
-      await requestOtp(params.phone);
-      setResendCooldown(platformConfig.otpCooldownSeconds);
+      await requestOtpWithCaptcha(params.phone);
+      setResendCooldown(otpCooldownSeconds);
       setCode('');
       setError(false);
-    } catch {
-      showToast('Failed to resend code. Please try again.', 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, 'Failed to resend code. Please try again.'), 'error');
     }
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.xxl }]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Enter Verification Code</Text>
-        <Text style={styles.subtitle}>
-          We sent a 6-digit code to{'\n'}
-          <Text style={styles.phone}>{formatPHPhone(params.phone)}</Text>
-        </Text>
-      </View>
-
-      <Card style={styles.card}>
-        <View style={styles.otpContainer}>
-          <OTPInput
-            value={code}
-            onChange={handleCodeChange}
-            error={error}
-            length={platformConfig.otpLength}
-          />
+      <View
+        style={[styles.workspace, !isPhone && styles.workspaceWide]}
+        accessibilityLabel={!isPhone ? 'Desktop verification workspace' : undefined}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Enter Verification Code</Text>
+          <Text style={styles.subtitle}>
+            We sent a verification code with {otpLength} digits to{'\n'}
+            <Text style={styles.phone}>{formatPHPhone(params.phone)}</Text>
+          </Text>
         </View>
 
-        <Button
-          title="Verify"
-          onPress={() => handleVerify(code)}
-          loading={loading}
-          disabled={code.length !== platformConfig.otpLength}
-          style={styles.verifyButton}
-        />
-
-        <View style={styles.resendContainer}>
-          {resendCooldown > 0 ? (
-            <Text style={styles.resendText}>Resend in {resendCooldown}s</Text>
-          ) : (
-            <Button
-              title="Resend Code"
-              onPress={handleResend}
-              variant="ghost"
+        <Card style={styles.card}>
+          <View style={styles.otpContainer}>
+            <OTPInput
+              value={code}
+              onChange={handleCodeChange}
+              error={error}
+              length={otpLength}
             />
-          )}
-        </View>
-      </Card>
+          </View>
+
+          <Button
+            title="Verify"
+            onPress={() => handleVerify(code)}
+            loading={loading}
+            disabled={code.length !== otpLength}
+            style={styles.verifyButton}
+          />
+
+          <View style={styles.resendContainer}>
+            {resendCooldown > 0 ? (
+              <Text style={styles.resendText}>Resend in {resendCooldown}s</Text>
+            ) : (
+              <Button
+                title="Resend Code"
+                onPress={handleResend}
+                variant="ghost"
+              />
+            )}
+          </View>
+        </Card>
+      </View>
+      {captchaModal}
     </View>
   );
 }
@@ -137,7 +150,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surfaceMuted,
     paddingHorizontal: spacing.lg,
+    alignItems: 'center',
   },
+  workspace: { width: '100%' },
+  workspaceWide: { maxWidth: 560 },
   card: { borderRadius: borderRadius.lg },
   header: { alignItems: 'center', marginBottom: spacing.xl },
   title: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },

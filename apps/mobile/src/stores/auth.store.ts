@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import api, { storage } from '@/services/api';
+import api, { setAuthSessionExpiredHandler, storage } from '@/services/api';
 import {
   getAccessToken,
   getRefreshToken,
@@ -21,6 +21,7 @@ import {
 // refresh_tokens.device_fingerprint, and a future stolen-token
 // refresh attempt from a different fingerprint can be detected.
 import { getDeviceFingerprint } from '@/services/device-fingerprint.service';
+import { unregisterStoredPushToken } from '@/services/push-token.service';
 
 // Phase D CRIT-88 fix — User.role no longer omits 'super_admin' (and
 // 'dpo' from E01). Pre-fix: a super_admin signing into the mobile
@@ -48,7 +49,7 @@ interface AuthState {
   requestOtp: (phone: string, captchaToken?: string) => Promise<void>;
   verifyOtp: (phone: string, code: string) => Promise<void>;
   register: (phone: string, firstName: string, lastName: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   setUser: (user: User) => void;
   // D23 — after accepting a team invite the API returns a fresh token pair
   // carrying the provider_staff role; swap in the new session so routing
@@ -58,7 +59,8 @@ interface AuthState {
 
 // Bug 1061 fix: tokens + user PII live in secure-storage (encrypted MMKV
 // with OS-keychain-derived key). The non-sensitive `storage` from api.ts
-// is still used for transient flags like `isNewUser` and `pushToken`.
+// is still used for transient flags like `isNewUser`. Push-token ownership is
+// managed by push-token.service in the separate public storage instance.
 //
 // All read/write helpers here are SYNCHRONOUS because initSecureStorage()
 // is awaited at app boot in apps/mobile/app/_layout.tsx before this store
@@ -162,23 +164,20 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
   // token from the device's secure store could continue to mint
   // access tokens for weeks after the user logged out.
   //
-  // Post-fix: best-effort POST /auth/logout with the refresh token
-  // BEFORE clearing local state. Server-side logout deletes the
-  // refresh_tokens row + revokes any device-bound state. If the
-  // server call fails (network down, 5xx), we still clear locally —
-  // logout must always succeed from the user's perspective.
+  // Post-fix: start the best-effort push detachment and /auth/logout
+  // requests while the current credentials are still available, then clear
+  // local state. Running both requests together avoids doubling the logout
+  // delay on a poor connection. If either server call fails, we still clear
+  // locally; logout must always succeed from the user's perspective.
   logout: async () => {
-    try {
-      const refreshToken = getRefreshToken();
-      if (refreshToken) {
-        await api.post('/api/v1/auth/logout', { refreshToken });
-      }
-    } catch {
-      // Network/server error — proceed with local clear anyway.
+    const logoutRequests: Promise<unknown>[] = [unregisterStoredPushToken()];
+    const refreshToken = getRefreshToken();
+    if (refreshToken) {
+      logoutRequests.push(api.post('/api/v1/auth/logout', { refreshToken }));
     }
+    await Promise.allSettled(logoutRequests);
     clearTokens();
     clearStoredUser();
-    storage.delete('pushToken');
     set({ user: null, isAuthenticated: false, otpRequestId: null });
   },
 
@@ -196,3 +195,15 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     });
   },
 }));
+
+// The fetch wrapper cannot import this store without creating a circular
+// dependency. Register a one-way callback so a terminal refresh failure also
+// updates live UI state; secure-storage has already been cleared at that point.
+setAuthSessionExpiredHandler(() => {
+  useAuthStore.setState({
+    user: null,
+    isAuthenticated: false,
+    isLoading: false,
+    otpRequestId: null,
+  });
+});

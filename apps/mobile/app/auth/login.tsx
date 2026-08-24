@@ -15,10 +15,12 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import PhoneInput from '@/components/PhoneInput';
 import { Routes } from '@/config/navigation';
 import { DEMO_MODE, demoLogin, type DemoRole } from '@/config/demo';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export default function LoginScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
   // requestOtpWithCaptcha transparently handles the server's 428 captcha
   // challenge (Cloudflare Turnstile) that appears after the lockout threshold.
   const { requestOtpWithCaptcha, captchaModal } = useCaptchaOtp();
@@ -73,89 +75,94 @@ export default function LoginScreen(): React.ReactElement {
       style={[styles.container, { paddingTop: insets.top + spacing.xxl }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.header}>
-        <Text style={styles.title}>Welcome back</Text>
-        <Text style={styles.subtitle}>
-          Enter your mobile number to log in
-        </Text>
-      </View>
-
-      <Card style={styles.form}>
-        {/* Phase 14 R5-complete — PhoneInput component */}
-        <PhoneInput
-          value={phone}
-          onChange={(text) => {
-            setPhone(text);
-            setError('');
-          }}
-          label="Mobile Number"
-          errorVisible={error.length > 0}
-          testID="login-phone-input"
-        />
-        {error.length > 0 && (
-          <Text style={{ color: colors.error, ...typography.bodySmall, marginTop: spacing.xs }}>
-            {error}
+      <View
+        style={[styles.workspace, !isPhone && styles.workspaceWide]}
+        accessibilityLabel={!isPhone ? 'Desktop login workspace' : undefined}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Welcome back</Text>
+          <Text style={styles.subtitle}>
+            Enter your mobile number to log in
           </Text>
-        )}
+        </View>
 
-        <Button
-          title="Send Verification Code"
-          onPress={handleSendOtp}
-          loading={loading}
-          disabled={phone.length < 10}
-        />
+        <Card style={styles.form}>
+          {/* Phase 14 R5-complete — PhoneInput component */}
+          <PhoneInput
+            value={phone}
+            onChange={(text) => {
+              setPhone(text);
+              setError('');
+            }}
+            label="Mobile Number"
+            errorVisible={error.length > 0}
+            testID="login-phone-input"
+          />
+          {error.length > 0 && (
+            <Text style={{ color: colors.error, ...typography.bodySmall, marginTop: spacing.xs }}>
+              {error}
+            </Text>
+          )}
 
-        {DEMO_MODE && (
-          <View style={styles.demo}>
-            <Text style={styles.demoLabel}>Or jump straight in (demo)</Text>
-            <Button
-              title="Enter as Customer"
-              variant="secondary"
-              onPress={() => handleDemo('customer')}
-              loading={demoLoading === 'customer'}
-              disabled={demoLoading !== null}
-            />
-            <Button
-              title="Enter as Provider"
-              variant="outline"
-              onPress={() => handleDemo('provider')}
-              loading={demoLoading === 'provider'}
-              disabled={demoLoading !== null}
-            />
-          </View>
-        )}
-      </Card>
+          <Button
+            title="Send Verification Code"
+            onPress={handleSendOtp}
+            loading={loading}
+            disabled={phone.length < 10}
+          />
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Don't have an account? </Text>
-        <Link href="/auth/register" style={styles.link}>
-          Create Account
-        </Link>
-      </View>
+          {DEMO_MODE && (
+            <View style={styles.demo}>
+              <Text style={styles.demoLabel}>Or jump straight in (demo)</Text>
+              <Button
+                title="Enter as Customer"
+                variant="secondary"
+                onPress={() => handleDemo('customer')}
+                loading={demoLoading === 'customer'}
+                disabled={demoLoading !== null}
+              />
+              <Button
+                title="Enter as Provider"
+                variant="outline"
+                onPress={() => handleDemo('provider')}
+                loading={demoLoading === 'provider'}
+                disabled={demoLoading !== null}
+              />
+            </View>
+          )}
+        </Card>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Don't have an account? </Text>
+          <Link href="/auth/register" style={styles.link}>
+            Create Account
+          </Link>
+        </View>
 
       {/* BUG-PHASE63-01 fix — pre-fix this was a single plain-text Text,
           so the user agreed to Terms/Privacy without any way to read
           them. Now the two legal docs are tappable links pushing to
           /customer/terms with the right tab pre-selected. */}
-      <Text style={styles.legal}>
-        By continuing, you agree to our{' '}
-        <Text
-          style={styles.legalLink}
-          onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'terms' } })}
-          testID="login-terms-link"
-        >
-          Terms of Service
+        <Text style={styles.legal}>
+          By continuing, you agree to our{' '}
+          <Text
+            style={styles.legalLink}
+            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'terms' } })}
+            testID="login-terms-link"
+          >
+            Terms of Service
+          </Text>
+          {' '}and{' '}
+          <Text
+            style={styles.legalLink}
+            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'privacy' } })}
+            testID="login-privacy-link"
+          >
+            Privacy Policy
+          </Text>
+          .
         </Text>
-        {' '}and{' '}
-        <Text
-          style={styles.legalLink}
-          onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'privacy' } })}
-          testID="login-privacy-link"
-        >
-          Privacy Policy
-        </Text>
-        .
-      </Text>
+      </View>
 
       {captchaModal}
     </KeyboardAvoidingView>
@@ -167,7 +174,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surfaceMuted,
     paddingHorizontal: spacing.lg,
+    alignItems: 'center',
   },
+  workspace: { width: '100%' },
+  workspaceWide: { maxWidth: 560 },
   header: { marginBottom: spacing.xl },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary },

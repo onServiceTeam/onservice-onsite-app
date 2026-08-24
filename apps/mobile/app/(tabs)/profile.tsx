@@ -74,9 +74,8 @@ export default function ProfileScreen(): React.ReactElement {
       {
         text: 'Log Out',
         style: 'destructive',
-        onPress: () => {
-          logout();
-          router.replace(Routes.AUTH.LOGIN);
+        onPress: (): void => {
+          void logout().finally(() => router.replace(Routes.AUTH.LOGIN));
         },
       },
     ]);

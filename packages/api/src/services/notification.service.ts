@@ -222,6 +222,53 @@ async function resolveTemplate(
 
 interface PushTokenRow { token: string; platform: string }
 
+export type PushPlatform = 'ios' | 'android' | 'web';
+
+/**
+ * Associate one physical push token with exactly one signed-in account.
+ *
+ * A device token is stable across account switches. The original registration
+ * query only enforced uniqueness per (user, token), so one phone could keep the
+ * same token on several accounts and receive private notifications for all of
+ * them. Serialize by token, remove any previous owner, then register the current
+ * account in one transaction. This also repairs stale ownership when a prior
+ * logout could not reach the server.
+ */
+export async function registerPushToken(
+  userId: string,
+  token: string,
+  platform: PushPlatform,
+): Promise<void> {
+  await db.transaction(async (client) => {
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtext($1))`,
+      [token],
+    );
+    await client.query(
+      `DELETE FROM push_tokens WHERE token = $1 AND user_id <> $2`,
+      [token, userId],
+    );
+    await client.query(
+      `INSERT INTO push_tokens (user_id, token, platform)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, token) DO UPDATE
+         SET platform = EXCLUDED.platform, updated_at = NOW()`,
+      [userId, token, platform],
+    );
+  });
+
+  logger.info('Push token registered', { userId, platform });
+}
+
+/** Remove only the current account's association with this device token. */
+export async function unregisterPushToken(userId: string, token: string): Promise<void> {
+  await db.query(
+    `DELETE FROM push_tokens WHERE user_id = $1 AND token = $2`,
+    [userId, token],
+  );
+  logger.info('Push token unregistered', { userId });
+}
+
 interface ExpoPushTicket {
   status: 'ok' | 'error';
   id?: string;

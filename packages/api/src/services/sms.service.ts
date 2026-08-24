@@ -83,7 +83,11 @@ export async function sendSms(phone: string, message: string): Promise<boolean> 
   }
 }
 
-export async function sendOtpSms(phone: string, otp: string): Promise<boolean> {
-  const message = `Your onService verification code is: ${otp}. Valid for ${platformConfig.otpExpiryMinutes} minutes. Do not share this code.`;
+export async function sendOtpSms(
+  phone: string,
+  otp: string,
+  expiryMinutes: number = platformConfig.otpExpiryMinutes,
+): Promise<boolean> {
+  const message = `Your onService verification code is: ${otp}. Valid for ${expiryMinutes} minutes. Do not share this code.`;
   return sendSms(phone, message);
 }

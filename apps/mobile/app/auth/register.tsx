@@ -11,10 +11,12 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 // Phase 14 R5-complete — PhoneInput component for register form.
 import PhoneInput from '@/components/PhoneInput';
 import { useCaptchaOtp } from '@/hooks/useCaptchaOtp';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export default function RegisterScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
   const { requestOtpWithCaptcha, captchaModal } = useCaptchaOtp();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -63,9 +65,14 @@ export default function RegisterScreen(): React.ReactElement {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.xxl }]}
+        contentContainerStyle={[
+          styles.content,
+          !isPhone && styles.contentWide,
+          { paddingTop: insets.top + spacing.xxl },
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        accessibilityLabel={!isPhone ? 'Desktop registration workspace' : undefined}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Create Account</Text>
@@ -157,6 +164,7 @@ export default function RegisterScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
+  contentWide: { width: '100%', maxWidth: 640, alignSelf: 'center' },
   header: { marginBottom: spacing.xl },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary },

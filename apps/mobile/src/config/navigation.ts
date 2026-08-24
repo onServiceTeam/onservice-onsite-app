@@ -141,6 +141,7 @@ export const Routes = {
     QUOTE_TEMPLATES: '/provider/quote-templates',
     INSIGHTS: '/provider/insights',
     NOTIFICATIONS: '/provider/notifications',
+    NOTIFICATION_SETTINGS: '/provider/notification-settings',
     SERVICES: '/provider/services',
     CALENDAR: '/provider/calendar',
     AVAILABILITY: '/provider/availability',

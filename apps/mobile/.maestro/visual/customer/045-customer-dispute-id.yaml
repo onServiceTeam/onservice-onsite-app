@@ -2,6 +2,8 @@ appId: ph.onservice.app
 ---
 # F#3 visual baseline — customer-dispute-id
 # Screen: apps/mobile/app/customer/dispute/[id].tsx
+# Session comes from 000-setup-login.yaml (runs first in this directory);
+# deep link jumps straight to the target route via expo-router.
 
 - launchApp:
     stopApp: false

@@ -1,35 +1,39 @@
-// BUG-PHASE157-01 — POST /api/v1/notifications/push-token accepted
-// `token` with no length cap. push_tokens.token is a TEXT column
-// (migration 016) with no DB-side bound. Real push tokens are
-// well-bounded (APNs 64, FCM 150-200, Expo 50-80), but the route
-// would accept megabytes.
-//
-// Same defense-in-depth pattern as Phase 152-156. Cap at 256
-// (generous enough for any real provider, tight enough to reject
-// junk).
-//
-// Test strategy: source-content regression on the route file.
+import express from 'express';
+import request from 'supertest';
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+jest.mock('../src/middleware/auth.middleware', () => ({
+  authMiddleware: (
+    req: express.Request,
+    _res: express.Response,
+    next: express.NextFunction,
+  ): void => {
+    (req as express.Request & { user: unknown }).user = {
+      userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      role: 'customer',
+    };
+    next();
+  },
+}));
 
-const SOURCE = readFileSync(
-  resolve(__dirname, '../src/routes/notification.routes.ts'),
-  'utf8',
-);
+const registerPushTokenMock = jest.fn();
+jest.mock('../src/services/notification.service', () => ({
+  registerPushToken: (...args: unknown[]) => registerPushTokenMock(...args),
+}));
 
-describe('BUG-PHASE157-01 — push token cap', () => {
-  it('declares PUSH_TOKEN_MAX = 256', () => {
-    expect(SOURCE).toMatch(/const PUSH_TOKEN_MAX = 256/);
-  });
+import notificationRouter from '../src/routes/notification.routes';
+import { errorMiddleware } from '../src/middleware/error.middleware';
 
-  it('rejects token > 256 chars', () => {
-    expect(SOURCE).toMatch(
-      /token\.length > PUSH_TOKEN_MAX[\s\S]+?Push token must be ≤ \$\{PUSH_TOKEN_MAX\} characters/,
-    );
-  });
+it('Bug PHASE157-01 — push-token registration rejects payloads over 256 characters', async () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/notifications', notificationRouter);
+  app.use(errorMiddleware);
 
-  it('PHASE157 fix-comment is preserved', () => {
-    expect(SOURCE).toMatch(/BUG-PHASE157-01 fix/);
-  });
+  const response = await request(app)
+    .post('/notifications/push-token')
+    .send({ token: 'x'.repeat(257), platform: 'android' });
+
+  expect(response.status).toBe(400);
+  expect(response.body.error.message).toMatch(/256 characters/);
+  expect(registerPushTokenMock).not.toHaveBeenCalled();
 });

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# F#3 — capture the 84 mobile visual baselines on a local Android emulator.
+# F#3 — capture the 89 mobile visual baselines on a local Android emulator.
 #
 # Prereqs (see .ai-coder/handoff/F3-maestro-baseline-capture.md):
 #   - local dev stack up (scripts/dev/up.sh) — API on :7381 with dev OTP
@@ -29,6 +29,7 @@ CATEGORY_ID=$($PSQL "SELECT id FROM service_categories ORDER BY sort_order NULLS
 PROVIDER_ID=$($PSQL "SELECT p.id FROM providers p JOIN users u ON u.id=p.user_id WHERE u.phone='+63${PROVIDER_PHONE}' LIMIT 1")
 CONVERSATION_ID=$($PSQL "SELECT id FROM conversations ORDER BY created_at DESC LIMIT 1" || true)
 RECURRING_ID=$($PSQL "SELECT id FROM recurring_bookings ORDER BY created_at DESC LIMIT 1" || true)
+DISPUTE_ID=$($PSQL "SELECT d.id FROM disputes d JOIN bookings b ON b.id=d.booking_id JOIN users c ON c.id=b.customer_id JOIN providers p ON p.id=b.provider_id JOIN users pu ON pu.id=p.user_id WHERE c.phone='+63${CUSTOMER_PHONE}' AND pu.phone='+63${PROVIDER_PHONE}' ORDER BY d.created_at DESC LIMIT 1" || true)
 
 for v in BOOKING_ID JOB_ID CATEGORY_ID PROVIDER_ID; do
   if [ -z "${!v}" ]; then
@@ -41,9 +42,10 @@ done
 # so the operator can decide.
 [ -z "$CONVERSATION_ID" ] && echo "WARN: no conversations row — chat flows will capture the not-found state" && CONVERSATION_ID="00000000-0000-0000-0000-000000000000"
 [ -z "$RECURRING_ID" ] && echo "WARN: no recurring_bookings row — recurring-detail flow will capture the not-found state" && RECURRING_ID="00000000-0000-0000-0000-000000000000"
+[ -z "$DISPUTE_ID" ] && echo "WARN: no participant-visible dispute row — dispute-detail flows will capture the not-found state" && DISPUTE_ID="00000000-0000-0000-0000-000000000000"
 
 echo "    booking=$BOOKING_ID job=$JOB_ID category=$CATEGORY_ID provider=$PROVIDER_ID"
-echo "    conversation=$CONVERSATION_ID recurring=$RECURRING_ID"
+echo "    conversation=$CONVERSATION_ID recurring=$RECURRING_ID dispute=$DISPUTE_ID"
 
 run_kind() {
   local kind="$1"
@@ -56,7 +58,8 @@ run_kind() {
     -e MAESTRO_CATEGORY_ID="$CATEGORY_ID" \
     -e MAESTRO_PROVIDER_ID="$PROVIDER_ID" \
     -e MAESTRO_CONVERSATION_ID="$CONVERSATION_ID" \
-    -e MAESTRO_RECURRING_ID="$RECURRING_ID"
+    -e MAESTRO_RECURRING_ID="$RECURRING_ID" \
+    -e MAESTRO_DISPUTE_ID="$DISPUTE_ID"
 }
 
 run_kind customer
