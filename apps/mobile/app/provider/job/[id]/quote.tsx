@@ -55,11 +55,20 @@ export default function QuoteBuilderScreen(): React.ReactElement {
     enabled: !!bookingId,
   });
 
-  const addItem = (): void => setItems([...items, createEmptyItem()]);
+  const canAddMoreItems = items.length < 20;
+  const addItem = (): void => {
+    if (canAddMoreItems) setItems([...items, createEmptyItem()]);
+  };
 
   // D27 Phase 7b — prefill line items from a saved quote template.
   const [showTemplates, setShowTemplates] = useState(false);
   const templatesQuery = useQuery({ queryKey: ['quote-templates'], queryFn: listTemplates, enabled: showTemplates, staleTime: 60 * 1000 });
+  const relevantTemplates = (templatesQuery.data ?? []).filter((template) => {
+    if (!template.categoryId && !template.subcategoryId) return true;
+    if (!bookingQuery.data) return false;
+    if (template.subcategoryId) return template.subcategoryId === bookingQuery.data.subcategoryId;
+    return template.categoryId === bookingQuery.data.categoryId;
+  });
   const applyTemplate = (t: QuoteTemplate): void => {
     setItems(t.items.map((it) => ({
       id: nextItemId++,
@@ -255,7 +264,11 @@ export default function QuoteBuilderScreen(): React.ReactElement {
               <TouchableOpacity onPress={() => setShowTemplates((v) => !v)} style={styles.templateBtn}>
                 <Text style={styles.templateBtnText}>Use template</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={addItem} style={styles.addItemBtn}>
+              <TouchableOpacity
+                onPress={addItem}
+                style={[styles.addItemBtn, !canAddMoreItems && styles.submitDisabled]}
+                disabled={!canAddMoreItems}
+              >
                 <Text style={styles.addItemText}>+ Add Item</Text>
               </TouchableOpacity>
             </View>
@@ -266,10 +279,10 @@ export default function QuoteBuilderScreen(): React.ReactElement {
             <View style={styles.templatePanel}>
               {templatesQuery.isLoading ? (
                 <ActivityIndicator size="small" color={colors.info} />
-              ) : (templatesQuery.data ?? []).length === 0 ? (
-                <Text style={styles.templateEmpty}>No templates yet. Create them under Profile → Quote Templates.</Text>
+              ) : relevantTemplates.length === 0 ? (
+                <Text style={styles.templateEmpty}>No templates match this service yet. Create one under Profile → Quote Templates, or save an all-services template.</Text>
               ) : (
-                (templatesQuery.data ?? []).map((t) => (
+                relevantTemplates.map((t) => (
                   <TouchableOpacity key={t.id} style={styles.templateRow} onPress={() => applyTemplate(t)}>
                     <Text style={styles.templateName}>{t.name}</Text>
                     <Text style={styles.templateMeta}>{t.items.length} item{t.items.length !== 1 ? 's' : ''} ›</Text>
@@ -361,6 +374,9 @@ export default function QuoteBuilderScreen(): React.ReactElement {
           ))}
           {activeItems.length > 0 && !lineItemsValid && (
             <Text style={styles.fieldError}>Complete or remove every started line item. Quantity must be at least 0.01.</Text>
+          )}
+          {!canAddMoreItems && (
+            <Text style={styles.fieldHelp}>Maximum 20 line items per quote.</Text>
           )}
         </View>
 
@@ -514,6 +530,7 @@ const styles = StyleSheet.create({
   netValue: { fontSize: 16, color: colors.success, fontWeight: '800' },
   minWarn: { fontSize: 12, color: colors.warning, marginTop: spacing.xs, textAlign: 'center' },
   fieldError: { fontSize: 12, color: colors.error, marginTop: spacing.xs },
+  fieldHelp: { fontSize: 12, color: colors.textTertiary, marginTop: spacing.xs },
   submitBtn: { backgroundColor: colors.success, borderRadius: borderRadius.lg, paddingVertical: spacing.base, alignItems: 'center' },
   submitDisabled: { opacity: 0.5 },
   submitText: { fontSize: 16, fontWeight: '700', color: colors.white },

@@ -16,8 +16,8 @@ import { Routes } from '@/config/navigation';
 //      and the toast just said "Save failed" — looked like a
 //      transient error but the screen has been broken since day 1.
 //   3. The "skills" concept duplicates Services Management (where
-//      the provider toggles which subcategories they offer AND sets
-//      basePrice per subcategory). The Services screen at
+//      the provider toggles which catalog subcategories they offer and
+//      reviews the catalog-owned price model). The Services screen at
 //      app/provider/services.tsx fetches real categories from
 //      /api/v1/categories and writes via /api/v1/providers/me/services
 //      (which actually exists). That is the canonical surface.
@@ -46,8 +46,8 @@ export default function ProviderSkillsScreen(): React.ReactElement {
       <View style={styles.body}>
         <Text style={styles.title}>Manage Your Services</Text>
         <Text style={styles.subtitle}>
-          The Skills page has moved. You can pick which services you
-          offer and set your prices on the Services page.
+          The Skills page has moved. You can choose which catalog services you
+          offer and review their current pricing on the Services page.
         </Text>
         <TouchableOpacity
           style={styles.btn}

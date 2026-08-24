@@ -29,6 +29,12 @@ export interface Redemption {
 export interface MyReferrals {
   code: ReferralCode | null;
   redemptions: Redemption[];
+  summary: {
+    totalReferrals: number;
+    creditedReferrals: number;
+    pendingReferrals: number;
+    totalEarned: number;
+  };
 }
 
 export async function getMyCode(): Promise<ReferralCode> {

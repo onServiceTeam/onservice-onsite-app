@@ -238,20 +238,43 @@ export async function getMyReferrals(
   userId: string,
   page = 1,
   pageSize = 20,
-): Promise<{ code: ReferralCodeRow | null; redemptions: RedemptionRow[]; total: number }> {
+): Promise<{
+  code: ReferralCodeRow | null;
+  redemptions: RedemptionRow[];
+  total: number;
+  summary: { totalReferrals: number; creditedReferrals: number; pendingReferrals: number; totalEarned: number };
+}> {
   const code = await db.query<ReferralCodeRow>(
-    `SELECT * FROM referral_codes WHERE user_id = $1 AND type = 'standard' AND is_active = TRUE`,
+    `SELECT * FROM referral_codes
+      WHERE user_id = $1 AND type = 'standard'
+      ORDER BY is_active DESC, created_at DESC
+      LIMIT 1`,
     [userId],
   );
 
   if (code.rows.length === 0) {
-    return { code: null, redemptions: [], total: 0 };
+    return {
+      code: null,
+      redemptions: [],
+      total: 0,
+      summary: { totalReferrals: 0, creditedReferrals: 0, pendingReferrals: 0, totalEarned: 0 },
+    };
   }
 
   const offset = (page - 1) * pageSize;
-  const [countResult, dataResult] = await Promise.all([
-    db.query<CountRow>(
-      `SELECT COUNT(*)::text as count FROM referral_redemptions WHERE referrer_id = $1`,
+  const [summaryResult, dataResult] = await Promise.all([
+    db.query<{
+      total_referrals: string;
+      credited_referrals: string;
+      pending_referrals: string;
+      total_earned: string;
+    }>(
+      `SELECT COUNT(*)::text AS total_referrals,
+              COUNT(*) FILTER (WHERE referrer_credited = TRUE)::text AS credited_referrals,
+              COUNT(*) FILTER (WHERE referrer_credited = FALSE)::text AS pending_referrals,
+              COALESCE(SUM(referrer_bonus) FILTER (WHERE referrer_credited = TRUE), 0)::text AS total_earned
+         FROM referral_redemptions
+        WHERE referrer_id = $1`,
       [userId],
     ),
     db.query<RedemptionRow>(
@@ -260,10 +283,19 @@ export async function getMyReferrals(
     ),
   ]);
 
+  const summaryRow = summaryResult.rows[0];
+  const summary = {
+    totalReferrals: Number(summaryRow?.total_referrals ?? 0),
+    creditedReferrals: Number(summaryRow?.credited_referrals ?? 0),
+    pendingReferrals: Number(summaryRow?.pending_referrals ?? 0),
+    totalEarned: Number(summaryRow?.total_earned ?? 0),
+  };
+
   return {
     code: code.rows[0]!,
     redemptions: dataResult.rows,
-    total: Number(countResult.rows[0]?.count ?? 0),
+    total: summary.totalReferrals,
+    summary,
   };
 }
 

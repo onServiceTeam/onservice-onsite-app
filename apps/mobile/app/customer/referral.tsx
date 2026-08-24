@@ -13,10 +13,12 @@ import { ClipboardList, Gift, Send, ChevronLeft } from '@/components/icons';
 // A7 — shared UI kit for loading/error states + toast feedback.
 import { SkeletonCard, ErrorState, SectionHeader } from '@/components/ui';
 import { showToast } from '@/lib/toast';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export default function ReferralScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
   const [redeemInput, setRedeemInput] = useState('');
 
   const { data: code, isLoading: codeLoading, isError: codeError, refetch: refetchCode } = useQuery({
@@ -80,26 +82,35 @@ export default function ReferralScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <ChevronLeft size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Referral Program</Text>
-        <View style={styles.placeholder} />
+        <View style={[styles.headerInner, !isPhone && styles.headerInnerWide]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Referral Program</Text>
+          <View style={styles.placeholder} />
+        </View>
       </View>
 
       {isLoading ? (
-        <View style={styles.bodyContent}>
+        <View style={[styles.bodyContent, !isPhone && styles.bodyContentWide]}>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
         </View>
       ) : isError ? (
-        <ErrorState
-          message="We couldn't load your referral program. Please check your connection and try again."
-          onRetry={refetchAll}
-        />
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <ErrorState
+            message="We couldn't load your referral program. Please check your connection and try again."
+            onRetry={refetchAll}
+          />
+        </View>
       ) : (
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        <ScrollView style={styles.body} contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}>
+          <View
+            style={[styles.workspace, !isPhone && styles.workspaceWide]}
+            accessibilityLabel={isPhone ? 'Customer referral program' : 'Tablet and desktop customer referral workspace'}
+          >
+          <View style={[styles.workspaceColumn, !isPhone && styles.workspacePrimary]}>
           <View style={styles.heroCard}>
             <Gift size={48} color={colors.primary} style={{ marginBottom: spacing.md }} />
             <Text style={styles.heroTitle}>Earn {referrerAmount} for Every Friend!</Text>
@@ -129,20 +140,20 @@ export default function ReferralScreen(): React.ReactElement {
 
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Text style={styles.statValue}>{referrals?.code?.usesCount ?? 0}</Text>
+              <Text style={styles.statValue}>{referrals?.summary?.totalReferrals ?? 0}</Text>
               <Text style={styles.statLabel}>Friends Referred</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statValue}>
-                {formatPHP(
-                  (referrals?.redemptions ?? [])
-                    .filter(r => r.referrerCredited)
-                    .reduce((sum, r) => sum + r.referrerBonus, 0)
-                )}
-              </Text>
+              <Text style={styles.statValue}>{formatPHP(referrals?.summary?.totalEarned ?? 0)}</Text>
               <Text style={styles.statLabel}>Total Earned</Text>
             </View>
           </View>
+          <Text style={styles.metricNote}>
+            Total earned includes credited referral bonuses only. Pending bonuses are credited after the referred customer's first completed booking.
+          </Text>
+          </View>
+
+          <View style={[styles.workspaceColumn, !isPhone && styles.workspaceSecondary]}>
 
           <View style={styles.redeemSection}>
             <SectionHeader title="Have a Referral Code?" />
@@ -173,6 +184,11 @@ export default function ReferralScreen(): React.ReactElement {
           {(referrals?.redemptions ?? []).length > 0 && (
             <View style={styles.section}>
               <SectionHeader title="Referral History" />
+              {(referrals?.summary?.totalReferrals ?? 0) > (referrals?.redemptions.length ?? 0) && (
+                <Text style={styles.historyScope}>
+                  Showing the latest {referrals?.redemptions.length ?? 0} of {referrals?.summary?.totalReferrals ?? 0} referrals.
+                </Text>
+              )}
               {referrals?.redemptions.map((r) => (
                 <View key={r.id} style={styles.historyItem}>
                   <View style={{ flex: 1 }}>
@@ -206,6 +222,8 @@ export default function ReferralScreen(): React.ReactElement {
               <Text style={styles.stepText}>After their first completed booking, you earn {referrerAmount} too!</Text>
             </View>
           </View>
+          </View>
+          </View>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -214,13 +232,23 @@ export default function ReferralScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
+  header: { backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
+  headerInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md },
+  headerInnerWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: spacing.xl },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   placeholder: { width: 30 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  bodyContentWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl },
+  stateContent: { flex: 1, padding: spacing.base },
+  stateContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.xl },
+  workspace: { width: '100%' },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  workspaceColumn: { minWidth: 0 },
+  workspacePrimary: { flex: 1 },
+  workspaceSecondary: { flex: 1 },
   centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   heroCard: { backgroundColor: colors.primaryDark, borderRadius: 16, padding: spacing.lg, alignItems: 'center', marginBottom: 20 },
   heroEmoji: { fontSize: 48, marginBottom: spacing.md },
@@ -239,6 +267,7 @@ const styles = StyleSheet.create({
   statCard: { flex: 1, backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   statValue: { fontSize: 22, fontWeight: '800', color: colors.text },
   statLabel: { fontSize: 12, color: colors.textSecondary, marginTop: spacing.xs },
+  metricNote: { fontSize: 12, color: colors.textTertiary, lineHeight: 17, marginTop: -spacing.sm, marginBottom: spacing.lg },
   redeemSection: { marginBottom: spacing.lg },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 10 },
   redeemRow: { flexDirection: 'row', gap: 10 },
@@ -247,6 +276,7 @@ const styles = StyleSheet.create({
   redeemBtnDisabled: { opacity: 0.5 },
   redeemBtnText: { fontSize: 14, fontWeight: '700', color: colors.white },
   section: { marginBottom: spacing.lg },
+  historyScope: { fontSize: 12, color: colors.textTertiary, marginBottom: spacing.sm },
   historyItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, marginBottom: spacing.sm },
   historyLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
   historyDate: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },

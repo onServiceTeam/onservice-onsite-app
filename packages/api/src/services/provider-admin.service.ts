@@ -211,6 +211,8 @@ export interface ProviderReview {
   rating: number;
   comment: string;
   isVisible: boolean;
+  isFlagged: boolean;
+  privateNote: string | null;
   adminResponse: string | null;
   imageUrls: string[];
   createdAt: string;
@@ -757,13 +759,15 @@ export async function getProviderReviews(
       rating: number;
       comment: string;
       is_visible: boolean;
+      is_flagged: boolean;
+      private_note: string | null;
       admin_response: string | null;
       image_urls: string[] | null;
       created_at: Date;
     }>(
       `SELECT r.id, r.booking_id,
               (u.first_name || ' ' || u.last_name) AS reviewer_name,
-              r.rating, r.comment, r.is_visible, r.admin_response,
+              r.rating, r.comment, r.is_visible, r.is_flagged, r.private_note, r.admin_response,
               ARRAY(SELECT image_url FROM review_images ri WHERE ri.review_id = r.id) AS image_urls,
               r.created_at
          FROM reviews r
@@ -782,6 +786,8 @@ export async function getProviderReviews(
     rating: r.rating,
     comment: r.comment,
     isVisible: r.is_visible,
+    isFlagged: r.is_flagged,
+    privateNote: r.private_note,
     adminResponse: r.admin_response,
     imageUrls: r.image_urls ?? [],
     createdAt: r.created_at.toISOString(),

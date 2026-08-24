@@ -26,6 +26,7 @@ import {
   CreditCard,
   Flag,
   Heart,
+  Clock,
 } from '@/components/icons';
 import api, { getErrorMessage } from '@/lib/api';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
@@ -179,6 +180,9 @@ interface ReferralsResult {
     createdAt: string;
   } | null;
   totalEarnedFromReferrals: number;
+  totalReferrals: number;
+  creditedReferrals: number;
+  pendingReferrals: number;
 }
 
 interface ActivityRow {
@@ -1025,7 +1029,7 @@ function DisputesTab({ customerId }: { customerId: string }): React.ReactElement
 
 // ─── ReferralsTab ─────────────────────────────────────────────────────────
 
-function ReferralsTab({ customerId }: { customerId: string }): React.ReactElement {
+export function ReferralsTab({ customerId }: { customerId: string }): React.ReactElement {
   const q = useQuery({
     queryKey: ['admin-customer-referrals', customerId],
     queryFn: async () => {
@@ -1041,7 +1045,7 @@ function ReferralsTab({ customerId }: { customerId: string }): React.ReactElemen
   const data = q.data!;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
       <KpiCard
         title="Total earned from referrals"
         value={fmtCentavos(data.totalEarnedFromReferrals)}
@@ -1049,8 +1053,13 @@ function ReferralsTab({ customerId }: { customerId: string }): React.ReactElemen
       />
       <KpiCard
         title="Friends referred"
-        value={data.given.length.toString()}
+        value={data.totalReferrals.toString()}
         icon={<Heart size={16} />}
+      />
+      <KpiCard
+        title="Pending first completed booking"
+        value={data.pendingReferrals.toString()}
+        icon={<Clock size={16} />}
       />
       <KpiCard
         title="Was referred by"
@@ -1058,11 +1067,12 @@ function ReferralsTab({ customerId }: { customerId: string }): React.ReactElemen
         icon={<Flag size={16} />}
       />
 
-      <Card className="p-5 md:col-span-3">
+      <Card className="p-5 md:col-span-2 xl:col-span-4">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">My referral codes</h3>
         {data.ownCodes.length === 0 ? (
           <EmptyState title="No referral codes yet." />
         ) : (
+          <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="text-xs text-[var(--color-text-secondary)] uppercase">
               <tr>
@@ -1094,14 +1104,22 @@ function ReferralsTab({ customerId }: { customerId: string }): React.ReactElemen
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </Card>
 
-      <Card className="p-5 md:col-span-3">
+      {data.totalReferrals > data.given.length && (
+        <p className="md:col-span-2 xl:col-span-4 text-xs text-[var(--color-text-secondary)]">
+          Showing the latest {data.given.length} of {data.totalReferrals} referral records. Totals above use the complete referral ledger.
+        </p>
+      )}
+
+      <Card className="p-5 md:col-span-2 xl:col-span-4">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Referrals given</h3>
         {data.given.length === 0 ? (
           <EmptyState title="Hasn't referred anyone yet." />
         ) : (
+          <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="text-xs text-[var(--color-text-secondary)] uppercase">
               <tr>
@@ -1133,6 +1151,7 @@ function ReferralsTab({ customerId }: { customerId: string }): React.ReactElemen
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </Card>
     </div>

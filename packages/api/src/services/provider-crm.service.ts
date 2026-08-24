@@ -4,8 +4,10 @@
  * Aggregates a provider's own bookings by customer so they can see repeat
  * clients, when they last served them, and the total job value. This is a
  * read-only view over data the provider already sees per booking — no new PII
- * exposure (these are the provider's own customers). The broader "value-added
- * per category" CRM tooling is a Ken decision: D27p7-provider-crm.md.
+ * exposure (these are the provider's own customers). The later D27 Phase 7b
+ * implementation added client notes/reminders, quote templates, and the
+ * provider's own category insights. D27p7-provider-crm.md records that scope;
+ * playbooks and lead-pipeline expansion remain separate product decisions.
  */
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
@@ -324,10 +326,52 @@ export async function createTemplate(
   if (!input.items || input.items.length === 0) throw createAppError('A template needs at least one line item.', 400);
 
   const created = await db.transaction(async (client) => {
+    let categoryId = input.categoryId ?? null;
+    const subcategoryId = input.subcategoryId ?? null;
+
+    if (subcategoryId) {
+      const eligibleSubcategory = await client.query<{ category_id: string }>(
+        `SELECT sc.category_id
+           FROM service_subcategories sc
+           JOIN service_categories c ON c.id = sc.category_id AND c.is_active = TRUE
+           JOIN provider_services ps
+             ON ps.subcategory_id = sc.id
+            AND ps.provider_id = $1
+            AND ps.is_active = TRUE
+          WHERE sc.id = $2 AND sc.is_active = TRUE AND sc.pricing_type = 'quote'`,
+        [providerId, subcategoryId],
+      );
+      const linkedCategoryId = eligibleSubcategory.rows[0]?.category_id;
+      if (!linkedCategoryId) {
+        throw createAppError('Templates can only be linked to an active service you offer.', 400);
+      }
+      if (categoryId && categoryId !== linkedCategoryId) {
+        throw createAppError('Template category does not match the selected service.', 400);
+      }
+      categoryId = linkedCategoryId;
+    } else if (categoryId) {
+      const eligibleCategory = await client.query<{ exists: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1
+             FROM service_categories c
+             JOIN service_subcategories sc ON sc.category_id = c.id AND sc.is_active = TRUE
+             JOIN provider_services ps
+               ON ps.subcategory_id = sc.id
+              AND ps.provider_id = $1
+              AND ps.is_active = TRUE
+            WHERE c.id = $2 AND c.is_active = TRUE AND sc.pricing_type = 'quote'
+         ) AS exists`,
+        [providerId, categoryId],
+      );
+      if (!eligibleCategory.rows[0]?.exists) {
+        throw createAppError('Templates can only be linked to an active service category you offer.', 400);
+      }
+    }
+
     const t = await client.query<TemplateRow>(
       `INSERT INTO provider_quote_templates (provider_id, category_id, subcategory_id, name)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [providerId, input.categoryId ?? null, input.subcategoryId ?? null, name],
+      [providerId, categoryId, subcategoryId, name],
     );
     const tpl = t.rows[0]!;
     const values: unknown[] = [];
@@ -370,18 +414,18 @@ export async function getCategoryInsights(providerId: string): Promise<Record<st
     category_name: string | null;
     job_count: string;
     completed_count: string;
-    total_value: string | null;
+    completed_value: string | null;
     avg_rating: string | null;
   }>(
     `SELECT b.category_id,
             sc.name AS category_name,
             COUNT(*)::text AS job_count,
             COUNT(*) FILTER (WHERE b.status = ANY($2))::text AS completed_count,
-            COALESCE(SUM(b.service_price), 0)::text AS total_value,
+            COALESCE(SUM(b.service_price) FILTER (WHERE b.status = ANY($2)), 0)::text AS completed_value,
             AVG(r.rating)::text AS avg_rating
        FROM bookings b
        LEFT JOIN service_categories sc ON sc.id = b.category_id
-       LEFT JOIN reviews r ON r.booking_id = b.id
+       LEFT JOIN reviews r ON r.booking_id = b.id AND r.is_visible = TRUE
       WHERE b.provider_id = $1
       GROUP BY b.category_id, sc.name
       ORDER BY COUNT(*) DESC`,
@@ -396,7 +440,7 @@ export async function getCategoryInsights(providerId: string): Promise<Record<st
       jobCount: jobs,
       completedCount: completed,
       completionRate: jobs > 0 ? Math.round((completed / jobs) * 100) : 0,
-      totalValue: Number(row.total_value ?? 0),
+      completedValue: Number(row.completed_value ?? 0),
       avgRating: row.avg_rating != null ? Math.round(Number(row.avg_rating) * 10) / 10 : null,
     };
   });

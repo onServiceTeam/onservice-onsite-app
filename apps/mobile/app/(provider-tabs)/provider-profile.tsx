@@ -34,6 +34,7 @@ import {
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 // BUG-PHASE94-01 — founding tier added; badge falls back to raw
@@ -62,6 +63,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isPhone, isDesktop } = useResponsive();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
@@ -83,8 +85,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
 
   const updateMutation = useMutation({
     mutationFn: () => {
-      const data: { bio?: string; yearsExperience?: number } = {};
-      if (bio.trim()) data.bio = bio.trim();
+      const data: { bio: string; yearsExperience?: number | null } = { bio: bio.trim() };
       // Phase K MED-K10 fix — client-side bounds match the backend
       // Zod validators (provider.validators.ts: yearsExperience
       // 0..60). Pre-fix the form accepted
@@ -92,10 +93,15 @@ export default function ProviderProfileScreen(): React.ReactElement {
       // returned a 400 with a Zod error the user couldn't easily
       // map back to the field. Now we throw a friendly local
       // Alert before the network round-trip.
-      const yrs = parseInt(yearsExp, 10);
-      if (!isNaN(yrs)) {
+      if (!yearsExp.trim()) {
+        data.yearsExperience = null;
+      } else {
+        const yrs = Number(yearsExp);
         if (yrs < 0 || yrs > 60) {
           throw new Error('Years of experience must be between 0 and 60.');
+        }
+        if (!Number.isInteger(yrs)) {
+          throw new Error('Years of experience must be a whole number.');
         }
         data.yearsExperience = yrs;
       }
@@ -128,7 +134,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
   if (isLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={{ padding: spacing.base }}>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -140,10 +146,12 @@ export default function ProviderProfileScreen(): React.ReactElement {
   if (isError && !profile) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <ErrorState
-          message="We couldn't load your profile. Please check your connection and try again."
-          onRetry={() => void refetch()}
-        />
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <ErrorState
+            message="We couldn't load your profile. Please check your connection and try again."
+            onRetry={() => void refetch()}
+          />
+        </View>
       </View>
     );
   }
@@ -151,9 +159,14 @@ export default function ProviderProfileScreen(): React.ReactElement {
   return (
     <ScrollView
       style={[styles.container, { paddingTop: insets.top + spacing.base }]}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]}
       showsVerticalScrollIndicator={false}
     >
+      <View
+        style={[styles.workspace, isDesktop && styles.workspaceDesktop]}
+        accessibilityLabel={isPhone ? 'Provider profile' : 'Tablet and desktop provider profile workspace'}
+      >
+      <View style={[styles.profileColumn, isDesktop && styles.profileColumnDesktop]}>
       <Text style={styles.title}>Profile</Text>
 
       <View style={styles.profileCard}>
@@ -224,7 +237,9 @@ export default function ProviderProfileScreen(): React.ReactElement {
             onChangeText={setBio}
             multiline
             numberOfLines={4}
+            maxLength={1000}
             style={styles.bioInput}
+            hint={`${bio.length} / 1000 characters`}
           />
           <Input
             label="Years of Experience"
@@ -232,6 +247,8 @@ export default function ProviderProfileScreen(): React.ReactElement {
             value={yearsExp}
             onChangeText={setYearsExp}
             keyboardType="number-pad"
+            maxLength={2}
+            hint="Leave blank to remove the value. Maximum 60 years."
           />
           <View style={styles.editActions}>
             <Button
@@ -295,7 +312,10 @@ export default function ProviderProfileScreen(): React.ReactElement {
           )}
         </View>
       )}
+      </View>
 
+      <View style={[styles.toolsColumn, isDesktop && styles.toolsColumnDesktop]}>
+      <Text style={styles.toolsTitle}>Business tools</Text>
       <View style={styles.section}>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.SERVICE_AREA)}>
           <MapPin size={22} color={colors.primary} style={styles.menuIconImg} />
@@ -381,6 +401,8 @@ export default function ProviderProfileScreen(): React.ReactElement {
         variant="outline"
         style={styles.logoutButton}
       />
+      </View>
+      </View>
 
       <View style={styles.bottomSpacer} />
     </ScrollView>
@@ -388,13 +410,23 @@ export default function ProviderProfileScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
   errorCenter: { alignItems: 'center' },
   errorEmoji: { fontSize: 40, marginBottom: spacing.base },
   errorIcon: { marginBottom: spacing.base },
   retryButton: { marginTop: spacing.base },
   retryText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
-  scrollContent: { paddingBottom: 20 },
+  scrollContent: { paddingHorizontal: spacing.base, paddingBottom: 20 },
+  scrollContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', paddingHorizontal: spacing.xl },
+  stateContent: { padding: spacing.base, gap: spacing.md },
+  stateContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.xl },
+  workspace: { width: '100%' },
+  workspaceDesktop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  profileColumn: { minWidth: 0 },
+  profileColumnDesktop: { flex: 1 },
+  toolsColumn: { minWidth: 0 },
+  toolsColumnDesktop: { width: 380, paddingTop: 3 },
+  toolsTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.lg },
 
   profileCard: { alignItems: 'center', marginBottom: spacing.xl },

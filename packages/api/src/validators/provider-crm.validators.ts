@@ -34,7 +34,7 @@ export const createTemplateSchema = z.object({
     description: z.string().trim().min(1).max(500),
     quantity: z.number().min(0.01).max(99999),
     unit: z.string().trim().min(1).max(30),
-    unitPrice: z.number().int().min(0).max(100_000_000),
+    unitPrice: z.number().int().min(1).max(100_000_000),
     itemType: z.enum(['labor', 'materials', 'equipment', 'other']).optional(),
-  })).min(1).max(30),
+  })).min(1).max(20),
 }).strict();

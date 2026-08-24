@@ -16,6 +16,7 @@ import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { ChevronLeft, ChevronRight, MapPin } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 const TIME_SLOTS = [
@@ -42,6 +43,7 @@ function generateDates(): { label: string; value: string }[] {
 export default function BookingFormScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone, isDesktop } = useResponsive();
   const { draft, serviceFee, total, addonsTotal, setSchedule, setDescription } = useBookingStore();
 
   const [selectedDate, setSelectedDate] = useState<string | null>(draft.scheduledDate);
@@ -61,6 +63,18 @@ export default function BookingFormScreen(): React.ReactElement {
     if (selectedDate) setSchedule(selectedDate, time);
   };
 
+  const dateChoices = dates.map((d) => (
+    <TouchableOpacity
+      key={d.value}
+      style={[styles.dateChip, selectedDate === d.value && styles.dateChipSelected]}
+      onPress={() => handleDateSelect(d.value)}
+    >
+      <Text style={[styles.dateLabel, selectedDate === d.value && styles.dateLabelSelected]}>
+        {d.label}
+      </Text>
+    </TouchableOpacity>
+  ));
+
   const handleProceed = (): void => {
     if (!selectedDate || !selectedTime) {
       showToast('Please select both a date and time for your booking.', 'warning');
@@ -79,18 +93,25 @@ export default function BookingFormScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <ChevronLeft size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Book Service</Text>
+        <View style={[styles.headerInner, !isPhone && styles.headerInnerWide]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Book Service</Text>
+        </View>
       </View>
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <View
+          style={[styles.workspace, isDesktop && styles.workspaceDesktop]}
+          accessibilityLabel={isPhone ? 'Customer booking form' : 'Tablet and desktop customer booking workspace'}
+        >
+        <View style={[styles.formColumn, isDesktop && styles.formColumnDesktop]}>
         {/* Service summary */}
         <View style={[styles.serviceSummary, { backgroundColor: tint.bg }]}>
           <Text style={[styles.serviceName, { color: tint.fg }]}>{draft.subcategoryName ?? 'Service'}</Text>
@@ -117,25 +138,17 @@ export default function BookingFormScreen(): React.ReactElement {
         {/* Date picker */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Select Date</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.datePicker}
-          >
-            {dates.map((d) => (
-              <TouchableOpacity
-                key={d.value}
-                style={[styles.dateChip, selectedDate === d.value && styles.dateChipSelected]}
-                onPress={() => handleDateSelect(d.value)}
-              >
-                <Text
-                  style={[styles.dateLabel, selectedDate === d.value && styles.dateLabelSelected]}
-                >
-                  {d.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          {isPhone ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.datePicker}
+            >
+              {dateChoices}
+            </ScrollView>
+          ) : (
+            <View style={[styles.datePicker, styles.datePickerWide]}>{dateChoices}</View>
+          )}
         </View>
 
         {/* Time picker */}
@@ -177,9 +190,10 @@ export default function BookingFormScreen(): React.ReactElement {
             style={styles.notesInput}
           />
         </View>
+        </View>
 
         {/* Price breakdown */}
-        <Card style={styles.priceBreakdown}>
+        <Card style={[styles.priceBreakdown, isDesktop && styles.priceBreakdownDesktop]}>
           <Text style={styles.priceTitle}>Price Breakdown</Text>
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Service Price</Text>
@@ -207,15 +221,18 @@ export default function BookingFormScreen(): React.ReactElement {
             <Text style={styles.totalValue}>{formatPHP(total)}</Text>
           </View>
         </Card>
+        </View>
       </ScrollView>
 
       {/* Bottom CTA */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
-        <Button
-          title={`Proceed to Payment • ${formatPHP(total)}`}
-          onPress={handleProceed}
-          disabled={!selectedDate || !selectedTime || !draft.address || !draft.barangay || draft.latitude == null || draft.longitude == null}
-        />
+        <View style={[styles.bottomBarInner, !isPhone && styles.bottomBarInnerWide]}>
+          <Button
+            title={`Proceed to Payment • ${formatPHP(total)}`}
+            onPress={handleProceed}
+            disabled={!selectedDate || !selectedTime || !draft.address || !draft.barangay || draft.latitude == null || draft.longitude == null}
+          />
+        </View>
       </View>
     </View>
   );
@@ -224,18 +241,21 @@ export default function BookingFormScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
+  headerInner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.base, paddingVertical: spacing.md },
+  headerInnerWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: spacing.xl },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 120 },
+  scrollContentWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl, paddingBottom: 120 },
+  workspace: { width: '100%' },
+  workspaceDesktop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  formColumn: { minWidth: 0 },
+  formColumnDesktop: { flex: 1 },
 
   serviceSummary: {
     flexDirection: 'row',
@@ -272,6 +292,7 @@ const styles = StyleSheet.create({
   addressArrow: { fontSize: 22, color: colors.textTertiary },
 
   datePicker: { gap: spacing.sm, paddingRight: spacing.base },
+  datePickerWide: { flexDirection: 'row', flexWrap: 'wrap', paddingRight: 0 },
   dateChip: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm + 2,
@@ -300,6 +321,7 @@ const styles = StyleSheet.create({
   notesInput: { height: 80, textAlignVertical: 'top' },
 
   priceBreakdown: {},
+  priceBreakdownDesktop: { width: 340 },
   priceTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
   priceRow: {
     flexDirection: 'row',
@@ -323,4 +345,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.divider,
   },
+  bottomBarInner: { width: '100%' },
+  bottomBarInnerWide: { maxWidth: 1120, alignSelf: 'center' },
 });

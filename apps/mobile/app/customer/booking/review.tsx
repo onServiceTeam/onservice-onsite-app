@@ -12,15 +12,19 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import { createReview, type CreateReviewPayload } from '@/services/review.service';
+import { getBookingById } from '@/services/booking.service';
 import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
-import { Button, Input } from '@/components/ui';
+import { Button, Input, SkeletonCard, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Check, Star, Lock } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const STAR_OPTIONS = [1, 2, 3, 4, 5];
+const REVIEWABLE_BOOKING_STATUSES = new Set(['confirmed', 'payout_ready', 'paid_out']);
 const SUB_CATEGORIES = [
   { key: 'qualityRating', label: 'Quality of Work' },
   { key: 'punctualityRating', label: 'Punctuality' },
@@ -63,9 +67,21 @@ function StarRow({
 }
 
 export default function ReviewScreen(): React.ReactElement {
-  const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
+  const { bookingId } = useLocalSearchParams<{ bookingId?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone, isDesktop } = useResponsive();
+  const validBookingId = typeof bookingId === 'string' ? bookingId.trim() : '';
+
+  const bookingQuery = useQuery({
+    queryKey: ['booking', validBookingId],
+    queryFn: () => getBookingById(validBookingId),
+    enabled: validBookingId.length > 0,
+    staleTime: 60 * 1000,
+  });
+  const isReviewableBooking = bookingQuery.data
+    ? REVIEWABLE_BOOKING_STATUSES.has(bookingQuery.data.status)
+    : false;
 
   const [overallRating, setOverallRating] = useState(0);
   const [subRatings, setSubRatings] = useState<Record<SubKey, number>>({
@@ -104,6 +120,10 @@ export default function ReviewScreen(): React.ReactElement {
   };
 
   const handleSubmit = async (): Promise<void> => {
+    if (!validBookingId || !bookingQuery.data) {
+      showToast('This completed booking could not be loaded. Open the review from your booking details.', 'error');
+      return;
+    }
     if (overallRating === 0) {
       Alert.alert('Rating Required', 'Please select an overall rating.');
       return;
@@ -122,7 +142,7 @@ export default function ReviewScreen(): React.ReactElement {
         : [];
 
       const payload: CreateReviewPayload = {
-        bookingId,
+        bookingId: validBookingId,
         rating: overallRating,
         ...(subRatings.qualityRating > 0 && { qualityRating: subRatings.qualityRating }),
         ...(subRatings.punctualityRating > 0 && { punctualityRating: subRatings.punctualityRating }),
@@ -136,7 +156,7 @@ export default function ReviewScreen(): React.ReactElement {
       if (privateNote.trim().length > 0) payload.privateNote = privateNote.trim();
 
       await createReview(payload);
-      router.replace({ pathname: '/customer/booking/tip', params: { bookingId } });
+      router.replace({ pathname: '/customer/booking/tip', params: { bookingId: validBookingId } });
     } catch (err: unknown) {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
       // A7 — non-blocking toast instead of a modal Alert for network failures.
@@ -150,13 +170,48 @@ export default function ReviewScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Rate & Review</Text>
+        <View style={[styles.headerInner, !isPhone && styles.headerInnerWide]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Rate & Review</Text>
+        </View>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      {!validBookingId || (bookingQuery.isError && !bookingQuery.data) || (bookingQuery.data && !isReviewableBooking) ? (
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <ErrorState
+            message={bookingQuery.data && !isReviewableBooking
+              ? 'This booking is not ready for a review. Reviews open after you confirm the completed job.'
+              : 'This completed booking could not be loaded. Open the review from your booking details and try again.'}
+            onRetry={bookingQuery.data && !isReviewableBooking
+              ? () => router.back()
+              : validBookingId
+                ? () => void bookingQuery.refetch()
+                : () => router.back()}
+          />
+        </View>
+      ) : bookingQuery.isLoading || !bookingQuery.data ? (
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      ) : (
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]} showsVerticalScrollIndicator={false}>
+        <View
+          style={[styles.workspace, isDesktop && styles.workspaceDesktop]}
+          accessibilityLabel={isPhone ? 'Customer booking review' : 'Tablet and desktop customer booking review workspace'}
+        >
+        <View style={[styles.ratingColumn, isDesktop && styles.ratingColumnDesktop]}>
+        <View style={styles.bookingContext}>
+          <Text style={styles.bookingContextEyebrow}>COMPLETED BOOKING</Text>
+          <Text style={styles.bookingContextTitle}>
+            {bookingQuery.data.serviceName ?? bookingQuery.data.categoryName ?? 'Service'}
+          </Text>
+          {bookingQuery.data.providerName ? (
+            <Text style={styles.bookingContextMeta}>Provided by {bookingQuery.data.providerName}</Text>
+          ) : null}
+        </View>
         <View style={styles.overallSection}>
           <Text style={styles.overallLabel}>How was the service?</Text>
           <StarRow value={overallRating} onChange={setOverallRating} size={40} />
@@ -191,6 +246,9 @@ export default function ReviewScreen(): React.ReactElement {
             ))}
           </View>
         )}
+        </View>
+
+        <View style={[styles.feedbackColumn, isDesktop && styles.feedbackColumnDesktop]}>
 
         <View style={styles.commentSection}>
           {/* BUG-PHASE145-01 fix — pre-fix the hint said "X / 1000
@@ -292,22 +350,29 @@ export default function ReviewScreen(): React.ReactElement {
             <Text style={styles.privateNoteHint}> This note is only visible to our support team, not the provider or public.</Text>
           </View>
         </View>
+        </View>
+        </View>
       </ScrollView>
+      )}
 
+      {bookingQuery.data && isReviewableBooking ? (
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
-        <Button
-          title={loading ? 'Submitting...' : 'Submit Review'}
-          onPress={handleSubmit}
-          loading={loading}
-          disabled={overallRating === 0 || loading}
-        />
-        <Button
-          title="Skip"
-          onPress={() => router.replace({ pathname: '/customer/booking/tip', params: { bookingId } })}
-          variant="ghost"
-          disabled={loading}
-        />
+        <View style={[styles.bottomBarInner, !isPhone && styles.bottomBarInnerWide]}>
+          <Button
+            title={loading ? 'Submitting...' : 'Submit Review'}
+            onPress={handleSubmit}
+            loading={loading}
+            disabled={overallRating === 0 || loading}
+          />
+          <Button
+            title="Skip"
+            onPress={() => router.replace({ pathname: '/customer/booking/tip', params: { bookingId: validBookingId } })}
+            variant="ghost"
+            disabled={loading}
+          />
+        </View>
       </View>
+      ) : null}
     </View>
   );
 }
@@ -315,19 +380,30 @@ export default function ReviewScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
+  headerInner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.base, paddingVertical: spacing.md },
+  headerInnerWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: spacing.xl },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 140 },
+  scrollContentWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl, paddingBottom: 140 },
+  stateContent: { flex: 1, padding: spacing.base, gap: spacing.md },
+  stateContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.xl },
+  workspace: { width: '100%' },
+  workspaceDesktop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl },
+  ratingColumn: { minWidth: 0 },
+  ratingColumnDesktop: { width: 360 },
+  feedbackColumn: { minWidth: 0 },
+  feedbackColumnDesktop: { flex: 1 },
+  bookingContext: { backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.lg },
+  bookingContextEyebrow: { ...typography.caption, color: colors.primary, fontWeight: '700', letterSpacing: 0.8, marginBottom: spacing.xs },
+  bookingContextTitle: { ...typography.h3, color: colors.text },
+  bookingContextMeta: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
 
   overallSection: { alignItems: 'center', marginBottom: spacing.lg },
   overallLabel: { ...typography.h2, color: colors.text, marginBottom: spacing.base },
@@ -406,4 +482,6 @@ const styles = StyleSheet.create({
     borderTopColor: colors.divider,
     gap: spacing.xs,
   },
+  bottomBarInner: { width: '100%', gap: spacing.xs },
+  bottomBarInnerWide: { maxWidth: 760, alignSelf: 'center' },
 });
