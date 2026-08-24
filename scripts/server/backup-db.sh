@@ -5,7 +5,7 @@
 # Produces, under /opt/onservice/backups/:
 #   onservice-<TS>.sql.gz   — full pg_dump of the onservice DB, gzipped
 #   uploads-<TS>.tgz        — tarball of the uploads_data volume (files on disk)
-# Keeps 7 days of each.
+# Keeps 14 days of each.
 #
 # OFF-SITE: set BACKUP_RCLONE_REMOTE (e.g. "hetzner-box:onservice-backups") in
 # the environment and install rclone to push a copy off the box. Without it,

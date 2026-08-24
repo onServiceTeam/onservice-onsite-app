@@ -43,16 +43,16 @@ for him, or via a editor). Never paste those secrets into the chat.
 - A **domain name** you control (e.g. `onservice.ph`), so we can put it behind
   HTTPS. For staging a subdomain is fine (e.g. `staging.onservice.ph`,
   `api.staging.onservice.ph`). You'll need access to the domain's DNS settings.
-- Object storage for uploads + BIR receipts. Options: AWS S3, DigitalOcean
-  Spaces, or **Hetzner Object Storage** (all S3-compatible). You can add this
-  later; uploads just won't work until it's set.
+- No third-party object storage is required for launch uploads. The production
+  stack uses the external `onservice_uploads_data` Docker volume on the Hetzner
+  server, which is included in the backup job. S3-compatible object storage is
+  an optional later migration, not a prerequisite.
 
-> **Latency note (be aware):** Hetzner's data centers are in Europe and the US
-> (no Asia region today). For a Philippines launch, pick the **US-West
-> (Hillsboro)** location for the best latency. It's perfectly fine for staging
-> and an early launch; if latency ever becomes a concern at scale, a
-> Singapore-based host (DigitalOcean/Vultr/AWS ap-southeast-1) would be lower
-> latency. The deploy steps are the same on any of them.
+> **Latency note:** Hetzner Cloud has offered a Singapore location since August
+> 2024. For a new Philippines deployment, choose **Singapore** unless a tested
+> legal, resilience, or existing-infrastructure requirement points elsewhere.
+> The current shared server is an existing deployment and is not moved by this
+> runbook correction. Source: https://www.hetzner.com/pressroom/new-location-singapore/
 
 ---
 
@@ -80,7 +80,8 @@ In the Hetzner Cloud Console (https://console.hetzner.cloud):
 2. **Security → SSH Keys → Add SSH Key** → paste the contents of your
    `onservice_hetzner.pub` file. Name it (e.g. "Ken laptop").
 3. **Servers → Add Server**:
-   - **Location:** Hillsboro, US-West (best for PH) — or your preference.
+   - **Location:** Singapore (lowest-latency Hetzner region for the Philippines)
+     unless your deployment requirements dictate another region.
    - **Image:** Ubuntu 24.04.
    - **Type:** start with **CPX31** (4 vCPU / 8 GB RAM / 160 GB) for staging or
      a small launch. You can resize up later without rebuilding.
@@ -133,10 +134,11 @@ From there the AI coder will, over SSH:
 4. Create `.env.production` from `.env.production.example`, generating the
    safe secrets (DB password, `JWT_SECRET`) and leaving placeholders for the
    ones **you** must paste (PayMongo, SMS, S3 keys).
-5. Bring up the stack: `docker compose -f docker-compose.prod.yml up -d`.
-6. Run database migrations (`bash scripts/run-migrations.sh`).
-7. Provision **HTTPS/TLS** via the built-in Certbot service against your domain.
-8. Run the smoke gate and health checks, and confirm the API, admin site, and
+5. Run `scripts/server/02-deploy.sh`; it creates the external uploads volume on
+   a verified first install, brings up the data plane, and runs migrations. A
+   rerun fails closed if that volume is unexpectedly missing.
+6. Provision **HTTPS/TLS** via the built-in Certbot service against your domain.
+7. Run the smoke gate and health checks, and confirm the API, admin site, and
    monitoring are up.
 
 You'll be asked, once, to paste the third-party secrets into the server's env
@@ -151,8 +153,11 @@ From `.env.production.example` — the AI coder fills the rest:
 - `PAYMONGO_PUBLIC_KEY`, `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET`
   (use **test-mode** keys for staging; live keys only at production cutover).
 - `SEMAPHORE_API_KEY` (SMS one-time codes).
-- `S3_BUCKET` / `S3_REGION` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_ENDPOINT`
-  (uploads + BIR receipts).
+- `S3_*` values only if a later, separately tested upload object-storage
+  migration is approved. The current production upload backend is the server's
+  persistent Docker volume and deliberately forces `S3_BUCKET` empty.
+- `AWS_S3_BUCKET`, `AWS_REGION`, and AWS credentials only after launch-cutover
+  Item 8's separate BIR receipt-retention backend is approved and provisioned.
 - Push (`FCM_*`) and email (`RESEND_API_KEY`) keys, if used.
 - `DOMAIN` + `CERTBOT_EMAIL` for TLS (the AI coder sets these with you).
 

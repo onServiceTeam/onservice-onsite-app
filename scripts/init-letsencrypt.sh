@@ -42,13 +42,16 @@ docker run --rm \
   -out "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" \
   -subj "/CN=$DOMAIN" 2>/dev/null
 
-echo "Step 2: Starting nginx with temporary certificate..."
+echo "Step 2: Ensuring external persistent uploads volume..."
+ALLOW_CREATE_UPLOADS_VOLUME=1 bash "$PROJECT_DIR/scripts/server/ensure-uploads-volume.sh"
+
+echo "Step 3: Starting nginx with temporary certificate..."
 docker compose -f "$PROJECT_DIR/docker-compose.prod.yml" up -d nginx
 
-echo "Step 3: Waiting for nginx to start..."
+echo "Step 4: Waiting for nginx to start..."
 sleep 5
 
-echo "Step 4: Requesting Let's Encrypt certificate..."
+echo "Step 5: Requesting Let's Encrypt certificate..."
 docker compose -f "$PROJECT_DIR/docker-compose.prod.yml" run --rm certbot \
   certonly --webroot -w /var/www/certbot \
   --email "$EMAIL" \
@@ -57,7 +60,7 @@ docker compose -f "$PROJECT_DIR/docker-compose.prod.yml" run --rm certbot \
   -d "$DOMAIN" \
   --force-renewal
 
-echo "Step 5: Reloading nginx with real certificate..."
+echo "Step 6: Reloading nginx with real certificate..."
 docker compose -f "$PROJECT_DIR/docker-compose.prod.yml" exec nginx nginx -s reload
 
 echo ""

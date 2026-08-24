@@ -100,6 +100,10 @@ tar czf /tmp/onservice-admin-<sha>.tar.gz -C apps/admin/dist .
    exception to the deployment user's Git configuration.
 4. Confirm the checkout is clean and its remote points to
    `onServiceTeam/onservice-onsite-app` over either SSH or HTTPS.
+   Confirm `docker volume inspect onservice_uploads_data` succeeds. This is an
+   external, data-bearing volume used by the API and nginx. If it is missing on
+   an existing server, stop and investigate as possible data loss; do not run
+   the first-install helper to create an empty replacement.
 5. Fetch `origin/master`, then fast-forward only to the already-green release
    SHA. If the server's private-repository deploy key is unavailable, create a
    uniquely named incremental `git bundle` from the verified local clone,
@@ -136,6 +140,9 @@ tar czf /tmp/onservice-admin-<sha>.tar.gz -C apps/admin/dist .
 Verify all of the following before declaring the release complete:
 
 - `/opt/onservice` is clean and exactly matches the GitHub release SHA.
+- `onservice_uploads_data` exists as the explicitly named external volume, is
+  mounted only by the onService API and nginx, and Compose emits no ownership
+  warning for it.
 - `docker compose -f docker-compose.prod.yml ps` reports the onService API,
   Postgres, Redis, and nginx as healthy/running.
 - Redis reports `maxmemory-policy=noeviction`; BullMQ queue keys must never be

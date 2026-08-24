@@ -7,6 +7,7 @@ cd /opt/onservice
 EMAIL="$(grep -E '^CERTBOT_EMAIL=' .env | cut -d= -f2- || true)"
 EMAIL="${EMAIL:-admin@onservice.ph}"
 mkdir -p certbot/conf certbot/www
+bash scripts/server/ensure-uploads-volume.sh
 
 echo "==> Stopping nginx (free port 80 for standalone issuance)"
 docker compose -f docker-compose.prod.yml stop nginx 2>/dev/null || true

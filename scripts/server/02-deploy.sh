@@ -7,9 +7,11 @@
 set -euo pipefail
 cd /opt/onservice
 COMPOSE="docker compose -f docker-compose.prod.yml"
+FIRST_INSTALL=0
 
-echo "==> [1/6] Generate .env (secrets created here, never elsewhere)"
+echo "==> [1/7] Generate .env (secrets created here, never elsewhere)"
 if [ ! -f .env ]; then
+  FIRST_INSTALL=1
   cp .env.production.example .env
   DB_PW=$(openssl rand -hex 24)
   REDIS_PW=$(openssl rand -hex 24)
@@ -30,16 +32,19 @@ else
   echo "    .env already exists — leaving it untouched."
 fi
 
-echo "==> [2/6] Create certbot directories"
+echo "==> [2/7] Create certbot directories"
 mkdir -p certbot/conf certbot/www
 
-echo "==> [3/6] Build the API image (this is the slow step)"
+echo "==> [3/7] Ensure external persistent uploads volume"
+ALLOW_CREATE_UPLOADS_VOLUME="$FIRST_INSTALL" bash scripts/server/ensure-uploads-volume.sh
+
+echo "==> [4/7] Build the API image (this is the slow step)"
 $COMPOSE build api
 
-echo "==> [4/6] Start data plane: postgres, pgbouncer, redis"
+echo "==> [5/7] Start data plane: postgres, pgbouncer, redis"
 $COMPOSE up -d postgres pgbouncer redis
 
-echo "==> [5/6] Wait for postgres, migrate, then start API"
+echo "==> [6/7] Wait for postgres, migrate, then start API"
 for i in $(seq 1 40); do
   if $COMPOSE exec -T postgres pg_isready -U onservice_user -d onservice >/dev/null 2>&1; then echo "    postgres ready"; break; fi
   sleep 3
@@ -57,7 +62,7 @@ for i in $(seq 1 40); do
   sleep 3
 done
 
-echo "==> [6/6] Seed catalog + Cebu service areas + demo data"
+echo "==> [7/7] Seed catalog + Cebu service areas + demo data"
 for f in packages/api/seeds/*.sql; do
   echo "    applying $(basename "$f")..."
   $COMPOSE exec -T postgres psql -v ON_ERROR_STOP=0 -U onservice_user -d onservice < "$f" >/dev/null 2>&1 || echo "      (warning: $(basename "$f") had issues; non-fatal)"
