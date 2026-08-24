@@ -51,15 +51,24 @@ export function errorMiddleware(
     isOperational = true;
   }
 
-  // Log error with structured data
-  logger.error('Request error', {
+  const logAsServerError = statusCode >= 500 || !isOperational;
+  const logContext = {
     method: req.method,
     path: req.path,
     statusCode,
     error: err.message,
-    stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined,
+    stack: logAsServerError && process.env.NODE_ENV !== 'production' ? err.stack : undefined,
     requestId: req.headers['x-request-id'],
-  });
+  };
+
+  // Operational 4xx responses are expected request rejections, not server
+  // failures. Keep them searchable at warning level without triggering the
+  // production error signal used by support and incident alerting.
+  if (logAsServerError) {
+    logger.error('Request error', logContext);
+  } else {
+    logger.warn('Request rejected', logContext);
+  }
 
   // Never expose internal errors to client
   const clientMessage = isOperational

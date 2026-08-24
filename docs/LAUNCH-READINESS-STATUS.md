@@ -33,10 +33,12 @@ These are shipped to production and verified:
   (non-executable script); fixed. Now backs up the DB **and** uploaded files
   nightly, keeps 7 days, and a dump has been restore-tested. Runbook:
   `docs/runbooks/postgres-restore.md`.
-- **TLS configuration** — TLS 1.2/1.3, HSTS preload, OCSP stapling, and session
-  resumption are configured. The installed certificate is valid for `app`,
-  `admin`, `api`, and `www`, but not for the bare `onservice.ph` hostname. The
-  apex certificate gap is open under E17 and launch limitation 40.
+- **TLS configuration** — TLS 1.2/1.3, HSTS preload, current Let's Encrypt CRL
+  revocation metadata, and session resumption are configured. Let's Encrypt
+  ended OCSP support in 2025, so obsolete stapling directives were removed.
+  The installed certificate is valid for `app`, `admin`, `api`, and `www`, but
+  not for the bare `onservice.ph` hostname. The apex certificate gap is open
+  under E17 and launch limitation 40.
 - **Sentry** — wiring fixed to accept the env name the runbook documents, so
   error tracking turns on the moment you add a DSN.
 - **Security posture** — firewall is 22/80/443 only; Postgres/redis/monitoring

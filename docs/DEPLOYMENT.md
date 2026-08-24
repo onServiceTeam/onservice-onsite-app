@@ -143,6 +143,12 @@ Verify all of the following before declaring the release complete:
 - Fresh API startup logs include `Settings drift check passed`. A drift warning
   means an active admin setting and its database-outage fallback are no longer
   aligned and the release is incomplete.
+- Unauthenticated probes of protected routes return 401 and are recorded as
+  `Request rejected` warnings, not `Request error` events. A normal access check
+  must not create a false server-failure alert for the support team.
+- `nginx -t` passes and fresh nginx logs contain no `ssl_stapling ignored`
+  warning. Current Let's Encrypt certificates use CRL distribution points and
+  contain no OCSP responder URL.
 - The API container's `/health/ready` returns a successful readiness response.
   While the staging IP lock is active, an outside request to
   `https://api.onservice.ph/health/ready` correctly returns 403; verify the
