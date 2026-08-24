@@ -88,6 +88,7 @@ export interface StaffAssignedJob {
   city: string | null;
   serviceName: string | null;
   customerName: string | null;
+  providerBusinessName: string | null;
 }
 
 export async function getMyInvites(): Promise<PendingInvite[]> {

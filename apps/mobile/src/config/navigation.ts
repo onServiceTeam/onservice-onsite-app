@@ -179,6 +179,8 @@ export const Routes = {
     JOBS: '/staff/jobs',
     INVITES: '/staff/invites',
     JOB_DETAIL: '/staff/job/[id]',
+    JOB_CHECKLIST: '/staff/job/[id]/checklist',
+    JOB_COMPLETE: '/staff/job/[id]/complete',
   },
 
   PROVIDER_ONBOARDING: {

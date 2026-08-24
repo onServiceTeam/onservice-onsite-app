@@ -21,7 +21,6 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { formatDateTime } from '@/utils/date';
 import { Routes } from '@/config/navigation';
 import api, { type ApiResponse } from '@/services/api';
 import {
@@ -33,18 +32,19 @@ import {
   ChevronDown,
   ChevronUp,
 } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type CheckStatus = 'pending' | 'approved' | 'rejected';
 
 interface BackgroundCheckState {
   status: CheckStatus;
-  estimatedCompletionAt?: string;
   reason?: string;
 }
 
 interface BackgroundCheckHookResult {
   data: BackgroundCheckState;
   loading: boolean;
+  error: boolean;
   refetch: () => Promise<void>;
 }
 
@@ -61,46 +61,36 @@ function mapServerStatus(serverStatus: string): CheckStatus {
 }
 
 function useBackgroundCheckStatus(): BackgroundCheckHookResult {
-  const defaultEta = new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString();
   const [data, setData] = useState<BackgroundCheckState>({
     status: 'pending',
-    estimatedCompletionAt: defaultEta,
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const refetch = useCallback(async (): Promise<void> => {
     setLoading(true);
+    setError(false);
     try {
       const res = await api.get<ApiResponse<ApplicationStatusResponse | null>>(
         '/api/v1/providers/application-status',
       );
       const body = res.data.data;
       if (!body) {
-        // No application row yet — keep pending default with the
-        // estimatedCompletionAt baseline so the UI doesn't flicker
-        // to an empty state.
-        setData({ status: 'pending', estimatedCompletionAt: defaultEta });
+        setData({ status: 'pending' });
         return;
       }
       const mapped: BackgroundCheckState = {
         status: mapServerStatus(body.status),
-        // ETA is not stored server-side yet; we keep the +48h default
-        // for the pending case so the user sees the same expectation
-        // bar.
-        ...(body.status === 'pending' || body.status === 'under_review'
-          ? { estimatedCompletionAt: defaultEta }
-          : {}),
         ...(body.rejectionReason ? { reason: body.rejectionReason } : {}),
       };
       setData(mapped);
     } catch {
-      // Don't clobber displayed state on transient network error;
-      // user can hit refresh again. Future: surface a toast on
-      // repeated failure.
+      // Keep the last confirmed state while making refresh failure visible.
+      setError(true);
     } finally {
       setLoading(false);
     }
-  }, [defaultEta]);
+  }, []);
 
   // Initial fetch on mount + every 60s while screen is open so the
   // user sees fresh status without manually refreshing.
@@ -110,17 +100,17 @@ function useBackgroundCheckStatus(): BackgroundCheckHookResult {
     return () => clearInterval(interval);
   }, [refetch]);
 
-  return { data, loading, refetch };
+  return { data, loading, error, refetch };
 }
 
 const NEXT_STEPS: { title: string; body: string }[] = [
   {
-    title: 'NBI clearance review',
-    body: 'Our verification team is matching your details with NBI records.',
+    title: 'Application review',
+    body: 'An authorized reviewer checks the identity, clearance, and provider details you submitted.',
   },
   {
-    title: 'Identity cross-check',
-    body: 'Your selfie is compared with the government ID you submitted.',
+    title: 'Decision recorded',
+    body: 'The app shows the recorded decision and any rejection reason supplied by the reviewer.',
   },
   {
     title: 'Account activation',
@@ -150,16 +140,14 @@ function StatusIcon({ status }: { status: CheckStatus }): React.ReactElement {
 
 export default function BackgroundCheckStatusScreen(): React.ReactElement {
   const router = useRouter();
-  const { data, loading, refetch } = useBackgroundCheckStatus();
+  const { data, loading, error, refetch } = useBackgroundCheckStatus();
   const [delayedExpanded, setDelayedExpanded] = useState(false);
+  const { isPhone } = useResponsive();
 
   const badge = statusBadgeStyle(data.status);
-  const etaLabel = data.estimatedCompletionAt
-    ? formatDateTime(data.estimatedCompletionAt)
-    : 'Within 48 hours';
 
-  const goToDashboard = (): void => {
-    router.push(Routes.PROVIDER_TABS.DASHBOARD);
+  const activateProviderAccess = (): void => {
+    router.replace(Routes.PROVIDER_ONBOARDING.REVIEW_PENDING);
   };
 
   return (
@@ -168,7 +156,7 @@ export default function BackgroundCheckStatusScreen(): React.ReactElement {
         <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} activeOpacity={0.7}>
           <ArrowLeft size={20} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Background Check</Text>
+        <Text style={styles.title}>Application Review</Text>
         <TouchableOpacity
           onPress={refetch}
           style={styles.iconBtn}
@@ -185,23 +173,33 @@ export default function BackgroundCheckStatusScreen(): React.ReactElement {
 
       <ScrollView
         style={styles.body}
-        contentContainerStyle={styles.bodyContent}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
         showsVerticalScrollIndicator={false}
       >
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={isPhone ? 'Application review status' : 'Tablet and desktop application review status workspace'}
+        >
+        <View style={styles.statusColumn}>
         <View style={[styles.statusCard, { backgroundColor: badge.bg }]}>
           <View style={styles.statusIconWrap}>
             <StatusIcon status={data.status} />
           </View>
           <Text style={[styles.statusBadge, { color: badge.text }]}>{badge.label}</Text>
           <Text style={styles.statusHeadline}>
-            {data.status === 'pending' && 'Your background check is in progress.'}
-            {data.status === 'approved' && 'You are verified and ready to go!'}
+            {data.status === 'pending' && 'Your provider application is under review.'}
+            {data.status === 'approved' && 'Your application was approved.'}
             {data.status === 'rejected' && 'We could not approve your application.'}
           </Text>
-          {data.status === 'pending' && (
-            <Text style={styles.statusEta}>Estimated completion: {etaLabel}</Text>
-          )}
+          {data.status === 'pending' && <Text style={styles.statusEta}>The app checks the recorded status automatically.</Text>}
         </View>
+
+        {error && (
+          <TouchableOpacity style={styles.refreshError} onPress={() => { void refetch(); }} accessibilityRole="button">
+            <Text style={styles.refreshErrorTitle}>Latest status unavailable</Text>
+            <Text style={styles.refreshErrorText}>The last confirmed status remains shown. Tap to try again.</Text>
+          </TouchableOpacity>
+        )}
 
         {data.status === 'rejected' && data.reason && (
           <View style={styles.reasonCard}>
@@ -209,7 +207,9 @@ export default function BackgroundCheckStatusScreen(): React.ReactElement {
             <Text style={styles.reasonText}>{data.reason}</Text>
           </View>
         )}
+        </View>
 
+        <View style={styles.stepsColumn}>
         <Text style={styles.sectionTitle}>What happens next</Text>
         {NEXT_STEPS.map((step, idx) => (
           <View key={step.title} style={styles.stepRow}>
@@ -228,7 +228,7 @@ export default function BackgroundCheckStatusScreen(): React.ReactElement {
           onPress={() => setDelayedExpanded((prev) => !prev)}
           activeOpacity={0.7}
         >
-          <Text style={styles.expandableTitle}>What to do if delayed</Text>
+          <Text style={styles.expandableTitle}>Need help with the review?</Text>
           {delayedExpanded ? (
             <ChevronUp size={18} color={colors.textSecondary} />
           ) : (
@@ -239,15 +239,14 @@ export default function BackgroundCheckStatusScreen(): React.ReactElement {
         {delayedExpanded && (
           <View style={styles.expandableBody}>
             <Text style={styles.expandableLine}>
-              • Most checks complete within 48 hours. Allow up to 5 business days during peak periods.
+              • Use refresh to check the latest decision recorded for your account.
             </Text>
             <Text style={styles.expandableLine}>
               • Make sure your phone notifications and email are enabled — we will reach out if we
               need more information.
             </Text>
             <Text style={styles.expandableLine}>
-              • If you have not heard back after 5 business days, contact support so we can review
-              your case.
+              • Contact support if the status does not change or you need help understanding a decision.
             </Text>
           </View>
         )}
@@ -255,12 +254,14 @@ export default function BackgroundCheckStatusScreen(): React.ReactElement {
         {data.status === 'approved' && (
           <TouchableOpacity
             style={styles.primaryBtn}
-            onPress={goToDashboard}
+            onPress={activateProviderAccess}
             activeOpacity={0.7}
           >
-            <Text style={styles.primaryBtnText}>Go to Dashboard</Text>
+            <Text style={styles.primaryBtnText}>Activate Provider Access</Text>
           </TouchableOpacity>
         )}
+        </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -286,6 +287,11 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: spacing.xl },
+  bodyContentWide: { width: '100%', maxWidth: 1040, alignSelf: 'center', padding: spacing.xl },
+  workspace: { width: '100%', gap: spacing.lg },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start' },
+  statusColumn: { flex: 1, minWidth: 0 },
+  stepsColumn: { flex: 1, minWidth: 0 },
   statusCard: {
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
@@ -308,6 +314,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   statusEta: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center' },
+  refreshError: {
+    backgroundColor: colors.warningLight,
+    borderRadius: borderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.warning,
+    padding: spacing.base,
+    marginBottom: spacing.lg,
+  },
+  refreshErrorTitle: { ...typography.bodySmall, color: colors.text, fontWeight: '700' },
+  refreshErrorText: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs, lineHeight: 18 },
   reasonCard: {
     backgroundColor: colors.errorLight,
     borderRadius: borderRadius.md,

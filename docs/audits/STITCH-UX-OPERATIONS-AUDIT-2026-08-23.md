@@ -180,12 +180,13 @@ Customer findings:
 
 ### Provider staff
 
-- `/staff/jobs`, `/staff/job/[id]`, `/staff/invites`
+- `/staff/jobs`, `/staff/job/[id]`, `/staff/job/[id]/checklist`, `/staff/job/[id]/complete`, `/staff/invites`
 
 Provider findings:
 
 - Fixed: desktop now has persistent Dashboard, Jobs, Job Requests, Schedule, Clients, Earnings, Team, Support, and Profile destinations.
 - Fixed: provider staff receives a smaller, scoped desktop workspace instead of provider-owner navigation.
+- Fixed in the staff field-work continuation: assigned-job disclosure now requires an approved membership and identifies the provider business; staff jobs use a bounded priority-first grid; job detail separates the work record from field actions; and checklist/completion stay inside staff-owned routes. Staff closeout reuses server checklist/photo/work-time gates without exposing provider-owner earnings or recording customer acceptance from a staff session (Bugs UX-317-320). The former customer-chat action was nonfunctional at both route and API boundaries; D30 records the conversation-participant decision and the screen links booking-scoped support while it remains open.
 - Fixed in the route-isolation continuation: provider standalone routes, provider tabs, and the newly registered staff route group have explicit role boundaries. Cross-persona direct URLs return the signed-in user to the correct home, anonymous support routes return to login, and the desktop frame cannot render one persona's navigation around another persona's screen (Bugs CRIT-K02 and UX-105 through UX-109).
 - Fixed: bottom tabs are hidden when persistent desktop navigation is active, removing duplicate navigation.
 - Fixed: browser builds no longer request the unavailable native animation driver; a clean production export rendered without console warnings.
@@ -434,6 +435,12 @@ Admin findings:
 151. Rebuilt customer change-order review into an original-scope and proposed-addition workspace, made evidence wrap and open at full size, and made unknown wallet state fail closed instead of displaying zero or enabling payment. Approval, additional-payment, and E14 behavior remain server-owned and unchanged (Bug UX-314).
 152. Replaced the browser OTP widget's 0×0 input with a full-size transparent web input over the visible cells, preserving native behavior while restoring reliable keyboard, assistive, and automated entry (Bug UX-315).
 153. Registered the provider `clients/[id]` screen in its navigator so repeat-customer cards and hard browser URLs reach the canonical client record instead of collapsing to provider home with the customer ID as a root query (Bug UX-316).
+154. Restricted staff assignment disclosure to approved memberships, included provider-business context, and prioritized active field states (Bug UX-317).
+155. Replaced provider-owner dead routes from assigned-staff job detail with staff-owned checklist/closeout and booking-linked support paths; D30 records the separate customer-conversation authorization decision (Bug UX-318).
+156. Added a staff closeout that reuses canonical checklist, provider-side after-photo, work-time, and status rules without owner earnings or a staff-session customer-acceptance signature (Bug UX-319; E19 unchanged).
+157. Rebuilt staff jobs and job detail as bounded Stitch-style tablet/desktop field workspaces (Bug UX-320).
+158. Removed the application-review screen's client-generated rolling ETA, unsupported review SLA, silent refresh failure, and stale-token dashboard jump; the screen now uses the recorded status and existing activation flow in a bounded wide workspace (Bug UX-321).
+159. Rebuilt provider role selection and the long vetting form as bounded tablet/desktop onboarding workspaces with truthful customer-access continuity (Bugs UX-322/323).
 
 ## Verification record for this batch
 
@@ -471,6 +478,7 @@ Admin findings:
 - Production release for UX-272 through UX-300: PR 56 merged exact revision `32a6a1816b9e7555b97404cc9dc3263189237f7d` after API, mobile, admin, Docker-image, and all governance jobs passed. A database/uploads/config/git backup preceded the server fast-forward; no migration or seed ran. The API image rebuilt and passed live Postgres/Redis readiness; settings drift passed; Redis remained `noeviction`; nginx validated without a stapling warning; all six onService services and every neighboring container remained up; and a protected provider route returned 401 as a `Request rejected` warning. Local, server-disk, and live-response SHA-256 hashes matched for both web indexes, and the current hashed assets returned 200. Browser QA found no horizontal overflow or console warnings/errors on the customer/provider entry at tablet/desktop widths, role-protected customer/provider routes returned to authentication, and the Stitch-style Admin authentication workspace rendered cleanly at 820 and 1280 pixels. The live filtered catalog returned only the selected category and rejected repeated/whitespace filter bypasses. Authenticated inner screens are supported by the recorded behavior/render suites rather than claimed as live browser evidence because the public build correctly has demo access disabled and the test browser had no signed-in production session.
 - Current UX-310 through UX-316 relationship/evidence continuation: the focused regression set passed 18 suites and 58 tests; mobile passed 345 suites and 774 tests with 84 existing explicit device todos; repository lint and every workspace TypeScript check passed. An isolated authenticated browser pass at 1280×720 exercised customer provider detail, Suki Pros, job evidence, change orders, Provider Suki Customers, both role login paths, and the dynamic provider client URL with no horizontal overflow on the five redesigned workspaces. Tablet behavior remains render-tested rather than claimed as a second live viewport. The clean production same-origin web export passed across 4,268 modules and contains no synthetic API origin. D29, E14, E25, and the other recorded money/legal holds remain unchanged.
 - Production release for UX-310 through UX-316: PR 60 merged exact revision `fa20039d483e0b03e921b08c50b7cf7ff2bd1caa` after all ten GitHub jobs passed. A database/uploads/config/git backup and a separate prior-mobile-artifact archive preceded the server fast-forward and in-place mobile extraction. No migration, seed, API rebuild/recreation, or nginx recreation ran. Production passed exact SHA/clean tree, upload mounts, data/API/nginx health, Redis `noeviction`, 75-setting drift, protected 401 warning behavior, nginx validation, all 25 shared-server containers, and byte-identical local/server/live index and bundle hashes. The live 1280×900 login had no overflow or console entries, and the unauthenticated provider client URL returned safely to login. D29 and all existing money/legal holds remain unchanged.
+- Current UX-317 through UX-323 staff/onboarding continuation: mobile passed 351 suites and 780 tests with 84 existing explicit device todos; Admin passed 84 files and 197 tests with one skipped file and three explicit todos; the locally runnable API set passed 427 suites and 3,080 tests. Repository lint, every workspace TypeScript check, API/Admin production builds, the mandatory API smoke, the 80-key environment contract, Gate A, all six gate self-tests, and Gate C passed. Gate D and Gate E only confirmed their documented REPORT modes. The clean production same-origin mobile export passed across 4,270 modules with no synthetic API origin. Real browser renders at 1280 and an 820-pixel iframe viewport verified role selection, vetting, and application review with zero horizontal overflow; authenticated staff jobs/detail/checklist/completion remain real-render and interaction tested because no test-only role bypass was added. UX-201 remains the sole local Docker-daemon exclusion and must pass in independent GitHub CI plus live `nginx -t` before deployment.
 
 ## Proof-to-close continuation, 2026-08-25
 
@@ -485,9 +493,9 @@ Admin findings:
 
 ## Next implementation order
 
-1. Continue provider-staff jobs and the remaining provider onboarding/business-management forms. Skills remains a deliberate redirect to Services, and provider fixed-price editing remains blocked by E16.
-2. Continue customer/provider account, governance, and business-management forms that remain shell-only after the relationship/evidence batch.
+1. Continue customer/provider account, governance, and business-management forms that remain shell-only after the staff/onboarding continuation.
+2. Continue remaining provider business-management surfaces, including tier progression and per-screen Jobs evidence. Skills remains a deliberate redirect to Services, and provider fixed-price editing remains blocked by E16.
 3. Continue the admin suspicion-first pass page by page, replacing generic confirmations only where impact preview, reason capture, and audit context are required.
 4. Add real admin entity search after defining safe searchable fields and PII visibility.
-5. Reconcile fine-grained staff authorization through an explicit architecture decision.
+5. Reconcile fine-grained staff authorization and D30 customer-conversation participation through explicit architecture decisions.
 6. Resolve D29 repeat-provider selection plus the existing money/legal hard stops before changing those workflows.
