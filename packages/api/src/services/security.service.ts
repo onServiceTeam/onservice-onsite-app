@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
+import * as settingsService from './settings.service';
 
 // --- Interfaces ---
 
@@ -37,7 +38,6 @@ interface SecurityEventRow {
 }
 
 const OTP_LOCKOUT_THRESHOLDS = platformConfig.otpLockoutThresholds;
-const CAPTCHA_THRESHOLD = platformConfig.captchaThreshold;
 
 // --- OTP Abuse Protection ---
 
@@ -118,6 +118,8 @@ export async function checkOtpLockout(phone: string, ipAddress: string): Promise
   const IP_OTP_LOCKOUT_THRESHOLD = (platformConfig.ipOtpLockoutThreshold ?? 20);
   const effectiveCount = Math.max(failedCount, ipFailedCount);
   const ipLockedOut = ipFailedCount >= IP_OTP_LOCKOUT_THRESHOLD;
+  const configuredCaptchaThreshold = await settingsService.getSettingInteger('captcha_threshold');
+  const CAPTCHA_THRESHOLD = Math.min(10, Math.max(1, configuredCaptchaThreshold));
   const captchaRequired = effectiveCount >= CAPTCHA_THRESHOLD || ipLockedOut;
 
   // If the IP is over its independent threshold, return locked
@@ -588,7 +590,8 @@ export async function listSecurityEvents(
  * pre-fix). At N=100 this drops cron from ~301 RTTs to 4.
  */
 export async function detectSuspiciousIps(): Promise<number> {
-  const threshold = platformConfig.suspiciousIpThreshold;
+  const configuredThreshold = await settingsService.getSettingInteger('suspicious_ip_threshold');
+  const threshold = Math.min(500, Math.max(10, configuredThreshold));
 
   const suspicious = await db.query<{ ip_address: string; fail_count: string }>(
     `SELECT ip_address, COUNT(*)::text AS fail_count FROM login_attempts

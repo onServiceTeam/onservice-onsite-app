@@ -1299,7 +1299,7 @@ router.post(
       }
 
       // Must have waited the configured minimum no-show time
-      const noShowMinutes = platformConfig.providerNoShowMinutes;
+      const noShowMinutes = await settingsService.getProviderNoShowMinutes();
       const scheduledMs = new Date(bk.scheduled_at).getTime();
       const minutesSinceScheduled = (Date.now() - scheduledMs) / (1000 * 60);
       if (minutesSinceScheduled < noShowMinutes) {

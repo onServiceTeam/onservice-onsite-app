@@ -7,7 +7,7 @@ import * as catalogService from '../services/catalog.service';
 import * as intakeService from '../services/intake.service';
 import { intakeFieldSchema, updateIntakeFieldSchema } from '../validators/intake.validators';
 import { cacheMiddleware } from '../middleware/cache.middleware';
-import { cacheDeletePattern, CacheTTL } from '../services/cache.service';
+import { cacheDeletePattern, getRuntimeCacheTtl } from '../services/cache.service';
 import { createAddonSchema, updateAddonSchema } from '../validators/admin-catalog.validators';
 
 const router = Router();
@@ -73,7 +73,7 @@ function formatSubcategory(s: {
 
 router.get(
   '/',
-  cacheMiddleware(CacheTTL.CATEGORIES),
+  cacheMiddleware(() => getRuntimeCacheTtl('categories')),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const categories = await catalogService.getActiveCategories();
@@ -89,7 +89,7 @@ router.get(
 
 router.get(
   '/full',
-  cacheMiddleware(CacheTTL.CATEGORIES),
+  cacheMiddleware(() => getRuntimeCacheTtl('categories')),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const catalog = await catalogService.getFullCatalog();
@@ -108,7 +108,7 @@ router.get(
 
 router.get(
   '/search',
-  cacheMiddleware(CacheTTL.SEARCH_RESULTS),
+  cacheMiddleware(() => getRuntimeCacheTtl('searchResults')),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const query = typeof req.query.q === 'string' ? req.query.q : '';
@@ -161,7 +161,7 @@ router.get(
 // `provider.service.ts:addProviderService` (defense in depth).
 router.get(
   '/subcategories/:id/bounds',
-  cacheMiddleware(CacheTTL.SUBCATEGORIES),
+  cacheMiddleware(() => getRuntimeCacheTtl('categories')),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const subcategoryId = req.params.id as string;
@@ -196,7 +196,7 @@ router.get(
 
 router.get(
   '/subcategory/:subcategoryId/addons',
-  cacheMiddleware(CacheTTL.SUBCATEGORIES),
+  cacheMiddleware(() => getRuntimeCacheTtl('categories')),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const subcategoryId = req.params.subcategoryId as string;
@@ -210,7 +210,7 @@ router.get(
 
 router.get(
   '/:slug',
-  cacheMiddleware(CacheTTL.SUBCATEGORIES),
+  cacheMiddleware(() => getRuntimeCacheTtl('categories')),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const slug = req.params.slug;

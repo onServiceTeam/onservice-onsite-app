@@ -320,11 +320,11 @@ Super_admin only. Plain admins get an "access required" notice. 2 tabs: Staff (a
 
 ### 2.27 Settings / Platform Settings (`/settings`)
 
-The runtime knobs are grouped by operational category. Inactive legacy insurance/protection settings are hidden under D04; do not infer a launch product from rows that remain in historical storage. Each active setting shows its value, allowed range, unit, whether it is customized vs default, and its change history.
+The settings registry is grouped by operational category. Inactive legacy insurance/protection settings are hidden under D04; do not infer a launch product from rows that remain in historical storage. Each active row shows its value, allowed range, unit, whether it is customized vs default, its change history, and one of three impact badges: **Live control**, **Launch hold**, or **Not connected**.
 
-Super_admin can Edit (reason at least 10), Reset to default (confirm modal, reason at least 10), and Flush cache (changes take effect within about 60 seconds). Plain admins are read-only.
+Super_admin can Edit and Reset only a **Live control**. Each change requires an audited reason of at least 10 characters. **Launch hold** and **Not connected** rows are read-only for every role, including super_admin. This prevents a stored value from making customer/provider wording disagree with API, worker, money, or security enforcement. Plain admins are read-only for all rows.
 
-How to change a setting (super_admin): find it by category, click Edit, set the new value within the allowed range, type a reason, save. If you need it live immediately, Flush cache. Common ones include commission rate per tier, service fee rate, `auto_dispatch_enabled`, and the internal large-payout review threshold. The escrow auto-confirm default is 24 hours while filing remains 48 hours; E18 makes that pair a hard stop, not two ordinary knobs to tune independently. Never change a money setting without Ken's go-ahead. See `10-money-and-compliance-ops.md`.
+How to change a setting (super_admin): find it by category, confirm the **Live control** badge and read its impact text, click Edit, set the new value within the allowed range, type a reason, and save. Cache-backed consumers refresh within about 60 seconds; Flush cache forces those readers to fetch again. Common live controls include commission rate per tier, service fee rate, `auto_dispatch_enabled`, and the internal large-payout review threshold. The escrow auto-confirm and filing-window rows are now visibly read-only because E18 makes that pair a money-path hard stop and their authoritative workers still use deployed configuration. Never change a money setting without Ken's go-ahead. See `10-money-and-compliance-ops.md`.
 
 ### 2.28 Cancellation Policy (`/settings/cancellation-policy`)
 
