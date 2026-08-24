@@ -18,6 +18,7 @@ import {
   Platform,
 } from 'react-native';
 import { colors, spacing, borderRadius, typography } from '@/config/theme';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export interface FilterGroup {
   key: string;
@@ -43,6 +44,7 @@ export function FilterModal({
   onApply,
   onClose,
 }: FilterModalProps): React.ReactElement {
+  const { isPhone } = useResponsive();
   const [pending, setPending] = useState<Record<string, string[]>>(initialValue);
 
   useEffect(() => {
@@ -81,7 +83,12 @@ export function FilterModal({
       onRequestClose={onClose}
     >
       <View style={styles.backdrop}>
-        <View style={styles.sheet} accessibilityViewIsModal accessibilityRole="menu">
+        <View
+          style={[styles.sheet, !isPhone && styles.sheetWide]}
+          accessibilityViewIsModal
+          accessibilityRole="menu"
+          accessibilityLabel={isPhone ? 'Filter options' : 'Bounded tablet and desktop filter workspace'}
+        >
           <View style={styles.header}>
             <Text style={styles.title} accessibilityRole="header">
               {title}
@@ -147,11 +154,13 @@ export function FilterModal({
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   sheet: {
+    width: '100%',
     backgroundColor: colors.white,
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     maxHeight: '85%',
   },
+  sheetWide: { maxWidth: 640, alignSelf: 'center' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

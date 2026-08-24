@@ -24,6 +24,7 @@ import { formatRelative } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Star } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 interface ReviewImage {
   id: string;
@@ -116,6 +117,7 @@ export default function ProviderReviewsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isPhone, isDesktop } = useResponsive();
 
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [responseText, setResponseText] = useState('');
@@ -190,7 +192,7 @@ export default function ProviderReviewsScreen(): React.ReactElement {
   };
 
   const renderReview = ({ item }: { item: Review }): React.ReactElement => (
-    <View style={styles.reviewCard}>
+    <View style={[styles.reviewCard, isDesktop && styles.reviewCardWide]}>
       <View style={styles.reviewHeader}>
         <StarRating rating={item.rating} />
         <Text style={styles.reviewDate}>{formatRelative(item.createdAt)}</Text>
@@ -203,8 +205,8 @@ export default function ProviderReviewsScreen(): React.ReactElement {
           images. Customers attaching photos to reviews (which is
           how disputes-of-rebuttal evidence flows for damage claims
           per Phase E CRIT-105) had their proof ignored on the
-          provider's side. Now: horizontal image strip with
-          tappable thumbnails. */}
+          provider's side. Now: horizontal image strip with visible
+          evidence thumbnails. */}
       {item.images && item.images.length > 0 && (
         <ScrollView
           horizontal
@@ -272,12 +274,14 @@ export default function ProviderReviewsScreen(): React.ReactElement {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Reviews</Text>
+          <View style={[styles.headerInner, !isPhone && styles.headerInnerWide]}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Text style={styles.backIcon}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>My Reviews</Text>
+          </View>
         </View>
-        <View style={styles.list}>
+        <View style={[styles.list, !isPhone && styles.listWide]}>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -286,27 +290,56 @@ export default function ProviderReviewsScreen(): React.ReactElement {
     );
   }
 
+  if (profileQuery.isError || !profileQuery.data) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <View style={[styles.headerInner, !isPhone && styles.headerInnerWide]}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Text style={styles.backIcon}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>My Reviews</Text>
+          </View>
+        </View>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <ErrorState
+            message="We couldn't load your provider profile, so your reviews cannot be identified safely."
+            onRetry={() => void profileQuery.refetch()}
+          />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Reviews</Text>
+        <View style={[styles.headerInner, !isPhone && styles.headerInnerWide]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>My Reviews</Text>
+        </View>
       </View>
 
       {isError ? (
-        <ErrorState
-          message="We couldn't load your reviews. Please check your connection and try again."
-          onRetry={onRefresh}
-        />
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <ErrorState
+            message="We couldn't load your reviews. Please check your connection and try again."
+            onRetry={onRefresh}
+          />
+        </View>
       ) : (
         <FlatList
+          key={isDesktop ? 'reviews-two-column' : 'reviews-one-column'}
           data={reviews}
           renderItem={renderReview}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
-          contentContainerStyle={styles.list}
+          numColumns={isDesktop ? 2 : 1}
+          columnWrapperStyle={isDesktop ? styles.reviewColumns : undefined}
+          contentContainerStyle={[styles.list, !isPhone && styles.listWide]}
+          accessibilityLabel={isPhone ? 'Provider reviews' : 'Tablet and desktop provider reviews workspace'}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.secondary} />
@@ -344,19 +377,21 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   centered: { alignItems: 'center', justifyContent: 'center' },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
+  headerInner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.base, paddingVertical: spacing.md },
+  headerInnerWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: spacing.xl },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
 
   list: { padding: spacing.base, paddingBottom: 80 },
+  listWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl },
+  stateContent: { flex: 1, padding: spacing.base },
+  stateContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.xl },
+  reviewColumns: { gap: spacing.md, alignItems: 'flex-start' },
 
   // App design refresh — white surface card with a hairline border on the canvas.
   aggregateCard: {
@@ -394,6 +429,7 @@ const styles = StyleSheet.create({
     padding: spacing.base,
     marginBottom: spacing.md,
   },
+  reviewCardWide: { flex: 1, minWidth: 0 },
   reviewHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

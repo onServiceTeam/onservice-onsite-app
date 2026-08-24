@@ -861,18 +861,29 @@ export async function getSubcategoryById(subcategoryId: string): Promise<Subcate
   return result.rows[0] ?? null;
 }
 
-export async function searchServices(query: string, limit = 20): Promise<(SubcategoryRow & { category_name: string; category_slug: string })[]> {
+export interface CatalogSearchFilters {
+  categorySlugs?: string[];
+  minRating?: number;
+}
+
+export async function searchServices(
+  query: string,
+  limit = 20,
+  filters: CatalogSearchFilters = {},
+): Promise<(SubcategoryRow & { category_name: string; category_slug: string })[]> {
   const escaped = query.toLowerCase().replace(/[%_\\]/g, '\\$&');
   const searchTerm = `%${escaped}%`;
+  const categorySlugs = filters.categorySlugs?.length ? filters.categorySlugs : null;
   const result = await db.query<SubcategoryRow & { category_name: string; category_slug: string }>(
     `SELECT sc.*, c.name AS category_name, c.slug AS category_slug
      FROM service_subcategories sc
      JOIN service_categories c ON sc.category_id = c.id
      WHERE sc.is_active = TRUE AND c.is_active = TRUE
        AND (LOWER(sc.name) LIKE $1 OR LOWER(c.name) LIKE $1 OR LOWER(sc.description) LIKE $1)
+       AND ($3::text[] IS NULL OR c.slug = ANY($3::text[]))
      ORDER BY sc.display_order ASC
      LIMIT $2`,
-    [searchTerm, limit],
+    [searchTerm, limit, categorySlugs],
   );
 
   logger.debug('Service search', { query, resultCount: result.rows.length });
@@ -890,9 +901,15 @@ interface ProviderSearchRow {
   avatar_url: string | null;
 }
 
-export async function searchProviders(query: string, limit = 10): Promise<Record<string, unknown>[]> {
+export async function searchProviders(
+  query: string,
+  limit = 10,
+  filters: CatalogSearchFilters = {},
+): Promise<Record<string, unknown>[]> {
   const escaped = query.toLowerCase().replace(/[%_\\]/g, '\\$&');
   const searchTerm = `%${escaped}%`;
+  const categorySlugs = filters.categorySlugs?.length ? filters.categorySlugs : null;
+  const minRating = filters.minRating ?? null;
 
   const fixtureExclusion = process.env.ENABLE_TEST_FIXTURES === '1'
     ? ''
@@ -906,9 +923,21 @@ export async function searchProviders(query: string, limit = 10): Promise<Record
        ${fixtureExclusion}
        AND (LOWER(p.business_name) LIKE $1
             OR LOWER(CONCAT(u.first_name, ' ', u.last_name)) LIKE $1)
+       AND ($3::text[] IS NULL OR EXISTS (
+         SELECT 1
+           FROM provider_services ps
+           JOIN service_subcategories psc ON psc.id = ps.subcategory_id
+           JOIN service_categories pc ON pc.id = psc.category_id
+          WHERE ps.provider_id = p.id
+            AND ps.is_active = TRUE
+            AND psc.is_active = TRUE
+            AND pc.is_active = TRUE
+            AND pc.slug = ANY($3::text[])
+       ))
+       AND ($4::numeric IS NULL OR p.rating >= $4::numeric)
      ORDER BY p.rating DESC NULLS LAST, p.total_reviews DESC
      LIMIT $2`,
-    [searchTerm, limit],
+    [searchTerm, limit, categorySlugs, minRating],
   );
 
   return result.rows.map((p) => ({

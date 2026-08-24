@@ -69,8 +69,8 @@ const MAX_REVIEW_PHOTOS = 5;
 // but services should never trust their input. This second layer
 // prevents a 1MB comment from any non-route caller (admin tools,
 // background workers, future test fixtures).
-const MAX_REVIEW_COMMENT_CHARS = 2000;
-const MAX_PRIVATE_NOTE_CHARS = 2000;
+const MAX_REVIEW_COMMENT_CHARS = 1000;
+const MAX_PRIVATE_NOTE_CHARS = 1000;
 
 export async function createReview(
   bookingId: string,

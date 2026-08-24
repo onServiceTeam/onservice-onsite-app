@@ -74,7 +74,7 @@ export async function deleteTemplate(templateId: string): Promise<void> {
 }
 
 // ── Insights ─────────────────────────────────────────────────────────────────
-export interface CategoryInsight { categoryId: string | null; categoryName: string; jobCount: number; completedCount: number; completionRate: number; totalValue: number; avgRating: number | null }
+export interface CategoryInsight { categoryId: string | null; categoryName: string; jobCount: number; completedCount: number; completionRate: number; completedValue: number; avgRating: number | null }
 export async function getCategoryInsights(): Promise<CategoryInsight[]> {
   const res = await api.get<ApiResponse<CategoryInsight[]>>('/api/v1/providers/me/insights');
   return res.data.data;

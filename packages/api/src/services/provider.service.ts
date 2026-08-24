@@ -76,7 +76,7 @@ export async function updateProfile(
   providerId: string,
   data: {
     bio?: string;
-    yearsExperience?: number;
+    yearsExperience?: number | null;
     serviceRadiusKm?: number;
     latitude?: number;
     longitude?: number;
@@ -84,7 +84,7 @@ export async function updateProfile(
   },
 ): Promise<ProviderRow> {
   const setClauses: string[] = [];
-  const values: (string | number | boolean)[] = [];
+  const values: (string | number | boolean | null)[] = [];
   let paramIndex = 1;
 
   if (data.bio !== undefined) {

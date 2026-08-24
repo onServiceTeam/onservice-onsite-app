@@ -154,6 +154,9 @@ export interface CustomerReferralsResult {
     createdAt: string;
   } | null;
   totalEarnedFromReferrals: number;
+  totalReferrals: number;
+  creditedReferrals: number;
+  pendingReferrals: number;
 }
 
 export interface CustomerActivityRow {
@@ -597,7 +600,7 @@ export async function getCustomerDisputes(customerId: string): Promise<CustomerD
 // ─────────────────────────────────────────────────────────────────
 
 export async function getCustomerReferrals(customerId: string): Promise<CustomerReferralsResult> {
-  const [codesResult, givenResult, receivedResult] = await Promise.all([
+  const [codesResult, givenResult, receivedResult, summaryResult] = await Promise.all([
     db.query<{
       id: string;
       code: string;
@@ -654,6 +657,20 @@ export async function getCustomerReferrals(customerId: string): Promise<Customer
         LIMIT 1`,
       [customerId],
     ),
+    db.query<{
+      total_referrals: string;
+      credited_referrals: string;
+      pending_referrals: string;
+      total_earned: string;
+    }>(
+      `SELECT COUNT(*)::text AS total_referrals,
+              COUNT(*) FILTER (WHERE referrer_credited = TRUE)::text AS credited_referrals,
+              COUNT(*) FILTER (WHERE referrer_credited = FALSE)::text AS pending_referrals,
+              COALESCE(SUM(referrer_bonus) FILTER (WHERE referrer_credited = TRUE), 0)::text AS total_earned
+         FROM referral_redemptions
+        WHERE referrer_id = $1`,
+      [customerId],
+    ),
   ]);
 
   const given = givenResult.rows.map((r) => ({
@@ -667,9 +684,8 @@ export async function getCustomerReferrals(customerId: string): Promise<Customer
     createdAt: r.created_at.toISOString(),
   }));
 
-  const totalEarnedFromReferrals = given
-    .filter((r) => r.referrerCredited)
-    .reduce((sum, r) => sum + r.referrerBonus, 0);
+  const summary = summaryResult.rows[0];
+  const totalEarnedFromReferrals = Number(summary?.total_earned ?? 0);
 
   return {
     ownCodes: codesResult.rows.map((r) => ({
@@ -695,6 +711,9 @@ export async function getCustomerReferrals(customerId: string): Promise<Customer
         }
       : null,
     totalEarnedFromReferrals,
+    totalReferrals: Number(summary?.total_referrals ?? 0),
+    creditedReferrals: Number(summary?.credited_referrals ?? 0),
+    pendingReferrals: Number(summary?.pending_referrals ?? 0),
   };
 }
 

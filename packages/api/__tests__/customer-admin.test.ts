@@ -515,6 +515,11 @@ describe('getCustomerReferrals', () => {
             created_at: new Date('2023-12-01T00:00:00Z'),
           },
         ]),
+      )
+      .mockResolvedValueOnce(
+        rows([{
+          total_referrals: '2', credited_referrals: '1', pending_referrals: '1', total_earned: '5000',
+        }]),
       );
     const out = await svc.getCustomerReferrals(CUSTOMER_ID);
     expect(out.ownCodes[0].code).toBe('JOE10');
@@ -527,7 +532,10 @@ describe('getCustomerReferrals', () => {
     dbQueryMock
       .mockResolvedValueOnce(rows([]))
       .mockResolvedValueOnce(rows([]))
-      .mockResolvedValueOnce(rows([]));
+      .mockResolvedValueOnce(rows([]))
+      .mockResolvedValueOnce(rows([{
+        total_referrals: '0', credited_referrals: '0', pending_referrals: '0', total_earned: '0',
+      }]));
     const out = await svc.getCustomerReferrals(CUSTOMER_ID);
     expect(out.ownCodes).toEqual([]);
     expect(out.given).toEqual([]);

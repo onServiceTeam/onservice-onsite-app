@@ -1,8 +1,20 @@
 # D27 Phase 7 — Provider CRM: what "value-added per category" should it be?
 
-Status: OPEN — needs Ken
+Status: RESOLVED BY LATER IMPLEMENTATION
 Date: 2026-06-29
 Author: AI coder
+
+## Resolution record
+
+Commit `0badfeb76b05fc0d967eaed393aef9ed26898163` shipped options #2, #3,
+and #5 on 2026-06-29: provider client notes/reminders, quote templates, and
+the provider's own per-category performance insights. The original decision
+file remained marked open after that implementation, so its status was stale.
+
+This resolution records what the repository already implements. It does not
+authorize option #1 category playbooks, option #4 lead/pipeline management, or
+new comparative claims such as "faster than average" without an approved data
+and product contract.
 
 ## Background
 
@@ -44,7 +56,8 @@ real time on every quote). Both are buildable without money-path risk.
 But these are product calls. I'll build whichever Ken points at rather than
 guess, since "value-added per category" spans five quite different features.
 
-## What I need from Ken
+## Historical question to Ken
 
-Which of #1–#5 (one or several) do you want for the provider CRM, and in what
-order? Or describe the specific provider workflow you had in mind.
+The original question was which of #1–#5 to build and in what order. The later
+implementation selected #2, #3, and #5. The remaining options are still future
+product decisions, not implied backlog approval.

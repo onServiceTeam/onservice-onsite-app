@@ -183,7 +183,7 @@ export const providerApplicationSchema = z.object({
 
 export const updateProfileSchema = z.object({
   bio: z.string().max(1000).optional(),
-  yearsExperience: z.number().int().min(0).max(60).optional(),
+  yearsExperience: z.number().int().min(0).max(60).nullable().optional(),
   // Retained in the parser so older clients receive the explicit review-queue
   // conflict from provider.routes instead of silently dropping the field.
   serviceRadiusKm: z.number().int().min(1).max(100).optional(),

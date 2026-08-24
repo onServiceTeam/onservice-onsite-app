@@ -41,7 +41,7 @@ router.get(
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
 
-      const { code, redemptions, total } = await referralService.getMyReferrals(
+      const { code, redemptions, total, summary } = await referralService.getMyReferrals(
         req.user!.userId, page, pageSize,
       );
 
@@ -50,6 +50,7 @@ router.get(
         data: {
           code: code ? referralService.formatReferralCode(code) : null,
           redemptions: redemptions.map(referralService.formatRedemption),
+          summary,
         },
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
       });

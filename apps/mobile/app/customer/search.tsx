@@ -8,11 +8,11 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
-import type { Subcategory } from '@/services/catalog.service';
+import { getCategories, type Subcategory } from '@/services/catalog.service';
 import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -23,6 +23,7 @@ import { SkeletonCard, EmptyState, ErrorState, SectionHeader } from '@/component
 import FilterModal from '@/components/FilterModal';
 import useDebouncedValue from '@/hooks/useDebouncedValue';
 import { getServiceScopeCopy } from '@/utils/serviceScope';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 interface ProviderResult {
@@ -53,40 +54,45 @@ const TIER_LABELS: Record<string, string> = {
   elite: 'Elite',
 };
 
-// Popular services shown on the search screen before the user types, so it is
-// never a blank page. Each chip jumps to the category browse screen.
-const POPULAR_SERVICES: { slug: string; label: string }[] = [
-  { slug: 'cleaning', label: 'Cleaning' },
-  { slug: 'aircon', label: 'Aircon' },
-  { slug: 'plumbing', label: 'Plumbing' },
-  { slug: 'electrical', label: 'Electrical' },
-  { slug: 'carpentry', label: 'Carpentry' },
-  { slug: 'painting', label: 'Painting' },
-  { slug: 'pest-control', label: 'Pest Control' },
-  { slug: 'appliance-repair', label: 'Appliance Repair' },
-];
-
 export default function SearchScreen(): React.ReactElement {
   const router = useRouter();
+  const { q: requestedQuery } = useLocalSearchParams<{ q?: string | string[] }>();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
   const setCategory = useBookingStore((s) => s.setCategory);
   const setSubcategory = useBookingStore((s) => s.setSubcategory);
-  const [query, setQuery] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const initialQuery = (Array.isArray(requestedQuery) ? requestedQuery[0] : requestedQuery)?.trim().slice(0, 100) ?? '';
+  const [query, setQuery] = useState(initialQuery);
+  const [searchTerm, setSearchTerm] = useState(initialQuery.length >= 2 ? initialQuery : '');
   // Phase 14 R5-complete — useDebouncedValue + FilterModal for advanced filters.
   const debouncedQuery = useDebouncedValue(query, 300);
   React.useEffect(() => {
-    if (debouncedQuery.length >= 2) setSearchTerm(debouncedQuery);
+    const normalized = debouncedQuery.trim();
+    setSearchTerm(normalized.length >= 2 ? normalized : '');
   }, [debouncedQuery]);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
+  const selectedCategories = activeFilters.category ?? [];
+  const minimumRating = activeFilters.rating?.[0];
+
+  const categoriesQuery = useQuery({
+    queryKey: ['categories'],
+    queryFn: getCategories,
+    staleTime: 24 * 60 * 60 * 1000,
+  });
+  const categories = Array.isArray(categoriesQuery.data) ? categoriesQuery.data : [];
 
   const { data, isLoading, isError, isFetched, refetch } = useQuery({
-    queryKey: ['search', searchTerm],
+    queryKey: ['search', searchTerm, selectedCategories.join(','), minimumRating ?? ''],
     queryFn: async () => {
       if (searchTerm.length < 2) return { services: [], providers: [] } as SearchResponse;
       const res = await api.get<{ success: boolean; data: SearchResponse }>('/api/v1/catalog/search', {
-        params: { q: searchTerm, limit: 30 },
+        params: {
+          q: searchTerm,
+          limit: 30,
+          ...(selectedCategories.length > 0 ? { categories: selectedCategories.join(',') } : {}),
+          ...(minimumRating ? { minRating: minimumRating } : {}),
+        },
       });
       return res.data.data;
     },
@@ -232,6 +238,10 @@ export default function SearchScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
+        <View
+          style={[styles.headerInner, !isPhone && styles.headerInnerWide]}
+          accessibilityLabel={isPhone ? 'Customer search' : 'Tablet and desktop customer search workspace'}
+        >
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
@@ -259,11 +269,9 @@ export default function SearchScreen(): React.ReactElement {
              "wired into 3+ screens" rule, but `setFilterModalVisible(true)`
              was never called from anywhere — the filter UI was
              dead. Now: a real filter trigger button next to the
-             search input. Filter values still don't affect API
-             results yet (the /catalog/search endpoint doesn't
-             accept category/rating filters); the visible-filter
-             count is shown so admin testers can verify the modal
-             round-trip without changing search behavior. */}
+             search input. UX-272/273 complete the round trip by
+             validating category/rating filters at the public API and
+             applying them to both service and provider searches. */}
         <TouchableOpacity
           onPress={() => setFilterModalVisible(true)}
           style={styles.filterButton}
@@ -276,10 +284,11 @@ export default function SearchScreen(): React.ReactElement {
             </Text>
           )}
         </TouchableOpacity>
+        </View>
       </View>
 
       {isLoading && (
-        <View style={styles.list}>
+        <View style={[styles.list, !isPhone && styles.listWide]}>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -287,43 +296,51 @@ export default function SearchScreen(): React.ReactElement {
       )}
 
       {isError && (
-        <ErrorState
-          message="Search failed. Please check your connection and try again."
-          onRetry={() => void refetch()}
-        />
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <ErrorState
+            message="Search failed. Please check your connection and try again."
+            onRetry={() => void refetch()}
+          />
+        </View>
       )}
 
       {/* Phase 200 — initial state (before typing) instead of a blank screen:
           popular service suggestions that jump straight to the category. */}
       {!isLoading && !isError && query.trim().length < 2 && (
-        <View style={styles.suggestWrap}>
-          <Text style={styles.suggestTitle}>Popular services</Text>
+        <View style={[styles.suggestWrap, !isPhone && styles.suggestWrapWide]}>
+          <Text style={styles.suggestTitle}>Browse services</Text>
           <View style={styles.suggestChips}>
-            {POPULAR_SERVICES.map((c) => (
+            {categories.slice(0, 12).map((c) => (
               <TouchableOpacity
                 key={c.slug}
                 style={styles.suggestChip}
                 onPress={() => router.push(`/customer/category/${c.slug}`)}
                 accessibilityRole="button"
-                accessibilityLabel={`Browse ${c.label}`}
+                accessibilityLabel={`Browse ${c.name}`}
               >
-                <Text style={styles.suggestChipText}>{c.label}</Text>
+                <Text style={styles.suggestChipText}>{c.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
-          <Text style={styles.suggestHint}>Or type a service or provider name above.</Text>
+          <Text style={styles.suggestHint}>
+            {categoriesQuery.isError
+              ? 'Categories could not be loaded. You can still search by service or provider name.'
+              : 'Or type a service or provider name above.'}
+          </Text>
         </View>
       )}
 
       {!isLoading && !isError && isFetched && searchTerm.length >= 2 && totalResults === 0 && (
         // BUG-PHASE176-01 — no-results state has a real "Browse Categories" CTA.
-        <EmptyState
-          icon={<Search size={48} color={colors.textTertiary} />}
-          title={`No results for "${searchTerm}"`}
-          description="Try a different keyword or browse categories."
-          actionLabel="Browse Categories"
-          onAction={() => router.push(Routes.TABS.HOME)}
-        />
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <EmptyState
+            icon={<Search size={48} color={colors.textTertiary} />}
+            title={`No results for "${searchTerm}"`}
+            description="Try a different keyword or browse categories."
+            actionLabel="Browse Categories"
+            onAction={() => router.push(Routes.TABS.HOME)}
+          />
+        </View>
       )}
 
       <SectionList
@@ -333,7 +350,7 @@ export default function SearchScreen(): React.ReactElement {
           <SectionHeader title={section.title} style={styles.sectionHeaderRow} />
         )}
         keyExtractor={(item) => `${item.type}-${item.data.id}`}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, !isPhone && styles.listWide]}
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={false}
       />
@@ -342,17 +359,12 @@ export default function SearchScreen(): React.ReactElement {
         visible={filterModalVisible}
         title="Filter Search"
         groups={[
-          {
+          ...(categories.length ? [{
             key: 'category',
             label: 'Category',
             multi: true,
-            options: [
-              { value: 'cleaning', label: 'Cleaning' },
-              { value: 'aircon', label: 'Aircon' },
-              { value: 'plumbing', label: 'Plumbing' },
-              { value: 'electrical', label: 'Electrical' },
-            ],
-          },
+            options: categories.map((category) => ({ value: category.slug, label: category.name })),
+          }] : []),
           {
             key: 'rating',
             label: 'Minimum Rating',
@@ -376,14 +388,12 @@ export default function SearchScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
+  headerInner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.base, paddingVertical: spacing.sm },
+  headerInnerWide: { width: '100%', maxWidth: 1040, alignSelf: 'center', paddingHorizontal: spacing.xl },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
   searchInput: {
@@ -410,6 +420,9 @@ const styles = StyleSheet.create({
   filterButtonText: { fontSize: 18, color: colors.primary, fontWeight: '700' },
 
   list: { padding: spacing.base, paddingBottom: 80 },
+  listWide: { width: '100%', maxWidth: 1040, alignSelf: 'center', paddingHorizontal: spacing.xl },
+  stateContent: { padding: spacing.base },
+  stateContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.xl },
   sectionTitle: {
     ...typography.bodySmall,
     fontWeight: '600',
@@ -477,6 +490,7 @@ const styles = StyleSheet.create({
 
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   suggestWrap: { paddingHorizontal: spacing.base, paddingTop: spacing.lg },
+  suggestWrapWide: { width: '100%', maxWidth: 1040, alignSelf: 'center', paddingHorizontal: spacing.xl },
   suggestTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
   suggestChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   suggestChip: {

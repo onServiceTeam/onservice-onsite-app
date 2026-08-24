@@ -114,7 +114,7 @@ export async function getMyProfile(): Promise<ProviderDashboard> {
 
 export async function updateMyProfile(data: {
   bio?: string;
-  yearsExperience?: number;
+  yearsExperience?: number | null;
 }): Promise<ProviderSelf> {
   const res = await api.patch<ApiResponse<ProviderSelf>>('/api/v1/providers/me', data);
   return res.data.data;

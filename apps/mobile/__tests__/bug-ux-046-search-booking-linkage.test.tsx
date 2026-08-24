@@ -6,6 +6,7 @@ import api from '@/services/api';
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: jest.fn() }),
+  useLocalSearchParams: () => ({}),
 }));
 
 import SearchScreen from '../app/customer/search';

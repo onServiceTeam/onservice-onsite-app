@@ -174,6 +174,8 @@ interface Review {
   rating: number;
   comment: string;
   isVisible: boolean;
+  isFlagged: boolean;
+  privateNote: string | null;
   adminResponse: string | null;
   imageUrls: string[];
   createdAt: string;
@@ -1202,7 +1204,7 @@ function FinancialsTab({ providerId }: { providerId: string }): React.ReactEleme
 
 // ─── Reviews Tab ──────────────────────────────────────────────────────────
 
-function ReviewsTab({ providerId }: { providerId: string }): React.ReactElement {
+export function ReviewsTab({ providerId }: { providerId: string }): React.ReactElement {
   const queryClient = useQueryClient();
 
   // BUG-PHASE20-01 fix: API returns a paginated envelope
@@ -1257,8 +1259,29 @@ function ReviewsTab({ providerId }: { providerId: string }): React.ReactElement 
                 </span>
                 <span className="text-xs text-[var(--color-text-secondary)]">{formatDate(r.createdAt)}</span>
                 {!r.isVisible && <Badge label="hidden" variant="warning" />}
+                {r.isFlagged && <Badge label="flagged" variant="danger" />}
               </div>
               <p className="text-sm text-[var(--color-text)] mt-1 whitespace-pre-wrap">{r.comment}</p>
+              {r.privateNote && (
+                <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Private customer note to onService</p>
+                  <p className="mt-1 text-sm whitespace-pre-wrap text-amber-950">{r.privateNote}</p>
+                  <p className="mt-1 text-xs text-amber-800">Internal support context. Never shown to the provider or public.</p>
+                </div>
+              )}
+              {r.imageUrls.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2" aria-label="Customer review photos">
+                  {r.imageUrls.map((imageUrl, index) => (
+                    <a key={imageUrl} href={imageUrl} target="_blank" rel="noreferrer" className="block">
+                      <img
+                        src={imageUrl}
+                        alt={`Customer review evidence ${index + 1}`}
+                        className="h-20 w-20 rounded-md border border-[var(--color-border)] object-cover"
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
               {r.adminResponse && (
                 <p className="text-xs text-[var(--color-text-secondary)] mt-2 italic border-l-2 border-slate-300 pl-2">
                   Admin response: {r.adminResponse}

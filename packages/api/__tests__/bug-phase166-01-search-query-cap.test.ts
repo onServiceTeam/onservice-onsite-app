@@ -1,39 +1,33 @@
-// BUG-PHASE166-01 — /api/v1/catalog/search is PUBLIC (no auth) and
-// had no upper bound on the query string length. The endpoint
-// ILIKEs against three columns + joins providers — wasteful with
-// a 100,000-char query.
-//
-// Same defense-in-depth pattern as Phase 152-165. Cap at 100 chars
-// (real human searches are short).
-//
-// Mobile match: apps/mobile/app/customer/search.tsx adds
-// maxLength={100} on the search input.
+import express from 'express';
+import request from 'supertest';
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+const searchServicesMock = jest.fn().mockResolvedValue([]);
+const searchProvidersMock = jest.fn().mockResolvedValue([]);
 
-const ROUTE = readFileSync(
-  resolve(__dirname, '../src/routes/catalog.routes.ts'),
-  'utf8',
-);
-const MOBILE = readFileSync(
-  resolve(__dirname, '../../../apps/mobile/app/customer/search.tsx'),
-  'utf8',
-);
+jest.mock('../src/services/catalog.service', () => ({
+  searchServices: (...args: unknown[]) => searchServicesMock(...args),
+  searchProviders: (...args: unknown[]) => searchProvidersMock(...args),
+}));
+jest.mock('../src/middleware/cache.middleware', () => ({
+  cacheMiddleware: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
+}));
+jest.mock('../src/services/cache.service', () => ({
+  getRuntimeCacheTtl: jest.fn().mockResolvedValue(60),
+  cacheDeletePattern: jest.fn(),
+}));
 
-describe('BUG-PHASE166-01 — search query length cap', () => {
-  it('server rejects query > 100 chars', () => {
-    expect(ROUTE).toMatch(
-      /query\.length > 100[\s\S]+?Search query must be ≤ 100 characters/,
-    );
-  });
+import catalogRouter from '../src/routes/catalog.routes';
+import { errorMiddleware } from '../src/middleware/error.middleware';
 
-  it('mobile search input has maxLength={100}', () => {
-    expect(MOBILE).toMatch(/value=\{query\}[\s\S]+?maxLength=\{100\}/);
-  });
+it('Bug PHASE166-01 — public catalog search rejects queries over 100 characters before executing either database search', async () => {
+  const app = express();
+  app.use('/catalog', catalogRouter);
+  app.use(errorMiddleware);
 
-  it('PHASE166 fix-comments are preserved on both', () => {
-    expect(ROUTE).toMatch(/BUG-PHASE166-01 fix/);
-    expect(MOBILE).toMatch(/BUG-PHASE166-01 fix/);
-  });
+  const response = await request(app).get(`/catalog/search?q=${'a'.repeat(101)}`);
+
+  expect(response.status).toBe(400);
+  expect(response.body.error.message).toMatch(/100 characters/);
+  expect(searchServicesMock).not.toHaveBeenCalled();
+  expect(searchProvidersMock).not.toHaveBeenCalled();
 });

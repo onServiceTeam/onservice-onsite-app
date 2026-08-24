@@ -111,7 +111,7 @@ router.get(
   cacheMiddleware(() => getRuntimeCacheTtl('searchResults')),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const query = typeof req.query.q === 'string' ? req.query.q : '';
+      const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
       if (query.length < 2) {
         res.status(400).json({
           success: false,
@@ -133,10 +133,65 @@ router.get(
         return;
       }
 
-      const limit = Math.min(Number(req.query.limit) || 20, 50);
+      if (req.query.limit !== undefined && typeof req.query.limit !== 'string') {
+        res.status(400).json({
+          success: false,
+          error: { message: 'Search limit is invalid.', statusCode: 400 },
+        });
+        return;
+      }
+      const requestedLimit = Number(req.query.limit);
+      const limit = Number.isFinite(requestedLimit)
+        ? Math.min(50, Math.max(1, Math.trunc(requestedLimit)))
+        : 20;
+
+      if (req.query.categories !== undefined && typeof req.query.categories !== 'string') {
+        res.status(400).json({
+          success: false,
+          error: { message: 'Search categories are invalid.', statusCode: 400 },
+        });
+        return;
+      }
+      const categoryParam = typeof req.query.categories === 'string' ? req.query.categories : '';
+      const categorySlugs = categoryParam
+        .split(',')
+        .map((slug) => slug.trim().toLowerCase())
+        .filter(Boolean);
+      if (
+        categorySlugs.length > 10
+        || categorySlugs.some((slug) => slug.length > 80 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug))
+      ) {
+        res.status(400).json({
+          success: false,
+          error: { message: 'Search categories are invalid.', statusCode: 400 },
+        });
+        return;
+      }
+
+      if (req.query.minRating !== undefined && typeof req.query.minRating !== 'string') {
+        res.status(400).json({
+          success: false,
+          error: { message: 'Minimum rating is invalid.', statusCode: 400 },
+        });
+        return;
+      }
+      const minRatingParam = typeof req.query.minRating === 'string' ? req.query.minRating : '';
+      const minRating = minRatingParam === '' ? undefined : Number(minRatingParam);
+      if (minRating !== undefined && (!Number.isFinite(minRating) || minRating < 1 || minRating > 5)) {
+        res.status(400).json({
+          success: false,
+          error: { message: 'Minimum rating must be between 1 and 5.', statusCode: 400 },
+        });
+        return;
+      }
+
+      const filters = {
+        ...(categorySlugs.length > 0 ? { categorySlugs: Array.from(new Set(categorySlugs)) } : {}),
+        ...(minRating !== undefined ? { minRating } : {}),
+      };
       const [serviceResults, providerResults] = await Promise.all([
-        catalogService.searchServices(query, limit),
-        catalogService.searchProviders(query, Math.min(limit, 10)),
+        catalogService.searchServices(query, limit, filters),
+        catalogService.searchProviders(query, Math.min(limit, 10), filters),
       ]);
 
       res.json({

@@ -1,6 +1,6 @@
 // MED-N99 / MED-N130 / MED-N131 / MED-N128 / MED-N13 fixes verified.
-// Mix of validator behavior, service-level guards, and source-shape
-// assertions for the staff soft-delete + pagination changes.
+// Mix of validator behavior and real service-level guards for review,
+// staff soft-delete, and pagination changes.
 
 const dbQueryMock = jest.fn();
 const dbTransactionMock = jest.fn();
@@ -14,9 +14,13 @@ jest.mock('../src/models/db', () => ({
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
+jest.mock('../src/services/notification.service', () => ({
+  createPushNotification: jest.fn(),
+}));
 
 import { availabilityOverrideSchema } from '../src/validators/provider.validators';
 import { removeStaffMember } from '../src/services/staff.service';
+import { createReview } from '../src/services/review.service';
 
 beforeEach(() => {
   dbQueryMock.mockReset();
@@ -113,65 +117,64 @@ describe('MED-N99 — availabilityOverrideSchema validates POST body', () => {
   });
 });
 
+function mockReviewCreation(): void {
+  dbQueryMock.mockImplementation(async (sql: string) => {
+    if (/FROM bookings WHERE id/.test(sql)) {
+      return {
+        rows: [{
+          id: 'booking-1', customer_id: 'customer-1', provider_id: 'provider-1',
+          status: 'confirmed', performer_staff_id: null,
+        }],
+        rowCount: 1,
+      };
+    }
+    if (/COUNT\(\*\).*FROM reviews/s.test(sql)) return { rows: [{ count: '0' }], rowCount: 1 };
+    if (/INSERT INTO reviews/.test(sql)) return { rows: [{ id: 'review-1' }], rowCount: 1 };
+    if (/AVG\(rating\)/.test(sql)) return { rows: [{ avg_rating: '4.00' }], rowCount: 1 };
+    if (/UPDATE providers/.test(sql)) return { rows: [], rowCount: 1 };
+    if (/SELECT user_id FROM providers/.test(sql)) return { rows: [], rowCount: 0 };
+    throw new Error(`Unexpected review SQL: ${sql}`);
+  });
+}
+
 describe('MED-N130 — review.containsFlaggedContent extended', () => {
-  // Test by importing the service and creating a review with various
-  // flagged content. Mock the booking/existing checks to pass and
-  // assert the resulting INSERT params show is_flagged=true.
-  // Simpler: test the helper directly via source-content.
-  // The helper is private (not exported) so we inspect via end-to-end
-  // createReview. But that requires a lot of mocking; use source-shape.
-  const REVIEW_SERVICE = require('fs').readFileSync(
-    require('path').resolve(__dirname, '../src/services/review.service.ts'),
-    'utf8',
-  ) as string;
+  it('MED-N130 — review creation flags URLs, profanity, threats, and bare Philippine mobile numbers', async () => {
+    const flaggedExamples = [
+      'Contact me at https://outside.example',
+      'Tangina this was awful',
+      'I will kill you',
+      'Text 917-123-4567 instead',
+    ];
 
-  it('MED-N130 — flagged regex includes URL pattern', () => {
-    expect(REVIEW_SERVICE).toMatch(/urlPattern\s*=\s*\//);
-    expect(REVIEW_SERVICE).toMatch(/https\?:/);
-  });
-
-  it('MED-N130 — flagged regex includes profanity list', () => {
-    expect(REVIEW_SERVICE).toMatch(/profanityList/);
-    // Some Tagalog terms are present (commonly abused on PH platforms).
-    expect(REVIEW_SERVICE).toMatch(/'tangina'/);
-    expect(REVIEW_SERVICE).toMatch(/'gago'/);
-  });
-
-  it('MED-N130 — flagged regex includes threat list', () => {
-    expect(REVIEW_SERVICE).toMatch(/threatList/);
-    expect(REVIEW_SERVICE).toMatch(/'kill you'/);
-  });
-
-  it('MED-N130 — flagged regex includes bare PH mobile pattern', () => {
-    expect(REVIEW_SERVICE).toMatch(/bareMobilePattern/);
-    // 9XX format without prefix.
-    expect(REVIEW_SERVICE).toMatch(/\\b9\\d\{2\}/);
+    for (const comment of flaggedExamples) {
+      dbQueryMock.mockReset();
+      mockReviewCreation();
+      await createReview('booking-1', 'customer-1', { rating: 1, comment });
+      const insert = dbQueryMock.mock.calls.find(([sql]) => /INSERT INTO reviews/.test(sql as string));
+      expect(insert).toBeDefined();
+      expect((insert![1] as unknown[])[12]).toBe(false);
+      expect((insert![1] as unknown[])[13]).toBe(true);
+    }
   });
 });
 
 describe('MED-N131 — review.service enforces max comment + privateNote length', () => {
-  const REVIEW_SERVICE = require('fs').readFileSync(
-    require('path').resolve(__dirname, '../src/services/review.service.ts'),
-    'utf8',
-  ) as string;
+  it('MED-N131 — review creation accepts 1,000 characters and rejects longer public or private text', async () => {
+    mockReviewCreation();
 
-  it('MED-N131 — declares MAX_REVIEW_COMMENT_CHARS constant', () => {
-    expect(REVIEW_SERVICE).toMatch(/MAX_REVIEW_COMMENT_CHARS\s*=\s*2000/);
-  });
-
-  it('MED-N131 — declares MAX_PRIVATE_NOTE_CHARS constant', () => {
-    expect(REVIEW_SERVICE).toMatch(/MAX_PRIVATE_NOTE_CHARS\s*=\s*2000/);
-  });
-
-  it('MED-N131 — createReview throws 400 when comment exceeds the cap', () => {
-    // Source-shape: the createReview function must throw createAppError
-    // with a 400 status when the comment is too long.
-    expect(REVIEW_SERVICE).toMatch(
-      /data\.comment\.length > MAX_REVIEW_COMMENT_CHARS[\s\S]*?createAppError[\s\S]*?400/,
-    );
-    expect(REVIEW_SERVICE).toMatch(
-      /data\.privateNote\.length > MAX_PRIVATE_NOTE_CHARS[\s\S]*?createAppError[\s\S]*?400/,
-    );
+    await expect(createReview('booking-1', 'customer-1', {
+      rating: 5,
+      comment: 'x'.repeat(1001),
+    })).rejects.toMatchObject({ statusCode: 400 });
+    await expect(createReview('booking-1', 'customer-1', {
+      rating: 5,
+      privateNote: 'x'.repeat(1001),
+    })).rejects.toMatchObject({ statusCode: 400 });
+    await expect(createReview('booking-1', 'customer-1', {
+      rating: 5,
+      comment: 'x'.repeat(1000),
+      privateNote: 'y'.repeat(1000),
+    })).resolves.toMatchObject({ id: 'review-1' });
   });
 });
 
