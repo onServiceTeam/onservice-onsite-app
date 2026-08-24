@@ -5,6 +5,8 @@ node_modules/
 .env
 .env.local
 .env.production
+# Timestamped server-only copies made before security configuration changes.
+.env.pre-security-*
 
 # E07 — server-only secret: admin Basic Auth hash (generated on the box, never committed)
 nginx/.htpasswd
