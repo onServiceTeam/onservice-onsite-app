@@ -309,6 +309,13 @@ No new money behavior and minimal schema risk:
 - Admin Booking 360 shows checklist, photo type/actor, signatures with E19 warning, change evidence, completion notes, and explicit unavailable fields;
 - define proof readiness and blockers as derived facts, not a mutable boolean.
 
+Delivered continuation on 2026-08-25:
+
+- Bugs UX-307 through UX-309 put one privacy-reduced proof summary behind customer, provider/assigned staff, and Admin Booking 360 views;
+- Bug UX-313 makes the customer job-evidence browser consume canonical photo actor/type/time directly, includes during/checklist/issue proof, and labels legacy fallback as incomplete provenance;
+- Bug UX-314 keeps original booking scope beside proposed additions and their evidence on wide screens without changing money behavior;
+- Bugs UX-310 through UX-312 connect customer-provider relationships to provider services and provider CRM while D29 keeps the unimplemented preferred-provider promise explicit.
+
 ### Phase 2: property/site and visit foundation
 
 Additive schema after D28 approval:
@@ -380,3 +387,10 @@ This direction is complete only when:
 ## Decision boundary
 
 The safe integrity fixes and Phase 1 read-model work can proceed without changing money. The property/site/visit schema and whether projects become booking parents require D28 approval. E05, E19, E25, D27p5, and other recorded money/legal holds remain separate and cannot be silently bundled into this product direction.
+
+## Relationship and evidence continuation, 2026-08-25
+
+- Customer provider detail, customer Suki Pros, provider Suki Customers, customer job evidence, and customer change orders now use the same bounded Stitch-style phone/tablet/desktop workspace direction while retaining their server-owned sources and fail-closed money states.
+- Job evidence now reads canonical actor/type/time records before legacy fallback; change orders keep original scope beside additions; repeat-customer cards link to canonical provider CRM records; and provider/service actions no longer claim same-provider assignment before the matching contract can prove it.
+- D29 records the preferred-provider-first product decision. The current implementation deliberately stops at truthful service selection and does not call the unsafe immediate self-assignment endpoint.
+- The exact trace, browser evidence, test counts, and remaining holds are recorded in `CUSTOMER-PROVIDER-RELATIONSHIP-EVIDENCE-AUDIT-2026-08-25.md`.

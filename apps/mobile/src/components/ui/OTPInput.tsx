@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { View, TextInput, Text, StyleSheet, Pressable } from 'react-native';
+import { View, TextInput, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { colors, spacing, borderRadius, typography } from '@/config/theme';
 
 interface OTPInputProps {
@@ -28,8 +28,7 @@ export default function OTPInput({
       accessible={true}
       accessibilityRole="keyboardkey"
       accessibilityLabel={
-        accessibilityLabel ??
-        `Verification code input, ${value.length} of ${length} digits entered`
+        accessibilityLabel ?? `Verification code input, ${value.length} of ${length} digits entered`
       }
       accessibilityHint="Tap to enter verification code"
     >
@@ -54,7 +53,10 @@ export default function OTPInput({
       </View>
       <TextInput
         ref={inputRef}
-        style={styles.hiddenInput}
+        style={StyleSheet.flatten([
+          styles.hiddenInput,
+          Platform.OS === 'web' && styles.hiddenInputWeb,
+        ])}
         value={value}
         onChangeText={(text) => {
           const filtered = text.replace(/\D/g, '').slice(0, length);
@@ -101,5 +103,13 @@ const styles = StyleSheet.create({
     opacity: 0,
     height: 0,
     width: 0,
+  },
+  hiddenInputWeb: {
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    opacity: 0.01,
+    zIndex: 1,
   },
 });
