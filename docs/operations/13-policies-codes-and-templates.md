@@ -44,10 +44,10 @@ When a refund happens:
 
 - **Cancellation.** Auto-computed per System A above.
 - **Dispute.** Resolved by admin. Resolution types: full refund, partial refund (you set a percent), no refund, free redo, refund with warning, refund with suspension, split decision. Full refund, refund with warning, and refund with suspension are all 100%. Any remaining escrow after a partial refund still goes to the provider.
-- **Unresponded dispute.** If the provider does not respond within 48 hours, it resolves in the customer's favor (full refund).
+- **Unresponded dispute.** If the provider does not respond within 48 hours, the worker escalates the case to tier 3 for staff review. Silence does not itself decide or move money.
 - **No-provider-available.** If dispatch never finds a provider, the booking expires (72h cap) and the customer is refunded in full, plus a ₱150 goodwill credit for the platform failure (see `08-dispatch-and-live-operations.md`).
 
-Dispute filing window is 48 hours after job completion. Damage and theft disputes require photo evidence. Refunds over ₱10,000, any refund-with-suspension, and any damage or theft payout need super-admin (Ken) sign-off. See `09-trust-safety-and-disputes.md` for the full decision tree.
+Dispute filing window is 48 hours after job completion. The current release worker runs after 24 hours, so E18 makes hour-24-to-48 cases money-path escalations rather than ordinary held-escrow cases. Direct provider accept/partial offer and customer partial accept are held by E24; providers contest into staff review. Damage and theft disputes require photo evidence. Refunds over ₱10,000, any refund-with-suspension, and any damage or theft payout need super-admin (Ken) sign-off. See `09-trust-safety-and-disputes.md` for the full decision tree.
 
 ---
 
@@ -79,7 +79,7 @@ Full version lives in `05-provider-onboarding-and-training.md`. Short form for r
 - [ ] Use change orders for any extra work and price (capped at 50% of the original service price). Never demand cash on site.
 - [ ] Do not cancel jobs you accepted. We warn at 3 cancellations in 30 days and auto-suspend at 5.
 - [ ] Treat customers and their homes with respect. Damage, theft, or harassment leads to suspension and possible removal.
-- [ ] Respond to disputes within 48 hours. Silence resolves the dispute against you.
+- [ ] Respond to disputes within 48 hours. Silence escalates the case for staff review using the evidence on file; it does not protect your side of the record.
 
 Commission by tier (flat per tier, taken off the service price): Founding 10%, New 15%, Verified 13%, Pro 11%, Elite 9%. Tier requirements: Verified = 5+ jobs and 4.0+ rating; Pro = 25+ jobs, 4.5+ rating, no open disputes; Elite = 100+ jobs, 4.7+ rating, TESDA-certified, no open disputes. Founding is invite-only.
 
@@ -176,7 +176,7 @@ Copy-paste ready. Replace `[bracketed]` fields. Bilingual (English with Bisaya o
 > Hi [Name], I'm sorry about [what went wrong]. That's not the experience we want. I've [action taken], and I've added a ₱[amount] credit to your account as an apology. Thank you for your patience, and please give us another chance.
 
 **Dispute update:**
-> Hi [Name], an update on your dispute for booking [#bookingID]. Status: [under review / escalated / resolved]. [If resolved: Our decision is (resolution type). Your refund of ₱(amount) is on its way to your (method).] [If pending: We've asked the provider to respond; they have until (date/time). If they don't respond by then, it resolves in your favor.] We'll message you the moment there's news.
+> Hi [Name], an update on your dispute for booking [#bookingID]. Status: [under review / escalated / resolved]. [If resolved: Our decision is (resolution type). Approved refund: ₱(amount). Recorded destination/status/reference: (details).] [If pending: We've asked the provider to respond by (date/time). If they do not respond, the case escalates for staff review using the evidence on file.] We'll message you when the recorded status changes.
 
 ### 6.5 SMS templates (short)
 
@@ -319,6 +319,9 @@ Reminder: a personal-data breach starts a 72-hour NPC notification clock, and mo
 
 - Do not promise insurance or coverage. onService is a marketplace, not an insurer. Use only the interim approved wording; final guarantee/disclaimer language remains E10/F#10 and requires attorney review.
 - Do not ask a customer to retry the current external hosted PayMongo link. E14 is open; preserve the attempt and escalate.
+- Do not promise that provider silence automatically wins a dispute. It escalates to staff review.
+- Do not offer provider direct acceptance or partial-offer settlement while E24 is open. Use contest-to-admin-review.
+- Do not call a post-24-hour dispute "held escrow" without verifying the ledger. E18 records that release currently precedes the 48-hour filing deadline.
 - Do not quote the policy-page refund tiers (System B) as the real refund. Use the live System A brackets.
 - Do not promise a phone call or masked-number call. We don't have calling yet; the channel is in-app chat.
 - Do not move a customer or provider off-platform for any reason.

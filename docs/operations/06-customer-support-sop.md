@@ -123,7 +123,7 @@ Notes:
 
 - "First response" means a human reply that engages with the actual issue, not the auto-acknowledgement.
 - If a ticket sits in `waiting_on_customer`, the resolution clock pauses. The first-response clock does not.
-- The system already auto-confirms a completed job and releases escrow after 24 hours. The dispute window is 48 hours after completion. Keep those two numbers in your head; many "resolution" questions are really about that clock (see playbooks).
+- The system currently auto-confirms a completed job and releases escrow after 24 hours, but the filing API and customer promise allow a dispute for 48 hours. This is the open E18 money-path contradiction, not a policy to explain away. Treat any case filed after release as a super-admin/Ken escalation and do not claim its money was re-held.
 
 ---
 
@@ -236,7 +236,7 @@ Steps:
 2. Tell the customer the bracket they fall in and the resulting refund, in pesos, before anything happens. No surprises.
 3. If the booking is still pre-payment or the provider is not matched yet, cancellation is simpler and the customer is generally made whole. Confirm in admin.
 4. The actual cancel-with-refund on an escrow-held booking is a money action. Walk the customer through the in-app cancel if it is available to them; if the refund needs an admin to push it, escalate to super-admin and tell the customer the timeline.
-5. Refunds route back through the original payment method via PayMongo. Set the expectation: card/GCash/Maya refunds can take a few business days to appear. Wallet refunds are near-instant.
+5. Verify the real payment method, gateway transaction, refund submission result, destination, and reference before quoting status or timing. Internal wallet outcomes follow the wallet ledger. A historical verified external payment may require a PayMongo refund, but E14 blocks new hosted external authorization and a pending redirect is not refundable money. Never say "processed" from an internal case status alone.
 6. Provider-fault cancellations (no-show, provider cancelled) are full refund, not the customer brackets. Do not apply the customer table to a provider's fault.
 7. Log the ticket with the bracket, the amount, and who approved any escalation.
 
@@ -257,7 +257,7 @@ Steps:
 2. Check the clock. A dispute can be filed only within 48 hours of job completion, and only when the booking is `completed_by_provider` or `confirmed`. If they are outside 48 hours, the dispute path is closed and this becomes a goodwill judgment call (escalate).
 3. Tell them disputes are self-serve in the app and walk them to it: their booking, then file a dispute. Dispute types: `no_show`, `incomplete`, `substandard`, `damage`, `theft`, `overcharge`, `other`.
 4. Evidence: description must be at least 50 characters. Photos are required for damage and theft, optional otherwise (up to 10).
-5. Set expectations honestly: the provider has 48 hours to respond. If the provider accepts, the refund is automatic. If the provider does not respond at all, the dispute resolves in the customer's favor. If contested, our team reviews.
+5. Set expectations honestly: the provider has 48 hours to respond. Contesting sends the response to staff review. No response auto-escalates the case to tier 3 for staff review; it does not automatically refund the customer. Direct provider acceptance and partial-offer settlement are held by E24 until the escrow-safe redesign is approved.
 6. If the customer cannot or will not use the in-app flow, we can capture it, but resolution and any refund are super-admin actions. Escalate with the evidence attached.
 7. Tag the ticket `booking_issue`, link the dispute, and hand the decision to the disputes path in `09-trust-safety-and-disputes.md`.
 
@@ -307,7 +307,7 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 
 ### M4 - Cancellation refund explained
 
-> Hi [name], here is exactly what your cancellation looks like. Your job is scheduled for [time], which is [X hours] away, so the refund is [percent] of the service price (₱[amount]) plus your full service fee back. Refunds to [GCash/Maya/card] usually take a few business days to appear; wallet refunds are near-instant. Want me to go ahead?
+> Hi [name], here is the current cancellation estimate. Your job is scheduled for [time], which is [X hours] away, so the live bracket calculates [percent] of the service price (₱[amount]) plus any refundable service fee actually charged. I will confirm the payment record and show you the recorded refund status, destination, and reference after the authorized action. Want me to request the cancellation?
 
 ### M5 - Payment attempt needs review
 
@@ -319,7 +319,7 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 
 ### M7 - How to file a dispute
 
-> Hi [name], I am sorry the job did not meet the mark. You can raise this in the app: open the booking, then choose to file a dispute, within 48 hours of completion. Add a short description (at least a couple of sentences) and photos if you have them. The provider has 48 hours to respond; if they accept or do not reply, your refund is handled automatically. If they push back, our team reviews it. Want me to walk you through it?
+> Hi [name], I am sorry the job did not meet the mark. You can raise this in the app: open the booking, then choose to file a dispute, within 48 hours of completion. Add a short description (at least a couple of sentences) and photos if you have them. The provider has 48 hours to respond. Whether they contest or do not reply, our team reviews the case and records the decision; silence is not an automatic refund. Want me to walk you through it?
 
 ### M8 - OTP not arriving
 

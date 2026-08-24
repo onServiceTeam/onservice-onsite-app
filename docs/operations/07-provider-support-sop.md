@@ -63,7 +63,7 @@ Map these to the admin ticket priority field (low/medium/high/urgent) and ticket
 
 | Route to | When | How |
 |---|---|---|
-| Finance (super_admin) | Payout approve/reject/complete, AML-hold release, wallet adjustment, commission correction, any money movement | Booking 360 / Payouts page / Provider 360 Financials. All money actions are super_admin-only and write audit rows. |
+| Finance (super_admin) | Payout internal-review clear/reject, approve/reject/complete, wallet adjustment, commission correction, any money movement | Booking 360 / Payouts page / Provider 360 Financials. All money actions are super_admin-only and write audit rows. The internal hold is not itself an AMLA filing or classification. |
 | Trust & Safety (super_admin) | Dispute resolution, suspension or reactivation, fraud flag, rating fraud claim, safety incident | Disputes page, Providers page actions. See `09-trust-safety-and-disputes.md`. |
 | Ken | Money or compliance risk, two-system policy conflict (cancellation), any refund over ₱10,000, any refund-with-suspension, any damage or theft payout, anything a hard stop names | Escalation file + chat. |
 
@@ -86,13 +86,13 @@ Facts to know:
 - Withdrawal processing target: 3 business days.
 - Internal large-transaction control: a payout at or above the configured threshold (default ₱500,000) is created as `aml_review_pending`. A super_admin can clear it to pending or reject it directly; either path requires a written reason and a direct rejection returns the reserved amount atomically. This hold is not proof that a legal report was filed or required.
 
-Money lands in the provider wallet only after escrow releases on a finished job. Escrow releases when the customer confirms the job, or automatically 24 hours after the provider marks it complete. So "I finished the job but no money yet" is usually the 24-hour auto-confirm window, not a payout bug.
+Money lands in the provider wallet only after escrow releases on a finished job. Customer confirmation can release it; the worker also currently auto-releases after 24 hours. That timer conflicts with the 48-hour customer dispute-filing window under E18, so support must not present the 24-hour credit as a settled finality rule or assume a later accepted case still has held funds.
 
 Payout playbook:
 1. Confirm provider is approved and amount is at least ₱100.
 2. Provider 360 then Financials: check wallet available vs pending, and recent payouts.
 3. Match the symptom:
-   - Available balance is ₱0 but a job just finished: explain escrow release timing (customer confirm or 24h auto-confirm). Not a payout issue.
+   - Available balance is ₱0 but a job just finished: check booking, escrow, completion, and dispute state. Explain that customer confirmation or the current worker timer may release funds, but do not call the 24-hour/48-hour contradiction normal or final. Escalate any accepted post-release dispute under E18.
    - Payout shows pending/approved and it has been under 3 business days: normal, give the timeline.
    - Payout shows rejected: read the rejection reason; the amount was rebated to available balance. Provider can re-request.
    - Payout shows aml_review_pending: internal large-transaction hold. Escalate to Finance for review. The super_admin records either a clearance reason (moves it to pending without sending money) or a rejection reason (returns the reserved balance).
@@ -103,10 +103,10 @@ Payout playbook:
 Macro: payout timing
 
 ```
-Hi [name], salamat sa pasensya. Here's where your withdrawal stands:
+Hi [name], salamat sa pasensya. Here's where your withdrawal request stands:
 - Status: [pending/approved/processing/completed]
 - Amount: ₱[amount] to [GCash/Maya/bank] ending [last 4]
-Payouts take up to 3 business days to land after approval. If it's past that, reply here and we'll have Finance check the transfer. Wallet money only becomes withdrawable after a job's escrow releases (when the customer confirms, or automatically 24 hours after you mark it done).
+Our operating target is up to 3 business days after approval, but the recorded status and transfer reference are the source of truth. If it is past the target, reply here and Finance will check the transfer. Wallet money becomes withdrawable only after the booking record shows release. Customer confirmation can release it; the current 24-hour timer remains under E18 review because filing stays open for 48 hours.
 ```
 
 ---
@@ -173,7 +173,7 @@ When the platform itself cannot match any provider (no-provider failure), the cu
 ## 9. Customer no-show at the site
 
 When the provider arrives and the customer is not there:
-1. Tell the provider to message the customer in the booking chat first (text plus a photo of arrival if useful). There is no in-app calling despite some app copy mentioning masked numbers; that feature is not built. Chat is the live channel.
+1. Tell the provider to message the customer in the booking chat first (text plus a photo of arrival if useful). There is no in-app calling or masked-telephone service. Chat is the live channel and the current customer/provider copy now says so.
 2. Provider should wait a reasonable window. Starting wait is 15 minutes before reporting a no-show.
 
 > **Set (editable):** A provider waits 15 minutes after arriving before reporting a customer no-show. _Recommended default. To change it, edit here and anywhere this value is referenced._
@@ -333,7 +333,7 @@ Provider ticket intake is available in the shared in-app Support screens. Email 
 
 | Provider says | First check | Likely answer |
 |---|---|---|
-| "No money after finishing a job" | Booking status | Escrow releases on customer confirm or 24h auto-confirm |
+| "No money after finishing a job" | Booking + escrow + dispute state | Customer confirmation/current worker can release; E18 blocks treating the 24h/48h mismatch as final policy |
 | "Payout not received" | Payouts / Provider 360 Financials | Up to 3 business days; check status and destination account |
 | "Wrong commission" | Tier + Settings | Flat per tier (10/15/13/11/9%); admin may have tuned it |
 | "Can't add extra charge" | Original price | 50% cap, ~₱10K hard cap, must be in_progress |

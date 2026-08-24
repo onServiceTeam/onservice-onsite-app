@@ -1593,3 +1593,24 @@ Removing this containment requires the approved replacement architecture,
 PayMongo sandbox evidence, webhook reconciliation, refund/cancellation tests,
 customer/admin support flows, and updated terms. See
 `.ai-coder/escalations/E14-paymongo-client-authorization-missing-2026-08-24.md`.
+
+---
+
+## 49. Direct participant dispute settlement is held under E18/E24
+
+Customers and providers now have linked dispute inboxes and case workspaces.
+Both participants can see the booking, claim, evidence, provider response,
+status, and recorded decision. Providers can contest a claim, which preserves
+their response and moves the case to admin review.
+
+Direct provider acceptance of a full refund, provider partial-refund offers,
+and customer acceptance of a partial offer are held before any write. The
+underlying paths do not lock the dispute and booking as one idempotent
+settlement and can commit case state separately from escrow work. E18 separately
+blocks a safe decision while escrow can release at 24 hours but disputes remain
+open for 48 hours.
+
+Keep `DISPUTE_PARTY_SETTLEMENT_ENABLED=0`. The environment value cannot bypass
+the code hold. Removing containment requires the locked/idempotent settlement,
+gateway retry, concurrent money tests, and the E18 timing decision described in
+`.ai-coder/escalations/E24-direct-dispute-settlement-concurrency-2026-08-24.md`.

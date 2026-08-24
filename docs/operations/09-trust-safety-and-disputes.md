@@ -8,7 +8,7 @@ This doc covers the resolution work. For the mechanics of how money moves (escro
 
 ## 1. The money model in one paragraph (so disputes make sense)
 
-For a booking the server has verified as paid, money is in the platform escrow wallet before provider matching. The provider does the job, the customer confirms (or it auto-confirms after 24 hours), and only then does escrow release. A dispute on such a booking concerns held money rather than money we must claw back. E03 implemented this ordering, but E14 still blocks the current external hosted PayMongo authorization link; a pending browser attempt is not held escrow.
+For a booking the server has verified as paid, money is in the platform escrow wallet before provider matching. The provider does the job and the customer can confirm it. The current worker otherwise auto-confirms and releases after 24 hours, while the filing API and customer promise still allow a dispute through 48 hours. E18 records that unsafe contradiction: a case filed after release is not backed by held booking funds. Do not describe every accepted dispute as held escrow or resolve an hour-24-to-48 case as though the provider credit had been reversed. Escalate it to a super-admin and Ken until E18 is resolved. E03 implemented the initial ordering, but E14 still blocks the current external hosted PayMongo authorization link; a pending browser attempt is not held escrow.
 
 > **Set (editable):** An "I paid but it errored" report is a payment issue, not a dispute. E03 fixed internal ordering, but E14 confirms the current external hosted checkout link is invalid. Preserve and escalate the attempt; do not retry it or infer payment from the redirect. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
@@ -24,10 +24,12 @@ A dispute can only be filed by:
 
 - The booking customer (providers do not file disputes, they respond to them).
 - When the booking is `completed_by_provider` or `confirmed`.
-- Within 48 hours of completion (`escrow_dispute_window_hours`, admin-tunable). After 48 hours the booking auto-confirms and escrow releases, so there is nothing to hold.
+- Within 48 hours of completion (`escrow_dispute_window_hours`, admin-tunable). This is the accepted filing window, but it does not currently match the 24-hour auto-confirm/release worker. See the E18 hold below.
 - One active dispute per booking.
 
-Filing flips the booking to `disputed` and sets escrow to `held`, which freezes the money until resolution. The customer files from the app (booking detail -> file dispute). Ops cannot file on a customer's behalf in-app, but can create a support ticket and walk them through it.
+Filing flips the booking to `disputed` and writes escrow state `held`. That state only represents real held money if escrow had not already released. For any case filed 24 to 48 hours after completion, do not infer that funds were re-held and do not process a money outcome until E18 is resolved. The customer files from the app (booking detail -> file dispute). Ops cannot file on a customer's behalf in-app, but can create a support ticket and walk them through it.
+
+> **Money hold (E18):** auto-confirm/release currently happens after 24 hours but filing remains open for 48 hours. Operations must treat disputes filed after release as money-path escalations, not ordinary held-escrow cases. Do not change either window, promise a refund, or attempt a provider clawback without the approved E18 redesign.
 
 ### 2.2 Dispute types (the 7)
 
@@ -39,18 +41,19 @@ Photo evidence is required in-app for `damage` and `theft` (the app blocks submi
 
 A dispute moves through these statuses: `open` (just filed) -> `under_review` (assigned to an agent, or provider contested) -> `escalated` (tier 2 or 3) -> `resolved` (terminal). Tier is 1, 2 or 3 and only goes up.
 
-Two things resolve a dispute without an admin lifting a finger:
+One current path can resolve a dispute without an admin lifting a finger:
 
 1. **Auto-resolution (no-show):** if it is a `no_show` dispute and the provider marked the job complete within 30 minutes of the scheduled time (`noshow_auto_resolve_window_minutes`), the system auto-resolves it as a full refund. The refund runs in the same transaction.
-2. **Provider non-response:** if the provider does not respond within 48 hours, the dispute auto-escalates, and the policy shown to customers is that unanswered disputes resolve in the customer's favor.
+
+Provider non-response does **not** settle money. After 48 hours the worker moves the case to `escalated`, tier 3, for staff review and notifies the customer. Support must not promise that silence automatically wins a refund.
 
 ### 2.4 The provider's three responses
 
-When notified, the provider has 48 hours to do one of:
+When notified, the provider has 48 hours to respond. The production-safe participant action is:
 
-- **Accept** -> dispute resolves, full refund (100%) to customer.
 - **Contest** -> dispute moves to `under_review`, tier 2, an agent reviews.
-- **Partial offer** -> provider proposes a partial refund (capped at booking total). The customer can accept it, which resolves the dispute.
+
+The API contains provider **Accept**, **Partial offer**, and customer partial-accept paths, but E24 holds all three before any write because their settlement is not safely serialized with escrow and booking state. The app therefore sends providers through Contest -> admin review. Do not coach a provider or customer around this hold.
 
 ### 2.5 Standard dispute workflow (numbered SOP)
 
@@ -61,7 +64,7 @@ When notified, the provider has 48 hours to do one of:
 5. **Message parties** if facts are missing (customer / provider / both, 5-2000 chars). Give a clear deadline.
 6. **Decide** using the escrow/refund decision tree (section 4).
 7. **Resolve and notify** (super-admin only). Pick the resolution type, set refund % for partial/split, write decision notes (20+ chars). The page shows an estimated-refund preview and a confirm step.
-8. The system flips the booking to `resolved`, sets escrow to `refunded` / `partially_refunded` / `released`, pushes the refund back through PayMongo, releases any remainder to the provider, and notifies both parties. If a refund or release fails, it lands in the `gateway_retry_queue` and retries (it is not silently dropped).
+8. The system records the booking and escrow outcome, moves any valid internal held funds, and notifies both parties. A verified historical external PayMongo payment may also require a gateway refund; only say it was submitted after checking the real gateway result/reference. E14 blocks new hosted external authorization and does not make a browser attempt refundable money. Gateway failures are queued in `gateway_retry_queue`, but a queued item is not a completed refund.
 9. If new facts surface after a resolution, a super-admin can **Reopen** (reason 20+ chars).
 
 ### 2.6 Resolution types (ground truth) and what each does to the money
@@ -109,13 +112,11 @@ Use this once evidence is in. "Service price" is the provider's portion; the ser
 ```
 START: dispute filed, escrow = held
   |
-  +-- Provider already ACCEPTED?            -> full_refund (100%). Done.
-  |
   +-- no_show AND provider "completed" within 30 min of schedule?
   |        -> auto-resolved as full_refund. Verify it fired, then done.
   |
-  +-- Provider DID NOT RESPOND in 48h?      -> resolve in customer's favor
-  |        (full_refund unless evidence clearly shows work was done)
+  +-- Provider DID NOT RESPOND in 48h?      -> case auto-escalates to tier 3
+  |        (staff reviews evidence; silence does not move money)
   |
   +-- Evidence shows job NOT done / no-show / fraud by provider?
   |        -> full_refund. If pattern of abuse -> refund_with_suspension.
@@ -149,7 +150,7 @@ These are starting targets, adjust as you see real cases:
 | Situation | Refund % to customer |
 |---|---|
 | Provider no-show / job not done | 100% |
-| Provider unresponsive in 48h | 100% |
+| Provider unresponsive in 48h | No automatic percentage; escalate and decide from evidence |
 | Major quality failure, no redo wanted | 70-90% |
 | Partial work, one of several tasks skipped | 30-50% |
 | Minor quality issue, mostly delivered | 10-25% |
@@ -160,7 +161,7 @@ These are starting targets, adjust as you see real cases:
 | Action | Approver |
 |---|---|
 | Auto no-show full refund | system (verify only) |
-| Provider accept / partial offer accepted by customer | system (no admin needed) |
+| Provider accept / partial offer accepted by customer | Held by E24; route to super-admin review |
 | Any admin-set resolution (full/partial/split/no/free_redo) | super_admin |
 | `refund_with_suspension` | super_admin (suspends provider too) |
 | Reopen a resolved dispute | super_admin (reason 20+ chars) |
@@ -177,19 +178,19 @@ There is no peso-amount threshold baked into the app, so this is a process rule,
 Keep it calm, specific, and on a clock. Use the **Message parties** action on Dispute 360 (5-2000 chars). Plain English, Bisaya or Tagalog if that is what the customer used.
 
 ### Template - acknowledge to customer (on filing)
-> Hi [name], we received your report about booking [#ID]. We have paused the payment to the provider while we look into it. The provider has 48 hours to respond. If they do not respond, we resolve in your favor. We will update you by [date/time]. Your money is safe in escrow.
+> Hi [name], we received your report about booking [#ID]. The provider has 48 hours to respond, and our team will review the case even if they do not reply. We will update you by [date/time]. I am checking the booking's payment and escrow record before I make any refund or held-funds promise.
 
 ### Template - ask provider to respond
-> Hi [name], a customer filed a concern on booking [#ID]: "[short summary]". Please reply here within 48 hours with your side and any photos (before/after). You can Accept, Contest, or offer a partial refund in the app. No response within 48 hours means the case is decided in the customer's favor.
+> Hi [name], a customer filed a concern on booking [#ID]: "[short summary]". Please open the case and submit your response within 48 hours with your side and any relevant before/after photos. The current app sends your response to staff review. If you do not reply, the case escalates for review using the evidence on file.
 
 ### Template - request more info (either party)
 > Hi [name], to decide booking [#ID] fairly we need [specific thing: a photo of X / the time you arrived / receipt]. Please send it here by [date/time]. If we do not hear back by then we will decide on the evidence we have.
 
 ### Template - resolution: full refund to customer
-> Hi [name], we resolved booking [#ID] in your favor. A full refund of ₱[amount] is being processed back to your original payment method. It can take a few business days to appear. We are sorry for the trouble.
+> Hi [name], we resolved booking [#ID] in your favor. The approved refund is ₱[amount]. Recorded destination: [wallet / verified original method]. Status: [submitted / completed / failed and escalated]. Reference: [reference]. We will update you when the recorded status changes. We are sorry for the trouble.
 
 ### Template - resolution: partial refund
-> Hi [name], we reviewed booking [#ID]. Based on the evidence we are refunding ₱[amount] ([X]% of the service). The rest reflects the work that was completed. The refund goes back to your original payment method within a few business days.
+> Hi [name], we reviewed booking [#ID]. Based on the evidence, the approved refund is ₱[amount] ([X]% of the service). The rest reflects the work that was completed. Recorded destination: [wallet / verified original method]. Status: [submitted / completed / failed and escalated]. Reference: [reference].
 
 ### Template - resolution: no refund (to customer)
 > Hi [name], we reviewed booking [#ID] including the photos and timeline. The evidence shows the service was delivered as booked, so we are not issuing a refund. If you have new evidence, reply here and we can take another look.
@@ -302,12 +303,14 @@ If a customer questions the amount, check which bracket the live path used befor
 
 ## 9. Quick reference card
 
-- **Dispute window:** 48h after completion. **Provider response:** 48h. **No response = customer wins.**
+- **Dispute window:** 48h after completion. **Provider response:** 48h. **No response = tier-3 staff review, not an automatic refund.**
+- **E18 hold:** release currently occurs at 24h while filing remains open to 48h. A post-release dispute is a money escalation, not proof of held funds.
+- **E24 hold:** provider direct accept/partial offer and customer partial accept are disabled; provider contest and admin review remain available.
 - **Auto no-show refund:** provider "completed" within 30 min of schedule on a `no_show` -> auto full refund.
 - **Who resolves money:** super_admin only. Plain admin / dpo are read-only on disputes.
 - **Statuses:** `open` -> `under_review` -> `escalated` -> `resolved` (tiers 1-3).
 - **Resolution types:** `full_refund`, `partial_refund`, `no_refund`, `free_redo`, `refund_with_warning`, `refund_with_suspension`, `split_decision`.
-- **Escrow on a dispute:** held until resolution, then `refunded` / `partially_refunded` / `released`.
+- **Escrow on a dispute:** verify the ledger. Pre-release cases can remain held until resolution; a case filed after the current 24h release is an E18 escalation and is not re-funded merely because its status says `held`.
 - **Suspend a bad provider:** Providers page, reason required, freezes their in-flight escrow.
 - **Extra sign-off:** any refund over ₱10,000, any `refund_with_suspension`, and any damage/theft payout get super-admin / Ken eyes before resolving.
 - **No benefit promise.** Historical app/operations copy contains conflicting

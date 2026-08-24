@@ -364,11 +364,11 @@ export default function ChatScreen(): React.ReactElement {
                 <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load messages. Pull down to refresh.</Text>
               </View>
             ) : null}
-            {/* Keep-it-on-the-app nudge: framed as a benefit (guarantee +
-                dispute record + fast support), not a restriction. */}
+            {/* Keep-it-on-the-app nudge: factual support and evidence value,
+                without advertising the deferred guarantee product. */}
             <View style={styles.keepOnAppStrip}>
               <Text style={styles.keepOnAppText}>
-                Keep your conversation here. On-app chat lets support step in fast, backs your service guarantee, and stays on record if there is ever a dispute.
+                Keep your conversation here. On-app chat stays attached to the booking so support can review the service record and any dispute evidence.
               </Text>
             </View>
           </>

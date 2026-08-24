@@ -152,6 +152,8 @@ From `.env.production.example` — the AI coder fills the rest:
 - `PAYMONGO_PUBLIC_KEY`, `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET`.
   E14 currently requires `EXTERNAL_PAYMENT_AUTHORIZATION_ENABLED=0`; configured
   keys are not authority to enable the invalid hosted redirect.
+- Keep `DISPUTE_PARTY_SETTLEMENT_ENABLED=0` while E18/E24 are open. Providers
+  can contest claims; direct participant refund settlement remains held.
 - `SEMAPHORE_API_KEY` (SMS one-time codes).
 - `S3_*` values only if a later, separately tested upload object-storage
   migration is approved. The current production upload backend is the server's
@@ -227,6 +229,9 @@ the running container still has the old config until you `--force-recreate nginx
 - **A staging label is not a payment sandbox.** Keep
   `EXTERNAL_PAYMENT_AUTHORIZATION_ENABLED=0` while E14 is open and never use
   real customer money for QA, even if live credentials happen to be installed.
+- **Direct dispute settlement is held.** Keep
+  `DISPUTE_PARTY_SETTLEMENT_ENABLED=0` while E18/E24 are open; test provider
+  contest and admin review without triggering participant-directed refunds.
 - **Backups before production.** Before real money flows, set up automated
   Postgres backups (e.g. nightly `pg_dump` to object storage + Hetzner
   snapshots). The AI coder will configure this as part of the production

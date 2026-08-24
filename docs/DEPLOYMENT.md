@@ -240,9 +240,10 @@ placeholders, never live values. Important groups include:
 Run `node scripts/verify-env-contract.mjs` before deployment. The current
 self-hosted topology deliberately uses `DB_SSL_MODE=disable` only for the
 private API-to-PgBouncer Compose hop. The production template also fails safe
-with `ENABLE_TEST_FIXTURES=0`, `BIR_DOCUMENT_ISSUANCE_ENABLED=0`, and
-`EXTERNAL_PAYMENT_AUTHORIZATION_ENABLED=0`. E22 and E14 must be resolved and
-validated before either held workflow is enabled. Mobile/public variables are
+with `ENABLE_TEST_FIXTURES=0`, `BIR_DOCUMENT_ISSUANCE_ENABLED=0`,
+`EXTERNAL_PAYMENT_AUTHORIZATION_ENABLED=0`, and
+`DISPUTE_PARTY_SETTLEMENT_ENABLED=0`. E22, E14, E18, and E24 must be resolved
+and validated before the held workflows are enabled. Mobile/public variables are
 inventoried separately in `apps/mobile/.env.example` and must never contain
 server secrets.
 

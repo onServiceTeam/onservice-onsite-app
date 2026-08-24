@@ -9,6 +9,7 @@ import { ScrollText, Lock } from '@/components/icons';
 // no longer references SiguradoShield peso-amount coverage figures.
 // Bug 834.
 import { fetchCancellationPolicy, policyToTermsText } from '@/utils/cancellation-policy';
+import { platformConfig } from '@/config/platform.config';
 
 interface Section {
   title: string;
@@ -55,7 +56,7 @@ const TOS_SECTIONS: Section[] = [
   {
     title: '7. Dispute Resolution',
     content:
-      'You have 48 hours after a job is marked complete to raise a dispute in the app. Disputes proceed through a tiered process: automated review, platform mediation, and admin arbitration. You may be asked to submit photos or other evidence. Where the evidence is genuinely ambiguous, the Platform resolves in favor of the customer. A resolution may result in a full or partial refund from escrow, a re-do, or release to the provider. Pursuing a dispute through the Platform does not waive any right you may have to pursue the provider directly.',
+      `You have ${platformConfig.escrowDisputeWindowHours} hours after a job is marked complete to raise a dispute in the app. The provider may respond and the Platform support team reviews the booking record, statements, and submitted evidence. A recorded resolution may result in a full or partial refund from funds still available for settlement, a re-do, no refund, or release to the provider. Direct participant refund settlement is currently held while escrow timing is corrected; support records decisions through the admin case process. Pursuing a dispute through the Platform does not waive any right you may have to pursue the provider directly.`,
   },
   {
     // F#10 / Bug 834 — finalized "no insurance" + liability disclaimer.
@@ -65,7 +66,7 @@ const TOS_SECTIONS: Section[] = [
     // attorney-reviewable; do not reintroduce a TODO placeholder (CI-guarded).
     title: '8. Platform Protections — No Insurance',
     content:
-      `${ENTITY} is a marketplace, not an insurer. ${ENTITY} does NOT provide, and does not act as a broker for, any insurance covering property damage, personal injury, theft, or loss arising from a Service. Nothing on the Platform is an insurance policy or a guarantee of a provider's work.\n\nWhat the Platform does provide:\n• NBI clearance and identity verification of every provider before activation\n• Escrow — your payment is held until you confirm completion\n• Masked phone numbers between customer and provider\n• A 48-hour dispute window with platform-mediated resolution\n• Rating accountability — providers who fall below 4.0 stars after 20 jobs face suspension review\n\nProviders are independent contractors and are solely responsible for any loss, injury, or damage they cause in performing a Service. You may pursue a claim directly against the provider, and the Platform's dispute process can help facilitate a refund from escrow where appropriate. Because Platform protections are not insurance and are limited to amounts held in escrow, you should maintain your own homeowner's or renter's insurance for losses that exceed those protections.`,
+      `${ENTITY} is a marketplace, not an insurer. ${ENTITY} does NOT provide, and does not act as a broker for, any insurance covering property damage, personal injury, theft, or loss arising from a Service. Nothing on the Platform is an insurance policy or a guarantee of a provider's work.\n\nWhat the Platform does provide:\n• NBI clearance and identity verification before provider activation\n• Platform escrow and payment records for supported in-app payments\n• In-app booking chat without displaying personal phone numbers to the other participant\n• A ${platformConfig.escrowDisputeWindowHours}-hour dispute filing window with platform review\n• Provider rating accountability and suspension review rules\n\nProviders are independent contractors and are solely responsible for any loss, injury, or damage they cause in performing a Service. You may pursue a claim directly against the provider, and the Platform's dispute process can help facilitate a refund from funds still available for settlement where appropriate. Because Platform protections are not insurance, you should maintain your own homeowner's or renter's insurance for losses that exceed those protections.`,
   },
   {
     title: '9. User Conduct',

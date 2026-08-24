@@ -25,6 +25,7 @@ export function resolveNotificationRoute(
   const isChat = ['new_message', 'chat_started', 'chat_last_message'].includes(type);
 
   if (role === 'customer') {
+    if (disputeId) return buildRoute(Routes.CUSTOMER.DISPUTE_DETAIL, { id: disputeId });
     if (isChat && bookingId) return buildRoute(Routes.CUSTOMER.CHAT, { id: bookingId });
     if (type === 'new_quote' && bookingId) return withQuery(Routes.CUSTOMER.BOOKING_QUOTES, 'bookingId', bookingId);
     if (type === 'job_completed' && bookingId) return withQuery(Routes.CUSTOMER.BOOKING_COMPLETE, 'bookingId', bookingId);
@@ -33,7 +34,6 @@ export function resolveNotificationRoute(
     }
     if (bookingId) return buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: bookingId });
     if (recurringBookingId) return buildRoute(Routes.CUSTOMER.RECURRING_DETAIL, { id: recurringBookingId });
-    if (disputeId) return Routes.TABS.BOOKINGS;
     if (providerId) return buildRoute(Routes.CUSTOMER.PROVIDER_PROFILE, { id: providerId });
     if (type === 'promo' || type === 'referral') return Routes.CUSTOMER.REFERRAL;
     if (type === 'rating_received' || type === 'job_completed') return Routes.TABS.BOOKINGS;
@@ -42,6 +42,7 @@ export function resolveNotificationRoute(
     return null;
   }
 
+  if (disputeId) return buildRoute(Routes.PROVIDER.DISPUTE_DETAIL, { id: disputeId });
   if (isChat && bookingId) return buildRoute(Routes.PROVIDER.CHAT, { id: bookingId });
   if (type === 'new_job_request') return Routes.PROVIDER.LEADS;
   if (type === 'provider_reminder') return Routes.PROVIDER.REMINDERS;

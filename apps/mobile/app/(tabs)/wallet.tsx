@@ -141,7 +141,7 @@ export default function WalletScreen(): React.ReactElement {
             style={styles.topUpBtn}
             onPress={() => router.push(Routes.CUSTOMER.WALLET)}
           >
-            <Text style={styles.topUpBtnText}>+ Top Up</Text>
+            <Text style={styles.topUpBtnText}>Top Up Paused</Text>
           </TouchableOpacity>
         </>
       )}
@@ -206,7 +206,7 @@ export default function WalletScreen(): React.ReactElement {
             }
             description={
               allTransactions.length === 0
-                ? 'Top up your wallet or pay for a booking to see history here.'
+                ? 'Pay for a booking with your existing wallet balance to see history here. New top-ups are temporarily unavailable.'
                 : undefined
             }
           />

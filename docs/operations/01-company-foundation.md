@@ -93,8 +93,8 @@ Two audiences, two promises. Keep them short enough to put on a one-pager.
 What backs each part, so support never overstates it:
 
 - **ID-verified + NBI-checked** - every approved provider has a government ID, NBI clearance, and a selfie reviewed by our team. Approval is blocked in admin until those three are on file (`REQUIRED_KYC_FIELDS`). See `04-provider-vetting-and-filtering.md`.
-- **Payment held safely** - money sits in platform escrow from the moment the customer pays until the customer confirms the job, or until auto-confirm after 24 hours. We do not release early. See Section 8 and `10-money-and-compliance-ops.md`.
-- **48-hour dispute window** - the customer can file a dispute up to 48 hours after the provider marks the job complete. If the provider does not respond in 48 hours, the dispute resolves in the customer's favor. See `09-trust-safety-and-disputes.md`.
+- **Payment held safely** - this claim is only true for a booking whose server and ledger show verified paid/held escrow. E18 records that the current 24-hour auto-release precedes the advertised 48-hour dispute deadline, so staff must not imply that every accepted dispute is backed by still-held funds. See Section 8 and `10-money-and-compliance-ops.md`.
+- **48-hour dispute window** - the customer can file a dispute up to 48 hours after the provider marks the job complete. If the provider does not respond in 48 hours, the case auto-escalates to staff review; silence does not automatically settle money. See `09-trust-safety-and-disputes.md`.
 
 Do not promise insurance, a guaranteed arrival time, or a refund "no matter what." Refunds follow the cancellation and dispute policy, not the loudest complaint.
 
@@ -107,7 +107,7 @@ What backs each part:
 - **Steady jobs** - automatic dispatch sends offers to the best-matched provider first. See `08-dispatch-and-live-operations.md`.
 - **Fair commission that drops as you grow** - commission is a flat rate per tier and gets lower as the provider levels up. Exact rates in Section 7.
 - **Paid out fast** - providers request a payout (minimum ₱100) from their wallet; target is 3 business days to complete. See `07-provider-support-sop.md` and `10-money-and-compliance-ops.md`.
-- **A fair shot in disputes** - the provider sees the customer's claim, can respond within 48 hours, and can accept, contest, or offer a partial. See `09-trust-safety-and-disputes.md`.
+- **A fair shot in disputes** - the provider sees the customer's claim and can submit a contest response within 48 hours for staff review. Direct accept and partial-offer settlement are held by E24 until the escrow-safe design is approved. See `09-trust-safety-and-disputes.md`.
 
 ---
 

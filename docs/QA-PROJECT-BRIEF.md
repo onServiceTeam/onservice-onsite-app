@@ -60,8 +60,8 @@ Three front-ends + one backend + one database. You do not need to be able to mod
 
 | Surface | What it is | Tech | Scale |
 |---|---|---|---|
-| **Customer app** | What customers use | React Native + Expo (iOS, Android, web) | 43 customer-specific/tab routes plus 8 shared auth/support/root routes |
-| **Provider app** | What providers and their staff use (same app, role-gated) | React Native + Expo (iOS, Android, web) | 52 provider/onboarding/staff routes plus the same 8 shared routes |
+| **Customer app** | What customers use | React Native + Expo (iOS, Android, web) | 45 customer-specific/tab routes plus shared auth/support/root routes |
+| **Provider app** | What providers and their staff use (same app, role-gated) | React Native + Expo (iOS, Android, web) | 54 provider/onboarding/staff routes plus the same shared routes |
 | **Admin web app** | Company back office | React + Vite (web browser) | 34 routed page components |
 | **API (backend)** | The "brain" — all logic + money | Node.js + Express + PostgreSQL | 47 route modules |
 | **Database** | All data | PostgreSQL 17 + PostGIS 3.5 in the production Compose stack | 154 append-only migrations |
@@ -71,7 +71,7 @@ There are also existing **automated tests** you should run, extend, and not brea
 - **API:** ~2,800 backend unit/integration tests (Jest).
 - **Admin web:** per-page render tests (Vitest).
 - **Mobile:** screen + logic tests (Jest).
-- **Mobile end-to-end:** 84 Maestro UI flow files (43 customer + 41 provider) — **screenshot baselines not yet captured** (a task for this team).
+- **Mobile end-to-end:** 88 Maestro screen flows (45 customer + 43 provider), plus two login setup helpers — **screenshot baselines not yet captured** (a task for this team).
 - **Admin end-to-end:** 29 Playwright visual specs — baselines partially captured.
 - **Load tests:** k6 scripts (auth, booking flow, catalog search, payment webhook).
 

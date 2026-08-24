@@ -14,7 +14,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
-import { getBookingById } from '@/services/booking.service';
+import { getBookingById, getMyDisputes } from '@/services/booking.service';
 import { listBookingPhotos } from '@/services/booking-photo.service';
 // A7 — shared UI kit for loading + error states + toast feedback.
 import { Button, Skeleton, ErrorState } from '@/components/ui';
@@ -30,6 +30,7 @@ import StatusBadge from '@/components/StatusBadge';
 import PulsingDot from '@/components/PulsingDot';
 import Avatar from '@/components/Avatar';
 import { useResponsive } from '@/hooks/useResponsive';
+import { buildRoute, Routes } from '@/config/navigation';
 
 const ACTIVE_STATUSES = new Set([
   'matched', 'paid', 'provider_en_route', 'provider_arrived', 'in_progress',
@@ -73,10 +74,19 @@ export default function BookingDetailScreen(): React.ReactElement {
     staleTime: 60 * 1000,
   });
 
+  const disputeQuery = useQuery({
+    queryKey: ['myDisputes', 'customer', id],
+    queryFn: () => getMyDisputes(1, 1, id),
+    enabled: !!id && ['completed_by_provider', 'confirmed', 'disputed', 'resolved'].includes(booking?.status ?? ''),
+    staleTime: 15 * 1000,
+  });
+  const linkedDispute = disputeQuery.data?.disputes[0];
+
   const onRefresh = useCallback(() => {
     void refetch();
     void photosCountQuery.refetch();
-  }, [refetch, photosCountQuery]);
+    void disputeQuery.refetch();
+  }, [refetch, photosCountQuery, disputeQuery]);
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
@@ -91,7 +101,7 @@ export default function BookingDetailScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['activeBookings'] });
       setShowCancelForm(false);
       setCancelReason('');
-      showToast('Booking cancelled. Any applicable refund is processed automatically.', 'success');
+      showToast('Booking cancelled. Check the booking payment details for any refund status and reference.', 'success');
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
@@ -151,7 +161,7 @@ export default function BookingDetailScreen(): React.ReactElement {
   const needsPayment = booking.status === 'payment_pending';
   const canViewQuotes = booking.bookingType === 'quote_based' && ['requested', 'quoted'].includes(booking.status);
   const canViewChangeOrders = ['in_progress', 'completed_by_provider', 'confirmed'].includes(booking.status);
-  const canFileDispute = ['completed_by_provider', 'confirmed'].includes(booking.status);
+  const canFileDispute = ['completed_by_provider', 'confirmed'].includes(booking.status) && !linkedDispute;
   // BUG-PHASE76-01 — union legacy TEXT[] count + canonical
   // booking_photos count for the gate.
   const hasPhotos =
@@ -194,7 +204,7 @@ export default function BookingDetailScreen(): React.ReactElement {
             variant="outline"
           />
           <Text style={styles.changeOrderNote}>
-            Extra parts or materials are handled here as a change order. Nothing extra is charged until you approve it in the app, and it stays protected by escrow.
+            Extra parts or materials are handled here as a change order. Approval alone is not payment; continue only after the booking shows the added charge as paid and held.
           </Text>
         </>
       )}
@@ -256,6 +266,13 @@ export default function BookingDetailScreen(): React.ReactElement {
           title="File a Dispute"
           onPress={() => router.push(`/customer/booking/dispute?bookingId=${id}`)}
           variant="ghost"
+        />
+      )}
+      {linkedDispute && (
+        <Button
+          title="View Dispute Case"
+          onPress={() => router.push(buildRoute(Routes.CUSTOMER.DISPUTE_DETAIL, { id: linkedDispute.id }))}
+          variant="outline"
         />
       )}
       <Button

@@ -527,8 +527,8 @@ export default function HomeScreen(): React.ReactElement {
           <View style={styles.howItWorksTile}>
             <View style={styles.howItWorksIconWrap}><Lock size={28} color={colors.primary} /></View>
             <View style={styles.howItWorksTextWrap}>
-              <Text style={styles.howItWorksTileTitle}>Pay safely</Text>
-              <Text style={styles.howItWorksTileBody}>Payment held in escrow until you confirm.</Text>
+              <Text style={styles.howItWorksTileTitle}>Track payment</Text>
+              <Text style={styles.howItWorksTileBody}>Supported payments show paid and escrow status in the booking.</Text>
             </View>
           </View>
         </View>

@@ -34,6 +34,8 @@ export default function CustomerLayout(): React.ReactElement {
       <Stack.Screen name="booking/job-request" />
       <Stack.Screen name="booking/quotes" />
       <Stack.Screen name="booking/dispute" />
+      <Stack.Screen name="disputes" />
+      <Stack.Screen name="dispute/[id]" />
       <Stack.Screen name="booking/change-order" />
       <Stack.Screen name="booking/photos" />
       <Stack.Screen name="referral" />

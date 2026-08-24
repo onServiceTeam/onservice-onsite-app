@@ -32,6 +32,7 @@ import {
   KeyRound,
   UserCheck,
   ChevronRight,
+  Scale,
 } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
 
@@ -120,6 +121,11 @@ export default function ProfileScreen(): React.ReactElement {
       label: 'Notification Settings',
       icon: Bell,
       onPress: () => router.push(Routes.CUSTOMER.SETTINGS),
+    },
+    {
+      label: 'My Disputes',
+      icon: Scale,
+      onPress: () => router.push(Routes.CUSTOMER.DISPUTES),
     },
     {
       // D23 + Bug UX-089 — an invite is matched to an existing customer

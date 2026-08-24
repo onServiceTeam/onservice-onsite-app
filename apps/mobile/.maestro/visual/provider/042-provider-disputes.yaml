@@ -1,0 +1,16 @@
+appId: ph.onservice.app
+---
+# F#3 visual baseline — provider-disputes
+# Screen: apps/mobile/app/provider/disputes.tsx
+
+- launchApp:
+    stopApp: false
+- openLink: onservice://provider/disputes
+- extendedWaitUntil:
+    notVisible:
+      id: "loading"
+    timeout: 2000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: .maestro/visual/baselines/provider/provider-disputes/default

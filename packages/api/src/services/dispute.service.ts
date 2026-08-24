@@ -336,12 +336,27 @@ export async function addProviderResponse(
 
       logger.info('Dispute resolved — provider accepted', { disputeId });
     } else if (action === 'contest') {
-      await client.query(
+      const contestUpdate = await client.query(
         `UPDATE disputes SET
            status = 'under_review', tier = 2,
            provider_response = $1, provider_responded_at = NOW(), updated_at = NOW()
-         WHERE id = $2`,
+         WHERE id = $2
+           AND status = 'open'
+           AND provider_response IS NULL
+         RETURNING id`,
         [response, disputeId],
+      );
+      if (contestUpdate.rowCount !== 1) {
+        throw createAppError('This dispute already has a provider response or is no longer open.', 409);
+      }
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, body, data)
+         VALUES ($1, 'dispute_update', 'Provider Responded to Dispute', $2, $3)`,
+        [
+          bk.customer_id,
+          'The provider contested your dispute. The case is now in the onService support review queue.',
+          JSON.stringify({ disputeId, bookingId: bk.id, disputeStatus: 'under_review' }),
+        ],
       );
       logger.info('Dispute escalated to Tier 2 — provider contested', { disputeId });
     } else if (action === 'partial_offer') {
@@ -371,6 +386,19 @@ export async function addProviderResponse(
     );
     return updated.rows[0]!;
   });
+
+  try {
+    socketService.emitAdminEvent(socketService.ADMIN_EVENTS.DISPUTE_UPDATED, {
+      id: disputeId,
+      bookingId: bk.id,
+      status: result.status,
+    });
+  } catch (e) {
+    logger.warn('Admin dispute update socket emit failed', {
+      disputeId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
 
   if (action === 'accept') {
     const totalAmount = Number(bk.total_amount);
@@ -854,15 +882,32 @@ export async function listDisputes(
 
 export async function listUserDisputes(
   userId: string,
-  filters: { status?: string; page: number; pageSize: number },
+  filters: { status?: string; bookingId?: string; page: number; pageSize: number },
 ): Promise<{ disputes: DisputeRow[]; total: number }> {
-  const conditions: string[] = [`d.filed_by = $1`];
+  // Bug UX-203: a dispute belongs to both participants. The former query only
+  // returned rows filed by the customer, which left an assigned provider with
+  // no dispute inbox even though GET /:id and the response endpoint both
+  // recognize that provider as a participant.
+  const conditions: string[] = [
+    `(d.filed_by = $1 OR EXISTS (
+       SELECT 1
+       FROM bookings participant_booking
+       JOIN providers participant_provider
+         ON participant_provider.id = participant_booking.provider_id
+       WHERE participant_booking.id = d.booking_id
+         AND participant_provider.user_id = $1
+     ))`,
+  ];
   const params: unknown[] = [userId];
   let paramIdx = 2;
 
   if (filters.status) {
     conditions.push(`d.status = $${paramIdx++}`);
     params.push(filters.status);
+  }
+  if (filters.bookingId) {
+    conditions.push(`d.booking_id = $${paramIdx++}`);
+    params.push(filters.bookingId);
   }
 
   const whereClause = `WHERE ${conditions.join(' AND ')}`;
@@ -876,7 +921,14 @@ export async function listUserDisputes(
   const offset = (filters.page - 1) * filters.pageSize;
 
   const dataResult = await db.query<DisputeRow>(
-    `SELECT d.* FROM disputes d ${whereClause}
+    `SELECT d.*,
+       CONCAT(customer.first_name, ' ', customer.last_name) AS customer_name,
+       provider.business_name AS provider_name
+     FROM disputes d
+     JOIN bookings participant_context ON participant_context.id = d.booking_id
+     JOIN users customer ON customer.id = participant_context.customer_id
+     LEFT JOIN providers provider ON provider.id = participant_context.provider_id
+     ${whereClause}
      ORDER BY d.created_at DESC
      LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
     [...params, filters.pageSize, offset],

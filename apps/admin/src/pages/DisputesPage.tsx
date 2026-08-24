@@ -78,6 +78,9 @@ export default function DisputesPage(): React.ReactElement {
   useAdminSocketEvent<{ id: string }>('dispute:filed', () => {
     void queryClient.invalidateQueries({ queryKey: ['adminDisputes'] });
   });
+  useAdminSocketEvent<{ id: string }>('dispute:updated', () => {
+    void queryClient.invalidateQueries({ queryKey: ['adminDisputes'] });
+  });
 
   useEffect(() => {
     const nextSearch = searchParams.get('search') ?? '';

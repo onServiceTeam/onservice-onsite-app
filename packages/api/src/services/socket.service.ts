@@ -281,6 +281,7 @@ export const ADMIN_EVENTS = {
   BOOKING_PROVIDER_ASSIGNED: 'booking:provider_assigned',
   BOOKING_GPS_UPDATE: 'booking:gps_update',
   DISPUTE_FILED: 'dispute:filed',
+  DISPUTE_UPDATED: 'dispute:updated',
   DISPUTE_RESOLVED: 'dispute:resolved',
   PROVIDER_ONLINE: 'provider:online',
   PROVIDER_OFFLINE: 'provider:offline',

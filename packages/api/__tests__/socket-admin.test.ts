@@ -110,13 +110,14 @@ afterAll(() => {
 });
 
 describe('ADMIN_EVENTS constant', () => {
-  it('exposes the 9 documented event names with stable string values', () => {
+  it('exposes the 10 documented event names with stable string values', () => {
     expect(socketService.ADMIN_EVENTS).toEqual({
       BOOKING_CREATED: 'booking:created',
       BOOKING_STATUS_CHANGED: 'booking:status_changed',
       BOOKING_PROVIDER_ASSIGNED: 'booking:provider_assigned',
       BOOKING_GPS_UPDATE: 'booking:gps_update',
       DISPUTE_FILED: 'dispute:filed',
+      DISPUTE_UPDATED: 'dispute:updated',
       DISPUTE_RESOLVED: 'dispute:resolved',
       PROVIDER_ONLINE: 'provider:online',
       PROVIDER_OFFLINE: 'provider:offline',
@@ -124,8 +125,8 @@ describe('ADMIN_EVENTS constant', () => {
     });
   });
 
-  it('has exactly 9 keys (guards against accidental drift)', () => {
-    expect(Object.keys(socketService.ADMIN_EVENTS)).toHaveLength(9);
+  it('has exactly 10 keys (guards against accidental drift)', () => {
+    expect(Object.keys(socketService.ADMIN_EVENTS)).toHaveLength(10);
   });
 });
 

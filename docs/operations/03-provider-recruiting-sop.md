@@ -8,13 +8,13 @@ Related docs: hand applicants to `04-provider-vetting-and-filtering.md` once the
 
 ## 1. What recruiting has to deliver
 
-We win on trust, not on price. The pitch to every provider is simple: you join a platform that ID-verifies and NBI-checks every pro, holds verified booking payment in escrow until the job is confirmed, and lets ratings build your reputation. Do not promise steady volume or claim every external payment method is live; E14 still blocks the current hosted PayMongo authorization link.
+We win on trust, not on price. The pitch to every provider is simple: you join a platform that ID-verifies and NBI-checks every pro, records server-verified paid/held booking state, and lets ratings build your reputation. Do not promise steady volume or claim every external payment method is live; E14 still blocks the current hosted PayMongo authorization link. Do not describe the current 24-hour release timer as a settled protection rule while the customer filing window remains 48 hours under E18.
 
 Recruiting and vetting are separate jobs. Your job in recruiting is to get qualified people to submit a complete application in the mobile app. Approving them is not your call (see `04-provider-vetting-and-filtering.md`).
 
 ### The escrow model (say this correctly to providers)
 
-When the app offers a real paid/assigned job, the server has already verified payment and held it in escrow. A provider does not collect cash from the customer. After the job is confirmed (or auto-confirmed 24 hours after completion), the provider share lands in the in-app wallet and the provider may request a manual withdrawal to GCash, Maya, or bank. E03 fixed that state ordering; E14 still blocks the current external hosted checkout entry, so do not promise that all customer payment methods are launch-ready.
+When the app offers a real paid/assigned job, the server has already verified payment and recorded it held in escrow. A provider does not collect cash from the customer. Customer confirmation can release the provider share; the worker also currently releases after 24 hours, but E18 records that this is earlier than the 48-hour dispute-filing deadline. Recruiters must not promise that the 24-hour credit is final. Once an amount is available in Earnings, the provider may submit a manual withdrawal request to GCash, Maya, InstaPay, or PESONet. E03 fixed the initial ordering; E14 still blocks the current external hosted checkout entry.
 
 Do not promise instant cash in hand. Money moves through the app.
 
@@ -131,8 +131,8 @@ wallet at puwede kang mag-request ng withdrawal sa GCash/Maya/bank.
 Founding-batch ka pa pwede - 10% commission lang for 12 months instead
 ng standard 15%.
 
-Kailangan lang: valid ID, NBI clearance (6 months), at selfie. Approved
-agad pag kumpleto.
+Kailangan lang: valid ID, NBI clearance (6 months), at selfie. I-review ang
+application once kumpleto; walang fixed approval time.
 
 Gusto mo bang mag-apply? Tutulungan kita.
 ```
@@ -162,13 +162,17 @@ priority. Bring a valid ID and NBI clearance. Apply in the onService app.
 
 The application happens entirely in the mobile app. You guide people to it and help them complete it. You do not approve anyone.
 
-### What the applicant does (5-step provider onboarding)
+### What the applicant does (7-step application, then status screens)
 
 1. Role select (provider)
 2. Business name + service categories (1 to 10 categories)
-3. Documents: government ID front, government ID back, NBI clearance (must be within last 6 months)
-4. Selfie
-5. Terms (accepts the Independent Contractor agreement and submits)
+3. Service area and radius
+4. Vetting questionnaire
+5. Documents: government ID front, government ID back, NBI clearance
+6. Selfie
+7. Terms (accepts the Independent Contractor agreement and submits)
+
+After submission, Review Pending and Background Check Status show the server-backed application state. They are status screens, not extra application promises or approval stages.
 
 On submit, a provider row is created with status `pending`. It is now in the vetting queue. Hand off to `04-provider-vetting-and-filtering.md`.
 
@@ -336,7 +340,7 @@ If submitted-to-approved drops below 50 percent, the problem is upstream: you ar
 - Status after submit: `pending`. Approval is an admin action, not yours.
 - Founding tier: first 50 per city, 10 percent commission, 12 months, admin-assigned.
 - Referral reward: ₱500 to referrer + ₱300 to new provider, paid after the new provider's first 3 completed jobs, capped at 10/month.
-- Money model: a provider acts only on a server-verified paid/assigned job; escrow releases to wallet after confirmation, then the provider requests a manual GCash/Maya/bank withdrawal. External hosted checkout remains E14 until approved and tested.
+- Money model: a provider acts only on a server-verified paid/assigned job and relies on the booking/earnings record. Customer confirmation can release escrow; the current 24-hour worker conflicts with the 48-hour filing window under E18 and must not be promised as final. The provider submits manual withdrawal requests. External hosted checkout remains E14 until approved and tested.
 
 ---
 

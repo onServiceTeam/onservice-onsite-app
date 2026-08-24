@@ -31,13 +31,14 @@ beforeEach(() => {
 });
 
 describe('BUG-PHASE177-01 — wallet empty state (real render)', () => {
-  it('shows the truly-empty state with the top-up hint when there are no transactions', async () => {
+  it('shows the truly-empty state with the current existing-balance payment hint when there are no transactions', async () => {
     (api.get as jest.Mock).mockResolvedValue({ data: { data: [], pagination: { total: 0 } } });
     const { container } = renderScreen();
     await waitFor(() => {
       expect(container.textContent).toContain('No transactions yet');
     });
-    expect(container.textContent).toContain('Top up your wallet');
+    expect(container.textContent).toContain('Pay for a booking with your existing wallet balance');
+    expect(container.textContent).toContain('New top-ups are temporarily unavailable');
   });
 
   it('renders transactions (no empty state) when the wallet has history', async () => {

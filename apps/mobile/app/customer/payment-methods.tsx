@@ -7,92 +7,103 @@ import { useRouter } from 'expo-router';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { Card, SectionHeader, TrustStrip } from '@/components/ui';
 import type { ComponentType } from 'react';
-import { Smartphone, CreditCard, ScanLine, Wallet, Coins } from '@/components/icons';
+import { Smartphone, CreditCard, ScanLine, Wallet, AlertTriangle, Lock } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
 
-const AVAILABLE_METHODS: ReadonlyArray<{ type: string; label: string; icon: IconComponent; desc: string }> = [
-  { type: 'gcash', label: 'GCash', icon: Smartphone, desc: 'Pay via GCash e-wallet' },
-  { type: 'maya', label: 'Maya', icon: Smartphone, desc: 'Pay via Maya e-wallet' },
-  { type: 'card', label: 'Credit/Debit Card', icon: CreditCard, desc: 'Visa, Mastercard' },
-  { type: 'qrph', label: 'QR Ph', icon: ScanLine, desc: 'Scan to pay via QR Ph' },
-  { type: 'wallet', label: 'Wallet Balance', icon: Wallet, desc: 'Pay using your onService wallet' },
+const PAYMENT_METHODS: ReadonlyArray<{ type: string; label: string; icon: IconComponent; desc: string; available: boolean }> = [
+  { type: 'wallet', label: 'Existing Wallet Balance', icon: Wallet, desc: 'Available at checkout when your current balance covers the total', available: true },
+  { type: 'gcash', label: 'GCash', icon: Smartphone, desc: 'New authorization temporarily paused', available: false },
+  { type: 'maya', label: 'Maya', icon: Smartphone, desc: 'New authorization temporarily paused', available: false },
+  { type: 'card', label: 'Credit/Debit Card', icon: CreditCard, desc: 'New authorization temporarily paused', available: false },
+  { type: 'qrph', label: 'QR Ph', icon: ScanLine, desc: 'New authorization temporarily paused', available: false },
 ];
 
 export default function PaymentMethodsScreen(): React.ReactElement {
   const router = useRouter();
+  const { isPhone } = useResponsive();
 
-  const handleMethodInfo = (label: string): void => {
-    const isWallet = label === 'Wallet Balance';
+  const handleMethodInfo = (method: (typeof PAYMENT_METHODS)[number]): void => {
     Alert.alert(
-      label,
-      isWallet
-        ? 'You can use your wallet balance to pay for bookings instantly at checkout. ' +
-          'Top up your wallet from the Wallet tab.'
-        : `${label} is available as a payment option during checkout. ` +
-          'Your payment details are securely handled by PayMongo and never stored on our servers.',
+      method.label,
+      method.available
+        ? 'Your existing onService wallet balance can be selected at checkout when it covers the full booking total. New wallet top-ups are temporarily unavailable.'
+        : `${method.label} authorization is temporarily unavailable while the external payment flow is corrected. No payment will be created from this information screen.`,
       [{ text: 'OK' }],
     );
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, !isPhone && styles.contentWide]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={(): void => { router.back(); }} style={styles.backBtn}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Payment Methods</Text>
         <Text style={styles.subtitle}>
-          Your payment details are securely processed by PayMongo. We never store your card numbers.
+          Existing wallet balance is the only payment option currently enabled. External authorization is paused while its handoff is corrected.
         </Text>
       </View>
 
       <TrustStrip style={styles.trustStrip} />
 
-      <Card style={styles.section}>
-        <SectionHeader title="Available Payment Options" />
-        <Text style={styles.sectionDesc}>
-          Choose any of these methods during checkout. Payment is processed securely at the time of booking.
-        </Text>
+      <View
+        style={[styles.workspace, !isPhone && styles.workspaceWide]}
+        accessibilityLabel={isPhone ? 'Payment methods' : 'Desktop payment methods workspace'}
+      >
+        <Card style={[styles.section, styles.methodSection]}>
+          <SectionHeader title="Current payment options" />
+          <Text style={styles.sectionDesc}>
+            This page shows availability only. Select and confirm payment from an eligible booking checkout.
+          </Text>
 
-        {AVAILABLE_METHODS.map((m) => {
-          const MIcon = m.icon;
-          const tint = getCategoryTint(m.type);
-          return (
-            <TouchableOpacity
-              key={m.type}
-              style={styles.methodCard}
-              onPress={(): void => { handleMethodInfo(m.label); }}
-            >
-              <View style={[styles.methodIconWrap, { backgroundColor: tint.bg }]}><MIcon size={24} color={tint.fg} /></View>
-              <View style={styles.methodInfo}>
-                <Text style={styles.methodLabel}>{m.label}</Text>
-                <Text style={styles.methodDesc}>{m.desc}</Text>
-              </View>
-              <Text style={styles.methodArrow}>›</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </Card>
+          {PAYMENT_METHODS.map((m) => {
+            const MIcon = m.icon;
+            const tint = getCategoryTint(m.type);
+            return (
+              <TouchableOpacity
+                key={m.type}
+                style={[styles.methodCard, !m.available && styles.methodCardPaused]}
+                onPress={(): void => { handleMethodInfo(m); }}
+                accessibilityRole="button"
+                accessibilityLabel={`${m.label}, ${m.available ? 'available' : 'paused'}`}
+              >
+                <View style={[styles.methodIconWrap, { backgroundColor: tint.bg }]}><MIcon size={24} color={tint.fg} /></View>
+                <View style={styles.methodInfo}>
+                  <Text style={styles.methodLabel}>{m.label}</Text>
+                  <Text style={styles.methodDesc}>{m.desc}</Text>
+                </View>
+                <View style={[styles.statusPill, m.available ? styles.statusAvailable : styles.statusPaused]}>
+                  <Text style={styles.statusText}>{m.available ? 'Available' : 'Paused'}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </Card>
 
-      <View style={styles.infoBox}>
-        <Text style={styles.infoTitle}>How Payments Work</Text>
-        <Text style={styles.infoText}>
-          When you book a service, your payment is held securely in escrow until the job is completed and confirmed.
-          You can pay using GCash, Maya, credit/debit cards, QR Ph, or your wallet balance.
-        </Text>
-      </View>
+        <View style={[styles.rail, !isPhone && styles.railWide]}>
+          <View style={styles.holdBox} accessibilityRole="alert">
+            <View style={styles.boxTitleRow}>
+              <AlertTriangle size={20} color={colors.warning} />
+              <Text style={styles.holdTitle}>External payments paused</Text>
+            </View>
+            <Text style={styles.holdText}>
+              Card, GCash, Maya, QR Ph, bank transfer, and new wallet top-ups do not currently create a payment. Do not retry an old hosted link or treat a browser redirect as proof of payment.
+            </Text>
+          </View>
 
-      <View style={styles.escrowBox}>
-        <View style={styles.escrowTitleRow}>
-          <Coins size={18} color={colors.primary} />
-          <Text style={styles.escrowTitle}> Escrow Protection</Text>
+          <View style={styles.infoBox}>
+            <View style={styles.boxTitleRow}>
+              <Lock size={18} color={colors.infoDark} />
+              <Text style={styles.infoTitle}>Verify the booking record</Text>
+            </View>
+            <Text style={styles.infoText}>
+              Only a booking that shows paid and held has verified escrow. You can confirm the job or open a dispute from that booking. Support checks the payment and escrow record before promising any refund.
+            </Text>
+          </View>
         </View>
-        <Text style={styles.escrowText}>
-          Your payment is not released to the provider until you confirm the job is complete.
-          If there's an issue, you can file a dispute for a fair resolution.
-        </Text>
       </View>
 
       <View style={styles.bottomSpacer} />
@@ -103,6 +114,7 @@ export default function PaymentMethodsScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   content: { paddingBottom: spacing.xxl },
+  contentWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: spacing.xl },
 
   header: { paddingHorizontal: spacing.base, paddingTop: spacing.xxl, paddingBottom: spacing.base },
   backBtn: { padding: spacing.xs, marginBottom: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
@@ -112,10 +124,12 @@ const styles = StyleSheet.create({
 
   trustStrip: { marginHorizontal: spacing.base, marginBottom: spacing.base },
 
-  section: {
-    marginHorizontal: spacing.base,
-    marginBottom: spacing.base,
-  },
+  workspace: { paddingHorizontal: spacing.base },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  section: { marginBottom: spacing.base },
+  methodSection: { flex: 1, minWidth: 0 },
+  rail: { gap: spacing.base },
+  railWide: { width: 340, minWidth: 0 },
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   sectionDesc: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.md },
 
@@ -129,6 +143,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     gap: spacing.md,
   },
+  methodCardPaused: { backgroundColor: colors.backgroundSecondary },
   methodIcon: { fontSize: 24 },
   methodIconWrap: {
     alignItems: 'center' as const,
@@ -141,26 +156,29 @@ const styles = StyleSheet.create({
   methodInfo: { flex: 1 },
   methodLabel: { ...typography.body, fontWeight: '600', color: colors.text },
   methodDesc: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
-  methodArrow: { ...typography.h2, color: colors.textTertiary },
+  statusPill: { borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 5 },
+  statusAvailable: { backgroundColor: colors.successLight },
+  statusPaused: { backgroundColor: colors.warningLight },
+  statusText: { ...typography.caption, color: colors.text, fontWeight: '700' },
 
   infoBox: {
     backgroundColor: colors.infoLight,
-    marginHorizontal: spacing.base,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
-    marginBottom: spacing.base,
   },
+  boxTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
   infoTitle: { ...typography.body, fontWeight: '600', color: colors.infoDark, marginBottom: spacing.xs },
   infoText: { ...typography.bodySmall, color: colors.infoDark, lineHeight: 20 },
 
-  escrowBox: {
-    backgroundColor: colors.primaryLight,
-    marginHorizontal: spacing.base,
+  holdBox: {
+    backgroundColor: colors.warningLight,
+    borderWidth: 1,
+    borderColor: colors.warning,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
   },
-  escrowTitle: { ...typography.body, fontWeight: '600', color: colors.primary, marginBottom: spacing.xs },
-  escrowText: { ...typography.bodySmall, color: colors.primary, lineHeight: 20 },
+  holdTitle: { ...typography.body, fontWeight: '700', color: colors.text },
+  holdText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20 },
 
   bottomSpacer: { height: 40 },
 });
