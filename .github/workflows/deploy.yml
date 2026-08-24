@@ -30,6 +30,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: master
+          fetch-depth: 0
 
       - name: Build API Docker image
         run: |
@@ -40,15 +41,18 @@ jobs:
             .
 
       - name: Save Docker image
-        run: docker save onservice-api:${{ github.sha }} | gzip > api-image.tar.gz
+        run: |
+          docker save onservice-api:${{ github.sha }} | gzip > api-image.tar.gz
+          git bundle create onservice-release.bundle master
+          git bundle verify onservice-release.bundle
 
-      - name: Copy image to server
+      - name: Copy image and verified source bundle to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: api-image.tar.gz
+          source: api-image.tar.gz,onservice-release.bundle
           target: /tmp/
 
       - name: Deploy to server
@@ -71,12 +75,19 @@ jobs:
             sudo -n docker load < /tmp/api-image.tar.gz
             rm -f /tmp/api-image.tar.gz
 
-            # The repository is public. Fetch without relying on a server-side
-            # GitHub deploy key, then fast-forward the root-owned checkout only.
+            # Verify and fetch the exact source bundle produced from this
+            # workflow's authenticated checkout. The server needs no GitHub
+            # token or repository deploy key.
             sudo -n git -c safe.directory=/opt/onservice \
-              fetch https://github.com/onServiceTeam/onservice-onsite-app.git master
-            sudo -n git -c safe.directory=/opt/onservice merge --ff-only FETCH_HEAD
+              bundle verify /tmp/onservice-release.bundle
+            sudo -n git -c safe.directory=/opt/onservice \
+              fetch /tmp/onservice-release.bundle \
+              master:refs/remotes/deploy/$RELEASE_SHA
+            test "$(sudo -n git -c safe.directory=/opt/onservice rev-parse refs/remotes/deploy/$RELEASE_SHA)" = "$RELEASE_SHA"
+            sudo -n git -c safe.directory=/opt/onservice \
+              merge --ff-only refs/remotes/deploy/$RELEASE_SHA
             test "$(sudo -n git -c safe.directory=/opt/onservice rev-parse HEAD)" = "$RELEASE_SHA"
+            rm -f /tmp/onservice-release.bundle
 
             # Run only the explicitly named, reviewed migration. The helper
             # backs this with a dry run and uses the direct Postgres connection.
