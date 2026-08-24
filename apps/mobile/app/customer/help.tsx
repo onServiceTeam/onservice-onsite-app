@@ -98,7 +98,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'How do I delete my account?',
-        a: 'Contact our support team to request account deletion. There is a 30-day cooling period during which you can reactivate your account. After 30 days, all data is permanently deleted.',
+        a: 'Open Account & Data from your profile to request deactivation and anonymization. There is a 30-day cooling-off period during which you can cancel. After that, your account and public profile are deactivated and personal identifiers are anonymized. Booking, payment, dispute, tax, and compliance records may be retained where required.',
       },
     ],
   },

@@ -74,11 +74,11 @@ const FLOWS: FlowConfig[] = [
   {
     key: 'erasure',
     requestType: 'erasure',
-    title: 'Delete My Account',
-    shortDescription: 'Permanently remove your account and personal data.',
+    title: 'Deactivate & Anonymize My Account',
+    shortDescription: 'Deactivate your account and anonymize personal identifiers after a cooling-off period.',
     longDescription:
-      'You may request that we delete your personal data. This is irreversible. Some records (e.g., completed bookings, financial receipts required by BIR for 10 years) may be retained as required by law, but personal identifiers will be removed. We will respond within 15 days.',
-    ctaLabel: 'Request account deletion',
+      'You may request account deactivation and anonymization. A 30-day cooling-off period applies before processing. Some booking, payment, dispute, tax, and compliance records may be retained where required, while personal identifiers are removed where the current workflow supports it. We will respond within 15 days.',
+    ctaLabel: 'Request deactivation',
     requireDeleteConfirmation: true,
   },
 ];
@@ -153,7 +153,7 @@ export default function DataRightsScreen(): React.ReactElement {
 
   const handleSubmit = (flow: FlowConfig): void => {
     if (flow.requireDeleteConfirmation && deleteConfirmText.trim() !== 'DELETE') {
-      showToast('Type DELETE (in capitals) in the confirmation box to request account deletion.', 'warning');
+      showToast('Type DELETE (in capitals) in the confirmation box to request account deactivation.', 'warning');
       return;
     }
     submitMutation.mutate({ flow, userMessage: message });
@@ -187,7 +187,7 @@ export default function DataRightsScreen(): React.ReactElement {
             <View style={styles.warningBanner}>
               <AlertTriangle size={18} color={colors.error} />
               <Text style={styles.warningText}>
-                This action is irreversible. Type DELETE (all capitals) below to confirm.
+                Processing starts after a 30-day cooling-off period. Type DELETE (all capitals) below to confirm your request.
               </Text>
             </View>
             <Text style={styles.fieldLabel}>Type DELETE to confirm</Text>
@@ -199,7 +199,7 @@ export default function DataRightsScreen(): React.ReactElement {
               placeholderTextColor={colors.textTertiary}
               autoCapitalize="characters"
               autoCorrect={false}
-              accessibilityLabel="Type DELETE to confirm account deletion"
+              accessibilityLabel="Type DELETE to confirm account deactivation"
               accessibilityHint="You must type the word DELETE in capital letters to enable the request button."
             />
           </View>

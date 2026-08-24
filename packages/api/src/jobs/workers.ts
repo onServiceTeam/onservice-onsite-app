@@ -447,7 +447,11 @@ const schedulerWorker = new Worker(
         const pendingCount = await dataManagementService.getPendingExportCount();
         if (pendingCount > 0) {
           const pendingExports = await db.query<{ id: string }>(
-            `SELECT id FROM data_export_requests WHERE status = 'pending' ORDER BY created_at ASC LIMIT 5`,
+            `SELECT id FROM data_export_requests
+             WHERE status = 'pending'
+                OR (status = 'processing'
+                  AND processing_started_at <= NOW() - INTERVAL '1 hour')
+             ORDER BY created_at ASC LIMIT 5`,
           );
           for (const row of pendingExports.rows) {
             await dataManagementService.processDataExport(row.id);

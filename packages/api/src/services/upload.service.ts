@@ -263,6 +263,51 @@ export async function saveUploadedFile(
   };
 }
 
+/**
+ * Store a non-image private artifact such as a customer data export. The
+ * returned value is an opaque storage key, never a public URL. It uses the
+ * same encrypted S3 backend as uploads when configured and the protected
+ * uploads volume otherwise.
+ */
+export async function savePrivateArtifact(
+  buffer: Buffer,
+  objectKey: string,
+  contentType: string,
+): Promise<string> {
+  const cleanKey = extractObjectKey(objectKey);
+  if (!cleanKey
+    || cleanKey !== objectKey.replace(/^\/+/, '')
+    || !cleanKey.startsWith('private-artifacts/')) {
+    throw createAppError('Invalid private artifact path.', 400);
+  }
+
+  if (USE_S3) {
+    const { client, commands } = await getS3();
+    const sseParams = process.env.S3_KMS_KEY_ID
+      ? { ServerSideEncryption: 'aws:kms', SSEKMSKeyId: process.env.S3_KMS_KEY_ID }
+      : { ServerSideEncryption: 'AES256' };
+    await client!.send(new commands!.PutObjectCommand({
+      Bucket: process.env.S3_BUCKET!,
+      Key: cleanKey,
+      Body: buffer,
+      ContentType: contentType,
+      CacheControl: 'private, no-store',
+      ACL: 'private',
+      ...sseParams,
+    }));
+  } else {
+    const fullPath = path.resolve(path.join(UPLOAD_DIR, cleanKey));
+    if (!fullPath.startsWith(path.resolve(UPLOAD_DIR))) {
+      throw createAppError('Invalid private artifact path.', 400);
+    }
+    await fs.mkdir(path.dirname(fullPath), { recursive: true });
+    await fs.writeFile(fullPath, buffer);
+  }
+
+  logger.info('Private artifact stored', { key: cleanKey, sizeBytes: buffer.length, contentType });
+  return cleanKey;
+}
+
 export async function deleteUploadedFile(filename: string): Promise<void> {
   try {
     if (USE_S3) {
@@ -356,7 +401,63 @@ function guessContentType(key: string): string {
   if (ext === '.png') return 'image/png';
   if (ext === '.webp') return 'image/webp';
   if (ext === '.pdf') return 'application/pdf';
+  if (ext === '.json') return 'application/json';
+  if (ext === '.csv') return 'text/csv; charset=utf-8';
   return 'image/jpeg';
+}
+
+/** Delete a private artifact and surface failures so retention jobs can retry. */
+export async function deletePrivateArtifact(filename: string): Promise<void> {
+  const cleanKey = extractObjectKey(filename);
+  if (!cleanKey || !cleanKey.startsWith('private-artifacts/')) {
+    throw createAppError('Invalid private artifact path.', 400);
+  }
+  if (USE_S3) {
+    const { client, commands } = await getS3();
+    await client!.send(new commands!.DeleteObjectCommand({ Bucket: process.env.S3_BUCKET!, Key: cleanKey }));
+    return;
+  }
+  const fullPath = path.resolve(path.join(UPLOAD_DIR, cleanKey));
+  if (!fullPath.startsWith(path.resolve(UPLOAD_DIR))) {
+    throw createAppError('Invalid private artifact path.', 400);
+  }
+  try {
+    await fs.unlink(fullPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+  }
+}
+
+/** Open a private artifact from the standard upload bucket/volume. */
+export async function getPrivateArtifactStream(key: string): Promise<ObjectStream> {
+  const cleanKey = extractObjectKey(key);
+  if (!cleanKey || !cleanKey.startsWith('private-artifacts/')) {
+    throw createAppError('File not found.', 404);
+  }
+
+  if (USE_S3) {
+    const { client, commands } = await getS3();
+    try {
+      const out = (await client!.send(new commands!.GetObjectCommand({
+        Bucket: process.env.S3_BUCKET!,
+        Key: cleanKey,
+      }))) as { Body?: NodeJS.ReadableStream; ContentType?: string; ContentLength?: number };
+      if (!out.Body) throw createAppError('File not found.', 404);
+      return { body: out.Body, contentType: out.ContentType || guessContentType(cleanKey), contentLength: out.ContentLength };
+    } catch {
+      throw createAppError('File not found.', 404);
+    }
+  }
+
+  const fullPath = path.resolve(path.join(UPLOAD_DIR, cleanKey));
+  if (!fullPath.startsWith(path.resolve(UPLOAD_DIR))) throw createAppError('File not found.', 404);
+  try {
+    const stat = await fs.stat(fullPath);
+    const { createReadStream } = await import('node:fs');
+    return { body: createReadStream(fullPath), contentType: guessContentType(cleanKey), contentLength: stat.size };
+  } catch {
+    throw createAppError('File not found.', 404);
+  }
 }
 
 /**
