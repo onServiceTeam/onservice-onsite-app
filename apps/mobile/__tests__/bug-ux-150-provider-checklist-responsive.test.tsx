@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 jest.mock('@/services/api', () => ({
   __esModule: true,
@@ -24,7 +25,8 @@ jest.mock('expo-router', () => ({
 import JobChecklistScreen from '../app/provider/job/[id]/checklist';
 
 it('BUG-UX-150 — checklist renders an explicit tablet and desktop workspace', async () => {
-  render(<JobChecklistScreen />);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><JobChecklistScreen /></QueryClientProvider>);
 
   expect(await screen.findByLabelText('Tablet and desktop provider checklist workspace')).toBeTruthy();
   expect(screen.getByText('No checklist tasks for this service')).toBeTruthy();

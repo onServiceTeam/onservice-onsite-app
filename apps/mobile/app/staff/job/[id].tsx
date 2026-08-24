@@ -7,7 +7,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
+import { getBookingProofSummary } from '@/services/booking-proof.service';
 import { updateBookingStatus } from '@/services/provider-api.service';
+import ProofSummaryCard from '@/components/booking/ProofSummaryCard';
 import { getErrorMessage } from '@/utils/errors';
 import { useLocation } from '@/hooks/useLocation';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -48,11 +50,18 @@ export default function StaffJobDetailScreen(): React.ReactElement {
     refetchInterval: 15000,
   });
 
+  const proofQuery = useQuery({
+    queryKey: ['bookingProofSummary', id],
+    queryFn: () => getBookingProofSummary(id),
+    enabled: !!id,
+  });
+
   const statusMutation = useMutation({
     mutationFn: ({ newStatus, location }: { newStatus: string; location?: { latitude: number; longitude: number } }) =>
       updateBookingStatus(id, newStatus, undefined, location),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['staffJob', id] });
+      void queryClient.invalidateQueries({ queryKey: ['bookingProofSummary', id] });
       void queryClient.invalidateQueries({ queryKey: ['staffJobs'] });
     },
     onError: (err: unknown) => showToast(getErrorMessage(err, 'Could not update the job. Please try again.'), 'error'),
@@ -140,6 +149,16 @@ export default function StaffJobDetailScreen(): React.ReactElement {
           </View>
         ) : null}
 
+        {proofQuery.data ? (
+          <View style={styles.proofWrap}>
+            <ProofSummaryCard summary={proofQuery.data} audience="provider" />
+          </View>
+        ) : proofQuery.isError ? (
+          <TouchableOpacity style={styles.proofError} onPress={() => void proofQuery.refetch()}>
+            <Text style={styles.proofErrorText}>The shared work record could not load. Tap to retry.</Text>
+          </TouchableOpacity>
+        ) : null}
+
         {action ? (
           <TouchableOpacity
             style={[styles.actionBtn, (statusMutation.isPending || gettingLocation) && styles.btnDisabled]}
@@ -204,6 +223,14 @@ const styles = StyleSheet.create({
   notesBox: { marginTop: spacing.base, backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   notesLabel: { ...typography.caption, color: colors.textTertiary, fontWeight: '600', marginBottom: spacing.xs },
   notesText: { ...typography.bodySmall, color: colors.text, lineHeight: 20 },
+  proofWrap: { marginTop: spacing.base },
+  proofError: {
+    marginTop: spacing.base,
+    padding: spacing.md,
+    backgroundColor: colors.errorLight,
+    borderRadius: borderRadius.md,
+  },
+  proofErrorText: { ...typography.bodySmall, color: colors.error },
   actionBtn: { backgroundColor: colors.primary, borderRadius: borderRadius.md, paddingVertical: spacing.md + 2, alignItems: 'center', marginTop: spacing.lg },
   btnDisabled: { opacity: 0.6 },
   actionBtnText: { ...typography.body, fontWeight: '700', color: colors.white },

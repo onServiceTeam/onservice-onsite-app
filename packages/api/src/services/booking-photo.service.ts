@@ -250,7 +250,10 @@ export async function listBookingPhotos(
 export async function countAfterPhotos(bookingId: string): Promise<number> {
   const result = await db.query<{ count: string }>(
     `SELECT COUNT(*)::text AS count FROM booking_photos
-     WHERE booking_id = $1 AND photo_type = 'after' AND deleted_at IS NULL`,
+     WHERE booking_id = $1
+       AND photo_type = 'after'
+       AND uploaded_by_role = 'provider'
+       AND deleted_at IS NULL`,
     [bookingId],
   );
   return Number(result.rows[0]?.count ?? 0);

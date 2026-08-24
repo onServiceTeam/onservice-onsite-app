@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const mockGet = jest.fn();
 const mockPatch = jest.fn();
@@ -48,7 +49,8 @@ it('BUG-UX-148 — uploaded checklist proof is attached to its checklist item', 
   });
   mockPatch.mockResolvedValue({ data: { data: { id: 'item-1', isCompleted: false, photoId: 'photo-9' } } });
 
-  render(<JobChecklistScreen />);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><JobChecklistScreen /></QueryClientProvider>);
   const photoText = await screen.findByText('+ Photo');
   fireEvent.click(photoText.closest('button')!);
 

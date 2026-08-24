@@ -25,6 +25,7 @@ import * as pricingService from '../services/pricing.service';
 import * as settingsService from '../services/settings.service';
 import * as rebookingService from '../services/rebooking.service';
 import * as slotWaitlistService from '../services/slot-waitlist.service';
+import * as bookingProofService from '../services/booking-proof.service';
 import { platformConfig } from '../config/platform.config';
 
 function getParamId(req: AuthenticatedRequest): string {
@@ -35,7 +36,12 @@ function getParamId(req: AuthenticatedRequest): string {
   return id;
 }
 
-interface BookingOwnerRow { customer_id: string; provider_id: string | null }
+interface BookingOwnerRow {
+  customer_id: string;
+  provider_user_id: string | null;
+  staff_user_id: string | null;
+  staff_status: string | null;
+}
 
 interface PreTransitionRow {
   status: string;
@@ -67,21 +73,62 @@ function haversineDistanceMeters(
 async function verifyBookingAccess(bookingId: string, userId: string, role: string): Promise<void> {
   if (role === 'admin' || role === 'super_admin') return;
   const result = await db.query<BookingOwnerRow>(
-    `SELECT customer_id, provider_id FROM bookings WHERE id = $1`,
+    `SELECT b.customer_id, p.user_id AS provider_user_id,
+            ps.user_id AS staff_user_id, ps.status AS staff_status
+       FROM bookings b
+       LEFT JOIN providers p ON p.id = b.provider_id
+       LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+      WHERE b.id = $1`,
     [bookingId],
   );
   const booking = result.rows[0];
   if (!booking) throw createAppError('Booking not found.', 404);
 
-  const providerResult = await db.query<{ id: string }>(
-    `SELECT id FROM providers WHERE user_id = $1`,
-    [userId],
-  );
-  const providerId = providerResult.rows[0]?.id;
-
-  if (booking.customer_id !== userId && booking.provider_id !== providerId) {
+  const isCustomer = role === 'customer' && booking.customer_id === userId;
+  const isProviderOwner = role === 'provider' && booking.provider_user_id === userId;
+  const isAssignedStaff =
+    role === 'provider_staff' &&
+    booking.staff_user_id === userId &&
+    booking.staff_status === 'approved';
+  if (!isCustomer && !isProviderOwner && !isAssignedStaff) {
     throw createAppError('You do not have access to this booking.', 403);
   }
+}
+
+interface ProviderPhotoActorRow {
+  id: string;
+  provider_user_id: string | null;
+  staff_user_id: string | null;
+  staff_status: string | null;
+}
+
+async function verifyProviderPhotoWriteAccess(
+  bookingId: string,
+  userId: string,
+  role: string,
+): Promise<'provider' | 'admin'> {
+  const result = await db.query<ProviderPhotoActorRow>(
+    `SELECT b.id, p.user_id AS provider_user_id,
+            ps.user_id AS staff_user_id, ps.status AS staff_status
+       FROM bookings b
+       LEFT JOIN providers p ON p.id = b.provider_id
+       LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+      WHERE b.id = $1`,
+    [bookingId],
+  );
+  const booking = result.rows[0];
+  if (!booking) throw createAppError('Booking not found.', 404);
+
+  if (role === 'admin' || role === 'super_admin') return 'admin';
+  if (role === 'provider' && booking.provider_user_id === userId) return 'provider';
+  if (
+    role === 'provider_staff' &&
+    booking.staff_user_id === userId &&
+    booking.staff_status === 'approved'
+  ) {
+    return 'provider';
+  }
+  throw createAppError('Only the assigned provider side can add provider job photos.', 403);
 }
 
 const router = Router();
@@ -1046,6 +1093,24 @@ router.post(
 );
 
 router.get(
+  '/:id/proof-summary',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const id = getParamId(req);
+      await verifyBookingAccess(id, req.user!.userId, req.user!.role);
+      const summary = await bookingProofService.getBookingProofSummary(id);
+      res.json({
+        success: true,
+        data: bookingProofService.projectProofSummaryForParticipant(summary),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
   '/:id/quotes',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -1130,7 +1195,15 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = getParamId(req);
-      await verifyBookingAccess(id, req.user!.userId, req.user!.role);
+      // Bug UX-307 — this is the legacy provider-job photo writer. The generic
+      // participant check admitted customers and then labeled their before/
+      // after uploads as customer evidence; assigned provider staff were
+      // rejected and, if they reached the insert path, mislabeled as customer.
+      const photoActorRole = await verifyProviderPhotoWriteAccess(
+        id,
+        req.user!.userId,
+        req.user!.role,
+      );
       const { phase, urls, mimeTypes } = req.body as {
         phase: 'before' | 'after';
         urls: string[];
@@ -1225,7 +1298,7 @@ router.post(
             [
               id,
               req.user!.userId,
-              req.user!.role === 'provider' ? 'provider' : (req.user!.role === 'admin' || req.user!.role === 'super_admin' ? 'admin' : 'customer'),
+              photoActorRole,
               photoType,
               url, // legacy callers don't have a separate storage_key; URL doubles as both
               url,

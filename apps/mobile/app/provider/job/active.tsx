@@ -70,6 +70,7 @@ export default function ActiveJobScreen(): React.ReactElement {
       updateBookingStatus(bookingId, newStatus, undefined, location),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ['bookingProofSummary', bookingId] });
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
     },
     onError: (err: unknown) => {

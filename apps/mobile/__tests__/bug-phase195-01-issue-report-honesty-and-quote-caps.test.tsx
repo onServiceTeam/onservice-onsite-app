@@ -80,7 +80,10 @@ const CHECKLIST_RESPONSE = {
 };
 
 function renderChecklist(): { container: HTMLElement } {
-  return render(React.createElement(JobChecklistScreen));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return render(
+    React.createElement(QueryClientProvider, { client }, React.createElement(JobChecklistScreen)),
+  );
 }
 
 function renderQuote(): { container: HTMLElement } {

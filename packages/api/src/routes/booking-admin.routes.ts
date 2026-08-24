@@ -13,6 +13,7 @@ import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import * as bookingAdminService from '../services/booking-admin.service';
+import * as bookingProofService from '../services/booking-proof.service';
 import * as bookingService from '../services/booking.service';
 
 const router = Router();
@@ -82,6 +83,22 @@ router.get(
     try {
       requireAdmin(req);
       const data = await bookingAdminService.getBookingEvidence((req.params.id as string));
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+// Bug UX-308 — one read-only proof-to-close view assembled from the existing
+// booking, scope, checklist, media, signature, change, support, and dispute
+// records. Readiness is derived on every request; this endpoint never writes a
+// mutable "ready" flag or changes booking/payment state.
+router.get(
+  '/:id/proof-summary',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const data = await bookingProofService.getBookingProofSummary((req.params.id as string));
       res.json({ success: true, data });
     } catch (error) { next(error); }
   },

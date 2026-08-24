@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const mockGet = jest.fn();
 const mockPatch = jest.fn();
@@ -33,7 +34,8 @@ it('BUG-UX-147 — checklist toggles send the API-required completed field', asy
   });
   mockPatch.mockResolvedValue({ data: { data: { id: 'item-1', isCompleted: true } } });
 
-  render(<JobChecklistScreen />);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><JobChecklistScreen /></QueryClientProvider>);
   const toggle = await screen.findByLabelText('Mark Inspect the work area complete');
   fireEvent.click(toggle);
 
