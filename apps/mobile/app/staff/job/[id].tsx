@@ -17,6 +17,8 @@ import { ChevronLeft, MapPin, Clock, MessageSquare } from '@/components/icons';
 // A7 — shared UI kit for loading/error states + toast feedback.
 import { SkeletonCard, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
+import { Routes, buildRoute } from '@/config/navigation';
+import { useResponsive } from '@/hooks/useResponsive';
 
 // On-site steps a team member drives. D15 — completion is now staff-enabled:
 // at in_progress the team member enters the SAME checklist + after-photo flow
@@ -42,6 +44,7 @@ export default function StaffJobDetailScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { getCurrentLocation, isLoading: gettingLocation } = useLocation();
+  const { isPhone } = useResponsive();
 
   const { data: booking, isLoading, isError, refetch } = useQuery({
     queryKey: ['staffJob', id],
@@ -90,7 +93,7 @@ export default function StaffJobDetailScreen(): React.ReactElement {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={{ padding: spacing.base }}>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -122,6 +125,11 @@ export default function StaffJobDetailScreen(): React.ReactElement {
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={isPhone ? 'Assigned job record' : 'Tablet and desktop assigned job record workspace'}
+        >
+        <View style={styles.primaryColumn}>
         <View style={styles.infoCard}>
           <View style={styles.statusPill}>
             <Text style={styles.statusPillText}>{STATUS_LABELS[booking.status] ?? booking.status.replace(/_/g, ' ')}</Text>
@@ -159,6 +167,18 @@ export default function StaffJobDetailScreen(): React.ReactElement {
           </TouchableOpacity>
         ) : null}
 
+        </View>
+
+        <View style={[styles.actionColumn, !isPhone && styles.actionColumnWide]}>
+        <View style={styles.fieldCard}>
+          <Text style={styles.fieldEyebrow}>NEXT FIELD STEP</Text>
+          <Text style={styles.fieldTitle}>
+            {action?.label ?? (booking.status === 'in_progress' ? 'Document and close the work' : 'No field action needed')}
+          </Text>
+          <Text style={styles.fieldText}>
+            Status changes, checklist work, photos, and completion are recorded against this assigned booking and your team-member account.
+          </Text>
+
         {action ? (
           <TouchableOpacity
             style={[styles.actionBtn, (statusMutation.isPending || gettingLocation) && styles.btnDisabled]}
@@ -175,20 +195,36 @@ export default function StaffJobDetailScreen(): React.ReactElement {
         ) : booking.status === 'in_progress' ? (
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={() => router.push(`/provider/job/${booking.id}/checklist` as never)}
+            onPress={() => router.push(buildRoute(Routes.STAFF.JOB_CHECKLIST, { id: booking.id }) as never)}
             activeOpacity={0.85}
           >
-            <Text style={styles.actionBtnText}>Complete Job</Text>
+            <Text style={styles.actionBtnText}>Open Checklist</Text>
           </TouchableOpacity>
         ) : null}
         {booking.status === 'in_progress' ? (
-          <Text style={styles.doneHint}>Finish the checklist and add the required photos to complete the job. It counts toward your provider&apos;s record.</Text>
+          <Text style={styles.doneHint}>Finish the checklist and add the required photos before submitting completion. The work counts toward your provider&apos;s record.</Text>
         ) : null}
+        </View>
 
-        <TouchableOpacity style={styles.chatRow} onPress={() => router.push(`/provider/chat/${booking.id}`)}>
+        <TouchableOpacity
+          style={styles.chatRow}
+          onPress={() => router.push({
+            pathname: Routes.SUPPORT.NEW,
+            params: {
+              bookingId: booking.id,
+              type: 'booking_issue',
+              subject: `Help with assigned job ${booking.id.slice(0, 8)}`,
+            },
+          })}
+        >
           <MessageSquare size={18} color={colors.secondary} style={{ marginRight: spacing.sm }} />
-          <Text style={styles.chatText}>Chat with Customer</Text>
+          <Text style={styles.chatText}>Get Booking Support</Text>
         </TouchableOpacity>
+        <Text style={styles.chatBoundary}>
+          Customer chat stays with the provider owner while assigned-team conversation access is being defined.
+        </Text>
+        </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -214,6 +250,23 @@ const styles = StyleSheet.create({
   placeholder: { width: 30 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  stateContent: { padding: spacing.base },
+  stateContentWide: { width: '100%', maxWidth: 920, alignSelf: 'center', padding: spacing.xl },
+  workspace: { width: '100%', gap: spacing.base },
+  workspaceWide: { maxWidth: 1180, alignSelf: 'center', flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg, padding: spacing.md },
+  primaryColumn: { flex: 1, minWidth: 0 },
+  actionColumn: { width: '100%', gap: spacing.base },
+  actionColumnWide: { width: 360, flexShrink: 0 },
+  fieldCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  fieldEyebrow: { ...typography.caption, color: colors.primary, fontWeight: '800', letterSpacing: 0.8 },
+  fieldTitle: { ...typography.h2, color: colors.text, marginTop: spacing.xs },
+  fieldText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: spacing.xs },
   statusPill: { alignSelf: 'flex-start', backgroundColor: colors.primaryLight, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: 20, marginBottom: spacing.base },
   statusPillText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
   service: { ...typography.h2, color: colors.text },
@@ -237,4 +290,5 @@ const styles = StyleSheet.create({
   doneHint: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.lg, lineHeight: 20 },
   chatRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.md, backgroundColor: colors.surface, borderRadius: borderRadius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, marginTop: spacing.lg },
   chatText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
+  chatBoundary: { ...typography.caption, color: colors.textSecondary, textAlign: 'center', lineHeight: 18 },
 });

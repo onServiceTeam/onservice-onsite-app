@@ -36,6 +36,7 @@ import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { CheckCircle2, Camera, AlertCircle, X, ChevronLeft } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
+import { Routes, buildRoute } from '@/config/navigation';
 
 interface ChecklistItem {
   id: string;
@@ -61,7 +62,7 @@ interface FlatRow {
   item?: ChecklistItem;
 }
 
-export default function JobChecklistScreen(): React.ReactElement {
+export default function JobChecklistScreen({ staffMode = false }: { staffMode?: boolean }): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -283,7 +284,11 @@ export default function JobChecklistScreen(): React.ReactElement {
   };
 
   const handleContinue = (): void => {
-    router.push(`/provider/job/${id}/complete` as never);
+    if (!id) return;
+    router.push(buildRoute(
+      staffMode ? Routes.STAFF.JOB_COMPLETE : Routes.PROVIDER.JOB_COMPLETE,
+      { id },
+    ) as never);
   };
 
   const renderRow = ({ item: row }: { item: FlatRow }): React.ReactElement => {
@@ -397,7 +402,9 @@ export default function JobChecklistScreen(): React.ReactElement {
 
       <View
         style={[styles.workspace, !isPhone && styles.workspaceWide]}
-        accessibilityLabel={isPhone ? 'Provider checklist' : 'Tablet and desktop provider checklist workspace'}
+        accessibilityLabel={isPhone
+          ? `${staffMode ? 'Team member' : 'Provider'} checklist`
+          : `Tablet and desktop ${staffMode ? 'team member' : 'provider'} checklist workspace`}
       >
         <View style={[styles.progressWrap, !isPhone && styles.progressWrapWide]}>
           <Text style={styles.progressEyebrow}>JOB PROGRESS</Text>

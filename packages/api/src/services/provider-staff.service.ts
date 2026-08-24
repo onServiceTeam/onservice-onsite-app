@@ -528,6 +528,7 @@ export interface StaffAssignedJob {
   city: string | null;
   serviceName: string | null;
   customerName: string | null;
+  providerBusinessName: string | null;
 }
 
 // Bookings assigned to the authenticated staff member (across any provider they
@@ -537,18 +538,31 @@ export async function getAssignedJobsForUser(userId: string): Promise<StaffAssig
     id: string; status: string; scheduled_at: Date | null;
     address: string | null; barangay: string | null; city: string | null;
     category_name: string | null; subcategory_name: string | null; customer_name: string | null;
+    provider_business_name: string | null;
   }>(
     `SELECT b.id, b.status, b.scheduled_at, b.address, b.barangay, b.city,
             sc.name AS category_name, sub.name AS subcategory_name,
-            NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), '') AS customer_name
+            NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), '') AS customer_name,
+            p.business_name AS provider_business_name
      FROM bookings b
      JOIN provider_staff ps ON ps.id = b.performer_staff_id
+     JOIN providers p ON p.id = ps.provider_id
      LEFT JOIN service_categories sc ON sc.id = b.category_id
      LEFT JOIN service_subcategories sub ON sub.id = b.subcategory_id
      LEFT JOIN users u ON u.id = b.customer_id
      WHERE ps.user_id = $1
+       AND ps.status = 'approved'
        AND b.performer_staff_id IS NOT NULL
-     ORDER BY b.scheduled_at DESC NULLS LAST
+     ORDER BY
+       CASE b.status
+         WHEN 'in_progress' THEN 0
+         WHEN 'provider_arrived' THEN 1
+         WHEN 'provider_en_route' THEN 2
+         WHEN 'paid' THEN 3
+         WHEN 'completed_by_provider' THEN 4
+         ELSE 5
+       END,
+       b.scheduled_at ASC NULLS LAST
      LIMIT 100`,
     [userId],
   );
@@ -561,5 +575,6 @@ export async function getAssignedJobsForUser(userId: string): Promise<StaffAssig
     city: r.city,
     serviceName: r.subcategory_name ?? r.category_name,
     customerName: r.customer_name,
+    providerBusinessName: r.provider_business_name,
   }));
 }

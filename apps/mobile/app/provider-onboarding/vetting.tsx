@@ -18,6 +18,7 @@ import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Briefcase } from '@/components/icons';
 import { Routes } from '@/config/navigation';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const BUSINESS_TYPES = ['Solo worker', 'Small team', 'Registered company'];
 
@@ -38,6 +39,7 @@ function LabeledInput(
 export default function VettingScreen(): React.ReactElement {
   const router = useRouter();
   const store = useOnboardingStore();
+  const { isPhone } = useResponsive();
   const [years, setYears] = useState(store.yearsExperience != null ? String(store.yearsExperience) : '');
   const [v, setV] = useState<VettingData>({ ...emptyVetting, ...store.vetting });
 
@@ -122,9 +124,10 @@ export default function VettingScreen(): React.ReactElement {
 
       <ScrollView
         style={styles.body}
-        contentContainerStyle={{ paddingBottom: spacing.lg }}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        accessibilityLabel={isPhone ? 'Provider vetting form' : 'Tablet and desktop provider vetting workspace'}
       >
         <View style={styles.iconWrap}>
           <Briefcase size={28} color={colors.primary} />
@@ -270,7 +273,9 @@ export default function VettingScreen(): React.ReactElement {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button title="Next" onPress={handleNext} disabled={!canContinue} />
+        <View style={[styles.footerInner, !isPhone && styles.footerInnerWide]}>
+          <Button title="Next" onPress={handleNext} disabled={!canContinue} />
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -293,7 +298,19 @@ const styles = StyleSheet.create({
   progressDone: { backgroundColor: colors.success },
   progressActive: { backgroundColor: colors.primary, width: 24 },
   step: { ...typography.caption, color: colors.textTertiary, marginLeft: spacing.sm },
-  body: { flex: 1, paddingHorizontal: spacing.base, paddingTop: spacing.base },
+  body: { flex: 1 },
+  bodyContent: { paddingHorizontal: spacing.base, paddingTop: spacing.base, paddingBottom: spacing.lg },
+  bodyContentWide: {
+    width: '100%',
+    maxWidth: 900,
+    alignSelf: 'center',
+    padding: spacing.xl,
+    marginVertical: spacing.lg,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+  },
   iconWrap: {
     width: 56, height: 56, borderRadius: borderRadius.md, backgroundColor: colors.primaryLight,
     alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
@@ -339,7 +356,9 @@ const styles = StyleSheet.create({
   addRefBtn: { paddingVertical: spacing.md, alignItems: 'center' },
   addRefText: { ...typography.body, color: colors.primary, fontWeight: '700' },
   footer: {
-    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+    paddingVertical: spacing.md,
     borderTopWidth: 1, borderTopColor: colors.border,
   },
+  footerInner: { paddingHorizontal: spacing.base },
+  footerInnerWide: { width: '100%', maxWidth: 900, alignSelf: 'center', paddingHorizontal: spacing.xl },
 });

@@ -15,7 +15,13 @@ export default function StaffLayout(): React.ReactElement {
           headerTitleStyle: { color: colors.text },
           headerShadowVisible: false,
         }}
-      />
+      >
+        <Stack.Screen name="jobs" />
+        <Stack.Screen name="invites" />
+        <Stack.Screen name="job/[id]" />
+        <Stack.Screen name="job/[id]/checklist" />
+        <Stack.Screen name="job/[id]/complete" />
+      </Stack>
     </RoleRouteGuard>
   );
 }

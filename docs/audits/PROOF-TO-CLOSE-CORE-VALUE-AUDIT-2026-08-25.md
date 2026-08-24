@@ -214,7 +214,7 @@ Shipped result for Bugs UX-307-309: PR 58 merged and deployed exact revision `bf
 - Client notes, reminders, quote templates, category insights, team management, calendar, and materials-list APIs are useful foundations.
 - The materials list service/store has no provider screen caller.
 - There is no unified lead-to-job-to-proof-to-close client/property timeline.
-- Provider staff currently have jobs/invites only; the field navigation intentionally remains small but needs durable sync and issue capture.
+- Provider staff now have scoped jobs, assigned-job detail, canonical checklist, provider-side photo closeout, and booking-linked support without owner earnings/settings. The field navigation intentionally remains small; durable sync and issue capture are still missing, E05 holds the issue endpoint, and D30 holds customer-conversation participation.
 
 ## Third-party tester feedback applied
 
@@ -386,7 +386,7 @@ This direction is complete only when:
 
 ## Decision boundary
 
-The safe integrity fixes and Phase 1 read-model work can proceed without changing money. The property/site/visit schema and whether projects become booking parents require D28 approval. E05, E19, E25, D27p5, and other recorded money/legal holds remain separate and cannot be silently bundled into this product direction.
+The safe integrity fixes and Phase 1 read-model work can proceed without changing money. The property/site/visit schema and whether projects become booking parents require D28 approval. E05, E19, E25, D27p5, D30, and other recorded money/legal/authorization holds remain separate and cannot be silently bundled into this product direction.
 
 ## Relationship and evidence continuation, 2026-08-25
 
@@ -395,3 +395,9 @@ The safe integrity fixes and Phase 1 read-model work can proceed without changin
 - D29 records the preferred-provider-first product decision. The current implementation deliberately stops at truthful service selection and does not call the unsafe immediate self-assignment endpoint.
 - The exact trace, browser evidence, test counts, and remaining holds are recorded in `CUSTOMER-PROVIDER-RELATIONSHIP-EVIDENCE-AUDIT-2026-08-25.md`.
 - Shipped result: PR 60 merged and deployed mobile code at exact revision `fa20039d483e0b03e921b08c50b7cf7ff2bd1caa` after every GitHub job passed and a fresh database/uploads/config/git backup. Production received only the fast-forwarded source and in-place mobile artifact; no migration, seed, API/nginx recreation, or money-path change ran. Source, health, upload mounts, Redis policy, setting drift, protected-route logging, nginx, all neighboring containers, static hashes/assets, and the public desktop browser smoke passed. D29 and the existing proof/money/legal holds remain fail-closed.
+
+## Provider-staff field continuation, 2026-08-25
+
+- Assigned-job disclosure now requires an approved staff membership and identifies the provider business; active work appears before future/history states in a bounded tablet/desktop field grid.
+- Assigned job detail, checklist, and completion stay in the staff route group. Staff closeout uses the same canonical checklist, provider-attributed after-photo, server work-time, and booking-status rules without exposing provider-owner earnings or recording a customer-acceptance signature from a staff session.
+- The prior `Chat with Customer` button entered a provider-owner-only route while the two-party conversation API also rejected staff. D30 records the authorization/history/attribution decision. Booking-linked support is the truthful path while it remains open; provider-owner navigation was not broadened.

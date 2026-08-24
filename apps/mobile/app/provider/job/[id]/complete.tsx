@@ -58,7 +58,7 @@ import { useResponsive } from '@/hooks/useResponsive';
 const PHOTO_SLOTS = 4;
 const MIN_PHOTOS = 2;
 
-export default function JobCompleteScreen(): React.ReactElement {
+export default function JobCompleteScreen({ staffMode = false }: { staffMode?: boolean }): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -98,7 +98,10 @@ export default function JobCompleteScreen(): React.ReactElement {
   const bookingQuery = useQuery({
     queryKey: ['booking', id],
     queryFn: () => getBookingById(id ?? ''),
-    enabled: !!id,
+    // The assigned-team closeout does not need customer booking details or
+    // provider earnings. Keep that unnecessary owner-side read out of the
+    // staff session; the staff workspace already loaded its reduced record.
+    enabled: !!id && !staffMode,
   });
   const afterPhotosQuery = useQuery({
     queryKey: ['bookingPhotos', id, 'after'],
@@ -112,6 +115,7 @@ export default function JobCompleteScreen(): React.ReactElement {
       return { tier: res.data.data.tier, commissionRate: res.data.data.commissionRate };
     },
     staleTime: 5 * 60 * 1000,
+    enabled: !staffMode,
   });
   const providerTier = providerMeQuery.data?.tier;
   const tierRate = providerMeQuery.data?.commissionRate;
@@ -182,7 +186,7 @@ export default function JobCompleteScreen(): React.ReactElement {
   const photoCount = photos.filter((p): p is string => p !== null).length;
   const existingAfterPhotos = afterPhotosQuery.data ?? [];
   const totalAfterPhotoCount = existingAfterPhotos.length + photoCount;
-  const canSubmit = totalAfterPhotoCount >= MIN_PHOTOS && hasSignature && !submitting;
+  const canSubmit = totalAfterPhotoCount >= MIN_PHOTOS && (staffMode || hasSignature) && !submitting;
 
   const handleSubmit = async (): Promise<void> => {
     if (!id) {
@@ -193,7 +197,7 @@ export default function JobCompleteScreen(): React.ReactElement {
       Alert.alert('Photos required', `Please capture at least ${MIN_PHOTOS} completion photos.`);
       return;
     }
-    if (!hasSignature || !signedAt) {
+    if (!staffMode && (!hasSignature || !signedAt)) {
       Alert.alert('Signature required', 'Please get the customer to sign before submitting.');
       return;
     }
@@ -216,7 +220,7 @@ export default function JobCompleteScreen(): React.ReactElement {
       // signatureType='customer_acceptance' (booking_signatures
       // table from migration 079). E19 records that this provider-session
       // capture is not verified customer identity evidence.
-      if (!signatureUploadedRef.current) {
+      if (!staffMode && !signatureUploadedRef.current) {
         const signatureUri = await readSignatureFile();
         await uploadSignature({
           uri: signatureUri,
@@ -247,9 +251,10 @@ export default function JobCompleteScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['bookingPhotos', id] });
       void queryClient.invalidateQueries({ queryKey: ['bookingProofSummary', id] });
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
+      void queryClient.invalidateQueries({ queryKey: ['staffJobs'] });
       // A7 — non-blocking toast then return to the dashboard; was a modal Alert.
       showToast('Job marked as complete.', 'success');
-      router.replace(Routes.PROVIDER_TABS.DASHBOARD);
+      router.replace(staffMode ? Routes.STAFF.JOBS : Routes.PROVIDER_TABS.DASHBOARD);
     } catch (err) {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper (A7: non-blocking toast).
       showToast(
@@ -278,7 +283,9 @@ export default function JobCompleteScreen(): React.ReactElement {
       >
         <View
           style={[styles.workspace, !isPhone && styles.workspaceWide]}
-          accessibilityLabel={isPhone ? 'Provider job completion' : 'Tablet and desktop provider job completion workspace'}
+          accessibilityLabel={isPhone
+            ? `${staffMode ? 'Team member' : 'Provider'} job completion`
+            : `Tablet and desktop ${staffMode ? 'team member' : 'provider'} job completion workspace`}
         >
         <View style={styles.primaryColumn}>
         <View style={[styles.section, styles.sectionCard]}>
@@ -328,8 +335,18 @@ export default function JobCompleteScreen(): React.ReactElement {
         <View style={styles.readinessCard}>
           <Text style={styles.readinessEyebrow}>COMPLETION READINESS</Text>
           <Text style={styles.readinessValue}>{totalAfterPhotoCount >= MIN_PHOTOS ? 'Photos ready' : `${MIN_PHOTOS - totalAfterPhotoCount} more photo${MIN_PHOTOS - totalAfterPhotoCount === 1 ? '' : 's'} needed`}</Text>
-          <Text style={styles.readinessValue}>{hasSignature ? 'Signature captured' : 'Customer signature needed'}</Text>
+          <Text style={styles.readinessValue}>
+            {staffMode ? 'Checklist and server work-time rules also apply' : hasSignature ? 'Signature captured' : 'Customer signature needed'}
+          </Text>
         </View>
+        {staffMode ? (
+          <View style={styles.staffNotice}>
+            <Text style={styles.staffNoticeTitle}>Team-member closeout</Text>
+            <Text style={styles.staffNoticeText}>
+              Submit the job record with the required after photos and notes. Customer acceptance is handled separately and is not recorded from your team-member session.
+            </Text>
+          </View>
+        ) : (
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Customer Signature</Text>
@@ -366,6 +383,7 @@ export default function JobCompleteScreen(): React.ReactElement {
             </View>
           )}
         </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notes (optional)</Text>
@@ -411,7 +429,7 @@ export default function JobCompleteScreen(): React.ReactElement {
         </TouchableOpacity>
         {/* BUG-PHASE67-03 fix — CommissionBreakdown post-complete preview
             now uses REAL servicePrice + tier-specific commission rate. */}
-        {grossEarnings > 0 && tierPct != null && commissionAmount != null && netEarnings != null && providerTier && (
+        {!staffMode && grossEarnings > 0 && tierPct != null && commissionAmount != null && netEarnings != null && providerTier && (
           <View style={{ marginTop: spacing.lg }}>
             <Text style={{ ...typography.h3, color: colors.text, marginBottom: spacing.sm }}>Earnings preview</Text>
             <CommissionBreakdown
@@ -523,6 +541,16 @@ const styles = StyleSheet.create({
   },
   readinessEyebrow: { ...typography.caption, color: colors.primary, fontWeight: '800', letterSpacing: 0.8 },
   readinessValue: { ...typography.bodySmall, color: colors.text, fontWeight: '700' },
+  staffNotice: {
+    backgroundColor: colors.infoLight,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.info,
+    padding: spacing.base,
+    marginBottom: spacing.lg,
+  },
+  staffNoticeTitle: { ...typography.body, color: colors.infoDark, fontWeight: '700', marginBottom: spacing.xs },
+  staffNoticeText: { ...typography.bodySmall, color: colors.infoDark, lineHeight: 20 },
   // Phase E CRIT-103/104 fix — old PanResponder canvas styles
   // (signaturePad, signatureHintWrap, signatureDot) replaced by the
   // new SignaturePad component which owns its own canvas styling.

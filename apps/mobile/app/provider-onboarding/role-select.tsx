@@ -7,11 +7,13 @@ import { storage } from '@/services/api';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Home as HomeIcon, Wrench } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 export default function RoleSelectScreen(): React.ReactElement {
   const router = useRouter();
   const setRole = useOnboardingStore((s) => s.setRole);
+  const { isPhone } = useResponsive();
 
   const handleCustomer = (): void => {
     storage.delete('isNewUser');
@@ -25,12 +27,17 @@ export default function RoleSelectScreen(): React.ReactElement {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.content}>
+      <View
+        style={[styles.content, !isPhone && styles.contentWide]}
+        accessibilityLabel={isPhone ? 'Choose how to use onService' : 'Tablet and desktop role selection workspace'}
+      >
+        <Text style={styles.eyebrow}>CHOOSE YOUR WORKSPACE</Text>
         <Text style={styles.title}>How would you like to use onService?</Text>
-        <Text style={styles.subtitle}>You can always change this later.</Text>
+        <Text style={styles.subtitle}>Book services now, or begin the reviewed provider application while keeping customer access during review.</Text>
 
+        <View style={[styles.roleGrid, !isPhone && styles.roleGridWide]}>
         <TouchableOpacity
-          style={styles.roleCard}
+          style={[styles.roleCard, !isPhone && styles.roleCardWide]}
           onPress={handleCustomer}
           activeOpacity={0.7}
         >
@@ -45,7 +52,7 @@ export default function RoleSelectScreen(): React.ReactElement {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.roleCard, styles.providerCard]}
+          style={[styles.roleCard, styles.providerCard, !isPhone && styles.roleCardWide]}
           onPress={handleProvider}
           activeOpacity={0.7}
         >
@@ -58,6 +65,7 @@ export default function RoleSelectScreen(): React.ReactElement {
           </View>
           <Text style={styles.roleArrow}>→</Text>
         </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -70,8 +78,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     justifyContent: 'center',
   },
+  contentWide: { width: '100%', maxWidth: 1040, alignSelf: 'center', paddingHorizontal: spacing.xl },
+  eyebrow: { ...typography.caption, color: colors.primary, fontWeight: '800', letterSpacing: 0.8, textAlign: 'center', marginBottom: spacing.sm },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.sm, textAlign: 'center' },
   subtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.xl },
+  roleGrid: { width: '100%' },
+  roleGridWide: { flexDirection: 'row', gap: spacing.lg },
   roleCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -82,6 +94,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  roleCardWide: { flex: 1, minHeight: 180, marginBottom: 0 },
   providerCard: {
     borderColor: colors.primary,
     backgroundColor: colors.primaryLight,
