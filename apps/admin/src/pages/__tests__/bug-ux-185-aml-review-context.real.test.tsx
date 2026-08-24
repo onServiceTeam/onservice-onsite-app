@@ -15,7 +15,7 @@ vi.mock('@/stores/auth.store', () => ({
 import api from '@/lib/api';
 import PayoutsPage from '../PayoutsPage';
 
-it('Bug UX-127 — AML-held payout is visible and offers the existing super-admin clearance step', async () => {
+it('BUG-UX-185 — AML review shows the captured threshold and does not imply a legal report', async () => {
   vi.mocked(api.get).mockResolvedValueOnce({
     data: {
       success: true,
@@ -38,8 +38,8 @@ it('Bug UX-127 — AML-held payout is visible and offers the existing super-admi
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText(/Internal review hold/)).toBeTruthy();
+  expect(await screen.findByText(/Internal review hold at ₱500,000.00/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: /clear compliance review for payout payout-aml-1/i }));
-  expect(screen.getByRole('dialog', { name: 'Clear Compliance Review' })).toBeTruthy();
-  expect(screen.getByText(/moves the request to Pending/i)).toBeTruthy();
+  expect(screen.getByText(/does not state that a legal report was filed or required/i)).toBeTruthy();
+  expect(screen.getByText(/Threshold captured when requested: ₱500,000.00/)).toBeTruthy();
 });
