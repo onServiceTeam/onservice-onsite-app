@@ -94,6 +94,26 @@ router.get(
   },
 );
 
+// Canonical recurring price shown before the customer creates a series.
+// This endpoint resolves catalog price and the live service-fee setting on
+// the server, so setup never reuses a stale total from an older booking.
+router.get(
+  '/preview/:subcategoryId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const subcategoryId = req.params.subcategoryId;
+      if (typeof subcategoryId !== 'string' || !subcategoryId) {
+        throw createAppError('Subcategory ID is required.', 400);
+      }
+      const preview = await recurringService.getRecurringPricePreview(subcategoryId);
+      res.json({ success: true, data: preview });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 router.get(
   '/:id',
   authMiddleware,
@@ -223,31 +243,21 @@ router.post(
 
 // E02 / D22 — Auto-charge payment method management.
 //
-// PUT /:id/auto-charge — capture or replace the stored PayMongo
-// payment method. Body: { paymentMethodId, paymentMethodLabel }.
-// Resets the consecutive-failures counter and clears any prior
-// suspension.
+// PUT /:id/auto-charge — deliberately retained as an explicit disabled
+// boundary. E20 blocks capture/storage until the money path is rebuilt.
 router.put(
   '/:id/auto-charge',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const recurringId = getParamId(req);
-      const userId = req.user!.userId;
-      const { paymentMethodId, paymentMethodLabel } = req.body as {
-        paymentMethodId?: string;
-        paymentMethodLabel?: string;
-      };
-      if (typeof paymentMethodId !== 'string' || !paymentMethodId.trim()) {
-        throw createAppError('paymentMethodId is required.', 400);
-      }
-      if (typeof paymentMethodLabel !== 'string' || !paymentMethodLabel.trim()) {
-        throw createAppError('paymentMethodLabel is required.', 400);
-      }
-      await autoChargeService.setAutoChargePaymentMethod(
-        recurringId, userId, paymentMethodId.trim(), paymentMethodLabel.trim(),
+      // E20 containment: the underlying amount, lifecycle, consent, provider
+      // eligibility, and reconciliation path is not launch-safe. Keep the
+      // endpoint present so clients receive an explicit response, but never
+      // accept or store a reusable token until that remediation lands.
+      throw createAppError(
+        'Recurring automatic payments are not available. Each generated booking must be paid manually.',
+        503,
       );
-      res.json({ success: true, message: 'Auto-charge payment method saved.' });
     } catch (err) {
       next(err);
     }

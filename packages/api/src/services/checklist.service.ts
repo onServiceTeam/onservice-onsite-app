@@ -24,6 +24,7 @@ export interface ChecklistItem {
   isCompleted: boolean;
   completedAt: string | null;
   photoId: string | null;
+  photoUrl: string | null;
   notes: string | null;
 }
 
@@ -249,6 +250,7 @@ export async function getChecklistForBooking(
     is_completed: boolean;
     completed_at: Date | null;
     photo_id: string | null;
+    photo_url: string | null;
     notes: string | null;
   }>(
     `SELECT s.id    AS section_id,
@@ -262,10 +264,12 @@ export async function getChecklistForBooking(
             bi.is_completed,
             bi.completed_at,
             bi.photo_id,
+            bp.storage_url AS photo_url,
             bi.notes
        FROM booking_checklist_items bi
        JOIN checklist_template_items i ON i.id = bi.template_item_id
        JOIN checklist_template_sections s ON s.id = i.section_id
+       LEFT JOIN booking_photos bp ON bp.id = bi.photo_id AND bp.deleted_at IS NULL
       WHERE bi.booking_checklist_id = $1
       ORDER BY s.display_order, i.display_order`,
     [checklist.id],
@@ -292,6 +296,7 @@ export async function getChecklistForBooking(
       isCompleted: row.is_completed,
       completedAt: row.completed_at?.toISOString() ?? null,
       photoId: row.photo_id,
+      photoUrl: row.photo_url ?? null,
       notes: row.notes,
     });
   }

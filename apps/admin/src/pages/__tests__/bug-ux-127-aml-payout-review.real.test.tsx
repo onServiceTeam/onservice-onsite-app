@@ -38,7 +38,7 @@ it('Bug UX-127 — AML-held payout is visible and offers the existing super-admi
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText('Large-transaction compliance hold')).toBeTruthy();
+  expect(await screen.findByText(/Internal review hold/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: /clear compliance review for payout payout-aml-1/i }));
   expect(screen.getByRole('dialog', { name: 'Clear Compliance Review' })).toBeTruthy();
   expect(screen.getByText(/moves the request to Pending/i)).toBeTruthy();

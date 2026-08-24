@@ -15,6 +15,7 @@ import { ChevronLeft } from '@/components/icons';
 // A7 — shared UI kit for loading/error states + toast feedback.
 import { SkeletonCard, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
+import { useResponsive } from '@/hooks/useResponsive';
 
 interface RecurringDetail {
   id: string;
@@ -26,6 +27,8 @@ interface RecurringDetail {
   preferredTime: string;
   status: string;
   servicePrice: number;
+  serviceFee: number;
+  totalAmount: number;
   nextScheduledDate: string | null;
   address: string;
   barangay: string;
@@ -42,6 +45,7 @@ interface RecurringInstance {
   scheduledDate: string;
   status: string;
   bookingId: string | null;
+  failureReason?: string | null;
 }
 
 const FREQ_LABELS: Record<string, string> = {
@@ -57,6 +61,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
   const [showInstances, setShowInstances] = useState(false);
   // BUG-PHASE58-01 fix — pre-fix the cancel handler hardcoded
   // 'Cancelled by customer' as the reason. The reason gets recorded
@@ -76,7 +81,12 @@ export default function RecurringDetailScreen(): React.ReactElement {
     enabled: !!id,
   });
 
-  const { data: instances } = useQuery({
+  const {
+    data: instances,
+    isLoading: instancesLoading,
+    isError: instancesError,
+    refetch: refetchInstances,
+  } = useQuery({
     queryKey: ['recurring-instances', id],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: RecurringInstance[] }>(
@@ -197,145 +207,175 @@ export default function RecurringDetailScreen(): React.ReactElement {
         <Text style={styles.title}>Recurring Booking</Text>
       </View>
 
-      <View style={styles.serviceCard}>
-        <Text style={styles.serviceName}>
-          {recurring.subcategoryName ?? recurring.categoryName}
-        </Text>
-        <Text style={styles.serviceFreq}>
-          {/* BUG-PHASE58-02 fix — `DAY_NAMES[preferredDay]` returned
-              undefined for null/invalid values (legacy rows pre-
-              migration 042). Same fallback pattern as the recurring
-              list (BUG-PHASE49-01). Now: '—' fallback. */}
-          {FREQ_LABELS[recurring.frequency] ?? recurring.frequency} &middot;{' '}
-          {DAY_NAMES[recurring.preferredDay] ?? '—'} at {recurring.preferredTime ?? '—'}
-        </Text>
-        <Text style={styles.servicePrice}>{formatPHP(recurring.servicePrice)}</Text>
-      </View>
+      <View
+        style={[styles.workspace, !isPhone && styles.workspaceWide]}
+        accessibilityLabel={isPhone ? 'Recurring booking details' : 'Tablet and desktop recurring booking management workspace'}
+      >
+        <View style={styles.summaryColumn}>
+          <View style={styles.serviceCard}>
+            <Text style={styles.serviceName}>
+              {recurring.subcategoryName ?? recurring.categoryName}
+            </Text>
+            <Text style={styles.serviceFreq}>
+              {/* BUG-PHASE58-02 fix — invalid legacy weekdays use a visible fallback. */}
+              {FREQ_LABELS[recurring.frequency] ?? recurring.frequency} &middot;{' '}
+              {DAY_NAMES[recurring.preferredDay] ?? '—'} at {recurring.preferredTime ?? '—'}
+            </Text>
+            <Text style={styles.servicePrice}>{formatPHP(recurring.totalAmount)}</Text>
+            <Text style={styles.servicePriceLabel}>scheduled total per visit</Text>
+          </View>
 
-      <View style={styles.detailSection}>
-        <DetailRow label="Status" value={recurring.status.charAt(0).toUpperCase() + recurring.status.slice(1)} />
-        <DetailRow label="Location" value={[recurring.address, recurring.barangay, recurring.city].filter(Boolean).join(', ')} />
-        {recurring.providerName && <DetailRow label="Provider" value={recurring.providerName} />}
-        <DetailRow label="Completed" value={String(recurring.totalCompleted)} />
-        <DetailRow label="Skipped" value={String(recurring.totalSkipped)} />
-        {recurring.nextScheduledDate && (
-          <DetailRow
-            label="Next Date"
-            value={new Date(recurring.nextScheduledDate).toLocaleDateString('en-PH', {
-              weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Manila',
-            })}
-          />
-        )}
-        <DetailRow
-          label="Created"
-          value={new Date(recurring.createdAt).toLocaleDateString('en-PH', {
-            month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila',
-          })}
-        />
-      </View>
-
-      {(isActive || isPaused) && (
-        <View style={styles.actions}>
-          {isActive && recurring.nextScheduledDate && (
-            <TouchableOpacity style={styles.actionBtn} onPress={handleSkipNext}>
-              <Text style={styles.actionBtnText}>Skip Next</Text>
-            </TouchableOpacity>
-          )}
-          {isActive && (
-            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnWarning]} onPress={handlePause}>
-              <Text style={[styles.actionBtnText, styles.actionBtnWarningText]}>Pause</Text>
-            </TouchableOpacity>
-          )}
-          {isPaused && (
-            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSuccess]} onPress={handleResume}>
-              <Text style={[styles.actionBtnText, styles.actionBtnSuccessText]}>Resume</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={handleCancel}>
-            <Text style={[styles.actionBtnText, styles.actionBtnDangerText]}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* BUG-PHASE58-01 — capture-reason form for cancellation. */}
-      {showCancelForm && (
-        <View style={styles.cancelForm}>
-          <Text style={styles.cancelFormTitle}>Cancel Recurring Booking</Text>
-          <Text style={styles.cancelFormSubtitle}>
-            This permanently stops future bookings. Tell us why (optional) so we can improve.
-          </Text>
-          <TextInput
-            value={cancelReason}
-            onChangeText={setCancelReason}
-            placeholder="Reason for cancelling…"
-            placeholderTextColor={colors.textTertiary}
-            multiline
-            numberOfLines={3}
-            textAlignVertical="top"
-            maxLength={500}
-            style={styles.cancelInput}
-          />
-          <View style={styles.cancelActions}>
-            <TouchableOpacity
-              style={[styles.actionBtn]}
-              onPress={() => { setShowCancelForm(false); setCancelReason(''); }}
-              disabled={cancelMutation.isPending}
-            >
-              <Text style={styles.actionBtnText}>Keep It</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnDanger]}
-              onPress={handleCancelConfirm}
-              disabled={cancelMutation.isPending}
-            >
-              <Text style={[styles.actionBtnText, styles.actionBtnDangerText]}>
-                {cancelMutation.isPending ? 'Cancelling…' : 'Confirm Cancel'}
-              </Text>
-            </TouchableOpacity>
+          <View style={styles.detailSection}>
+            <DetailRow label="Status" value={recurring.status.charAt(0).toUpperCase() + recurring.status.slice(1)} />
+            <DetailRow label="Location" value={[recurring.address, recurring.barangay, recurring.city].filter(Boolean).join(', ')} />
+            {recurring.providerName && <DetailRow label="Provider" value={recurring.providerName} />}
+            <DetailRow label="Service price" value={formatPHP(recurring.servicePrice)} />
+            <DetailRow label="Service fee" value={formatPHP(recurring.serviceFee)} />
+            <DetailRow label="Scheduled total" value={formatPHP(recurring.totalAmount)} />
+            <DetailRow label="Completed" value={String(recurring.totalCompleted)} />
+            <DetailRow label="Skipped" value={String(recurring.totalSkipped)} />
+            {recurring.nextScheduledDate && (
+              <DetailRow
+                label="Next Date"
+                value={new Date(recurring.nextScheduledDate).toLocaleDateString('en-PH', {
+                  weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Manila',
+                })}
+              />
+            )}
+            <DetailRow
+              label="Created"
+              value={new Date(recurring.createdAt).toLocaleDateString('en-PH', {
+                month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila',
+              })}
+            />
           </View>
         </View>
-      )}
 
-      <TouchableOpacity
-        style={styles.toggleInstances}
-        onPress={() => setShowInstances(!showInstances)}
-      >
-        <Text style={styles.toggleText}>
-          {showInstances ? 'Hide History' : 'View History'}
-        </Text>
-      </TouchableOpacity>
-
-      {showInstances && instances && (
-        <View style={styles.instancesSection}>
-          {instances.length === 0 && (
-            <>
-              <Text style={styles.noInstances}>No instances yet.</Text>
-              {/* BUG-PHASE182-01 fix — pre-fix the empty history state was
-                  bare. Same UX-gap family as Phase 169-178. Now: a one-
-                  line hint explaining what arrives here. */}
-              <Text style={styles.noInstancesHint}>
-                Past bookings will appear here once they are completed.
-              </Text>
-            </>
-          )}
-          {instances.map((inst) => (
-            <View key={inst.id} style={styles.instanceRow}>
-              <Text style={styles.instanceDate}>
-                {new Date(inst.scheduledDate).toLocaleDateString('en-PH', {
-                  weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Manila',
-                })}
-              </Text>
-              <Text style={[
-                styles.instanceStatus,
-                inst.status === 'completed' && styles.instanceCompleted,
-                inst.status === 'skipped' && styles.instanceSkipped,
-              ]}>
-                {inst.status.charAt(0).toUpperCase() + inst.status.slice(1)}
-              </Text>
+        <View style={styles.operationsColumn}>
+          <Text style={styles.operationsTitle}>Manage schedule</Text>
+          <Text style={styles.operationsCopy}>Skip one visit, pause future bookings, or cancel the series.</Text>
+          {(isActive || isPaused) && (
+            <View style={styles.actions}>
+              {isActive && recurring.nextScheduledDate && (
+                <TouchableOpacity style={styles.actionBtn} onPress={handleSkipNext}>
+                  <Text style={styles.actionBtnText}>Skip Next</Text>
+                </TouchableOpacity>
+              )}
+              {isActive && (
+                <TouchableOpacity style={[styles.actionBtn, styles.actionBtnWarning]} onPress={handlePause}>
+                  <Text style={[styles.actionBtnText, styles.actionBtnWarningText]}>Pause</Text>
+                </TouchableOpacity>
+              )}
+              {isPaused && (
+                <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSuccess]} onPress={handleResume}>
+                  <Text style={[styles.actionBtnText, styles.actionBtnSuccessText]}>Resume</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={handleCancel}>
+                <Text style={[styles.actionBtnText, styles.actionBtnDangerText]}>Cancel</Text>
+              </TouchableOpacity>
             </View>
-          ))}
+          )}
+
+          {/* BUG-PHASE58-01 — capture-reason form for cancellation. */}
+          {showCancelForm && (
+            <View style={styles.cancelForm}>
+              <Text style={styles.cancelFormTitle}>Cancel Recurring Booking</Text>
+              <Text style={styles.cancelFormSubtitle}>
+                This permanently stops future bookings. Tell us why (optional) so we can improve.
+              </Text>
+              <TextInput
+                value={cancelReason}
+                onChangeText={setCancelReason}
+                placeholder="Reason for cancelling…"
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+                maxLength={500}
+                style={styles.cancelInput}
+              />
+              <View style={styles.cancelActions}>
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={() => { setShowCancelForm(false); setCancelReason(''); }}
+                  disabled={cancelMutation.isPending}
+                >
+                  <Text style={styles.actionBtnText}>Keep It</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.actionBtnDanger]}
+                  onPress={handleCancelConfirm}
+                  disabled={cancelMutation.isPending}
+                >
+                  <Text style={[styles.actionBtnText, styles.actionBtnDangerText]}>
+                    {cancelMutation.isPending ? 'Cancelling…' : 'Confirm Cancel'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={styles.toggleInstances}
+            onPress={() => setShowInstances(!showInstances)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.toggleText}>
+              {showInstances ? 'Hide History' : 'View History'}
+            </Text>
+          </TouchableOpacity>
+
+          {showInstances && (
+            <View style={styles.instancesSection}>
+              {instancesLoading && <Text style={styles.noInstances}>Loading booking history…</Text>}
+              {instancesError && (
+                <TouchableOpacity onPress={() => void refetchInstances()} accessibilityRole="button">
+                  <Text style={styles.historyError}>History could not be loaded. Tap to retry.</Text>
+                </TouchableOpacity>
+              )}
+              {!instancesLoading && !instancesError && instances?.length === 0 && (
+                <>
+                  <Text style={styles.noInstances}>No instances yet.</Text>
+                  <Text style={styles.noInstancesHint}>
+                    Scheduled bookings will appear here after the recurring series begins.
+                  </Text>
+                </>
+              )}
+              {!instancesLoading && !instancesError && instances?.map((inst) => (
+                <TouchableOpacity
+                  key={inst.id}
+                  style={styles.instanceRow}
+                  disabled={!inst.bookingId}
+                  onPress={() => inst.bookingId && router.push(`/customer/booking/${inst.bookingId}`)}
+                  accessibilityRole={inst.bookingId ? 'button' : undefined}
+                  accessibilityLabel={inst.bookingId ? `Open booking from ${inst.scheduledDate}` : undefined}
+                >
+                  <View style={styles.instanceCopy}>
+                    <Text style={styles.instanceDate}>
+                      {new Date(inst.scheduledDate).toLocaleDateString('en-PH', {
+                        weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Manila',
+                      })}
+                    </Text>
+                    {inst.failureReason && <Text style={styles.instanceFailure}>{inst.failureReason}</Text>}
+                  </View>
+                  <View style={styles.instanceOutcome}>
+                    <Text style={[
+                      styles.instanceStatus,
+                      inst.status === 'completed' && styles.instanceCompleted,
+                      inst.status === 'skipped' && styles.instanceSkipped,
+                      inst.status === 'cancelled' && styles.instanceCancelled,
+                    ]}>
+                      {inst.status.charAt(0).toUpperCase() + inst.status.slice(1)}
+                    </Text>
+                    {inst.bookingId && <Text style={styles.openBooking}>Open booking</Text>}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
-      )}
+      </View>
 
       <View style={styles.bottomSpacer} />
     </ScrollView>
@@ -355,6 +395,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   content: { paddingBottom: spacing.xxl },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  workspace: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.base },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl, padding: spacing.xl },
+  summaryColumn: { flex: 1.15, minWidth: 0 },
+  operationsColumn: {
+    flex: 0.85,
+    minWidth: 0,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.base,
+  },
+  operationsTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
+  operationsCopy: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.base },
 
   header: {
     flexDirection: 'row',
@@ -369,7 +423,6 @@ const styles = StyleSheet.create({
 
   serviceCard: {
     backgroundColor: colors.primaryLight,
-    marginHorizontal: spacing.base,
     marginBottom: spacing.base,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
@@ -377,10 +430,10 @@ const styles = StyleSheet.create({
   serviceName: { ...typography.h2, color: colors.primary, marginBottom: spacing.xs },
   serviceFreq: { ...typography.body, color: colors.primary, marginBottom: spacing.xs },
   servicePrice: { ...typography.price, color: colors.primary },
+  servicePriceLabel: { ...typography.caption, color: colors.primary, marginTop: 2 },
 
   detailSection: {
     backgroundColor: colors.surface,
-    marginHorizontal: spacing.base,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     marginBottom: spacing.base,
@@ -400,7 +453,6 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: spacing.base,
     gap: spacing.sm,
     marginBottom: spacing.base,
   },
@@ -422,15 +474,13 @@ const styles = StyleSheet.create({
   actionBtnDangerText: { color: colors.error },
 
   toggleInstances: {
-    marginHorizontal: spacing.base,
     paddingVertical: spacing.md,
     alignItems: 'center',
   },
   toggleText: { ...typography.body, color: colors.primary, fontWeight: '600' },
 
   instancesSection: {
-    backgroundColor: colors.surface,
-    marginHorizontal: spacing.base,
+    backgroundColor: colors.surfaceMuted,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     borderWidth: StyleSheet.hairlineWidth,
@@ -453,16 +503,21 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
+  instanceCopy: { flex: 1, minWidth: 0, marginRight: spacing.sm },
+  instanceOutcome: { alignItems: 'flex-end' },
   instanceDate: { ...typography.bodySmall, color: colors.text },
+  instanceFailure: { ...typography.caption, color: colors.error, marginTop: 2 },
   instanceStatus: { ...typography.caption, fontWeight: '600', color: colors.textSecondary },
   instanceCompleted: { color: colors.successDark },
   instanceSkipped: { color: colors.warningDark },
+  instanceCancelled: { color: colors.error },
+  openBooking: { ...typography.caption, color: colors.primary, marginTop: 2 },
+  historyError: { ...typography.bodySmall, color: colors.error, textAlign: 'center', paddingVertical: spacing.sm },
 
   bottomSpacer: { height: 40 },
 
   cancelForm: {
     backgroundColor: colors.surface,
-    marginHorizontal: spacing.base,
     marginBottom: spacing.base,
     borderRadius: borderRadius.lg,
     padding: spacing.base,

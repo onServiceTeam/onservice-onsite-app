@@ -39,7 +39,8 @@ export interface RecurringInstance {
   recurringBookingId: string;
   bookingId: string | null;
   scheduledDate: string;
-  status: 'pending' | 'created' | 'skipped' | 'failed' | 'substituted';
+  status: 'pending' | 'created' | 'skipped' | 'failed' | 'substituted' | 'completed' | 'cancelled';
+  bookingStatus: string | null;
   substituteProviderId: string | null;
   failureReason: string | null;
   createdAt: string;
@@ -48,7 +49,7 @@ export interface RecurringInstance {
 export interface CreateRecurringParams {
   providerId?: string;
   categoryId: string;
-  subcategoryId?: string;
+  subcategoryId: string;
   originalBookingId?: string;
   frequency: 'weekly' | 'bi_weekly' | 'monthly';
   preferredDay: number;
@@ -59,7 +60,6 @@ export interface CreateRecurringParams {
   province: string;
   latitude?: number;
   longitude?: number;
-  servicePrice: number;
 }
 
 export async function createRecurringBooking(

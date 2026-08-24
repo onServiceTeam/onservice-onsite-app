@@ -19,6 +19,9 @@ const DESTINATION_FORMATS: Record<string, { regex: RegExp; help: string }> = {
   bank_pesonet: { regex: /^\d{8,16}$/, help: 'PESONet bank account number must be 8–16 digits.' },
 };
 
+const LARGE_PAYOUT_REVIEW_DEFAULT_CENTAVOS = 50_000_000;
+const LARGE_PAYOUT_REVIEW_MAX_CENTAVOS = 50_000_000;
+
 export function validateDestinationAccount(method: string, account: string): void {
   const fmt = DESTINATION_FORMATS[method];
   if (!fmt) {
@@ -82,9 +85,24 @@ export async function requestPayout(
   // a legal determination that onService is a covered person or that this
   // payout is a reportable covered transaction. The configured value used at
   // request time is snapshotted for audit.
-  let amlThresholdCentavos = 50_000_000; // ₱500K internal-review fallback
+  let amlThresholdCentavos = LARGE_PAYOUT_REVIEW_DEFAULT_CENTAVOS;
   try {
-    amlThresholdCentavos = await settingsService.getSettingInteger('aml_large_transaction_threshold_centavos');
+    const configured = await settingsService.getSettingInteger('aml_large_transaction_threshold_centavos');
+    if (!Number.isSafeInteger(configured)) {
+      throw new Error('configured threshold is not a safe integer');
+    }
+    // The setting may make the control stricter, but never looser than the
+    // conservative ₱500K ceiling without a separate compliance decision.
+    amlThresholdCentavos = Math.min(
+      LARGE_PAYOUT_REVIEW_MAX_CENTAVOS,
+      Math.max(platformConfig.minimumWithdrawalAmount, configured),
+    );
+    if (amlThresholdCentavos !== configured) {
+      logger.warn('Large-transaction review threshold was outside safe bounds and was clamped', {
+        configured,
+        effective: amlThresholdCentavos,
+      });
+    }
   } catch (err) {
     logger.warn('Large-transaction review threshold unavailable; using ₱500K fallback', {
       error: (err as Error).message,

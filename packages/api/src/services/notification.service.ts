@@ -75,7 +75,7 @@ export type NotificationType =
   | 'change_order_expired'
   // Recurring + business
   | 'recurring_update' | 'business_update' | 'area_launch'
-  // E02 / D22 — recurring auto-charge lifecycle
+  // E02 / D22 legacy recurring auto-charge lifecycle (disabled under E20)
   | 'recurring_auto_charge_succeeded'
   | 'recurring_auto_charge_failed'
   | 'recurring_auto_charge_suspended'

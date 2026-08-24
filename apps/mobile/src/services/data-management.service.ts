@@ -1,5 +1,6 @@
 import api from './api';
 import type { ApiResponse } from './api';
+import { platformConfig } from '@/config/platform.config';
 
 export interface DataExportEntry {
   id: string;
@@ -7,6 +8,7 @@ export interface DataExportEntry {
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'expired';
   format: 'json' | 'csv';
   fileUrl: string | null;
+  downloadAvailable: boolean;
   fileSizeBytes: number | null;
   completedAt: string | null;
   expiresAt: string | null;
@@ -34,6 +36,16 @@ export async function requestDataExport(format: 'json' | 'csv' = 'json'): Promis
 export async function getDataExportStatus(): Promise<DataExportEntry[]> {
   const res = await api.get<ApiResponse<DataExportEntry[]>>('/api/v1/account/data-export');
   return res.data.data;
+}
+
+export async function getDataExportDownloadUrl(exportId: string): Promise<string> {
+  const res = await api.get<ApiResponse<{ url: string; expiresInSeconds: number }>>(
+    `/api/v1/account/data-export/${exportId}/download-link`,
+  );
+  const url = res.data.data.url;
+  return /^https?:\/\//i.test(url)
+    ? url
+    : `${platformConfig.apiUrl.replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
 export async function requestAccountDeletion(reason?: string): Promise<AccountDeletionEntry> {

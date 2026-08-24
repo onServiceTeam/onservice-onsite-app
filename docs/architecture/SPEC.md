@@ -569,6 +569,7 @@ The platform has 7 distinct user types, each with different interfaces, permissi
 - AS A customer, I WANT TO set up a recurring booking SO THAT my regular cleaning/maintenance is automated
 - Flow: Complete first booking → On confirmation screen, offer "Make this recurring?" → Select frequency (weekly, bi-weekly, monthly) → Select preferred day and time → Confirm recurring setup → Auto-charges each period
 - Edge cases: Provider unavailable for a specific instance (platform auto-substitutes), customer wants to skip one instance (skip without canceling the whole subscription), price change (notify customer 7 days in advance), payment failure on auto-charge (retry once, then notify customer)
+- Current implementation note (2026-08-24): scheduling and skip-next are available, but each generated booking requires manual payment. Automatic charging is disabled under E20 until the money path, consent, provider revalidation, and reconciliation model are approved and sandbox-tested.
 
 ### 2.2.4 Booking — Custom Quote Services
 

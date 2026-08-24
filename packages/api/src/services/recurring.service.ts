@@ -5,8 +5,6 @@ import { logger } from '../utils/logger';
 import * as notificationService from './notification.service';
 import { calculateServiceFee } from './booking.service';
 import { formatPHP } from '../utils/currency';
-// E02 / D22 (2026-05-02) — recurring auto-charge integration.
-import * as autoChargeService from './recurring-auto-charge.service';
 
 interface RecurringBookingRow {
   id: string;
@@ -68,6 +66,7 @@ interface RecurringInstanceRow {
   substitute_provider_id: string | null;
   failure_reason: string | null;
   created_at: Date;
+  booking_status?: string | null;
 }
 
 interface CountRow { count: string }
@@ -92,6 +91,57 @@ interface CreateRecurringParams {
   province: string;
   latitude?: number;
   longitude?: number;
+}
+
+export interface RecurringPricePreview {
+  categoryId: string;
+  subcategoryId: string;
+  servicePrice: number;
+  serviceFee: number;
+  totalAmount: number;
+}
+
+export async function getRecurringPricePreview(
+  subcategoryId: string,
+): Promise<RecurringPricePreview> {
+  const subcatResult = await db.query<{
+    category_id: string;
+    base_price: string | null;
+    pricing_type: string;
+  }>(
+    `SELECT category_id, base_price, pricing_type
+       FROM service_subcategories
+      WHERE id = $1 AND is_active = TRUE`,
+    [subcategoryId],
+  );
+  if (subcatResult.rows.length === 0) {
+    throw createAppError('Subcategory not found or inactive.', 404);
+  }
+  const subcat = subcatResult.rows[0]!;
+  if (subcat.pricing_type === 'hourly') {
+    throw createAppError('subcategory_pricing_type_unsupported', 400);
+  }
+  if (subcat.pricing_type === 'quote') {
+    throw createAppError('Quote-based subcategory cannot be set as a recurring booking.', 400);
+  }
+  if (subcat.pricing_type !== 'fixed') {
+    throw createAppError('Only fixed-price services can be set as recurring bookings.', 400);
+  }
+  if (subcat.base_price == null) {
+    throw createAppError('Service price could not be determined for this subcategory.', 400);
+  }
+  const servicePrice = Number(subcat.base_price);
+  if (!Number.isFinite(servicePrice) || servicePrice <= 0) {
+    throw createAppError('Service price could not be determined for this subcategory.', 400);
+  }
+  const serviceFee = await calculateServiceFee(servicePrice);
+  return {
+    categoryId: subcat.category_id,
+    subcategoryId,
+    servicePrice,
+    serviceFee,
+    totalAmount: servicePrice + serviceFee,
+  };
 }
 
 // BUG-PHASE118-01 fix — pre-fix this function did weekday/month math
@@ -151,30 +201,11 @@ export async function createRecurringBooking(
   // service_subcategories.base_price. Reject hourly subcats per
   // LAUNCH-LIMITATIONS §24, and quote-based subcats (the recurring
   // path is fixed-price-only in v1.0).
-  const subcatResult = await db.query<{ base_price: string | null; pricing_type: string }>(
-    `SELECT base_price, pricing_type FROM service_subcategories WHERE id = $1 AND is_active = TRUE`,
-    [params.subcategoryId],
-  );
-  if (subcatResult.rows.length === 0) {
-    throw createAppError('Subcategory not found or inactive.', 404);
+  const pricing = await getRecurringPricePreview(params.subcategoryId);
+  if (pricing.categoryId !== params.categoryId) {
+    throw createAppError('Subcategory does not belong to the selected category.', 400);
   }
-  const subcat = subcatResult.rows[0]!;
-  if (subcat.pricing_type === 'hourly') {
-    throw createAppError('subcategory_pricing_type_unsupported', 400);
-  }
-  if (subcat.pricing_type === 'quote') {
-    throw createAppError('Quote-based subcategory cannot be set as a recurring booking.', 400);
-  }
-  if (subcat.base_price == null) {
-    throw createAppError('Service price could not be determined for this subcategory.', 400);
-  }
-  const servicePrice = Number(subcat.base_price);
-  if (!Number.isFinite(servicePrice) || servicePrice <= 0) {
-    throw createAppError('Service price could not be determined for this subcategory.', 400);
-  }
-
-  const serviceFee = await calculateServiceFee(servicePrice);
-  const totalAmount = servicePrice + serviceFee;
+  const { servicePrice, serviceFee, totalAmount } = pricing;
   const nextDate = calculateNextDate(params.frequency, params.preferredDay);
 
   const result = await db.query<RecurringBookingRow>(
@@ -183,8 +214,8 @@ export async function createRecurringBooking(
       frequency, preferred_day, preferred_time,
       address, barangay, city, province, latitude, longitude,
       service_price, service_fee, total_amount,
-      next_booking_date
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      next_booking_date, auto_charge
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
     RETURNING *`,
     [
       params.customerId, params.providerId ?? null, params.categoryId,
@@ -194,6 +225,7 @@ export async function createRecurringBooking(
       params.latitude ?? null, params.longitude ?? null,
       servicePrice, serviceFee, totalAmount,
       nextDate.toISOString().split('T')[0],
+      false,
     ],
   );
 
@@ -372,25 +404,52 @@ export async function skipNextInstance(
     throw createAppError('Can only skip active recurring bookings.', 409);
   }
 
-  const result = await db.query<RecurringBookingRow>(
-    `UPDATE recurring_bookings
-     SET skip_dates = array_append(skip_dates, $1::date),
-         next_booking_date = $2,
-         updated_at = NOW()
-     WHERE id = $3
-     RETURNING *`,
-    [
-      skipDate,
-      calculateNextDate(rb.frequency, rb.preferred_day, new Date(skipDate)).toISOString().split('T')[0],
-      recurringId,
-    ],
-  );
+  // A customer may skip only the next scheduled occurrence shown by the
+  // recurring series. Pre-fix, an authenticated caller could submit any date,
+  // append it to skip_dates, and advance the recurring clock from that
+  // caller-selected date.
+  const nextBookingDate = String(rb.next_booking_date).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(skipDate) || skipDate !== nextBookingDate) {
+    throw createAppError('Only the next scheduled recurring date can be skipped.', 409);
+  }
 
-  await db.query(
-    `INSERT INTO recurring_instances (recurring_booking_id, scheduled_date, status)
-     VALUES ($1, $2, 'skipped')`,
-    [recurringId, skipDate],
-  );
+  const nextDate = calculateNextDate(
+    rb.frequency,
+    rb.preferred_day,
+    new Date(`${skipDate}T00:00:00Z`),
+  ).toISOString().split('T')[0];
+
+  // Keep the series clock and its history row atomic. Pre-fix, the UPDATE
+  // committed before the INSERT; an insert failure left the schedule advanced
+  // with no audit/history record explaining why.
+  const result = await db.transaction(async (client) => {
+    const updated = await client.query<RecurringBookingRow>(
+      `UPDATE recurring_bookings
+       SET skip_dates = CASE
+             WHEN $1::date = ANY(skip_dates) THEN skip_dates
+             ELSE array_append(skip_dates, $1::date)
+           END,
+           next_booking_date = $2,
+           updated_at = NOW()
+       WHERE id = $3
+         AND customer_id = $4
+         AND status = 'active'
+         AND next_booking_date = $1::date
+       RETURNING *`,
+      [skipDate, nextDate, recurringId, userId],
+    );
+    if (updated.rows.length === 0) {
+      throw createAppError('Recurring schedule changed. Refresh and try again.', 409);
+    }
+
+    await client.query(
+      `INSERT INTO recurring_instances (recurring_booking_id, scheduled_date, status)
+       VALUES ($1, $2, 'skipped')
+       ON CONFLICT (recurring_booking_id, scheduled_date) DO NOTHING`,
+      [recurringId, skipDate],
+    );
+    return updated;
+  });
 
   logger.info('Recurring instance skipped', { recurringId, skipDate });
   return result.rows[0]!;
@@ -475,8 +534,10 @@ export async function getRecurringInstances(
 
   const [dataResult, countResult] = await Promise.all([
     db.query<RecurringInstanceRow>(
-      `SELECT * FROM recurring_instances
-       WHERE recurring_booking_id = $1
+      `SELECT ri.*, b.status AS booking_status
+       FROM recurring_instances ri
+       LEFT JOIN bookings b ON b.id = ri.booking_id
+       WHERE ri.recurring_booking_id = $1
        ORDER BY scheduled_date DESC
        LIMIT $2 OFFSET $3`,
       [recurringId, pageSize, offset],
@@ -610,48 +671,23 @@ export async function processRecurringBookings(): Promise<number> {
         [nextDate.toISOString().split('T')[0], rb.next_booking_date, rb.id],
       );
 
-      // E02 / D22 — auto-charge the customer if they enabled it. The
-      // attempt fires AFTER the recurring clock advances so a charge
-      // failure can't block the recurrence; the customer just gets a
-      // manual-pay nudge for this cycle. The auto-charge service
-      // sends its own notifications (succeeded / failed / suspended)
-      // so we suppress the generic recurring_update one in the
-      // succeeded path.
-      let autoChargeSucceeded = false;
+      // E20 containment: recurring instances are manual-payment only. A
+      // legacy preference is retained for support/audit and can be cleared,
+      // but the scheduler never enters the known-unsafe money path.
       if (rb.auto_charge) {
-        try {
-          const result = await autoChargeService.attemptAutoCharge({
-            recurringBookingId: rb.id,
-            bookingId,
-            customerId: rb.customer_id,
-            amountCentavos: Math.round(Number(rb.total_amount) * 100),
-            paymentMethodId: null, // service re-loads from DB
-            description: `Recurring ${categoryName} booking`,
-          });
-          autoChargeSucceeded = result.outcome === 'succeeded';
-          logger.info('Recurring auto-charge attempt outcome', {
-            recurringId: rb.id, bookingId, outcome: result.outcome,
-          });
-        } catch (autoErr) {
-          // Never let auto-charge errors block instance creation.
-          logger.error('Recurring auto-charge attempt threw (non-fatal)', {
-            recurringId: rb.id, bookingId,
-            error: autoErr instanceof Error ? autoErr.message : String(autoErr),
-          });
-        }
-      }
-
-      // Send the generic "booking created" notification only when
-      // auto-charge didn't already send a "succeeded" one.
-      if (!autoChargeSucceeded) {
-        await notificationService.createPushNotification({
-          userId: rb.customer_id,
-          type: 'recurring_update',
-          title: 'Recurring Booking Created',
-          body: `Your recurring service has been scheduled for ${scheduledAt.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}.`,
-          data: { bookingId, recurringBookingId: rb.id },
+        logger.warn('Recurring auto-charge preference ignored while feature is disabled', {
+          recurringId: rb.id,
+          bookingId,
         });
       }
+
+      await notificationService.createPushNotification({
+        userId: rb.customer_id,
+        type: 'recurring_update',
+        title: 'Recurring Booking Created',
+        body: `Your recurring service has been scheduled for ${scheduledAt.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}. Pay manually from the booking before service.`,
+        data: { bookingId, recurringBookingId: rb.id },
+      });
 
       created++;
       logger.info('Recurring booking instance created', { recurringId: rb.id, bookingId });
@@ -717,11 +753,13 @@ export function formatRecurringBooking(rb: RecurringBookingRow): Record<string, 
     nextScheduledDate: rb.next_booking_date,
     lastBookingDate: rb.last_booking_date,
     skipDates: rb.skip_dates,
-    autoCharge: rb.auto_charge,
+    // E20 containment: do not present a legacy stored preference as active.
+    autoCharge: false,
     // E02 / D22 — auto-charge surface.
-    paymentMethodId: rb.payment_method_id ?? null,
+    // Reusable payment/source identifiers never belong in an API response.
+    paymentMethodId: null,
     paymentMethodLabel: rb.payment_method_label ?? null,
-    autoChargeStatus: rb.auto_charge_status ?? null,
+    autoChargeStatus: rb.auto_charge ? 'disabled' : (rb.auto_charge_status ?? null),
     autoChargeConsecutiveFailures: rb.auto_charge_consecutive_failures ?? 0,
     autoChargeSuspendedAt: rb.auto_charge_suspended_at ?? null,
     autoChargeLastAttemptAt: rb.auto_charge_last_attempt_at ?? null,
@@ -748,12 +786,24 @@ export function formatRecurringBooking(rb: RecurringBookingRow): Record<string, 
 }
 
 export function formatRecurringInstance(ri: RecurringInstanceRow): Record<string, unknown> {
+  const completedBookingStatuses = new Set([
+    'completed_by_provider', 'confirmed', 'resolved', 'payout_ready', 'paid_out',
+  ]);
+  const cancelledBookingStatuses = new Set([
+    'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin',
+  ]);
+  const displayStatus = ri.booking_status && completedBookingStatuses.has(ri.booking_status)
+    ? 'completed'
+    : ri.booking_status && cancelledBookingStatuses.has(ri.booking_status)
+      ? 'cancelled'
+      : ri.status;
   return {
     id: ri.id,
     recurringBookingId: ri.recurring_booking_id,
     bookingId: ri.booking_id,
     scheduledDate: ri.scheduled_date,
-    status: ri.status,
+    status: displayStatus,
+    bookingStatus: ri.booking_status ?? null,
     substituteProviderId: ri.substitute_provider_id,
     failureReason: ri.failure_reason,
     createdAt: ri.created_at,

@@ -39,6 +39,50 @@ router.get(
   },
 );
 
+router.get(
+  '/data-export/:id/download-link',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const exportId = req.params.id;
+      if (typeof exportId !== 'string' || !exportId) {
+        res.status(400).json({ success: false, error: { message: 'Export ID is required.', statusCode: 400 } });
+        return;
+      }
+      const link = await dataManagementService.createDataExportDownloadLink(req.user!.userId, exportId);
+      res.json({ success: true, data: link });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// The authenticated endpoint above mints this five-minute HMAC bearer link.
+// That lets native and browser clients hand the download to the operating
+// system without putting a long-lived account token in the URL.
+router.get(
+  '/data-export/:id/download',
+  async (req, res: Response, next: NextFunction) => {
+    try {
+      const exportId = req.params.id;
+      const expires = Number(req.query.expires);
+      const token = typeof req.query.token === 'string' ? req.query.token : '';
+      if (typeof exportId !== 'string' || !exportId || !token) {
+        res.status(400).json({ success: false, error: { message: 'Invalid download link.', statusCode: 400 } });
+        return;
+      }
+      const { stream, filename } = await dataManagementService.getDataExportDownload(exportId, expires, token);
+      res.setHeader('Content-Type', stream.contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'private, no-store');
+      if (stream.contentLength !== undefined) res.setHeader('Content-Length', String(stream.contentLength));
+      stream.body.pipe(res);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 // --- Account Deletion (30-day cooling period per DPA) ---
 
 // BUG-PHASE156-01 fix — pre-fix the deletion `reason` had no

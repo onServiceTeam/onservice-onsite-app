@@ -142,7 +142,7 @@ against `^NPC-\d{4}-[A-Z0-9]{6,12}$` in
 rejected with a 400 + clear message; the 6-12 char suffix bound
 prevents log-pollution / DOS.
 
-## 8. Erasure DSRs do not auto-delete data — RESOLVED 2026-05-02
+## 8. Erasure DSRs did not start the deletion workflow — RESOLVED 2026-05-02
 
 **Where:** Customer DSR (erasure) flow → backend processing.
 
@@ -157,6 +157,10 @@ errors (existing pending deletion = 409; blocking bookings = 409) are
 logged and surfaced on the DSR detail page so the DPO sees what
 happened. Auto-trigger failure does NOT roll back the DSR insert —
 the customer's NPC 15-day SLA right is preserved either way.
+
+This item resolves workflow linkage only. It does not mean every personal-data
+field and physical object is erased. The unresolved retention-and-erasure scope
+is recorded separately in limitation 45 and E21.
 
 ## 9. Customer messaging in DSR confirmation — single submission shown — RESOLVED 2026-05-02
 
@@ -329,7 +333,10 @@ refresh_tokens + UPDATE reviews/messages + provider rollback) and
 collapsing it into a single bulk batch trades per-row error-isolation
 for batch-abort on a single UNIQUE-constraint collision (anonymized
 phone/email). Volume is bounded by the daily cron + 30-day cooling
-window with low expected throughput. Future work: enqueue one BullMQ
+window with low expected throughput. The processor now also retries rows left
+in `processing` after an interrupted run and revalidates bookings, disputes,
+and wallet balances before anonymization; new blocking activity defers the
+request instead of stranding work or money. Future work: enqueue one BullMQ
 job per expired request to a dedicated `account-anonymization` worker,
 preserving per-row resilience while removing the synchronous per-row
 DB cost from the cron path. Not blocking launch.
@@ -1060,12 +1067,15 @@ migrations or auth-path edits) rather than a rushed fix; the clear/safe findings
 from the same audit were fixed and shipped. None is a high-probability exploit on
 the current single-server, single-worker deployment.
 
-1. **RESOLVED (2026-06-04, commit on master + migration 132).** Recurring
-   auto-charge is now idempotent: `recurring_instances` has a unique key on
+1. **RESOLVED FOR INSTANCE CREATION (2026-06-04, commit on master + migration
+   132).** Recurring booking generation is now idempotent:
+   `recurring_instances` has a unique key on
    `(recurring_booking_id, scheduled_date)` and `processRecurringBookings` claims
    the instance via `INSERT ... ON CONFLICT DO NOTHING` before creating the
    booking, skipping the cycle if already claimed. Behavioral tests in
-   `recurring-idempotency-gate.test.ts`. Original finding below for history:
+   `recurring-idempotency-gate.test.ts`. This does not make auto-charge safe;
+   automatic charging is disabled under limitation #44/E20. Original finding
+   below for history:
 
    ~~Recurring auto-charge idempotency (currently prevented by config — fix
    needed before scaling out workers).~~ `processRecurringBookings`
@@ -1375,3 +1385,104 @@ Cloudflare API token. Do not weaken that guard or use Cloudflare test keys.
 Provision the real widget credentials, set both server and client keys, execute
 the process-level verifier plus a threshold-triggered login challenge, then set
 `NODE_ENV=production` and recreate the API.
+
+---
+
+## 42. Escrow releases before the customer dispute window closes
+
+The production configuration auto-confirms provider-completed bookings and
+releases escrow after 24 hours, while the API and customer experience continue
+to allow and promise disputes for 48 hours after completion.
+
+This is not merely a wording mismatch. After the 24-hour release, the provider
+wallet has already been credited. Filing a dispute then changes the booking back
+to `escrow_status='held'`, but does not reverse that provider credit. The refund
+path debits the shared platform escrow wallet, so a post-release refund could use
+funds held for other bookings while the original provider retains the payout.
+
+No production setting or money row was changed during the audit. E18 records the
+required decision: hold escrow for the full 48-hour dispute period (recommended),
+reduce the customer dispute promise to 24 hours with product/legal approval, or
+build a real post-release provider clawback model. The current 24/48 combination
+is a launch blocker. See
+`.ai-coder/escalations/E18-auto-confirm-dispute-window-contradiction-2026-08-24.md`.
+
+---
+
+## 43. Customer acceptance signatures are attributed to the provider
+
+The provider completion screen asks the customer to draw on the provider's
+device, but the upload is made under the provider's authenticated session. The
+API therefore stores the provider user in `booking_signatures.signed_by` with
+`signed_role='provider'` while labeling the artifact
+`signature_type='customer_acceptance'`.
+
+This record does not prove that the booking customer signed, and the provider
+can create it without a customer-controlled account action. It must not be
+represented to support staff or in legal documentation as verified customer
+acceptance.
+
+E19 requires a decision among customer-session signature capture (recommended),
+an explicit witnessed-capture model with separate signer/capturer evidence, or
+using authenticated customer confirmation without claiming the bitmap is legal
+acceptance. No production signature or booking row was changed during discovery.
+See
+`.ai-coder/escalations/E19-customer-signature-attributed-to-provider-2026-08-24.md`.
+
+---
+
+## 44. Recurring auto-charge is not launch-safe
+
+The recurring auto-charge path is dormant in the current production database,
+which had zero recurring rows and zero auto-charge attempts when checked
+read-only on 2026-08-24. No customer was exposed and no production money row was
+changed during discovery.
+
+The code is nevertheless unsafe to activate. Recurring totals and wallet
+balances are already stored in centavos, but the scheduler and auto-charge
+service apply compensating 100x conversions. A PayMongo-only or split payment
+can therefore send 100 times the intended remainder to the gateway. Successful
+charges also move a new booking directly from `requested` to post-service
+`confirmed`, create a second misleading PayMongo intent as an audit step, and
+lack the customer capture/consent UI that D22 requires.
+
+Provider revalidation/substitution, a real admin alert target, and an operations
+reconciliation surface are also missing. Do not populate recurring payment
+tokens or expose auto-charge controls until the dedicated money-path remediation
+in E20 is implemented and sandbox-tested end to end. Manual recurring booking
+generation and manual payment remain the safe path.
+
+Safe containment landed through Bugs UX-189-191/196: the activation endpoint now
+returns 503 before storing a token; the scheduler never invokes the unsafe charge
+service even if a legacy row says auto-charge is enabled; and API responses hide
+stored payment/source IDs while reporting the preference as disabled. New series
+explicitly store the preference off, and migration 152 makes that the schema
+default without altering existing rows. Clearing a
+legacy preference and reading its attempt history remain available. This does not
+resolve the underlying money-path design. See
+`.ai-coder/escalations/E20-recurring-auto-charge-not-launch-safe-2026-08-24.md`.
+
+---
+
+## 45. Account erasure needs an approved retention matrix
+
+The account-deletion cascade anonymizes the core user record, invalidates
+sessions, removes addresses, redacts sent message text and review comments, and
+deactivates provider services. It does not delete every personal-data field or
+physical upload. Booking addresses, photos/signatures, chat images, dispute and
+support content, provider identity/tax/payout details, and legally relevant
+financial/compliance records can remain.
+
+Deleting every record without a policy may violate tax, AML, reconciliation,
+fraud, or legal-claim retention duties. Retaining everything indefinitely is
+also not acceptable. E21 requires an attorney/DPO-approved table-and-object
+retention matrix before complete erasure can be claimed or implemented.
+
+Safe technical defects were fixed in the meantime: failed processing requests
+retry, deletion eligibility is rechecked after cooling-off, resumed account
+activity defers deletion, and the user-facing copy no longer promises deletion
+of “all associated data.” Bugs UX-193-195 also correct the remaining account
+buttons, Data Rights flow, and Help answer that had still claimed permanent or
+irreversible deletion. Production had zero active deletion requests during the
+read-only 2026-08-24 check. See
+`.ai-coder/escalations/E21-account-erasure-retention-matrix-missing-2026-08-24.md`.

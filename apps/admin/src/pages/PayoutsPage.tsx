@@ -243,7 +243,8 @@ export default function PayoutsPage(): React.ReactElement {
           )}
           {r.status === 'aml_review_pending' && (
             <p className="text-[10px] text-amber-800 mt-0.5 max-w-[180px] line-clamp-2">
-              Large-transaction compliance hold
+              Internal review hold
+              {r.amlThresholdAtRequest !== null && ` at ${formatCurrency(r.amlThresholdAtRequest)}`}
             </p>
           )}
         </div>
@@ -401,7 +402,12 @@ export default function PayoutsPage(): React.ReactElement {
 
             {actionType === 'clearAml' && (
               <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                This only clears the compliance hold. It moves the request to Pending, where Finance must still approve or reject it. It does not send money.
+                This only clears the internal review hold. It moves the request to Pending, where Finance must still approve or reject it. It does not send money and does not state that a legal report was filed or required.
+                {selectedPayout.amlThresholdAtRequest !== null && (
+                  <span className="block mt-1 font-medium">
+                    Threshold captured when requested: {formatCurrency(selectedPayout.amlThresholdAtRequest)}
+                  </span>
+                )}
               </div>
             )}
 

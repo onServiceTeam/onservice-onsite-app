@@ -25,6 +25,8 @@ interface RecurringBooking {
   preferredTime: string;
   status: string;
   servicePrice: number;
+  serviceFee: number;
+  totalAmount: number;
   nextScheduledDate: string | null;
   city: string;
   totalCompleted: number;
@@ -63,7 +65,7 @@ export default function RecurringListScreen(): React.ReactElement {
   const items = data?.data ?? [];
 
   const { breakpoint } = useResponsive();
-  const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 2 });
+  const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 3 });
 
   const renderItem = ({ item }: { item: RecurringBooking }): React.ReactElement => {
     const statusStyle = STATUS_COLORS[item.status] ?? STATUS_COLORS.active!;
@@ -72,6 +74,8 @@ export default function RecurringListScreen(): React.ReactElement {
         style={[styles.card, numColumns > 1 && styles.cardGrid]}
         onPress={() => router.push(`/customer/recurring/${item.id}`)}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${item.subcategoryName ?? item.categoryName} recurring booking`}
       >
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>
@@ -96,8 +100,9 @@ export default function RecurringListScreen(): React.ReactElement {
           </Text>
           <View style={styles.detailRow}>
             <MapPin size={12} color={colors.textSecondary} />
-            <Text style={styles.detail}>{item.city} &middot; {formatPHP(item.servicePrice)}</Text>
+            <Text style={styles.detail}>{item.city}</Text>
           </View>
+          <Text style={styles.priceLine}>{formatPHP(item.totalAmount)} per visit, including fee</Text>
           {item.nextScheduledDate && (
             <Text style={styles.nextDate}>
               Next: {new Date(item.nextScheduledDate).toLocaleDateString('en-PH', {
@@ -136,6 +141,10 @@ export default function RecurringListScreen(): React.ReactElement {
           onRetry={() => void refetch()}
         />
       ) : (
+        <View
+          style={styles.listFrame}
+          accessibilityLabel={numColumns > 1 ? 'Tablet and desktop recurring booking grid' : 'Recurring booking list'}
+        >
         <FlatList
           data={items}
           renderItem={renderItem}
@@ -143,7 +152,7 @@ export default function RecurringListScreen(): React.ReactElement {
           key={`recurring-${numColumns}`}
           numColumns={numColumns}
           columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, numColumns > 1 && styles.listWide]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
@@ -160,6 +169,7 @@ export default function RecurringListScreen(): React.ReactElement {
             />
           }
         />
+        </View>
       )}
     </View>
   );
@@ -181,7 +191,9 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  listFrame: { flex: 1 },
   list: { padding: spacing.base, paddingBottom: 80 },
+  listWide: { width: '100%', maxWidth: 1200, alignSelf: 'center', padding: spacing.xl },
   gridRow: { gap: spacing.md },
   cardGrid: { flex: 1 },
 
@@ -210,6 +222,7 @@ const styles = StyleSheet.create({
   cardDetails: { marginBottom: spacing.sm },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
   detail: { ...typography.bodySmall, color: colors.textSecondary },
+  priceLine: { ...typography.bodySmall, color: colors.text, fontWeight: '700', marginTop: spacing.xs },
   nextDate: { ...typography.bodySmall, color: colors.primary, fontWeight: '600', marginTop: 4 },
 
   cardFooter: {

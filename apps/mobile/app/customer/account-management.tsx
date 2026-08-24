@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Alert, ActivityIndicator, Linking,
+  StyleSheet, ActivityIndicator, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +13,7 @@ import {
   cancelAccountDeletion,
   requestDataExport,
   getDataExportStatus,
+  getDataExportDownloadUrl,
   type AccountDeletionEntry,
 } from '@/services/data-management.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -22,6 +23,7 @@ import { Package, AlertTriangle, CheckCircle2, XCircle, Hourglass, ChevronLeft, 
 import { showToast } from '@/lib/toast';
 // Phase 14 R5-complete — wire ConfirmModal into delete-account destructive flow.
 import ConfirmModal from '@/components/ConfirmModal';
+import { useResponsive } from '@/hooks/useResponsive';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-PH', {
@@ -37,8 +39,11 @@ function daysRemaining(isoEnd: string): number {
 export default function AccountManagementScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
   const [reason, setReason] = useState('');
   const [showDeleteForm, setShowDeleteForm] = useState(false);
+  const [downloadingExportId, setDownloadingExportId] = useState<string | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const deletionQuery = useQuery({
     queryKey: ['accountDeletion'],
@@ -60,7 +65,7 @@ export default function AccountManagementScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['accountDeletion'] });
       setShowDeleteForm(false);
       setReason('');
-      showToast('Account scheduled for deletion. You have 30 days to change your mind.', 'success');
+      showToast('Account scheduled for deactivation and anonymization. You have 30 days to change your mind.', 'success');
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
@@ -72,7 +77,7 @@ export default function AccountManagementScreen(): React.ReactElement {
     mutationFn: cancelAccountDeletion,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['accountDeletion'] });
-      showToast('Account deletion cancelled. Your account is safe.', 'success');
+      showToast('Account deactivation cancelled. Your account is safe.', 'success');
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
@@ -101,11 +106,18 @@ export default function AccountManagementScreen(): React.ReactElement {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const handleConfirmDelete = (): void => setShowDeleteConfirm(true);
 
-  const handleCancelDeletion = (): void => {
-    Alert.alert('Keep Account', 'Cancel the deletion request and keep your account?', [
-      { text: 'No', style: 'cancel' },
-      { text: 'Yes, Keep My Account', onPress: () => cancelMutation.mutate() },
-    ]);
+  const handleCancelDeletion = (): void => setShowCancelConfirm(true);
+
+  const handleDownloadExport = async (exportId: string): Promise<void> => {
+    setDownloadingExportId(exportId);
+    try {
+      const url = await getDataExportDownloadUrl(exportId);
+      await Linking.openURL(url);
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Could not open the data export.'), 'error');
+    } finally {
+      setDownloadingExportId(null);
+    }
   };
 
   return (
@@ -118,10 +130,21 @@ export default function AccountManagementScreen(): React.ReactElement {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+      >
         {(deletionError || exportError) && (
-          <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: 12 }}>
+          <View style={styles.errorBanner} accessibilityRole="alert">
             <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load account data. Some information may be unavailable.</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading account data"
+              onPress={() => { void deletionQuery.refetch(); void exportQuery.refetch(); }}
+              style={styles.retryButton}
+            >
+              <Text style={styles.retryButtonText}>Try again</Text>
+            </TouchableOpacity>
           </View>
         )}
         <View style={styles.section}>
@@ -131,7 +154,12 @@ export default function AccountManagementScreen(): React.ReactElement {
           </Text>
         </View>
 
-        <View style={styles.card}>
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={isPhone ? 'Account data workspace' : 'Tablet and desktop account data workspace'}
+          testID="customer-account-workspace"
+        >
+        <View style={[styles.card, styles.workspaceCard]}>
           <View style={styles.cardIconWrap}><Package size={28} color={colors.primary} /></View>
           <Text style={styles.cardTitle}>Export My Data</Text>
           <Text style={styles.cardDesc}>
@@ -183,14 +211,14 @@ export default function AccountManagementScreen(): React.ReactElement {
                   : colors.textSecondary;
                 // BUG-PHASE70-01 fix — pre-fix the row showed only the
                 // status pill + date. The DataExportEntry returns a
-                // signed `fileUrl` that the user is supposed to use to
-                // download the export, but the UI never surfaced it.
+                // short-lived authenticated download URL that the user is
+                // supposed to use, but the UI never surfaced it.
                 // So the user saw "completed" with no way to access
                 // the file (a hard NPC RA 10173 §22 compliance gap —
                 // the law guarantees the user a means to access their
                 // exported data). Now: a Download link opens the
-                // signed URL via Linking, plus an "Expires …" hint.
-                const isDownloadable = exp.status === 'completed' && exp.fileUrl;
+                // private download via Linking, plus an "Expires …" hint.
+                const isDownloadable = exp.status === 'completed' && exp.downloadAvailable;
                 return (
                   <View key={exp.id} style={styles.exportRow}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
@@ -198,12 +226,15 @@ export default function AccountManagementScreen(): React.ReactElement {
                       <Text style={styles.exportStatus}> {exp.format.toUpperCase()}</Text>
                       {isDownloadable && (
                         <TouchableOpacity
-                          onPress={() => { void Linking.openURL(exp.fileUrl as string); }}
+                          onPress={() => { void handleDownloadExport(exp.id); }}
+                          disabled={downloadingExportId === exp.id}
                           accessibilityLabel="Download exported data file"
                           testID={`export-download-${exp.id}`}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
-                          <Text style={styles.exportDownloadLink}>Download</Text>
+                          <Text style={styles.exportDownloadLink}>
+                            {downloadingExportId === exp.id ? 'Opening…' : 'Download'}
+                          </Text>
                         </TouchableOpacity>
                       )}
                       {exp.status === 'completed' && exp.expiresAt && (
@@ -228,11 +259,11 @@ export default function AccountManagementScreen(): React.ReactElement {
           )}
         </View>
 
-        <View style={styles.divider} />
+        <View style={[styles.divider, !isPhone && styles.dividerWide]} />
 
-        <View style={styles.card}>
+        <View style={[styles.card, styles.workspaceCard]}>
           <View style={styles.cardIconWrap}><AlertTriangle size={28} color={colors.error} /></View>
-          <Text style={[styles.cardTitle, { color: colors.error }]}>Delete My Account</Text>
+          <Text style={[styles.cardTitle, { color: colors.error }]}>Deactivate &amp; Anonymize My Account</Text>
 
           {isDeletionLoading ? (
             <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: spacing.lg }} />
@@ -242,10 +273,10 @@ export default function AccountManagementScreen(): React.ReactElement {
                 <Clock size={18} color={colors.warning} style={{ marginRight: spacing.sm }} />
                 <View style={styles.warningContent}>
                   <Text style={styles.warningTitle}>
-                    Deletion Scheduled
+                    Deactivation Scheduled
                   </Text>
                   <Text style={styles.warningText}>
-                    Your account will be permanently deleted on {formatDate(activeDeletion!.coolingOffEndsAt)}.
+                    Account deactivation and anonymization is scheduled for {formatDate(activeDeletion!.coolingOffEndsAt)}.
                     {'\n'}{daysRemaining(activeDeletion!.coolingOffEndsAt)} days remaining in cooling-off period.
                   </Text>
                 </View>
@@ -261,21 +292,21 @@ export default function AccountManagementScreen(): React.ReactElement {
                 {cancelMutation.isPending ? (
                   <ActivityIndicator size="small" color={colors.success} />
                 ) : (
-                  <Text style={styles.cancelDeleteBtnText}>Cancel Deletion — Keep My Account</Text>
+                  <Text style={styles.cancelDeleteBtnText}>Cancel Deactivation — Keep My Account</Text>
                 )}
               </TouchableOpacity>
             </View>
           ) : (
             <>
               <Text style={styles.cardDesc}>
-                Permanently delete your account and all associated data. This action cannot be undone after the 30-day cooling-off period.
+                Deactivate and anonymize your account after a 30-day cooling-off period. Some booking, payment, dispute, and compliance records may be retained where required.
               </Text>
               <View style={styles.deleteChecklist}>
                 <Text style={styles.checklistItem}>• All active bookings must be completed or cancelled</Text>
                 <Text style={styles.checklistItem}>• Wallet balance must be zero</Text>
                 <Text style={styles.checklistItem}>• 30-day cooling-off period applies</Text>
-                <Text style={styles.checklistItem}>• Your reviews will be anonymized</Text>
-                <Text style={styles.checklistItem}>• Your messages will be redacted</Text>
+                <Text style={styles.checklistItem}>• Your public profile will be deactivated and anonymized</Text>
+                <Text style={styles.checklistItem}>• Records that must be retained are kept only for their required purpose</Text>
               </View>
 
               {showDeleteForm ? (
@@ -303,7 +334,7 @@ export default function AccountManagementScreen(): React.ReactElement {
                     {deleteMutation.isPending ? (
                       <ActivityIndicator size="small" color={colors.white} />
                     ) : (
-                      <Text style={styles.confirmDeleteBtnText}>Permanently Delete My Account</Text>
+                      <Text style={styles.confirmDeleteBtnText}>Deactivate &amp; Anonymize My Account</Text>
                     )}
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -318,19 +349,20 @@ export default function AccountManagementScreen(): React.ReactElement {
                   style={styles.startDeleteBtn}
                   onPress={() => setShowDeleteForm(true)}
                 >
-                  <Text style={styles.startDeleteBtnText}>Request Account Deletion</Text>
+                  <Text style={styles.startDeleteBtnText}>Request Account Deactivation</Text>
                 </TouchableOpacity>
               )}
             </>
           )}
         </View>
+        </View>
       </ScrollView>
       {/* Phase 14 R5-complete — ConfirmModal for delete-account */}
       <ConfirmModal
         visible={showDeleteConfirm}
-        title="Delete Account"
-        message="This will schedule your account for permanent deletion after a 30-day cooling-off period. You must have no active bookings and zero wallet balance."
-        confirmLabel="Delete My Account"
+        title="Deactivate Account"
+        message="This will schedule account deactivation and anonymization after a 30-day cooling-off period. Some records may be retained where required. You must have no active bookings and zero wallet balance."
+        confirmLabel="Deactivate My Account"
         cancelLabel="Cancel"
         destructive
         loading={deleteMutation.isPending}
@@ -339,6 +371,19 @@ export default function AccountManagementScreen(): React.ReactElement {
           setShowDeleteConfirm(false);
         }}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+      <ConfirmModal
+        visible={showCancelConfirm}
+        title="Keep Account"
+        message="Cancel the deactivation request and keep your account?"
+        confirmLabel="Yes, Keep My Account"
+        cancelLabel="No"
+        loading={cancelMutation.isPending}
+        onConfirm={() => {
+          cancelMutation.mutate();
+          setShowCancelConfirm(false);
+        }}
+        onCancel={() => setShowCancelConfirm(false)}
       />
     </SafeAreaView>
   );
@@ -357,6 +402,10 @@ const styles = StyleSheet.create({
   placeholder: { width: 30 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 60 },
+  bodyContentWide: { width: '100%', maxWidth: 1120, alignSelf: 'center' as const, paddingHorizontal: spacing.xl },
+  errorBanner: { backgroundColor: colors.errorLight, padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.md, alignItems: 'center' as const },
+  retryButton: { marginTop: spacing.sm, minHeight: 44, justifyContent: 'center' as const, paddingHorizontal: spacing.md },
+  retryButtonText: { ...typography.bodySmall, color: colors.error, fontWeight: '700' as const },
 
   section: { marginBottom: spacing.lg },
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
@@ -370,6 +419,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  workspace: { width: '100%' },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  workspaceCard: { flex: 1, minWidth: 0 },
   cardIcon: { fontSize: 28, marginBottom: spacing.sm },
   cardIconWrap: { marginBottom: spacing.sm, alignItems: 'flex-start' as const },
   cardTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
@@ -410,6 +462,7 @@ const styles = StyleSheet.create({
   },
 
   divider: { height: 1, backgroundColor: colors.divider, marginVertical: spacing.sm },
+  dividerWide: { display: 'none' },
 
   deletionActive: {},
   warningBanner: {

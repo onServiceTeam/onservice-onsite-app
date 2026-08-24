@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -16,6 +16,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MapIcon, MapPin, MessageSquare } from '@/components/icons';
 import { useLocation } from '@/hooks/useLocation';
 import { buildRoute, Routes } from '@/config/navigation';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const STATUS_LABELS: Record<string, string> = {
   paid: 'Navigate to job',
@@ -29,7 +30,7 @@ const NEXT_ACTION: Record<string, { status: string; label: string }> = {
   paid: { status: 'provider_en_route', label: 'Start Navigation' },
   provider_en_route: { status: 'provider_arrived', label: 'I\'ve Arrived' },
   provider_arrived: { status: 'in_progress', label: 'Start Service' },
-  in_progress: { status: 'completed_by_provider', label: 'Mark Complete' },
+  in_progress: { status: 'completed_by_provider', label: 'Review & Complete' },
 };
 
 export default function ActiveJobScreen(): React.ReactElement {
@@ -37,6 +38,7 @@ export default function ActiveJobScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
   const mapRef = useRef<MapView>(null);
   const { getCurrentLocation, isLoading: isGettingLocation } = useLocation();
 
@@ -80,6 +82,16 @@ export default function ActiveJobScreen(): React.ReactElement {
     if (!booking) return;
     const action = NEXT_ACTION[booking.status];
     if (!action) return;
+
+    // UX-155 — completion is a documented workflow, not a direct status
+    // button. The completion screen collects canonical after-photo evidence,
+    // notes, and the currently configured acceptance step before the API runs
+    // its checklist/photo gates. Direct mutation here either failed those gates
+    // or bypassed the evidence UI when prior evidence happened to exist.
+    if (action.status === 'completed_by_provider') {
+      router.push(buildRoute(Routes.PROVIDER.JOB_COMPLETE, { id: booking.id }) as never);
+      return;
+    }
 
     const submitAction = async (): Promise<void> => {
       let location: { latitude: number; longitude: number } | undefined;
@@ -143,28 +155,35 @@ export default function ActiveJobScreen(): React.ReactElement {
         <Text style={styles.title}>Active Job</Text>
       </View>
 
-      {/* Phase 200 (Cebu launch) — fallback center is central Cebu City
-           (launch market), not Manila. Same rationale as tracker.tsx. */}
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={bookingRegion ?? {
-          latitude: 10.3157,
-          longitude: 123.8854,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
+      <View
+        style={[styles.workspace, !isPhone && styles.workspaceWide]}
+        accessibilityLabel={isPhone ? 'Active provider job' : 'Tablet and desktop active provider job workspace'}
       >
-        {bookingRegion && (
+      {bookingRegion ? (
+        <MapView
+          ref={mapRef}
+          style={[styles.map, !isPhone && styles.mapWide]}
+          initialRegion={bookingRegion}
+        >
           <Marker
             coordinate={{ latitude: bookingRegion.latitude, longitude: bookingRegion.longitude }}
             title="Job Location"
             pinColor={colors.secondary}
           />
-        )}
-      </MapView>
+        </MapView>
+      ) : (
+        <View style={[styles.map, styles.mapUnavailable, !isPhone && styles.mapWide]}>
+          <MapIcon size={42} color={colors.textTertiary} />
+          <Text style={styles.mapUnavailableTitle}>Job coordinates unavailable</Text>
+          <Text style={styles.mapUnavailableText}>Use the address-based Directions action. No map pin or route is shown until the booking has verified coordinates.</Text>
+        </View>
+      )}
 
-      <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + spacing.base }]}>
+      <ScrollView
+        style={[styles.sheetScroll, !isPhone && styles.sheetScrollWide]}
+        contentContainerStyle={[styles.bottomSheet, !isPhone && styles.bottomSheetWide, { paddingBottom: insets.bottom + spacing.base }]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.statusRow}>
           <StatusBadge status={booking.status} size="md" />
           <Text style={styles.timeText}>{formatRelative(booking.scheduledAt)}</Text>
@@ -242,6 +261,7 @@ export default function ActiveJobScreen(): React.ReactElement {
             </View>
           </View>
         )}
+      </ScrollView>
       </View>
     </View>
   );
@@ -266,6 +286,29 @@ const styles = StyleSheet.create({
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text },
   map: { flex: 1 },
+  mapWide: { borderRadius: borderRadius.lg, overflow: 'hidden' },
+  workspace: { flex: 1 },
+  workspaceWide: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingTop: 76,
+    paddingBottom: spacing.xl,
+    width: '100%',
+    maxWidth: 1360,
+    alignSelf: 'center',
+  },
+  mapUnavailable: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+    backgroundColor: colors.backgroundSecondary,
+  },
+  mapUnavailableTitle: { ...typography.h3, color: colors.text, marginTop: spacing.md, textAlign: 'center' },
+  mapUnavailableText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: spacing.xs, maxWidth: 440, textAlign: 'center' },
+  sheetScroll: { flexGrow: 0 },
+  sheetScrollWide: { width: 420, flexGrow: 0, borderRadius: borderRadius.lg },
 
   bottomSheet: {
     backgroundColor: colors.background,
@@ -278,6 +321,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
+  bottomSheetWide: { minHeight: '100%', borderRadius: borderRadius.lg },
   statusRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
