@@ -223,7 +223,12 @@ volumes:
   nginx_logs:
   prometheus_data:
   grafana_data:
+  # This volume predates the Compose project and contains customer/provider
+  # uploads that must survive checkout renames and stack recreation. Treat it
+  # as external so Compose never claims ownership or proposes replacing it.
   uploads_data:
+    external: true
+    name: onservice_uploads_data
 
 # ── MEDCLAIMSPRO integration (see /opt/SERVER-MAP.md)
 networks:
