@@ -65,7 +65,8 @@ export default function ProviderClientsScreen(): React.ReactElement {
           columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
           keyExtractor={(c) => c.customerId}
           renderItem={renderItem}
-          contentContainerStyle={styles.body}
+          contentContainerStyle={[styles.body, numColumns > 1 && styles.bodyWide]}
+          accessibilityLabel={numColumns > 1 ? 'Wide provider client directory' : 'Provider client directory'}
           refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} />}
           ListHeaderComponent={
             (q.data?.length ?? 0) > 0 ? (
@@ -90,6 +91,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   title: { ...typography.h3, color: colors.text },
   body: { padding: spacing.base, paddingBottom: 40, gap: spacing.md, flexGrow: 1 },
+  bodyWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl },
   intro: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.sm, lineHeight: 17 },
   gridRow: { gap: spacing.md },
   card: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },

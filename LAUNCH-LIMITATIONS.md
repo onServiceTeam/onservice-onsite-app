@@ -195,35 +195,37 @@ launch-cutover runbook.
 
 ---
 
-## 11. hCaptcha not yet wired into user-facing flows (Phase 13 Dispatch D)
+## 11. CAPTCHA client/server linkage — CODE RESOLVED; PRODUCTION KEY PENDING
 
-Server-side verification exists in
-[packages/api/src/utils/hcaptcha.ts](packages/api/src/utils/hcaptcha.ts)
-and is fully tested, but it is not yet attached to any registration,
-login, or forgot-password endpoint because:
+The earlier hCaptcha plan was superseded. Customer/provider OTP login and
+registration now use Cloudflare Turnstile after the configured failed-attempt
+threshold:
 
-- The API has no public registration or forgot-password routes today.
-  User onboarding is OTP-based (phone number + Semaphore SMS), and admin
-  onboarding is invitation-only (no `/auth/register` route exists).
-- Existing OTP brute-force protection is provided by the Phase 5 CAPTCHA
-  control (`securityService.verifyCaptchaToken`, threshold 3 failures)
-  documented as SEC-002 in `docs/SECURITY-POSTURE.md`.
-- Mobile hCaptcha integration is sized for post-launch — neither
-  `@hcaptcha/react-native-hcaptcha` nor a WebView fallback is wired in.
-  Mobile flows currently rely on rate limiting + OTP verification.
-- Admin web has no public registration or forgot-password page either, so
-  there is no admin form to protect.
+- `useCaptchaOtp` handles the API's challenge-required response and opens the
+  shared Turnstile modal on native and web.
+- The public site key comes from `EXPO_PUBLIC_TURNSTILE_SITE_KEY`.
+- `securityService.verifyCaptchaToken` validates each returned token at
+  Cloudflare's Siteverify endpoint using the server-only
+  `TURNSTILE_SECRET_KEY` (the historical `CAPTCHA_SECRET_KEY` alias remains
+  accepted during deployment migration).
+- Production fails closed if the secret is missing. Rate limiting remains in
+  force before and after a challenge.
+- Launch cutover Item 5 now runs `scripts/verify-turnstile.sh`; it rejects
+  Cloudflare test credentials and verifies that Siteverify accepts the
+  configured production secret.
 
-**When to revisit:** wire `verifyHCaptchaToken` into any of the
-following IF/WHEN added: (a) a public registration endpoint, (b) a
-forgot-password / self-service password reset endpoint, (c) any
-anonymous endpoint that creates persistent records (e.g., public
-contact-us, public quote-request), (d) any endpoint where rate
-limiting alone is insufficient against distributed automation (e.g.,
-referral-code redemption from unauthenticated context). The form must
-POST a `captchaToken` (or `hcaptchaToken`) field that is validated by
-`verifyHCaptchaToken` before any DB write. The neutral failure copy
-"Verification failed. Please try again." is the recommended response.
+The admin app has no public registration or self-service password-reset form,
+so it does not load a CAPTCHA widget. Its CSP no longer grants obsolete
+hCaptcha origins. Any future anonymous write surface must use the same
+client-token plus server-validation pattern before its database write.
+
+**Deployment finding (2026-08-24):** the live shared host has neither a real
+Turnstile secret nor a Cloudflare API token that could provision one. The
+dangerous OTP and rate-limit bypasses have been removed, but the API cannot be
+truthfully switched to `NODE_ENV=production` because its production secret
+guard correctly requires a CAPTCHA secret. Create production Turnstile keys,
+set the server secret and web/native site key, run `verify-turnstile.sh`, rebuild
+the customer/provider web artifact, then change the environment label.
 
 ## 12. Admin password rehash is opportunistic — RESOLVED 2026-05-03
 
@@ -380,6 +382,14 @@ admin auth flow.
 history (use `read -s` or a password manager). Do not commit example
 strong passwords to docs.
 
+**Production remediation (2026-08-24):** an older operations document had
+published a demo password, and one active privileged account still matched it.
+After a full database/uploads/config/git backup, that exact account was
+deactivated, its 13 refresh sessions were revoked, forced rotation was set, and
+an `account_deactivated` security event was written. The remaining active
+privileged account has TOTP enabled. The exposed credential remains burned
+forever because public Git history cannot make it secret again.
+
 **Gate:** [scripts/gates/c-constitution-no-admin-password-seeds.sh](scripts/gates/c-constitution-no-admin-password-seeds.sh)
 prevents any future seed from setting `password_hash` on `users` or
 `admin_users` tables.
@@ -500,17 +510,12 @@ and per-article modes live in `MODES.json`:
 - **REPORT:** failure is logged but does not fail the gate. Used for
   fragments/articles whose cleanup is owned by a not-yet-landed dispatch.
 
-Currently in REPORT (will promote to BLOCKING when their owning dispatch
-lands):
+Current enforcement was re-checked on 2026-08-24. All Gate A fragments and all
+Gate C articles listed below have been promoted to BLOCKING. Only the two
+infrastructure-dependent whole gates remain in REPORT:
 
 | Fragment / article | Owning dispatch |
 |---|---|
-| `a-cross-source-no-siguradoshield` | D04 |
-| `a-cross-source-no-client-money` | D05 |
-| `a-cross-source-no-emoji-icons` | D12 |
-| `article-4.2-no-console` (Gate C) | D12 |
-| `article-4.6-no-emoji` (Gate C) | D12 |
-| `money-in-transaction` (Gate C) | D06 |
 | Gate D (visual baselines) — full suite | D12 |
 | Gate E (mutation testing) — full suite | D12 |
 
@@ -597,42 +602,43 @@ Ken — Option A — 2026-04-30. Phase 14 Dispatch 04.
 
 ---
 
-## 24. Hourly-pricing subcategories not supported in v1.0 (Phase 14 Dispatch 05)
+## 24. Hourly-pricing subcategories — RESOLVED by D27 (originally deferred in Phase 14 Dispatch 05)
 
-**Risk class:** Functional limitation; not a money-trust risk.
-**Owning dispatch:** D05 (this dispatch).
-**Owning area:** booking flow; admin catalog UI.
+**Resolution date:** 2026-06-29.
+**Risk class:** Money-path behavior; implemented with a capped pre-authorization.
+**Owning area:** booking, escrow settlement, provider payout, customer/provider UI,
+and admin catalog configuration.
 
-The schema defines three values for `service_subcategories.pricing_type`:
-`'fixed'`, `'quote'`, and `'hourly'` (per `packages/api/migrations/003_create_services.sql:25-26`).
+Phase 14 originally rejected `pricing_type = 'hourly'` at booking time. D27
+subsequently implemented Option B from `.ai-coder/decisions/D27p4-hourly-pricing.md`
+and lifted this limitation:
 
-D05's new `pricing.service.ts` (server-canonical pricing resolver) handles
-the first two. Hourly pricing requires a start-stop timer flow,
-duration-tracked billing, and mid-job rate verification that v1.0 does not
-implement and was not in the audit's bug list.
+- Admin configures a positive hourly rate plus minimum billable minutes, billing
+  increment, and maximum estimated hours.
+- Customer discovery and provider profiles show the canonical hourly rate. The
+  booking flow collects estimated hours and previews the capped amount.
+- The server, not the client, resolves the pre-authorized amount from the
+  estimate and catalog snapshot.
+- Actual duration comes from server-controlled job timestamps, is rounded using
+  the configured rules, and cannot bill above the customer's authorized cap.
+- Settlement refunds the unused escrow remainder and computes provider earnings,
+  platform commission, fees, surge, and promo effects from the settled amount.
+  Time above the cap is unpaid unless an approved change order increases it.
 
-**Server behavior in v1.0:** if a customer attempts to book a subcategory
-with `pricing_type = 'hourly'`, the booking endpoint returns HTTP 400
-with error code `subcategory_pricing_type_unsupported`. Test:
-`packages/api/__tests__/services/booking/pricing.service.test.ts:bug-d05-hourly-deferred`.
+Primary behavioral coverage is in
+`packages/api/__tests__/d27-hourly.test.ts`,
+`packages/api/__tests__/services/booking/pricing.service.test.ts`, and the
+customer/provider linkage tests under `apps/mobile/__tests__/bug-ux-046-*` and
+`bug-ux-048-*`.
 
-**Operator obligation:** the catalog admin UI should warn (or refuse) when
-an admin creates a subcategory with `pricing_type = 'hourly'`. D05 does
-not modify the admin catalog UI for this — it is captured as v1.1 scope.
-Until the admin UI is hardened, operations should manually QA new
-subcategory rows and avoid setting `pricing_type = 'hourly'`.
+**Continuing operator obligation:** keep the current policy visible and
+consistent: one-hour minimum, 30-minute increments, capped overage, and the
+configured maximum estimate. A future policy change is a money-path change and
+requires corresponding server and settlement tests.
 
-**v1.1+ scope:**
-- Hourly billing flow on the customer side (pre-book hourly rate display,
-  start-stop timer at job start, duration tracking, total computed at
-  completion).
-- Provider-side timer controls.
-- Admin catalog UI hardening for the `'hourly'` selector (warn + refuse,
-  or full hourly support).
-- Settings keys for hourly minimum charge / billing increment.
-
-**Source decision:** `.ai-coder/decisions/D05-spec-vs-schema.md` — Ken —
-Option A — 2026-04-30. Phase 14 Dispatch 05.
+**Decision history:** `.ai-coder/decisions/D05-spec-vs-schema.md` records the
+original deferral. `.ai-coder/decisions/D27p4-hourly-pricing.md` records the
+later delegated decision and shipped implementation.
 
 ---
 
@@ -878,9 +884,10 @@ store privacy disclosure submission.
 
 The audit (Bug 44) found that promo codes can be created via the admin
 Marketing page and stored in the `promo_codes` table, but the customer
-mobile app has no redemption input field and the server has no
-redemption pipeline. Per `.ai-coder/decisions/D13-feature-decisions.md`,
-v1.0 ships with redemption **pulled** (not wired half-way):
+mobile app has no redemption input field. A later backend pass added the
+canonical `resolvePromo()` resolver, pricing-preview/create integration, and
+redemption recording. Customer redemption remains **pulled** because the UI
+and end-to-end customer linkage are not shipped:
 
 - Migration 088 seeds `feature_flag.promo_redemption_enabled = false`.
 - Mobile `useFeatureFlags` defaults to `false`. Customer never sees a
@@ -889,13 +896,15 @@ v1.0 ships with redemption **pulled** (not wired half-way):
   the unwired state so admins do not waste time creating codes that
   cannot redeem.
 
-**v1.1+ scope:**
-1. Build redemption pipeline in `pricing.service.ts` `resolvePromo()`.
-2. Add `PromoCodeSection` to `customer/booking/checkout.tsx`, gated
+**Remaining scope:**
+1. Add `PromoCodeSection` to `customer/booking/checkout.tsx`, gated
    on `flags.promoRedemptionEnabled`.
+2. Verify preview, booking creation, redemption limits, receipts, cancellations,
+   refunds, and admin reporting in one customer-to-admin behavioral flow.
 3. Toggle `feature_flag.promo_redemption_enabled = true` via admin
    settings.
-4. **Codes created in v1.0 work retroactively** — the row stays in the
+4. **Codes created while disabled work when enabled** if their dates, limits,
+   and active state still qualify; the row stays in the
    table and becomes redeemable when the flag flips.
 
 **Operator obligation:**
@@ -1249,15 +1258,22 @@ single-box launch; just include `uploads_data` in the backup plan.
 
 ---
 
-## 37. Admin 2FA (TOTP) temporarily bypassable via ADMIN_DISABLE_2FA (staging — must address before production)
+## 37. Admin 2FA bypass production guard — RESOLVED IN CODE AND DEPLOYMENT
 At Ken's request (2026-06-05), admin login can be reduced to email + password by
 setting `ADMIN_DISABLE_2FA=1`. When set, `/auth/admin/login` skips both the
 TOTP-verify and the forced-enrollment branches and issues the session directly;
 a loud `logger.warn` fires on every such login. The flag defaults OFF (secure):
 with it unset, mandatory TOTP enrollment is unchanged.
 
-**Currently ON** on the staging server (`.env`) because the authenticator-app
-flow was impractical to set up in BlueStacks for testing.
+The flag was historically enabled on a staging/demo deployment because the
+authenticator flow was impractical in BlueStacks.
+
+**Deployment resolution (2026-08-24):** the running container was inspected
+without printing secrets and was still using the bypass. `ADMIN_DISABLE_2FA`,
+`ALLOW_DEV_OTP`, and `RATE_LIMITS_RELAXED` are now all disabled; `DEV_OTP_CODE`
+was removed; the API was recreated and passed its deep health check. One active
+account using a formerly published demo password was deactivated and all of its
+sessions revoked. The one remaining active privileged account has TOTP enabled.
 
 **Before production launch — do ONE of:**
 1. Unset `ADMIN_DISABLE_2FA` to restore mandatory TOTP 2FA, OR
@@ -1271,8 +1287,8 @@ Leaving admin accounts on password-only in production is a security risk
 `packages/api/src/config/boot-guards.ts`, called from `server.ts` before the
 port is bound) throws and refuses to boot if `ADMIN_DISABLE_2FA` is truthy AND
 `NODE_ENV=production`. So the flag can no longer reach production silently — a
-prod deploy with it still set crashes on startup with a clear message. Staging
-(where it is currently ON) is unaffected. This does not by itself satisfy the
+production deploy with it still set crashes on startup with a clear message.
+Non-production environments remain able to opt in deliberately. This does not by itself satisfy the
 "do ONE of" list above; it just makes option 1 mandatory before prod boot.
 
 ---
@@ -1343,3 +1359,19 @@ Do not remove the apex redirect or weaken certificate checks. Expand or reissue
 the existing certificate with `onservice.ph` included, confirm renewal keeps
 all five names, reload nginx, and verify every hostname externally. See
 `.ai-coder/escalations/E17-apex-domain-tls-certificate-2026-08-24.md`.
+
+---
+
+## 41. Production environment label waits on real Turnstile credentials
+
+The shared live host still reports a non-production `NODE_ENV`. On 2026-08-24
+the dangerous behavior controlled by that label was independently neutralized:
+developer OTP is off, relaxed rate limits are off, admin 2FA is mandatory, test
+fixtures are off, real SMS credentials are configured, and the API is healthy.
+
+The label itself cannot be changed yet. Production startup intentionally fails
+when `CAPTCHA_SECRET_KEY` is absent, and the host has no Turnstile secret or
+Cloudflare API token. Do not weaken that guard or use Cloudflare test keys.
+Provision the real widget credentials, set both server and client keys, execute
+the process-level verifier plus a threshold-triggered login challenge, then set
+`NODE_ENV=production` and recreate the API.

@@ -1,5 +1,11 @@
 # RUNTIME PLATFORM CONFIGURATION SYSTEM
 # ════════════════════════════════════════════════════════════════
+# HISTORICAL TARGET DESIGN. The current implementation is mixed: selected
+# settings are database-backed through settings.service, while other constants
+# remain code/config controlled. Example seeds and labels below are not proof of
+# deployed values. Guarantee-related settings are accounting fields only and do
+# not authorize a customer promise while E10/F#10 is open.
+# ════════════════════════════════════════════════════════════════
 # Architecture: Database-backed → Redis-cached → In-memory fallback
 # Admin UI: Organized by category with validation, audit trail, and live preview
 # Impact: Replaces ALL hardcoded platformConfig references across 21 backend files

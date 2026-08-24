@@ -3,8 +3,16 @@
 **Date:** 2026-06-09
 **Raised by:** AI coder (security audit of live box, requested by Ken)
 **Severity:** High (auth bypass reachable from the public internet)
-**Status:** MITIGATED via Option A (verified deployed 2026-06-10). The public
-exposure is closed while dev OTP stays on for testing:
+**Status:** RESOLVED via the production-safe path (verified 2026-08-24).
+Developer OTP, relaxed rate limits, and the admin 2FA bypass are disabled; the
+fixed OTP value is removed; the API was recreated healthy; and fixtures remain
+off. One active privileged account still matched a credential formerly exposed
+in documentation, so it was deactivated after a full backup, its 13 sessions
+were revoked, and a security event was written. The remaining privileged
+account has TOTP. Production environment labeling remains separately blocked
+on real Turnstile credentials under the CAPTCHA E07 and launch limitation 41.
+
+Historical mitigation before the final remediation:
 - admin.onservice.ph gated behind HTTP Basic Auth (eac0e7d; nginx/.htpasswd on box)
 - app.onservice.ph + api.onservice.ph restricted to operator IP at nginx (e0752ee)
 - infra/docker/.env.docker untracked from the public repo (12a8483)
@@ -14,8 +22,9 @@ remove ALLOW_DEV_OTP/DEV_OTP_CODE, ADMIN_DISABLE_2FA=0 + enroll 2FA,
 NODE_ENV=production, and remove the nginx allowlist/Basic-Auth gates.
 Tracked in docs/runbooks/launch-cutover.md.
 
-> NOTE: keep this file LOCAL. Do NOT commit/push it — the repo is public and
-> this document describes an exploitable configuration on the live box.
+> Historical warning: this file was already tracked in the public repository.
+> The described bypasses are now disabled and any previously printed credential
+> must remain treated as permanently burned.
 
 ## What was found
 

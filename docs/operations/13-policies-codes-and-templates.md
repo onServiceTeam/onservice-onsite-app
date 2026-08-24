@@ -10,7 +10,7 @@ All money in this doc is PHP (₱). Times are Asia/Manila (PHT). Support hours a
 
 ## 1. Cancellation policy (plain language)
 
-We run an instant-pay escrow model. The customer pays first into the platform escrow wallet, then a provider is matched. So almost every cancellation involves money already held in escrow, and the refund is computed automatically.
+The target model is instant-pay escrow: a server-verified payment is held before provider matching. The cancellation brackets below apply only when escrow is actually held. E14 blocks the current external hosted PayMongo authorization link, so a pending browser payment attempt must not be treated as held money.
 
 > IMPORTANT for the team: there are TWO cancellation systems in the app right now, and they do not match. Until they are reconciled, always quote the LIVE money-path numbers (System A below), not what the policy page shows (System B). This is a known open issue, tracked in the decisions list at the end of this doc.
 
@@ -38,14 +38,14 @@ On a customer cancel, the customer gets the refund percentage of the service pri
 
 ## 2. Refund policy (plain language)
 
-Refunds come out of escrow and are pushed back to the customer through PayMongo. They land on the original payment method (GCash, Maya, card, QRPH) or as wallet balance if they paid from wallet. Bank-card refunds can take a few business days on PayMongo's side; tell customers 5 to 7 business days as a starting target.
+Refunds on a verified external payment are intended to return through PayMongo to the original method; wallet payments return to wallet balance. E14 blocks new hosted external authorization but does not authorize manual refund state. Verify the original transaction and gateway result before quoting a refund status. Bank-card refunds can take a few business days after a real gateway refund; use 5 to 7 business days only as a starting target, not proof it was submitted.
 
 When a refund happens:
 
 - **Cancellation.** Auto-computed per System A above.
 - **Dispute.** Resolved by admin. Resolution types: full refund, partial refund (you set a percent), no refund, free redo, refund with warning, refund with suspension, split decision. Full refund, refund with warning, and refund with suspension are all 100%. Any remaining escrow after a partial refund still goes to the provider.
 - **Unresponded dispute.** If the provider does not respond within 48 hours, it resolves in the customer's favor (full refund).
-- **No-provider-available.** If dispatch never finds a provider, the booking expires (72h cap) and the customer is refunded in full, plus a ₱150 goodwill credit for the platform failure (see `08-dispatch-and-matching-sop.md`).
+- **No-provider-available.** If dispatch never finds a provider, the booking expires (72h cap) and the customer is refunded in full, plus a ₱150 goodwill credit for the platform failure (see `08-dispatch-and-live-operations.md`).
 
 Dispute filing window is 48 hours after job completion. Damage and theft disputes require photo evidence. Refunds over ₱10,000, any refund-with-suspension, and any damage or theft payout need super-admin (Ken) sign-off. See `09-trust-safety-and-disputes.md` for the full decision tree.
 
@@ -73,7 +73,7 @@ Consequences for violations: account flagged for fraud review, suspension, or cl
 Full version lives in `05-provider-onboarding-and-training.md`. Short form for reference:
 
 - [ ] Show up on time, in the branded onService shirt, for the job you accepted.
-- [ ] Keep NBI clearance current. We warn 30 days before expiry; an expired NBI blocks you from dispatch.
+- [ ] Keep NBI clearance current. We warn 30 days before expiry. Expiry does not automatically suspend or block dispatch at launch; support chases renewal and a super-admin may suspend if ignored.
 - [ ] Do the work to standard. Take before and after photos (mandatory during the 3-job probation).
 - [ ] Stay on-platform. No asking the customer for cash, no swapping numbers to book direct. Chat messages that look like off-platform attempts get flagged.
 - [ ] Use change orders for any extra work and price (capped at 50% of the original service price). Never demand cash on site.
@@ -144,9 +144,9 @@ Copy-paste ready. Replace `[bracketed]` fields. Bilingual (English with Bisaya o
 ### 6.1 Provider outreach (recruiting)
 
 **SMS / Messenger first contact:**
-> Hi [Name], this is [You] from onService PH. We're a home-services app launching in [City] and we're looking for vetted [trade, e.g. aircon] pros. Steady jobs, you keep most of the pay, weekly payouts to GCash/Maya. Interested? Reply YES and I'll send the next steps.
+> Hi [Name], this is [You] from onService PH. We're a home-services app launching in [City] and we're looking for vetted [trade, e.g. aircon] pros. You keep most of each job and can request manual withdrawals to GCash, Maya, or bank. Interested? Reply YES and I'll send the next steps.
 
-> Bisaya: Maayong adlaw [Name]! Si [You] ni gikan sa onService PH. App mi para sa home services, mangita mi og kasaligan nga [trade] dinhi sa [City]. Naa'y kanunay'ng trabaho, dako imong kita, weekly payout sa GCash/Maya. Interesado ka? Reply YES.
+> Bisaya: Maayong adlaw [Name]! Si [You] ni gikan sa onService PH. App mi para sa home services, mangita mi og kasaligan nga [trade] dinhi sa [City]. Imong kadaghanan sa bayad sa trabaho, ug mahimo kang mo-request og manual withdrawal sa GCash, Maya, o bangko. Interesado ka? Reply YES.
 
 **Follow-up after interest:**
 > Salamat [Name]. To apply you'll need 3 things ready: a valid government ID, your NBI clearance (issued within the last 6 months), and a selfie. The app walks you through it in about 10 minutes. Here's the link: [link]. Questions? Message me here.
@@ -157,7 +157,7 @@ Copy-paste ready. Replace `[bracketed]` fields. Bilingual (English with Bisaya o
 ### 6.2 Provider approval message
 
 (The app also sends an automatic "Account Approved" notification. Use this for a personal touch.)
-> Congrats [Name], you're approved on onService as a [tier] provider. Your commission is [X]% per job. Keep your NBI current and your ratings up to move to the next tier. First jobs will start coming through as offers (about 1 minute to accept). Welcome aboard.
+> Congrats [Name], you're approved on onService as a [tier] provider. Your commission is [X]% per job. Keep your NBI current and your ratings up to move to the next tier. First jobs will start coming through as offers (45 seconds to accept). Welcome aboard.
 
 ### 6.3 Provider rejection message
 
@@ -170,7 +170,7 @@ Copy-paste ready. Replace `[bracketed]` fields. Bilingual (English with Bisaya o
 > Hi [Name], thanks for reaching out. I can see your booking [#bookingID] is currently [status]. [Explain plainly what that status means and what happens next.] Anything else I can help with?
 
 **Refund (cancellation):**
-> Hi [Name], I've processed the cancellation for booking [#bookingID]. Based on the timing, your refund is ₱[amount] ([X]% of the service price, quoted from our live System A brackets) plus your service fee, going back to your [GCash/Maya/card/wallet]. Card and bank refunds can take 5 to 7 business days; GCash and wallet are usually faster. I'll keep an eye on it.
+> Hi [Name], cancellation for booking [#bookingID] was approved using the live System A bracket. The verified refund submitted is ₱[amount] ([X]% of the service price plus any service fee actually charged) to [GCash/Maya/card/wallet], gateway reference [reference]. Card and bank refunds can take 5 to 7 business days after submission; I will keep an eye on the recorded status.
 
 **Apology + goodwill:**
 > Hi [Name], I'm sorry about [what went wrong]. That's not the experience we want. I've [action taken], and I've added a ₱[amount] credit to your account as an apology. Thank you for your patience, and please give us another chance.
@@ -317,7 +317,8 @@ Reminder: a personal-data breach starts a 72-hour NPC notification clock, and mo
 
 ## 7. Quick "do not say this" list
 
-- Do not promise insurance or coverage. onService is a marketplace, not an insurer. Point to the escrow protection and the guarantee fund instead (per the finalized Terms §8 wording).
+- Do not promise insurance or coverage. onService is a marketplace, not an insurer. Use only the interim approved wording; final guarantee/disclaimer language remains E10/F#10 and requires attorney review.
+- Do not ask a customer to retry the current external hosted PayMongo link. E14 is open; preserve the attempt and escalate.
 - Do not quote the policy-page refund tiers (System B) as the real refund. Use the live System A brackets.
 - Do not promise a phone call or masked-number call. We don't have calling yet; the channel is in-app chat.
 - Do not move a customer or provider off-platform for any reason.

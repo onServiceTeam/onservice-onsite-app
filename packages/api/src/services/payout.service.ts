@@ -46,6 +46,8 @@ interface PayoutRow {
   reviewed_at: Date | null;
   created_at: Date;
   completed_at: Date | null;
+  requires_aml_review?: boolean;
+  aml_threshold_at_request_centavos?: string | number | null;
   // BUG-PHASE41-01 — populated by listPayouts via LEFT JOIN providers.
   // null when not populated by other queries (single-row formatters).
   provider_business_name?: string | null;
@@ -74,17 +76,17 @@ export async function requestPayout(
   // wallet so a typo can't decrement a balance and then bounce.
   validateDestinationAccount(data.method, data.destinationAccount);
 
-  // MED-N77: AML threshold check. Read the current threshold from
-  // settings (admin-tunable, RA 9160 default ₱500K). If this single
-  // payout meets/exceeds it, file the request as 'aml_review_pending'
-  // with requires_aml_review=TRUE and snapshot the threshold value
-  // for audit. The admin Compliance dashboard surfaces these for
-  // super_admin review before disbursement.
-  let amlThresholdCentavos = 50_000_000; // RA 9160 ₱500K fallback default
+  // MED-N77: internal large-transaction review threshold. Read the current
+  // admin-tunable threshold and hold a request at/above it for super_admin
+  // review before disbursement. This is a conservative platform control, not
+  // a legal determination that onService is a covered person or that this
+  // payout is a reportable covered transaction. The configured value used at
+  // request time is snapshotted for audit.
+  let amlThresholdCentavos = 50_000_000; // ₱500K internal-review fallback
   try {
     amlThresholdCentavos = await settingsService.getSettingInteger('aml_large_transaction_threshold_centavos');
   } catch (err) {
-    logger.warn('AML threshold setting unavailable; using ₱500K fallback', {
+    logger.warn('Large-transaction review threshold unavailable; using ₱500K fallback', {
       error: (err as Error).message,
     });
   }
@@ -106,15 +108,21 @@ export async function requestPayout(
     throw createAppError('Insufficient wallet balance.', 400);
   }
 
-  const pendingResult = await db.query<CountRow>(
-    `SELECT COUNT(*)::text as count FROM payouts WHERE provider_id = $1 AND status IN ('pending', 'processing', 'approved')`,
-    [providerId],
-  );
-  if (Number(pendingResult.rows[0]?.count ?? 0) > 0) {
-    throw createAppError('You already have a pending or processing payout. Please wait for it to complete.', 409);
-  }
-
   return db.transaction(async (client) => {
+    // Serialize withdrawal requests per provider. Without this lock, two
+    // simultaneous requests could both pass the in-flight count before either
+    // inserted its payout row.
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [providerId]);
+    const pendingResult = await client.query<CountRow>(
+      `SELECT COUNT(*)::text as count FROM payouts
+        WHERE provider_id = $1
+          AND status IN ('aml_review_pending', 'pending', 'processing', 'approved')`,
+      [providerId],
+    );
+    if (Number(pendingResult.rows[0]?.count ?? 0) > 0) {
+      throw createAppError('You already have a payout under review or processing. Please wait for it to complete.', 409);
+    }
+
     const walletUpdate = await client.query(
       `UPDATE wallets SET available_balance = available_balance - $1, pending_balance = pending_balance + $1, updated_at = NOW()
        WHERE id = $2 AND available_balance >= $1`,
@@ -142,7 +150,7 @@ export async function requestPayout(
     );
 
     if (requiresAmlReview) {
-      logger.warn('Payout flagged for AML review (RA 9160 covered transaction)', {
+      logger.warn('Payout held for internal large-transaction review', {
         payoutId: result.rows[0]!.id,
         providerId,
         amount: data.amount,
@@ -169,8 +177,8 @@ export async function requestPayout(
 // audited via admin_actions with action_type='aml_review_cleared'.
 //
 // Caller (routes layer) MUST gate this with rbacMiddleware('super_admin')
-// — RA 9160 covered transactions are not a junior-admin call.
-export async function clearAmlReview(payoutId: string, superAdminId: string): Promise<PayoutRow> {
+// because clearing the internal compliance control is a senior money action.
+export async function clearAmlReview(payoutId: string, superAdminId: string, reason: string): Promise<PayoutRow> {
   return db.transaction(async (client) => {
     const result = await client.query<PayoutRow>(
       `UPDATE payouts SET status = 'pending', reviewed_by = $1, reviewed_at = NOW()
@@ -182,16 +190,20 @@ export async function clearAmlReview(payoutId: string, superAdminId: string): Pr
     }
 
     await client.query(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, 'aml_review_cleared', 'payout', $2, $3)`,
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
+       VALUES ($1, 'aml_review_cleared', 'payout', $2, $3, $4)`,
       [
         superAdminId,
         payoutId,
         JSON.stringify({
           amount: Number(result.rows[0]!.amount),
           method: result.rows[0]!.method,
-          aml_threshold_at_request: result.rows[0]!.amount, // we know it >= threshold by definition
+          aml_threshold_at_request_centavos:
+            result.rows[0]!.aml_threshold_at_request_centavos == null
+              ? null
+              : Number(result.rows[0]!.aml_threshold_at_request_centavos),
         }),
+        reason,
       ],
     );
 
@@ -204,7 +216,7 @@ export async function clearAmlReview(payoutId: string, superAdminId: string): Pr
   });
 }
 
-export async function approvePayout(payoutId: string, adminId: string): Promise<PayoutRow> {
+export async function approvePayout(payoutId: string, adminId: string, reason: string): Promise<PayoutRow> {
   // Phase 14 Dispatch 06 — gate-promotion fix. Pre-D06 the payout
   // UPDATE + admin_actions INSERT + notifications INSERT ran as four
   // separate top-level db.query calls. If audit or notification failed
@@ -220,9 +232,9 @@ export async function approvePayout(payoutId: string, adminId: string): Promise<
     if (result.rows.length === 0) throw createAppError('Payout not found or not in pending status.', 404);
 
     await client.query(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, 'payout_approved', 'payout', $2, $3)`,
-      [adminId, payoutId, JSON.stringify({ amount: Number(result.rows[0]!.amount) })],
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
+       VALUES ($1, 'payout_approved', 'payout', $2, $3, $4)`,
+      [adminId, payoutId, JSON.stringify({ amount: Number(result.rows[0]!.amount) }), reason],
     );
 
     const prov = await client.query<{ user_id: string }>(
@@ -247,55 +259,30 @@ export async function approvePayout(payoutId: string, adminId: string): Promise<
 }
 
 export async function rejectPayout(payoutId: string, adminId: string, reason: string): Promise<PayoutRow> {
-  const payout = await db.query<PayoutRow>(
-    `SELECT * FROM payouts WHERE id = $1 AND status = 'pending'`,
-    [payoutId],
-  );
-  if (payout.rows.length === 0) throw createAppError('Payout not found or not in pending status.', 404);
-  const p = payout.rows[0]!;
-
   return db.transaction(async (client) => {
     const result = await client.query<PayoutRow>(
       `UPDATE payouts SET status = 'rejected', reviewed_by = $1, reviewed_at = NOW(), rejection_reason = $2
-       WHERE id = $3 RETURNING *`,
+       WHERE id = $3 AND status IN ('aml_review_pending', 'pending') RETURNING *`,
       [adminId, reason, payoutId],
     );
+    if (result.rows.length === 0) {
+      throw createAppError('Payout not found or not awaiting a decision.', 404);
+    }
+    const p = result.rows[0]!;
 
-    // BUG-PHASE22-01 fix: pre-fix this unconditionally moved money
-    // pending → available, assuming the requestPayout flow had reserved
-    // it in pending_balance. If the payout row exists without that
-    // reservation (data drift, manual insert, or older buggy creation
-    // path), this UPDATE drove pending_balance below zero and hit the
-    // positive_pending CHECK with a cryptic error. Defensive check:
-    // verify pending_balance >= amount before subtracting. If short,
-    // log the data inconsistency and rebate only what's actually there.
-    const wallet = await client.query<{ pending_balance: string }>(
-      `SELECT pending_balance::text FROM wallets WHERE id = $1 FOR UPDATE`,
-      [p.wallet_id]);
-    const pendingBefore = Number(wallet.rows[0]?.pending_balance ?? 0);
     const amount = Number(p.amount);
-    if (pendingBefore < amount) {
-      logger.warn('payout_reject_data_drift', {
-        payoutId, walletId: p.wallet_id, pendingBefore, amount,
-        note: 'Pending balance < payout amount — payout may not have reserved money. Rebating what exists; investigate.',
-      });
-      // Rebate the partial amount that's actually in pending. If pending
-      // is 0, this becomes a no-op (no money movement). The payout is
-      // still marked rejected.
-      const rebate = Math.max(0, pendingBefore);
-      if (rebate > 0) {
-        await client.query(
-          `UPDATE wallets SET available_balance = available_balance + $1, pending_balance = pending_balance - $1, updated_at = NOW()
-           WHERE id = $2`,
-          [rebate, p.wallet_id],
-        );
-      }
-    } else {
-      await client.query(
-        `UPDATE wallets SET available_balance = available_balance + $1, pending_balance = pending_balance - $1, updated_at = NOW()
-         WHERE id = $2`,
-        [amount, p.wallet_id],
-      );
+    const walletUpdate = await client.query(
+      `UPDATE wallets
+          SET available_balance = available_balance + $1,
+              pending_balance = pending_balance - $1,
+              updated_at = NOW()
+        WHERE id = $2 AND pending_balance >= $1`,
+      [amount, p.wallet_id],
+    );
+    if (walletUpdate.rowCount === 0) {
+      // Roll back the payout status too. A rejected record must never claim
+      // the provider's full amount was returned when the reservation is short.
+      throw createAppError('Payout reservation is inconsistent. No funds were changed; Finance must investigate.', 409);
     }
 
     await client.query(
@@ -310,29 +297,63 @@ export async function rejectPayout(payoutId: string, adminId: string, reason: st
       [adminId, payoutId, JSON.stringify({ amount: Number(p.amount) }), reason],
     );
 
+    const prov = await client.query<{ user_id: string }>(
+      `SELECT user_id FROM providers WHERE id = $1`,
+      [p.provider_id],
+    );
+    if (prov.rows[0]) {
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, body, data)
+         VALUES ($1, 'payout', 'Payout Rejected', $2, $3)`,
+        [
+          prov.rows[0].user_id,
+          `Your payout of ${formatPHP(amount)} was rejected. The reserved amount was returned to your available balance. Reason: ${reason}`,
+          JSON.stringify({ payoutId, amount, reason }),
+        ],
+      );
+    }
+
     logger.info('Payout rejected', { payoutId, adminId, reason });
     return result.rows[0]!;
   });
 }
 
-export async function completePayout(payoutId: string, paymongoTransferId?: string): Promise<PayoutRow> {
-  const payout = await db.query<PayoutRow>(
-    `SELECT * FROM payouts WHERE id = $1 AND status = 'approved'`,
-    [payoutId],
-  );
-  if (payout.rows.length === 0) throw createAppError('Payout not found or not approved.', 404);
-  const p = payout.rows[0]!;
-
+export async function completePayout(
+  payoutId: string,
+  adminId: string,
+  reason: string,
+  paymongoTransferId?: string,
+): Promise<PayoutRow> {
   return db.transaction(async (client) => {
     const result = await client.query<PayoutRow>(
       `UPDATE payouts SET status = 'completed', completed_at = NOW(), paymongo_transfer_id = $1
-       WHERE id = $2 RETURNING *`,
+       WHERE id = $2 AND status = 'approved' RETURNING *`,
       [paymongoTransferId ?? null, payoutId],
     );
+    if (result.rows.length === 0) {
+      throw createAppError('Payout not found or not approved.', 404);
+    }
+    const p = result.rows[0]!;
+    const amount = Number(p.amount);
+
+    const walletUpdate = await client.query(
+      `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW()
+        WHERE id = $2 AND pending_balance >= $1`,
+      [amount, p.wallet_id],
+    );
+    if (walletUpdate.rowCount === 0) {
+      throw createAppError('Payout reservation is inconsistent. Completion was not recorded; Finance must investigate.', 409);
+    }
 
     await client.query(
-      `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-      [Number(p.amount), p.wallet_id],
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
+       VALUES ($1, 'payout_completed', 'payout', $2, $3, $4)`,
+      [
+        adminId,
+        payoutId,
+        JSON.stringify({ amount, method: p.method, transferId: paymongoTransferId ?? null }),
+        reason,
+      ],
     );
 
     const prov = await client.query<{ user_id: string }>(
@@ -345,13 +366,13 @@ export async function completePayout(payoutId: string, paymongoTransferId?: stri
          VALUES ($1, 'payout', 'Payout Sent', $2, $3)`,
         [
           prov.rows[0].user_id,
-          `Your payout of ${formatPHP(Number(p.amount))} has been sent to your ${p.method} account.`,
-          JSON.stringify({ payoutId, amount: Number(p.amount), method: p.method }),
+          `Your payout of ${formatPHP(amount)} has been sent to your ${p.method} account.`,
+          JSON.stringify({ payoutId, amount, method: p.method }),
         ],
       );
     }
 
-    logger.info('Payout completed', { payoutId, amount: Number(p.amount) });
+    logger.info('Payout completed', { payoutId, adminId, amount });
     return result.rows[0]!;
   });
 }
@@ -433,6 +454,11 @@ export function formatPayout(p: PayoutRow): Record<string, unknown> {
     reviewedAt: p.reviewed_at,
     createdAt: p.created_at,
     completedAt: p.completed_at,
+    requiresAmlReview: p.requires_aml_review ?? false,
+    amlThresholdAtRequest:
+      p.aml_threshold_at_request_centavos == null
+        ? null
+        : Number(p.aml_threshold_at_request_centavos),
     // BUG-PHASE41-01 — passthrough when listPayouts populated it.
     providerBusinessName: p.provider_business_name ?? null,
   };

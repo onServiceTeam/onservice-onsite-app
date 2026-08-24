@@ -9,10 +9,13 @@ import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlarmClock, ChevronLeft } from '@/components/icons';
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import { isRealCalendarDate } from '@/utils/date';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export default function RemindersScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
   const q = useQuery({ queryKey: ['reminders'], queryFn: () => listReminders(), staleTime: 30 * 1000 });
   const invalidate = (): void => { void queryClient.invalidateQueries({ queryKey: ['reminders'] }); };
 
@@ -27,7 +30,7 @@ export default function RemindersScreen(): React.ReactElement {
   const done = useMutation({ mutationFn: (id: string) => completeReminder(id), onSuccess: invalidate });
   const remove = useMutation({ mutationFn: (id: string) => deleteReminder(id), onSuccess: invalidate });
 
-  const dateValid = /^\d{4}-\d{2}-\d{2}$/.test(date.trim());
+  const dateValid = isRealCalendarDate(date.trim());
 
   const renderItem = ({ item }: { item: ClientReminder }): React.ReactElement => (
     <View style={[styles.card, item.status === 'done' && styles.cardDone]}>
@@ -59,7 +62,7 @@ export default function RemindersScreen(): React.ReactElement {
         <View style={{ width: 24 }} />
       </View>
 
-      <View style={styles.addBox}>
+      <View style={[styles.addBox, !isPhone && styles.contentWide]}>
         <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="What to follow up on" placeholderTextColor={colors.textTertiary} maxLength={200} />
         <View style={styles.addRow}>
           <TextInput style={[styles.input, { flex: 1 }]} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textTertiary} autoCapitalize="none" />
@@ -78,7 +81,8 @@ export default function RemindersScreen(): React.ReactElement {
           data={q.data ?? []}
           keyExtractor={(r) => r.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.body}
+          contentContainerStyle={[styles.body, !isPhone && styles.contentWide]}
+          accessibilityLabel={isPhone ? 'Provider reminders' : 'Wide provider reminders workspace'}
           refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} />}
           ListEmptyComponent={<EmptyState icon={<AlarmClock size={48} color={colors.textTertiary} />} title="No reminders" description="Set follow-up reminders and we'll nudge you on the day they're due." />}
         />
@@ -92,6 +96,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   headerTitle: { ...typography.h3, color: colors.text },
   addBox: { padding: spacing.base, backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, gap: spacing.sm },
+  contentWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: spacing.xl },
   addRow: { flexDirection: 'row', gap: spacing.sm },
   input: { backgroundColor: colors.surfaceMuted, borderRadius: borderRadius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, fontSize: 14, color: colors.text },
   addBtn: { backgroundColor: colors.text, borderRadius: borderRadius.md, paddingHorizontal: spacing.base, justifyContent: 'center', alignItems: 'center', minHeight: 40 },

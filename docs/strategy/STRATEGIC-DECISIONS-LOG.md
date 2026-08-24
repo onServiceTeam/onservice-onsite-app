@@ -1,6 +1,6 @@
 # STRATEGIC DECISIONS LOG
 
-> **Current-source warning (2026-08-22):** this log contains point-in-time decisions that were later superseded. In particular, DECISION-001 (Boracay-first), the customer service-fee values in DECISION-006, and the SiguradoShield framing are not current implementation authority. Current market direction is city-agnostic with Metro Cebu first. Money and protection language must be reconciled through the open decision/escalation records before launch. See `CLAUDE.md`, `LAUNCH-LIMITATIONS.md`, and `docs/audits/CURRENT-PLATFORM-AUDIT-2026-08-22.md`.
+> **Current-source warning (2026-08-24):** this log contains point-in-time decisions that were later superseded. DECISION-001 (Boracay-first) is replaced by city-agnostic Metro Cebu first. DECISION-006's customer fee is now 0% under migration 137. Founding tier now exists. The current external PayMongo hosted flow is blocked by E14, provider fixed-price authority by E16, and SiguradoShield/guarantee language by E10/F#10. Use `AGENTS.md`, active escalation/decision records, and the operations handbook as current authority.
 
 This document records every settled strategic decision and where it came from. Future me, future Claude, future AI coder: read this before changing strategy. Do not regress these decisions without explicit Ken sign-off.
 

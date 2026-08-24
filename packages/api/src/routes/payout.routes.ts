@@ -2,7 +2,13 @@ import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { rbacMiddleware } from '../middleware/rbac.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
-import { requestPayoutSchema, rejectPayoutSchema, completePayoutSchema } from '../validators/payout.validators';
+import {
+  requestPayoutSchema,
+  approvePayoutSchema,
+  rejectPayoutSchema,
+  completePayoutSchema,
+  clearAmlReviewSchema,
+} from '../validators/payout.validators';
 import * as payoutService from '../services/payout.service';
 import { createAppError } from '../middleware/error.middleware';
 import { db } from '../models/db';
@@ -118,6 +124,7 @@ router.get(
 router.put(
   '/:id/approve',
   authMiddleware,
+  validationMiddleware(approvePayoutSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       // MED-N159 fix — super_admin only.
@@ -125,7 +132,7 @@ router.put(
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
 
-      const payout = await payoutService.approvePayout(id, req.user!.userId);
+      const payout = await payoutService.approvePayout(id, req.user!.userId, req.body.reason);
       res.json({ success: true, data: payoutService.formatPayout(payout) });
     } catch (error) {
       next(error);
@@ -167,7 +174,12 @@ router.put(
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
 
-      const payout = await payoutService.completePayout(id, req.body.paymongoTransferId);
+      const payout = await payoutService.completePayout(
+        id,
+        req.user!.userId,
+        req.body.reason,
+        req.body.paymongoTransferId,
+      );
       res.json({ success: true, data: payoutService.formatPayout(payout) });
     } catch (error) {
       next(error);
@@ -175,20 +187,21 @@ router.put(
   },
 );
 
-// MED-N77 fix: super_admin AML clearance endpoint. Transitions a
+// MED-N77 fix: super_admin large-transaction review endpoint. Transitions a
 // payout from 'aml_review_pending' to 'pending' so the standard
 // approve/reject flow can take over. Requires super_admin role
-// (RA 9160 covered transactions are not a junior-admin call).
+// because this is a senior money/compliance decision.
 router.put(
   '/:id/clear-aml-review',
   authMiddleware,
   rbacMiddleware('super_admin'),
+  validationMiddleware(clearAmlReviewSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
 
-      const payout = await payoutService.clearAmlReview(id, req.user!.userId);
+      const payout = await payoutService.clearAmlReview(id, req.user!.userId, req.body.reason);
       res.json({ success: true, data: payoutService.formatPayout(payout) });
     } catch (error) {
       next(error);

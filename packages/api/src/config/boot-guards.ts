@@ -39,3 +39,66 @@ export function assertAdmin2faNotDisabledInProduction(env: NodeJS.ProcessEnv = p
     );
   }
 }
+
+/**
+ * Refuse production startup when a required secret is absent, still uses a
+ * public development value, or has an invalid cryptographic format.
+ *
+ * TURNSTILE_SECRET_KEY is canonical. CAPTCHA_SECRET_KEY remains an accepted
+ * deployment-migration alias because the request verifier accepts the same
+ * alias; startup and runtime must never disagree about a valid configuration.
+ */
+export function validateProductionSecrets(env: NodeJS.ProcessEnv = process.env): void {
+  if (env.NODE_ENV !== 'production') return;
+
+  const required: Record<string, string | undefined> = {
+    JWT_SECRET: env.JWT_SECRET,
+    TOTP_ENCRYPTION_KEY: env.TOTP_ENCRYPTION_KEY,
+    TURNSTILE_SECRET_KEY: env.TURNSTILE_SECRET_KEY || env.CAPTCHA_SECRET_KEY,
+    PAYMONGO_WEBHOOK_SECRET: env.PAYMONGO_WEBHOOK_SECRET,
+    DB_PASSWORD: env.DB_PASSWORD,
+    REDIS_PASSWORD: env.REDIS_PASSWORD,
+  };
+  const problems: string[] = [];
+
+  for (const [key, value] of Object.entries(required)) {
+    if (!value) problems.push(`${key} is unset/empty`);
+  }
+
+  const devDefaults = new Set([
+    'dev-only-jwt-secret-not-for-prod-32-bytes-minimum-please-rotate',
+    '9fdb19af3d5c77a9809173fb496d6a4acf69836bef1e5c7d4b42783360a4c237',
+    'change-this-to-a-secure-random-string',
+    '__GENERATE_64_HEX_CHARS__',
+    'whsk_xxxxxxxxxxxx',
+    'onservice_dev',
+  ]);
+  const placeholderMarkers = [/dev-only/i, /change-me/i, /change-this/i, /not-for-prod/i, /xxxxxxxx/i, /x{8,}/];
+  for (const [key, value] of Object.entries(required)) {
+    if (!value) continue;
+    if (devDefaults.has(value) || placeholderMarkers.some((pattern) => pattern.test(value))) {
+      problems.push(`${key} is a known dev/placeholder default — rotate it`);
+    }
+  }
+
+  if (env.JWT_SECRET && env.JWT_SECRET.length < 32) {
+    problems.push('JWT_SECRET must be at least 32 characters');
+  }
+  if (env.TOTP_ENCRYPTION_KEY && !/^[0-9a-fA-F]{64}$/.test(env.TOTP_ENCRYPTION_KEY)) {
+    problems.push('TOTP_ENCRYPTION_KEY must be exactly 64 hex characters');
+  }
+
+  if (problems.length > 0) {
+    throw new Error(
+      `FATAL: production startup blocked — secret validation failed: ${problems.join('; ')}. ` +
+        'Each value must be configured (and rotated off the dev defaults) before the API will boot ' +
+        'in production. See packages/api/src/config/boot-guards.ts for the full list.',
+    );
+  }
+}
+
+/** Return the validated Express trust-proxy hop count, or null to disable it. */
+export function resolveTrustProxyHops(env: NodeJS.ProcessEnv = process.env): number | null {
+  const hops = Number(env.TRUST_PROXY_HOPS ?? 1);
+  return Number.isFinite(hops) && hops > 0 ? hops : null;
+}

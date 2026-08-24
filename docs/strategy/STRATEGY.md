@@ -1,6 +1,6 @@
 # STRATEGY — onService PH
 
-> **STATUS (2026-06-04) — launch-city framing below is superseded.** onService is multi-city and city-agnostic; cities/service areas are configured in the admin area, not in code. The default / first launch market is **Metro Cebu**; other markets (Boracay, General Santos, Davao, Metro Manila, Bacolod, and others) are turned on in admin when ready, and which we actively market is an internal decision. Any single-city / "Boracay-primary" framing in this document is historical strategy, kept for context. Current source of truth: `CLAUDE.md` → "What this codebase is" and `docs/strategy/CEBU-LAUNCH-PLAN.md`.
+> **STATUS (2026-08-24) — launch-city and several commercial assumptions below are superseded.** onService is multi-city and city-agnostic; the default / first launch market is **Metro Cebu**. The customer service fee is currently 0% (migration 137), the hosted PayMongo flow is blocked by E14, provider fixed-price authority is blocked by E16, payouts are manual requests rather than a schedule, and guarantee/insurance wording remains E10/F#10. Treat old Boracay, price, take-rate, protection, and volume projections as historical strategy only. Current authority: `AGENTS.md`, the active escalation/decision files, and `docs/operations/10-money-and-compliance-ops.md`.
 
 **Decisions Ken needs to make before Phase 04 (admin dashboard) starts. Most of these are already implicit in the plan; this document makes them explicit.**
 
@@ -147,7 +147,7 @@ For Iloilo (m12 expansion):
 
 **Provider compensation positioning:**
 
-Skilled tech making ₱1,500-2,500/day on the platform earns 3-5x Aklan's non-agri minimum wage of ₱385/day. This is genuinely attractive. The platform's value vs FB-group informal: guaranteed payment within 24 hours, NBI verification, accident insurance, dispute support.
+The provider value proposition is verified paid/assigned work, identity-based trust, an on-app evidence/support record, and manual wallet withdrawals. Do not promise a daily income, payment within 24 hours, accident insurance, or booking volume without current evidence and approved terms.
 
 **Sign-on incentives:**
 - ₱500 after first completed job
@@ -166,19 +166,13 @@ Skilled tech making ₱1,500-2,500/day on the platform earns 3-5x Aklan's non-ag
 |---|---|---|
 | Founding | 10% | First 50 providers in each city, locked in for 12 months |
 | New | 15% | Default for new sign-ups after founding cohort |
-| Verified | 13% | 10+ jobs, 4.3+ rating, NBI clear |
-| Pro | 11% | 50+ jobs, 4.5+ rating, no disputes in 30d |
-| Elite | 9% | 150+ jobs, 4.7+ rating, TESDA cert |
+| Verified | 13% | 5+ jobs, 4.0+ rating |
+| Pro | 11% | 25+ jobs, 4.5+ rating, no open disputes |
+| Elite | 9% | 100+ jobs, 4.7+ rating, verified certification, no open disputes |
 
-**Service fee (already in code):** 10% of service price, min ₱25, max ₱500.
+**Customer service fee (current):** 0% with a ₱0 floor (Ken, 2026-06-28; migration 137). Re-enabling it is a money decision and changes customer totals.
 
-**Total platform take rate:**
-- Founding tier on standard: ~20% of GMV
-- New tier on standard: ~25% of GMV
-- Pro tier on standard: ~21% of GMV
-- Elite tier on standard: ~19% of GMV
-
-This is in the Western marketplace ballpark and below the disintermediation threshold.
+**Current gross platform commission before costs:** the live admin-tunable provider tier rate only (10% founding, 15% new, 13% verified, 11% pro, 9% elite). Do not add the historical 10% customer fee when forecasting current take rate.
 
 **Cancellation refund (matches FR-102):**
 - >24h before: 100% / 0% (customer / provider)
@@ -222,11 +216,10 @@ Iloilo (city manager, m12-15):
 
 **Recommended approach (3 layers):**
 
-**Layer 1: Self-funded guarantee fund**
-- 1.5% of every service fee → guarantee fund wallet
-- Covers up to ₱25,000 per claim (property damage, incomplete work, theft)
-- Funded from platform revenue, not customer payments
-- This is already in code (`guarantee_fund` wallet type)
+**Layer 1: Guarantee-fund wallet and unresolved customer terms**
+- Release code allocates 1.5% of the customer service fee to the guarantee wallet; with the fee at 0%, the current fee-derived contribution is zero
+- Customer claim limits and wording are unresolved under E10/F#10 and must not be marketed before attorney/accountant approval
+- The wallet type exists; that does not by itself authorize a coverage promise
 
 **Layer 2: Per-job opt-in protection (Igloo + Malayan)**
 - Customer can opt in at checkout for ~₱25-50 extra
@@ -246,7 +239,7 @@ Iloilo (city manager, m12-15):
 
 ## Decision 8: Fraud and dispute strategy
 
-**Customer-facing promise:** "If anything goes wrong, we make it right within 48 hours."
+**Customer-facing rule:** use only approved support and dispute timing. Do not promise a guaranteed outcome inside 48 hours; that is not an implemented universal SLA.
 
 **Operationally:**
 - 24h auto-confirm on completed jobs (existing in code)
@@ -293,9 +286,9 @@ Aggressive path (if external capital available):
 3. ✅ 5 services already mapped (cleaning, AC, plumbing, electrical, painting)
 4. ⬜ Provider sourcing partnerships started? (TESDA RAC NCII pipeline, OWWA returnees, FB recruitment in Aklan)
 5. ✅ Pricing tiers locked in code (new/verified/pro/elite at 15/13/11/9%)
-6. ⬜ Founding-tier (10% for first 50 providers per city) — strategic recommendation NOT YET in code. Phase 03 should add `founding` tier value to runtime config; otherwise drop the recommendation.
+6. ✅ Founding tier exists in code and the current default commission is 10%; eligibility/placement remains an admin/business decision.
 7. ⬜ B2B sales lead hired or assigned for Boracay hotel/condotel outreach?
-8. ✅ SiguradoShield 3-layer architecture (Layer 1 ships at launch, Layers 2-3 partner-dependent)
+8. ⬜ Guarantee/insurance product wording and claim terms remain blocked by E10/F#10; Layer 2/3 partnerships are not implemented
 9. ✅ Dispute tier framework (in code, verify in Phase 07 audit)
 10. ⬜ Initial marketing budget committed for Boracay (₱700K-1.2M for first 6 months minimum)
 

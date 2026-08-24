@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
-import { platformConfig } from '@/config/platform.config';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 // Phase E CRIT-102 fix — completion submit now actually persists
 // the captured photos.
@@ -94,21 +93,20 @@ export default function JobCompleteScreen(): React.ReactElement {
     queryFn: () => getBookingById(id ?? ''),
     enabled: !!id,
   });
-  const providerMeQuery = useQuery<{ tier: string }>({
+  const providerMeQuery = useQuery<{ tier: string; commissionRate: number }>({
     queryKey: ['providerMe'],
     queryFn: async () => {
-      const res = await api.get<{ data: { tier: string } }>('/api/v1/providers/me');
-      return { tier: res.data.data.tier };
+      const res = await api.get<{ data: { tier: string; commissionRate: number } }>('/api/v1/providers/me');
+      return { tier: res.data.data.tier, commissionRate: res.data.data.commissionRate };
     },
     staleTime: 5 * 60 * 1000,
   });
-  const providerTier = providerMeQuery.data?.tier ?? 'new';
-  const tierRate =
-    platformConfig.commissionRates[providerTier] ?? platformConfig.commissionRates.new ?? 0.15;
-  const tierPct = Math.round(tierRate * 100);
+  const providerTier = providerMeQuery.data?.tier;
+  const tierRate = providerMeQuery.data?.commissionRate;
+  const tierPct = tierRate == null ? null : Math.round(tierRate * 100);
   const grossEarnings = bookingQuery.data?.servicePrice ?? 0;
-  const commissionAmount = Math.round(grossEarnings * tierRate);
-  const netEarnings = grossEarnings - commissionAmount;
+  const commissionAmount = tierRate == null ? null : Math.round(grossEarnings * tierRate);
+  const netEarnings = commissionAmount == null ? null : grossEarnings - commissionAmount;
 
   const pickPhoto = async (index: number): Promise<void> => {
     try {
@@ -362,17 +360,17 @@ export default function JobCompleteScreen(): React.ReactElement {
         </TouchableOpacity>
         {/* BUG-PHASE67-03 fix — CommissionBreakdown post-complete preview
             now uses REAL servicePrice + tier-specific commission rate. */}
-        {grossEarnings > 0 && (
+        {grossEarnings > 0 && tierPct != null && commissionAmount != null && netEarnings != null && providerTier && (
           <View style={{ marginTop: spacing.lg }}>
             <Text style={{ ...typography.h3, color: colors.text, marginBottom: spacing.sm }}>Earnings preview</Text>
             <CommissionBreakdown
               gross={grossEarnings}
               lines={[
                 {
-                  label: `Platform commission (${tierPct}%)`,
+                  label: 'Platform commission',
                   amount: commissionAmount,
                   pct: tierPct,
-                  helpText: `Your tier (${providerTier}). Earn higher tier for lower commission.`,
+                  helpText: `Live rate for your ${providerTier} tier at the time this preview loaded.`,
                 },
               ]}
               net={netEarnings}

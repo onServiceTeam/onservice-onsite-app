@@ -11,6 +11,7 @@ import { resolvePromo, recordPromoRedemption } from './booking/promo.service';
 import { resolveHourlyCap, type HourlyConfig } from './booking/pricing.service';
 import * as businessService from './business.service';
 import * as serviceAreaService from './service-area.service';
+import { formatPHP } from '../utils/currency';
 
 interface BookingRow {
   id: string;
@@ -883,7 +884,15 @@ interface QuoteRow {
   created_at: Date;
 }
 
-export async function submitQuote(
+interface QueryClient {
+  query: <T extends import('pg').QueryResultRow = import('pg').QueryResultRow>(
+    text: string,
+    params?: unknown[],
+  ) => Promise<import('pg').QueryResult<T>>;
+}
+
+async function submitQuoteInTransaction(
+  client: QueryClient,
   bookingId: string,
   providerUserId: string,
   quotedPrice: number,
@@ -892,7 +901,7 @@ export async function submitQuote(
 ): Promise<QuoteRow> {
   interface ProviderRow { id: string }
 
-  const providerResult = await db.query<ProviderRow>(
+  const providerResult = await client.query<ProviderRow>(
     `SELECT id FROM providers WHERE user_id = $1 AND status = 'approved'`,
     [providerUserId],
   );
@@ -902,29 +911,59 @@ export async function submitQuote(
   }
 
   const providerId = providerResult.rows[0]!.id;
-
-  const booking = await getBookingByIdAdmin(bookingId);
+  // Lock the booking while checking state + quote counts so simultaneous
+  // providers cannot both pass the final-slot check.
+  const bookingResult = await client.query<BookingRow>(
+    `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
+    [bookingId],
+  );
+  const booking = bookingResult.rows[0];
+  if (!booking) throw createAppError('Booking not found.', 404);
   if (booking.booking_type !== 'quote_based') {
     throw createAppError('This booking does not accept quotes.', 400);
   }
-
   if (booking.status !== 'requested' && booking.status !== 'quoted') {
     throw createAppError('This booking is no longer accepting quotes.', 409);
   }
 
+  // Enforce the same active-category + service-radius boundary used by the
+  // provider Leads list. Before this check, any approved provider who learned
+  // a quote-booking UUID could bypass lead discovery and submit directly.
+  const eligibility = await client.query<{ eligible: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM providers p
+         JOIN provider_services ps ON ps.provider_id = p.id AND ps.is_active = TRUE
+         LEFT JOIN service_subcategories ssc ON ssc.id = ps.subcategory_id
+        WHERE p.id = $1
+          AND (ps.category_id = $2 OR ssc.category_id = $2)
+          AND (
+            $3::numeric IS NULL OR $4::numeric IS NULL
+            OR p.latitude IS NULL OR p.longitude IS NULL
+            OR (6371 * acos(LEAST(1.0, GREATEST(-1.0,
+              cos(radians($3::numeric)) * cos(radians(p.latitude::numeric))
+                * cos(radians(p.longitude::numeric) - radians($4::numeric))
+              + sin(radians($3::numeric)) * sin(radians(p.latitude::numeric))
+            )))) <= COALESCE(p.service_radius_km, 1000000)
+          )
+     ) AS eligible`,
+    [providerId, booking.category_id, booking.latitude, booking.longitude],
+  );
+  if (eligibility.rows[0]?.eligible !== true) {
+    throw createAppError('This request is outside your active services or service radius.', 403);
+  }
+
   interface QuoteCountRow { count: string }
-  const existingQuote = await db.query<QuoteCountRow>(
+  const existingQuote = await client.query<QuoteCountRow>(
     `SELECT COUNT(*)::text as count FROM booking_quotes
      WHERE booking_id = $1 AND provider_id = $2`,
     [bookingId, providerId],
   );
-
   if (Number(existingQuote.rows[0]?.count) > 0) {
     throw createAppError('You have already submitted a quote for this booking.', 409);
   }
 
-  interface TotalQuoteCountRow { count: string }
-  const totalQuotes = await db.query<TotalQuoteCountRow>(
+  const totalQuotes = await client.query<QuoteCountRow>(
     `SELECT COUNT(*)::text as count FROM booking_quotes WHERE booking_id = $1`,
     [bookingId],
   );
@@ -933,8 +972,7 @@ export async function submitQuote(
   }
 
   const expiresAt = new Date(Date.now() + platformConfig.quoteExpiryHours * 60 * 60 * 1000);
-
-  const result = await db.query<QuoteRow>(
+  const result = await client.query<QuoteRow>(
     `INSERT INTO booking_quotes (booking_id, provider_id, quoted_price, description, estimated_duration_minutes, expires_at)
      VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
@@ -942,14 +980,36 @@ export async function submitQuote(
   );
 
   if (booking.status === 'requested') {
-    await db.query(
+    await client.query(
       `UPDATE bookings SET status = 'quoted', updated_at = NOW() WHERE id = $1`,
       [bookingId],
     );
   }
 
-  logger.info('Quote submitted', { bookingId, providerId, quotedPrice });
   return result.rows[0]!;
+}
+
+export async function submitQuote(
+  bookingId: string,
+  providerUserId: string,
+  quotedPrice: number,
+  description: string,
+  estimatedDurationMinutes?: number,
+): Promise<QuoteRow> {
+  const quote = await db.transaction((client) => submitQuoteInTransaction(
+    client,
+    bookingId,
+    providerUserId,
+    quotedPrice,
+    description,
+    estimatedDurationMinutes,
+  ));
+  logger.info('Quote submitted', {
+    bookingId,
+    providerId: quote.provider_id,
+    quotedPrice: quote.quoted_price,
+  });
+  return quote;
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -977,53 +1037,72 @@ export async function submitStructuredQuote(
     lineItems?: LineItemInput[];
   },
 ): Promise<Record<string, unknown>> {
-  const quote = await submitQuote(
-    bookingId,
-    providerUserId,
-    data.quotedPrice,
-    data.description,
-    data.estimatedDurationMinutes,
+  const lineItems = data.lineItems ?? [];
+  const canonicalTotal = lineItems.reduce(
+    (sum, item) => sum + Math.round(item.quantity * item.unitPrice),
+    0,
   );
+  if (!Number.isSafeInteger(canonicalTotal) || canonicalTotal < platformConfig.minimumQuoteAmount) {
+    throw createAppError(`Itemized quote total must be at least ${formatPHP(platformConfig.minimumQuoteAmount)}.`, 400);
+  }
+  const laborAmount = lineItems
+    .filter(i => i.itemType === 'labor' || !i.itemType)
+    .reduce((s, i) => s + Math.round(i.quantity * i.unitPrice), 0);
+  const materialsAmount = lineItems
+    .filter(i => i.itemType === 'materials')
+    .reduce((s, i) => s + Math.round(i.quantity * i.unitPrice), 0);
 
-  const laborAmount = data.lineItems
-    ?.filter(i => i.itemType === 'labor' || !i.itemType)
-    .reduce((s, i) => s + Math.round(i.quantity * i.unitPrice), 0) ?? 0;
-  const materialsAmount = data.lineItems
-    ?.filter(i => i.itemType === 'materials')
-    .reduce((s, i) => s + Math.round(i.quantity * i.unitPrice), 0) ?? 0;
+  const quote = await db.transaction(async (client) => {
+    const createdQuote = await submitQuoteInTransaction(
+      client,
+      bookingId,
+      providerUserId,
+      canonicalTotal,
+      data.description,
+      data.estimatedDurationMinutes,
+    );
 
-  await db.query(
-    `UPDATE booking_quotes
-     SET labor_amount = $2, materials_amount = $3, estimated_days = $4,
-         notes = $5, portfolio_photos = $6, updated_at = NOW()
-     WHERE id = $1`,
-    [
-      quote.id,
-      laborAmount,
-      materialsAmount,
-      data.estimatedDays ?? null,
-      data.notes ?? '',
-      data.portfolioPhotos ?? [],
-    ],
-  );
+    await client.query(
+      `UPDATE booking_quotes
+       SET labor_amount = $2, materials_amount = $3, estimated_days = $4,
+           notes = $5, portfolio_photos = $6, updated_at = NOW()
+       WHERE id = $1`,
+      [
+        createdQuote.id,
+        laborAmount,
+        materialsAmount,
+        data.estimatedDays ?? null,
+        data.notes ?? '',
+        data.portfolioPhotos ?? [],
+      ],
+    );
 
-  if (data.lineItems && data.lineItems.length > 0) {
     const values: unknown[] = [];
     const placeholders: string[] = [];
     let idx = 1;
-    for (const item of data.lineItems) {
+    for (const item of lineItems) {
       const lineTotal = Math.round(item.quantity * item.unitPrice);
       placeholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`);
-      values.push(quote.id, item.description, item.quantity, item.unit, item.unitPrice, lineTotal, item.itemType ?? 'labor');
+      values.push(createdQuote.id, item.description, item.quantity, item.unit, item.unitPrice, lineTotal, item.itemType ?? 'labor');
     }
-    await db.query(
+    await client.query(
       `INSERT INTO quote_line_items (quote_id, description, quantity, unit, unit_price, line_total, item_type)
        VALUES ${placeholders.join(', ')}`,
       values,
     );
-  }
+    return createdQuote;
+  });
 
-  return { ...quote, laborAmount, materialsAmount, estimatedDays: data.estimatedDays ?? null, notes: data.notes ?? '', lineItems: data.lineItems ?? [] };
+  logger.info('Structured quote submitted', { bookingId, quoteId: quote.id, quotedPrice: canonicalTotal });
+  return {
+    ...quote,
+    quoted_price: canonicalTotal,
+    laborAmount,
+    materialsAmount,
+    estimatedDays: data.estimatedDays ?? null,
+    notes: data.notes ?? '',
+    lineItems,
+  };
 }
 
 interface QuoteDetailRow extends QuoteRow {

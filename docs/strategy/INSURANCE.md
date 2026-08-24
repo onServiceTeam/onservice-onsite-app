@@ -15,10 +15,18 @@
 > The strategic narrative below remains as the v1.1+ design reference.
 > Read it as "what we will build when the regulatory and underwriting
 > prerequisites are in place," not "what onService PH offers today."
+>
+> **CURRENT E10/F#10 HOLD (2026-08-24):** even the Layer 1 service-guarantee
+> classification, contribution narrative, cap, eligibility, and customer
+> wording require Philippine counsel. The current zero customer service fee
+> also makes the fee-derived contribution zero. Nothing below is approved
+> marketing copy, a live benefit, or a legal conclusion.
 
 ---
 
-The 3-layer protection system. Layer 1 launches with the platform; Layers 2 and 3 are partner-dependent and may follow.
+Historical three-layer concept. No layer is authorized as a customer-facing
+insurance/guarantee benefit until its legal, underwriting, funding, and
+operational prerequisites are approved.
 
 ---
 

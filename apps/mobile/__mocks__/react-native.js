@@ -44,13 +44,18 @@ const Modal = ({ visible = true, children, ...rest }) => {
 };
 const RefreshControl = passthrough('rn-refresh-control');
 const Image = passthrough('rn-image');
-const FlatList = ({ data, renderItem, ListEmptyComponent, ListFooterComponent, ...rest }) => {
+const FlatList = ({ data, renderItem, ListHeaderComponent, ListEmptyComponent, ListFooterComponent, ...rest }) => {
   const items = (data || []).map((item, index) =>
     renderItem ? renderItem({ item, index }) : null,
   );
   return React.createElement(
     'FlatList',
     rest,
+    ListHeaderComponent
+      ? typeof ListHeaderComponent === 'function'
+        ? React.createElement(ListHeaderComponent)
+        : ListHeaderComponent
+      : null,
     ...items,
     items.length === 0 && ListEmptyComponent
       ? typeof ListEmptyComponent === 'function'

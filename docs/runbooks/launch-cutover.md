@@ -1,6 +1,10 @@
 # Launch Cutover Runbook (Phase 14 Dispatch 14)
 
-**Status:** AI deliverable complete (verification harness + runbook). Operational items 1–12 are Ken / API platform engineer responsibilities. The `v1.0.0-launch-ready` tag is applied to master ONLY after every sign-off below is checked.
+**Status (2026-08-24):** the verification harness and runbook exist, but the
+launch is not approved. F#3, F#10/E10, E14, E16, E17, and the unsigned
+operational items below remain open. The `v1.0.0-launch-ready` tag is applied to
+master only after every required sign-off and repository gate is genuinely
+green.
 
 **Tag at completion of AI work:** `v0.14.0-d14-complete`
 **Tag at launch approval:** `v1.0.0-launch-ready` (applied by Ken after all sign-offs)
@@ -166,7 +170,7 @@ keys:
 3. Copy the **Site Key** (public) and **Secret Key** (server-only).
 4. Server — add the secret to `/opt/onservice/.env`:
    ```bash
-   CAPTCHA_SECRET_KEY=<secret>   # (TURNSTILE_SECRET_KEY also accepted)
+   TURNSTILE_SECRET_KEY=<secret>
    ```
    then `docker compose -f docker-compose.prod.yml up -d api`.
 5. Mobile — the PUBLIC site key goes into the build env as
@@ -176,6 +180,10 @@ keys:
 Until the keys are set, the live baseline is rate-limiting + OTP (the server
 fails the captcha challenge closed in production, so set the keys before relying
 on the lockout-captcha path). See escalation E07 for the history.
+
+Run `bash scripts/verify-turnstile.sh` after setting both the server secret and
+the public build site key. The verifier rejects Cloudflare's documented test
+credentials and checks the real Siteverify endpoint without printing secrets.
 
 ### Sign-off
 
@@ -229,8 +237,13 @@ bash scripts/verify-sentry.sh
 3. Set settlement bank account (separate business account, not personal).
 4. Negotiate fee tier (standard 3.5% + ₱15; reduced rates at ₱1M+/month volume).
 5. Confirm webhook URL: `https://api.onservice.ph/webhooks/paymongo`.
-6. Test in sandbox mode.
-7. Switch to live mode + rotate keys:
+6. Resolve E14 by selecting and implementing an approved PayMongo Checkout
+   Session or client Payment Method authorization flow. The current API-created
+   browser URL is invalid and must not be used for real-money testing.
+7. Test customer authorization, return/cancel/pending handling, verified
+   webhooks, escrow hold, refund, reconciliation, and wallet top-up in PayMongo
+   test mode.
+8. Only after those tests pass, switch to live mode + rotate keys:
    ```bash
    PAYMONGO_PUBLIC_KEY=pk_live_...
    PAYMONGO_SECRET_KEY=sk_live_...
@@ -242,6 +255,9 @@ bash scripts/verify-sentry.sh
 ```bash
 bash scripts/verify-paymongo.sh
 ```
+
+The script verifies configuration and account reachability. It does not close
+E14 by itself; attach test-mode end-to-end evidence to the sign-off.
 
 ### Sign-off
 
@@ -285,11 +301,11 @@ bash scripts/verify-s3-bir.sh
 > `/opt/onservice/backups/`, keeps 7 days, and the dump has been restore-tested
 > (loads into a scratch DB with real rows). This fixes a latent bug where the
 > cron had been failing every night (non-executable script). Runbook:
-> `docs/runbooks/postgres-restore.md`. **Disaster recovery is already covered by
-> Hetzner Automatic Backups + snapshots (whole volume, off the box), so this is
-> NOT a launch blocker.** Optional later: continuous WAL/PITR for sub-24h RPO,
-> and/or pushing the logical dumps to a dedicated off-box target
-> (`BACKUP_RCLONE_REMOTE` + rclone). Both are nice-to-haves, not blockers.
+> `docs/runbooks/postgres-restore.md`. Hetzner Automatic Backups/snapshots and
+> the logical dump provide recovery layers, but they are not continuous PITR.
+> This launch item remains unsigned until the approved recovery objective is
+> documented and a restore meeting it is evidenced; do not silently downgrade
+> it to a post-launch nice-to-have.
 
 **Owner:** API platform engineer
 **Estimated time:** 1–3 days
@@ -412,7 +428,8 @@ Success criterion: all flows pass with no visual diff and no console errors.
 
 ### Sign-off
 
-- [ ] All 110 screens pass visual baselines
+- [ ] All catalogued 113 app/admin surfaces have the required behavioral and
+      visual evidence; F#3 native baselines are complete
 - [ ] All 7 critical-path E2E flows pass
 - [ ] Zero console errors in any flow
 
@@ -428,7 +445,7 @@ After every Item verified + smoke complete:
 | 2. BIR OR series | <pass/fail> | Cannot issue compliant receipts; tax fraud exposure |
 | 3. DTI permit | <pass/fail> | Cannot operate as registered business |
 | 4. Mayor's permit | <pass/fail> | Cannot operate in the launch city (default: Cebu City) |
-| 5. hCaptcha | <pass/fail> | Bot abuse; SMS-cost vector |
+| 5. Cloudflare Turnstile | <pass/fail> | Bot abuse; SMS-cost vector |
 | 6. Sentry | <pass/fail> | Production errors invisible; debugging blind |
 | 7. PayMongo | <pass/fail> | Cannot accept payments |
 | 8. S3 BIR Object Lock | <pass/fail> | BIR audit failure |
@@ -454,6 +471,10 @@ This tag is applied by Ken (not the AI coder), reflecting the human go-decision 
 
 ---
 
-## Migration 077 — promo_redemptions (deferred to v1.1)
+## Migration 077 history and current promo state
 
-The migration sequence has a deliberate gap at 077. Per `.ai-coder/decisions/D13-feature-decisions.md`, promo redemption is pulled for v1.0; the `promo_redemptions` table is reserved for the v1.1 wiring dispatch. Do NOT add a placeholder migration — empty migrations make the suite slower without value, and the gap is explicitly documented here so a future maintainer doesn't think a migration was lost.
+The sequence deliberately left 077 unused during D13; do not create an empty
+placeholder. Migration 111 later added `promo_redemptions`, and the server now
+has canonical promo resolution/recording. Customer checkout input and
+end-to-end customer linkage remain disabled under `promo_redemption_enabled`;
+see `LAUNCH-LIMITATIONS.md` §30.

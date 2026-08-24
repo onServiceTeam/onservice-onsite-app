@@ -1,10 +1,21 @@
 # PHILIPPINE COMPLIANCE CHECKLIST
 
-What you must do, who you must hire, and what's at stake. **This document is informational. Have a Philippine accountant and lawyer review the actual setup before relying on it.**
+> **PLANNING DRAFT, NOT CURRENT LEGAL OR TAX AUTHORITY (reviewed 2026-08-24).**
+> This file contains historical estimates and legal/tax summaries that have not
+> been approved for onService's actual entity or launch. Laws, forms, thresholds,
+> deadlines, and agency processes can change. A Philippine lawyer, accountant,
+> and privacy professional must verify every applicable item before it becomes
+> an operating instruction. Current product/launch holds include E10/F#10, E14,
+> E16, and the compliance determination for large-payout review. Use
+> `docs/runbooks/launch-cutover.md` and `docs/operations/10-money-and-compliance-ops.md`
+> for current internal status, without treating either as professional advice.
+
+Planning outline of what may be required, who may need to help, and what must be
+confirmed for the real entity and each active service area.
 
 ---
 
-## The 6 regulatory bodies you deal with
+## Initial regulatory-body map (not exhaustive)
 
 1. **BIR** (Bureau of Internal Revenue) — taxes
 2. **NPC** (National Privacy Commission) — data privacy (Data Privacy Act)
@@ -27,7 +38,9 @@ Plus:
 2. Register the business at the RDO (Revenue District Office) covering your principal office
 3. Register your books of accounts (or computerized accounting system)
 4. Get authority to print receipts (sequential OR numbering — Phase 08 implements this)
-5. Register VAT if your gross sales will exceed ₱3M/year (you will — register from day one as VAT-registered)
+5. Have the accountant determine VAT/non-VAT registration and effective timing
+   from the entity's expected and actual activity under current BIR rules. Do
+   not assume a status from this planning draft.
 
 ### Ongoing obligations
 
@@ -128,37 +141,24 @@ SEC requires disclosure of all beneficial owners (>25% direct or indirect owners
 
 ## LGU (city) permits — per city you operate in
 
-### Boracay (Malay, Aklan)
-- Mayor's Permit (Brgy. Manoc-Manoc or wherever office is)
-- Brgy. clearance
-- Sanitary permit
-- Fire safety inspection
-- Tourism office compliance (Boracay-specific)
-- **Annual renewal**
-
-### Kalibo (Aklan, planned m6)
-- Mayor's Permit (Kalibo City Hall)
-- Brgy. clearance (wherever office is in Kalibo proper, Numancia, or Banga)
-- Sanitary, Fire, BIR clearance
-- Annual renewal
-
-### Iloilo City (planned m12)
-- Mayor's Permit (Iloilo City Hall)
-- Brgy. clearance
-- Sanitary, Fire, BIR clearance
-- Annual renewal — Iloilo has stricter inspections than provincial cities
-
-Each city: similar structure. Hire a local fixer/agent to handle paperwork — typically ₱5-10K per city per year for the agent + actual permit fees ₱5-15K depending on capitalization.
+The platform is city-agnostic and the default first market is Metro Cebu. Have
+local counsel/accounting confirm whether the business needs a permit in each
+service area, only where it maintains an office, or under another current LGU
+rule. Configure cities in admin only after the corresponding launch-cutover
+sign-off. Typical documents may include a mayor's/business permit, barangay
+clearance, fire/sanitary requirements, and business-registration evidence, but
+the exact list and renewal cycle come from the relevant LGU, not this file.
 
 ---
 
 ## Insurance Commission
 
-If onService offers insurance products (SiguradoShield Layer 2 — per-job opt-in coverage), you may need an Insurance Brokerage license OR you partner with a licensed broker (Igloo, etc.) and they handle the licensing.
-
-**Recommendation:** Partner with Igloo who has the broker license, integrate via API. You don't need your own IC license.
-
-The Layer 1 self-funded guarantee fund is NOT insurance under PH law — it's a service guarantee. No IC license needed.
+onService must not offer, market, or imply an insurance or guaranteed-protection
+product unless Philippine counsel has classified the exact product and the
+Insurance Commission/licensed partner requirements are satisfied. The earlier
+claim that a self-funded guarantee is categorically not insurance is not an
+approved legal conclusion. E10/F#10 keeps final protection/disclaimer wording on
+hold; no Igloo or other insurance-partner agreement is currently evidenced.
 
 ---
 
@@ -192,7 +192,7 @@ If Ken is a foreigner (US citizen, etc.) and the business holds title in a Filip
 - Platform issues 2307 for withholding compliance
 - Platform is NOT the employer
 
-### Employee compliance (if you hire staff in Boracay HQ)
+### Employee compliance (if you hire staff in a Philippine office)
 - SSS, PhilHealth, Pag-IBIG contributions — split with employee
 - 13th month pay (mandatory)
 - DOLE registration
@@ -214,14 +214,15 @@ Mark each as Done / In Progress / Not Started:
 - [ ] Mayor's permit + barangay clearance for any other operating city
 - [ ] Bank account opened (corporate account)
 - [ ] PayMongo merchant account approved
-- [ ] Igloo/insurance partner agreement signed (if using Layer 2)
+- [ ] Counsel confirms whether any protection product is offered and, if so,
+      the required Insurance Commission/licensed-partner structure is complete
 - [ ] First 2307 batch reviewed by accountant before filing
 - [ ] First VAT return reviewed by accountant before filing
 - [ ] First 90-day operations review with lawyer (compliance posture)
 
 ---
 
-## Costs (realistic, 6-month launch budget)
+## Historical illustrative costs (not a current quote or launch budget)
 
 | Category | One-time | Monthly | 6-month total |
 |---|---|---|---|
@@ -233,4 +234,6 @@ Mark each as Done / In Progress / Not Started:
 | LGU permits (2 cities) | ₱25,000 | — | ₱25,000 |
 | **Total compliance setup + 6 mo** | | | **~₱260-470K** |
 
-Don't skimp on lawyer + accountant. The cost of getting BIR or NPC wrong is multiples of these annual fees.
+Obtain current written quotes and a professional compliance schedule for the
+actual entity and launch market. Do not budget or file from these historical
+figures alone.

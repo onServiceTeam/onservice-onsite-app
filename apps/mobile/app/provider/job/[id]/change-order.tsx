@@ -49,9 +49,17 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
   const [liPrice, setLiPrice] = useState('');
   const [liType, setLiType] = useState<DraftLineItem['itemType']>('materials');
 
-  const liQtyNum = Number(liQty) || 0;
-  const liPriceCentavos = Math.round((Number(liPrice) || 0) * 100);
-  const canAddLineItem = liDesc.trim().length > 0 && liQtyNum > 0 && liPriceCentavos > 0 && liUnit.trim().length > 0;
+  const liQtyNum = Number(liQty);
+  const liPriceCentavos = Math.round(Number(liPrice) * 100);
+  const canAddLineItem = liDesc.trim().length > 0
+    && liDesc.trim().length <= 500
+    && Number.isFinite(liQtyNum)
+    && liQtyNum >= 0.01
+    && liQtyNum <= 99999
+    && Number.isSafeInteger(liPriceCentavos)
+    && liPriceCentavos > 0
+    && liUnit.trim().length > 0
+    && liUnit.trim().length <= 30;
 
   function addLineItem(): void {
     if (!canAddLineItem) return;
@@ -78,7 +86,7 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
       const uploadedUrls = await imagePicker.uploadAll();
       if (useItemized) {
         return createChangeOrder(bookingId ?? '', {
-          description,
+          description: description.trim(),
           lineItems: lineItems.map((i) => ({
             description: i.description,
             quantity: i.quantity,
@@ -90,7 +98,7 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
         });
       }
       return createChangeOrder(bookingId ?? '', {
-        description,
+        description: description.trim(),
         additionalAmount: Math.round((Number(amount) || 0) * 100),
         photos: uploadedUrls.length > 0 ? uploadedUrls : undefined,
       });
@@ -127,10 +135,14 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
 
   // In itemized mode the amount is the computed line-item total; otherwise the
   // manually entered amount. The cap/min/commission logic below is shared.
-  const amountCentavos = useItemized ? itemizedTotalCentavos : Math.round((Number(amount) || 0) * 100);
+  const manualAmountCentavos = Math.round(Number(amount) * 100);
+  const amountCentavos = useItemized ? itemizedTotalCentavos : manualAmountCentavos;
+  const amountValid = Number.isSafeInteger(amountCentavos) && amountCentavos > 0;
   const exceedsCap = fiftyPercentCap > 0 && amountCentavos > fiftyPercentCap;
   const isValid =
-    description.length >= 10
+    !!bookingQuery.data
+    && description.trim().length >= 10
+    && amountValid
     && amountCentavos >= platformConfig.minimumChangeOrderAmount
     && !exceedsCap
     && (!itemized || lineItems.length > 0);
@@ -140,21 +152,18 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
   // platform commission. Same gap pattern fixed for QuoteBuilder
   // in Phase 48 (BUG-PHASE48-02). Provider thought they'd pocket
   // the full additional charge and got surprised at payout time.
-  const providerMeQuery = useQuery<{ tier: string }>({
+  const providerMeQuery = useQuery<{ tier: string; commissionRate: number }>({
     queryKey: ['providerMe'],
     queryFn: async () => {
-      const res = await api.get<{ data: { tier: string } }>('/api/v1/providers/me');
-      return { tier: res.data.data.tier };
+      const res = await api.get<{ data: { tier: string; commissionRate: number } }>('/api/v1/providers/me');
+      return { tier: res.data.data.tier, commissionRate: res.data.data.commissionRate };
     },
     staleTime: 5 * 60 * 1000,
   });
-  const providerTier = providerMeQuery.data?.tier ?? 'new';
-  const commissionRate =
-    platformConfig.commissionRates[providerTier]
-    ?? platformConfig.commissionRates.new
-    ?? 0.15;
-  const commissionAmount = Math.round(amountCentavos * commissionRate);
-  const netEarnings = amountCentavos - commissionAmount;
+  const providerTier = providerMeQuery.data?.tier;
+  const commissionRate = providerMeQuery.data?.commissionRate;
+  const commissionAmount = commissionRate == null ? null : Math.round(amountCentavos * commissionRate);
+  const netEarnings = commissionAmount == null ? null : amountCentavos - commissionAmount;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -331,7 +340,7 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
             </Text>
           )}
           {/* BUG-PHASE59-01 — commission preview. */}
-          {amountCentavos > 0 && (
+          {amountCentavos > 0 && commissionRate != null && commissionAmount != null && netEarnings != null && providerTier && (
             <View style={styles.commissionBox}>
               <View style={styles.commissionRow}>
                 <Text style={styles.commissionLabel}>
@@ -344,6 +353,14 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
                 <Text style={styles.netValue}>{formatPHP(netEarnings)}</Text>
               </View>
             </View>
+          )}
+          {bookingQuery.isError && (
+            <TouchableOpacity onPress={() => void bookingQuery.refetch()} accessibilityRole="button">
+              <Text style={styles.minWarn}>Could not load the original job price. Tap to retry before submitting.</Text>
+            </TouchableOpacity>
+          )}
+          {amountCentavos > 0 && providerMeQuery.isError && (
+            <Text style={styles.hint}>Commission preview unavailable. Refresh before relying on a net estimate.</Text>
           )}
         </View>
 

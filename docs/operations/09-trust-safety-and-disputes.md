@@ -8,11 +8,11 @@ This doc covers the resolution work. For the mechanics of how money moves (escro
 
 ## 1. The money model in one paragraph (so disputes make sense)
 
-The customer pays first. Money goes into the platform escrow wallet and is held there. The intended flow is instant-pay: customer books and pays into escrow, then a provider is matched. The provider does the job, the customer confirms (or it auto-confirms after 24 hours), and only then does escrow release to the provider. Because the platform holds the money, a dispute is a fight over money we already have, not money we have to claw back. That is the whole reason disputes are winnable for the customer when a provider is in the wrong.
+For a booking the server has verified as paid, money is in the platform escrow wallet before provider matching. The provider does the job, the customer confirms (or it auto-confirms after 24 hours), and only then does escrow release. A dispute on such a booking concerns held money rather than money we must claw back. E03 implemented this ordering, but E14 still blocks the current external hosted PayMongo authorization link; a pending browser attempt is not held escrow.
 
-> **Set (editable):** An "I paid but it errored" report is a payment issue, not a dispute. The E03 checkout bug that caused it is now fixed and live (2026-06-19), so it should not recur on the current app. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** An "I paid but it errored" report is a payment issue, not a dispute. E03 fixed internal ordering, but E14 confirms the current external hosted checkout link is invalid. Preserve and escalate the attempt; do not retry it or infer payment from the redirect. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-Instant-pay is live as of 2026-06-19 (E03 fixed, merged and deployed): a customer pays right after creating the booking and the money holds in escrow. An "I paid but it errored" report should no longer happen on the current app. If one does come in referencing the old behavior, confirm the customer is on the current app and retry. It is a payment issue, not a dispute, so do not open the dispute SOP for it.
+E03 ensures only verified payment may produce paid/held escrow. E14 separately blocks the external customer authorization entry and makes current external failures expected until the flow is replaced. Keep those reports in the payment/support path, preserve the gateway and booking/top-up identifiers, and do not open a dispute unless there is a completed job/payment dispute that meets the real filing rules.
 
 ---
 
@@ -241,11 +241,11 @@ Useful built-in alerts (admin notifications): `provider_consecutive_one_star`, `
 
 These are not disputes. A dispute is about money; a safety incident is about a person being hurt, property being damaged beyond the job, or someone being threatened or harassed. A safety incident can also have a dispute attached, handle the safety part first.
 
-What the app gives the customer: a "Call 911" button and a "Call onService support" button on the Safety and Support screen.
+What the app gives the customer: a "Call 911" action for immediate danger and a prefilled urgent in-app support case for the onService record.
 
-> **Set (editable):** Provision a real support hotline number before public launch, and until then remove the placeholder `+63 2 8123 4567` from the app. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** The placeholder hotline has been removed. Provision and staff a real support number before advertising phone support; until then use 911 for immediate danger and the in-app urgent support case for the company record. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-Two app limits to know: the masked-phone calling described in the Safety screen copy is not built yet, and the support hotline number in the app is a placeholder, not a working line. Do not promise masked calling, and do not give out the placeholder number as if it rings.
+Two operating limits to know: masked-phone calling is not built, and no support hotline is provisioned. The stale placeholder/calling claims have been removed from the current app. Do not promise either capability.
 
 Severity levels and response:
 
@@ -270,13 +270,18 @@ Severity levels and response:
 
 If a provider causes damage worth more than the booking, the refund tools only cover the job amount. The rest is a liability question.
 
-- onService is a marketplace, not an insurer. The finalized "no insurance" disclaimer is live in Terms section 8, the FAQ, and the Safety screen. Do not tell a customer "we are insured." We are not.
-- Providers are independent contractors and are responsible for damage they cause. The customer's own homeowner's or renter's insurance covers losses beyond platform protections.
-- There is a self-funded **guarantee fund** (a service guarantee, not insurance), funded by 1.5% of every service fee. The in-app copy frames it as covering up to ₱25,000 per claim. Any payout from it is a Ken / super-admin decision, not a front-line agent decision.
+- onService is a marketplace, not an insurer. Interim wording exists, but final guarantee/disclaimer language remains E10/F#10 and requires attorney review. Do not tell a customer "we are insured" and do not expand the interim wording.
+- Provider responsibility and any customer policy response depend on the facts
+  and applicable contracts. Support does not give legal or insurance advice;
+  preserve evidence and escalate above-booking losses.
+- The release formula allocates 1.5% of the customer service fee to a **guarantee fund** wallet. The customer service fee is currently 0%, so the current fee-derived contribution is zero. Existing app/operations cap language conflicts and remains under E10/F#10. Any above-job damage payment is a Ken/super-admin escalation, never a front-line promise.
 
-> **Set (editable):** Guarantee-fund claim rule, pending legal and accountant sign-off: cap at ₱20,000 per claim; eligible cases are provider-caused property damage or theft with photo evidence filed inside the 48-hour dispute window; the payout is clawed back from the provider's future payouts; anything above the cap is an escalation to Ken. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Legal hold (E10/F#10):** there is no operator-editable guarantee claim rule
+> or approved ₱20,000 cap. Every claim beyond the refundable booking amount goes
+> to Ken/legal with its evidence. Do not promise payment, clawback, eligibility,
+> or insurance classification until counsel approves the complete model.
 
-Two numbers to keep straight: the app copy says the fund covers up to ₱25,000 per claim, while the operational payout cap above is ₱20,000 per claim. The ₱20,000 cap is the rule agents work to; flag the gap to Ken so the app copy and the payout rule get reconciled before launch. Until the rule is signed off, treat every above-job damage claim as an escalation, not a self-serve refund.
+Two unresolved numbers exist in historical/current material: ₱25,000 in app copy and a proposed ₱20,000 operating cap. Neither is a front-line promise while legal/accounting sign-off remains open. Treat every above-job damage claim as an escalation until the rule and customer wording are reconciled.
 
 ---
 
@@ -305,7 +310,9 @@ If a customer questions the amount, check which bracket the live path used befor
 - **Escrow on a dispute:** held until resolution, then `refunded` / `partially_refunded` / `released`.
 - **Suspend a bad provider:** Providers page, reason required, freezes their in-flight escrow.
 - **Extra sign-off:** any refund over ₱10,000, any `refund_with_suspension`, and any damage/theft payout get super-admin / Ken eyes before resolving.
-- **No insurance.** Guarantee fund (app copy says up to ₱25,000/claim; operational cap ₱20,000/claim) is a Ken-approved service guarantee, not insurance.
+- **No benefit promise.** Historical app/operations copy contains conflicting
+  ₱25,000/₱20,000 figures. Neither is approved. E10/F#10 requires counsel review;
+  front-line staff escalate instead of classifying or promising payment.
 - **Safety first.** SEV-1 = page on-call, tell them to call 911, do not investigate before safety.
 - **Support hours:** Monday to Saturday, 8:00 AM to 6:00 PM PHT.
 
@@ -313,10 +320,12 @@ If a customer questions the amount, check which bracket the live path used befor
 
 ## Open decisions set in this doc
 
-- **"I paid but it errored" is a payment issue, not a dispute** (editable): the E03 checkout bug is fixed and live (2026-06-19); any such report on the current app is a payment problem to retry or escalate, not a dispute.
+- **"I paid but it errored" is a payment issue, not a dispute** (editable): preserve the attempt and escalate under E14. Do not retry the invalid hosted link, infer payment from a redirect, or manually mark paid.
 - **Extra evidence path** (editable): agent attaches over-cap evidence as admin-uploaded; confirm the upload path with engineering first.
 - **Refund sign-off threshold** (editable): super-admin / Ken reviews every refund over ₱10,000, every `refund_with_suspension`, and every damage or theft payout.
 - **In-app hours match the SOP** (editable): app copy must read Monday to Saturday, 8:00 AM to 6:00 PM PHT; wider windows are a pre-launch copy fix.
-- **Support hotline placeholder** (editable): provision a real number before public launch; remove `+63 2 8123 4567` until then.
-- **Guarantee-fund claim rule** (editable): ₱20,000 cap per claim, provider-caused damage/theft with photo evidence inside the 48-hour window, payout clawed back from future payouts, above-cap goes to Ken; pending legal and accountant sign-off.
+- **Support hotline** (editable): the placeholder is removed; provision and staff a real number before advertising phone support.
+- **Guarantee/protection rule:** not editable by operations while E10/F#10 is
+  open. Counsel and Ken must approve one model and one consistent set of terms
+  before any cap, eligibility, clawback, or customer promise is used.
 - **Cancellation numbers** (editable): support quotes the LIVE refund money-path numbers until the displayed-policy and live-path systems are reconciled.

@@ -25,7 +25,7 @@ Support hours: Monday to Saturday, 8:00 AM to 6:00 PM PHT. Sunday is closed at l
 
 > **Set (editable):** Provider support is staffed first on email and Facebook Messenger, Monday to Saturday, 8:00 AM to 6:00 PM PHT, with Finance and Trust & Safety reachable async during the same window. Starting staffing is one provider-support agent; grow headcount as provider count rises. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
-> **Set (editable):** The hotline placeholder `+63 2 8123 4567` is removed from the app (customer and provider help screens, safety screen) before launch and treated as a pre-launch fix, not a real number. Provision a real number before public launch; until then phone support is not live and everything routes to email and Messenger. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** The hotline placeholder `+63 2 8123 4567` has been removed from the app. Provision and staff a real number before advertising phone support; until then everything routes to in-app cases, email, and Messenger. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 > **Set (editable):** The provider Help/FAQ text is hardcoded in the mobile app, so wrong FAQ copy needs a code change and an app release. At launch, batch FAQ corrections into app releases; move FAQ to an admin-editable source post-launch (backlog item). _Recommended default. To change it, edit here and anywhere this value is referenced._
 
@@ -80,11 +80,11 @@ Facts to know:
 - Automatic payout schedules are not active for launch. A saved historical cadence is preserved but inactive; it does not create a payout. Providers must submit each withdrawal manually from Earnings.
 - Minimum withdrawal: ₱100.
 - Provider must be `status='approved'` to request a payout.
-- Only one payout in flight at a time (pending, approved, or processing). A second request returns an error until the first clears.
+- Only one payout in flight at a time (`aml_review_pending`, `pending`, `approved`, or legacy `processing`). The server serializes this check, so simultaneous taps cannot reserve two payouts.
 - Payout statuses: pending, aml_review_pending, approved, rejected, processing, completed.
 - On request, money moves from available to pending balance. It leaves pending only on Complete.
 - Withdrawal processing target: 3 business days.
-- AML (RA 9160): a payout at or above the large-transaction threshold (default ₱500,000) is created as `aml_review_pending` and needs a super_admin to clear the AML review before it can be approved.
+- Internal large-transaction control: a payout at or above the configured threshold (default ₱500,000) is created as `aml_review_pending`. A super_admin can clear it to pending or reject it directly; either path requires a written reason and a direct rejection returns the reserved amount atomically. This hold is not proof that a legal report was filed or required.
 
 Money lands in the provider wallet only after escrow releases on a finished job. Escrow releases when the customer confirms the job, or automatically 24 hours after the provider marks it complete. So "I finished the job but no money yet" is usually the 24-hour auto-confirm window, not a payout bug.
 
@@ -95,9 +95,9 @@ Payout playbook:
    - Available balance is ₱0 but a job just finished: explain escrow release timing (customer confirm or 24h auto-confirm). Not a payout issue.
    - Payout shows pending/approved and it has been under 3 business days: normal, give the timeline.
    - Payout shows rejected: read the rejection reason; the amount was rebated to available balance. Provider can re-request.
-   - Payout shows aml_review_pending: large-amount AML hold. Escalate to Finance to clear.
+   - Payout shows aml_review_pending: internal large-transaction hold. Escalate to Finance for review. The super_admin records either a clearance reason (moves it to pending without sending money) or a rejection reason (returns the reserved balance).
    - Payout shows completed but provider says not received: confirm the destination account number on file matches what the provider expects. If it matches and money is missing past 3 business days, escalate to Finance with the payout ID and PayMongo transfer ID.
-4. For any approve/reject/complete action, escalate to Finance. You cannot move payouts yourself.
+4. For AML clearance or any approve/reject/complete action, escalate to Finance. Every decision requires a written audit reason. You cannot move payouts yourself.
 5. If a provider expected a daily/weekly/bi-weekly/monthly automatic payout, explain the manual-only launch mode, confirm no payout was silently created, and help them submit from Earnings. Do not rewrite their stored historical cadence unless the provider explicitly chooses manual through an approved account flow.
 
 Macro: payout timing
@@ -113,7 +113,7 @@ Payouts take up to 3 business days to land after approval. If it's past that, re
 
 ## 6. Commission questions (per tier)
 
-Commission is a flat rate per tier. It does not vary inside a tier. It is taken off the service price; the provider receives service price minus commission. The platform service fee is charged to the customer on top and is not the provider's commission.
+Commission is a flat rate per tier. It does not vary inside a tier. It is taken off the service price; the provider receives service price minus commission. The customer service fee is currently 0%; if Ken later re-enables that separate admin-tunable charge, it is still not the provider's commission.
 
 | Tier | Commission | How you reach it |
 |---|---|---|
@@ -349,7 +349,7 @@ Provider ticket intake is available in the shared in-app Support screens. Email 
 ## Open decisions set in this doc
 
 - Provider support is staffed first on email and Facebook Messenger, Monday to Saturday, 8:00 AM to 6:00 PM PHT, one agent to start. (editable)
-- Hotline placeholder `+63 2 8123 4567` removed from the app pre-launch; phone support not live until a real number is provisioned. (editable)
+- Hotline placeholder removed from the app; phone support is not live until a real number is provisioned and staffed. (editable)
 - FAQ corrections batched into app releases at launch; FAQ moves to an admin-editable source post-launch. (editable)
 - Super-admin/Ken reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout. (editable)
 - Customer no-show wait window is 15 minutes before the provider reports it. (editable)

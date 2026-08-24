@@ -21,8 +21,16 @@ export const requestPayoutSchema = z.object({
 });
 
 export const rejectPayoutSchema = z.object({
-  reason: z.string().min(10, 'Reason must be at least 10 characters').max(1000),
-});
+  reason: z.string().trim().min(10, 'Reason must be at least 10 characters').max(1000),
+}).strict();
+
+export const approvePayoutSchema = z.object({
+  reason: z.string().trim().min(10, 'Reason must be at least 10 characters').max(1000),
+}).strict();
+
+export const clearAmlReviewSchema = z.object({
+  reason: z.string().trim().min(10, 'Reason must be at least 10 characters').max(1000),
+}).strict();
 
 // BUG-PHASE188-01 fix — pre-fix POST /payouts/:id/complete read
 // req.body.paymongoTransferId without validation. The value flowed
@@ -30,5 +38,6 @@ export const rejectPayoutSchema = z.object({
 // shape as Phase 152-168 + Phase 179-181. PayMongo transfer IDs are
 // short alphanumeric strings; cap at 100 + require string type.
 export const completePayoutSchema = z.object({
-  paymongoTransferId: z.string().max(100).optional(),
-});
+  paymongoTransferId: z.string().trim().max(100).optional(),
+  reason: z.string().trim().min(10, 'Reason must be at least 10 characters').max(1000),
+}).strict();

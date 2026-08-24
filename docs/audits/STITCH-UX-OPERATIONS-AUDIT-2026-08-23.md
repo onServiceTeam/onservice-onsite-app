@@ -195,7 +195,8 @@ Provider findings:
 - Fixed in the onboarding and portfolio continuation: provider applications no longer grant provider access before manual approval. Admin approval now grants the role in the same transaction as the decision, rejection repairs legacy early promotion, and the pending screen uses the auth-only application-status endpoint with explicit load/error/rejection states instead of hiding failures or inventing review stages and a 24-48 hour promise. Approval rotates the token pair before entering the provider workspace so API authority and displayed role change together (Bugs UX-110 through UX-115).
 - Fixed in the onboarding and portfolio continuation: KYC references must belong to the applying account and are stored as private object keys. Documents and selfies retain the local picker URI only for the immediate preview and show a secure on-file state after navigation instead of requesting a private storage URL anonymously (Bugs UX-113, UX-120, and UX-121).
 - Fixed in the onboarding and portfolio continuation: portfolio uploads use a dedicated public context owned by the provider, written customer consent is affirmed before upload and timestamped server-side, and the provider sees an explicit customer-visible privacy notice. The gallery is now a bounded 2/3/4-column phone/tablet/desktop workspace. Provider 360 shows the exact published images and consent evidence without adding an unapproved moderation action (Bugs UX-116 through UX-122).
-- Open: jobs, clients, earnings, and the quote builder need per-screen wide-layout verification at 768, 1024, 1280, and 1440 pixels.
+- Fixed in the provider money and CRM continuation: Earnings uses recorded seven-day gross/commission/net values and the server's live commission rate; Payout History is a complete bounded ledger; Client Detail links real job records; reminders reject impossible dates; and the quote builder keeps request context beside a server-canonical itemized quote (Bugs UX-123 through UX-126, UX-128/129, and FIN-001).
+- Open: jobs, provider notifications, and remaining owner settings/business screens need per-screen wide-layout verification at 768, 1024, 1280, and 1440 pixels.
 - Open hard stop: provider response inside a dispute is not implemented.
 - Open hard stop: checklist `Report Issue` has no approved API endpoint.
 - Open hard stop: milestone escrow behavior is unresolved.
@@ -229,6 +230,7 @@ Admin findings:
 - Fixed in the tester-feedback operations batch: production tester research now has a dedicated queue, customer/provider/admin area filters, preserved issue/questionnaire/screenshot evidence, named active-admin ownership, a written decision note, and a transactional audit event. Ordinary-admin contact and free-text PII are masked.
 - Fixed: navigating directly to a lower sidebar workspace scrolls its active destination into the visible navigation region instead of leaving the current page hidden below the fold.
 - Fixed in the certification continuation: Provider 360 now links the provider's certification evidence to an explicit review decision. Only an active, documented, unexpired certification can be verified; removing verification requires a reason and notifies the provider.
+- Fixed in the provider payout continuation: the Payout queue shows AML-held requests and every status/reason required by provider support. AML clearance, approval, rejection, and completion require a typed rationale; one-in-flight requests are serialized; completion and rejection guard the reserved wallet amount and write audit plus notification inside the same transaction (Bugs UX-127/130 and FIN-002 through FIN-005).
 - Fixed: booking reassignment uses a named online-provider picker rather than asking an employee to paste a UUID.
 - Fixed: dispute assignment uses a named active-admin picker rather than asking an employee to paste a UUID.
 - Fixed in the current continuation: provider-team reject/send-back decisions use an in-page reason dialog instead of a browser prompt.
@@ -263,6 +265,8 @@ Admin findings:
 | E09 cancellation policy           | Displayed policy and refund calculation disagree                 |
 | E10 and F#10 guarantee/disclaimer | Final legal wording requires attorney review                     |
 | E12 milestone escrow              | Money movement and release authority are unresolved              |
+| E14 PayMongo hosted checkout      | Current Payment Intent URL is invalid; replacement flow needs test keys and approval |
+| E16 provider fixed-price source   | Provider-entered and catalog prices conflict on booking creation |
 | Fine-grained staff authorization  | Existing role metadata and actual user-role enforcement conflict |
 
 ## Implementation batch completed from this audit
@@ -318,18 +322,28 @@ Admin findings:
 49. Closed cross-persona route leakage through Bugs CRIT-K02 and UX-105-109. Customer, provider-owner, and provider-staff route families now enforce their owning role, shared support requires an authenticated app persona, the staff group is registered explicitly, and the desktop shell only mounts when the route belongs to the signed-in role.
 50. Corrected provider approval authority and the onboarding/portfolio media chain through Bugs UX-110-122: pending applicants remain customers, approval grants provider access transactionally, private KYC references are owned and never rendered as public images, portfolio uploads are public and owned, consent is recorded, wide layouts are bounded, and Provider 360 receives the customer-facing portfolio evidence.
 51. Repaired the production migration and API deployment path after the live release exposed the broken `npx` command and historical ledger ordering. A behavior-tested helper now dry-runs the exact target before applying it through `npm`, bootstrap migrates before API startup, the manual workflow backs up first, and shared nginx/image state is left untouched (Bug OPS-001).
+52. Replaced provider wallet-balance inference with recorded earnings totals and switched job/quote/change-order/completion previews to the API's live commission rate (Bugs UX-123/128).
+53. Rebuilt provider Payout History, Client Detail, reminders, and quote creation as bounded tablet/desktop workspaces with complete money/status/context linkage (Bugs UX-124-126/129 and FIN-001).
+54. Rebuilt payout execution around serialized requests, AML-aware one-in-flight checks, guarded wallet reservations, atomic admin audit/notification writes, and required reasons for AML clearance, approval, rejection, and completion (Bugs UX-127/130 and FIN-002-005).
+55. Added append-only migration 149 for the `payout_completed` admin action and verified first apply, idempotent reapply, historical verb preservation, and inserts against a disposable PostgreSQL 17 cluster.
+56. Added direct reasoned rejection for internally held payouts so Finance can return the reservation without first recording a false compliance clearance (UX-132/FIN-008).
+57. Closed quote-route authorization and lead-lifecycle gaps: direct quote submission now enforces the same active category/radius boundary as Leads, and `quoted` requests remain available to other eligible providers until acceptance or the configured limit (SEC-011/LINK-133).
+58. Replaced the obsolete hCaptcha launch verifier with a process-tested Cloudflare Turnstile verifier, removed unused hCaptcha origins from the admin CSP, and aligned active environment/security/cutover docs (SEC-010).
+59. Corrected active legal, operations, strategy, QA, and architecture records that falsely described final guarantee wording, fixed protection caps, live hosted checkout, unsupported hourly pricing, optional F#10 review, or complete PITR/native evidence. Historical design docs are retained with explicit authority warnings rather than rewritten as current fact.
 
 ## Verification record for this batch
 
 - Admin TypeScript: passed.
 - Mobile TypeScript: passed.
 - API TypeScript: passed.
-- Mobile suite after the route-isolation batch: 227 suites passed, 758 tests passed, 84 explicit todos.
-- Admin suite after the certification batch: 68 files passed, 1 skipped, 181 tests passed, 3 explicit todos.
-- API suite after the production-operations continuation: 315 suites passed, 3049 tests passed.
+- Mobile suite after the provider money/linkage and fake-test remediation batch: 240 suites passed, 745 tests passed, 84 explicit todos. Thirteen source-regex assertions were removed and replaced by four tests that execute provider push routing, socket authentication, application-status rendering, and commission-tier configuration.
+- Admin suite after the provider money/linkage batch: 72 files passed, 1 skipped, 185 tests passed, 3 explicit todos.
+- API suite after the provider money/linkage and startup-guard batch: 328 suites passed, 3025 tests passed. The lower test count is intentional: eight source-regex/reimplemented startup assertions were replaced by three tests that execute the exported production-secret and trust-proxy behavior, and the 25-assertion D14 file-presence/source-pattern harness was removed in favor of the process-level Turnstile test and actual release-gate execution.
 - Admin and mobile lint: passed with zero warnings or errors.
 - API and admin production builds: passed.
 - Mobile production web export: passed with `EXPO_OS=web` and the production same-origin API URL.
+- Gate A, the Gate C smoke suite, and Gate C passed with zero blocking or report failures. Gate D and Gate E exited successfully in their documented REPORT modes; they do not count as visual-baseline or mutation evidence.
+- Production authentication preflight found and removed developer OTP, relaxed rates, and the admin 2FA bypass. One privileged account matched the formerly published demo credential; after backup it was deactivated, 13 sessions were revoked, and an audit event was written. The remaining privileged account has TOTP. Real Turnstile credentials still block production-mode promotion.
 - Production baseline entering the route-isolation batch: local, GitHub, and the server were aligned at certification commit `37bbb0819f4c9e8f2aa6cddc3d16a292759a1f4f`, with all six compose services healthy.
 - Browser smoke: the provider certification workspace was inspected from the clean production-config export with populated controlled data at 768/1366. The real browser file chooser produced a private onboarding upload, Chrome supplied the multipart boundary, the returned URL reached the certification PATCH, each date control measured 48 px high, tablet controls remained wide enough to show complete values, and neither viewport had horizontal overflow, console errors, or page errors. Provider 360 certification review baselines pass at 1280/1440/1920. The route-isolation export additionally proves customer-to-provider, provider-to-customer, and customer-to-staff direct URLs return to the correct role home at 768/1366; provider certification remains available to a provider; anonymous support returns to login; and all checked states have zero horizontal overflow and no browser page errors. Customer tracker/chat still need an authenticated customer browser session; their rendered behavior tests pass.
 - Production asset and service smoke: admin and mobile `index.html` SHA-256 hashes matched the local production builds; the public config endpoint returned `#003D9B`, `#0052CC`, and `#FE8A00`; every onService compose service remained healthy.
@@ -338,8 +352,8 @@ Admin findings:
 
 ## Next implementation order
 
-1. Audit provider earnings and payout presentation without changing money movement, then continue into client detail and quote builder.
-2. Audit and improve the remaining high-use customer wide layouts: projects and notifications. Payment recovery, Cebu address recognition, and support entry/linkage are covered by the completed customer batches.
+1. Audit and improve the remaining high-use customer wide layouts: projects and notifications. Payment recovery remains blocked by E14; Cebu address recognition and support entry/linkage are covered by the completed customer batches.
+2. Continue provider jobs, notifications, and remaining owner settings/business screens; provider fixed-price editing remains blocked by E16.
 3. Continue the admin suspicion-first pass page by page, replacing generic confirmations only where impact preview, reason capture, and audit context are required.
 4. Add real admin entity search after defining safe searchable fields and PII visibility.
 5. Reconcile fine-grained staff authorization through an explicit architecture decision.

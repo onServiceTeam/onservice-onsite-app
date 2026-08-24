@@ -1,9 +1,16 @@
 # E07 — CAPTCHA provider conflict + client side not wired (2026-06-05)
 
-**Status:** RESOLVED (2026-06-05). Ken's direction: don't make him pick — use the
+**Status:** RESOLVED IN CODE (2026-06-05); PRODUCTION KEY STILL BLOCKED (verified
+2026-08-24). Ken's direction: don't make him pick — use the
 provider already in the code. Standardized on **Cloudflare Turnstile** and wired
 it end to end. The only remaining step is Ken creating the free Turnstile keys
 (runbook Item 5).
+
+The 2026-08-24 live inspection found no Turnstile server secret and no
+Cloudflare API token. Developer OTP, relaxed rate limits, and the admin 2FA
+bypass were independently disabled, but `NODE_ENV=production` cannot pass the
+intentional secret guard until real widget credentials are provisioned and
+verified. Cloudflare test keys are not an acceptable substitute.
 
 ## Resolution (what shipped)
 

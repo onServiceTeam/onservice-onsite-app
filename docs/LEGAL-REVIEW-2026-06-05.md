@@ -1,12 +1,18 @@
 # Legal review & drafting (2026-06-05)
 
+> **HISTORICAL DRAFTING RECORD, NOT ATTORNEY APPROVAL.** This file records the
+> June 2026 internal drafting pass. Its earlier conclusion that the disclaimer
+> was finalized and non-blocking was superseded by E10/F#10. Current launch
+> authority requires attorney-reviewed final disclaimer/guarantee wording,
+> exact registered-entity and DPO details, and reconciliation with the actual
+> money and protection model. Do not cite this file as legal sign-off.
+
 Ken asked for "whatever a lawyer would do" on the legal writings. This is what
 was reviewed and rewritten. **Honest caveat up front:** I am not a licensed
-attorney. These documents are now complete, internally consistent, and grounded
-in the relevant Philippine statutes — they are real, usable legal text, not
-placeholders. A one-time review by a PH business attorney is still worth doing as
-belt-and-suspenders before scaling, but the app is no longer shipping thin or
-placeholder legal copy.
+attorney. The drafting pass expanded the documents, but completeness,
+enforceability, current statutory accuracy, and consistency with the final
+business model require Philippine counsel. Interim text must not be described as
+attorney-approved or as a promised insurance/guarantee benefit.
 
 ## What changed
 
@@ -38,14 +44,12 @@ they/their team cause), **compliance/licenses + no-circumvention**, **team-membe
 responsibility** (ties to the staff feature), and **data confidentiality (RA
 10173)**, plus survival on termination.
 
-### 4. The "no insurance" disclaimer (Audit Finding #10) — finalized
-Previously interim placeholder-grade text. Now finalized in all three surfaces
-(Terms §8, `help.tsx` FAQ, `safety-and-support.tsx` Q&A), covering the four
-required points: marketplace-not-insurer status; the explicit list of platform
-protections; independent-contractor liability + the dispute path; and the
-recommendation that customers keep their own homeowner's/renter's insurance for
-losses beyond escrow. The CI guard (`no-todo-placeholders.test.ts`) still blocks
-any return of the placeholder.
+### 4. The "no insurance" disclaimer (Audit Finding #10) — ATTORNEY HOLD
+The June pass put interim marketplace/no-insurance wording on the customer
+surfaces and added a CI guard against placeholder copy. E10/F#10 later confirmed
+that the final disclaimer and any guarantee/protection language require
+attorney review. The existing text is an interim risk-reduction measure, not a
+final legal conclusion or authority to advertise a protection limit.
 
 ## Statutes the text is grounded in
 - **RA 10173** — Data Privacy Act (privacy policy, data-subject rights, breach).
@@ -54,15 +58,16 @@ any return of the placeholder.
 - **Civil Code** — independent-contractor relationship, obligations, indemnity.
 - **BIR** rules — VAT, official receipts, 10-year financial-record retention.
 
-## The two things that still need a human (small)
+## Human work still required before launch
 1. **Entity & DPO details.** The Terms/Privacy use `ENTITY = 'onService PH'` and
    `privacy@onservice.ph`. Drop in the exact registered business name, owner, and
    the real DPO name/email once the NPC registration (cutover Item 1) is done.
-2. **Optional attorney pass.** Everything is complete and usable. If you want a
-   licensed PH attorney to do a final read for jurisdiction-specific nuances
-   (~₱5–15K, as the original plan noted), that's a sensible belt-and-suspenders
-   step — but it is no longer blocking, and the app is not shipping placeholder
-   legal copy.
+2. **Required attorney pass (E10/F#10).** Philippine counsel must approve the
+   final disclaimer/guarantee language and check the Terms, Privacy Policy, and
+   provider agreement against the registered entity, real payment flow,
+   provider relationship, dispute process, data processing, and launch markets.
+3. **Operational reconciliation.** After counsel supplies final text, update
+   every duplicated app/help/support surface and keep the CI consistency guard.
 
-All changes typecheck and pass the legal-screen tests (customer-terms,
-provider-onboarding-terms, no-todo-placeholders, no-siguradoshield).
+The June changes passed the then-current legal-screen tests. Those tests prove
+rendering and consistency only; they do not prove legal sufficiency.

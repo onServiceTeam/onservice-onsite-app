@@ -18,8 +18,6 @@ import { updateBookingStatus } from '@/services/provider-api.service';
 import { Button, Skeleton, ErrorState, Card, SectionHeader, StatusBadge } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
-// Phase E CRIT-101 — commission table for tier-based net earnings.
-import { platformConfig } from '@/config/platform.config';
 import { formatDateTime, formatRelative, formatBookingRef } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
@@ -87,16 +85,16 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   // displayed `formatPHP(booking.servicePrice)` for both rows so
   // the provider thought they'd receive the full price and got
   // surprised at payout time.
-  const providerMeQuery = useQuery<{ tier: string }>({
+  const providerMeQuery = useQuery<{ tier: string; commissionRate: number }>({
     queryKey: ['providerMe'],
     queryFn: async () => {
       const apiModule = await import('@/services/api');
-      const res = await apiModule.default.get<{ data: { tier: string } }>('/api/v1/providers/me');
-      return { tier: res.data.data.tier };
+      const res = await apiModule.default.get<{ data: { tier: string; commissionRate: number } }>('/api/v1/providers/me');
+      return { tier: res.data.data.tier, commissionRate: res.data.data.commissionRate };
     },
     staleTime: 5 * 60 * 1000,
   });
-  const providerTier = providerMeQuery.data?.tier ?? 'new';
+  const providerTier = providerMeQuery.data?.tier;
 
   const statusMutation = useMutation({
     mutationFn: ({ newStatus, location }: { newStatus: string; location?: { latitude: number; longitude: number } }) =>
@@ -230,10 +228,10 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   const hasJobDestination = (
     booking.latitude != null && booking.longitude != null
   ) || [booking.address, booking.barangay, booking.city, booking.province].some(Boolean);
-  const tierRate = platformConfig.commissionRates[providerTier] ?? platformConfig.commissionRates.new ?? 0.15;
-  const commissionAmount = Math.round(booking.servicePrice * tierRate);
-  const netEarnings = booking.servicePrice - commissionAmount;
-  const tierPct = Math.round(tierRate * 100);
+  const tierRate = providerMeQuery.data?.commissionRate;
+  const commissionAmount = tierRate == null ? null : Math.round(booking.servicePrice * tierRate);
+  const netEarnings = commissionAmount == null ? null : booking.servicePrice - commissionAmount;
+  const tierPct = tierRate == null ? null : Math.round(tierRate * 100);
 
   const earningsCard = (
     <Card style={styles.card}>
@@ -242,18 +240,24 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
         <Text style={styles.earningsLabel}>Service Price</Text>
         <Text style={styles.earningsValue}>{formatPHP(booking.servicePrice)}</Text>
       </View>
-      <View style={styles.earningsRow}>
-        <Text style={styles.earningsLabel}>{`Platform commission (${tierPct}%)`}</Text>
-        <Text style={styles.earningsValue}>{`-${formatPHP(commissionAmount)}`}</Text>
-      </View>
-      <View style={styles.earningsDivider} />
-      <View style={styles.earningsRow}>
-        <Text style={styles.earningsTotalLabel}>Your Earnings</Text>
-        <Text style={styles.earningsTotalValue}>{formatPHP(netEarnings)}</Text>
-      </View>
-      <Text style={styles.earningsNote}>
-        {`${tierPct}% commission deducted automatically when payment is released. Earn higher tier for lower commission.`}
-      </Text>
+      {tierPct != null && commissionAmount != null && netEarnings != null && providerTier ? (
+        <>
+          <View style={styles.earningsRow}>
+            <Text style={styles.earningsLabel}>{`Platform commission (${tierPct}%)`}</Text>
+            <Text style={styles.earningsValue}>{`-${formatPHP(commissionAmount)}`}</Text>
+          </View>
+          <View style={styles.earningsDivider} />
+          <View style={styles.earningsRow}>
+            <Text style={styles.earningsTotalLabel}>Your Earnings</Text>
+            <Text style={styles.earningsTotalValue}>{formatPHP(netEarnings)}</Text>
+          </View>
+          <Text style={styles.earningsNote}>
+            {`${tierPct}% live commission for your ${providerTier} tier, applied when payment is released.`}
+          </Text>
+        </>
+      ) : (
+        <Text style={styles.earningsNote}>Net earnings preview is unavailable. Refresh before relying on a commission estimate.</Text>
+      )}
     </Card>
   );
 

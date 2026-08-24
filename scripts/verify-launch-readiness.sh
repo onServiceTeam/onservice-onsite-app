@@ -17,7 +17,7 @@ cd "$REPO_ROOT"
 declare -A REQUIRED=(
   [1]="verify-dpo-registered.sh"
   [2]="verify-bir-or-series.sh"
-  [5]="verify-hcaptcha.sh"
+  [5]="verify-turnstile.sh"
   [6]="verify-sentry.sh"
   [7]="verify-paymongo.sh"
   [8]="verify-s3-bir.sh"

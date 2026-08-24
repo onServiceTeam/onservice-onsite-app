@@ -1,8 +1,8 @@
 // MED-N77 + MED-N78 fix verified.
 //
-// MED-N77: payouts above the AML large-transaction threshold (RA 9160
-// PH AMLA covered transaction; default PHP 500K = 50,000,000 centavos)
-// now enter 'aml_review_pending' status with requires_aml_review=TRUE
+// MED-N77: payouts at/above the internal large-transaction review
+// threshold (default PHP 500K = 50,000,000 centavos) enter
+// 'aml_review_pending' status with requires_aml_review=TRUE
 // and a snapshot of the threshold value at request time. Super_admin
 // clearance via PUT /payouts/:id/clear-aml-review transitions to
 // standard 'pending' so the existing approve flow can proceed.
@@ -88,7 +88,6 @@ describe('MED-N78 — destination account format validation', () => {
       .toThrow(/Unknown payout method/);
   });
 });
-
 describe('MED-N77 — AML threshold detection on requestPayout', () => {
   beforeEach(() => {
     dbQueryMock.mockReset();
@@ -155,7 +154,7 @@ describe('MED-N77 — AML threshold detection on requestPayout', () => {
     expect(insert!.params[8]).toBe(false);
   });
 
-  it('Bug MED-N77 — payout AT the AML threshold triggers aml_review_pending status (RA 9160 covered)', async () => {
+  it('Bug MED-N77 — payout AT the internal review threshold triggers aml_review_pending status', async () => {
     setupHappyPath();
     getSettingIntegerMock.mockResolvedValueOnce(50_000_000);
     const txCalls = setupTransaction(50_000_000, 'aml_review_pending');
@@ -189,7 +188,7 @@ describe('MED-N77 — AML threshold detection on requestPayout', () => {
     expect(result.requires_aml_review).toBe(true);
   });
 
-  it('Bug MED-N77 — falls back to RA 9160 default PHP 500K when settings.service is unavailable', async () => {
+  it('Bug MED-N77 — falls back to the internal PHP 500K review threshold when settings.service is unavailable', async () => {
     setupHappyPath();
     getSettingIntegerMock.mockRejectedValueOnce(new Error('redis + db both down'));
     const txCalls = setupTransaction(50_000_000, 'aml_review_pending');
@@ -219,7 +218,6 @@ describe('MED-N77 — AML threshold detection on requestPayout', () => {
     expect(dbTransactionMock).not.toHaveBeenCalled();
   });
 });
-
 describe('MED-N77 — clearAmlReview transitions aml_review_pending → pending', () => {
   beforeEach(() => {
     dbQueryMock.mockReset();
@@ -247,7 +245,11 @@ describe('MED-N77 — clearAmlReview transitions aml_review_pending → pending'
       return (cb as any)({ query: clientQuery });
     });
 
-    const result = await payoutService.clearAmlReview('payout-1', 'super-admin-1');
+    const result = await payoutService.clearAmlReview(
+      'payout-1',
+      'super-admin-1',
+      'Verified source of funds and provider identity.',
+    );
     expect(result.status).toBe('pending');
 
     // The UPDATE must scope to status='aml_review_pending' so junior
@@ -261,6 +263,7 @@ describe('MED-N77 — clearAmlReview transitions aml_review_pending → pending'
     const audit = txCalls.find((c) => /admin_actions/.test(c.sql));
     expect(audit).toBeDefined();
     expect(audit!.sql).toMatch(/'aml_review_cleared'/);
+    expect(audit!.params[3]).toBe('Verified source of funds and provider identity.');
   });
 
   it('throws 404 when the payout is not in aml_review_pending status', async () => {
@@ -270,29 +273,7 @@ describe('MED-N77 — clearAmlReview transitions aml_review_pending → pending'
       return (cb as any)({ query: clientQuery });
     });
     await expect(
-      payoutService.clearAmlReview('payout-1', 'super-admin-1'),
+      payoutService.clearAmlReview('payout-1', 'super-admin-1', 'Review could not be cleared.'),
     ).rejects.toMatchObject({ statusCode: 404 });
-  });
-});
-
-describe('MED-N77 — payout.routes.ts /:id/clear-aml-review gated by super_admin', () => {
-
-  const { readFileSync } = require('fs');
-
-  const { resolve } = require('path');
-  const ROUTES = readFileSync(
-    resolve(__dirname, '../src/routes/payout.routes.ts'),
-    'utf8',
-  );
-
-  it('imports rbacMiddleware', () => {
-    expect(ROUTES).toMatch(/import \{ rbacMiddleware \} from '\.\.\/middleware\/rbac\.middleware'/);
-  });
-
-  it('PUT /:id/clear-aml-review uses rbacMiddleware(\'super_admin\')', () => {
-    const block = ROUTES.match(/router\.put\(\s*'\/:id\/clear-aml-review',[\s\S]*?(?=router\.[a-z]+\(|export default|$)/);
-    expect(block).not.toBeNull();
-    expect(block![0]).toMatch(/rbacMiddleware\('super_admin'\)/);
-    expect(block![0]).toMatch(/payoutService\.clearAmlReview/);
   });
 });

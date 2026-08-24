@@ -7,18 +7,20 @@ import {
   getClientDetail, addClientNote, deleteClientNote, addReminder, completeReminder,
 } from '@/services/provider-crm.service';
 import { formatPHP } from '@/utils/currency';
-import { formatRelative } from '@/utils/date';
+import { formatRelative, isRealCalendarDate } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft } from '@/components/icons';
 import { SkeletonCard, ErrorState } from '@/components/ui';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export default function ClientDetailScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const customerId = id ?? '';
+  const { isPhone } = useResponsive();
 
   const q = useQuery({ queryKey: ['client', customerId], queryFn: () => getClientDetail(customerId), enabled: !!customerId });
   const invalidate = (): void => { void queryClient.invalidateQueries({ queryKey: ['client', customerId] }); };
@@ -48,7 +50,7 @@ export default function ClientDetailScreen(): React.ReactElement {
     onError: (e) => showToast(getErrorMessage(e, 'Could not update the reminder.'), 'error'),
   });
 
-  const dateValid = /^\d{4}-\d{2}-\d{2}$/.test(remDate.trim());
+  const dateValid = isRealCalendarDate(remDate.trim());
 
   if (q.isLoading) {
     return <SafeAreaView style={styles.container} edges={['top']}><View style={styles.body}><SkeletonCard /><SkeletonCard /></View></SafeAreaView>;
@@ -57,6 +59,10 @@ export default function ClientDetailScreen(): React.ReactElement {
     return <SafeAreaView style={styles.container} edges={['top']}><View style={styles.body}><ErrorState message="Could not load this client." onRetry={() => q.refetch()} /></View></SafeAreaView>;
   }
   const client = q.data;
+  const completedCount = client.bookings.filter((booking) =>
+    ['confirmed', 'payout_ready', 'paid_out', 'completed_by_provider'].includes(booking.status),
+  ).length;
+  const totalJobValue = client.bookings.reduce((sum, booking) => sum + booking.servicePrice, 0);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -68,7 +74,23 @@ export default function ClientDetailScreen(): React.ReactElement {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.body, !isPhone && styles.bodyWide]}
+      >
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryTitle}>Client record</Text>
+          <Text style={styles.summaryText}>
+            {client.bookings.length} job{client.bookings.length === 1 ? '' : 's'} · {completedCount} completed · {formatPHP(totalJobValue)} gross service value
+          </Text>
+          <Text style={styles.hint}>Notes and reminders are private to your provider account.</Text>
+        </View>
+
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={isPhone ? 'Client record' : 'Wide client relationship workspace'}
+        >
+        <View style={[styles.workspaceColumn, !isPhone && styles.workspaceColumnPrimary]}>
         {/* Notes */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Notes</Text>
@@ -113,23 +135,33 @@ export default function ClientDetailScreen(): React.ReactElement {
             </View>
           </View>
         </View>
+        </View>
 
         {/* History */}
-        <View style={styles.card}>
+        <View style={[styles.card, styles.historyCard, !isPhone && styles.workspaceColumnSecondary]}>
           <Text style={styles.sectionTitle}>Job history</Text>
           {client.bookings.length === 0 ? (
             <Text style={styles.hint}>No jobs yet.</Text>
           ) : (
             client.bookings.map((b) => (
-              <View key={b.id} style={styles.histRow}>
+              <TouchableOpacity
+                key={b.id}
+                style={styles.histRow}
+                onPress={() => router.push(`/provider/job/${b.id}`)}
+                accessibilityLabel={`Open ${b.categoryName ?? 'service'} job`}
+              >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.histCat}>{b.categoryName ?? 'Service'}</Text>
                   <Text style={styles.histMeta}>{b.status.replace(/_/g, ' ')} · {formatRelative(b.createdAt)}</Text>
                 </View>
-                <Text style={styles.histValue}>{formatPHP(b.servicePrice)}</Text>
-              </View>
+                <View style={styles.histAmountWrap}>
+                  <Text style={styles.histValue}>{formatPHP(b.servicePrice)}</Text>
+                  <Text style={styles.histOpen}>Open ›</Text>
+                </View>
+              </TouchableOpacity>
             ))
           )}
+        </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -142,7 +174,17 @@ const styles = StyleSheet.create({
   headerTitle: { ...typography.h3, color: colors.text, flex: 1, textAlign: 'center' },
   scroll: { flex: 1 },
   body: { padding: spacing.base, paddingBottom: 40, gap: spacing.md },
+  bodyWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl },
+  summaryCard: { backgroundColor: colors.infoLight, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: 1, borderColor: colors.border },
+  summaryTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
+  summaryText: { ...typography.bodySmall, color: colors.text, fontWeight: '600', marginBottom: spacing.xs },
+  workspace: { gap: spacing.md },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  workspaceColumn: { gap: spacing.md },
+  workspaceColumnPrimary: { flex: 1.1, minWidth: 0 },
+  workspaceColumnSecondary: { flex: 0.9, minWidth: 320 },
   card: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  historyCard: { alignSelf: 'stretch' },
   sectionTitle: { ...typography.body, fontWeight: '700', color: colors.text, marginBottom: 4 },
   hint: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.sm },
   noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
@@ -164,4 +206,6 @@ const styles = StyleSheet.create({
   histCat: { ...typography.bodySmall, color: colors.text, fontWeight: '600' },
   histMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 1, textTransform: 'capitalize' },
   histValue: { ...typography.bodySmall, color: colors.text, fontWeight: '700' },
+  histAmountWrap: { alignItems: 'flex-end' },
+  histOpen: { ...typography.caption, color: colors.primary, fontWeight: '700', marginTop: 2 },
 });

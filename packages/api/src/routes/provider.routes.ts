@@ -20,6 +20,7 @@ import * as reviewService from '../services/review.service';
 import * as providerToolsService from '../services/provider-tools.service';
 import * as providerStaffService from '../services/provider-staff.service';
 import * as kycDocumentService from '../services/kyc-document.service';
+import * as settingsService from '../services/settings.service';
 import { createAppError } from '../middleware/error.middleware';
 
 const router = Router();
@@ -88,18 +89,22 @@ router.get(
     try {
       requireProvider(req);
       const provider = await providerService.getProviderByUserId(req.user!.userId);
-      const [services, schedule, ratings, portfolio, certifications] = await Promise.all([
+      const [services, schedule, ratings, portfolio, certifications, commissionRate] = await Promise.all([
         providerService.getProviderServices(provider.id),
         providerService.getSchedule(provider.id),
         reviewService.getProviderAggregateRating(provider.id),
         providerService.getPortfolio(provider.id),
         providerService.getCertifications(provider.id),
+        settingsService.getCommissionRate(provider.tier),
       ]);
 
       res.json({
         success: true,
         data: {
           ...providerService.formatProvider(provider),
+          // UX-128 — provider money previews use the same live, admin-tunable
+          // rate as escrow release instead of a mobile fallback table.
+          commissionRate,
           services: services.map(providerService.formatProviderService),
           schedule: schedule.map(providerService.formatScheduleSlot),
           ratings,

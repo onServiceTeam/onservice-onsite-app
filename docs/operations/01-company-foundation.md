@@ -135,13 +135,22 @@ Notes for ops:
 
 This is the most important thing to get right, because getting it wrong is a legal problem, not just a messaging one.
 
-### What we actually offer (each of these is real and verifiable)
+### Implemented controls and held claims
 
 1. **Identity + NBI verification.** Government ID, NBI clearance, and selfie collected at onboarding and reviewed by our team before approval.
-2. **Escrow.** Customer pays first. The money sits in the platform escrow wallet until the customer confirms the job is done, or auto-confirm releases it after 24 hours. If the provider is suspended mid-job, escrow is frozen until an admin resolves it.
+2. **Escrow state machine.** A server-verified payment can be held until customer
+   confirmation/auto-confirm, and provider suspension can freeze release for
+   admin resolution. E14 blocks the current external hosted authorization entry,
+   so a redirect or `awaiting_payment` attempt is not proof of held money.
 3. **48-hour dispute window.** After a job is marked complete, the customer has 48 hours to dispute. Damage or theft claims require photo evidence.
 4. **Rating accountability.** Low-rated providers (below the rating floor, once they have enough reviews) drop out of auto-dispatch. Chronic cancellers get warned then auto-suspended.
-5. **A self-funded guarantee fund.** We set aside 1.5% of every service fee into a guarantee fund wallet. This is a **service guarantee, not insurance.** It is our own money used to make a customer whole in specific cases, capped per claim. It needs no Insurance Commission license because it is not an insurance product. The starting claim rules live in `09-trust-safety-and-disputes.md`.
+5. **An internal guarantee-wallet accounting path, not an approved customer
+   promise.** The release code allocates 1.5% of the customer service fee to a
+   guarantee wallet. The customer service fee is currently 0%, so the current
+   fee-derived contribution is zero. E10/F#10 requires Philippine counsel to
+   classify and approve any protection/guarantee product, cap, eligibility rule,
+   and customer wording. The accounting field does not prove that no Insurance
+   Commission requirement applies.
 
 ### What we do NOT offer, and why it matters
 
@@ -149,9 +158,16 @@ We removed the old "SiguradoShield" insurance branding on purpose (Ken's decisio
 
 **The rule for every staff member:**
 
-> We never say "insured," "insurance," "coverage," or quote a peso coverage amount. We say "ID-verified pros, escrow-held payment, a 48-hour dispute window, and a service guarantee fund." If a customer asks "am I insured?", the answer is: "No, onService is a marketplace, not an insurer. Here is the protection you do have," then list the four real ones.
+> We never say "insured," "insurance," "coverage," quote a peso protection
+> amount, or promise that a guarantee fund will pay. Staff may describe verified
+> identity review, the dispute path, and only a payment that is actually marked
+> held. Questions about insurance, guarantees, or above-booking loss escalate to
+> Ken/legal while E10/F#10 remains open.
 
-The exact approved disclaimer wording lives in the customer Terms §8 and the Help FAQ. Use that wording, do not improvise. Full dispute and refund handling is in `09-trust-safety-and-disputes.md` and `13-policies-codes-and-templates.md`.
+Interim disclaimer wording lives in the customer Terms §8 and Help FAQ. It is
+not final attorney-approved wording. Use it without adding a benefit claim, and
+escalate legal questions. Full dispute/refund handling is in
+`09-trust-safety-and-disputes.md` and `13-policies-codes-and-templates.md`.
 
 ---
 
