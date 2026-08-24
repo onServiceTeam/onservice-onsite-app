@@ -44,7 +44,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureImageAsync } from '@/utils/image-capture';
 import api from '@/services/api';
-import { uploadBookingPhoto, uploadSignature } from '@/services/booking-photo.service';
+import { listBookingPhotos, uploadBookingPhoto, uploadSignature } from '@/services/booking-photo.service';
 import { getErrorMessage } from '@/utils/errors';
 import { showToast } from '@/lib/toast';
 import SignaturePad, { type SignaturePadRef } from '@/components/SignaturePad';
@@ -54,6 +54,7 @@ import { Camera, CheckCircle2, Edit, ChevronLeft } from '@/components/icons';
 import CommissionBreakdown from '@/components/provider/CommissionBreakdown';
 
 import { Routes } from '@/config/navigation';
+import { useResponsive } from '@/hooks/useResponsive';
 const PHOTO_SLOTS = 4;
 const MIN_PHOTOS = 2;
 
@@ -61,6 +62,7 @@ export default function JobCompleteScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
   const [photos, setPhotos] = useState<(string | null)[]>(() =>
     Array.from({ length: PHOTO_SLOTS }, () => null),
   );
@@ -82,6 +84,11 @@ export default function JobCompleteScreen(): React.ReactElement {
   // submit awaits this so the upload happens after the canvas has
   // produced the bitmap.
   const captureResolverRef = useRef<((uri: string) => void) | null>(null);
+  // Keep successfully uploaded local artifacts out of an in-screen retry when
+  // a later signature or status step fails. Server records remain canonical;
+  // these refs only prevent duplicate uploads during this mounted attempt.
+  const uploadedPhotoUrisRef = useRef<Set<string>>(new Set());
+  const signatureUploadedRef = useRef(false);
 
   // BUG-PHASE67-03 fix — pre-fix the CommissionBreakdown at the bottom
   // of this screen rendered with hardcoded gross=0, amount=0, net=0
@@ -91,6 +98,11 @@ export default function JobCompleteScreen(): React.ReactElement {
   const bookingQuery = useQuery({
     queryKey: ['booking', id],
     queryFn: () => getBookingById(id ?? ''),
+    enabled: !!id,
+  });
+  const afterPhotosQuery = useQuery({
+    queryKey: ['bookingPhotos', id, 'after'],
+    queryFn: () => listBookingPhotos(id ?? '', 'after'),
     enabled: !!id,
   });
   const providerMeQuery = useQuery<{ tier: string; commissionRate: number }>({
@@ -168,14 +180,16 @@ export default function JobCompleteScreen(): React.ReactElement {
   };
 
   const photoCount = photos.filter((p): p is string => p !== null).length;
-  const canSubmit = photoCount >= MIN_PHOTOS && hasSignature && !submitting;
+  const existingAfterPhotos = afterPhotosQuery.data ?? [];
+  const totalAfterPhotoCount = existingAfterPhotos.length + photoCount;
+  const canSubmit = totalAfterPhotoCount >= MIN_PHOTOS && hasSignature && !submitting;
 
   const handleSubmit = async (): Promise<void> => {
     if (!id) {
       Alert.alert('Missing booking', 'No booking ID was provided.');
       return;
     }
-    if (photoCount < MIN_PHOTOS) {
+    if (totalAfterPhotoCount < MIN_PHOTOS) {
       Alert.alert('Photos required', `Please capture at least ${MIN_PHOTOS} completion photos.`);
       return;
     }
@@ -191,21 +205,26 @@ export default function JobCompleteScreen(): React.ReactElement {
       // verbatim in JSON to a 404 endpoint and dropped on the floor.
       const validPhotos = photos.filter((p): p is string => p !== null);
       for (const photoUri of validPhotos) {
+        if (uploadedPhotoUrisRef.current.has(photoUri)) continue;
         await uploadBookingPhoto({ uri: photoUri, bookingId: id, photoType: 'after' });
+        uploadedPhotoUrisRef.current.add(photoUri);
       }
 
       // Phase E CRIT-103/104 fix (E01 Option A) — read the signature
       // PNG out of the WebView canvas and upload it to the existing
       // /uploads/booking-signature multipart endpoint with
       // signatureType='customer_acceptance' (booking_signatures
-      // table from migration 079). This is the legal proof of work
-      // acceptance for dispute defence.
-      const signatureUri = await readSignatureFile();
-      await uploadSignature({
-        uri: signatureUri,
-        bookingId: id,
-        signatureType: 'customer_acceptance',
-      });
+      // table from migration 079). E19 records that this provider-session
+      // capture is not verified customer identity evidence.
+      if (!signatureUploadedRef.current) {
+        const signatureUri = await readSignatureFile();
+        await uploadSignature({
+          uri: signatureUri,
+          bookingId: id,
+          signatureType: 'customer_acceptance',
+        });
+        signatureUploadedRef.current = true;
+      }
 
       // Phase E CRIT-102 fix — transition the booking via the real
       // canonical PATCH /:id/status endpoint. The transition handler
@@ -225,6 +244,7 @@ export default function JobCompleteScreen(): React.ReactElement {
       // Refresh the booking + the provider's job lists so the dashboard
       // doesn't keep showing this job as in-progress from stale cache.
       void queryClient.invalidateQueries({ queryKey: ['booking', id] });
+      void queryClient.invalidateQueries({ queryKey: ['bookingPhotos', id] });
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
       // A7 — non-blocking toast then return to the dashboard; was a modal Alert.
       showToast('Job marked as complete.', 'success');
@@ -252,15 +272,35 @@ export default function JobCompleteScreen(): React.ReactElement {
 
       <ScrollView
         style={styles.body}
-        contentContainerStyle={styles.bodyContent}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.section}>
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={isPhone ? 'Provider job completion' : 'Tablet and desktop provider job completion workspace'}
+        >
+        <View style={styles.primaryColumn}>
+        <View style={[styles.section, styles.sectionCard]}>
           <Text style={styles.sectionTitle}>Final Photos</Text>
           <Text style={styles.sectionHint}>
-            Capture at least {MIN_PHOTOS} photos showing the completed work.
-            ({photoCount}/{PHOTO_SLOTS})
+            At least {MIN_PHOTOS} completion photos are required. {existingAfterPhotos.length} on file + {photoCount} new ({totalAfterPhotoCount}/{MIN_PHOTOS} required).
           </Text>
+          {afterPhotosQuery.isError ? (
+            <TouchableOpacity style={styles.photoLoadWarning} onPress={() => void afterPhotosQuery.refetch()}>
+              <Text style={styles.photoLoadWarningText}>Existing photos could not be verified. Tap to retry, or add two new photos.</Text>
+            </TouchableOpacity>
+          ) : null}
+          {existingAfterPhotos.length > 0 ? (
+            <View style={styles.existingPhotos}>
+              <Text style={styles.existingPhotosLabel}>Already uploaded</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {existingAfterPhotos.map((photo) => (
+                  <Image key={photo.id} source={{ uri: photo.storageUrl }} style={styles.existingPhoto} resizeMode="cover" />
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+          <Text style={styles.newPhotosLabel}>Add more photos</Text>
           <View style={styles.photoGrid}>
             {photos.map((uri, idx) => (
               <TouchableOpacity
@@ -281,7 +321,14 @@ export default function JobCompleteScreen(): React.ReactElement {
             ))}
           </View>
         </View>
+        </View>
 
+        <View style={styles.secondaryColumn}>
+        <View style={styles.readinessCard}>
+          <Text style={styles.readinessEyebrow}>COMPLETION READINESS</Text>
+          <Text style={styles.readinessValue}>{totalAfterPhotoCount >= MIN_PHOTOS ? 'Photos ready' : `${MIN_PHOTOS - totalAfterPhotoCount} more photo${MIN_PHOTOS - totalAfterPhotoCount === 1 ? '' : 's'} needed`}</Text>
+          <Text style={styles.readinessValue}>{hasSignature ? 'Signature captured' : 'Customer signature needed'}</Text>
+        </View>
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Customer Signature</Text>
@@ -343,9 +390,12 @@ export default function JobCompleteScreen(): React.ReactElement {
             <Text style={styles.notesCount}>{notes.length}/2000</Text>
           )}
         </View>
+        </View>
+        </View>
       </ScrollView>
 
       <View style={styles.footer}>
+        <View style={[styles.footerContent, !isPhone && styles.footerContentWide]}>
         <TouchableOpacity
           style={[styles.primaryBtn, !canSubmit && styles.primaryBtnDisabled]}
           onPress={() => { void handleSubmit(); }}
@@ -377,6 +427,7 @@ export default function JobCompleteScreen(): React.ReactElement {
             />
           </View>
         )}
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -400,7 +451,19 @@ const styles = StyleSheet.create({
   placeholder: { width: 44 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: spacing.xl },
+  bodyContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.xl },
+  workspace: { gap: spacing.base },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  primaryColumn: { flex: 1, minWidth: 0 },
+  secondaryColumn: { flex: 1, minWidth: 0 },
   section: { marginBottom: spacing.lg },
+  sectionCard: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -418,6 +481,17 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
+  existingPhotos: { marginBottom: spacing.base },
+  existingPhotosLabel: { ...typography.caption, color: colors.textTertiary, fontWeight: '700', marginBottom: spacing.sm },
+  existingPhoto: { width: 88, height: 88, borderRadius: borderRadius.md, marginRight: spacing.sm },
+  newPhotosLabel: { ...typography.bodySmall, color: colors.text, fontWeight: '700', marginBottom: spacing.sm },
+  photoLoadWarning: {
+    backgroundColor: colors.warningLight,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.base,
+  },
+  photoLoadWarningText: { ...typography.bodySmall, color: colors.text, lineHeight: 19 },
   photoTile: {
     width: '48%',
     aspectRatio: 1,
@@ -437,6 +511,17 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   photoPlaceholderText: { ...typography.caption, color: colors.textTertiary },
+  readinessCard: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.base,
+    marginBottom: spacing.lg,
+    gap: spacing.xs,
+  },
+  readinessEyebrow: { ...typography.caption, color: colors.primary, fontWeight: '800', letterSpacing: 0.8 },
+  readinessValue: { ...typography.bodySmall, color: colors.text, fontWeight: '700' },
   // Phase E CRIT-103/104 fix — old PanResponder canvas styles
   // (signaturePad, signatureHintWrap, signatureDot) replaced by the
   // new SignaturePad component which owns its own canvas styling.
@@ -469,12 +554,13 @@ const styles = StyleSheet.create({
   // BUG-PHASE194-01 fix — char counter under notes input.
   notesCount: { ...typography.caption, color: colors.textTertiary, textAlign: 'right' as const, marginTop: spacing.xs },
   footer: {
-    paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
   },
+  footerContent: { paddingHorizontal: spacing.base },
+  footerContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', paddingHorizontal: spacing.xl },
   primaryBtn: {
     backgroundColor: colors.primary,
     paddingVertical: spacing.base,

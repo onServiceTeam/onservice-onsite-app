@@ -34,13 +34,17 @@ import { SkeletonCard, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { CheckCircle2, Camera, AlertCircle, X, ChevronLeft } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 interface ChecklistItem {
   id: string;
   label: string;
+  description: string | null;
   done: boolean;
   completedAt: string | null;
+  photoId: string | null;
   photoUri: string | null;
+  photoRequired: boolean;
 }
 
 interface ChecklistSection {
@@ -59,6 +63,7 @@ interface FlatRow {
 export default function JobChecklistScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { isPhone } = useResponsive();
   const [sections, setSections] = useState<ChecklistSection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -92,9 +97,12 @@ export default function JobChecklistScreen(): React.ReactElement {
               items: Array<{
                 id: string;
                 title: string;
+                description: string | null;
                 isCompleted: boolean;
                 completedAt: string | null;
                 photoId: string | null;
+                photoUrl: string | null;
+                photoRequired: boolean;
               }>;
             }>;
           };
@@ -106,9 +114,12 @@ export default function JobChecklistScreen(): React.ReactElement {
           items: s.items.map((it) => ({
             id: it.id,
             label: it.title,
+            description: it.description,
             done: it.isCompleted,
             completedAt: it.completedAt,
-            photoUri: it.photoId ? `photo:${it.photoId}` : null,
+            photoId: it.photoId,
+            photoUri: it.photoUrl,
+            photoRequired: it.photoRequired,
           })),
         }));
         setSections(mapped);
@@ -164,7 +175,8 @@ export default function JobChecklistScreen(): React.ReactElement {
     void (async () => {
       try {
         await api.patch(`/api/v1/jobs/${id}/checklist/items/${item.id}`, {
-          isCompleted: nextDone,
+          completed: nextDone,
+          ...(item.photoId ? { photoId: item.photoId } : {}),
         });
       } catch (err: unknown) {
         // Revert local state and surface the error (A7: non-blocking toast).
@@ -201,9 +213,15 @@ export default function JobChecklistScreen(): React.ReactElement {
           bookingId: id,
           photoType: 'checklist',
         });
-        // Replace optimistic file:// URI with the real https URL the
-        // server returned, so the photo survives screen re-mounts.
-        updateItem(item.id, { photoUri: uploaded.storageUrl });
+        // UX-148 — uploading the binary is only step one. Attach the returned
+        // booking_photos id to this checklist item so photo-required
+        // completion validation and future checklist reads see the evidence.
+        await api.patch(`/api/v1/jobs/${id}/checklist/items/${item.id}`, {
+          completed: item.done,
+          photoId: uploaded.id,
+        });
+        // Replace the optimistic local URI with the persisted URL and id.
+        updateItem(item.id, { photoId: uploaded.id, photoUri: uploaded.storageUrl });
       } catch (err: unknown) {
         // Revert local preview and surface the failure (A7: non-blocking toast).
         updateItem(item.id, { photoUri: item.photoUri });
@@ -279,6 +297,9 @@ export default function JobChecklistScreen(): React.ReactElement {
           onPress={() => toggleDone(item)}
           style={styles.checkBtn}
           activeOpacity={0.7}
+          accessibilityRole="checkbox"
+          accessibilityLabel={`Mark ${item.label} ${item.done ? 'incomplete' : 'complete'}`}
+          accessibilityState={{ checked: item.done }}
         >
           {item.done ? (
             <CheckCircle2 size={26} color={colors.success} />
@@ -290,9 +311,14 @@ export default function JobChecklistScreen(): React.ReactElement {
           <Text style={[styles.itemLabel, item.done && styles.itemLabelDone]}>
             {item.label}
           </Text>
+          {item.description ? <Text style={styles.itemDescription}>{item.description}</Text> : null}
+          {item.photoRequired ? <Text style={styles.photoRequired}>Photo required</Text> : null}
           {item.photoUri && (
             <Image source={{ uri: item.photoUri }} style={styles.thumb} resizeMode="cover" />
           )}
+          {!item.photoUri && item.photoId ? (
+            <Text style={styles.photoAttached}>Photo attached</Text>
+          ) : null}
           <View style={styles.itemActions}>
             <TouchableOpacity
               style={styles.actionLink}
@@ -300,7 +326,7 @@ export default function JobChecklistScreen(): React.ReactElement {
               activeOpacity={0.7}
             >
               <Camera size={14} color={colors.primary} />
-              <Text style={styles.actionLinkText}>{item.photoUri ? 'Replace photo' : '+ Photo'}</Text>
+              <Text style={styles.actionLinkText}>{item.photoUri || item.photoId ? 'Replace photo' : '+ Photo'}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionLink}
@@ -327,7 +353,7 @@ export default function JobChecklistScreen(): React.ReactElement {
           <Text style={styles.headerTitle}>Service Checklist</Text>
           <View style={styles.placeholder} />
         </View>
-        <View style={{ padding: spacing.base }}>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -345,10 +371,12 @@ export default function JobChecklistScreen(): React.ReactElement {
           <Text style={styles.headerTitle}>Service Checklist</Text>
           <View style={styles.placeholder} />
         </View>
-        <ErrorState
-          message={loadError}
-          onRetry={() => setReloadKey((k) => k + 1)}
-        />
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <ErrorState
+            message={loadError}
+            onRetry={() => setReloadKey((k) => k + 1)}
+          />
+        </View>
       </SafeAreaView>
     );
   }
@@ -363,34 +391,52 @@ export default function JobChecklistScreen(): React.ReactElement {
         <View style={styles.placeholder} />
       </View>
 
-      <View style={styles.progressWrap}>
-        <Text style={styles.progressText}>
-          {totals.done} of {totals.total} complete · {totals.pct}%
-        </Text>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${totals.pct}%` }]} />
+      <View
+        style={[styles.workspace, !isPhone && styles.workspaceWide]}
+        accessibilityLabel={isPhone ? 'Provider checklist' : 'Tablet and desktop provider checklist workspace'}
+      >
+        <View style={[styles.progressWrap, !isPhone && styles.progressWrapWide]}>
+          <Text style={styles.progressEyebrow}>JOB PROGRESS</Text>
+          <Text style={styles.progressText}>
+            {totals.done} of {totals.total} complete · {totals.pct}%
+          </Text>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: `${totals.pct}%` }]} />
+          </View>
+          <Text style={styles.bookingRef}>Booking #{id ?? '—'}</Text>
+          <Text style={styles.progressHint}>
+            Complete every required task and attach proof where requested before finishing the job.
+          </Text>
         </View>
-        <Text style={styles.bookingRef}>Booking #{id ?? '—'}</Text>
+
+        <FlatList
+          style={styles.checklistList}
+          data={rows}
+          keyExtractor={(row, idx) =>
+            row.type === 'header' ? `h-${row.sectionId}` : `i-${row.item!.id}-${idx}`
+          }
+          renderItem={renderRow}
+          contentContainerStyle={[styles.listContent, !isPhone && styles.listContentWide]}
+          ListEmptyComponent={(
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No checklist tasks for this service</Text>
+              <Text style={styles.emptyText}>You can continue after documenting the required job photos.</Text>
+            </View>
+          )}
+          showsVerticalScrollIndicator={false}
+        />
       </View>
 
-      <FlatList
-        data={rows}
-        keyExtractor={(row, idx) =>
-          row.type === 'header' ? `h-${row.sectionId}` : `i-${row.item!.id}-${idx}`
-        }
-        renderItem={renderRow}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
-
       <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={handleContinue}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.primaryBtnText}>Save & Continue</Text>
-        </TouchableOpacity>
+        <View style={[styles.footerContent, !isPhone && styles.footerContentWide]}>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={handleContinue}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.primaryBtnText}>Save & Continue</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Modal
@@ -400,7 +446,7 @@ export default function JobChecklistScreen(): React.ReactElement {
         onRequestClose={() => setIssueOpen(false)}
       >
         <View style={styles.modalBg}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, !isPhone && styles.modalCardWide]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Report Issue</Text>
               <TouchableOpacity onPress={() => setIssueOpen(false)} style={styles.modalClose}>
@@ -464,6 +510,18 @@ const styles = StyleSheet.create({
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   placeholder: { width: 44 },
+  stateContent: { padding: spacing.base },
+  stateContentWide: { width: '100%', maxWidth: 920, alignSelf: 'center', padding: spacing.xl },
+  workspace: { flex: 1 },
+  workspaceWide: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.lg,
+    paddingHorizontal: spacing.xl,
+  },
   progressWrap: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
@@ -471,6 +529,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
+  progressWrapWide: {
+    width: 320,
+    marginTop: spacing.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+  },
+  progressEyebrow: { ...typography.caption, color: colors.primary, fontWeight: '800', letterSpacing: 0.8 },
   progressText: { ...typography.bodySmall, color: colors.text, fontWeight: '600' },
   progressBar: {
     height: 8,
@@ -481,7 +547,20 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: '100%', backgroundColor: colors.success },
   bookingRef: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.xs },
+  progressHint: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.base, lineHeight: 19 },
+  checklistList: { flex: 1, minWidth: 0 },
   listContent: { padding: spacing.base, paddingBottom: 120 },
+  listContentWide: { paddingHorizontal: 0, paddingTop: spacing.md },
+  emptyCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    marginTop: spacing.lg,
+  },
+  emptyTitle: { ...typography.h3, color: colors.text },
+  emptyText: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
   sectionHeader: {
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
@@ -519,6 +598,9 @@ const styles = StyleSheet.create({
   itemBody: { flex: 1 },
   itemLabel: { ...typography.body, color: colors.text },
   itemLabelDone: { color: colors.textTertiary, textDecorationLine: 'line-through' },
+  itemDescription: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
+  photoRequired: { ...typography.caption, color: colors.warning, fontWeight: '700', marginTop: spacing.xs },
+  photoAttached: { ...typography.caption, color: colors.success, fontWeight: '700', marginTop: spacing.sm },
   thumb: {
     width: 80,
     height: 80,
@@ -533,12 +615,13 @@ const styles = StyleSheet.create({
   actionLink: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   actionLinkText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
   footer: {
-    paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
   },
+  footerContent: { paddingHorizontal: spacing.base },
+  footerContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', paddingHorizontal: spacing.xl },
   primaryBtn: {
     backgroundColor: colors.primary,
     paddingVertical: spacing.base,
@@ -559,6 +642,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     padding: spacing.base,
   },
+  modalCardWide: { width: '100%', maxWidth: 560, alignSelf: 'center' },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -1,6 +1,6 @@
 import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -12,12 +12,14 @@ import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import { CheckCircle2, Lock, Clock } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export default function JobCompletionScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
 
   const confirmMutation = useMutation({
     mutationFn: async () => {
@@ -51,8 +53,16 @@ export default function JobCompletionScreen(): React.ReactElement {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.base }]}>
-      <View style={styles.content}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]}
+        showsVerticalScrollIndicator={false}
+      >
+      <View
+        style={[styles.workspace, !isPhone && styles.workspaceWide]}
+        accessibilityLabel={isPhone ? 'Customer job completion' : 'Tablet and desktop customer job completion workspace'}
+      >
+      <View style={[styles.content, !isPhone && styles.contentWide]}>
         <View style={styles.iconCircle}>
           <CheckCircle2 size={48} color={colors.success} />
         </View>
@@ -79,7 +89,14 @@ export default function JobCompletionScreen(): React.ReactElement {
         </View>
       </View>
 
-      <View style={styles.actions}>
+      <View style={[styles.actions, !isPhone && styles.actionsWide]}>
+        {!isPhone && (
+          <View style={styles.actionHeading}>
+            <Text style={styles.actionEyebrow}>YOUR DECISION</Text>
+            <Text style={styles.actionTitle}>Confirm the completed service</Text>
+            <Text style={styles.actionCopy}>Review the result before releasing payment or opening a support case.</Text>
+          </View>
+        )}
         <Button
           title="Yes, looks great!"
           onPress={() => confirmMutation.mutate()}
@@ -93,13 +110,27 @@ export default function JobCompletionScreen(): React.ReactElement {
           disabled={confirmMutation.isPending}
         />
       </View>
+      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.lg },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
+  scrollContent: { flexGrow: 1, padding: spacing.lg, paddingTop: spacing.xxl },
+  scrollContentWide: { padding: spacing.xxl, justifyContent: 'center' },
+  workspace: { width: '100%', maxWidth: 560, alignSelf: 'center', flex: 1 },
+  workspaceWide: { maxWidth: 1040, flexDirection: 'row', alignItems: 'center', gap: spacing.xxl },
   content: { flex: 1, alignItems: 'center' },
+  contentWide: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xxl,
+  },
 
   iconCircle: {
     width: 80,
@@ -135,5 +166,17 @@ const styles = StyleSheet.create({
   autoConfirmIcon: { fontSize: 20, marginRight: spacing.sm },
   autoConfirmText: { ...typography.bodySmall, color: colors.warning, flex: 1 },
 
-  actions: { gap: spacing.md },
+  actions: { gap: spacing.md, paddingTop: spacing.lg },
+  actionsWide: {
+    width: 340,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+  },
+  actionHeading: { marginBottom: spacing.md },
+  actionEyebrow: { ...typography.caption, color: colors.primary, fontWeight: '700', letterSpacing: 0.8, marginBottom: spacing.xs },
+  actionTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },
+  actionCopy: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20 },
 });

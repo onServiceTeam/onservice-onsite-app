@@ -7,8 +7,8 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getBookingById, uploadJobPhotos } from '@/services/booking.service';
-import { listBookingPhotos } from '@/services/booking-photo.service';
+import { getBookingById } from '@/services/booking.service';
+import { listBookingPhotos, uploadBookingPhoto } from '@/services/booking-photo.service';
 import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
 // A7 — shared UI kit for loading/error states + toast feedback.
@@ -16,6 +16,7 @@ import { SkeletonCard, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft, Camera } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type Phase = 'before' | 'after';
 
@@ -23,6 +24,7 @@ export default function ProviderPhotosScreen(): React.ReactElement {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
   const [activePhase, setActivePhase] = useState<Phase>('before');
 
   const beforePicker = useImagePicker({ context: 'general', maxImages: 20 });
@@ -54,20 +56,48 @@ export default function ProviderPhotosScreen(): React.ReactElement {
   const uploadMutation = useMutation({
     mutationFn: async (phase: Phase) => {
       const picker = phase === 'before' ? beforePicker : afterPicker;
-      const urls = await picker.uploadAll();
-      if (urls.length === 0) {
+      if (picker.localUris.length === 0) {
         throw new Error('No photos to upload.');
       }
-      return uploadJobPhotos(bookingId ?? '', phase, urls);
+      if (!bookingId) throw new Error('No booking ID was provided.');
+
+      // UX-151 — persist through the canonical multipart booking-photo
+      // service. The deprecated generic-upload + legacy TEXT[] endpoint did
+      // not share the staff authorization, storage compensation, metadata,
+      // and completion-gate path used by the rest of job execution.
+      const results = await Promise.allSettled(
+        picker.localUris.map((uri) => uploadBookingPhoto({
+          uri,
+          bookingId,
+          photoType: phase,
+        })),
+      );
+      return {
+        uploaded: results.filter((result) => result.status === 'fulfilled').length,
+        failed: results.filter((result) => result.status === 'rejected').length,
+        succeededIndexes: results
+          .map((result, index) => result.status === 'fulfilled' ? index : -1)
+          .filter((index) => index >= 0),
+      };
     },
-    onSuccess: (_data, phase) => {
+    onSuccess: (result, phase) => {
       const picker = phase === 'before' ? beforePicker : afterPicker;
-      picker.reset();
+      // Remove only persisted selections, from the end so indexes stay stable.
+      // Failed photos remain selected for an immediate retry instead of making
+      // the provider find and add them again.
+      [...result.succeededIndexes].sort((a, b) => b - a).forEach((index) => picker.removeImage(index));
       void queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
       // BUG-PHASE71-03 fix — also invalidate the canonical photos
       // query so the new uploads appear immediately in existingPhotos.
       void queryClient.invalidateQueries({ queryKey: ['bookingPhotos', bookingId] });
-      showToast(`${phase === 'before' ? 'Before' : 'After'} photos saved successfully.`, 'success');
+      if (result.failed > 0) {
+        showToast(
+          `${result.uploaded} photo${result.uploaded === 1 ? '' : 's'} saved; ${result.failed} failed and remain selected. Retry when ready.`,
+          'error',
+        );
+      } else {
+        showToast(`${phase === 'before' ? 'Before' : 'After'} photos saved successfully.`, 'success');
+      }
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper (A7: non-blocking toast).
@@ -97,99 +127,105 @@ export default function ProviderPhotosScreen(): React.ReactElement {
         <View style={styles.placeholder} />
       </View>
 
-      <View style={styles.tabRow}>
-        {(['before', 'after'] as Phase[]).map((phase) => (
-          <TouchableOpacity
-            key={phase}
-            style={[styles.tab, activePhase === phase && styles.tabActive]}
-            onPress={() => setActivePhase(phase)}
-          >
-            <Text style={[styles.tabText, activePhase === phase && styles.tabTextActive]}>
-              {phase === 'before' ? 'Before' : 'After'} Photos
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
+      <ScrollView style={styles.body} contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={colors.primary} colors={[colors.primary]} />}
       >
-        {bookingLoading && (
-          <View style={{ marginBottom: spacing.base }}>
-            <SkeletonCard />
-          </View>
-        )}
-        {bookingError && (
-          <ErrorState
-            compact
-            message="We couldn't load this job's photos. Please check your connection and try again."
-            onRetry={() => void refetch()}
-          />
-        )}
-        <Text style={styles.phaseHint}>
-          {activePhase === 'before'
-            ? 'Take photos of the area before you begin. This protects both you and the customer.'
-            : 'Take photos after completing the job to document your work quality.'}
-        </Text>
-
-        {existingPhotos.length > 0 && (
-          <View style={styles.existingSection}>
-            <Text style={styles.existingLabel}>Already Uploaded ({existingPhotos.length})</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.existingScroll}>
-              {existingPhotos.map((url, i) => (
-                <Image key={`existing-${i}`} source={{ uri: url }} style={styles.existingThumb} />
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        <Text style={styles.sectionLabel}>
-          New Photos ({activePicker.localUris.length})
-        </Text>
-
-        {activePicker.localUris.length > 0 && (
-          <View style={styles.grid}>
-            {activePicker.localUris.map((uri, i) => (
-              <View key={`new-${i}`} style={styles.thumbWrap}>
-                <Image source={{ uri }} style={styles.thumbImg} />
-                <TouchableOpacity
-                  style={styles.removeBtn}
-                  onPress={() => activePicker.removeImage(i)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={styles.removeBtnText}>×</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={styles.addPhotoBtn}
-          onPress={activePicker.showPickerOptions}
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={isPhone ? 'Provider job photos' : 'Tablet and desktop provider job photos workspace'}
         >
-          <Camera size={20} color={colors.primary} />
-          <Text style={styles.addPhotoText}>Add Photos</Text>
-        </TouchableOpacity>
+          <View style={[styles.phaseColumn, !isPhone && styles.phaseColumnWide]}>
+            <Text style={styles.phaseEyebrow}>EVIDENCE STAGE</Text>
+            <View style={[styles.tabRow, !isPhone && styles.tabRowWide]}>
+              {(['before', 'after'] as Phase[]).map((phase) => (
+                <TouchableOpacity
+                  key={phase}
+                  style={[styles.tab, !isPhone && styles.tabWide, activePhase === phase && styles.tabActive]}
+                  onPress={() => setActivePhase(phase)}
+                >
+                  <Text style={[styles.tabText, activePhase === phase && styles.tabTextActive]}>
+                    {phase === 'before' ? 'Before' : 'After'} Photos
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.phaseHint}>
+              {activePhase === 'before'
+                ? 'Take photos of the area before you begin. This protects both you and the customer.'
+                : 'Take photos after completing the job to document your work quality.'}
+            </Text>
+          </View>
 
-        {activePicker.localUris.length > 0 && (
-          <TouchableOpacity
-            style={[styles.uploadBtn, (uploadMutation.isPending || activePicker.isUploading) && styles.uploadBtnDisabled]}
-            onPress={() => uploadMutation.mutate(activePhase)}
-            disabled={uploadMutation.isPending || activePicker.isUploading}
-          >
-            {(uploadMutation.isPending || activePicker.isUploading) ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator size="small" color={colors.white} />
-                <Text style={styles.uploadBtnText}>Uploading...</Text>
+          <View style={styles.evidenceColumn}>
+            {bookingLoading && (
+              <View style={{ marginBottom: spacing.base }}>
+                <SkeletonCard />
               </View>
-            ) : (
-              <Text style={styles.uploadBtnText}>
-                Upload {activePicker.localUris.length} {activePhase === 'before' ? 'Before' : 'After'} Photo{activePicker.localUris.length !== 1 ? 's' : ''}
-              </Text>
             )}
-          </TouchableOpacity>
-        )}
+            {bookingError && (
+              <ErrorState
+                compact
+                message="We couldn't load this job's photos. Please check your connection and try again."
+                onRetry={() => void refetch()}
+              />
+            )}
+
+            {existingPhotos.length > 0 && (
+              <View style={styles.existingSection}>
+                <Text style={styles.existingLabel}>Already Uploaded ({existingPhotos.length})</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.existingScroll}>
+                  {existingPhotos.map((url, i) => (
+                    <Image key={`existing-${i}`} source={{ uri: url }} style={styles.existingThumb} />
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            <Text style={styles.sectionLabel}>New Photos ({activePicker.localUris.length})</Text>
+
+            {activePicker.localUris.length > 0 && (
+              <View style={styles.grid}>
+                {activePicker.localUris.map((uri, i) => (
+                  <View key={`new-${i}`} style={styles.thumbWrap}>
+                    <Image source={{ uri }} style={styles.thumbImg} />
+                    <TouchableOpacity
+                      style={styles.removeBtn}
+                      onPress={() => activePicker.removeImage(i)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityLabel={`Remove selected photo ${i + 1}`}
+                    >
+                      <Text style={styles.removeBtnText}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <TouchableOpacity style={styles.addPhotoBtn} onPress={activePicker.showPickerOptions}>
+              <Camera size={20} color={colors.primary} />
+              <Text style={styles.addPhotoText}>Add Photos</Text>
+            </TouchableOpacity>
+
+            {activePicker.localUris.length > 0 && (
+              <TouchableOpacity
+                style={[styles.uploadBtn, uploadMutation.isPending && styles.uploadBtnDisabled]}
+                onPress={() => uploadMutation.mutate(activePhase)}
+                disabled={uploadMutation.isPending}
+              >
+                {uploadMutation.isPending ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator size="small" color={colors.white} />
+                    <Text style={styles.uploadBtnText}>Uploading...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.uploadBtnText}>
+                    Upload {activePicker.localUris.length} {activePhase === 'before' ? 'Before' : 'After'} Photo{activePicker.localUris.length !== 1 ? 's' : ''}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -212,22 +248,39 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row', backgroundColor: colors.surface,
     borderBottomWidth: 1, borderBottomColor: colors.border,
+    borderRadius: borderRadius.md,
   },
+  tabRowWide: { flexDirection: 'column', borderBottomWidth: 0, gap: spacing.xs },
   tab: {
     flex: 1, paddingVertical: spacing.md, alignItems: 'center',
     borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
-  tabActive: { borderBottomColor: colors.primary },
+  tabWide: { flex: 0, alignItems: 'flex-start', paddingHorizontal: spacing.md },
+  tabActive: { borderBottomColor: colors.primary, backgroundColor: colors.primaryLight },
   tabText: { ...typography.body, color: colors.textSecondary },
   tabTextActive: { color: colors.primary, fontWeight: '700' },
 
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  bodyContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.xl },
+  workspace: { gap: spacing.base },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  phaseColumn: { gap: spacing.sm },
+  phaseColumnWide: {
+    width: 320,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+  },
+  phaseEyebrow: { ...typography.caption, color: colors.primary, fontWeight: '800', letterSpacing: 0.8 },
+  evidenceColumn: { flex: 1, minWidth: 0 },
 
   phaseHint: {
     ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20,
     backgroundColor: colors.primaryLight, padding: spacing.md,
-    borderRadius: borderRadius.md, marginBottom: spacing.base,
+    borderRadius: borderRadius.md,
   },
 
   existingSection: {

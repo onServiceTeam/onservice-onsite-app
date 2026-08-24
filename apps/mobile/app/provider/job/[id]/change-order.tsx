@@ -13,6 +13,7 @@ import { Info } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
+import { useResponsive } from '@/hooks/useResponsive';
 
 // D27 Phase 3 — a parts/materials/labor line the provider adds to itemize a
 // change order. unitPrice is centavos; the row's total is qty × unitPrice.
@@ -34,6 +35,7 @@ const ITEM_TYPES: { value: DraftLineItem['itemType']; label: string }[] = [
 export default function ChangeOrderFormScreen(): React.ReactElement {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { isPhone } = useResponsive();
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const imagePicker = useImagePicker({ context: 'change-order', maxImages: 10 });
@@ -175,7 +177,11 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      <ScrollView style={styles.body} contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}>
+        <View
+          style={styles.workspace}
+          accessibilityLabel={isPhone ? 'Provider change order form' : 'Tablet and desktop provider change order workspace'}
+        >
         <View style={styles.infoBox}>
           <View style={styles.infoIconWrap}><Info size={20} color={colors.primary} /></View>
           <Text style={styles.infoText}>
@@ -419,6 +425,7 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
             <Text style={styles.submitText}>Submit Change Order</Text>
           )}
         </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -433,6 +440,8 @@ const styles = StyleSheet.create({
   placeholder: { width: 30 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  bodyContentWide: { padding: spacing.xl },
+  workspace: { width: '100%', maxWidth: 960, alignSelf: 'center' },
   infoBox: { flexDirection: 'row', gap: spacing.sm + 2, backgroundColor: colors.primaryLight, borderRadius: borderRadius.lg, padding: spacing.md + 2, marginBottom: spacing.lg - 4, borderWidth: 1, borderColor: colors.primary },
   infoIcon: { fontSize: 18 },
   infoIconWrap: { alignItems: 'center' as const, marginRight: 8 },
