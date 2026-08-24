@@ -94,7 +94,7 @@ interface BookingEvidence {
   photos: Array<{
     id: string;
     url: string;
-    uploadedBy: 'customer' | 'provider';
+    uploadedBy: 'customer' | 'provider' | 'admin';
     uploadedAt: string;
     caption: string | null;
   }>;
@@ -929,7 +929,7 @@ function EvidenceTab({ bookingId }: { bookingId: string }): React.ReactElement {
                 <div className="flex items-center justify-between text-xs">
                   <Badge
                     label={p.uploadedBy}
-                    variant={p.uploadedBy === 'customer' ? 'info' : 'success'}
+                    variant={p.uploadedBy === 'customer' ? 'info' : p.uploadedBy === 'admin' ? 'danger' : 'success'}
                   />
                   <span className="text-[var(--color-text-secondary)]">
                     {fmtDate(p.uploadedAt)}

@@ -4,7 +4,7 @@
 
 This is the current living audit for the customer, provider, staff, admin, API, documentation, CI, and production-server surfaces. It records only checks repeated against the current repository and live server. It does not claim that every interaction has already been manually exercised. Items not yet closed remain in the open register below.
 
-The 2026-08-23 Stitch, cross-role UX, and company-operations implementation audit continues this record at `docs/audits/STITCH-UX-OPERATIONS-AUDIT-2026-08-23.md`.
+The 2026-08-23 Stitch, cross-role UX, and company-operations implementation audit continues this record at `docs/audits/STITCH-UX-OPERATIONS-AUDIT-2026-08-23.md`. The attached ProofFlow/FieldOS comparison and its onService-specific product model continue it at `docs/audits/PROOF-TO-CLOSE-CORE-VALUE-AUDIT-2026-08-25.md`.
 
 Current verified repository identity:
 
@@ -78,6 +78,9 @@ This trace exposes the key company rule: admin pages must not invent a second st
 - Final guarantee/protection wording and legal basis remain open (E10 and F#10).
 - Milestone escrow for Projects is not legally/accountingly approved (E12).
 - Provider dispute response and checklist Report Issue flows remain unresolved product/API gaps (E04 and E05).
+- Customer-acceptance signature identity remains held under E19; the provider-session bitmap is not verified customer identity evidence.
+- Suki redemption has a centavo/peso unit mismatch under E25. No redemption or wallet change is authorized until the money-path option is approved.
+- Property/site/visit architecture for the proof-to-close direction requires D28. Read-only consolidation and current proof-integrity fixes can proceed; schema/backfill cannot.
 - The operational launch runbook still requires legal, tax, payments-live-mode, backup/PITR, DNS/TLS, and regulator sign-offs. The staging demo must not be described as launch-ready production.
 
 ### Engineering and production operations

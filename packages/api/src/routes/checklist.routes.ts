@@ -17,7 +17,10 @@ const router = Router();
 function resolveActorRole(req: AuthenticatedRequest): 'customer' | 'provider' | 'admin' {
   const role = req.user!.role;
   if (role === 'admin' || role === 'super_admin') return 'admin';
-  if (role === 'provider') return 'provider';
+  // Assigned provider staff execute the same booking-scoped checklist as the
+  // provider owner. checklist.service still verifies that the staff account is
+  // approved and is the performer assigned to this exact booking.
+  if (role === 'provider' || role === 'provider_staff') return 'provider';
   return 'customer';
 }
 

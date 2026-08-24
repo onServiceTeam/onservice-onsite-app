@@ -32,7 +32,7 @@ beforeEach(resetDbMock);
 describe('Bug 460 + 463 — getChecklistForBooking', () => {
   it('rejects 404 when booking missing', async () => {
     setTopQueryImpl(makeRouter([
-      { match: /SELECT b\.id,\s+sub\.category_id/, rows: [], rowCount: 0 },
+      { match: /SELECT b\.id,\s+b\.category_id/, rows: [], rowCount: 0 },
     ]));
     await expect(
       svc.getChecklistForBooking(BOOKING_ID, PROVIDER_USER_ID, 'provider'),
@@ -211,7 +211,7 @@ describe('Bug 463 — toggleChecklistItem photo_required enforcement', () => {
         provider_user_id: PROVIDER_USER_ID,
         customer_id: CUSTOMER_ID,
       }], rowCount: 1 },
-      { match: /SELECT booking_id, deleted_at FROM booking_photos/, rows: [{ booking_id: BOOKING_ID, deleted_at: null }], rowCount: 1 },
+      { match: /SELECT booking_id, deleted_at, photo_type, uploaded_by_role/, rows: [{ booking_id: BOOKING_ID, deleted_at: null, photo_type: 'checklist', uploaded_by_role: 'provider' }], rowCount: 1 },
       { match: /UPDATE booking_checklist_items/, rows: [{
         id: ITEM_ID,
         is_completed: true,
@@ -239,7 +239,7 @@ describe('Bug 463 — toggleChecklistItem photo_required enforcement', () => {
         provider_user_id: PROVIDER_USER_ID,
         customer_id: CUSTOMER_ID,
       }], rowCount: 1 },
-      { match: /SELECT booking_id, deleted_at FROM booking_photos/, rows: [{ booking_id: 'other-booking', deleted_at: null }], rowCount: 1 },
+      { match: /SELECT booking_id, deleted_at, photo_type, uploaded_by_role/, rows: [{ booking_id: 'other-booking', deleted_at: null, photo_type: 'checklist', uploaded_by_role: 'provider' }], rowCount: 1 },
     ]));
 
     await expect(
@@ -258,7 +258,7 @@ describe('Bug 463 — toggleChecklistItem photo_required enforcement', () => {
         provider_user_id: PROVIDER_USER_ID,
         customer_id: CUSTOMER_ID,
       }], rowCount: 1 },
-      { match: /SELECT booking_id, deleted_at FROM booking_photos/, rows: [{ booking_id: BOOKING_ID, deleted_at: new Date() }], rowCount: 1 },
+      { match: /SELECT booking_id, deleted_at, photo_type, uploaded_by_role/, rows: [{ booking_id: BOOKING_ID, deleted_at: new Date(), photo_type: 'checklist', uploaded_by_role: 'provider' }], rowCount: 1 },
     ]));
 
     await expect(
