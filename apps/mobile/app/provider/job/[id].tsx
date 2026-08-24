@@ -13,6 +13,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getBookingById, getMyDisputes } from '@/services/booking.service';
+import { getBookingProofSummary } from '@/services/booking-proof.service';
+import ProofSummaryCard from '@/components/booking/ProofSummaryCard';
 import { updateBookingStatus } from '@/services/provider-api.service';
 // A7 — shared UI kit for loading + error states + toast feedback.
 import { Button, Skeleton, ErrorState, Card, SectionHeader, StatusBadge } from '@/components/ui';
@@ -96,6 +98,12 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
     },
     staleTime: 5 * 60 * 1000,
   });
+  const proofSummaryQuery = useQuery({
+    queryKey: ['bookingProofSummary', id],
+    queryFn: () => getBookingProofSummary(id ?? ''),
+    enabled: !!id,
+    staleTime: 15 * 1000,
+  });
   const disputeQuery = useQuery({
     queryKey: ['myDisputes', 'provider', id],
     queryFn: () => getMyDisputes(1, 1, id),
@@ -111,6 +119,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['booking', id] });
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
+      void queryClient.invalidateQueries({ queryKey: ['bookingProofSummary', id] });
       if (variables.newStatus === 'provider_en_route' && navigationRoute) {
         router.push(navigationRoute as never);
       }
@@ -400,6 +409,16 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           {booking.description && <Text style={styles.serviceDesc}>{booking.description}</Text>}
         </Card>
 
+        {proofSummaryQuery.data && (
+          <ProofSummaryCard summary={proofSummaryQuery.data} audience="provider" />
+        )}
+        {proofSummaryQuery.isError && (
+          <View style={styles.proofError} accessibilityRole="alert">
+            <Text style={styles.proofErrorTitle}>Proof status unavailable</Text>
+            <Text style={styles.proofErrorText}>Refresh before relying on the completion checklist and photo count.</Text>
+          </View>
+        )}
+
         {/* D27 Phase 2 — structured job details the customer answered on the
             custom-quote intake form. Keyed by field_key; the readable label is
             derived from the key. Helps the provider quote accurately. */}
@@ -515,6 +534,14 @@ const styles = StyleSheet.create({
   card: { marginBottom: spacing.base },
   serviceName: { ...typography.h3, color: colors.text },
   serviceDesc: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
+  proofError: {
+    backgroundColor: colors.warningLight,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.base,
+  },
+  proofErrorTitle: { ...typography.bodySmall, color: colors.warningDark, fontWeight: '700' },
+  proofErrorText: { ...typography.caption, color: colors.warningDark, marginTop: spacing.xs },
   intakeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md, paddingVertical: spacing.xs },
   intakeKey: { ...typography.bodySmall, color: colors.textSecondary, flexShrink: 1 },
   intakeValue: { ...typography.body, color: colors.text, fontWeight: '600', textAlign: 'right', flexShrink: 1 },

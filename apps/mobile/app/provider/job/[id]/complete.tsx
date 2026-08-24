@@ -245,6 +245,7 @@ export default function JobCompleteScreen(): React.ReactElement {
       // doesn't keep showing this job as in-progress from stale cache.
       void queryClient.invalidateQueries({ queryKey: ['booking', id] });
       void queryClient.invalidateQueries({ queryKey: ['bookingPhotos', id] });
+      void queryClient.invalidateQueries({ queryKey: ['bookingProofSummary', id] });
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
       // A7 — non-blocking toast then return to the dashboard; was a modal Alert.
       showToast('Job marked as complete.', 'success');

@@ -153,8 +153,11 @@ The following are current-code defects, not aspirational feature gaps:
 4. **Customer checklist mutation:** the customer PATCH path could alter the provider execution checklist. Fixed as Bug UX-304; customers retain read access after provider creation.
 5. **Unrelated photo satisfies checklist:** any non-deleted booking photo could satisfy a photo-required provider item. Fixed as Bug UX-305; new checklist attachments must be provider-role `checklist` proof.
 6. **Admin evidence actor mislabel:** an admin-uploaded canonical photo was presented in Booking 360 as provider evidence because the API collapsed every non-customer uploader to provider. Fixed as Bug UX-306; the canonical recorded role now reaches the admin UI.
+7. **Customer evidence could satisfy provider completion:** the legacy provider-photo route admitted any booking participant, while the completion counter accepted every canonical after photo regardless of actor. Fixed as Bug UX-307: customers cannot write through the provider-job photo route, assigned approved staff can, and only provider-attributed canonical after photos satisfy provider completion. A read-only production check found zero customer or provider canonical after photos and zero active or historical bookings affected by the stricter count.
+8. **Booking 360 reconstructed proof manually and displayed fictional empty sources:** the prior Evidence tab omitted checklist execution, signatures, accepted scope, completion notes, change evidence, support/dispute context, and actual readiness, while rendering GPS and receipt totals as zero despite having no source tables. Fixed as Bug UX-308 with one read-only derived proof-summary API and an evidence workspace that labels unavailable sources explicitly.
+9. **Customer, provider owner, and assigned staff lacked the shared closeout record:** their job screens used separate booking/photo/checklist calls and could not see the same derived requirements and blockers as support. Fixed as Bug UX-309 with a participant-authorized, privacy-reduced projection and one shared rendered card on customer booking detail, provider job detail, and assigned-staff job detail. Support-ticket details, raw actor IDs, internal staff names, signature files, and typed signer names are not returned to participants.
 
-Targeted result: the six initial proof-integrity suites and 19 tests pass, the focused Booking 360 actor regression and its 51-test neighboring admin service suite pass, and both API and admin TypeScript checks are clean. Full regression and deployment are still required before these are called shipped.
+Targeted result for Bugs UX-307-309: three focused API behavior suites, one real Admin Evidence render, and one real shared mobile proof-card render pass; API, Admin, and Mobile TypeScript checks are clean. The earlier Bugs UX-301-306 full regression and deployment are complete. This continuation still requires its full regression, CI, merge, and exact-SHA deployment before UX-307-309 are called shipped.
 
 ## Existing proof-chain weaknesses requiring planned work
 
@@ -169,15 +172,15 @@ Targeted result: the six initial proof-integrity suites and 19 tests pass, the f
 
 - Canonical `booking_photos` records actor, broad role, type, storage key/URL, MIME, byte sizes, and upload time.
 - They do not record capture time, device time, location/accuracy, capture/import source, checksum, caption/area, visibility, consent, original/annotation relationship, upload state history, or review state.
-- Legacy arrays and `booking_images` remain alongside the canonical table, increasing read complexity and duplicate risk.
-- Admin currently derives uploader as only customer/provider; an admin upload is presented as provider evidence.
+- Legacy arrays and `booking_images` remain alongside the canonical table, increasing read complexity and duplicate risk. The proof summary labels their source and uses `unknown` instead of inventing an actor when a legacy row cannot be attributed safely.
+- Canonical customer/provider/admin roles now remain distinct in the proof summary; assigned staff uploads are deliberately attributed to the provider side while raw participant-facing actor IDs and internal admin names are redacted.
 
 ### Checklist
 
 - Template version and item text are snapshotted, which is strong historical behavior.
 - Section identity itself is not snapshotted independently; historical rendering still joins current template section rows.
 - Empty templates allow completion as long as two after photos exist. That is an honest fallback but must create an admin quality/configuration exception, not disappear silently.
-- Admin has no complete checklist execution view or audited override record.
+- Admin now has a complete read-only checklist execution view. An audited checklist override record remains missing.
 
 ### Change orders
 
@@ -194,8 +197,8 @@ Targeted result: the six initial proof-integrity suites and 19 tests pass, the f
 ### Admin/support evidence
 
 - Booking 360's Timeline is assembled from create/complete/confirm/cancel timestamps, admin actions, and first/last chat. It is not a full activity record.
-- Evidence includes legacy/canonical photos and chat count, but omits checklists, signatures, change evidence, issue history, closeout, and actual actor detail.
-- GPS and receipts are permanently empty arrays because no source table exists.
+- The new Evidence workspace consolidates accepted quote scope, completion notes, checklist execution, categorized photo provenance, signatures with the E19 caution, change evidence, support/dispute context, and derived readiness. Issue/correction history, visit history, and a final proof package still have no canonical model.
+- GPS check-ins and job receipts/readings are now labelled unavailable instead of being displayed as authoritative zero totals; no source table exists yet.
 - The Quotes tab does expose quote and change-order line items, but the operator must mentally reconstruct the work history across tabs.
 - Support cases link to booking/customer/provider records, which is a good base for proof-linked case handling.
 

@@ -24,6 +24,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureImageAsync } from '@/utils/image-capture';
 import api from '@/services/api';
@@ -63,6 +64,7 @@ interface FlatRow {
 export default function JobChecklistScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { isPhone } = useResponsive();
   const [sections, setSections] = useState<ChecklistSection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -178,6 +180,7 @@ export default function JobChecklistScreen(): React.ReactElement {
           completed: nextDone,
           ...(item.photoId ? { photoId: item.photoId } : {}),
         });
+        void queryClient.invalidateQueries({ queryKey: ['bookingProofSummary', id] });
       } catch (err: unknown) {
         // Revert local state and surface the error (A7: non-blocking toast).
         updateItem(item.id, { done: item.done, completedAt: item.completedAt });
@@ -222,6 +225,7 @@ export default function JobChecklistScreen(): React.ReactElement {
         });
         // Replace the optimistic local URI with the persisted URL and id.
         updateItem(item.id, { photoId: uploaded.id, photoUri: uploaded.storageUrl });
+        void queryClient.invalidateQueries({ queryKey: ['bookingProofSummary', id] });
       } catch (err: unknown) {
         // Revert local preview and surface the failure (A7: non-blocking toast).
         updateItem(item.id, { photoUri: item.photoUri });

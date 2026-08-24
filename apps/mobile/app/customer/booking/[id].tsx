@@ -16,6 +16,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { getBookingById, getMyDisputes } from '@/services/booking.service';
 import { listBookingPhotos } from '@/services/booking-photo.service';
+import { getBookingProofSummary } from '@/services/booking-proof.service';
+import ProofSummaryCard from '@/components/booking/ProofSummaryCard';
 // A7 — shared UI kit for loading + error states + toast feedback.
 import { Button, Skeleton, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
@@ -74,6 +76,13 @@ export default function BookingDetailScreen(): React.ReactElement {
     staleTime: 60 * 1000,
   });
 
+  const proofSummaryQuery = useQuery({
+    queryKey: ['bookingProofSummary', id],
+    queryFn: () => getBookingProofSummary(id ?? ''),
+    enabled: !!id,
+    staleTime: 15 * 1000,
+  });
+
   const disputeQuery = useQuery({
     queryKey: ['myDisputes', 'customer', id],
     queryFn: () => getMyDisputes(1, 1, id),
@@ -86,7 +95,8 @@ export default function BookingDetailScreen(): React.ReactElement {
     void refetch();
     void photosCountQuery.refetch();
     void disputeQuery.refetch();
-  }, [refetch, photosCountQuery, disputeQuery]);
+    void proofSummaryQuery.refetch();
+  }, [refetch, photosCountQuery, disputeQuery, proofSummaryQuery]);
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
@@ -99,6 +109,7 @@ export default function BookingDetailScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['booking', id] });
       void queryClient.invalidateQueries({ queryKey: ['bookings'] });
       void queryClient.invalidateQueries({ queryKey: ['activeBookings'] });
+      void queryClient.invalidateQueries({ queryKey: ['bookingProofSummary', id] });
       setShowCancelForm(false);
       setCancelReason('');
       showToast('Booking cancelled. Check the booking payment details for any refund status and reference.', 'success');
@@ -339,6 +350,16 @@ export default function BookingDetailScreen(): React.ReactElement {
           {booking.description && <Text style={styles.serviceDesc}>{booking.description}</Text>}
         </View>
 
+        {proofSummaryQuery.data && (
+          <ProofSummaryCard summary={proofSummaryQuery.data} audience="customer" />
+        )}
+        {proofSummaryQuery.isError && (
+          <View style={styles.proofError} accessibilityRole="alert">
+            <Text style={styles.proofErrorTitle}>Work record unavailable</Text>
+            <Text style={styles.proofErrorText}>Refresh to load checklist, evidence, and closeout status.</Text>
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Schedule</Text>
           <Text style={styles.detailText}>{formatDateTime(booking.scheduledAt)}</Text>
@@ -516,6 +537,14 @@ const styles = StyleSheet.create({
   serviceName: { ...typography.h3, color: colors.text },
   serviceDesc: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
   detailText: { ...typography.body, color: colors.text },
+  proofError: {
+    backgroundColor: colors.warningLight,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.base,
+  },
+  proofErrorTitle: { ...typography.bodySmall, color: colors.warningDark, fontWeight: '700' },
+  proofErrorText: { ...typography.caption, color: colors.warningDark, marginTop: spacing.xs },
 
   providerRow: {
     flexDirection: 'row',

@@ -90,6 +90,7 @@ export default function ProviderPhotosScreen(): React.ReactElement {
       // BUG-PHASE71-03 fix — also invalidate the canonical photos
       // query so the new uploads appear immediately in existingPhotos.
       void queryClient.invalidateQueries({ queryKey: ['bookingPhotos', bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ['bookingProofSummary', bookingId] });
       if (result.failed > 0) {
         showToast(
           `${result.uploaded} photo${result.uploaded === 1 ? '' : 's'} saved; ${result.failed} failed and remain selected. Retry when ready.`,

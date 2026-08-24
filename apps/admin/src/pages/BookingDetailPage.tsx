@@ -28,6 +28,11 @@ import {
   Receipt,
   FileText,
   Shield,
+  CheckCircle2,
+  Clock,
+  ClipboardList,
+  User,
+  Info,
 } from '@/components/icons';
 import api, { getErrorMessage } from '@/lib/api';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
@@ -90,17 +95,124 @@ interface TimelineEvent {
   meta?: Record<string, unknown>;
 }
 
-interface BookingEvidence {
+interface BookingProofSummary {
+  booking: {
+    id: string;
+    status: string;
+    bookingType: string;
+    description: string;
+    categoryName: string | null;
+    subcategoryName: string | null;
+    scheduledAt: string | null;
+    workStartedAt: string | null;
+    workCompletedAt: string | null;
+    completedAt: string | null;
+    confirmedAt: string | null;
+    completionNotes: string | null;
+  };
+  scope: {
+    acceptedQuote: null | {
+      id: string;
+      description: string;
+      notes: string;
+      quotedPrice: number;
+      acceptedAt: string;
+      lineItems: Array<{
+        id: string;
+        description: string;
+        itemType: string;
+        quantity: number;
+        unit: string;
+        unitPrice: number;
+        lineTotal: number;
+      }>;
+    };
+  };
+  readiness: {
+    stage: string;
+    readyForProviderCompletion: boolean;
+    minimumTimeOnSiteMinutes: number;
+    afterPhotosRequired: number;
+    blockers: Array<{ code: string; message: string }>;
+    qualityFlags: Array<{ code: string; message: string }>;
+  };
+  checklist: null | {
+    id: string;
+    templateVersion: number;
+    shownAt: string;
+    totalItems: number;
+    requiredItems: number;
+    completedRequiredItems: number;
+    complete: boolean;
+    items: Array<{
+      id: string;
+      sectionTitle: string | null;
+      title: string;
+      description: string | null;
+      required: boolean;
+      photoRequired: boolean;
+      completed: boolean;
+      completedAt: string | null;
+      photoId: string | null;
+      notes: string | null;
+    }>;
+  };
   photos: Array<{
     id: string;
     url: string;
-    uploadedBy: 'customer' | 'provider' | 'admin';
+    photoType: string;
+    uploadedByUserId: string;
+    uploadedByRole: 'customer' | 'provider' | 'admin' | 'unknown';
+    uploaderName: string | null;
     uploadedAt: string;
-    caption: string | null;
+    source: 'legacy' | 'canonical';
+    mimeType: string | null;
+    originalSizeBytes: number | null;
+    storedSizeBytes: number | null;
   }>;
-  chatMessageCount: number;
-  gpsCheckIns: Array<{ at: string; lat: number; lng: number; eventType: string }>;
-  receipts: Array<{ id: string; url: string; createdAt: string }>;
+  photoCounts: Record<string, number>;
+  signatures: {
+    identityCaveat: string;
+    records: Array<{
+      id: string;
+      signatureType: string;
+      signedByUserId: string;
+      signedByRole: 'customer' | 'provider' | 'admin' | 'unknown';
+      signerName: string | null;
+      fullNameTyped: string | null;
+      signedAt: string;
+      url: string;
+      attribution: string;
+    }>;
+  };
+  changeOrders: Array<{
+    id: string;
+    description: string;
+    additionalAmount: number;
+    status: string;
+    photos: string[];
+    customerRespondedAt: string | null;
+    createdAt: string;
+  }>;
+  communications: {
+    chatMessageCount: number;
+    supportTickets: Array<{
+      id: string;
+      ticketNumber: string;
+      subject: string;
+      status: string;
+      priority: string;
+      createdAt: string;
+    }>;
+  };
+  dispute: null | {
+    id: string;
+    type: string;
+    status: string;
+    createdAt: string;
+    resolvedAt: string | null;
+  };
+  unavailable: Array<{ key: string; label: string; reason: string }>;
 }
 
 interface BookingDispute {
@@ -877,12 +989,16 @@ function TimelineTab({ bookingId }: { bookingId: string }): React.ReactElement {
 
 // ─── EvidenceTab ──────────────────────────────────────────────────────────
 
-function EvidenceTab({ bookingId }: { bookingId: string }): React.ReactElement {
+function proofStageLabel(stage: string): string {
+  return stage.replaceAll('_', ' ');
+}
+
+export function EvidenceTab({ bookingId }: { bookingId: string }): React.ReactElement {
   const q = useQuery({
     queryKey: ['admin-booking-evidence', bookingId],
     queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: BookingEvidence }>(
-        `/api/v1/admin/bookings/${bookingId}/evidence`,
+      const res = await api.get<{ success: boolean; data: BookingProofSummary }>(
+        `/api/v1/admin/bookings/${bookingId}/proof-summary`,
       );
       return res.data.data;
     },
@@ -891,50 +1007,169 @@ function EvidenceTab({ bookingId }: { bookingId: string }): React.ReactElement {
   if (q.isLoading) return <LoadingState />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
   const data = q.data;
-  if (!data) return <EmptyState title="No evidence." />;
+  if (!data) return <EmptyState title="No proof record." />;
+
+  const providerAfterPhotos = data.photos.filter(
+    (photo) => photo.source === 'canonical' && photo.photoType === 'after' && photo.uploadedByRole === 'provider',
+  ).length;
+  const checklistValue = data.checklist
+    ? `${data.checklist.completedRequiredItems}/${data.checklist.requiredItems}`
+    : 'Not opened';
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <KpiCard
-          title="Photos"
-          value={data.photos.length.toString()}
+          title="Proof stage"
+          value={proofStageLabel(data.readiness.stage)}
+          icon={<CheckCircle2 size={16} />}
+        />
+        <KpiCard title="Checklist required" value={checklistValue} icon={<ClipboardList size={16} />} />
+        <KpiCard
+          title="Provider after photos"
+          value={`${providerAfterPhotos}/${data.readiness.afterPhotosRequired}`}
           icon={<ImageIcon size={16} />}
         />
         <KpiCard
           title="Chat messages"
-          value={data.chatMessageCount.toString()}
+          value={data.communications.chatMessageCount.toString()}
           icon={<MessageSquare size={16} />}
-        />
-        <KpiCard
-          title="GPS check-ins"
-          value={data.gpsCheckIns.length.toString()}
-          icon={<Navigation size={16} />}
         />
       </div>
 
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Photos</h3>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--color-text)]">Completion readiness</h3>
+            <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+              Derived from the same checklist, provider-photo, status, and {data.readiness.minimumTimeOnSiteMinutes}-minute on-site rules used by provider completion.
+            </p>
+          </div>
+          <Badge
+            label={data.readiness.readyForProviderCompletion ? 'Ready to submit' : proofStageLabel(data.readiness.stage)}
+            variant={data.readiness.readyForProviderCompletion ? 'success' : data.readiness.blockers.length > 0 ? 'warning' : 'info'}
+          />
+        </div>
+        {data.readiness.blockers.length > 0 ? (
+          <ul className="mt-4 space-y-2">
+            {data.readiness.blockers.map((blocker) => (
+              <li key={blocker.code} className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                <span><strong>{proofStageLabel(blocker.code)}:</strong> {blocker.message}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-4 text-sm text-emerald-700">No current provider-completion blockers are recorded.</p>
+        )}
+        {data.readiness.qualityFlags.length > 0 && (
+          <ul className="mt-3 space-y-2">
+            {data.readiness.qualityFlags.map((flag) => (
+              <li key={flag.code} className="flex gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-hover)] p-3 text-sm text-[var(--color-text-secondary)]">
+                <Info size={16} className="mt-0.5 shrink-0" />
+                <span><strong className="text-[var(--color-text)]">{proofStageLabel(flag.code)}:</strong> {flag.message}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3 flex items-center gap-2">
+            <FileText size={14} /> Scope and closeout
+          </h3>
+          <dl className="space-y-3 text-sm">
+            <div>
+              <dt className="text-xs text-[var(--color-text-secondary)]">Requested work</dt>
+              <dd className="mt-1 text-[var(--color-text)]">{data.booking.description || 'No booking description recorded.'}</dd>
+            </div>
+            {data.scope.acceptedQuote && (
+              <div>
+                <dt className="text-xs text-[var(--color-text-secondary)]">Accepted quote scope</dt>
+                <dd className="mt-1 text-[var(--color-text)]">{data.scope.acceptedQuote.description || 'No quote description recorded.'}</dd>
+                <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                  {fmtCentavos(data.scope.acceptedQuote.quotedPrice)} · accepted {fmtDate(data.scope.acceptedQuote.acceptedAt)} · {data.scope.acceptedQuote.lineItems.length} line item(s)
+                </p>
+              </div>
+            )}
+            <div>
+              <dt className="text-xs text-[var(--color-text-secondary)]">Provider completion notes</dt>
+              <dd className="mt-1 text-[var(--color-text)]">{data.booking.completionNotes || 'No completion notes recorded.'}</dd>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <dt className="text-xs text-[var(--color-text-secondary)]">Provider submitted</dt>
+                <dd className="mt-1">{fmtDate(data.booking.completedAt)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--color-text-secondary)]">Customer confirmed</dt>
+                <dd className="mt-1">{fmtDate(data.booking.confirmedAt)}</dd>
+              </div>
+            </div>
+          </dl>
+        </Card>
+
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3 flex items-center gap-2">
+            <ClipboardList size={14} /> Checklist execution
+          </h3>
+          {!data.checklist ? (
+            <EmptyState title="Checklist not opened" description="No booking checklist snapshot exists yet." />
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 flex-wrap text-xs text-[var(--color-text-secondary)]">
+                <Badge label={data.checklist.complete ? 'complete' : 'incomplete'} variant={data.checklist.complete ? 'success' : 'warning'} />
+                <span>Template v{data.checklist.templateVersion}</span>
+                <span>opened {fmtDate(data.checklist.shownAt)}</span>
+              </div>
+              <ul className="space-y-2">
+                {data.checklist.items.map((item) => (
+                  <li key={item.id} className="rounded-md border border-[var(--color-border)] p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        {item.sectionTitle && <p className="text-[11px] uppercase tracking-wide text-[var(--color-text-tertiary)]">{item.sectionTitle}</p>}
+                        <p className="text-sm font-medium text-[var(--color-text)]">{item.title}</p>
+                      </div>
+                      <Badge label={item.completed ? 'done' : item.required ? 'required' : 'optional'} variant={item.completed ? 'success' : item.required ? 'warning' : 'info'} />
+                    </div>
+                    <div className="mt-1 flex gap-2 flex-wrap text-xs text-[var(--color-text-secondary)]">
+                      {item.photoRequired && <span>Photo required</span>}
+                      {item.photoId && <span>Photo linked</span>}
+                      {item.completedAt && <span>{fmtDate(item.completedAt)}</span>}
+                    </div>
+                    {item.notes && <p className="mt-2 text-xs text-[var(--color-text-secondary)]">Notes: {item.notes}</p>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <Card className="p-5">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h3 className="text-sm font-semibold text-[var(--color-text)]">Categorized source evidence</h3>
+          <Badge label={`${data.photos.length} photo(s)`} variant="info" />
+        </div>
         {data.photos.length === 0 ? (
           <EmptyState title="No photos uploaded." />
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {data.photos.map((p) => (
-              <div key={p.id} className="space-y-1">
-                <img
-                  src={p.url}
-                  alt={p.caption ?? 'evidence'}
-                  className="w-full h-32 object-cover rounded-md border border-[var(--color-border)]"
-                />
-                <div className="flex items-center justify-between text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {data.photos.map((photo) => (
+              <div key={photo.id} className="rounded-md border border-[var(--color-border)] p-2 space-y-2">
+                <img src={photo.url} alt={`${photo.photoType} evidence`} className="w-full h-36 object-cover rounded" />
+                <div className="flex items-center gap-1 flex-wrap">
+                  <Badge label={photo.photoType} variant="default" />
                   <Badge
-                    label={p.uploadedBy}
-                    variant={p.uploadedBy === 'customer' ? 'info' : p.uploadedBy === 'admin' ? 'danger' : 'success'}
+                    label={photo.uploadedByRole}
+                    variant={photo.uploadedByRole === 'customer' ? 'info' : photo.uploadedByRole === 'admin' ? 'danger' : photo.uploadedByRole === 'provider' ? 'success' : 'warning'}
                   />
-                  <span className="text-[var(--color-text-secondary)]">
-                    {fmtDate(p.uploadedAt)}
-                  </span>
+                  {photo.source === 'legacy' && <Badge label="legacy" variant="warning" />}
                 </div>
+                <p className="text-xs text-[var(--color-text-secondary)]">
+                  {photo.uploaderName ?? `User ${photo.uploadedByUserId.slice(0, 8)}`} · {fmtDate(photo.uploadedAt)}
+                </p>
               </div>
             ))}
           </div>
@@ -942,67 +1177,107 @@ function EvidenceTab({ bookingId }: { bookingId: string }): React.ReactElement {
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">GPS check-ins</h3>
-        {data.gpsCheckIns.length === 0 ? (
-          <EmptyState title="No GPS check-ins recorded." />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="text-xs text-[var(--color-text-secondary)] uppercase">
-                <tr>
-                  <th className="px-3 py-2 text-left">When</th>
-                  <th className="px-3 py-2 text-left">Event</th>
-                  <th className="px-3 py-2 text-right">Latitude</th>
-                  <th className="px-3 py-2 text-right">Longitude</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.gpsCheckIns.map((g, idx) => (
-                  <tr key={`${g.at}-${idx}`} className="border-t border-[var(--color-border)]">
-                    <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">
-                      {fmtDate(g.at)}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Badge label={g.eventType} variant="info" />
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs">{g.lat.toFixed(6)}</td>
-                    <td className="px-3 py-2 text-right font-mono text-xs">{g.lng.toFixed(6)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      <Card className="p-5">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3 flex items-center gap-2">
-          <Receipt size={14} /> Receipts
+          <User size={14} /> Signatures and acknowledgements
         </h3>
-        {data.receipts.length === 0 ? (
-          <EmptyState title="No receipts attached." />
+        <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+          <strong>Identity caution (E19):</strong> {data.signatures.identityCaveat}
+        </div>
+        {data.signatures.records.length === 0 ? (
+          <div className="mt-3"><EmptyState title="No booking signatures recorded." /></div>
         ) : (
-          <ul className="space-y-2">
-            {data.receipts.map((r) => (
-              <li
-                key={r.id}
-                className="flex items-center justify-between text-sm border border-[var(--color-border)] rounded-md px-3 py-2"
-              >
-                <a
-                  href={r.url}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="text-[var(--color-secondary)] hover:underline font-mono text-xs"
-                >
-                  {r.id.slice(0, 8)}…
-                </a>
-                <span className="text-xs text-[var(--color-text-secondary)]">
-                  {fmtDate(r.createdAt)}
-                </span>
+          <ul className="mt-3 space-y-2">
+            {data.signatures.records.map((signature) => (
+              <li key={signature.id} className="flex items-start justify-between gap-3 rounded-md border border-[var(--color-border)] p-3 text-sm">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge label={signature.signatureType} variant="info" />
+                    <Badge label={signature.signedByRole} variant={signature.signedByRole === 'customer' ? 'info' : signature.signedByRole === 'admin' ? 'danger' : signature.signedByRole === 'provider' ? 'success' : 'warning'} />
+                  </div>
+                  <p className="mt-1 text-[var(--color-text)]">{signature.signerName ?? `User ${signature.signedByUserId.slice(0, 8)}`}</p>
+                  <p className="text-xs text-[var(--color-text-secondary)]">{proofStageLabel(signature.attribution)} · {fmtDate(signature.signedAt)}</p>
+                </div>
+                <a href={signature.url} target="_blank" rel="noreferrer noopener" className="text-xs font-semibold text-[var(--color-secondary)] hover:underline">View file</a>
               </li>
             ))}
           </ul>
         )}
+      </Card>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Change evidence</h3>
+          {data.changeOrders.length === 0 ? (
+            <EmptyState title="No change orders recorded." />
+          ) : (
+            <ul className="space-y-2">
+              {data.changeOrders.map((order) => (
+                <li key={order.id} className="rounded-md border border-[var(--color-border)] p-3 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge label={order.status} variant={order.status === 'paid' || order.status === 'approved' ? 'success' : order.status === 'declined' ? 'danger' : 'warning'} />
+                    <strong>{fmtCentavos(order.additionalAmount)}</strong>
+                  </div>
+                  <p className="mt-2 text-[var(--color-text)]">{order.description}</p>
+                  <p className="mt-1 text-xs text-[var(--color-text-secondary)]">{order.photos.length} linked photo(s) · created {fmtDate(order.createdAt)} · response {fmtDate(order.customerRespondedAt)}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card className="p-5">
+          <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Support and dispute context</h3>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">Support cases</p>
+              {data.communications.supportTickets.length === 0 ? (
+                <p className="mt-1 text-sm text-[var(--color-text-secondary)]">No support case is linked.</p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {data.communications.supportTickets.map((ticket) => (
+                    <li key={ticket.id} className="rounded-md border border-[var(--color-border)] p-2 text-sm">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge label={ticket.status} variant={ticket.status === 'resolved' || ticket.status === 'closed' ? 'success' : 'warning'} />
+                        <span className="font-medium">{ticket.ticketNumber}</span>
+                        <span className="text-xs text-[var(--color-text-secondary)]">{ticket.priority}</span>
+                      </div>
+                      <p className="mt-1 text-[var(--color-text-secondary)]">{ticket.subject}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">Dispute</p>
+              {!data.dispute ? (
+                <p className="mt-1 text-sm text-[var(--color-text-secondary)]">No dispute is linked.</p>
+              ) : (
+                <div className="mt-2 rounded-md border border-[var(--color-border)] p-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Badge label={data.dispute.status} variant={data.dispute.status === 'resolved' ? 'success' : 'warning'} />
+                    <span>{data.dispute.type}</span>
+                  </div>
+                  <Link to={`/disputes/${data.dispute.id}`} className="mt-2 inline-flex text-xs font-semibold text-[var(--color-secondary)] hover:underline">Open dispute detail</Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <Card className="p-5">
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Not captured by the current work record</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {data.unavailable.map((item) => (
+            <div key={item.key} className="rounded-md border border-dashed border-[var(--color-border)] p-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text)]">
+                {item.key === 'gps_check_ins' ? <Navigation size={14} /> : item.key === 'job_receipts' ? <Receipt size={14} /> : <Clock size={14} />}
+                {item.label}
+              </div>
+              <p className="mt-2 text-xs text-[var(--color-text-secondary)]">{item.reason}</p>
+            </div>
+          ))}
+        </div>
       </Card>
     </div>
   );
