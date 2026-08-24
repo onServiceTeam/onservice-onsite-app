@@ -42,6 +42,7 @@ Only the first three are screen evidence. The other three support spam/quality t
 | Duplicate requested bookings appeared after a failed payment attempt | Home, bookings, payment failed | Booking queue, Financials, Audit Log | E03 was resolved on 2026-06-19 after the report; do not reopen from old evidence alone | Keep as a regression scenario and verify current idempotency before any new fix |
 | Help, cancellation, dispute, and live-support entry points are hard to find | Help, Safety & Support, support inbox, booking detail, payment failure | Support Queue, Customer 360, Provider 360, Booking 360 | Confirmed: production had zero support tickets; payment failure discarded booking/error context, booking detail had no support action, safety reports opened a blank generic form, and admin labeled provider tickets as customers | Bugs UX-055 through UX-065 add contextual case entry, booking ownership enforcement, correct customer/provider linkage, account/booking reverse links, search, agent-created cases, waiting-case reactivation, and wide support workspaces. E05 still blocks checklist issue reporting. |
 | Provider checklist issue reporting is missing/broken | Provider job checklist | Booking 360, Support Queue | Hard stop E05: no approved endpoint or escalation behavior | Do not invent; preserve as an explicit decision/escalation item |
+| Provider checklist completion and photo proof do not persist correctly | Provider job checklist and completion | Booking 360, disputes, customer evidence | Confirmed in current code: toggles sent `isCompleted` while the API requires `completed`; uploaded proof was never attached by `photoId`; remounts rendered a fake `photo:` URI; the screen had no explicit wide layout | Bugs UX-147 through UX-150 align the mobile/API contract, attach proof, reload the persisted URL, expose photo-required state, cover empty templates honestly, and add a bounded tablet/desktop workspace. E05 remains separate and open. |
 | Provider navigation/location failed | Provider job navigation and active job | Dispatch, Booking 360, Service Areas | Confirmed: both real job-detail and active-job map callers had no browser implementation; the dedicated navigation route had no caller and exposed blank external URLs before a destination loaded | Bugs UX-075/076/078/079 route both callers and a successful Start Navigation transition into one address-or-coordinate workspace, gate external map actions, gate arrival on booking coordinates/en-route state, and add an explicit desktop split without inventing map/ETA data |
 | Provider cannot confidently edit services or availability | Provider Services, Skills, Schedule, Availability | Catalog, provider 360, Service Areas | Confirmed two defects and one money-path contradiction: fetch failure exposed editable fallback hours; DB TIME values returned seconds that the editor rejected; provider fixed prices can differ from the catalog booking amount | Bugs UX-077/083-088 lock unknown schedules, normalize/validate time windows, show field details, and add a wide availability workspace. E16 pauses provider service pricing/edit behavior pending an explicit price-source decision. |
 | Provider team contact validation is weak | Provider Team, staff invites | Provider 360 Staff, Staff & Roles | Confirmed: malformed/oversized values bypassed route validation; formatted phones did not match accounts; D23's customer discovery link had later been removed | Bugs UX-080/081/082/089/090 normalize and bound contacts, restore in-app customer discovery, describe delivery honestly, and add responsive team/invitation workspaces without changing staff authorization. |
@@ -92,7 +93,7 @@ Behavior is covered by Bugs UX-043 through UX-049. Provider-profile regressions 
 
 1. Provider Services remains blocked by E16 until Ken chooses the fixed-price source. Portfolio and onboarding upload/application states are covered through Bug UX-122; native camera evidence remains F#3/device work and real browser upload/status verification remains part of the deployment gate.
 2. PayMongo hosted checkout and top-up recovery after E14 is decided and test keys are available.
-3. Customer projects and notifications, then the remaining provider job and notification wide layouts.
+3. Remaining customer/provider settings, booking, payment, and dispute forms. Projects, notifications, recurring, provider job execution, and account-management wide workspaces are now covered, but still require the specific live/browser or device evidence noted below.
 4. Admin dashboard/reporting requests only after metric definitions and privacy boundaries exist.
 
 The Cebu address regression and safe browser fallback are covered by Bugs
@@ -123,3 +124,65 @@ the applicant and represented as secure on-file evidence after upload.
 Portfolio objects use a separate public, provider-owned path, require a written
 customer-consent affirmation, and record the decision time. Provider 360 now
 shows support staff the same published images and their consent evidence.
+
+Provider checklist persistence is covered by Bugs UX-147 through UX-150. The
+provider toggle now sends the server's real `completed` field, uploaded booking
+proof is attached to the exact checklist item, and a later read returns its real
+storage URL rather than a fabricated URI. Photo-required work is labeled before
+the provider tries to finish it, and the same screen has an explicit bounded
+tablet/desktop workspace. The separate Report Issue action remains on E05's
+honest-error band-aid until Ken chooses whether to build or remove that feature.
+
+Provider job evidence capture is covered by Bugs UX-151/152/192. The dedicated
+photo screen no longer routes new evidence through the deprecated generic
+upload and legacy booking arrays; it uses the same authorized canonical
+`booking_photos` records as checklist evidence and completion. Partial batches
+state how many photos saved and failed, remove only saved selections, retain
+failed photos for immediate retry, and tablet/desktop now separate the
+before/after phase guidance from the evidence area. Real browser file-upload and
+native camera evidence remain deployment/device checks rather than claimed here.
+
+Provider completion evidence is covered by Bugs UX-153/154. Existing canonical
+after-photos now count toward the server's two-photo completion rule, the screen
+prevents duplicate local uploads when a later step fails and is retried, and the
+tablet/desktop layout separates evidence from readiness. E19 records a separate
+trust blocker: the provider-session `customer_acceptance` upload stores the
+provider as signer, so that bitmap must not be presented as verified customer
+identity evidence until Ken selects the customer-controlled or witnessed model.
+
+Active-job execution is covered by Bugs UX-155-157. The in-progress primary
+action now opens the completion evidence workflow instead of attempting a status
+mutation that usually fails checklist/photo gates, and an address-only booking
+shows no fabricated map center or pin. Tablet/desktop place the map or honest
+address state beside the provider's operational controls.
+
+Recurring scheduling is covered by Bugs UX-160-173. Customer creation now uses
+the canonical fixed-price/category contract, shows the server total and preferred
+time, and gives tablet/desktop a real preview workspace. Skip-next is atomic and
+limited to the next occurrence; instance history opens the generated booking and
+uses that booking's status. Bugs UX-189-191/196 make E20's containment explicit:
+token activation returns 503 before storage, the scheduler never calls the
+defective charge service even for a legacy enabled row, and API responses hide
+reusable payment/source IDs. New series explicitly store auto-charge off and
+the database default is false for future rows. Every generated booking requires manual payment;
+this remediation makes no claim that unattended charging is available or safe.
+
+Private export and account-management remediation is covered by Bugs UX-174-183/186-188/193-195.
+Customer and provider archives use owned five-minute download links, the nginx
+public upload route rejects the private-artifact namespace, expired artifacts are
+physically deleted, interrupted builds can be reclaimed after a one-hour lease,
+failed post-storage writes remain visible to cleanup, streaming and cleanup reject
+non-private database keys, and JSON/CSV cover owned role-specific records. Both personas
+have bounded tablet/desktop history/action workspaces. Deletion retries interrupted
+work and revalidates active bookings, disputes, and balances. Both account
+workspaces, Data Rights, and Help now state the implemented cooling-off,
+deactivation/anonymization, and possible required-record retention behavior.
+E21 correctly blocks any promise of complete erasure until the business has an
+approved retention matrix.
+
+The AML review finding is covered by Bugs UX-184/185. The production database had
+no payout rows and no configured threshold row during the read-only check. The
+new audited setting defaults to ₱500,000 and can be made stricter, while runtime
+clamping prevents an unsafe larger value from bypassing the internal hold. Admin
+shows the captured threshold and states that the hold is an internal control, not
+by itself a statutory AML determination or filing.
