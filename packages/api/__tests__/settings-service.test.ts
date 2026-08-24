@@ -75,8 +75,9 @@ beforeEach(() => {
 });
 
 describe('SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants)', () => {
-  // Every default value below must match migration 050 seeds. Stryker mutates
-  // each string literal and these assertions kill those mutants.
+  // Every value below must match the active setting's migration-seeded
+  // default. Stryker mutates each string literal and these assertions kill
+  // those mutants.
   const expected: Record<string, string> = {
     commission_rate_founding: '10',
     commission_rate_new: '15',
@@ -88,12 +89,19 @@ describe('SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants)',
     service_fee_max: '50000',
     guarantee_fund_rate: '1.5',
     vat_rate: '12',
+    tip_max_amount_cents: '500000',
+    addon_price_max_cents: '5000000',
     escrow_auto_confirm_hours: '24',
     escrow_dispute_window_hours: '48',
     minimum_payment_amount: '10000',
     minimum_withdrawal_amount: '10000',
     withdrawal_processing_days: '3',
+    surge_multiplier_min: '1.0',
+    surge_multiplier_max: '5.0',
+    reconciliation_alert_threshold_centavos: '10000',
     aml_large_transaction_threshold_centavos: '50000000',
+    'feature_flag.promo_redemption_enabled': 'false',
+    'feature_flag.ab_testing_enabled': 'false',
     marketing_channels: JSON.stringify([
       'facebook_ads', 'google_ads', 'billboard', 'kiosk', 'influencer',
       'sms', 'email', 'referral', 'other',
@@ -105,6 +113,11 @@ describe('SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants)',
     fraud_pattern_window_days: '30',
     fraud_pattern_favor_provider_rate: '0.80',
     noshow_auto_resolve_window_minutes: '30',
+    bir_filer_company_name: '__UNSET__',
+    bir_filer_tin: '__UNSET__',
+    bir_filer_address: '__UNSET__',
+    bir_filer_ptu_number: '__UNSET__',
+    bir_filer_vat_status: 'VAT-Registered',
     cancel_refund_over_24h: '100',
     cancel_refund_2_to_24h: '100',
     cancel_refund_1_to_2h: '90',
@@ -130,10 +143,30 @@ describe('SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants)',
     max_service_radius_km: '50',
     quote_expiry_hours: '48',
     max_quotes_per_booking: '5',
+    change_order_approval_expiry_hours: '24',
+    recurring_auto_charge_max_consecutive_failures: '3',
     rate_limit_window_ms: '900000',
     rate_limit_max_requests: '100',
     suspicious_ip_threshold: '10',
     captcha_threshold: '3',
+    refresh_token_strict_fingerprint: 'false',
+    allowed_image_mime_types: 'image/jpeg,image/png,image/webp',
+    business_account_types: 'office,condo_management,restaurant,hotel,retail,school,hospital,other',
+    business_payment_terms: 'net_15,net_30,net_60',
+    suki_tiers: JSON.stringify({
+      new: { minBookings: 0, pointsPerPeso: 1, discount: 0 },
+      regular: { minBookings: 3, pointsPerPeso: 1, discount: 0 },
+      suki: { minBookings: 10, pointsPerPeso: 2, discount: 5 },
+      super_suki: { minBookings: 25, pointsPerPeso: 3, discount: 10 },
+    }),
+    suki_points_to_peso_rate: '100',
+    brand_color_primary: '#003D9B',
+    brand_color_secondary: '#0052CC',
+    brand_color_accent: '#FE8A00',
+    map_tile_url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    map_tile_attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    map_tile_api_key: '',
+    auto_dispatch_enabled: 'true',
     cache_ttl_categories: '86400',
     cache_ttl_provider_profile: '1800',
     cache_ttl_search_results: '300',
@@ -296,7 +329,7 @@ describe('getAllSettings', () => {
     const out = await settingsService.getAllSettings();
     expect(out.length).toBe(1);
     expect(redisSetMock).toHaveBeenCalledWith(
-      'settings:__all__',
+      'settings:__all_active__',
       expect.any(String),
       'EX',
       60,
@@ -536,7 +569,7 @@ describe('updateSetting', () => {
     await settingsService.updateSetting('service_fee_rate', '12', 'admin');
 
     expect(redisDelMock).toHaveBeenCalledWith('settings:service_fee_rate');
-    expect(redisDelMock).toHaveBeenCalledWith('settings:__all__');
+    expect(redisDelMock).toHaveBeenCalledWith('settings:__all_active__');
   });
 
   it('rejects validation failure before touching UPDATE/INSERT', async () => {
@@ -689,7 +722,7 @@ describe('cache management', () => {
   it('bustCache deletes per-key + all-key', async () => {
     await settingsService.bustCache('service_fee_rate');
     expect(redisDelMock).toHaveBeenCalledWith('settings:service_fee_rate');
-    expect(redisDelMock).toHaveBeenCalledWith('settings:__all__');
+    expect(redisDelMock).toHaveBeenCalledWith('settings:__all_active__');
   });
 
   it('bustCache swallows redis errors', async () => {

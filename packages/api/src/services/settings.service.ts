@@ -13,10 +13,10 @@ import { createAppError } from '../middleware/error.middleware';
 import apiPackageJson from '../../package.json';
 
 const CACHE_PREFIX = 'settings:';
-const CACHE_ALL_KEY = 'settings:__all__';
+const CACHE_ALL_KEY = 'settings:__all_active__';
 const CACHE_TTL = 60; // seconds
 
-// ── In-memory fallback defaults — must mirror migration 050 seeds ──
+// ── In-memory fallback defaults — must mirror every active DB setting ──
 export const SETTING_DEFAULTS: Record<string, string> = {
   // Commissions
   commission_rate_founding: '10',
@@ -33,6 +33,8 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   service_fee_max: '50000',
   guarantee_fund_rate: '1.5',
   vat_rate: '12',
+  tip_max_amount_cents: '500000',
+  addon_price_max_cents: '5000000',
 
   // Escrow
   escrow_auto_confirm_hours: '24',
@@ -40,6 +42,9 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   minimum_payment_amount: '10000',
   minimum_withdrawal_amount: '10000',
   withdrawal_processing_days: '3',
+  surge_multiplier_min: '1.0',
+  surge_multiplier_max: '5.0',
+  reconciliation_alert_threshold_centavos: '10000',
 
   // Internal large-transaction compliance review control.
   // Single-payout threshold at/above which the request enters
@@ -49,6 +54,11 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   // can tune it via Settings UI; the value used at request time is snapshotted into
   // payouts.aml_threshold_at_request_centavos for audit.
   aml_large_transaction_threshold_centavos: '50000000',
+
+  // Launch-gated feature flags. Both remain disabled until their complete
+  // customer-side pipelines are intentionally launched.
+  'feature_flag.promo_redemption_enabled': 'false',
+  'feature_flag.ab_testing_enabled': 'false',
 
   // MED-N29 fix: marketing channels are admin-editable via the
   // Settings UI. Stored as a JSON array string; marketing-admin.service
@@ -85,6 +95,14 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   // trigger this). Default raised to 30; admin can tune.
   noshow_auto_resolve_window_minutes: '30',
 
+  // BIR filer identity. Sentinel fallbacks deliberately make BIR-bound PDF
+  // generation fail closed if PostgreSQL is unavailable.
+  bir_filer_company_name: '__UNSET__',
+  bir_filer_tin: '__UNSET__',
+  bir_filer_address: '__UNSET__',
+  bir_filer_ptu_number: '__UNSET__',
+  bir_filer_vat_status: 'VAT-Registered',
+
   // Cancellation
   cancel_refund_over_24h: '100',
   cancel_refund_2_to_24h: '100',
@@ -120,12 +138,42 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   max_service_radius_km: '50',
   quote_expiry_hours: '48',
   max_quotes_per_booking: '5',
+  change_order_approval_expiry_hours: '24',
+
+  // Recurring bookings remain manual-payment-only while E20 is open. This
+  // threshold is retained solely for compatibility with legacy audit rows.
+  recurring_auto_charge_max_consecutive_failures: '3',
 
   // Security
   rate_limit_window_ms: '900000',
   rate_limit_max_requests: '100',
   suspicious_ip_threshold: '10',
   captcha_threshold: '3',
+  refresh_token_strict_fingerprint: 'false',
+  allowed_image_mime_types: 'image/jpeg,image/png,image/webp',
+
+  // Business account validation lists.
+  business_account_types: 'office,condo_management,restaurant,hotel,retail,school,hospital,other',
+  business_payment_terms: 'net_15,net_30,net_60',
+
+  // Suki loyalty settings. These match the migration defaults and preserve a
+  // conservative 100-points-to-₱1 conversion during a database outage.
+  suki_tiers: JSON.stringify({
+    new: { minBookings: 0, pointsPerPeso: 1, discount: 0 },
+    regular: { minBookings: 3, pointsPerPeso: 1, discount: 0 },
+    suki: { minBookings: 10, pointsPerPeso: 2, discount: 5 },
+    super_suki: { minBookings: 25, pointsPerPeso: 3, discount: 10 },
+  }),
+  suki_points_to_peso_rate: '100',
+
+  // Stitch-aligned branding and dispatch defaults.
+  brand_color_primary: '#003D9B',
+  brand_color_secondary: '#0052CC',
+  brand_color_accent: '#FE8A00',
+  map_tile_url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  map_tile_attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  map_tile_api_key: '',
+  auto_dispatch_enabled: 'true',
 
   // Cache TTLs
   cache_ttl_categories: '86400',
@@ -271,7 +319,7 @@ export async function checkSettingsDriftAtBoot(): Promise<{
 }> {
   try {
     const result = await db.query<{ key: string }>(
-      `SELECT key FROM platform_settings`,
+      `SELECT key FROM platform_settings WHERE is_active = TRUE`,
     );
     const dbKeys = new Set(result.rows.map((r) => r.key));
     const defaultsKeys = new Set(Object.keys(SETTING_DEFAULTS));
@@ -327,7 +375,9 @@ export async function getAllSettings(): Promise<SettingRow[]> {
   }
 
   const result = await db.query<SettingRow>(
-    `SELECT * FROM platform_settings ORDER BY category, display_order`,
+    `SELECT * FROM platform_settings
+      WHERE is_active = TRUE
+      ORDER BY category, display_order`,
   );
 
   try {
@@ -341,7 +391,9 @@ export async function getAllSettings(): Promise<SettingRow[]> {
 
 export async function getSettingsByCategory(category: string): Promise<SettingRow[]> {
   const result = await db.query<SettingRow>(
-    `SELECT * FROM platform_settings WHERE category = $1 ORDER BY display_order`,
+    `SELECT * FROM platform_settings
+      WHERE category = $1 AND is_active = TRUE
+      ORDER BY display_order`,
     [category],
   );
   return result.rows;
@@ -350,6 +402,7 @@ export async function getSettingsByCategory(category: string): Promise<SettingRo
 export async function getCategories(): Promise<{ category: string; count: number }[]> {
   const result = await db.query<{ category: string; count: string }>(
     `SELECT category, COUNT(*)::text AS count FROM platform_settings
+     WHERE is_active = TRUE
      GROUP BY category ORDER BY category`,
   );
   return result.rows.map((r) => ({ category: r.category, count: Number(r.count) }));
