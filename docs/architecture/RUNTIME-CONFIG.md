@@ -11,6 +11,18 @@
 # Impact: Replaces ALL hardcoded platformConfig references across 21 backend files
 # ════════════════════════════════════════════════════════════════
 
+## Current operational truth (2026-08-24)
+
+The admin Settings screen now reports one of three server-owned states for every row:
+
+- **Live control:** the authoritative workflow consumes the row. Cache-backed readers refresh within 60 seconds; some direct readers apply the value on the next operation.
+- **Launch hold:** code can read the row, but the related product capability is deliberately unavailable. The row is read-only.
+- **Not connected:** an authoritative API, worker, security, or cache path still uses deployed TypeScript/environment configuration. The row is read-only because changing it could otherwise make customer/provider guidance disagree with enforcement.
+
+The current not-connected set is VAT, seven escrow/payment/surge rows, three JWT/admin-session rows, the provider-radius row, and the unused provider-profile cache TTL. Fifty-nine rows are live and three are launch-held. Quote admission/expiry, provider no-show, CAPTCHA escalation, suspicious-IP detection, category cache, and catalog-search cache were connected during the 2026-08-24/25 audit. New or unknown rows fail closed as not connected until their consumer is audited. The `requires_restart` database column is retained for schema compatibility, but it is not treated as evidence that a row becomes effective after restart.
+
+The internal large-payout review threshold is a live control. It remains capped at ₱500,000 and causes new single-payout requests at or above the saved threshold to enter an internal review hold. It is not a statutory AML classification or filing rule.
+
 # ┌──────────────────────────────────────────────────────────────┐
 # │ OVERVIEW                                                     │
 # │                                                              │

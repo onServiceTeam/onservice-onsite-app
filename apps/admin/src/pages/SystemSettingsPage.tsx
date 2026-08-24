@@ -55,6 +55,11 @@ interface PlatformSetting {
   unit: string | null;
   isSensitive: boolean;
   isDefault: boolean;
+  requiresRestart: boolean;
+  runtimeStatus: 'live' | 'held' | 'not_connected';
+  runtimeLabel: string;
+  runtimeSummary: string;
+  editable: boolean;
   updatedAt: string;
 }
 
@@ -201,6 +206,10 @@ export default function SystemSettingsPage(): React.ReactElement {
   });
 
   function startEdit(s: PlatformSetting): void {
+    if (!s.editable) {
+      setBanner({ kind: 'err', text: `${s.label} is read-only. ${s.runtimeSummary}` });
+      return;
+    }
     setEditingKey(s.key);
     setEditValue(s.value);
     setEditReason('');
@@ -267,6 +276,72 @@ export default function SystemSettingsPage(): React.ReactElement {
     return s.value;
   }
 
+  function renderValueEditor(s: PlatformSetting): React.ReactElement {
+    const commonClass = 'w-full sm:w-52 px-2 py-1.5 border border-[var(--color-primary)] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]';
+    const ariaLabel = `Value for ${s.key}`;
+
+    if (s.valueType === 'boolean') {
+      return (
+        <select
+          id={`setting-value-${s.key}`}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          aria-label={ariaLabel}
+          className={commonClass}
+          autoFocus
+        >
+          <option value="true">Enabled</option>
+          <option value="false">Disabled</option>
+        </select>
+      );
+    }
+
+    if (s.allowedValues && s.allowedValues.length > 0) {
+      return (
+        <select
+          id={`setting-value-${s.key}`}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          aria-label={ariaLabel}
+          className={commonClass}
+          autoFocus
+        >
+          {s.allowedValues.map((value) => <option key={value} value={value}>{value}</option>)}
+        </select>
+      );
+    }
+
+    if (s.valueType === 'json') {
+      return (
+        <textarea
+          id={`setting-value-${s.key}`}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          aria-label={ariaLabel}
+          rows={5}
+          className={`${commonClass} sm:w-96 font-mono`}
+          autoFocus
+        />
+      );
+    }
+
+    const numeric = ['number', 'integer', 'percent', 'currency'].includes(s.valueType);
+    return (
+      <input
+        id={`setting-value-${s.key}`}
+        type={numeric ? 'number' : 'text'}
+        min={numeric && s.minValue !== null ? s.minValue : undefined}
+        max={numeric && s.maxValue !== null ? s.maxValue : undefined}
+        step={s.valueType === 'integer' ? 1 : numeric ? 'any' : undefined}
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        aria-label={ariaLabel}
+        className={commonClass}
+        autoFocus
+      />
+    );
+  }
+
   if (allQuery.isLoading) {
     return <div className="p-6 text-[var(--color-text-secondary)]">Loading settings…</div>;
   }
@@ -289,7 +364,7 @@ export default function SystemSettingsPage(): React.ReactElement {
             Platform Settings
           </h1>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            Tune commissions, fees, and runtime knobs. Changes take effect within 60 seconds (cache TTL).
+            Every control shows whether it is live, intentionally held, or not yet connected to authoritative runtime behavior.
           </p>
           {!isSuperAdmin && (
             <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 inline-block">
@@ -378,6 +453,20 @@ export default function SystemSettingsPage(): React.ReactElement {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-[var(--color-text)] text-sm">{s.label}</p>
                           <p className="text-xs text-[var(--color-text-secondary)] font-mono">{s.key}</p>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <span
+                              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                                s.runtimeStatus === 'live'
+                                  ? 'border-green-200 bg-green-50 text-green-700'
+                                  : s.runtimeStatus === 'held'
+                                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                    : 'border-slate-300 bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {s.runtimeLabel}
+                            </span>
+                            <span className="text-xs text-[var(--color-text-tertiary)]">{s.runtimeSummary}</span>
+                          </div>
                           {s.description && (
                             <p className="text-xs text-[var(--color-text-secondary)] mt-1">{s.description}</p>
                           )}
@@ -390,17 +479,10 @@ export default function SystemSettingsPage(): React.ReactElement {
                         </div>
 
                         {isEditing ? (
-                          <div className="flex flex-col items-end gap-2">
-                            <div className="flex items-center gap-2">
+                          <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+                            <div className="flex flex-wrap items-center justify-end gap-2">
                               <label htmlFor={`setting-value-${s.key}`} className="sr-only">Value for {s.key}</label>
-                              <input
-                                id={`setting-value-${s.key}`}
-                                type="text"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                className="w-40 px-2 py-1 border border-[var(--color-primary)] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-                                autoFocus
-                              />
+                              {renderValueEditor(s)}
                               <button
                                 type="button"
                                 onClick={() => saveEdit(s)}
@@ -425,7 +507,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                               onChange={(e) => setEditReason(e.target.value)}
                               placeholder="Change reason (required, audited)"
                               aria-label={`Audit reason for ${s.key}`}
-                              className="w-72 px-2 py-1 border border-[var(--color-border)] rounded text-xs"
+                              className="w-full px-2 py-1.5 border border-[var(--color-border)] rounded text-xs sm:w-80"
                             />
                           </div>
                         ) : (
@@ -436,7 +518,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                             {!s.isDefault && (
                               <span className="text-xs text-amber-600">customized</span>
                             )}
-                            {isSuperAdmin && (
+                            {isSuperAdmin && s.editable && (
                               <button
                                 type="button"
                                 onClick={() => startEdit(s)}
@@ -456,7 +538,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                             >
                               <History className="w-4 h-4" />
                             </button>
-                            {isSuperAdmin && (
+                            {isSuperAdmin && s.editable && (
                               <button
                                 type="button"
                                 disabled={s.isDefault || resetMutation.isPending}
@@ -520,7 +602,7 @@ export default function SystemSettingsPage(): React.ReactElement {
               Reset to default?
             </h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-3">
-              This will overwrite the current value of <code className="font-mono bg-[var(--color-surface-hover)] px-1 rounded">{pendingReset.key}</code> with its built-in default. Production money knobs propagate within 60s of save.
+              This will overwrite the current value of <code className="font-mono bg-[var(--color-surface-hover)] px-1 rounded">{pendingReset.key}</code> with its built-in default. {pendingReset.runtimeSummary}
             </p>
             <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded p-3 mb-3 text-sm">
               <div className="flex justify-between">

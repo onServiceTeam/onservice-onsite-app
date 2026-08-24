@@ -30,7 +30,7 @@ Escrow states: `pending` -> `held` -> `released` (or `refunded` / `partially_ref
 | RELEASE | Provider wallet gets `service_price - commission`; revenue wallet gets `commission + service_fee - guarantee`; guarantee fund gets 1.5% of the service fee under the current release formula. With the customer service fee currently set to zero, that fee-derived guarantee contribution is also zero. Escrow goes `released`, booking goes `payout_ready`. | Customer confirms the job, OR auto-confirm after 24h |
 | REFUND | Internal held funds move according to the approved outcome. A verified historical external payment may also require a PayMongo refund; verify the gateway result before saying it was submitted or completed. Escrow goes `refunded` or `partially_refunded`. | Cancellation or dispute resolution |
 
-Auto-confirm: a booking sitting in `completed_by_provider` for longer than 24h (`escrow_auto_confirm_hours`, admin-tunable) is auto-confirmed, escrow released, booking moved to `payout_ready`. The customer is notified. This currently conflicts with the 48-hour accepted dispute-filing window. E18 is an open money-path hard stop: do not infer that filing after release reverses the provider credit or safely re-holds booking funds.
+Auto-confirm: a booking sitting in `completed_by_provider` for longer than the deployed 24-hour worker configuration is auto-confirmed, escrow released, booking moved to `payout_ready`. The customer is notified. The stored `escrow_auto_confirm_hours` and `escrow_dispute_window_hours` rows are read-only in Admin because the authoritative worker/dispute paths are not fully connected to them. The 24-hour release still conflicts with the 48-hour accepted dispute-filing window. E18 is an open money-path hard stop: do not infer that filing after release reverses the provider credit or safely re-holds booking funds.
 
 Escrow release is refused (held for admin) when the provider was suspended mid-booking, when there is no provider on the booking, or when the amounts do not reconcile. That is by design. Resolve it in the admin Booking detail page, Money tab.
 
@@ -68,7 +68,7 @@ This affects revenue recognition, not customer-facing amounts.
 
 Providers request payouts from their wallet available balance.
 
-> **Set (editable):** payout processing target is 3 business days. _Recommended default. To change it, edit here and anywhere this value is referenced._
+The stored three-business-day payout target is not connected to an authoritative workflow and is read-only in Admin. Support must describe the recorded request status and verified transfer evidence, not promise this duration.
 
 Methods and validation:
 
@@ -77,7 +77,7 @@ Methods and validation:
 
 Rules:
 
-- Minimum withdrawal ₱100.
+- Minimum withdrawal is currently the deployed ₱100 validation rule. Its stored settings row is read-only until payout enforcement and provider guidance consume the same runtime value.
 - Provider must be in `approved` status.
 - One payout in flight at a time (`aml_review_pending` / `pending` / `approved` / `processing`). The check is serialized per provider so two simultaneous requests cannot both reserve funds.
 

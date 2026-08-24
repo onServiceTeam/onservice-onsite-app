@@ -219,6 +219,95 @@ export interface AuditRow {
   created_at: Date;
 }
 
+export type SettingRuntimeStatus = 'live' | 'held' | 'not_connected';
+
+export interface SettingRuntimeControl {
+  status: SettingRuntimeStatus;
+  label: string;
+  summary: string;
+  editable: boolean;
+}
+
+const NOT_CONNECTED_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
+  vat_rate: 'Invoices still use the deployed VAT configuration. This stored value is read-only until invoice calculation is connected.',
+  escrow_auto_confirm_hours: 'The release worker still uses deployed configuration. Editing is blocked so the customer timer cannot disagree with escrow release behavior.',
+  escrow_dispute_window_hours: 'Dispute enforcement still uses deployed configuration. Editing is blocked so customer guidance cannot disagree with the filing deadline.',
+  minimum_payment_amount: 'Payment validation still uses deployed configuration. Editing is blocked so the customer app cannot advertise a different minimum.',
+  minimum_withdrawal_amount: 'Payout validation still uses deployed configuration. Editing is blocked so provider guidance cannot disagree with payout enforcement.',
+  withdrawal_processing_days: 'No authoritative payout workflow currently consumes this stored value.',
+  surge_multiplier_min: 'Pricing does not currently consume this stored lower bound.',
+  surge_multiplier_max: 'Pricing does not currently consume this stored upper bound.',
+  jwt_access_expires: 'Access-token lifetime is controlled by deployment configuration, not this database row.',
+  jwt_refresh_expires: 'Refresh-token, database, and cookie lifetimes are controlled by deployment configuration, not this database row.',
+  admin_session_timeout_hours: 'Admin session and cookie lifetimes are controlled by deployment configuration, not this database row.',
+  max_service_radius_km: 'Provider matching and service-area validation still use deployed configuration.',
+  cache_ttl_provider_profile: 'Provider-profile cache lifetime still uses deployed configuration.',
+};
+
+const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
+  'feature_flag.promo_redemption_enabled': 'Promo redemption is deferred until its complete customer and settlement pipeline is launched.',
+  'feature_flag.ab_testing_enabled': 'A/B assignment is deferred until exposure assignment and reporting are launched.',
+  recurring_auto_charge_max_consecutive_failures: 'Recurring bookings remain manual-payment-only while escalation E20 is open.',
+};
+
+const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
+  aml_large_transaction_threshold_centavos: 'New single-payout requests at or above this threshold enter an internal compliance-review hold. Existing requests keep their snapshotted threshold.',
+};
+
+/**
+ * Describe what an admin setting really controls today.
+ *
+ * Rows are intentionally not trusted to self-describe through
+ * `requires_restart`: the original migration marked every row false even
+ * though some consumers remained hardcoded. Unknown/new rows fail closed as
+ * read-only until their authoritative consumer is audited and connected.
+ */
+export function getSettingRuntimeControl(key: string): SettingRuntimeControl {
+  const disconnectedSummary = NOT_CONNECTED_SETTING_SUMMARIES[key];
+  if (disconnectedSummary) {
+    return {
+      status: 'not_connected',
+      label: 'Not connected',
+      summary: disconnectedSummary,
+      editable: false,
+    };
+  }
+
+  const heldSummary = HELD_SETTING_SUMMARIES[key];
+  if (heldSummary) {
+    return {
+      status: 'held',
+      label: 'Launch hold',
+      summary: heldSummary,
+      editable: false,
+    };
+  }
+
+  if (Object.prototype.hasOwnProperty.call(SETTING_DEFAULTS, key)) {
+    return {
+      status: 'live',
+      label: 'Live control',
+      summary: LIVE_SETTING_SUMMARIES[key]
+        ?? 'Authoritative workflows consume this value for new operations. Cache-backed readers refresh within 60 seconds.',
+      editable: true,
+    };
+  }
+
+  return {
+    status: 'not_connected',
+    label: 'Not connected',
+    summary: 'This setting has not been mapped to an authoritative runtime consumer and is read-only.',
+    editable: false,
+  };
+}
+
+function assertSettingEditable(key: string): void {
+  const control = getSettingRuntimeControl(key);
+  if (!control.editable) {
+    throw createAppError(`Setting "${key}" is read-only: ${control.summary}`, 409);
+  }
+}
+
 // ── Core read ──
 
 export async function getSetting(key: string): Promise<string> {
@@ -280,6 +369,11 @@ export interface OtpPolicy {
   cooldownSeconds: number;
 }
 
+export interface QuotePolicy {
+  expiryHours: number;
+  maxPerBooking: number;
+}
+
 function boundedInteger(value: number, min: number, max: number, fallback: number): number {
   return Number.isSafeInteger(value) && value >= min && value <= max ? value : fallback;
 }
@@ -298,6 +392,28 @@ export async function getOtpPolicy(): Promise<OtpPolicy> {
     maxAttempts: boundedInteger(maxAttempts, 1, 10, 3),
     cooldownSeconds: boundedInteger(cooldownSeconds, 30, 300, 60),
   };
+}
+
+/** Resolve the quote admission/expiry controls used by submission and workers. */
+export async function getQuotePolicy(): Promise<QuotePolicy> {
+  const [expiryHours, maxPerBooking] = await Promise.all([
+    getSettingInteger('quote_expiry_hours'),
+    getSettingInteger('max_quotes_per_booking'),
+  ]);
+  return {
+    expiryHours: boundedInteger(expiryHours, 12, 168, 48),
+    maxPerBooking: boundedInteger(maxPerBooking, 1, 20, 5),
+  };
+}
+
+/** Resolve the provider/customer no-show wait used by both route and worker. */
+export async function getProviderNoShowMinutes(): Promise<number> {
+  return boundedInteger(
+    await getSettingInteger('provider_noshow_minutes'),
+    10,
+    120,
+    30,
+  );
 }
 
 // MED-N165 fix — array settings stored as comma-separated values
@@ -490,6 +606,7 @@ export async function updateSetting(
   }
   const setting = current.rows[0]!;
 
+  assertSettingEditable(key);
   validateSettingValue(setting, newValue);
 
   const oldValue = setting.value;
@@ -557,6 +674,7 @@ export async function bulkUpdateSettings(
   for (const u of updates) {
     const setting = byKey.get(u.key);
     if (!setting) throw createAppError(`Setting "${u.key}" not found.`, 404);
+    assertSettingEditable(u.key);
     validateSettingValue(setting, u.value);
   }
 
@@ -823,9 +941,14 @@ export function formatSetting(s: SettingRow): {
   isSensitive: boolean;
   isActive: boolean;
   requiresRestart: boolean;
+  runtimeStatus: SettingRuntimeStatus;
+  runtimeLabel: string;
+  runtimeSummary: string;
+  editable: boolean;
   updatedAt: Date;
   isDefault: boolean;
 } {
+  const runtimeControl = getSettingRuntimeControl(s.key);
   return {
     id: s.id,
     category: s.category,
@@ -844,6 +967,10 @@ export function formatSetting(s: SettingRow): {
     isSensitive: s.is_sensitive,
     isActive: s.is_active,
     requiresRestart: s.requires_restart,
+    runtimeStatus: runtimeControl.status,
+    runtimeLabel: runtimeControl.label,
+    runtimeSummary: runtimeControl.summary,
+    editable: runtimeControl.editable,
     updatedAt: s.updated_at,
     isDefault: s.value === s.default_value,
   };

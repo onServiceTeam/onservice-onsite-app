@@ -11,6 +11,7 @@ import { resolvePromo, recordPromoRedemption } from './booking/promo.service';
 import { resolveHourlyCap, type HourlyConfig } from './booking/pricing.service';
 import * as businessService from './business.service';
 import * as serviceAreaService from './service-area.service';
+import * as settingsService from './settings.service';
 import { formatPHP } from '../utils/currency';
 
 interface BookingRow {
@@ -897,6 +898,7 @@ async function submitQuoteInTransaction(
   providerUserId: string,
   quotedPrice: number,
   description: string,
+  quotePolicy: settingsService.QuotePolicy,
   estimatedDurationMinutes?: number,
 ): Promise<QuoteRow> {
   interface ProviderRow { id: string }
@@ -967,11 +969,11 @@ async function submitQuoteInTransaction(
     `SELECT COUNT(*)::text as count FROM booking_quotes WHERE booking_id = $1`,
     [bookingId],
   );
-  if (Number(totalQuotes.rows[0]?.count) >= platformConfig.maxQuotesPerBooking) {
-    throw createAppError(`This booking already has the maximum of ${platformConfig.maxQuotesPerBooking} quotes.`, 409);
+  if (Number(totalQuotes.rows[0]?.count) >= quotePolicy.maxPerBooking) {
+    throw createAppError(`This booking already has the maximum of ${quotePolicy.maxPerBooking} quotes.`, 409);
   }
 
-  const expiresAt = new Date(Date.now() + platformConfig.quoteExpiryHours * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + quotePolicy.expiryHours * 60 * 60 * 1000);
   const result = await client.query<QuoteRow>(
     `INSERT INTO booking_quotes (booking_id, provider_id, quoted_price, description, estimated_duration_minutes, expires_at)
      VALUES ($1, $2, $3, $4, $5, $6)
@@ -996,12 +998,14 @@ export async function submitQuote(
   description: string,
   estimatedDurationMinutes?: number,
 ): Promise<QuoteRow> {
+  const quotePolicy = await settingsService.getQuotePolicy();
   const quote = await db.transaction((client) => submitQuoteInTransaction(
     client,
     bookingId,
     providerUserId,
     quotedPrice,
     description,
+    quotePolicy,
     estimatedDurationMinutes,
   ));
   logger.info('Quote submitted', {
@@ -1051,6 +1055,7 @@ export async function submitStructuredQuote(
   const materialsAmount = lineItems
     .filter(i => i.itemType === 'materials')
     .reduce((s, i) => s + Math.round(i.quantity * i.unitPrice), 0);
+  const quotePolicy = await settingsService.getQuotePolicy();
 
   const quote = await db.transaction(async (client) => {
     const createdQuote = await submitQuoteInTransaction(
@@ -1059,6 +1064,7 @@ export async function submitStructuredQuote(
       providerUserId,
       canonicalTotal,
       data.description,
+      quotePolicy,
       data.estimatedDurationMinutes,
     );
 

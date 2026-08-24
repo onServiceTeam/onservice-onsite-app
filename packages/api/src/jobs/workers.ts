@@ -16,6 +16,7 @@ import * as gatewayRetryService from '../services/gateway-retry.service';
 import * as bookingService from '../services/booking.service';
 import * as bookingOfferService from '../services/booking-offer.service';
 import * as providerCrmService from '../services/provider-crm.service';
+import * as settingsService from '../services/settings.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -127,7 +128,7 @@ async function autoConfirmBookings(): Promise<number> {
 }
 
 async function expireStaleQuotes(): Promise<number> {
-  const quoteExpiryHours = platformConfig.quoteExpiryHours ?? 48;
+  const { expiryHours: quoteExpiryHours } = await settingsService.getQuotePolicy();
 
   const expired = await db.query<ExpiredQuoteRow>(
     `UPDATE booking_quotes
@@ -258,7 +259,7 @@ async function checkNbiExpiry(): Promise<number> {
 }
 
 async function detectNoShows(): Promise<number> {
-  const noShowMinutes = platformConfig.providerNoShowMinutes ?? 30;
+  const noShowMinutes = await settingsService.getProviderNoShowMinutes();
 
   const noShows = await db.query<NoShowBookingRow>(
     `SELECT b.id, b.customer_id, b.provider_id, b.scheduled_at FROM bookings b

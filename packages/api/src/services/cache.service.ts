@@ -1,6 +1,7 @@
 import { redis } from '../config/redis.config';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
+import * as settingsService from './settings.service';
 
 /**
  * Redis cache layer for API response caching.
@@ -18,6 +19,22 @@ export const CacheTTL = {
   SEARCH_RESULTS: platformConfig.cacheTtl.searchResults,
   SERVICE_AREAS: platformConfig.cacheTtl.serviceAreas,
 } as const;
+
+export type RuntimeCacheTtl = 'categories' | 'searchResults';
+
+/** Resolve the two admin-owned HTTP-cache durations with migration bounds. */
+export async function getRuntimeCacheTtl(kind: RuntimeCacheTtl): Promise<number> {
+  if (kind === 'categories') {
+    const configured = await settingsService.getSettingInteger('cache_ttl_categories');
+    return Number.isSafeInteger(configured) && configured >= 60 && configured <= 604_800
+      ? configured
+      : CacheTTL.CATEGORIES;
+  }
+  const configured = await settingsService.getSettingInteger('cache_ttl_search_results');
+  return Number.isSafeInteger(configured) && configured >= 30 && configured <= 3_600
+    ? configured
+    : CacheTTL.SEARCH_RESULTS;
+}
 
 export async function cacheGet<T>(key: string): Promise<T | null> {
   try {

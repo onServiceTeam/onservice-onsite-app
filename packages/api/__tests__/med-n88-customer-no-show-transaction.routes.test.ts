@@ -45,8 +45,8 @@ jest.mock('../src/services/notification.service', () => ({
   createPushNotification: (...args: unknown[]) => createPushNotificationMock(...args),
 }));
 
-jest.mock('../src/config/platform.config', () => ({
-  platformConfig: { providerNoShowMinutes: 15 },
+jest.mock('../src/services/settings.service', () => ({
+  getProviderNoShowMinutes: jest.fn(async () => 15),
 }));
 
 jest.mock('../src/utils/logger', () => ({

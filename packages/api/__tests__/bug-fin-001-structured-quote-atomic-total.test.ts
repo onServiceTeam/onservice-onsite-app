@@ -12,6 +12,10 @@ jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
+jest.mock('../src/services/settings.service', () => ({
+  getQuotePolicy: jest.fn(async () => ({ expiryHours: 48, maxPerBooking: 5 })),
+}));
+
 import { submitStructuredQuote } from '../src/services/booking.service';
 
 it('Bug FIN-001 — itemized quote stores the line-item total and every write shares one transaction', async () => {

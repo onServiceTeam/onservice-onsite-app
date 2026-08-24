@@ -27,7 +27,9 @@ import { AuthenticatedRequest } from './auth.middleware';
  *      stays scoped to the URL only (fast path for public endpoints
  *      like /api/v1/catalog/categories, /api/v1/service-areas).
  */
-export function cacheMiddleware(ttlSeconds: number) {
+type CacheTtlSource = number | (() => Promise<number>);
+
+export function cacheMiddleware(ttlSource: CacheTtlSource) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (req.method !== 'GET') {
       next();
@@ -52,6 +54,19 @@ export function cacheMiddleware(ttlSeconds: number) {
         next();
         return;
       }
+    }
+
+    let ttlSeconds: number;
+    try {
+      ttlSeconds = typeof ttlSource === 'function' ? await ttlSource() : ttlSource;
+    } catch (err) {
+      logger.warn('HTTP cache TTL resolution failed; bypassing cache', {
+        path: req.originalUrl,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      res.set('X-Cache', 'BYPASS');
+      next();
+      return;
     }
 
     // Build a per-identity cache key. For unauthenticated public

@@ -20,8 +20,11 @@ jest.mock('../src/services/notification-template.service', () => ({
 }));
 jest.mock('../src/config/platform.config', () => ({
   platformConfig: {
-    suspiciousIpThreshold: 5,
+    otpLockoutThresholds: [{ failures: 3, lockoutMinutes: 5 }],
   },
+}));
+jest.mock('../src/services/settings.service', () => ({
+  getSettingInteger: jest.fn(async () => 10),
 }));
 
 const ESCROW_SVC = readFileSync(
