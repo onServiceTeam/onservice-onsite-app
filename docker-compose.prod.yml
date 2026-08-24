@@ -47,7 +47,10 @@ services:
   redis:
     image: redis:8-alpine
     restart: always
-    command: redis-server --maxmemory 1gb --maxmemory-policy allkeys-lru --appendonly yes --requirepass ${REDIS_PASSWORD}
+    # BullMQ stores durable queue state in Redis and requires a no-eviction
+    # policy. Evicting an arbitrary queue key can lose or corrupt scheduled
+    # work; noeviction fails a write explicitly if the limit is ever reached.
+    command: redis-server --maxmemory 1gb --maxmemory-policy noeviction --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - redisdata_prod:/data
     deploy:

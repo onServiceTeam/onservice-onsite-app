@@ -138,6 +138,11 @@ Verify all of the following before declaring the release complete:
 - `/opt/onservice` is clean and exactly matches the GitHub release SHA.
 - `docker compose -f docker-compose.prod.yml ps` reports the onService API,
   Postgres, Redis, and nginx as healthy/running.
+- Redis reports `maxmemory-policy=noeviction`; BullMQ queue keys must never be
+  discarded by a cache-eviction policy.
+- Fresh API startup logs include `Settings drift check passed`. A drift warning
+  means an active admin setting and its database-outage fallback are no longer
+  aligned and the release is incomplete.
 - The API container's `/health/ready` returns a successful readiness response.
   While the staging IP lock is active, an outside request to
   `https://api.onservice.ph/health/ready` correctly returns 403; verify the

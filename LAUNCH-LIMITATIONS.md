@@ -567,9 +567,11 @@ not a v1.0 patch.
   SiguradoShield Chapter 7, now deferred). Disputes themselves still
   ship — they're the regular escrow dispute flow, no insurance claims.
 - Migration `050_platform_settings_rich_schema.sql` seed rows for the
-  protection/* setting keys. Server code paths no longer read them; they
-  sit dormant until v1.1+ either consumes them via a real claims
-  pipeline or a future migration archives them.
+  protection/* setting keys remain immutable history. Migration 153 marks
+  those rows inactive so they do not appear as editable v1.0 controls;
+  server code paths do not read them. A future licensed/partnered product
+  would need an explicit migration and complete claims pipeline to reactivate
+  them.
 - No actual `shield_polic*` / `shield_claim*` / `insurance_*` tables
   exist in the migration history; SiguradoShield was always UI-copy
   with a settings-keyed config layer, never a wired charge/payout
