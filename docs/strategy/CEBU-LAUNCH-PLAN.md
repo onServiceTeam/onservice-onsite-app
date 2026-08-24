@@ -170,8 +170,10 @@ restricted" on revenue without nickel-and-diming customers on day one.
 - **Referrals:** referrer and referred friend each get ₱50 credit (the friend
   on signup, the referrer after the friend's first completed booking). This is
   your cheapest growth channel and pairs perfectly with Facebook sharing.
-- **Recurring bookings:** weekly/bi-weekly/monthly schedules with optional
-  auto-charge. This is the retention engine for cleaning and aircon.
+- **Recurring bookings:** weekly/bi-weekly/monthly schedules with manual
+  payment for every generated booking. Auto-charge is disabled pending the
+  E20 money-path redesign. Recurring scheduling remains a retention tool for
+  cleaning and aircon without storing a new payment token.
 - **Reviews:** feed a provider quality score that drives ranking.
 
 These are strong. The main gap is simply **using them in marketing** (push the

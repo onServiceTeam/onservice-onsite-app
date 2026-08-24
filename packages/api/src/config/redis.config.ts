@@ -59,7 +59,7 @@ redis.on('error', (err) => {
 // every BullMQ queue and worker connected unauthenticated and failed with
 // "NOAUTH Authentication required" — so the entire background-job system was
 // down: the scheduler worker (offer-cascade sweep / re-kick, NBI-expiry
-// checks, recurring auto-charges) plus the notification/SMS/payout queues
+// checks, recurring manual-payment instance creation) plus the notification/SMS/payout queues
 // never ran. The offer sweep being dead meant auto-dispatch stalled after the
 // first provider's 45s offer expired (no re-kick to the next provider). Now we
 // carry the password (and username, if any) through from REDIS_URL or the

@@ -1,6 +1,10 @@
 // recurring-auto-charge.service.ts
 //
-// E02 / D22 (2026-05-02) — real recurring auto-charge.
+// E02 / D22 (2026-05-02) — legacy recurring auto-charge implementation.
+// E20 (2026-08-24): NOT launch-safe. No production route or scheduler may
+// invoke attemptAutoCharge until the escalated money-path redesign is approved
+// and sandbox-tested. The service remains isolated for audit history, legacy
+// preference cleanup, attempt-history support, and dedicated behavior tests.
 //
 // Customers who set auto_charge=TRUE on a recurring booking AND captured
 // a payment method via the in-app PayMongo sheet get charged

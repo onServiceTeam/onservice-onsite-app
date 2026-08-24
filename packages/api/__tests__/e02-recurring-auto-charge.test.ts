@@ -1,11 +1,13 @@
 // E02 / D22 — Recurring auto-charge end-to-end implementation.
 //
+// Isolated legacy-service coverage retained for historical E02 behavior.
+// E20 supersedes launch wiring: Bugs UX-189/190 disable token activation and
+// scheduler execution until the money, consent, lifecycle, and reconciliation
+// path is redesigned and sandbox-tested. These tests do not claim launch use.
 // Covers:
-//  1. Migration 107 shape (columns, audit table, index, settings row).
-//  2. NotificationType union includes the 3 new lifecycle types.
-//  3. setAutoChargePaymentMethod — store/replace, idempotent, ownership.
-//  4. clearAutoChargePaymentMethod — clear, ownership check.
-//  5. attemptAutoCharge:
+//  1. setAutoChargePaymentMethod — store/replace, idempotent, ownership.
+//  2. clearAutoChargePaymentMethod — clear, ownership check.
+//  3. attemptAutoCharge:
 //     - skips if no payment method
 //     - skips if suspended
 //     - PayMongo failure increments counter; suspends at threshold
@@ -13,9 +15,7 @@
 //     - success resets the failure counter
 //     - notifications dispatched (succeeded / failed / suspended)
 //     - audit row in recurring_auto_charge_attempts
-//  6. Scheduler integration: processRecurringBookings calls
-//     attemptAutoCharge ONLY when rb.auto_charge=TRUE.
-//  7. listAttempts — returns history.
+//  4. listAttempts — returns history.
 
 const dbQueryMock = jest.fn();
 const dbTransactionMock = jest.fn();
@@ -89,103 +89,12 @@ beforeEach(() => {
   });
 });
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
 import {
   setAutoChargePaymentMethod,
   clearAutoChargePaymentMethod,
   attemptAutoCharge,
   listAttempts,
 } from '../src/services/recurring-auto-charge.service';
-
-const MIGRATION_107 = readFileSync(
-  resolve(__dirname, '../migrations/107_recurring_auto_charge_e02.sql'),
-  'utf8',
-);
-const NOTIFICATION_SVC = readFileSync(
-  resolve(__dirname, '../src/services/notification.service.ts'),
-  'utf8',
-);
-const RECURRING_SVC = readFileSync(
-  resolve(__dirname, '../src/services/recurring.service.ts'),
-  'utf8',
-);
-
-describe('E02 — migration 107 shape', () => {
-  it('E02 — adds payment_method_id column on recurring_bookings', () => {
-    expect(MIGRATION_107).toMatch(/ADD COLUMN payment_method_id TEXT NULL/);
-  });
-
-  it('E02 — adds payment_method_label column', () => {
-    expect(MIGRATION_107).toMatch(/ADD COLUMN payment_method_label TEXT NULL/);
-  });
-
-  it('E02 — adds auto_charge_status with CHECK', () => {
-    expect(MIGRATION_107).toMatch(/auto_charge_status TEXT NULL/);
-    expect(MIGRATION_107).toMatch(/'pending', 'succeeded', 'failed', 'suspended'/);
-  });
-
-  it('E02 — adds consecutive_failures, suspended_at, last_attempt_at', () => {
-    expect(MIGRATION_107).toMatch(/auto_charge_consecutive_failures INT NOT NULL DEFAULT 0/);
-    expect(MIGRATION_107).toMatch(/auto_charge_suspended_at TIMESTAMPTZ NULL/);
-    expect(MIGRATION_107).toMatch(/auto_charge_last_attempt_at TIMESTAMPTZ NULL/);
-  });
-
-  it('E02 — creates partial index for scheduler hot path', () => {
-    expect(MIGRATION_107).toMatch(/idx_recurring_bookings_autocharge_due/);
-    expect(MIGRATION_107).toMatch(/WHERE auto_charge = TRUE[\s\S]*payment_method_id IS NOT NULL/);
-  });
-
-  it('E02 — creates audit table recurring_auto_charge_attempts', () => {
-    expect(MIGRATION_107).toMatch(/CREATE TABLE IF NOT EXISTS recurring_auto_charge_attempts/);
-    expect(MIGRATION_107).toMatch(/wallet_portion_centavos BIGINT/);
-    expect(MIGRATION_107).toMatch(/paymongo_portion_centavos BIGINT/);
-    expect(MIGRATION_107).toMatch(/outcome TEXT NOT NULL CHECK \(outcome IN/);
-  });
-
-  it('E02 — inserts platform_setting for failure threshold', () => {
-    expect(MIGRATION_107).toMatch(/recurring_auto_charge_max_consecutive_failures/);
-  });
-});
-
-describe('E02 — NotificationType union extended', () => {
-  it('E02 — includes recurring_auto_charge_succeeded', () => {
-    expect(NOTIFICATION_SVC).toMatch(/'recurring_auto_charge_succeeded'/);
-  });
-  it('E02 — includes recurring_auto_charge_failed', () => {
-    expect(NOTIFICATION_SVC).toMatch(/'recurring_auto_charge_failed'/);
-  });
-  it('E02 — includes recurring_auto_charge_suspended', () => {
-    expect(NOTIFICATION_SVC).toMatch(/'recurring_auto_charge_suspended'/);
-  });
-});
-
-describe('E02 — recurring scheduler integration', () => {
-  it('E02 — processRecurringBookings imports the auto-charge service', () => {
-    expect(RECURRING_SVC).toMatch(/import \* as autoChargeService from '\.\/recurring-auto-charge\.service'/);
-  });
-
-  it('E02 — scheduler calls attemptAutoCharge only when rb.auto_charge is true', () => {
-    // The branch lives inside processRecurringBookings.
-    const procStart = RECURRING_SVC.indexOf('export async function processRecurringBookings');
-    expect(procStart).toBeGreaterThan(0);
-    const procBlock = RECURRING_SVC.slice(procStart, procStart + 9000);
-    expect(procBlock).toMatch(/if \(rb\.auto_charge\)/);
-    expect(procBlock).toMatch(/autoChargeService\.attemptAutoCharge/);
-  });
-
-  it('E02 — scheduler suppresses generic recurring_update notification on auto-charge success', () => {
-    const procStart = RECURRING_SVC.indexOf('export async function processRecurringBookings');
-    const procBlock = RECURRING_SVC.slice(procStart, procStart + 9000);
-    // "if (!autoChargeSucceeded) { ... type: 'recurring_update' ..."
-    expect(procBlock).toMatch(/if \(!autoChargeSucceeded\)[\s\S]*?'recurring_update'/);
-  });
-
-  it('E02 — formatRecurringBooking exposes autoChargeStatus + paymentMethodLabel', () => {
-    expect(RECURRING_SVC).toMatch(/autoChargeStatus:\s*rb\.auto_charge_status/);
-    expect(RECURRING_SVC).toMatch(/paymentMethodLabel:\s*rb\.payment_method_label/);
-  });
-});
 
 describe('E02 — setAutoChargePaymentMethod', () => {
   it('E02 — writes payment_method_id + label and resets failure state in trx', async () => {
@@ -537,29 +446,5 @@ describe('E02 — listAttempts', () => {
     expect(out[0]!.paymongoPaymentId).toBe('pay_xyz');
     const sql = dbQueryMock.mock.calls[0]![0] as string;
     expect(sql).toMatch(/ORDER BY attempted_at DESC/);
-  });
-});
-
-describe('E02 — routes wired', () => {
-  const ROUTES = readFileSync(
-    resolve(__dirname, '../src/routes/recurring.routes.ts'),
-    'utf8',
-  );
-
-  it('E02 — PUT /:id/auto-charge wired', () => {
-    expect(ROUTES).toMatch(/router\.put\([\s\S]*?'\/:id\/auto-charge'/);
-  });
-
-  it('E02 — DELETE /:id/auto-charge wired', () => {
-    expect(ROUTES).toMatch(/router\.delete\([\s\S]*?'\/:id\/auto-charge'/);
-  });
-
-  it('E02 — GET /:id/auto-charge/attempts wired', () => {
-    expect(ROUTES).toMatch(/router\.get\([\s\S]*?'\/:id\/auto-charge\/attempts'/);
-  });
-
-  it('E02 — PUT validates both paymentMethodId and paymentMethodLabel are required', () => {
-    expect(ROUTES).toMatch(/paymentMethodId is required/);
-    expect(ROUTES).toMatch(/paymentMethodLabel is required/);
   });
 });
