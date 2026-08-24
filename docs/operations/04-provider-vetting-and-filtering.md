@@ -91,7 +91,7 @@ Hard requirements:
 - [ ] Inside a service area we operate. Provider lat/lng falls within a configured `service_areas` market (Metro Cebu is the default market: Cebu City, Mandaue, Lapu-Lapu, Talisay).
 - [ ] At least 1 service category selected (the app allows 1 to 10).
 - [ ] Independent Contractor agreement accepted (`icAgreementAccepted: true` at submission, timestamped server-side).
-- [ ] Service radius between 1 and 50 km (onboarding cap; admin can later set up to 200 km on the row, but new applicants come in at 1 to 50).
+- [ ] Service radius between 1 km and the live **Max Service Radius** in Admin Settings (50 km at the time of this audit, hard-bounded to 5-100 km). The application, provider change request, approval, and direct admin override all enforce the same saved maximum.
 
 Policy requirements from DECISION-003 (not all enforced in code, enforce them here):
 
@@ -455,7 +455,9 @@ Dispatch rating floor (a quieter filter): a provider is dropped from auto-dispat
 
 A provider is tied to markets through `provider_service_areas` (with an `is_primary` flag) and also carries their own `service_radius_km` plus lat/lng/city/province.
 
-Service-area changes need admin approval (gated since v1.0). A provider's request lands in `service_area_change_requests` (one pending request per provider at a time). Review it the way you would a small re-verification: does the new area make sense for where they actually are? Approve or reject in the admin flow (audited as `service_area_change_approved` / `service_area_change_rejected`). Pre-launch this was instant; it is not anymore, so do not promise providers an instant area switch.
+Service-area changes need admin approval (gated since v1.0). The provider opens **Profile > Service Area**, chooses an active or soft-launch market, captures a fresh location pin, selects a radius no higher than the live Admin Settings maximum, and enters a 10-500 character reason. One pending request per provider is allowed. Their current matching coverage remains unchanged while it is pending. The provider may withdraw a mistaken pending request after an in-app confirmation; withdrawal also leaves approved coverage unchanged and allows a corrected request.
+
+The request appears at the top of Admin **Service Areas**. Review the Provider 360 link, current and requested market, old and proposed radius, exact proposed pin, and provider reason. Ordinary support/admin/DPO users may inspect the queue; only `super_admin` may approve or reject. Approval revalidates the current setting and area boundary, then atomically updates the provider's primary area, radius, coordinates, city, and province. If active provider coverage changed after submission, approval fails rather than overwriting the newer state; reject it and request a fresh submission. Rejection leaves all active matching data unchanged. Both outcomes require an operator reason, write the admin audit (`service_area_change_approved` / `service_area_change_rejected`), and notify the provider. Do not promise an instant area switch.
 
 For how many approved providers it takes to flip an area live (5 per launch category to reach `soft_launch`, 8 in the lead category to flip it to `active`), see `03-provider-recruiting-sop.md`.
 

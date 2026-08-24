@@ -26,7 +26,6 @@ interface ServiceAreaState {
     longitude?: number;
   }) => Promise<void>;
   fetchProviderAreas: () => Promise<void>;
-  joinArea: (serviceAreaId: string, isPrimary?: boolean) => Promise<void>;
   clearError: () => void;
 }
 
@@ -89,21 +88,6 @@ export const useServiceAreaStore = create<ServiceAreaState>((set) => ({
         error: err instanceof Error ? err.message : 'Failed to load provider areas.',
         isLoading: false,
       });
-    }
-  },
-
-  joinArea: async (serviceAreaId: string, isPrimary?: boolean): Promise<void> => {
-    set({ isLoading: true, error: null });
-    try {
-      await serviceAreaApi.joinServiceArea(serviceAreaId, isPrimary);
-      const providerAreas = await serviceAreaApi.getMyProviderAreas();
-      set({ providerAreas, isLoading: false });
-    } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to join service area.',
-        isLoading: false,
-      });
-      throw err;
     }
   },
 

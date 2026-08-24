@@ -23,6 +23,10 @@ jest.mock('../src/models/db', () => ({
   },
 }));
 
+jest.mock('../src/services/settings.service', () => ({
+  getMaxProviderServiceRadiusKm: jest.fn().mockResolvedValue(50),
+}));
+
 import * as svc from '../src/services/provider-admin.service';
 
 beforeEach(() => {
@@ -585,15 +589,20 @@ describe('updateProviderProfile', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('clamps service radius to [1,200] + writes audit (Bug 79)', async () => {
+  it('enforces the live 50 km radius maximum and audits a valid override (Bug UX-266)', async () => {
+    await expect(
+      svc.updateProviderProfile(PROVIDER_ID, { serviceRadiusKm: 9999 }, ADMIN_ID),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+
     const { calls } = setupProfileTx({
       selectRows: [{ business_name: 'Old Co', description: null, service_radius_km: 50 }],
       updateRowCount: 1,
       auditId: 'audit-prof',
     });
-    await svc.updateProviderProfile(PROVIDER_ID, { serviceRadiusKm: 9999 }, ADMIN_ID);
+    await svc.updateProviderProfile(PROVIDER_ID, { serviceRadiusKm: 50 }, ADMIN_ID);
     const updateCall = calls.find((c) => c.sql.startsWith('UPDATE providers'))!;
-    expect(updateCall.params[0]).toBe(200);
+    expect(updateCall.params[0]).toBe(50);
     const auditCall = calls.find((c) => c.sql.startsWith('INSERT INTO admin_actions'))!;
     expect(auditCall).toBeDefined();
     expect(auditCall.sql).toContain("'provider_profile_updated'");

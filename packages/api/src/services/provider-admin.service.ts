@@ -15,6 +15,7 @@ import { logger } from '../utils/logger';
 import * as kycDocumentService from './kyc-document.service';
 import * as uploadService from './upload.service';
 import * as notificationService from './notification.service';
+import { getMaxProviderServiceRadiusKm } from './settings.service';
 import { maskPhilippinePhone, maskEmail } from '../utils/pii-mask';
 
 // ─────────────────────────────────────────────────────────────────
@@ -1225,7 +1226,15 @@ export async function updateProviderProfile(
     auditPatch.description = patch.description;
   }
   if (patch.serviceRadiusKm !== undefined) {
-    const n = Math.max(1, Math.min(200, Math.floor(patch.serviceRadiusKm)));
+    const maxRadiusKm = await getMaxProviderServiceRadiusKm();
+    if (
+      !Number.isInteger(patch.serviceRadiusKm)
+      || patch.serviceRadiusKm < 1
+      || patch.serviceRadiusKm > maxRadiusKm
+    ) {
+      throw createAppError(`serviceRadiusKm must be an integer from 1 to ${maxRadiusKm}.`, 400);
+    }
+    const n = patch.serviceRadiusKm;
     values.push(n);
     sets.push(`service_radius_km = $${values.length}`);
     auditPatch.serviceRadiusKm = n;

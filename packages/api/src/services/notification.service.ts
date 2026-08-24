@@ -60,6 +60,7 @@ export type NotificationType =
   | 'provider_reactivated' | 'provider_tier_changed'
   // D23 — provider is told when back-office decides on a team member they added.
   | 'provider_staff_approved' | 'provider_staff_rejected'
+  | 'service_area_change_approved' | 'service_area_change_rejected'
   // Provider credential review in Provider 360.
   | 'provider_certification_verified' | 'provider_certification_unverified'
   // Chat / messaging

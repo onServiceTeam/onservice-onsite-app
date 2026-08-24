@@ -29,6 +29,7 @@ import {
   FileText,
   BarChart3,
   Scale,
+  MapPin,
 } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
@@ -73,22 +74,20 @@ export default function ProviderProfileScreen(): React.ReactElement {
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState('');
   const [yearsExp, setYearsExp] = useState('');
-  const [radius, setRadius] = useState('');
 
   const startEditing = (): void => {
     setBio(profile?.bio ?? '');
     setYearsExp(profile?.yearsExperience != null ? String(profile.yearsExperience) : '');
-    setRadius(profile?.serviceRadiusKm != null ? String(profile.serviceRadiusKm) : '');
     setEditing(true);
   };
 
   const updateMutation = useMutation({
     mutationFn: () => {
-      const data: { bio?: string; yearsExperience?: number; serviceRadiusKm?: number } = {};
+      const data: { bio?: string; yearsExperience?: number } = {};
       if (bio.trim()) data.bio = bio.trim();
       // Phase K MED-K10 fix — client-side bounds match the backend
       // Zod validators (provider.validators.ts: yearsExperience
-      // 0..60, serviceRadiusKm 1..50). Pre-fix the form accepted
+      // 0..60). Pre-fix the form accepted
       // any positive integer and pushed it to the server which
       // returned a 400 with a Zod error the user couldn't easily
       // map back to the field. Now we throw a friendly local
@@ -99,13 +98,6 @@ export default function ProviderProfileScreen(): React.ReactElement {
           throw new Error('Years of experience must be between 0 and 60.');
         }
         data.yearsExperience = yrs;
-      }
-      const rad = parseInt(radius, 10);
-      if (!isNaN(rad)) {
-        if (rad < 1 || rad > 50) {
-          throw new Error('Service radius must be between 1 and 50 km.');
-        }
-        data.serviceRadiusKm = rad;
       }
       return updateMyProfile(data);
     },
@@ -203,9 +195,11 @@ export default function ProviderProfileScreen(): React.ReactElement {
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Service Radius</Text>
-            <Text style={styles.detailValue}>
-              {profile.serviceRadiusKm != null ? `${profile.serviceRadiusKm} km` : '—'}
-            </Text>
+            <TouchableOpacity onPress={() => router.push(Routes.PROVIDER.SERVICE_AREA)}>
+              <Text style={styles.manageValue}>
+                {profile.serviceRadiusKm != null ? `${profile.serviceRadiusKm} km · Manage` : 'Manage'}
+              </Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Rating</Text>
@@ -237,13 +231,6 @@ export default function ProviderProfileScreen(): React.ReactElement {
             placeholder="e.g. 5"
             value={yearsExp}
             onChangeText={setYearsExp}
-            keyboardType="number-pad"
-          />
-          <Input
-            label="Service Radius (km)"
-            placeholder="e.g. 15"
-            value={radius}
-            onChangeText={setRadius}
             keyboardType="number-pad"
           />
           <View style={styles.editActions}>
@@ -310,6 +297,11 @@ export default function ProviderProfileScreen(): React.ReactElement {
       )}
 
       <View style={styles.section}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.SERVICE_AREA)}>
+          <MapPin size={22} color={colors.primary} style={styles.menuIconImg} />
+          <Text style={styles.menuLabel}>Service Area</Text>
+          <Text style={styles.menuArrow}>›</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.SCHEDULE)}>
           <Calendar size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Manage Schedule</Text>
@@ -447,6 +439,7 @@ const styles = StyleSheet.create({
   },
   detailLabel: { ...typography.body, color: colors.textSecondary },
   detailValue: { ...typography.body, color: colors.text, fontWeight: '600' },
+  manageValue: { ...typography.body, color: colors.primary, fontWeight: '700' },
 
   editActions: { gap: spacing.sm, marginTop: spacing.md },
 

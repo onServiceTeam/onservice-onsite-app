@@ -26,8 +26,8 @@ describe('Provider Validators', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should reject serviceRadiusKm above 50', () => {
-      const result = updateProfileSchema.safeParse({ serviceRadiusKm: 51 });
+    it('should reject serviceRadiusKm above the live setting schema ceiling', () => {
+      const result = updateProfileSchema.safeParse({ serviceRadiusKm: 101 });
       expect(result.success).toBe(false);
     });
 
