@@ -1,20 +1,35 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Image } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  StyleSheet,
+  Image,
+  Modal,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  getChangeOrders, respondToChangeOrder, payChangeOrder,
-  type ChangeOrder, type ChangeOrderResponse,
+  getBookingById,
+  getChangeOrders,
+  respondToChangeOrder,
+  payChangeOrder,
+  type ChangeOrder,
+  type ChangeOrderResponse,
 } from '@/services/booking.service';
 import { getWalletBalance } from '@/services/payment.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft, Wallet, Check, ClipboardList } from '@/components/icons';
+import { ChevronLeft, Wallet, Check, ClipboardList, X } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
 import { SkeletonCard, EmptyState, ErrorState, TrustStrip } from '@/components/ui';
 import { showToast } from '@/lib/toast';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const PAYMENT_METHOD = { id: 'wallet', label: 'Wallet Balance' } as const;
 
@@ -22,11 +37,25 @@ export default function ChangeOrderScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
   const [pendingPayment, setPendingPayment] = useState<ChangeOrderResponse | null>(null);
-  const { data: orders, isLoading, isError, refetch } = useQuery({
+  const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+  const {
+    data: orders,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['changeOrders', bookingId],
     queryFn: () => getChangeOrders(bookingId ?? ''),
     enabled: !!bookingId,
+  });
+
+  const bookingQuery = useQuery({
+    queryKey: ['booking', bookingId],
+    queryFn: () => getBookingById(bookingId ?? ''),
+    enabled: !!bookingId,
+    staleTime: 60 * 1000,
   });
 
   // BUG-PHASE51-02 fix — pre-fix the change-order pay flow forced
@@ -41,7 +70,8 @@ export default function ChangeOrderScreen(): React.ReactElement {
     queryFn: getWalletBalance,
     staleTime: 60 * 1000,
   });
-  const walletBalance = walletQuery.data?.availableBalance ?? 0;
+  const walletBalance = walletQuery.data?.availableBalance;
+  const walletUnavailable = walletQuery.isLoading || walletQuery.isError || walletBalance == null;
 
   const respondMutation = useMutation({
     mutationFn: ({ orderId, approved }: { orderId: string; approved: boolean }) =>
@@ -65,7 +95,10 @@ export default function ChangeOrderScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['changeOrders', bookingId] });
       setPendingPayment(null);
-      showToast('Additional payment processed. The provider has been notified to proceed.', 'success');
+      showToast(
+        'Additional payment processed. The provider has been notified to proceed.',
+        'success',
+      );
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : 'Could not process additional payment.';
@@ -79,7 +112,10 @@ export default function ChangeOrderScreen(): React.ReactElement {
       : 'Decline this change order? The provider will proceed with the original scope.';
     Alert.alert(approved ? 'Approve Change Order' : 'Decline Change Order', msg, [
       { text: 'Cancel', style: 'cancel' },
-      { text: approved ? 'Approve' : 'Decline', onPress: () => respondMutation.mutate({ orderId: order.id, approved }) },
+      {
+        text: approved ? 'Approve' : 'Decline',
+        onPress: () => respondMutation.mutate({ orderId: order.id, approved }),
+      },
     ]);
   };
 
@@ -94,90 +130,138 @@ export default function ChangeOrderScreen(): React.ReactElement {
       </View>
 
       {pendingPayment ? (
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-          <View style={styles.paymentCard}>
-            <Text style={styles.paymentTitle}>Additional Payment Required</Text>
-            <Text style={styles.paymentDesc}>
-              Your change order has been approved. Please pay the additional amount to proceed.
-            </Text>
+        <ScrollView
+          style={styles.body}
+          contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+        >
+          <View
+            style={[styles.paymentWorkspace, !isPhone && styles.paymentWorkspaceWide]}
+            accessibilityLabel={
+              !isPhone ? 'Tablet and desktop customer change order payment workspace' : undefined
+            }
+          >
+            <View style={[styles.paymentCard, !isPhone && styles.paymentCardWide]}>
+              <Text style={styles.paymentTitle}>Additional Payment Required</Text>
+              <Text style={styles.paymentDesc}>
+                Your change order has been approved. Please pay the additional amount to proceed.
+              </Text>
 
-            <View style={styles.paymentBreakdown}>
-              <View style={styles.paymentRow}>
-                <Text style={styles.paymentLabel}>Additional Work</Text>
-                <Text style={styles.paymentValue}>{formatPHP(pendingPayment.additionalAmount ?? 0)}</Text>
-              </View>
-              {pendingPayment.additionalServiceFee != null && (
+              <View style={styles.paymentBreakdown}>
                 <View style={styles.paymentRow}>
-                  <Text style={styles.paymentLabel}>Service Fee</Text>
-                  <Text style={styles.paymentValue}>{formatPHP(pendingPayment.additionalServiceFee)}</Text>
+                  <Text style={styles.paymentLabel}>Additional Work</Text>
+                  <Text style={styles.paymentValue}>
+                    {formatPHP(pendingPayment.additionalAmount ?? 0)}
+                  </Text>
                 </View>
-              )}
-              {pendingPayment.additionalTotal != null ? (
-                <View style={[styles.paymentRow, styles.paymentTotalRow]}>
-                  <Text style={styles.paymentTotalLabel}>Total</Text>
-                  <Text style={styles.paymentTotalValue}>{formatPHP(pendingPayment.additionalTotal)}</Text>
+                {pendingPayment.additionalServiceFee != null && (
+                  <View style={styles.paymentRow}>
+                    <Text style={styles.paymentLabel}>Service Fee</Text>
+                    <Text style={styles.paymentValue}>
+                      {formatPHP(pendingPayment.additionalServiceFee)}
+                    </Text>
+                  </View>
+                )}
+                {pendingPayment.additionalTotal != null ? (
+                  <View style={[styles.paymentRow, styles.paymentTotalRow]}>
+                    <Text style={styles.paymentTotalLabel}>Total</Text>
+                    <Text style={styles.paymentTotalValue}>
+                      {formatPHP(pendingPayment.additionalTotal)}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={[styles.paymentRow, styles.paymentTotalRow]}>
+                    <Text style={[styles.paymentLabel, { fontStyle: 'italic' }]}>
+                      Service fee calculated at checkout
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <Text style={styles.payMethodLabel}>Payment Method</Text>
+              <View style={[styles.payMethodOption, styles.payMethodSelected]}>
+                <Wallet size={20} color={colors.primary} style={{ marginRight: spacing.md }} />
+                <Text style={[styles.payMethodText, styles.payMethodTextSelected]}>
+                  {PAYMENT_METHOD.label}
+                </Text>
+                <Check size={18} color={colors.primary} style={{ marginLeft: 'auto' }} />
+              </View>
+              <Text style={styles.walletNote}>
+                Additional charges currently use your existing wallet balance. New wallet top-ups
+                and external authorization are temporarily unavailable.
+              </Text>
+              {walletQuery.isLoading ? (
+                <View style={styles.walletStatus} accessibilityLabel="Wallet balance loading state">
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.walletNote}>Loading wallet balance…</Text>
+                </View>
+              ) : walletQuery.isError || walletBalance == null ? (
+                <View style={styles.walletError} accessibilityLabel="Wallet balance error state">
+                  <Text style={styles.walletErrorText}>
+                    Wallet balance could not be verified. Payment stays disabled until it loads.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => void walletQuery.refetch()}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.walletRetry}>Retry balance</Text>
+                  </TouchableOpacity>
                 </View>
               ) : (
-                <View style={[styles.paymentRow, styles.paymentTotalRow]}>
-                  <Text style={[styles.paymentLabel, { fontStyle: 'italic' }]}>Service fee calculated at checkout</Text>
-                </View>
+                <Text style={styles.walletNote}>Wallet balance: {formatPHP(walletBalance)}</Text>
               )}
-            </View>
-
-            <Text style={styles.payMethodLabel}>Payment Method</Text>
-            <View style={[styles.payMethodOption, styles.payMethodSelected]}>
-              <Wallet size={20} color={colors.primary} style={{ marginRight: spacing.md }} />
-              <Text style={[styles.payMethodText, styles.payMethodTextSelected]}>{PAYMENT_METHOD.label}</Text>
-              <Check size={18} color={colors.primary} style={{ marginLeft: 'auto' }} />
-            </View>
-            <Text style={styles.walletNote}>
-              Additional charges currently use your existing wallet balance. New wallet top-ups and external authorization are temporarily unavailable.
-            </Text>
-            <Text style={styles.walletNote}>
-              Wallet balance: {formatPHP(walletBalance)}
-            </Text>
-            {pendingPayment.additionalTotal != null
-              && pendingPayment.additionalTotal > walletBalance && (
-                <Text style={[styles.walletNote, { color: colors.error, fontWeight: '600' }]}>
-                  Insufficient wallet balance. This change order cannot be paid until your existing balance is enough or external authorization is restored. Contact support if you need help with the approved order.
-                </Text>
-              )}
-          </View>
-
-          <TrustStrip style={styles.trustStrip} />
-
-          <View style={styles.paymentFooter}>
-            {payMutation.isPending ? (
-              <View style={styles.paymentLoading}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.paymentLoadingText}>Processing payment...</Text>
-              </View>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={[
-                    styles.payNowBtn,
-                    pendingPayment.additionalTotal != null
-                      && pendingPayment.additionalTotal > walletBalance
-                      && { opacity: 0.4 },
-                  ]}
-                  onPress={() => payMutation.mutate()}
-                  disabled={
-                    pendingPayment.additionalTotal != null
-                    && pendingPayment.additionalTotal > walletBalance
-                  }
-                >
-                  <Text style={styles.payNowText}>
-                    {pendingPayment.additionalTotal != null
-                      ? `Pay ${formatPHP(pendingPayment.additionalTotal)}`
-                      : 'Pay from Wallet'}
+              {pendingPayment.additionalTotal != null &&
+                walletBalance != null &&
+                pendingPayment.additionalTotal > walletBalance && (
+                  <Text style={[styles.walletNote, { color: colors.error, fontWeight: '600' }]}>
+                    Insufficient wallet balance. This change order cannot be paid until your
+                    existing balance is enough or external authorization is restored. Contact
+                    support if you need help with the approved order.
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.payLaterBtn} onPress={() => setPendingPayment(null)}>
-                  <Text style={styles.payLaterText}>Pay Later</Text>
-                </TouchableOpacity>
-              </>
-            )}
+                )}
+            </View>
+
+            <View style={styles.paymentSide}>
+              <TrustStrip style={styles.trustStrip} />
+              <View style={styles.paymentFooter}>
+                {payMutation.isPending ? (
+                  <View style={styles.paymentLoading}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                    <Text style={styles.paymentLoadingText}>Processing payment...</Text>
+                  </View>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={[
+                        styles.payNowBtn,
+                        (walletUnavailable ||
+                          (pendingPayment.additionalTotal != null &&
+                            walletBalance != null &&
+                            pendingPayment.additionalTotal > walletBalance)) && { opacity: 0.4 },
+                      ]}
+                      onPress={() => payMutation.mutate()}
+                      disabled={
+                        walletUnavailable ||
+                        (pendingPayment.additionalTotal != null &&
+                          walletBalance != null &&
+                          pendingPayment.additionalTotal > walletBalance)
+                      }
+                    >
+                      <Text style={styles.payNowText}>
+                        {pendingPayment.additionalTotal != null
+                          ? `Pay ${formatPHP(pendingPayment.additionalTotal)}`
+                          : 'Pay from Wallet'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.payLaterBtn}
+                      onPress={() => setPendingPayment(null)}
+                    >
+                      <Text style={styles.payLaterText}>Pay Later</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            </View>
           </View>
         </ScrollView>
       ) : isLoading ? (
@@ -191,138 +275,307 @@ export default function ChangeOrderScreen(): React.ReactElement {
           onRetry={() => void refetch()}
         />
       ) : (
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-          {(orders ?? []).length === 0 ? (
-            <EmptyState
-              icon={<ClipboardList size={48} color={colors.textTertiary} />}
-              title="No Change Orders"
-              description="If the provider finds additional work is needed, change orders will appear here."
-            />
-          ) : (
-            orders?.map((order) => (
-              <View key={order.id} style={styles.orderCard}>
-                <View style={styles.orderHeader}>
-                  <View style={[
-                    styles.badge,
-                    order.status === 'paid' ? styles.approvedBadge
-                      : order.status === 'approved' ? styles.approvedBadge
-                      : order.status === 'declined' ? styles.declinedBadge
-                      : styles.pendingBadge,
-                  ]}>
-                    <Text style={[
-                      styles.badgeText,
-                      order.status === 'paid' ? styles.approvedText
-                        : order.status === 'approved' ? styles.approvedText
-                        : order.status === 'declined' ? styles.declinedText
-                        : styles.pendingText,
-                    ]}>
-                      {order.status === 'paid' ? 'Paid' : order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                    </Text>
-                  </View>
-                  <Text style={styles.orderAmount}>{formatPHP(order.additionalAmount)}</Text>
-                </View>
-
-                <Text style={styles.orderDesc}>{order.description}</Text>
-
-                {/* D27 Phase 3 — itemized parts/materials breakdown so the
-                    customer sees exactly what they're being charged for. */}
-                {order.lineItems && order.lineItems.length > 0 && (
-                  <View style={styles.liBox}>
-                    {order.lineItems.map((li, i) => (
-                      <View key={li.id ?? i} style={styles.liBoxRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.liBoxDesc}>{li.description}</Text>
-                          <Text style={styles.liBoxMeta}>
-                            {li.quantity} {li.unit} × {formatPHP(li.unitPrice)} · {li.itemType}
-                          </Text>
-                        </View>
-                        <Text style={styles.liBoxTotal}>{formatPHP(li.lineTotal)}</Text>
+        <ScrollView
+          style={styles.body}
+          contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+        >
+          <View
+            style={[styles.ordersWorkspace, !isPhone && styles.ordersWorkspaceWide]}
+            accessibilityLabel={
+              !isPhone ? 'Tablet and desktop customer change order workspace' : undefined
+            }
+          >
+            {!isPhone && (
+              <View style={styles.contextRail} accessibilityLabel="Change order booking context">
+                <Text style={styles.contextEyebrow}>ORIGINAL WORK</Text>
+                <Text style={styles.contextTitle}>
+                  {bookingQuery.data?.serviceName ??
+                    bookingQuery.data?.categoryName ??
+                    'Service booking'}
+                </Text>
+                {bookingQuery.data?.providerName ? (
+                  <Text style={styles.contextLine}>Provider: {bookingQuery.data.providerName}</Text>
+                ) : null}
+                {bookingQuery.data?.description ? (
+                  <Text style={styles.contextLine}>Scope: {bookingQuery.data.description}</Text>
+                ) : null}
+                {bookingQuery.data?.scheduledAt ? (
+                  <Text style={styles.contextLine}>
+                    Scheduled:{' '}
+                    {new Date(bookingQuery.data.scheduledAt).toLocaleString('en-PH', {
+                      timeZone: 'Asia/Manila',
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                ) : null}
+                <Text style={styles.contextNote}>
+                  Approve only work you understand. A paid change order becomes part of this
+                  booking's recorded scope.
+                </Text>
+                {bookingQuery.isError ? (
+                  <Text style={styles.contextError}>
+                    Booking context could not be loaded. Change-order records below remain
+                    available.
+                  </Text>
+                ) : null}
+              </View>
+            )}
+            <View style={styles.ordersMain}>
+              {(orders ?? []).length === 0 ? (
+                <EmptyState
+                  icon={<ClipboardList size={48} color={colors.textTertiary} />}
+                  title="No Change Orders"
+                  description="If the provider finds additional work is needed, change orders will appear here."
+                />
+              ) : (
+                orders?.map((order) => (
+                  <View key={order.id} style={styles.orderCard}>
+                    <View style={styles.orderHeader}>
+                      <View
+                        style={[
+                          styles.badge,
+                          order.status === 'paid'
+                            ? styles.approvedBadge
+                            : order.status === 'approved'
+                              ? styles.approvedBadge
+                              : order.status === 'declined'
+                                ? styles.declinedBadge
+                                : styles.pendingBadge,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.badgeText,
+                            order.status === 'paid'
+                              ? styles.approvedText
+                              : order.status === 'approved'
+                                ? styles.approvedText
+                                : order.status === 'declined'
+                                  ? styles.declinedText
+                                  : styles.pendingText,
+                          ]}
+                        >
+                          {order.status === 'paid'
+                            ? 'Paid'
+                            : order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                        </Text>
                       </View>
-                    ))}
-                  </View>
-                )}
+                      <Text style={styles.orderAmount}>{formatPHP(order.additionalAmount)}</Text>
+                    </View>
 
-                {order.photos.length > 0 && (
-                  <View style={styles.photoRow}>
-                    {/* Phase 200 — render the provider's actual justification
+                    <Text style={styles.orderDesc}>{order.description}</Text>
+
+                    {/* D27 Phase 3 — itemized parts/materials breakdown so the
+                    customer sees exactly what they're being charged for. */}
+                    {order.lineItems && order.lineItems.length > 0 && (
+                      <View style={styles.liBox}>
+                        {order.lineItems.map((li, i) => (
+                          <View key={li.id ?? i} style={styles.liBoxRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.liBoxDesc}>{li.description}</Text>
+                              <Text style={styles.liBoxMeta}>
+                                {li.quantity} {li.unit} × {formatPHP(li.unitPrice)} · {li.itemType}
+                              </Text>
+                            </View>
+                            <Text style={styles.liBoxTotal}>{formatPHP(li.lineTotal)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {order.photos.length > 0 && (
+                      <View
+                        style={styles.photoRow}
+                        accessibilityLabel="Change order evidence photos"
+                      >
+                        {/* Phase 200 — render the provider's actual justification
                          photos, not a placeholder camera glyph. The customer
                          needs to see the evidence for the additional charge. */}
-                    {order.photos.map((uri, i) => (
-                      <Image key={i} source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
-                    ))}
+                        {order.photos.map((uri, i) => (
+                          <TouchableOpacity
+                            key={`${uri}-${i}`}
+                            onPress={() => setViewingPhoto(uri)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Open change order evidence photo ${i + 1}`}
+                          >
+                            <Image source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    <Text style={styles.dateText}>
+                      Submitted{' '}
+                      {new Date(order.createdAt).toLocaleDateString('en-PH', {
+                        timeZone: 'Asia/Manila',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </Text>
+
+                    {order.status === 'pending' && (
+                      <View style={styles.actionRow}>
+                        <TouchableOpacity
+                          style={styles.declineBtn}
+                          onPress={() => handleRespond(order, false)}
+                          disabled={respondMutation.isPending}
+                        >
+                          <Text style={styles.declineText}>Decline</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.approveBtn}
+                          onPress={() => handleRespond(order, true)}
+                          disabled={respondMutation.isPending}
+                        >
+                          {respondMutation.isPending ? (
+                            <ActivityIndicator size="small" color={colors.backgroundSecondary} />
+                          ) : (
+                            <Text style={styles.approveText}>Approve</Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {order.status === 'approved' && (
+                      <TouchableOpacity
+                        style={styles.payPendingBtn}
+                        onPress={() =>
+                          setPendingPayment({
+                            id: order.id,
+                            status: 'approved',
+                            bookingId: order.bookingId,
+                            paymentRequired: true,
+                            additionalAmount: order.additionalAmount,
+                            // Phase 200 — carry the real fee + total (now returned
+                            // by the list endpoint) so the payment screen shows the
+                            // true total and enforces the wallet-balance gate.
+                            additionalServiceFee: order.additionalServiceFee ?? undefined,
+                            additionalTotal: order.additionalTotal ?? undefined,
+                          })
+                        }
+                      >
+                        <Text style={styles.payPendingText}>Pay Additional Amount</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
-                )}
-
-                <Text style={styles.dateText}>
-                  Submitted {new Date(order.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })}
-                </Text>
-
-                {order.status === 'pending' && (
-                  <View style={styles.actionRow}>
-                    <TouchableOpacity
-                      style={styles.declineBtn}
-                      onPress={() => handleRespond(order, false)}
-                      disabled={respondMutation.isPending}
-                    >
-                      <Text style={styles.declineText}>Decline</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.approveBtn}
-                      onPress={() => handleRespond(order, true)}
-                      disabled={respondMutation.isPending}
-                    >
-                      {respondMutation.isPending ? <ActivityIndicator size="small" color={colors.backgroundSecondary} /> : (
-                        <Text style={styles.approveText}>Approve</Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {order.status === 'approved' && (
-                  <TouchableOpacity
-                    style={styles.payPendingBtn}
-                    onPress={() => setPendingPayment({
-                      id: order.id,
-                      status: 'approved',
-                      bookingId: order.bookingId,
-                      paymentRequired: true,
-                      additionalAmount: order.additionalAmount,
-                      // Phase 200 — carry the real fee + total (now returned
-                      // by the list endpoint) so the payment screen shows the
-                      // true total and enforces the wallet-balance gate.
-                      additionalServiceFee: order.additionalServiceFee ?? undefined,
-                      additionalTotal: order.additionalTotal ?? undefined,
-                    })}
-                  >
-                    <Text style={styles.payPendingText}>Pay Additional Amount</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))
-          )}
+                ))
+              )}
+            </View>
+          </View>
         </ScrollView>
       )}
+
+      <Modal
+        visible={!!viewingPhoto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewingPhoto(null)}
+      >
+        <View style={styles.modalBg}>
+          <TouchableOpacity
+            style={styles.modalClose}
+            onPress={() => setViewingPhoto(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Close change order evidence photo"
+          >
+            <X size={20} color={colors.white} />
+          </TouchableOpacity>
+          {viewingPhoto ? (
+            <Image source={{ uri: viewingPhoto }} style={styles.modalImage} resizeMode="contain" />
+          ) : null}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   placeholder: { width: 30 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  bodyContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.lg },
+  ordersWorkspace: { width: '100%' },
+  ordersWorkspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  ordersMain: { flex: 1, minWidth: 0 },
+  contextRail: {
+    width: 300,
+    flexShrink: 0,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+  },
+  contextEyebrow: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: spacing.sm,
+  },
+  contextTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.lg },
+  contextLine: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: spacing.sm,
+  },
+  contextNote: {
+    ...typography.caption,
+    color: colors.textTertiary,
+    lineHeight: 18,
+    marginTop: spacing.lg,
+  },
+  contextError: {
+    ...typography.caption,
+    color: colors.error,
+    lineHeight: 18,
+    marginTop: spacing.md,
+  },
   centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyBox: { alignItems: 'center', paddingVertical: 40 },
   emptyEmoji: { fontSize: 48, marginBottom: spacing.md },
   emptyEmojiWrap: { marginBottom: spacing.md, alignItems: 'center' as const },
   emptyTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
-  emptyDesc: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-  orderCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  emptyDesc: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  orderCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  orderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
   badge: { paddingVertical: 4, paddingHorizontal: spacing.sm, borderRadius: borderRadius.sm },
   approvedBadge: { backgroundColor: colors.successLight },
   declinedBadge: { backgroundColor: colors.errorLight },
@@ -332,20 +585,51 @@ const styles = StyleSheet.create({
   declinedText: { color: colors.error },
   pendingText: { color: colors.warning },
   orderAmount: { fontSize: 18, fontWeight: '800', color: colors.text },
-  orderDesc: { ...typography.body, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.sm },
-  liBox: { backgroundColor: colors.surfaceMuted, borderRadius: borderRadius.md, padding: spacing.sm + 2, marginBottom: spacing.sm, gap: spacing.xs },
+  orderDesc: {
+    ...typography.body,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: spacing.sm,
+  },
+  liBox: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm + 2,
+    marginBottom: spacing.sm,
+    gap: spacing.xs,
+  },
   liBoxRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   liBoxDesc: { ...typography.bodySmall, color: colors.text, fontWeight: '600' },
   liBoxMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
   liBoxTotal: { ...typography.bodySmall, color: colors.text, fontWeight: '700' },
-  photoRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
-  photoThumb: { width: 60, height: 60, borderRadius: borderRadius.md, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
+  photoThumb: {
+    width: 60,
+    height: 60,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   photoIcon: { fontSize: 20 },
   dateText: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.md },
   actionRow: { flexDirection: 'row', gap: spacing.sm },
-  declineBtn: { flex: 1, paddingVertical: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+  declineBtn: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
   declineText: { ...typography.body, fontWeight: '600', color: colors.textSecondary },
-  approveBtn: { flex: 2, paddingVertical: spacing.md, borderRadius: borderRadius.md, backgroundColor: colors.success, alignItems: 'center' },
+  approveBtn: {
+    flex: 2,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+  },
   approveText: { ...typography.body, fontWeight: '700', color: colors.white },
   paymentCard: {
     backgroundColor: colors.surface,
@@ -355,9 +639,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary,
   },
+  paymentWorkspace: { width: '100%' },
+  paymentWorkspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  paymentCardWide: { flex: 2, marginBottom: 0 },
+  paymentSide: { flex: 1, minWidth: 0 },
   trustStrip: { marginBottom: spacing.base },
   paymentTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
-  paymentDesc: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.lg },
+  paymentDesc: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: spacing.lg,
+  },
   paymentBreakdown: {
     backgroundColor: colors.surfaceMuted,
     borderRadius: borderRadius.md,
@@ -375,7 +668,12 @@ const styles = StyleSheet.create({
   },
   paymentTotalLabel: { ...typography.body, fontWeight: '700', color: colors.text },
   paymentTotalValue: { fontSize: 18, fontWeight: '800', color: colors.primary },
-  payMethodLabel: { ...typography.body, fontWeight: '600', color: colors.text, marginBottom: spacing.sm },
+  payMethodLabel: {
+    ...typography.body,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
   payMethodOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -411,7 +709,31 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   paymentLoadingText: { ...typography.body, color: colors.primary },
-  walletNote: { ...typography.caption, color: colors.textTertiary, lineHeight: 18, marginTop: spacing.xs },
+  walletNote: {
+    ...typography.caption,
+    color: colors.textTertiary,
+    lineHeight: 18,
+    marginTop: spacing.xs,
+  },
+  walletStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  walletError: {
+    backgroundColor: colors.errorLight,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+  },
+  walletErrorText: { ...typography.caption, color: colors.error, lineHeight: 18 },
+  walletRetry: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: '700',
+    marginTop: spacing.sm,
+  },
   payPendingBtn: {
     backgroundColor: colors.primary,
     borderRadius: borderRadius.md,
@@ -419,4 +741,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   payPendingText: { ...typography.body, fontWeight: '700', color: colors.white },
+  modalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+  },
+  modalClose: {
+    position: 'absolute',
+    top: 40,
+    right: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  modalImage: { width: '100%', height: '85%' },
 });

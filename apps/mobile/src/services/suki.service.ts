@@ -10,6 +10,8 @@ export interface SukiMembership {
   totalBookings: number;
   totalSpent: number;
   pointsBalance: number;
+  pointsMultiplier: number;
+  discount: number;
   createdAt: string;
   lastBookingAt: string | null;
 }
@@ -39,17 +41,26 @@ export async function getMemberships(): Promise<SukiMembership[]> {
 }
 
 export async function getMembershipRewards(membershipId: string): Promise<SukiReward[]> {
-  const res = await api.get<PaginatedResponse<SukiReward>>(`/api/v1/suki/memberships/${membershipId}/rewards`, {
-    params: { page: 1, pageSize: 50 },
-  });
+  const res = await api.get<PaginatedResponse<SukiReward>>(
+    `/api/v1/suki/memberships/${membershipId}/rewards`,
+    {
+      params: { page: 1, pageSize: 50 },
+    },
+  );
   return res.data.data;
 }
 
-export async function redeemPoints(membershipId: string, points: number): Promise<{ amountCredited: number; remainingPoints: number }> {
-  const res = await api.post<ApiResponse<{ amountCredited: number; remainingPoints: number }>>('/api/v1/suki/redeem', {
-    membershipId,
-    points,
-  });
+export async function redeemPoints(
+  membershipId: string,
+  points: number,
+): Promise<{ amountCredited: number; remainingPoints: number }> {
+  const res = await api.post<ApiResponse<{ amountCredited: number; remainingPoints: number }>>(
+    '/api/v1/suki/redeem',
+    {
+      membershipId,
+      points,
+    },
+  );
   return res.data.data;
 }
 

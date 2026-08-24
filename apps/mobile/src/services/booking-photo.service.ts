@@ -16,19 +16,10 @@ import api from './api';
 import { appendImageToFormData } from '../utils/multipart';
 
 export type PhotoType =
-  | 'before'
-  | 'during'
-  | 'after'
-  | 'issue'
-  | 'checklist'
-  | 'identity'
-  | 'portfolio';
+  'before' | 'during' | 'after' | 'issue' | 'checklist' | 'identity' | 'portfolio';
 
 export type SignatureType =
-  | 'ic_agreement'
-  | 'customer_acceptance'
-  | 'work_authorization'
-  | 'change_order_accept';
+  'ic_agreement' | 'customer_acceptance' | 'work_authorization' | 'change_order_accept';
 
 export interface UploadedBookingPhoto {
   id: string;
@@ -36,6 +27,16 @@ export interface UploadedBookingPhoto {
   photoType: PhotoType;
   storageKey: string;
   storageUrl: string;
+  uploadedAt: string;
+}
+
+export interface BookingPhotoListItem {
+  id: string;
+  bookingId: string;
+  photoType: PhotoType;
+  storageUrl: string;
+  uploadedBy: string;
+  uploadedByRole: 'customer' | 'provider' | 'admin';
   uploadedAt: string;
 }
 
@@ -89,9 +90,9 @@ export async function uploadBookingPhoto(args: {
 export async function listBookingPhotos(
   bookingId: string,
   photoType?: PhotoType,
-): Promise<UploadedBookingPhoto[]> {
+): Promise<BookingPhotoListItem[]> {
   const query = photoType ? `?photoType=${photoType}` : '';
-  const response = await api.get<{ success: boolean; data: UploadedBookingPhoto[] }>(
+  const response = await api.get<{ success: boolean; data: BookingPhotoListItem[] }>(
     `/api/v1/uploads/booking-photo/${bookingId}${query}`,
   );
   return response.data.data;

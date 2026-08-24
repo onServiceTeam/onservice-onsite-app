@@ -47,7 +47,11 @@ it('Bug UX-048 — provider profile uses the canonical hourly catalog rate when 
 
   expect(await screen.findByText('₱700.00/hr')).toBeTruthy();
   expect(screen.queryByText('₱950.00/hr')).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Book Electrical troubleshooting' }));
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'Start Electrical troubleshooting booking; provider assignment confirmed later',
+    }),
+  );
 
   await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/customer/booking/configure'));
   expect(useBookingStore.getState().draft).toMatchObject({

@@ -46,7 +46,11 @@ it('Bug UX-049 — quote services never present a legacy provider base price as 
 
   expect(await screen.findByText('Get Quote')).toBeTruthy();
   expect(screen.queryByText('₱4,750.00')).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Book Septic Tank Service' }));
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'Start Septic Tank Service booking; provider assignment confirmed later',
+    }),
+  );
 
   await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/customer/booking/job-request'));
   expect(useBookingStore.getState().draft).toMatchObject({
