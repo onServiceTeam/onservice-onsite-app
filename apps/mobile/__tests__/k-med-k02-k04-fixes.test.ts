@@ -22,7 +22,7 @@ const MAKE_RECURRING = readFileSync(
   'utf8',
 );
 const NOTIF_SETTINGS = readFileSync(
-  resolve(__dirname, '../app/customer/notification-settings.tsx'),
+  resolve(__dirname, '../src/components/notifications/NotificationPreferencesScreen.tsx'),
   'utf8',
 );
 const RECURRING_DETAIL = readFileSync(
@@ -63,7 +63,7 @@ describe('Phase K MED-K04 — 5 remaining screens migrated to getErrorMessage', 
     expect(MAKE_RECURRING).toMatch(/import \{ getErrorMessage \} from ['"]@\/utils\/errors['"]/);
     expect(MAKE_RECURRING).not.toMatch(/Alert\.alert\(['"]Error['"], err\.message/);
   });
-  it('K04 — notification-settings.tsx migrated', () => {
+  it('K04 — shared notification preferences implementation remains migrated', () => {
     expect(NOTIF_SETTINGS).toMatch(/import \{ getErrorMessage \} from ['"]@\/utils\/errors['"]/);
     expect(NOTIF_SETTINGS).not.toMatch(/Alert\.alert\(['"]Error['"], err\.message/);
   });

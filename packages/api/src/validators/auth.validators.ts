@@ -35,8 +35,7 @@ export const verifyOtpSchema = z.object({
     .regex(PH_PHONE_REGEX, 'Phone must be in +63 9XX XXX XXXX format'),
   code: z
     .string()
-    .length(6, 'Verification code must be 6 digits')
-    .regex(/^\d+$/, 'Code must contain only digits'),
+    .regex(/^\d{4,8}$/, 'Verification code must be 4 to 8 digits'),
   deviceFingerprint: DEVICE_FINGERPRINT_FIELD,
 });
 

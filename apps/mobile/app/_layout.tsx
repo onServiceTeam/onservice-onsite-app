@@ -9,7 +9,6 @@ import { init as sentryInit, wrap as sentryWrap } from '@sentry/react-native';
 import { captureException as sentryCaptureException } from '@sentry/core';
 import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/auth.store';
-import { usePushNotifications } from '@/services/push.service';
 import { fetchPlatformConfig } from '@/services/config.service';
 import { initSecureStorage } from '@/services/secure-storage';
 import { migrateLegacyTokensIfNeeded } from '@/services/auth-migration';
@@ -19,6 +18,8 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { WebAppFrame } from '@/components/WebAppFrame';
 import { installWebAlert } from '@/utils/web-alert';
+import { PushNotificationGate } from '@/components/PushNotificationGate';
+import { AccountQueryCacheGate } from '@/components/AccountQueryCacheGate';
 
 // Make Alert.alert render a real dialog on the web build (react-native-web's
 // Alert is a no-op). Installed at module load so it is in place before any
@@ -46,19 +47,6 @@ const queryClient = new QueryClient({
   },
 });
 
-function PushNotificationGate(): null {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { isRegistered, registerForPushNotifications } = usePushNotifications();
-
-  useEffect(() => {
-    if (isAuthenticated && !isRegistered) {
-      void registerForPushNotifications();
-    }
-  }, [isAuthenticated, isRegistered, registerForPushNotifications]);
-
-  return null;
-}
-
 function RootLayout(): React.ReactElement {
   const hydrate = useAuthStore((s) => s.hydrate);
   // Bug 1061 fix: secure storage MUST be initialized BEFORE the auth store
@@ -83,8 +71,11 @@ function RootLayout(): React.ReactElement {
       }
       if (!alive) return;
       hydrate();
-      // Phase 03 — pull runtime platform config; failures fall back silently to defaults.
-      void fetchPlatformConfig();
+      // Auth screens consume admin-owned OTP length/cooldown values. Resolve
+      // the bounded public runtime config before exposing those screens so the
+      // client contract cannot lag behind a code the API has already sent.
+      await fetchPlatformConfig();
+      if (!alive) return;
       setSecureStorageReady(true);
     })();
     return () => {
@@ -103,6 +94,7 @@ function RootLayout(): React.ReactElement {
   return (
     <GestureHandlerRootView style={styles.root}>
       <QueryClientProvider client={queryClient}>
+        <AccountQueryCacheGate />
         <PushNotificationGate />
         <StatusBar style="dark" />
         {/* A2 — a render error in any screen below shows a recoverable

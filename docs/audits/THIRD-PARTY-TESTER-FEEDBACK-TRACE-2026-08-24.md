@@ -93,7 +93,7 @@ Behavior is covered by Bugs UX-043 through UX-049. Provider-profile regressions 
 
 1. Provider Services remains blocked by E16 until Ken chooses the fixed-price source. Portfolio and onboarding upload/application states are covered through Bug UX-122; native camera evidence remains F#3/device work and real browser upload/status verification remains part of the deployment gate.
 2. PayMongo hosted checkout and top-up recovery after E14 is decided and test keys are available.
-3. Remaining customer/provider settings, booking, and payment forms. Disputes now have participant inboxes, linked case detail, provider contest, booking/profile/notification entry points, and bounded wide workspaces (UX-203-208); direct settlement remains fail-closed under OPS-229/E18/E24. Projects, notifications, recurring, provider job execution, and account-management wide workspaces are covered but still require the specific live/browser or device evidence noted below.
+3. Remaining customer booking/review/search/referral and provider profile/quote-template/reviews/skills/service-area/insights forms. Customer and provider notification settings now share durable category and quiet-hours storage, safe strict-save payloads, background-draft protection, and bounded wide workspaces (UX-236-240). Disputes have participant inboxes, linked case detail, provider contest, booking/profile/notification entry points, and bounded wide workspaces (UX-203-208); direct settlement remains fail-closed under OPS-229/E18/E24. Projects, recurring, provider job execution, and account-management wide workspaces are covered but still require the specific live/browser or device evidence noted below.
 4. Admin dashboard/reporting requests only after metric definitions and privacy boundaries exist.
 
 The Cebu address regression and safe browser fallback are covered by Bugs
@@ -194,3 +194,11 @@ payments and top-ups fail before effects, paid webhooks commit intent plus
 booking/escrow or top-up/ledger atomically, malformed paid events without a
 gateway payment ID fail closed, and the production read-only reconciliation
 found no historical partial rows requiring repair.
+
+The notification-settings follow-up also closed an account-isolation issue not
+explicitly named in the tester rows but directly relevant to safe customer/provider
+testing on shared devices. A push token now has one account owner, logout attempts
+an authenticated detach, app launch/account changes repair ownership, terminal
+refresh failure updates live auth state, and account changes clear cached server
+data. The production read-only check found zero duplicated token owners and made
+no data changes.

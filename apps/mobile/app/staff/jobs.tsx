@@ -37,8 +37,7 @@ export default function StaffJobsScreen(): React.ReactElement {
   });
 
   function handleLogout(): void {
-    logout();
-    router.replace(Routes.ROOT);
+    void logout().finally(() => router.replace(Routes.ROOT));
   }
 
   const list = jobs ?? [];

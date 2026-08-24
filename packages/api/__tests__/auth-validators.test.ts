@@ -49,13 +49,13 @@ describe('Auth Validators', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should reject code with fewer than 6 digits', () => {
-      const result = verifyOtpSchema.safeParse({ phone: '+639171234567', code: '12345' });
+    it('should reject code with fewer than 4 digits', () => {
+      const result = verifyOtpSchema.safeParse({ phone: '+639171234567', code: '123' });
       expect(result.success).toBe(false);
     });
 
-    it('should reject code with more than 6 digits', () => {
-      const result = verifyOtpSchema.safeParse({ phone: '+639171234567', code: '1234567' });
+    it('should reject code with more than 8 digits', () => {
+      const result = verifyOtpSchema.safeParse({ phone: '+639171234567', code: '123456789' });
       expect(result.success).toBe(false);
     });
 

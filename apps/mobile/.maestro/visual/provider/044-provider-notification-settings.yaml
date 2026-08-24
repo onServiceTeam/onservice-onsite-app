@@ -1,13 +1,13 @@
 appId: ph.onservice.app
 ---
-# F#3 visual baseline — provider-dispute-id
-# Screen: apps/mobile/app/provider/dispute/[id].tsx
+# F#3 visual baseline — provider-notification-settings
+# Screen: apps/mobile/app/provider/notification-settings.tsx
 # Session comes from 000-setup-login.yaml (runs first in this directory);
 # deep link jumps straight to the target route via expo-router.
 
 - launchApp:
     stopApp: false
-- openLink: onservice://provider/dispute/${MAESTRO_DISPUTE_ID}
+- openLink: onservice://provider/notification-settings
 - extendedWaitUntil:
     notVisible:
       id: "loading"
@@ -15,4 +15,4 @@ appId: ph.onservice.app
     optional: true
 - waitForAnimationToEnd:
     timeout: 4000
-- takeScreenshot: .maestro/visual/baselines/provider/provider-dispute-id/default
+- takeScreenshot: .maestro/visual/baselines/provider/provider-notification-settings/default

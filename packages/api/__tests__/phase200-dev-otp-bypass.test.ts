@@ -17,6 +17,14 @@ jest.mock('../src/services/sms.service', () => ({
   sendOtpSms: jest.fn().mockResolvedValue(true),
   sendSms: jest.fn(),
 }));
+jest.mock('../src/services/settings.service', () => ({
+  getOtpPolicy: jest.fn().mockResolvedValue({
+    length: 6,
+    expiryMinutes: 5,
+    maxAttempts: 3,
+    cooldownSeconds: 60,
+  }),
+}));
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));

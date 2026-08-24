@@ -127,8 +127,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
         text: 'Log Out',
         style: 'destructive',
         onPress: (): void => {
-          logout();
-          router.replace(Routes.AUTH.LOGIN);
+          void logout().finally(() => router.replace(Routes.AUTH.LOGIN));
         },
       },
     ]);

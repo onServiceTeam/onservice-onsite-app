@@ -194,6 +194,15 @@ async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosL
 // kicking off their own refresh. After the refresh resolves, the
 // gate is cleared and subsequent 401s start fresh.
 let inFlightRefresh: Promise<string | null> | null = null;
+let authSessionExpiredHandler: (() => void) | null = null;
+
+/**
+ * Keep the transport independent from the Zustand store while still allowing
+ * a terminal refresh failure to update in-memory auth state immediately.
+ */
+export function setAuthSessionExpiredHandler(handler: () => void): void {
+  authSessionExpiredHandler = handler;
+}
 
 async function refreshOnce(): Promise<string | null> {
   // Coalesce concurrent callers onto the same in-flight refresh.
@@ -253,6 +262,7 @@ async function request<T>(url: string, init: ApiRequestInit, isRetry = false): P
       storage.delete('accessToken');
       storage.delete('refreshToken');
       storage.delete('user');
+      authSessionExpiredHandler?.();
     }
     throw err;
   }

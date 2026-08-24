@@ -5,6 +5,7 @@ import { sendOtpSms } from './sms.service';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 import { createAppError } from '../middleware/error.middleware';
+import * as settingsService from './settings.service';
 
 interface OtpRow {
   id: string;
@@ -47,8 +48,7 @@ interface OtpCountRow {
   count: string;
 }
 
-function generateOtp(): string {
-  const length = platformConfig.otpLength;
+function generateOtp(length: number): string {
   const max = Math.pow(10, length);
   const num = crypto.randomInt(0, max);
   return num.toString().padStart(length, '0');
@@ -227,6 +227,8 @@ export async function sendOtp(phone: string): Promise<{ message: string }> {
     throw createAppError('Invalid Philippine phone number. Use +63 9XX XXX XXXX format.', 400);
   }
 
+  const otpPolicy = await settingsService.getOtpPolicy();
+
   // Test-mode (staging only, never production) — skip the OTP resend cooldown
   // and the per-hour cap so QA testers can re-log into the same account
   // repeatedly without "wait 60 seconds" / "try again in an hour". Gated via
@@ -237,12 +239,12 @@ export async function sendOtp(phone: string): Promise<{ message: string }> {
        WHERE phone = $1 AND is_used = FALSE
          AND created_at > NOW() - INTERVAL '1 second' * $2
        LIMIT 1`,
-      [phone, platformConfig.otpCooldownSeconds],
+      [phone, otpPolicy.cooldownSeconds],
     );
 
     if (cooldownCheck.rows.length > 0) {
       throw createAppError(
-        `Please wait ${platformConfig.otpCooldownSeconds} seconds before requesting a new code.`,
+        `Please wait ${otpPolicy.cooldownSeconds} seconds before requesting a new code.`,
         429,
       );
     }
@@ -265,9 +267,9 @@ export async function sendOtp(phone: string): Promise<{ message: string }> {
   // prior ones either (fragile but not security-critical). The bigger
   // change: we no longer write the plaintext `code` column. Going
   // forward only `code_hash` is populated.
-  const otp = generateOtp();
+  const otp = generateOtp(otpPolicy.length);
   const codeHash = hashOtpCode(otp, phone);
-  const expiresAt = new Date(Date.now() + platformConfig.otpExpiryMinutes * 60 * 1000);
+  const expiresAt = new Date(Date.now() + otpPolicy.expiryMinutes * 60 * 1000);
 
   await db.transaction(async (client) => {
     await client.query(
@@ -280,7 +282,7 @@ export async function sendOtp(phone: string): Promise<{ message: string }> {
     );
   });
 
-  const sent = await sendOtpSms(phone, otp);
+  const sent = await sendOtpSms(phone, otp, otpPolicy.expiryMinutes);
   if (!sent && process.env.NODE_ENV === 'production') {
     throw createAppError('Failed to send verification code. Please try again.', 502);
   }
@@ -325,6 +327,7 @@ export async function verifyOtp(
     // Skip the otp_codes lookup/verification entirely and fall through to the
     // user lookup/creation + token issuance below.
   } else {
+    const otpPolicy = await settingsService.getOtpPolicy();
     // §34.2 fix — race-safe OTP consume. Two requests submitting the same
     // valid code concurrently used to both read is_used=FALSE, both pass the
     // check, and both flip is_used=TRUE + issue tokens (double login / two
@@ -355,7 +358,7 @@ export async function verifyOtp(
         return { kind: 'none' };
       }
 
-      if (otpRecord.attempts >= platformConfig.otpMaxAttempts) {
+      if (otpRecord.attempts >= otpPolicy.maxAttempts) {
         await client.query(`UPDATE otp_codes SET is_used = TRUE WHERE id = $1`, [otpRecord.id]);
         return { kind: 'maxattempts' };
       }
@@ -380,7 +383,7 @@ export async function verifyOtp(
           `UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1`,
           [otpRecord.id],
         );
-        return { kind: 'mismatch', remaining: platformConfig.otpMaxAttempts - otpRecord.attempts - 1 };
+        return { kind: 'mismatch', remaining: otpPolicy.maxAttempts - otpRecord.attempts - 1 };
       }
 
       await client.query(`UPDATE otp_codes SET is_used = TRUE WHERE id = $1`, [otpRecord.id]);

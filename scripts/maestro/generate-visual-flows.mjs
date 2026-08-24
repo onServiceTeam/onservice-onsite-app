@@ -7,7 +7,7 @@
  *      ph.onservice.app (app.config.ts).
  *   2. Every flow ran launchApp clearState:true and screenshotted
  *      immediately — after a state wipe the app boots to onboarding/login,
- *      so all 84 "screens" would have been the same login screenshot.
+ *      so all 89 screen baselines would have been the same login screenshot.
  *   3. takeScreenshot paths pointed outside the baselines directory.
  *
  * This generator rewrites each flow to: launch the app (state preserved
@@ -45,6 +45,7 @@ function envForRoute(routePath) {
   if (routePath.includes('/job/')) return 'MAESTRO_JOB_ID'; // provider-side booking id
   if (routePath.includes('/chat/')) return 'MAESTRO_CONVERSATION_ID';
   if (routePath.includes('/category/')) return 'MAESTRO_CATEGORY_ID';
+  if (routePath.includes('/dispute/')) return 'MAESTRO_DISPUTE_ID';
   if (routePath.includes('/provider/')) return 'MAESTRO_PROVIDER_ID';
   if (routePath.includes('/recurring/')) return 'MAESTRO_RECURRING_ID';
   return 'MAESTRO_ID';

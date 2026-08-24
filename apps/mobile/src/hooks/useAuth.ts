@@ -8,7 +8,7 @@ interface UseAuthReturn {
   requestOtp: (phone: string) => Promise<void>;
   verifyOtp: (phone: string, code: string) => Promise<void>;
   register: (phone: string, firstName: string, lastName: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   setUser: (user: User) => void;
   isProvider: boolean;
   isCustomer: boolean;
