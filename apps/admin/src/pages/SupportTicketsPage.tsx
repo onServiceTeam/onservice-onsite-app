@@ -54,6 +54,24 @@ interface SupportAgent {
   role: 'admin' | 'super_admin';
 }
 
+interface SupportQueueSummary {
+  open: number;
+  escalated: number;
+  urgent: number;
+  unassigned: number;
+}
+
+interface SupportTicketStatusHistoryEntry {
+  id: string;
+  createdAt: string;
+  adminName: string;
+  adminRole: string | null;
+  previousStatus: string | null;
+  nextStatus: string;
+  workflowNote: string;
+  resolutionNotes: string | null;
+}
+
 const TICKET_TYPES = [
   'booking_issue',
   'payment_issue',
@@ -132,6 +150,27 @@ function ticketUserName(ticket: Ticket): string {
   return personName || ticket.user_phone || 'Unknown account';
 }
 
+function statusImpact(status: string): string {
+  const impacts: Record<string, string> = {
+    open: 'Returns the case to the intake queue. This action does not send a user message.',
+    in_progress: 'Marks the case as actively owned work. This action does not send a user message.',
+    waiting_on_customer: 'Pauses agent work until the customer account that owns this case replies. Their reply reactivates the case.',
+    waiting_on_provider: 'Pauses agent work until the provider account that owns this case replies. Their reply reactivates the case.',
+    escalated: 'Places the case in the escalation queue for higher-attention review. No SLA is implied.',
+    resolved: 'Records the outcome and stops further replies unless an agent reopens the case.',
+    closed: 'Closes the case record and stops further replies unless an agent reopens it.',
+  };
+  return impacts[status] ?? 'Records this workflow change without sending a user message.';
+}
+
+function statusAvailableForTicket(status: string, ticket: Ticket): boolean {
+  if (status === 'waiting_on_customer') return ticket.user_role === 'customer';
+  if (status === 'waiting_on_provider') {
+    return ticket.user_role === 'provider' || ticket.user_role === 'provider_staff';
+  }
+  return true;
+}
+
 export default function SupportTicketsPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -139,6 +178,8 @@ export default function SupportTicketsPage(): React.ReactElement {
   const statusFilter = parseOption(searchParams.get('status'), STATUSES);
   const typeFilter = parseOption(searchParams.get('type'), TICKET_TYPES);
   const priorityFilter = parseOption(searchParams.get('priority'), PRIORITIES);
+  const unassignedFilter = searchParams.get('unassigned') === '1';
+  const activeFilter = searchParams.get('active') === '1';
   const searchFilter = (searchParams.get('search') ?? '').trim();
   const bookingFilter = searchParams.get('bookingId') ?? '';
   const userFilter = searchParams.get('userId') ?? '';
@@ -151,6 +192,7 @@ export default function SupportTicketsPage(): React.ReactElement {
   const [replyMessage, setReplyMessage] = useState('');
   const [isInternalNote, setIsInternalNote] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [assignAgentId, setAssignAgentId] = useState('');
   // BUG-PHASE43-01 fix — pre-fix the status-change select fired the
   // mutation immediately, with no resolutionNotes. Transitioning a
@@ -183,6 +225,32 @@ export default function SupportTicketsPage(): React.ReactElement {
       params.delete('page');
       if (value) params.set(key, value);
       else params.delete(key);
+      params.delete('unassigned');
+      params.delete('active');
+      return params;
+    });
+  }
+
+  function showUnassigned(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      params.delete('status');
+      params.delete('priority');
+      params.set('unassigned', '1');
+      params.set('active', '1');
+      return params;
+    });
+  }
+
+  function showUrgent(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      params.delete('status');
+      params.delete('unassigned');
+      params.set('priority', 'urgent');
+      params.set('active', '1');
       return params;
     });
   }
@@ -198,6 +266,7 @@ export default function SupportTicketsPage(): React.ReactElement {
     setReplyMessage('');
     setIsInternalNote(false);
     setError('');
+    setNotice('');
     setAssignAgentId('');
   }
 
@@ -212,6 +281,7 @@ export default function SupportTicketsPage(): React.ReactElement {
     setReplyMessage('');
     setIsInternalNote(false);
     setError('');
+    setNotice('');
     setAssignAgentId('');
   }
 
@@ -222,6 +292,8 @@ export default function SupportTicketsPage(): React.ReactElement {
       statusFilter,
       typeFilter,
       priorityFilter,
+      unassignedFilter,
+      activeFilter,
       searchFilter,
       bookingFilter,
       userFilter,
@@ -231,11 +303,21 @@ export default function SupportTicketsPage(): React.ReactElement {
       if (statusFilter) params.set('status', statusFilter);
       if (typeFilter) params.set('type', typeFilter);
       if (priorityFilter) params.set('priority', priorityFilter);
+      if (unassignedFilter) params.set('unassigned', '1');
+      if (activeFilter) params.set('active', '1');
       if (searchFilter) params.set('search', searchFilter);
       if (bookingFilter) params.set('bookingId', bookingFilter);
       if (userFilter) params.set('userId', userFilter);
       const res = await api.get(`/api/v1/support-tickets?${params}`);
       return res.data as { data: Ticket[]; meta: { total: number } };
+    },
+  });
+
+  const summaryQuery = useQuery({
+    queryKey: ['adminSupportTicketSummary'],
+    queryFn: async () => {
+      const res = await api.get('/api/v1/support-tickets/summary');
+      return res.data.data as SupportQueueSummary;
     },
   });
 
@@ -256,25 +338,40 @@ export default function SupportTicketsPage(): React.ReactElement {
     enabled: !!selectedId,
   });
 
+  const historyQuery = useQuery({
+    queryKey: ['adminSupportTicketHistory', selectedId],
+    queryFn: async () => {
+      const res = await api.get(`/api/v1/support-tickets/${selectedId}/history`);
+      return res.data.data as SupportTicketStatusHistoryEntry[];
+    },
+    enabled: !!selectedId,
+  });
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({
       id,
       status,
       resolutionNotes,
+      workflowNote,
     }: {
       id: string;
       status: string;
       resolutionNotes?: string;
+      workflowNote: string;
     }) => {
       await api.patch(`/api/v1/support-tickets/${id}/status`, {
         status,
+        workflowNote: workflowNote.trim(),
         ...(resolutionNotes ? { resolutionNotes: resolutionNotes.trim() } : {}),
       });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['adminSupportTickets'] });
       void queryClient.invalidateQueries({ queryKey: ['adminSupportTicket'] });
+      void queryClient.invalidateQueries({ queryKey: ['adminSupportTicketHistory'] });
+      void queryClient.invalidateQueries({ queryKey: ['adminSupportTicketSummary'] });
       setError('');
+      setNotice(`Case status changed to ${formatLabel(variables.status)}. The workflow note was added to the audit record.`);
       // Close the confirm dialog ONLY after the status update actually
       // succeeds — so a failure keeps the dialog open with the error visible.
       setPendingStatus(null);
@@ -290,12 +387,16 @@ export default function SupportTicketsPage(): React.ReactElement {
         isInternalNote: params.isInternalNote,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['adminSupportTicket'] });
+      void queryClient.invalidateQueries({ queryKey: ['adminSupportTicketSummary'] });
       void queryClient.invalidateQueries({ queryKey: ['adminSupportTickets'] });
       setReplyMessage('');
       setIsInternalNote(false);
       setError('');
+      setNotice(variables.isInternalNote
+        ? 'Internal note saved. It is not visible to the user.'
+        : 'Reply sent and added to the customer/provider-visible timeline.');
     },
     onError: (e) => setError(getErrorMessage(e)),
   });
@@ -304,11 +405,13 @@ export default function SupportTicketsPage(): React.ReactElement {
     mutationFn: async ({ id, agentId }: { id: string; agentId: string }) => {
       await api.patch(`/api/v1/support-tickets/${id}/assign`, { agentId });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['adminSupportTickets'] });
       void queryClient.invalidateQueries({ queryKey: ['adminSupportTicket'] });
       setAssignAgentId('');
       setError('');
+      const agent = agentsQuery.data?.find((candidate) => candidate.id === variables.agentId);
+      setNotice(agent ? `Case assigned to ${agent.first_name} ${agent.last_name}.` : 'Case owner updated.');
     },
     onError: (e) => setError(getErrorMessage(e)),
   });
@@ -327,7 +430,9 @@ export default function SupportTicketsPage(): React.ReactElement {
     },
     onSuccess: (ticket) => {
       void queryClient.invalidateQueries({ queryKey: ['adminSupportTickets'] });
+      void queryClient.invalidateQueries({ queryKey: ['adminSupportTicketSummary'] });
       setError('');
+      setNotice(`Case ${ticket.ticket_number} created for this account.`);
       setSelectedOverride(ticket.id);
       setSearchParams((current) => {
         const params = new URLSearchParams(current);
@@ -438,10 +543,6 @@ export default function SupportTicketsPage(): React.ReactElement {
   ];
 
   const visibleTickets = data?.data ?? [];
-  const openOnPage = visibleTickets.filter((ticket) => ticket.status === 'open').length;
-  const escalatedOnPage = visibleTickets.filter((ticket) => ticket.status === 'escalated').length;
-  const urgentOnPage = visibleTickets.filter((ticket) => ticket.priority === 'urgent').length;
-  const unassignedOnPage = visibleTickets.filter((ticket) => !ticket.assigned_agent_id).length;
 
   if (createRequested) {
     const accountKind = newUserRole === 'provider_staff'
@@ -591,6 +692,11 @@ export default function SupportTicketsPage(): React.ReactElement {
             {error}
           </p>
         )}
+        {notice && (
+          <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+            {notice}
+          </p>
+        )}
         {detailQuery.isError && (
           <p
             role="alert"
@@ -622,29 +728,28 @@ export default function SupportTicketsPage(): React.ReactElement {
               </div>
             </div>
             <div className="flex gap-2">
-              {ticket.status !== 'resolved' && ticket.status !== 'closed' && (
-                <select
-                  className="h-11 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm font-semibold disabled:opacity-50"
-                  value=""
-                  aria-label="Change support ticket status"
-                  disabled={updateStatusMutation.isPending}
-                  onChange={(e) => {
-                    const target = e.target.value;
-                    if (!target) return;
-                    setPendingStatus(target);
-                    setResolutionNotes('');
-                  }}
-                >
-                  <option value="">
-                    {updateStatusMutation.isPending ? 'Updating...' : 'Change Status'}
+              <select
+                className="h-11 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm font-semibold disabled:opacity-50"
+                value=""
+                aria-label="Change support ticket status"
+                disabled={updateStatusMutation.isPending}
+                onChange={(e) => {
+                  const target = e.target.value;
+                  if (!target) return;
+                  setPendingStatus(target);
+                  setResolutionNotes('');
+                  setNotice('');
+                }}
+              >
+                <option value="">
+                  {updateStatusMutation.isPending ? 'Updating...' : 'Change status'}
+                </option>
+                {STATUSES.filter((s) => s !== ticket.status && statusAvailableForTicket(s, ticket)).map((s) => (
+                  <option key={s} value={s}>
+                    {formatLabel(s)}
                   </option>
-                  {STATUSES.filter((s) => s !== ticket.status).map((s) => (
-                    <option key={s} value={s}>
-                      {formatLabel(s)}
-                    </option>
-                  ))}
-                </select>
-              )}
+                ))}
+              </select>
             </div>
           </div>
 
@@ -749,6 +854,48 @@ export default function SupportTicketsPage(): React.ReactElement {
           </div>
         </div>
 
+        <div aria-label="Support status decision history" className="rounded-lg border border-[var(--color-border)] bg-white p-5 sm:p-6">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Append-only audit history</p>
+          <h2 className="mt-1 text-lg font-semibold text-[var(--color-text)]">Status decisions</h2>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+            Manual status decisions keep the acting administrator, reason, and recorded resolution.
+          </p>
+          {historyQuery.isLoading && <p className="mt-4 text-sm text-[var(--color-text-secondary)]">Loading status history…</p>}
+          {historyQuery.isError && <p role="alert" className="mt-4 text-sm text-red-700">Status history could not be loaded.</p>}
+          {!historyQuery.isLoading && !historyQuery.isError && (historyQuery.data?.length ?? 0) === 0 && (
+            <p className="mt-4 rounded-md bg-[var(--color-bg)] p-3 text-sm text-[var(--color-text-secondary)]">
+              No audited status decision has been recorded yet.
+            </p>
+          )}
+          {(historyQuery.data?.length ?? 0) > 0 && (
+            <ol className="mt-4 space-y-3">
+              {historyQuery.data!.map((entry) => (
+                <li key={entry.id} className="rounded-md border border-[var(--color-border)] p-4">
+                  <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-start">
+                    <p className="text-sm font-semibold text-[var(--color-text)]">
+                      {entry.previousStatus ? formatLabel(entry.previousStatus) : 'No prior status'} → {formatLabel(entry.nextStatus)}
+                    </p>
+                    <time className="text-xs text-[var(--color-text-tertiary)]">
+                      {new Date(entry.createdAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}
+                    </time>
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                    {entry.adminName}{entry.adminRole ? ` (${formatLabel(entry.adminRole)})` : ''}
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--color-text-secondary)]">
+                    {entry.workflowNote || 'No workflow note captured.'}
+                  </p>
+                  {entry.resolutionNotes && (
+                    <p className="mt-2 rounded-md bg-[var(--color-bg)] p-3 text-sm text-[var(--color-text-secondary)]">
+                      <strong className="text-[var(--color-text)]">Recorded resolution:</strong> {entry.resolutionNotes}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+
         {/* Messages */}
         <div className="rounded-lg border border-[var(--color-border)] bg-white p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -813,30 +960,27 @@ export default function SupportTicketsPage(): React.ReactElement {
                 <p className="text-sm text-[var(--color-text-secondary)] mb-4">
                   {ticket.ticket_number}: {ticket.subject}
                 </p>
-                {statusNeedsResolution ? (
-                  <>
-                    <label
-                      htmlFor="ticket-resolution-notes"
-                      className="block text-sm font-medium text-[var(--color-text)] mb-1.5"
-                    >
-                      Resolution notes *
-                    </label>
-                    <textarea
-                      id="ticket-resolution-notes"
-                      value={resolutionNotes}
-                      onChange={(e) => setResolutionNotes(e.target.value)}
-                      rows={4}
-                      maxLength={5000}
-                      placeholder="Explain the outcome in at least 10 characters. This remains in the case record."
-                      className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-                    />
-                  </>
-                ) : (
-                  <p className="rounded-md bg-[var(--color-bg)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
-                    Confirm this workflow change. No customer message will be sent by this action
-                    alone.
-                  </p>
-                )}
+                <p className="mb-4 rounded-md bg-[var(--color-bg)] px-3 py-3 text-sm text-[var(--color-text-secondary)]">
+                  {statusImpact(pendingStatus)}
+                </p>
+                <label
+                  htmlFor="ticket-resolution-notes"
+                  className="block text-sm font-medium text-[var(--color-text)] mb-1.5"
+                >
+                  {statusNeedsResolution ? 'Resolution and workflow note *' : 'Workflow note *'}
+                </label>
+                <textarea
+                  id="ticket-resolution-notes"
+                  value={resolutionNotes}
+                  onChange={(e) => setResolutionNotes(e.target.value)}
+                  rows={4}
+                  maxLength={5000}
+                  placeholder="Explain why this status is correct in at least 10 characters. This remains in the audit record."
+                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                />
+                <p className={`mt-1 text-right text-xs font-semibold ${resolutionNotes.trim().length < 10 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                  {resolutionNotes.trim().length}/10 minimum
+                </p>
                 {error && updateStatusMutation.isError && (
                   <p role="alert" className="mt-3 text-sm text-red-600">
                     {error}
@@ -863,13 +1007,14 @@ export default function SupportTicketsPage(): React.ReactElement {
                         updateStatusMutation.mutate({
                           id: ticket.id,
                           status: pendingStatus,
-                          resolutionNotes: notes,
+                          workflowNote: notes,
+                          ...(statusNeedsResolution ? { resolutionNotes: notes } : {}),
                         });
                       }
                     }}
                     disabled={
                       updateStatusMutation.isPending ||
-                      (statusNeedsResolution && resolutionNotes.trim().length < 10)
+                      resolutionNotes.trim().length < 10
                     }
                     className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                   >
@@ -921,7 +1066,7 @@ export default function SupportTicketsPage(): React.ReactElement {
                   disabled={!replyMessage.trim() || replyMutation.isPending}
                   className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg disabled:opacity-50"
                 >
-                  {replyMutation.isPending ? 'Sending...' : 'Send Reply'}
+                  {replyMutation.isPending ? 'Saving...' : isInternalNote ? 'Save internal note' : 'Send reply'}
                 </button>
               </div>
             </form>
@@ -996,44 +1141,43 @@ export default function SupportTicketsPage(): React.ReactElement {
       )}
 
       <section
-        aria-label="Current page support signals"
+        aria-label="Support queue signals"
         className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
       >
         {[
           {
             label: 'Open',
-            count: openOnPage,
+            count: summaryQuery.data?.open ?? 0,
             tone: 'text-[var(--color-primary)]',
-            filter: ['status', 'open'] as const,
+            action: () => setFilter('status', 'open'),
           },
           {
             label: 'Escalated',
-            count: escalatedOnPage,
+            count: summaryQuery.data?.escalated ?? 0,
             tone: 'text-red-700',
-            filter: ['status', 'escalated'] as const,
+            action: () => setFilter('status', 'escalated'),
           },
           {
             label: 'Urgent',
-            count: urgentOnPage,
+            count: summaryQuery.data?.urgent ?? 0,
             tone: 'text-orange-700',
-            filter: ['priority', 'urgent'] as const,
+            action: showUrgent,
           },
           {
             label: 'Unassigned',
-            count: unassignedOnPage,
+            count: summaryQuery.data?.unassigned ?? 0,
             tone: 'text-[var(--color-text)]',
-            filter: null,
+            action: showUnassigned,
           },
         ].map((signal) => (
           <button
             key={signal.label}
             type="button"
-            onClick={() => signal.filter && setFilter(signal.filter[0], signal.filter[1])}
-            disabled={!signal.filter}
-            className="rounded-lg border border-[var(--color-border)] bg-white p-4 text-left disabled:cursor-default"
+            onClick={signal.action}
+            className="rounded-lg border border-[var(--color-border)] bg-white p-4 text-left"
           >
             <span className="block text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">
-              {signal.label} on this page
+              {signal.label} across queue
             </span>
             <span className={`mt-1 block text-2xl font-bold ${signal.tone}`}>{signal.count}</span>
           </button>
@@ -1110,6 +1254,35 @@ export default function SupportTicketsPage(): React.ReactElement {
             </option>
           ))}
         </select>
+        {unassignedFilter && (
+          <button
+            type="button"
+            className="min-h-11 rounded-md border border-orange-300 bg-orange-50 px-3 text-sm font-semibold text-orange-900"
+            onClick={() => setSearchParams((current) => {
+              const params = new URLSearchParams(current);
+              params.delete('unassigned');
+              params.delete('active');
+              params.delete('page');
+              return params;
+            })}
+          >
+            Active unassigned only ×
+          </button>
+        )}
+        {activeFilter && !unassignedFilter && (
+          <button
+            type="button"
+            className="min-h-11 rounded-md border border-orange-300 bg-orange-50 px-3 text-sm font-semibold text-orange-900"
+            onClick={() => setSearchParams((current) => {
+              const params = new URLSearchParams(current);
+              params.delete('active');
+              params.delete('page');
+              return params;
+            })}
+          >
+            Active cases only ×
+          </button>
+        )}
       </div>
 
       {isError && (

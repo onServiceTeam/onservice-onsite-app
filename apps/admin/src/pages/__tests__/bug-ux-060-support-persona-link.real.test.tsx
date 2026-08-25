@@ -8,6 +8,9 @@ import SupportTicketsPage from '../SupportTicketsPage';
 
 it('Bug UX-060 — provider support cases are identified as providers and link to Provider 360', async () => {
   vi.mocked(api.get).mockImplementation(async (url: string) => {
+    if (url === '/api/v1/support-tickets/summary') {
+      return { data: { data: { open: 1, escalated: 0, urgent: 0, unassigned: 1 } } } as never;
+    }
     if (url === '/api/v1/support-tickets/agents') {
       return { data: { data: [] } } as never;
     }

@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
+import Pagination from '@/components/ui/Pagination';
 
 // ─── Types (mirror messaging-admin.service.ts) ──────────────────────────────
 
@@ -74,6 +75,8 @@ function fmtTime(iso: string | null): string {
 export default function CommunicationsPage(): React.ReactElement {
   const [tab, setTab] = useState<TabId>('queue');
   const [search, setSearch] = useState('');
+  const [searchDraft, setSearchDraft] = useState('');
+  const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
@@ -118,15 +121,15 @@ export default function CommunicationsPage(): React.ReactElement {
       {/* Tabs */}
       <div className="flex gap-1 border-b border-[var(--color-border)]">
         {([
+          ['queue', 'Review queue'],
           ['all', 'All conversations'],
           ['flagged', 'Flagged'],
           ['reported', 'Reported'],
-          ['queue', 'Review queue'],
         ] as [TabId, string][]).map(([id, label]) => (
           <button
             key={id}
             type="button"
-            onClick={() => { setTab(id); setSelectedId(null); setSelectedMessageId(null); }}
+            onClick={() => { setTab(id); setPage(1); setSelectedId(null); setSelectedMessageId(null); }}
             className={`px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${
               tab === id
                 ? 'border-[var(--color-secondary)] text-[var(--color-text)] font-medium'
@@ -142,15 +145,28 @@ export default function CommunicationsPage(): React.ReactElement {
         {/* Left: list */}
         <div className="space-y-3">
           {tab !== 'queue' && (
-            <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name or booking id"
-                className="pl-8"
-              />
-            </div>
+            <form
+              role="search"
+              className="flex gap-2"
+              onSubmit={(event) => { event.preventDefault(); setSearch(searchDraft.trim()); setPage(1); setSelectedId(null); }}
+            >
+              <div className="relative min-w-0 flex-1">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
+                <Input
+                  value={searchDraft}
+                  onChange={(e) => setSearchDraft(e.target.value)}
+                  placeholder="Search by name or booking id"
+                  aria-label="Search customer and provider conversations"
+                  className="pl-8"
+                />
+              </div>
+              <Button type="submit" size="sm">Search</Button>
+              {(search || searchDraft) && (
+                <Button type="button" size="sm" variant="outline" onClick={() => { setSearch(''); setSearchDraft(''); setPage(1); setSelectedId(null); }}>
+                  Clear
+                </Button>
+              )}
+            </form>
           )}
           {tab === 'queue' ? (
             <QueueList
@@ -159,11 +175,16 @@ export default function CommunicationsPage(): React.ReactElement {
                 setSelectedMessageId(messageId);
               }}
               selectedId={selectedId}
+              selectedMessageId={selectedMessageId}
+              page={page}
+              onPageChange={(nextPage) => { setPage(nextPage); setSelectedId(null); setSelectedMessageId(null); }}
             />
           ) : (
             <ConversationList
               filter={tab}
               search={search}
+              page={page}
+              onPageChange={(nextPage) => { setPage(nextPage); setSelectedId(null); setSelectedMessageId(null); }}
               onSelect={(conversationId) => {
                 setSelectedId(conversationId);
                 setSelectedMessageId(null);
@@ -207,19 +228,21 @@ function StatChip({
 // ─── Conversation list ───────────────────────────────────────────────────────
 
 function ConversationList({
-  filter, search, onSelect, selectedId,
+  filter, search, page, onPageChange, onSelect, selectedId,
 }: {
   filter: 'all' | 'flagged' | 'reported';
   search: string;
+  page: number;
+  onPageChange: (page: number) => void;
   onSelect: (id: string) => void;
   selectedId: string | null;
 }): React.ReactElement {
   const q = useQuery({
-    queryKey: ['admin-comms-conversations', filter, search],
+    queryKey: ['admin-comms-conversations', filter, search, page],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; conversations: ConversationSummary[]; total: number }>(
         '/api/v1/admin/conversations',
-        { params: { filter, search: search || undefined, pageSize: 50 } },
+        { params: { filter, search: search || undefined, page, pageSize: 25 } },
       );
       return res.data;
     },
@@ -267,6 +290,15 @@ function ConversationList({
           </p>
         </button>
       ))}
+      {(q.data?.total ?? 0) > 25 && (
+        <Pagination
+          page={page}
+          totalPages={Math.ceil((q.data?.total ?? 0) / 25)}
+          total={q.data?.total ?? 0}
+          pageSize={25}
+          onPageChange={onPageChange}
+        />
+      )}
     </div>
   );
 }
@@ -274,14 +306,20 @@ function ConversationList({
 // ─── Review queue ────────────────────────────────────────────────────────────
 
 function QueueList({
-  onSelect, selectedId,
-}: { onSelect: (conversationId: string, messageId: string) => void; selectedId: string | null }): React.ReactElement {
+  onSelect, selectedId, selectedMessageId, page, onPageChange,
+}: {
+  onSelect: (conversationId: string, messageId: string) => void;
+  selectedId: string | null;
+  selectedMessageId: string | null;
+  page: number;
+  onPageChange: (page: number) => void;
+}): React.ReactElement {
   const q = useQuery({
-    queryKey: ['admin-comms-queue'],
+    queryKey: ['admin-comms-queue', page],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; messages: AdminMessage[]; total: number }>(
         '/api/v1/admin/conversations/queue',
-        { params: { scope: 'all', pageSize: 50 } },
+        { params: { scope: 'all', page, pageSize: 25 } },
       );
       return res.data;
     },
@@ -307,7 +345,7 @@ function QueueList({
           type="button"
           onClick={() => onSelect(m.conversationId, m.id)}
           className={`w-full text-left rounded-lg border p-3 transition-colors ${
-            selectedId === m.conversationId
+            selectedId === m.conversationId && selectedMessageId === m.id
               ? 'border-[var(--color-secondary)] bg-[var(--color-surface-hover)]'
               : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)]'
           }`}
@@ -325,6 +363,15 @@ function QueueList({
           </p>
         </button>
       ))}
+      {(q.data?.total ?? 0) > 25 && (
+        <Pagination
+          page={page}
+          totalPages={Math.ceil((q.data?.total ?? 0) / 25)}
+          total={q.data?.total ?? 0}
+          pageSize={25}
+          onPageChange={onPageChange}
+        />
+      )}
     </div>
   );
 }
@@ -343,6 +390,7 @@ function ConversationThread({
   const [reason, setReason] = useState('');
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [reviewNote, setReviewNote] = useState('');
+  const [notice, setNotice] = useState('');
 
   const q = useQuery({
     queryKey: ['admin-comms-thread', conversationId],
@@ -365,7 +413,12 @@ function ConversationThread({
     mutationFn: async (vars: { messageId: string; reason: string }) => {
       await api.post(`/api/v1/admin/conversations/messages/${vars.messageId}/redact`, { reason: vars.reason });
     },
-    onSuccess: () => { setRedactingId(null); setReason(''); invalidate(); },
+    onSuccess: () => {
+      setRedactingId(null);
+      setReason('');
+      setNotice('Message hidden from the customer and provider. The original remains in the audited moderation record.');
+      invalidate();
+    },
   });
 
   const reviewMutation = useMutation({
@@ -377,9 +430,16 @@ function ConversationThread({
     onSuccess: () => {
       setReviewingId(null);
       setReviewNote('');
+      setNotice('Report marked reviewed without hiding the message. The rationale remains in the audit record.');
       invalidate();
     },
   });
+
+  useEffect(() => {
+    setNotice('');
+    setRedactingId(null);
+    setReviewingId(null);
+  }, [conversationId]);
 
   useEffect(() => {
     if (!q.data || !focusMessageId) return;
@@ -412,6 +472,11 @@ function ConversationThread({
       </div>
 
       <div className="max-h-[60vh] overflow-y-auto p-4 space-y-3">
+        {notice && (
+          <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+            {notice}
+          </p>
+        )}
         {thread.messages.map((m) => {
           const needsReview = (m.isFlagged || !!m.reportedAt) && !m.flagReviewedAt;
           return (
@@ -466,6 +531,7 @@ function ConversationThread({
                         setReason('');
                         setReviewingId(null);
                         setReviewNote('');
+                        setNotice('');
                       }}
                     >
                       <EyeOff size={13} /> Redact
@@ -480,6 +546,7 @@ function ConversationThread({
                         setReviewNote('');
                         setRedactingId(null);
                         setReason('');
+                        setNotice('');
                       }}
                       disabled={reviewMutation.isPending}
                     >
@@ -491,6 +558,9 @@ function ConversationThread({
 
               {redactingId === m.id && (
                 <div className="mt-2 space-y-2">
+                  <p className="rounded-md bg-[var(--color-bg)] p-3 text-xs leading-5 text-[var(--color-text-secondary)]">
+                    Redaction hides this message and photo from both participants. The original content, reason, administrator, and time remain available for audited review.
+                  </p>
                   <Textarea
                     rows={2}
                     value={reason}
@@ -520,6 +590,9 @@ function ConversationThread({
 
               {reviewingId === m.id && (
                 <div className="mt-2 space-y-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-hover)] p-3">
+                  <p className="text-xs leading-5 text-[var(--color-text-secondary)]">
+                    Mark reviewed clears this item from the queue without hiding it from either participant.
+                  </p>
                   <label htmlFor={`review-note-${m.id}`} className="text-xs font-medium text-[var(--color-text)]">
                     Review rationale
                   </label>

@@ -63,6 +63,26 @@ export function mockFeedbackApi(): void {
     if (url === '/api/v1/admin/feedback/feedback-1') {
       return { data: { success: true, data: feedbackRecord } } as never;
     }
+    if (url === '/api/v1/admin/feedback/feedback-1/history') {
+      return {
+        data: {
+          success: true,
+          data: {
+            entries: [{
+              id: 'audit-1',
+              createdAt: '2026-07-01T08:00:00.000Z',
+              adminName: 'Ana Reyes',
+              adminRole: 'admin',
+              previousStatus: 'new',
+              nextStatus: 'triaged',
+              previousOwnerName: null,
+              nextOwnerName: 'Ana Reyes',
+              note: 'Verified the payment return problem and assigned the checkout fix.',
+            }],
+          },
+        },
+      } as never;
+    }
     if (url === '/api/v1/support-tickets/agents') {
       return { data: { success: true, data: [{ id: 'agent-1', first_name: 'Ana', last_name: 'Reyes', role: 'admin' }] } } as never;
     }

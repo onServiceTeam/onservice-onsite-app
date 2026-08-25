@@ -42,6 +42,18 @@ interface FeedbackList {
   counts: Record<FeedbackStatus, number>;
 }
 
+interface FeedbackHistoryEntry {
+  id: string;
+  createdAt: string;
+  adminName: string;
+  adminRole: string | null;
+  previousStatus: FeedbackStatus | null;
+  nextStatus: FeedbackStatus;
+  previousOwnerName: string | null;
+  nextOwnerName: string | null;
+  note: string;
+}
+
 interface SupportAgent {
   id: string;
   first_name: string;
@@ -115,6 +127,7 @@ export default function FeedbackPage(): React.ReactElement {
   const [status, setStatus] = useState<FeedbackStatus>('new');
   const [area, setArea] = useState('');
   const [search, setSearch] = useState('');
+  const [searchDraft, setSearchDraft] = useState('');
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editStatus, setEditStatus] = useState<FeedbackStatus>('new');
@@ -160,6 +173,17 @@ export default function FeedbackPage(): React.ReactElement {
     },
   });
 
+  const historyQuery = useQuery({
+    queryKey: ['admin-feedback-history', selectedId],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: { entries: FeedbackHistoryEntry[] } }>(
+        `/api/v1/admin/feedback/${selectedId}/history`,
+      );
+      return response.data.data.entries;
+    },
+    enabled: !!selectedId,
+  });
+
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!selectedId) throw new Error('Select a feedback submission first.');
@@ -172,12 +196,22 @@ export default function FeedbackPage(): React.ReactElement {
     onSuccess: (record) => {
       queryClient.setQueryData(['admin-feedback-detail', record.id], record);
       void queryClient.invalidateQueries({ queryKey: ['admin-feedback'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-feedback-history', record.id] });
     },
   });
 
   const detail = detailQuery.data;
   const ownerRequired = editStatus === 'triaged' || editStatus === 'done';
-  const canSave = !!detail && note.trim().length >= 3 && (!ownerRequired || !!ownerId) && !updateMutation.isPending;
+  const hasChanges = !!detail && (
+    editStatus !== detail.status
+    || ownerId !== (detail.assignedAdminId ?? '')
+    || note.trim() !== (detail.triageNote ?? '')
+  );
+  const canSave = !!detail
+    && hasChanges
+    && note.trim().length >= 10
+    && (!ownerRequired || !!ownerId)
+    && !updateMutation.isPending;
   const pageCount = Math.max(1, Math.ceil((listQuery.data?.total ?? 0) / 25));
 
   return (
@@ -214,12 +248,21 @@ export default function FeedbackPage(): React.ReactElement {
         ))}
       </section>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-[var(--color-border)] bg-white p-4 md:flex-row md:items-center">
+      <form
+        role="search"
+        className="flex flex-col gap-3 rounded-lg border border-[var(--color-border)] bg-white p-4 md:flex-row md:items-center"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setSearch(searchDraft.trim());
+          setPage(1);
+          setSelectedId(null);
+        }}
+      >
         <div className="relative min-w-0 flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
           <Input
-            value={search}
-            onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
             placeholder="Search summary, tester, or device"
             aria-label="Search tester feedback"
             className="h-11 pl-9"
@@ -234,7 +277,17 @@ export default function FeedbackPage(): React.ReactElement {
           <option value="">All app areas</option>
           {AREAS.map((value) => <option key={value} value={value}>{label(value)}</option>)}
         </select>
-      </div>
+        <Button type="submit">Search</Button>
+        {(search || searchDraft) && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => { setSearch(''); setSearchDraft(''); setPage(1); setSelectedId(null); }}
+          >
+            Clear
+          </Button>
+        )}
+      </form>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
         <div className="space-y-2">
@@ -280,6 +333,14 @@ export default function FeedbackPage(): React.ReactElement {
           {detail && <FeedbackDetail record={detail} />}
 
           {detail && (
+            <FeedbackHistory
+              entries={historyQuery.data ?? []}
+              isLoading={historyQuery.isLoading}
+              error={historyQuery.isError ? getErrorMessage(historyQuery.error) : null}
+            />
+          )}
+
+          {detail && (
             <Card className="mt-4 p-5">
               <div className="mb-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Ownership and decision</p>
@@ -315,28 +376,86 @@ export default function FeedbackPage(): React.ReactElement {
               </div>
               {agentsQuery.isError && <p role="alert" className="mt-2 text-xs text-red-700">Active admin owners could not be loaded.</p>}
               <label className="mt-4 block text-sm font-medium text-[var(--color-text)]">
-                Triage note *
+                Decision and evidence note *
                 <Textarea
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
                   rows={4}
                   maxLength={2000}
-                  placeholder="Record what was verified, the linked work, or why this is non-actionable. Saved to the audit log."
+                  placeholder="Record what was verified, the linked screen or work item, closure evidence, or why this is non-actionable. Saved to the audit history."
                   aria-label="Tester feedback triage note"
                   className="mt-1.5"
                 />
               </label>
+              <div className="mt-2 flex flex-col justify-between gap-1 text-xs sm:flex-row">
+                <p className="text-[var(--color-text-secondary)]">
+                  {editStatus === 'done' && 'Done means the current behavior and closure evidence were verified.'}
+                  {editStatus === 'dismissed' && 'Dismissed requires a clear spam, duplicate, or non-actionable reason.'}
+                  {editStatus === 'triaged' && 'Triaged means a named owner accepted the next action.'}
+                  {editStatus === 'new' && 'New returns the submission to the unowned review queue.'}
+                </p>
+                <span className={note.trim().length < 10 ? 'font-semibold text-amber-700' : 'font-semibold text-emerald-700'}>
+                  {note.trim().length}/10 minimum
+                </span>
+              </div>
               {ownerRequired && !ownerId && <p className="mt-2 text-xs text-amber-700">Triaged and done submissions require a named owner.</p>}
               {updateMutation.isError && <p role="alert" className="mt-3 text-sm text-red-700">{getErrorMessage(updateMutation.error)}</p>}
               {updateMutation.isSuccess && <p role="status" className="mt-3 text-sm text-emerald-700">Feedback triage saved.</p>}
               <div className="mt-4 flex justify-end">
-                <Button disabled={!canSave} onClick={() => updateMutation.mutate()}>{updateMutation.isPending ? 'Saving…' : 'Save triage'}</Button>
+                <Button disabled={!canSave} onClick={() => updateMutation.mutate()}>
+                  {updateMutation.isPending ? 'Saving…' : hasChanges ? 'Save triage' : 'No changes to save'}
+                </Button>
               </div>
             </Card>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function FeedbackHistory({
+  entries,
+  isLoading,
+  error,
+}: {
+  entries: FeedbackHistoryEntry[];
+  isLoading: boolean;
+  error: string | null;
+}): React.ReactElement {
+  return (
+    <Card className="mt-4 p-5">
+      <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Append-only audit history</p>
+      <h2 className="mt-1 text-lg font-semibold text-[var(--color-text)]">Ownership and decisions</h2>
+      <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+        Earlier notes remain visible here when the current triage state changes.
+      </p>
+      {isLoading && <div className="mt-4"><LoadingState /></div>}
+      {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
+      {!isLoading && !error && entries.length === 0 && (
+        <p className="mt-4 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-sm text-[var(--color-text-secondary)]">
+          No triage decision has been recorded yet.
+        </p>
+      )}
+      {entries.length > 0 && (
+        <ol className="mt-4 space-y-3">
+          {entries.map((entry) => (
+            <li key={entry.id} className="rounded-md border border-[var(--color-border)] p-4">
+              <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-start">
+                <p className="text-sm font-semibold text-[var(--color-text)]">
+                  {entry.previousStatus ? label(entry.previousStatus) : 'No prior state'} → {label(entry.nextStatus)}
+                </p>
+                <time className="text-xs text-[var(--color-text-tertiary)]">{fmtDate(entry.createdAt)}</time>
+              </div>
+              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                {entry.adminName}{entry.adminRole ? ` (${label(entry.adminRole)})` : ''} · owner {entry.previousOwnerName || 'Unassigned'} → {entry.nextOwnerName || 'Unassigned'}
+              </p>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--color-text-secondary)]">{entry.note || 'No note captured.'}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Card>
   );
 }
 

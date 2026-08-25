@@ -30,6 +30,9 @@ it('Bug UX-008 — assigns support cases from named active agents instead of pas
   };
 
   vi.mocked(api.get).mockImplementation(async (url: string) => {
+    if (url === '/api/v1/support-tickets/summary') {
+      return { data: { data: { open: 1, escalated: 0, urgent: 0, unassigned: 1 } } } as never;
+    }
     if (url === '/api/v1/support-tickets/agents') {
       return {
         status: 200,
@@ -39,6 +42,9 @@ it('Bug UX-008 — assigns support cases from named active agents instead of pas
     }
     if (url === '/api/v1/support-tickets/ticket-1') {
       return { status: 200, ok: true, data: { data: ticket } };
+    }
+    if (url === '/api/v1/support-tickets/ticket-1/history') {
+      return { status: 200, ok: true, data: { data: [] } };
     }
     return { status: 200, ok: true, data: { data: [ticket], meta: { total: 1 } } };
   });

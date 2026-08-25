@@ -30,7 +30,7 @@ router.get(
   validationMiddleware({ query: supportTicketListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { page, limit, status, type, priority, assignedAgentId, search, bookingId, userId } =
+      const { page, limit, status, type, priority, assignedAgentId, unassigned, active, search, bookingId, userId } =
         req.query as unknown as {
           page: number;
           limit: number;
@@ -38,6 +38,8 @@ router.get(
           type?: string;
           priority?: string;
           assignedAgentId?: string;
+          unassigned?: boolean;
+          active?: boolean;
           search?: string;
           bookingId?: string;
           userId?: string;
@@ -49,6 +51,8 @@ router.get(
         type,
         priority,
         assignedAgentId,
+        unassigned,
+        active,
         search,
         bookingId,
         userId,
@@ -73,6 +77,20 @@ router.get(
     try {
       const agents = await supportTicketService.listAssignableAgents();
       res.json({ success: true, data: agents });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/summary',
+  authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const data = await supportTicketService.getSupportQueueSummary();
+      res.json({ success: true, data });
     } catch (error) {
       next(error);
     }
@@ -159,6 +177,20 @@ router.get(
 );
 
 // Get single ticket with messages
+router.get(
+  '/:id/history',
+  authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const data = await supportTicketService.getTicketStatusHistory(getParamId(req));
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.get(
   '/:id',
   authMiddleware,
@@ -248,11 +280,12 @@ router.patch(
   validationMiddleware(updateSupportTicketStatusSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { status, resolutionNotes } = req.body;
+      const { status, resolutionNotes, workflowNote } = req.body;
       const ticket = await supportTicketService.updateTicketStatus(
         getParamId(req),
         status,
         resolutionNotes,
+        { adminId: req.user!.userId, workflowNote },
       );
       res.json({ success: true, data: ticket });
     } catch (error) {

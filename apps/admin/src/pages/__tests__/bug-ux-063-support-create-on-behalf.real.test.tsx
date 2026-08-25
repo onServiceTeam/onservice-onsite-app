@@ -24,7 +24,9 @@ import SupportTicketsPage from '../SupportTicketsPage';
 
 it('Bug UX-063 — admin can record an off-app contact as a case owned by the selected account', async () => {
   vi.mocked(api.get).mockImplementation(async (url: string) => {
+    if (url === '/api/v1/support-tickets/summary') return { data: { data: { open: 0, escalated: 0, urgent: 0, unassigned: 0 } } } as never;
     if (url === '/api/v1/support-tickets/agents') return { data: { data: [] } } as never;
+    if (url === '/api/v1/support-tickets/ticket-1/history') return { data: { data: [] } } as never;
     return { data: { data: [], meta: { total: 0 } } } as never;
   });
   vi.mocked(api.post).mockResolvedValueOnce({ data: { data: { id: 'ticket-1' } } } as never);

@@ -29,6 +29,8 @@ export const supportTicketListQuerySchema = z.object({
   type: ticketType.optional(),
   priority: ticketPriority.optional(),
   assignedAgentId: z.string().uuid('Invalid assigned agent ID').optional(),
+  unassigned: z.enum(['1', 'true']).transform(() => true).optional(),
+  active: z.enum(['1', 'true']).transform(() => true).optional(),
   search: z.string().trim().min(2).max(100).optional(),
   bookingId: z.string().uuid('Invalid booking ID').optional(),
   userId: z.string().uuid('Invalid user ID').optional(),
@@ -60,6 +62,7 @@ export const supportTicketMessageSchema = z.object({
 export const updateSupportTicketStatusSchema = z.object({
   status: ticketStatus,
   resolutionNotes: z.string().trim().max(5000).optional(),
+  workflowNote: z.string().trim().min(10, 'Workflow note must be at least 10 characters').max(5000),
 }).strict().superRefine((value, context) => {
   if (
     (value.status === 'resolved' || value.status === 'closed') &&

@@ -34,6 +34,20 @@ router.get(
 );
 
 router.get(
+  '/:id/history',
+  authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const entries = await feedbackAdminService.getFeedbackHistoryForAdmin(getId(req));
+      res.json({ success: true, data: { entries } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
   '/:id',
   authMiddleware,
   rbacMiddleware('admin', 'super_admin'),

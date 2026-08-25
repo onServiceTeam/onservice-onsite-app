@@ -34,6 +34,11 @@ interface AuthState {
 
 const ADMIN_TIER_ROLES: ReadonlySet<string> = new Set(['admin', 'super_admin', 'dpo']);
 
+export function hasAdminSessionHint(): boolean {
+  if (typeof document === 'undefined') return false;
+  return /(?:^|;\s*)admin_csrf=/.test(document.cookie);
+}
+
 // Bug 1251 fix: tokens are stored in HttpOnly cookies, never in localStorage.
 // Hydration calls /api/v1/auth/me — if the admin_session cookie is valid the
 // server returns the user; otherwise we stay logged out.
@@ -51,6 +56,16 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.removeItem('admin_refresh');
       localStorage.removeItem('admin_user');
     } catch { /* not a hard requirement */ }
+
+    // The readable CSRF cookie is issued and cleared with the two HttpOnly
+    // admin session cookies. A first-time visitor has none of the three, so
+    // avoid generating expected /auth/me + /refresh 401s on the login screen.
+    // Returning admins still hydrate and refresh normally because their CSRF
+    // session hint remains present.
+    if (!hasAdminSessionHint()) {
+      set({ user: null, isAuthenticated: false, isLoading: false, mustRotatePassword: false });
+      return;
+    }
 
     try {
       const res = await api.get<{

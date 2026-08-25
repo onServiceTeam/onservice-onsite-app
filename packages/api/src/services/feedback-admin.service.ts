@@ -7,7 +7,7 @@ export type FeedbackStatus = 'new' | 'triaged' | 'done' | 'dismissed';
 
 const STATUSES: readonly FeedbackStatus[] = ['new', 'triaged', 'done', 'dismissed'];
 const AREAS = ['customer', 'provider', 'admin'] as const;
-const TRIAGE_NOTE_MIN = 3;
+const TRIAGE_NOTE_MIN = 10;
 const TRIAGE_NOTE_MAX = 2_000;
 
 interface FeedbackAdminRow {
@@ -58,6 +58,33 @@ export interface FeedbackAdminListResult {
   page: number;
   pageSize: number;
   counts: Record<FeedbackStatus, number>;
+}
+
+interface FeedbackHistoryRow {
+  id: string;
+  created_at: Date | string;
+  admin_first_name: string | null;
+  admin_last_name: string | null;
+  admin_role: string | null;
+  previous_status: FeedbackStatus | null;
+  next_status: FeedbackStatus;
+  previous_owner_first_name: string | null;
+  previous_owner_last_name: string | null;
+  next_owner_first_name: string | null;
+  next_owner_last_name: string | null;
+  note: string | null;
+}
+
+export interface FeedbackHistoryEntry {
+  id: string;
+  createdAt: string;
+  adminName: string;
+  adminRole: string | null;
+  previousStatus: FeedbackStatus | null;
+  nextStatus: FeedbackStatus;
+  previousOwnerName: string | null;
+  nextOwnerName: string | null;
+  note: string;
 }
 
 function iso(value: Date | string): string {
@@ -200,6 +227,50 @@ export async function getFeedbackForAdmin(
   return mapRow(row, actorRole);
 }
 
+export async function getFeedbackHistoryForAdmin(feedbackId: string): Promise<FeedbackHistoryEntry[]> {
+  const result = await db.query<FeedbackHistoryRow>(
+    `SELECT al.id, al.created_at,
+            actor.first_name AS admin_first_name,
+            actor.last_name AS admin_last_name,
+            actor.role AS admin_role,
+            al.old_values->>'status' AS previous_status,
+            al.new_values->>'status' AS next_status,
+            previous_owner.first_name AS previous_owner_first_name,
+            previous_owner.last_name AS previous_owner_last_name,
+            next_owner.first_name AS next_owner_first_name,
+            next_owner.last_name AS next_owner_last_name,
+            al.new_values->>'triageNote' AS note
+       FROM audit_log al
+       LEFT JOIN users actor ON actor.id = al.user_id
+       LEFT JOIN users previous_owner
+         ON previous_owner.id = NULLIF(al.old_values->>'assignedAdminId', '')::uuid
+       LEFT JOIN users next_owner
+         ON next_owner.id = NULLIF(al.new_values->>'assignedAdminId', '')::uuid
+      WHERE al.entity_type = 'feedback_submission'
+        AND al.entity_id = $1
+        AND al.action = 'feedback_submission_updated'
+      ORDER BY al.created_at DESC
+      LIMIT 100`,
+    [feedbackId],
+  );
+
+  const name = (first: string | null, last: string | null): string | null => {
+    const value = [first, last].filter(Boolean).join(' ').trim();
+    return value || null;
+  };
+  return result.rows.map((row) => ({
+    id: row.id,
+    createdAt: iso(row.created_at),
+    adminName: name(row.admin_first_name, row.admin_last_name) ?? 'Unknown admin',
+    adminRole: row.admin_role,
+    previousStatus: row.previous_status,
+    nextStatus: row.next_status,
+    previousOwnerName: name(row.previous_owner_first_name, row.previous_owner_last_name),
+    nextOwnerName: name(row.next_owner_first_name, row.next_owner_last_name),
+    note: row.note ?? '',
+  }));
+}
+
 export async function updateFeedbackTriage(params: {
   feedbackId: string;
   adminId: string;
@@ -236,6 +307,13 @@ export async function updateFeedbackTriage(params: {
     );
     const current = currentResult.rows[0];
     if (!current) throw createAppError('Feedback submission not found.', 404);
+    if (
+      current.status === params.status
+      && current.assigned_admin_id === params.assignedAdminId
+      && (current.triage_note ?? '') === note
+    ) {
+      throw createAppError('Feedback triage already has those values.', 409);
+    }
 
     if (params.assignedAdminId) {
       const agent = await client.query<{ id: string }>(

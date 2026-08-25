@@ -13,16 +13,16 @@ export default function Pagination({ page, totalPages, total, pageSize, onPageCh
   const to = Math.min(page * pageSize, total);
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-white border border-[var(--color-border)] rounded-xl mt-4">
+    <div className="mt-4 flex flex-col gap-3 rounded-xl border border-[var(--color-border)] bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-[var(--color-text-secondary)]">
         Showing <span className="font-medium">{from}</span> to <span className="font-medium">{to}</span> of{' '}
         <span className="font-medium">{total}</span> results
       </p>
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
-          className="px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+          className="min-h-11 px-3 text-sm rounded-lg border border-[var(--color-border)] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
         >
           Previous
         </button>
@@ -41,7 +41,9 @@ export default function Pagination({ page, totalPages, total, pageSize, onPageCh
             <button
               key={p}
               onClick={() => onPageChange(p)}
-              className={`w-8 h-8 text-sm rounded-lg transition-colors ${
+              aria-label={`Page ${p}`}
+              aria-current={p === page ? 'page' : undefined}
+              className={`h-11 min-w-11 text-sm rounded-lg transition-colors ${
                 p === page
                   ? 'bg-[var(--color-primary)] text-white font-medium'
                   : 'hover:bg-slate-50 border border-transparent'
@@ -54,7 +56,7 @@ export default function Pagination({ page, totalPages, total, pageSize, onPageCh
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
-          className="px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+          className="min-h-11 px-3 text-sm rounded-lg border border-[var(--color-border)] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
         >
           Next
         </button>

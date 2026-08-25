@@ -113,12 +113,32 @@ interface ListTicketsParams {
   search?: string;
   bookingId?: string;
   userId?: string;
+  unassigned?: boolean;
+  active?: boolean;
+}
+
+export interface SupportQueueSummary {
+  open: number;
+  escalated: number;
+  urgent: number;
+  unassigned: number;
+}
+
+export interface SupportTicketStatusHistoryEntry {
+  id: string;
+  createdAt: string;
+  adminName: string;
+  adminRole: string | null;
+  previousStatus: string | null;
+  nextStatus: string;
+  workflowNote: string;
+  resolutionNotes: string | null;
 }
 
 export async function listTickets(
   params: ListTicketsParams,
 ): Promise<{ tickets: SupportTicket[]; total: number }> {
-  const { page, limit, status, type, priority, assignedAgentId, search, bookingId, userId } = params;
+  const { page, limit, status, type, priority, assignedAgentId, search, bookingId, userId, unassigned, active } = params;
   const offset = (page - 1) * limit;
   const conditions: string[] = [];
   const values: unknown[] = [];
@@ -139,6 +159,12 @@ export async function listTickets(
   if (assignedAgentId) {
     conditions.push(`st.assigned_agent_id = $${idx++}`);
     values.push(assignedAgentId);
+  }
+  if (unassigned) {
+    conditions.push('st.assigned_agent_id IS NULL');
+  }
+  if (active) {
+    conditions.push("st.status NOT IN ('resolved', 'closed')");
   }
   if (bookingId) {
     conditions.push(`st.booking_id = $${idx++}`);
@@ -206,6 +232,75 @@ export async function listTickets(
   );
 
   return { tickets: result.rows, total: parseInt(countResult.rows[0]?.count ?? '0', 10) };
+}
+
+export async function getSupportQueueSummary(): Promise<SupportQueueSummary> {
+  const result = await db.query<{
+    open_count: string;
+    escalated_count: string;
+    urgent_count: string;
+    unassigned_count: string;
+  }>(
+    `SELECT COUNT(*) FILTER (WHERE status = 'open')::text AS open_count,
+            COUNT(*) FILTER (WHERE status = 'escalated')::text AS escalated_count,
+            COUNT(*) FILTER (
+              WHERE priority = 'urgent' AND status NOT IN ('resolved', 'closed')
+            )::text AS urgent_count,
+            COUNT(*) FILTER (
+              WHERE assigned_agent_id IS NULL AND status NOT IN ('resolved', 'closed')
+            )::text AS unassigned_count
+       FROM support_tickets`,
+  );
+  const row = result.rows[0];
+  return {
+    open: Number(row?.open_count ?? 0),
+    escalated: Number(row?.escalated_count ?? 0),
+    urgent: Number(row?.urgent_count ?? 0),
+    unassigned: Number(row?.unassigned_count ?? 0),
+  };
+}
+
+export async function getTicketStatusHistory(
+  ticketId: string,
+): Promise<SupportTicketStatusHistoryEntry[]> {
+  const result = await db.query<{
+    id: string;
+    created_at: Date | string;
+    admin_first_name: string | null;
+    admin_last_name: string | null;
+    admin_role: string | null;
+    previous_status: string | null;
+    next_status: string;
+    workflow_note: string | null;
+    resolution_notes: string | null;
+  }>(
+    `SELECT al.id, al.created_at,
+            actor.first_name AS admin_first_name,
+            actor.last_name AS admin_last_name,
+            actor.role AS admin_role,
+            al.old_values->>'status' AS previous_status,
+            al.new_values->>'status' AS next_status,
+            al.new_values->>'workflowNote' AS workflow_note,
+            al.new_values->>'resolutionNotes' AS resolution_notes
+       FROM audit_log al
+       LEFT JOIN users actor ON actor.id = al.user_id
+      WHERE al.entity_type = 'support_ticket'
+        AND al.entity_id = $1
+        AND al.action = 'support_ticket_status_updated'
+      ORDER BY al.created_at DESC
+      LIMIT 100`,
+    [ticketId],
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    adminName: [row.admin_first_name, row.admin_last_name].filter(Boolean).join(' ').trim() || 'Unknown admin',
+    adminRole: row.admin_role,
+    previousStatus: row.previous_status,
+    nextStatus: row.next_status,
+    workflowNote: row.workflow_note ?? '',
+    resolutionNotes: row.resolution_notes,
+  }));
 }
 
 // Owner-scoped list — a customer/provider seeing only their OWN tickets.
@@ -500,6 +595,7 @@ export async function updateTicketStatus(
   ticketId: string,
   status: string,
   resolutionNotes?: string,
+  audit?: { adminId: string; workflowNote: string },
 ): Promise<SupportTicket> {
   if (!VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
     throw createAppError(`Invalid ticket status: ${status}`, 400);
@@ -524,28 +620,92 @@ export async function updateTicketStatus(
   ) {
     throw createAppError('Resolution notes must be at least 10 characters.', 400);
   }
+  const workflowNote = audit?.workflowNote?.trim();
+  if (audit && (workflowNote?.length ?? 0) < 10) {
+    throw createAppError('A workflow note of at least 10 characters is required.', 400);
+  }
+  if (workflowNote && workflowNote.length > 5000) {
+    throw createAppError('Workflow note must be 5000 characters or fewer.', 400);
+  }
   const extras: string[] = ['status = $2', 'updated_at = NOW()'];
   const values: unknown[] = [ticketId, status];
   let idx = 3;
 
   if (status === 'resolved') {
-    extras.push(`resolved_at = NOW()`);
+    extras.push('resolved_at = NOW()', 'closed_at = NULL');
   }
   if (status === 'closed') {
     extras.push(`closed_at = NOW()`);
+  }
+  if (status !== 'resolved' && status !== 'closed') {
+    extras.push('resolved_at = NULL', 'closed_at = NULL', 'resolution_notes = NULL');
   }
   if ((status === 'resolved' || status === 'closed') && normalizedResolutionNotes) {
     extras.push(`resolution_notes = $${idx}`);
     values.push(normalizedResolutionNotes);
   }
 
-  const result = await db.query<SupportTicket>(
-    `UPDATE support_tickets SET ${extras.join(', ')} WHERE id = $1 RETURNING *`,
-    values,
-  );
+  const persist = async (executor: Pick<typeof db, 'query'>): Promise<SupportTicket> => {
+    const result = await executor.query<SupportTicket>(
+      `UPDATE support_tickets SET ${extras.join(', ')} WHERE id = $1 RETURNING *`,
+      values,
+    );
+    const ticket = result.rows[0];
+    if (!ticket) throw createAppError('Ticket not found.', 404);
+    return ticket;
+  };
+
+  const ticket = audit
+    ? await db.transaction(async (client) => {
+      const currentResult = await client.query<{
+        status: string;
+        assigned_agent_id: string | null;
+        resolution_notes: string | null;
+        user_role: string;
+      }>(
+        `SELECT st.status, st.assigned_agent_id, st.resolution_notes, u.role AS user_role
+           FROM support_tickets st
+           JOIN users u ON u.id = st.user_id
+          WHERE st.id = $1
+          FOR UPDATE`,
+        [ticketId],
+      );
+      const current = currentResult.rows[0];
+      if (!current) throw createAppError('Ticket not found.', 404);
+      if (current.status === status) throw createAppError('Ticket already has that status.', 409);
+      const providerOwned = current.user_role === 'provider' || current.user_role === 'provider_staff';
+      if (status === 'waiting_on_customer' && current.user_role !== 'customer') {
+        throw createAppError('Only a customer-owned case can wait on a customer reply.', 400);
+      }
+      if (status === 'waiting_on_provider' && !providerOwned) {
+        throw createAppError('Only a provider-owned case can wait on a provider reply.', 400);
+      }
+
+      const updated = await persist(client);
+      await client.query(
+        `INSERT INTO audit_log
+           (user_id, action, entity_type, entity_id, old_values, new_values)
+         VALUES ($1, 'support_ticket_status_updated', 'support_ticket', $2, $3::jsonb, $4::jsonb)`,
+        [
+          audit.adminId,
+          ticketId,
+          JSON.stringify({
+            status: current.status,
+            assignedAgentId: current.assigned_agent_id,
+            resolutionNotes: current.resolution_notes,
+          }),
+          JSON.stringify({
+            status,
+            assignedAgentId: updated.assigned_agent_id,
+            resolutionNotes: updated.resolution_notes,
+            workflowNote,
+          }),
+        ],
+      );
+      return updated;
+    })
+    : await persist(db);
   logger.info('Support ticket status updated', { ticketId, status });
-  const ticket = result.rows[0];
-  if (!ticket) throw new Error('Ticket not found.');
   return ticket;
 }
 
