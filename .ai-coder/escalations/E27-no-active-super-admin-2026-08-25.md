@@ -1,7 +1,7 @@
 # E27 — Production has no active super-admin account
 
 **Date:** 2026-08-25  
-**Status:** OPEN — Ken identity decision required  
+**Status:** RESOLVED — 2026-08-25
 **Area:** production access governance
 
 ## Bad news
@@ -27,7 +27,26 @@ This is therefore not a safe code default. It requires Ken to identify the inten
 
 Do not reactivate the inactive published-credential account.
 
+## Resolution
+
+Ken explicitly authorized creation of durable accounts for the application user
+types. A new, clearly named UX-audit super-admin was created without modifying
+the inactive compromised account or the existing active admin. Before the write,
+the onService database/uploads/config/git backup completed successfully.
+
+The new account has a generated strong password, mandatory TOTP enabled, two
+successful end-to-end password-plus-TOTP verifications, and one reasoned
+`user_role_changed` audit event with source `authorized_ux_audit_bootstrap`.
+Its password and TOTP secret are encrypted with Windows DPAPI in Ken's private
+security directory; neither value is in the repository, Git history, command
+output, this escalation, or chat.
+
+Post-change aggregate state:
+
+- one active `super_admin` with password and TOTP;
+- one active `admin` with password and TOTP;
+- the formerly published `super_admin` remains inactive.
+
 ## Work that can remain staged safely
 
 The code branch can retain the dashboard/analytics truth fixes, reasoned staff and role-profile audit trail, and DPO management workspace. It must not claim the new super-admin-only controls are operationally usable in production until this escalation is resolved.
-

@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-25  
 **Scope:** first suspicion-first overhaul wave for Dashboard, Analytics, Staff & Roles, DPO assignment, and the internal large-payout review terminology  
-**Status:** implementation staged; production access decision E27 remains open
+**Status:** implementation verified; E27 resolved with a separate TOTP-protected audit super-admin
 
 ## Outcome
 
@@ -28,7 +28,22 @@ The production check read aggregate counts only:
 - zero active `admin_staff` profiles;
 - five non-deleted role-profile definitions were observed in the earlier aggregate review.
 
-No account identity or personal field was read and no production data was mutated. E27 records why the assistant did not reactivate or promote an account autonomously.
+No account identity or personal field was read during that initial check and no
+row was changed until Ken explicitly authorized durable role-audit accounts.
+E27 now records the backed-up, reasoned creation and two-factor verification of
+a separate audit super-admin. The inactive published-credential account remains
+inactive.
+
+The follow-up found three additional account-control defects and fixed them:
+
+- migration 131 replaced `users_role_check` and accidentally removed `dpo`;
+  migration 156 restores the composed DPO plus provider-staff role set;
+- the non-production developer OTP accepted one code for every phone; it now
+  requires an explicit phone allowlist, skips SMS only for those synthetic
+  accounts, and fails startup on missing/malformed configuration;
+- `bootstrap-admin.ts` advertised non-login staff-profile names and omitted
+  required first/last names for new rows; it now accepts only real admin-tier
+  roles and creates complete named identities.
 
 ## Access model found in code
 
@@ -64,8 +79,7 @@ Behavior tests cover:
 
 ## Remaining admin priorities
 
-1. Resolve E27 by identifying the intended production super-admin. Do not reactivate the published-credential account.
-2. Define fine-grained admin authorization before treating role-profile permission labels as executable policy.
-3. Add global entity search only after searchable fields and ordinary-admin PII visibility are defined.
-4. Continue page-by-page command, money, destructive-action, metric-source, freshness, and case-linkage review.
-5. Keep DPO registration and external appointment records in the launch runbook; the app does not perform NPC registration.
+1. Define fine-grained admin authorization before treating role-profile permission labels as executable policy.
+2. Add global entity search only after searchable fields and ordinary-admin PII visibility are defined.
+3. Continue page-by-page command, money, destructive-action, metric-source, freshness, and case-linkage review.
+4. Keep DPO registration and external appointment records in the launch runbook; the app does not perform NPC registration.

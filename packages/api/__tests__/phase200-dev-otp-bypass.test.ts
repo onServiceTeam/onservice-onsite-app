@@ -1,9 +1,10 @@
 // Phase 200 — dev/demo OTP bypass.
 //
 // Local testing can't receive an SMS and the OTP is stored only as a scrypt
-// hash, so verifyOtp accepts a fixed DEV_OTP_CODE (default "000000") — but
-// ONLY when NOT in production AND ALLOW_DEV_OTP=1. These tests prove the
-// bypass works when gated on, is off by default, and is impossible in prod.
+// hash, so verifyOtp accepts an explicitly configured DEV_OTP_CODE — but ONLY
+// when NOT in production, ALLOW_DEV_OTP=1, and the phone is explicitly
+// allowlisted. These tests prove the bypass is narrow, off by default, and
+// impossible in production.
 
 const dbQueryMock = jest.fn();
 const dbTransactionMock = jest.fn();
@@ -50,18 +51,25 @@ function mockUserLookupAndTokenIssue(): void {
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 const ORIGINAL_ALLOW = process.env.ALLOW_DEV_OTP;
+const ORIGINAL_CODE = process.env.DEV_OTP_CODE;
+const ORIGINAL_ALLOWED_PHONES = process.env.DEV_OTP_ALLOWED_PHONES;
 
 beforeEach(() => {
   dbQueryMock.mockReset();
   dbTransactionMock.mockReset();
   process.env.JWT_SECRET = 'test-secret';
+  process.env.DEV_OTP_CODE = '424242';
+  process.env.DEV_OTP_ALLOWED_PHONES = PHONE;
 });
 
 afterEach(() => {
   process.env.NODE_ENV = ORIGINAL_NODE_ENV;
   if (ORIGINAL_ALLOW === undefined) delete process.env.ALLOW_DEV_OTP;
   else process.env.ALLOW_DEV_OTP = ORIGINAL_ALLOW;
-  delete process.env.DEV_OTP_CODE;
+  if (ORIGINAL_CODE === undefined) delete process.env.DEV_OTP_CODE;
+  else process.env.DEV_OTP_CODE = ORIGINAL_CODE;
+  if (ORIGINAL_ALLOWED_PHONES === undefined) delete process.env.DEV_OTP_ALLOWED_PHONES;
+  else process.env.DEV_OTP_ALLOWED_PHONES = ORIGINAL_ALLOWED_PHONES;
 });
 
 describe('Phase 200 — dev OTP bypass', () => {
@@ -72,7 +80,7 @@ describe('Phase 200 — dev OTP bypass', () => {
     // the mock would return undefined and the call would throw. It must not.
     mockUserLookupAndTokenIssue();
 
-    const result = await verifyOtp(PHONE, '000000');
+    const result = await verifyOtp(PHONE, '424242');
     expect(result.user.id).toBe('user-1');
     expect(result.accessToken).toBeTruthy();
     expect(result.refreshToken).toBeTruthy();
@@ -81,10 +89,10 @@ describe('Phase 200 — dev OTP bypass', () => {
   it('respects a custom DEV_OTP_CODE', async () => {
     process.env.NODE_ENV = 'development';
     process.env.ALLOW_DEV_OTP = '1';
-    process.env.DEV_OTP_CODE = '424242';
+    process.env.DEV_OTP_CODE = '737373';
     mockUserLookupAndTokenIssue();
 
-    const result = await verifyOtp(PHONE, '424242');
+    const result = await verifyOtp(PHONE, '737373');
     expect(result.accessToken).toBeTruthy();
   });
 
@@ -99,7 +107,7 @@ describe('Phase 200 — dev OTP bypass', () => {
       return (cb as any)({ query: clientQuery });
     });
 
-    await expect(verifyOtp(PHONE, '000000')).rejects.toMatchObject({ statusCode: 400 });
+    await expect(verifyOtp(PHONE, '424242')).rejects.toMatchObject({ statusCode: 400 });
   });
 
   it('can NEVER fire in production even if ALLOW_DEV_OTP=1 is mis-set', async () => {
@@ -113,6 +121,19 @@ describe('Phase 200 — dev OTP bypass', () => {
       return (cb as any)({ query: clientQuery });
     });
 
-    await expect(verifyOtp(PHONE, '000000')).rejects.toMatchObject({ statusCode: 400 });
+    await expect(verifyOtp(PHONE, '424242')).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('rejects the configured code for a phone that is not allowlisted', async () => {
+    process.env.NODE_ENV = 'staging';
+    process.env.ALLOW_DEV_OTP = '1';
+    process.env.DEV_OTP_ALLOWED_PHONES = '+639181234567';
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn(async () => ({ rows: [], rowCount: 0 }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (cb as any)({ query: clientQuery });
+    });
+
+    await expect(verifyOtp(PHONE, '424242')).rejects.toMatchObject({ statusCode: 400 });
   });
 });

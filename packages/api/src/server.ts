@@ -85,12 +85,17 @@ import {
   resolveTrustProxyHops,
   validateProductionSecrets,
 } from './config/boot-guards';
+import { assertDevOtpConfiguration } from './config/dev-otp';
 import { db } from './models/db';
 import { redis } from './config/redis.config';
 
 // CRIT-M04, M05, MED-N66, N95, N169 — refuse production startup before
 // binding a port when required secrets are absent or unsafe.
 validateProductionSecrets();
+
+// Test phone login is allowed only outside production and only for an
+// explicit phone allowlist. Reject unsafe/malformed setup before binding.
+assertDevOtpConfiguration();
 
 // A1 / C1 — refuse to boot if admin 2FA is disabled in production. The flag
 // is a staging/testing escape hatch (LAUNCH-LIMITATIONS.md #37); leaving it on

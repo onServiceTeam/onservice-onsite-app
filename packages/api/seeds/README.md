@@ -23,7 +23,9 @@ The script enforces:
 - Not matching banned dictionary patterns (`password`, `admin`, `onservice`, `qwerty`, `12345`)
 - No 5+ repeated characters in a row
 
-Roles supported: `super_admin`, `admin`, `dpo`, `finance`, `support`, `dispatcher`. Default is `super_admin`.
+Login roles supported: `super_admin`, `admin`, `dpo`. There is no default; the
+role must be explicit. `finance`, `support_agent`, and similar labels are staff
+profiles attached to an `admin` account and do not replace route-level access.
 
 After first login, the admin must enroll TOTP 2FA.
 

@@ -445,8 +445,11 @@ Admin findings:
 161. Reframed churn output as deterministic retention signals, masked ordinary-admin contact data, renamed non-cancelled booking face value, linked Customer 360, and prevented malformed cohort periods from crashing Analytics (Bugs UX-338/339/344).
 162. Made commission signal output read-only and sample-aware. Provider, current-quality, and completed-booking minimums now fail closed to the live rate instead of manufacturing a recommendation from empty or tiny cohorts (Bugs UX-340/341).
 163. Rebuilt Staff & Roles around named active admin-tier candidates, reasoned transactional staff/profile records, and explicit access-source truth. Permission labels remain organizational metadata, not a false fine-grained authorization claim (Bugs UX-342/343/345/346).
-164. Added D15's missing DPO management workspace, limited candidates to active admins, required reasoned assignment/handover, and serialized a single active DPO seat (Bugs UX-347-349). Production has no active super-admin, so E27 blocks claiming this workflow is operationally usable there.
+164. Added D15's missing DPO management workspace, limited candidates to active admins, required reasoned assignment/handover, and serialized a single active DPO seat (Bugs UX-347-349). E27 was subsequently resolved with a separate named, TOTP-protected audit super-admin; the inactive published-credential account remains inactive.
 165. Retained the working internal large-payout review hold and removed remaining active-handbook language that called its clearance an AML determination. Legacy schema/status/API identifiers remain unchanged for compatibility.
+166. Restored the composed database role constraint after migration 131 accidentally removed `dpo` while adding `provider_staff`, which made the promised DPO assignment path fail at persistence (Bug UX-350).
+167. Replaced the internet-facing staging code's global developer-OTP behavior with an explicit synthetic-phone allowlist and fail-closed startup validation; allowlisted requests skip SMS so fake audit numbers never reach a real person (Bug UX-351).
+168. Corrected admin bootstrap to use only real admin-tier login roles and supply the database-required first and last names for new identities (Bug UX-352).
 
 ## Verification record for this batch
 
@@ -503,8 +506,9 @@ Admin findings:
 
 - Bugs UX-336 through UX-349 cover Dashboard source/freshness truth, retention PII and definition truth, commission sample fail-safes, cohort-source resilience, named staff candidates, transactional staff/role-profile audits, and the missing reasoned single-seat DPO workspace. The detailed record is `ADMIN-COMMAND-ACCESS-TRUTH-AUDIT-2026-08-25.md`.
 - Active operations manuals now use internal large-payout review language. The working hold remains; only legacy schema/status/API names retain `aml` for compatibility.
-- Production was checked read-only by aggregate only. It has one active admin, one inactive super-admin, and zero active staff-directory profiles. No identity or personal field was read and no row was changed. E27 blocks choosing or activating a production super-admin autonomously.
-- Verification: Admin passed 92 files and 205 tests with one skipped file and three explicit todos; the locally runnable API set passed 441 suites and 3,084 tests. All workspace TypeScript checks, repository lint, Admin/API production builds, Gate A's 10 blocking fragments, all six gate self-tests, and Gate C's six blocking articles passed. Gates D and E remain REPORT-only. UX-201 was the one local Docker-daemon exclusion and independent GitHub Docker validation remains required.
+- The initial production check was aggregate-only and found one active admin, one inactive super-admin, and zero active staff-directory profiles. After Ken authorized durable role-audit identities, a backed-up change created a separate named super-admin, enrolled mandatory TOTP, verified two complete two-factor logins, and wrote a reasoned audit event. The published-credential account remains inactive and the credentials remain encrypted outside the repository. E27 is resolved.
+- Follow-up Bugs UX-350 through UX-352 restore the DPO/provider-staff database-role composition, restrict non-production audit OTP to explicit synthetic phones, and repair the new-admin bootstrap database path and false staff-role claims.
+- Verification before the follow-up commit: Admin passed 92 files and 205 tests with one skipped file and three explicit todos; the locally runnable API set passed 443 suites and 3,087 tests after adding the account-control coverage. All workspace TypeScript checks, repository lint, Admin/API production builds, Gate A's 10 blocking fragments, all six gate self-tests, and Gate C's six blocking articles passed. Gates D and E remain REPORT-only. UX-201 was the one local Docker-daemon exclusion; the migration behavior and Docker image boot remain required in independent GitHub CI.
 
 ## Next implementation order
 

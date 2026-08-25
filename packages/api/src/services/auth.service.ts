@@ -4,6 +4,7 @@ import { db } from '../models/db';
 import { sendOtpSms } from './sms.service';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
+import { isDevOtpCodeAccepted, isDevOtpPhoneAllowed } from '../config/dev-otp';
 import { createAppError } from '../middleware/error.middleware';
 import * as settingsService from './settings.service';
 
@@ -227,6 +228,17 @@ export async function sendOtp(phone: string): Promise<{ message: string }> {
     throw createAppError('Invalid Philippine phone number. Use +63 9XX XXX XXXX format.', 400);
   }
 
+  // Explicitly allowlisted non-production audit accounts do not send an SMS.
+  // This keeps synthetic QA phone numbers from ever reaching a real person and
+  // avoids writing an unrelated random OTP that the configured audit code will
+  // intentionally bypass. The boot guard rejects global/malformed setup.
+  if (isDevOtpPhoneAllowed(phone)) {
+    logger.warn('[DEV OTP] SMS skipped for allowlisted audit phone', {
+      phoneSuffix: phone.slice(-4),
+    });
+    return { message: 'Verification code is available from the protected test-account vault.' };
+  }
+
   const otpPolicy = await settingsService.getOtpPolicy();
 
   // Test-mode (staging only, never production) — skip the OTP resend cooldown
@@ -315,14 +327,11 @@ export async function verifyOtp(
   // scrypt hash (never logged), so there is otherwise no way to log into the
   // mobile app on a dev machine. When (and ONLY when) we are NOT in
   // production AND the operator has explicitly opted in with ALLOW_DEV_OTP=1,
-  // a fixed code (DEV_OTP_CODE, default "000000") is accepted for any phone
-  // without an SMS round-trip. Triple-gated so it can never fire in prod:
-  //   1. NODE_ENV !== 'production'   2. ALLOW_DEV_OTP === '1'   3. exact code
-  // This lets a non-developer log in as any seeded customer/provider phone to
-  // walk the app end to end. See docs/TESTING-GUIDE.md.
-  const devOtpEnabled = process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_OTP === '1';
-  const devOtpCode = process.env.DEV_OTP_CODE || '000000';
-  if (devOtpEnabled && code === devOtpCode) {
+  // a fixed, explicitly configured code is accepted only for phones listed in
+  // DEV_OTP_ALLOWED_PHONES. The old implementation accepted one code for any
+  // phone, which amounted to account takeover on an internet-facing staging
+  // host. Production remains impossible and startup validates the allowlist.
+  if (isDevOtpCodeAccepted(phone, code)) {
     logger.warn('[DEV OTP] bypass accepted — NOT for production', { phoneSuffix: phone.slice(-4) });
     // Skip the otp_codes lookup/verification entirely and fall through to the
     // user lookup/creation + token issuance below.
