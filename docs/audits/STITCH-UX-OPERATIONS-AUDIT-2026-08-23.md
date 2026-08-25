@@ -462,7 +462,7 @@ Admin findings:
 
 ## Verification record for this batch
 
-- Current customer Stitch continuation: mobile TypeScript passed; all 405 mobile suites passed with 787 assertions and 84 explicit device-only todos; focused onboarding/auth tests passed; `npx expo install --check` still reports the known unmerged native-module alignment tracked in `docs/qa/NATIVE-BUILD-REQUIREMENTS.md`. Public browser evidence covers onboarding at 390/1024/1440, login at 390/1024/1440, and registration at 1440. Authenticated inner-screen evidence remains rendered behavior because no stored account credential or test phone was entered without action-time approval.
+- Customer Stitch release at `ac3a0a4b671edc1c41051ad2df1277489035c928`: mobile TypeScript and all 405 mobile suites passed with 787 assertions and 84 explicit device-only todos; repository TypeScript/lint, focused onboarding/auth tests, Gate A/C and gate self-tests, the 13-test API smoke, and the 4,272-module production export passed. GitHub independently passed every CI and governance job. Production received the exact artifact after full and prior-artifact backups, with no migration, seed, API rebuild, container recreation, or shared-nginx change. Public top-level Chromium evidence covers login at 390/1024/1440 with zero console/page errors; onboarding was checked locally at the same widths and registration at 1440. Authenticated inner-screen evidence remains rendered behavior because no stored account credential or test phone was entered without action-time approval. `npx expo install --check` still reports the known unmerged native-module alignment tracked in `docs/qa/NATIVE-BUILD-REQUIREMENTS.md`.
 
 - Admin TypeScript: passed.
 - Mobile TypeScript: passed.
