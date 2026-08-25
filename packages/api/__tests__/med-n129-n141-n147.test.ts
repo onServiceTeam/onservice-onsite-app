@@ -28,6 +28,13 @@ beforeEach(() => {
 
 describe('MED-N129 — addStaffMember writes admin_actions audit row inside trx', () => {
   it('MED-N129 — INSERT admin_staff + role lookup + INSERT admin_actions all in one trx', async () => {
+    // Validate the selected admin-tier account.
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [{ id: 'user-1', role: 'admin', is_active: true }],
+      rowCount: 1,
+    });
+    // Validate the active directory profile.
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ name: 'admin' }], rowCount: 1 });
     // INSERT admin_staff RETURNING *
     dbQueryMock.mockResolvedValueOnce({
       rows: [{
@@ -41,8 +48,6 @@ describe('MED-N129 — addStaffMember writes admin_actions audit row inside trx'
       }],
       rowCount: 1,
     });
-    // SELECT name FROM admin_roles
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ name: 'admin' }], rowCount: 1 });
     // INSERT admin_actions
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
@@ -50,11 +55,12 @@ describe('MED-N129 — addStaffMember writes admin_actions audit row inside trx'
       userId: 'user-1',
       roleId: 'role-1',
       addedByAdminId: 'super-1',
+      reason: 'Operations access profile required.',
     });
 
     expect(member.id).toBe('staff-1');
     expect(dbTransactionMock).toHaveBeenCalledTimes(1);
-    expect(dbQueryMock).toHaveBeenCalledTimes(3);
+    expect(dbQueryMock).toHaveBeenCalledTimes(4);
 
     const auditCall = dbQueryMock.mock.calls.find(
       ([sql]) => /INSERT INTO admin_actions/.test(sql as string),
@@ -70,7 +76,10 @@ describe('MED-N129 — addStaffMember writes admin_actions audit row inside trx'
   });
 
   it('MED-N129 — translates 23505 unique violation to 409', async () => {
-    dbQueryMock.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: '23505' }));
+    dbQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: 'u1', role: 'admin', is_active: true }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ name: 'admin' }], rowCount: 1 })
+      .mockRejectedValueOnce(Object.assign(new Error('dup'), { code: '23505' }));
     await expect(
       addStaffMember({ userId: 'u1', roleId: 'r1', addedByAdminId: 'super-1' }),
     ).rejects.toThrow(/already a staff member/);

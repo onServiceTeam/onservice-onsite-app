@@ -320,7 +320,7 @@ Payout {{payoutId}} for provider {{providerName}} is PHP {{amount}}, at/above th
 | Internal large-payout review threshold | ₱500,000 | Settings |
 | Min payment | ₱100 | platform config |
 
-All money is in centavos in the database; the admin and apps display pesos. Every privileged money action (escrow release, refund, AML clearance, payout approve/reject/complete, wallet adjust, BIR finalize, reconciliation run, settings edit) is super_admin only and writes an audit row with a typed reason.
+All money is in centavos in the database; the admin and apps display pesos. Every privileged money action (escrow release, refund, internal large-payout review clearance, payout approve/reject/complete, wallet adjust, BIR finalize, reconciliation run, settings edit) is super_admin only and writes an audit row with a typed reason.
 
 ---
 

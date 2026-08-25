@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
@@ -15,9 +15,9 @@ type TabId = 'ab-tests' | 'cohorts' | 'churn' | 'quality' | 'commission';
 const ALL_TABS: { id: TabId; label: string; flag?: keyof ReturnType<typeof useFeatureFlags> }[] = [
   { id: 'ab-tests', label: 'A/B Tests', flag: 'abTestingEnabled' },
   { id: 'cohorts', label: 'Cohort Analysis' },
-  { id: 'churn', label: 'Churn Prediction' },
+  { id: 'churn', label: 'Retention Signals' },
   { id: 'quality', label: 'Quality Scores' },
-  { id: 'commission', label: 'Commission' },
+  { id: 'commission', label: 'Commission Signals' },
 ];
 
 function parsePositiveInt(value: string | null, fallback: number): number {
@@ -283,7 +283,8 @@ function CohortTab(): React.ReactElement {
                   <td className="px-3 py-1.5 font-medium border">{row.cohort}</td>
                   <td className="px-3 py-1.5 text-center border">{row.cohortSize}</td>
                   {Array.from({ length: Math.min(months, 12) }, (_, i) => {
-                    const p = row.periods.find((pp) => pp.period === i);
+                    const periods = Array.isArray(row.periods) ? row.periods : [];
+                    const p = periods.find((pp) => pp.period === i);
                     const pct = p?.percentage ?? 0;
                     const opacity = metric === 'retention' ? Math.max(0.1, pct / 100) : Math.min(1, Math.max(0.1, pct / 10));
                     return (
@@ -308,10 +309,11 @@ interface ChurnCustomer {
   userId: string;
   name: string;
   phone: string;
+  contactMasked: boolean;
   lastBookingDate: string | null;
   daysSinceLastBooking: number;
   totalBookings: number;
-  totalSpent: number;
+  totalBookedValue: number;
   riskScore: number;
   riskLevel: string;
 }
@@ -359,6 +361,13 @@ function ChurnTab(): React.ReactElement {
 
   return (
     <div className="space-y-4">
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+        <p className="font-semibold">Deterministic retention attention signals</p>
+        <p className="mt-1 text-blue-900">
+          This is not a prediction model. The score only combines time since the latest non-cancelled booking,
+          non-cancelled booking count, and recorded booking value. Open Customer 360 before taking action.
+        </p>
+      </div>
       <div className="flex items-center gap-4">
         <select aria-label="Filter churn risk level" className="px-3 py-1.5 border rounded text-sm" value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)}>
           <option value="">All Risk Levels</option>
@@ -372,32 +381,40 @@ function ChurnTab(): React.ReactElement {
 
       {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load churn data. Please try again.</p> : (
         <>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <table className="w-full min-w-[920px] text-sm">
             <thead className="bg-slate-50">
               <tr>
-                <th className="text-left px-3 py-2 font-medium text-slate-600">Customer</th>
-                <th className="text-left px-3 py-2 font-medium text-slate-600">Phone</th>
+                <th className="text-left px-3 py-2 font-medium text-slate-600">Customer account</th>
+                <th className="text-left px-3 py-2 font-medium text-slate-600">Contact</th>
                 <th className="text-center px-3 py-2 font-medium text-slate-600">Last Booking</th>
-                <th className="text-center px-3 py-2 font-medium text-slate-600">Total Bookings</th>
-                <th className="text-center px-3 py-2 font-medium text-slate-600">Total Spent</th>
-                <th className="text-center px-3 py-2 font-medium text-slate-600">Risk Score</th>
-                <th className="text-center px-3 py-2 font-medium text-slate-600">Level</th>
+                <th className="text-center px-3 py-2 font-medium text-slate-600">Non-cancelled bookings</th>
+                <th className="text-center px-3 py-2 font-medium text-slate-600">Recorded booking value</th>
+                <th className="text-center px-3 py-2 font-medium text-slate-600">Attention score</th>
+                <th className="text-center px-3 py-2 font-medium text-slate-600">Signal</th>
               </tr>
             </thead>
             <tbody>
               {data?.data.map((c) => (
                 <tr key={c.userId} className="border-t">
-                  <td className="px-3 py-2 font-medium">{c.name || '—'}</td>
-                  <td className="px-3 py-2 text-slate-600">{c.phone}</td>
+                  <td className="px-3 py-2 font-medium">
+                    <Link className="text-[var(--color-primary)] hover:underline" to={`/customers/${c.userId}`}>
+                      {c.name || 'Open Customer 360'}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2 text-slate-600">
+                    {c.phone}{c.contactMasked ? <span className="ml-1 text-xs">(masked)</span> : null}
+                  </td>
                   <td className="px-3 py-2 text-center text-slate-600">{c.lastBookingDate ? new Date(c.lastBookingDate).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }) : 'Never'}</td>
                   <td className="px-3 py-2 text-center">{c.totalBookings}</td>
-                  <td className="px-3 py-2 text-center">{formatCurrency(c.totalSpent)}</td>
+                  <td className="px-3 py-2 text-center">{formatCurrency(c.totalBookedValue)}</td>
                   <td className="px-3 py-2 text-center font-bold">{c.riskScore}</td>
                   <td className="px-3 py-2 text-center"><span className={`px-2 py-0.5 rounded text-xs font-medium ${riskColors[c.riskLevel] ?? 'bg-slate-100'}`}>{c.riskLevel}</span></td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
           {data?.data.length === 0 && (
             <p className="text-sm text-slate-500 text-center py-8">No customers match this risk level.</p>
           )}
@@ -535,6 +552,8 @@ interface CommissionSuggestion {
   currentRate: number;
   suggestedRate: number;
   providerCount: number;
+  qualitySampleCount: number;
+  averageCompletedBookings: number;
   avgQualityScore: number;
   avgRevenue: number;
   rationale: string;
@@ -551,8 +570,15 @@ function CommissionTab(): React.ReactElement {
 
   return (
     <div className="space-y-4">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+        <p className="font-semibold">Read-only rule outputs, not approved pricing decisions</p>
+        <p className="mt-1 text-amber-900">
+          These cards compare the live tier rate with a simple 90-day heuristic. They do not change System
+          Settings, forecast provider behavior, or replace a documented rate decision and impact review.
+        </p>
+      </div>
       {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load commission data. Please try again.</p> : (data?.length ?? 0) === 0 ? (
-        <p className="text-sm text-slate-500 py-4">No commission optimization suggestions available.</p>
+        <p className="text-sm text-slate-500 py-4">No commission signal data available.</p>
       ) : (
         <div className="grid gap-4">
           {data?.map((s) => {
@@ -567,15 +593,19 @@ function CommissionTab(): React.ReactElement {
                   <div className="text-right">
                     <p className="text-sm text-slate-500">Current: <strong>{(s.currentRate * 100).toFixed(0)}%</strong></p>
                     <p className={`text-sm font-medium ${delta < 0 ? 'text-green-600' : delta > 0 ? 'text-red-600' : 'text-slate-500'}`}>
-                      Suggested: <strong>{(s.suggestedRate * 100).toFixed(0)}%</strong>
+                      Rule output: <strong>{(s.suggestedRate * 100).toFixed(0)}%</strong>
                       {delta !== 0 && <span className="ml-1">({delta > 0 ? '+' : ''}{(delta * 100).toFixed(0)}pp)</span>}
                     </p>
                   </div>
                 </div>
                 <div className="flex gap-6 text-xs text-slate-500 mb-2">
                   <span>Avg Quality: <strong className="text-slate-700">{s.avgQualityScore}</strong></span>
-                  <span>Avg Revenue: <strong className="text-slate-700">{formatCurrency(s.avgRevenue)}</strong></span>
+                  <span>Avg 90-day completed value: <strong className="text-slate-700">{formatCurrency(s.avgRevenue)}</strong></span>
                 </div>
+                <p className="mb-2 text-xs text-slate-500">
+                  Sample: {s.providerCount} approved providers, {s.qualitySampleCount} current quality scores,
+                  {' '}{s.averageCompletedBookings.toFixed(1)} average completed bookings.
+                </p>
                 <p className="text-sm text-slate-600 bg-slate-50 p-2 rounded">{s.rationale}</p>
               </div>
             );
@@ -612,7 +642,12 @@ export default function AnalyticsPage(): React.ReactElement {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold">Analytics</h2>
+        <div>
+          <h2 className="text-xl font-bold">Analytics</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Decision support with visible definitions and source limits. Validate the linked case record before action.
+          </p>
+        </div>
       </div>
 
       <div role="tablist" aria-label="Analytics sections" className="flex gap-1 border-b mb-6">

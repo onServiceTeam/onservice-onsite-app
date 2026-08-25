@@ -28,6 +28,8 @@ import type { Response } from 'express';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
+const DPO_REASON = 'Approved DPO assignment for privacy operations.';
+
 const MIGRATION_106 = readFileSync(
   resolve(__dirname, '../migrations/106_dpo_role_e01.sql'),
   'utf8',
@@ -165,14 +167,16 @@ describe('E01 — promoteToDpo writes UPDATE + audit row in single trx', () => {
       rows: [{ id: 'u1', role: 'admin', is_active: true }],
       rowCount: 1,
     });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 }); // advisory lock
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // vacant DPO seat
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 }); // UPDATE
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 }); // INSERT audit
 
-    const out = await promoteToDpo('u1', 'super-1');
+    const out = await promoteToDpo('u1', 'super-1', DPO_REASON);
 
     expect(out).toEqual({ userId: 'u1', previousRole: 'admin', newRole: 'dpo' });
     expect(dbTransactionMock).toHaveBeenCalledTimes(1);
-    expect(dbQueryMock).toHaveBeenCalledTimes(3);
+    expect(dbQueryMock).toHaveBeenCalledTimes(5);
 
     const auditCall = dbQueryMock.mock.calls.find(
       ([sql]) => /INSERT INTO admin_actions/.test(sql as string),
@@ -190,7 +194,7 @@ describe('E01 — promoteToDpo writes UPDATE + audit row in single trx', () => {
       rows: [{ id: 'u1', role: 'dpo', is_active: true }],
       rowCount: 1,
     });
-    const out = await promoteToDpo('u1', 'super-1');
+    const out = await promoteToDpo('u1', 'super-1', DPO_REASON);
     expect(out).toEqual({ userId: 'u1', previousRole: 'dpo', newRole: 'dpo' });
     // Only the SELECT FOR UPDATE — no UPDATE, no audit row.
     expect(dbQueryMock).toHaveBeenCalledTimes(1);
@@ -201,7 +205,7 @@ describe('E01 — promoteToDpo writes UPDATE + audit row in single trx', () => {
       rows: [{ id: 'u1', role: 'super_admin', is_active: true }],
       rowCount: 1,
     });
-    await expect(promoteToDpo('u1', 'super-1')).rejects.toThrow(/Super admins already hold DPO/);
+    await expect(promoteToDpo('u1', 'super-1', DPO_REASON)).rejects.toThrow(/Super admins already hold DPO/);
   });
 
   it('E01 — refuses to promote a deactivated user', async () => {
@@ -209,12 +213,12 @@ describe('E01 — promoteToDpo writes UPDATE + audit row in single trx', () => {
       rows: [{ id: 'u1', role: 'admin', is_active: false }],
       rowCount: 1,
     });
-    await expect(promoteToDpo('u1', 'super-1')).rejects.toThrow(/deactivated/);
+    await expect(promoteToDpo('u1', 'super-1', DPO_REASON)).rejects.toThrow(/deactivated/);
   });
 
   it('E01 — refuses if user not found', async () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    await expect(promoteToDpo('nope', 'super-1')).rejects.toThrow(/not found/);
+    await expect(promoteToDpo('nope', 'super-1', DPO_REASON)).rejects.toThrow(/not found/);
   });
 });
 
@@ -227,7 +231,7 @@ describe('E01 — demoteFromDpo writes UPDATE + audit row in single trx', () => 
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-    const out = await demoteFromDpo('u1', 'super-1');
+    const out = await demoteFromDpo('u1', 'super-1', DPO_REASON);
 
     expect(out).toEqual({ userId: 'u1', previousRole: 'dpo', newRole: 'admin' });
 
@@ -252,7 +256,7 @@ describe('E01 — demoteFromDpo writes UPDATE + audit row in single trx', () => 
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-    const out = await demoteFromDpo('u1', 'super-1', 'customer');
+    const out = await demoteFromDpo('u1', 'super-1', DPO_REASON, 'customer');
     expect(out.newRole).toBe('customer');
   });
 
@@ -261,13 +265,13 @@ describe('E01 — demoteFromDpo writes UPDATE + audit row in single trx', () => 
       rows: [{ id: 'u1', role: 'admin' }],
       rowCount: 1,
     });
-    await expect(demoteFromDpo('u1', 'super-1')).rejects.toThrow(/not currently a DPO/);
+    await expect(demoteFromDpo('u1', 'super-1', DPO_REASON)).rejects.toThrow(/not currently a DPO/);
   });
 
   it('E01 — rejects invalid demoteTo', async () => {
     await expect(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      demoteFromDpo('u1', 'super-1', 'super_admin' as any),
+      demoteFromDpo('u1', 'super-1', DPO_REASON, 'super_admin' as any),
     ).rejects.toThrow(/Invalid demoteTo/);
   });
 });

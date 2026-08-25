@@ -55,6 +55,7 @@ describe('getCommissionOptimizationSuggestions — single GROUP BY query (Phase 
       rows: tiers.map((tier) => ({
         tier,
         provider_count: '12',
+        quality_sample_count: '12',
         avg_quality: '78.5',
         avg_revenue: '350000',
         avg_bookings: '15',
@@ -81,6 +82,7 @@ describe('getCommissionOptimizationSuggestions — single GROUP BY query (Phase 
       rows: [{
         tier: firstTier,
         provider_count: '8',
+        quality_sample_count: '8',
         avg_quality: '70',
         avg_revenue: '100000',
         avg_bookings: '5',
@@ -99,8 +101,8 @@ describe('getCommissionOptimizationSuggestions — single GROUP BY query (Phase 
     for (const s of suggestions) {
       if (s.tier === firstTier) continue;
       expect(s.providerCount).toBe(0);
-      // Sentinel quality 50 -> the "below 60" branch fires; rationale references
-      // increasing rate. Just assert the response shape is preserved.
+      expect(s.qualitySampleCount).toBe(0);
+      expect(s.suggestedRate).toBe(s.currentRate);
       expect(typeof s.rationale).toBe('string');
     }
   });

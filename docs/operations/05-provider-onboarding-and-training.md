@@ -147,8 +147,8 @@ Never do off-the-books extra work for cash. Use the change order.
 Earnings land in the provider's in-app wallet (`available_balance`). To cash out they request a payout:
 - Minimum ₱100 per withdrawal.
 - Methods: GCash, Maya, bank InstaPay, bank PesoNet.
-- One payout at a time, including one held for AML review. Wait for the current one to finish or be rejected before requesting another.
-- Processing target: 3 business days. Admin records a reason for AML clearance where applicable, approval/rejection, and completion; Complete is recorded only after the external transfer was actually sent.
+- One payout at a time, including one on an internal large-payout review hold. Wait for the current one to finish or be rejected before requesting another.
+- Processing target: 3 business days. Admin records a reason for internal-review clearance where applicable, approval/rejection, and completion; Complete is recorded only after the external transfer was actually sent.
 - Large payouts (₱500,000+ by the current setting) get held for an internal compliance review by a senior admin before processing. The hold itself does not mean the provider did anything wrong and does not claim that a legal report was filed or required.
 
 ### 4.9 Ratings, reviews, tiers

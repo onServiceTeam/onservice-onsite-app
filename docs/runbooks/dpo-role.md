@@ -21,24 +21,25 @@ The role is explicitly segregated from super_admin to prevent the same person fr
 
 ## Who can hold the role
 
-- A user (any existing user — staff, contractor, internal counsel) whose `users.role` is set to `'dpo'`.
-- Super_admin can promote and demote at will via the staff routes (audit trail captured).
+- An existing active admin account whose `users.role` is changed to `'dpo'`. Create and verify the internal account before assignment.
+- A super_admin can perform a reasoned assignment or handover through the staff workspace. The server records the actor, reason, old role, and new role.
+- Only one active DPO seat is allowed. Assignment is serialized and fails if the seat is already occupied.
 - A super_admin retains *implicit* DPO authority via the `requireDpoRole` middleware (covers the case where the DPO seat is vacant during handover). For routes that require strict segregation, gate inline on `req.user.role === 'dpo'` rather than `requireDpoRole`.
 
 ## How to assign
 
 1. Sign in to the admin app as super_admin.
-2. Settings → Staff → DPO management.
-3. Search for the user (must already exist in the users table; create the user first via normal staff flow if needed).
-4. Click "Promote to DPO". This calls `POST /staff/dpos/:userId/promote`.
+2. Open **Staff & Roles → DPO Management**.
+3. Search for an existing active admin account by name, email, or phone.
+4. Select the account, enter the appointment authority and handover context, then click **Assign DPO**. This calls `POST /staff/dpos/:userId/promote` with the written reason.
 5. The user is now a DPO. They must enroll TOTP 2FA on next login (forced by the admin login flow).
 
 ## How to revoke
 
-1. Settings → Staff → DPO management.
-2. Click "Demote" next to the DPO row.
-3. Choose the destination role (default: admin). This calls `POST /staff/dpos/:userId/demote`.
-4. The audit row records the change.
+1. Open **Staff & Roles → DPO Management**.
+2. Click **Start handover** next to the current DPO.
+3. Choose the destination account role, enter the appointment-end and replacement context, then confirm. This calls `POST /staff/dpos/:userId/demote` with the written reason.
+4. The DPO seat is vacant until the replacement is assigned. Complete any required NPC registration update outside the app.
 
 ## What changes when a user becomes DPO
 
@@ -66,6 +67,7 @@ Every promote/demote writes an `admin_actions` row:
 - `action_type='staff_role_demoted_from_dpo'` on demotion
 - `details` JSONB carries `{previousRole, newRole}`
 - `admin_id` is the acting super_admin
+- `reason` and `full_notes` preserve the written appointment or handover rationale
 
 Query the trail:
 ```sql
@@ -77,6 +79,7 @@ ORDER BY created_at DESC;
 ## Failure modes
 
 - **DPO seat empty.** `requireDpoRole` still passes super_admin through. Operationally OK, but a violation of segregation; assign a DPO ASAP.
+- **DPO seat already occupied.** A second assignment is refused with 409. Complete the current DPO handover before assigning the replacement.
 - **Tried to promote a super_admin.** Refused with 409. Demote them to admin first if you really want to formally assign DPO.
 - **Tried to promote a deactivated user.** Refused with 409. Reactivate first.
 - **Promoted user already DPO.** Idempotent — no-op, no audit row.

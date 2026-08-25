@@ -53,21 +53,21 @@ describe('Bug 127 — staff.deleteRole soft delete + audit', () => {
     setTxQueryImpl(makeRouter([
       { match: /SELECT id, name, deleted_at FROM admin_roles WHERE id = \$1 FOR UPDATE/, rows: [], rowCount: 0 },
     ]));
-    await expect(deleteRole(ROLE_ID, ADMIN_ID)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(deleteRole(ROLE_ID, ADMIN_ID, 'Role profile is no longer required.')).rejects.toMatchObject({ statusCode: 404 });
   });
 
   it('rejects 404 when role already soft-deleted', async () => {
     setTxQueryImpl(makeRouter([
       { match: /SELECT id, name, deleted_at FROM admin_roles WHERE id = \$1 FOR UPDATE/, rows: [{ id: ROLE_ID, name: 'moderator', deleted_at: new Date() }], rowCount: 1 },
     ]));
-    await expect(deleteRole(ROLE_ID, ADMIN_ID)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(deleteRole(ROLE_ID, ADMIN_ID, 'Role profile is no longer required.')).rejects.toMatchObject({ statusCode: 404 });
   });
 
   it('rejects 403 when archiving super_admin', async () => {
     setTxQueryImpl(makeRouter([
       { match: /SELECT id, name, deleted_at FROM admin_roles WHERE id = \$1 FOR UPDATE/, rows: [{ id: ROLE_ID, name: 'super_admin', deleted_at: null }], rowCount: 1 },
     ]));
-    await expect(deleteRole(ROLE_ID, ADMIN_ID)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(deleteRole(ROLE_ID, ADMIN_ID, 'Role profile is no longer required.')).rejects.toMatchObject({ statusCode: 403 });
   });
 
   it('rejects 409 when role has active staff assigned', async () => {
@@ -75,7 +75,7 @@ describe('Bug 127 — staff.deleteRole soft delete + audit', () => {
       { match: /SELECT id, name, deleted_at FROM admin_roles WHERE id = \$1 FOR UPDATE/, rows: [{ id: ROLE_ID, name: 'moderator', deleted_at: null }], rowCount: 1 },
       { match: /SELECT COUNT\(\*\) AS count FROM admin_staff WHERE role_id/, rows: [{ count: '3' }], rowCount: 1 },
     ]));
-    await expect(deleteRole(ROLE_ID, ADMIN_ID)).rejects.toMatchObject({ statusCode: 409 });
+    await expect(deleteRole(ROLE_ID, ADMIN_ID, 'Role profile is no longer required.')).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it('rolls back when admin_actions INSERT throws (audit-failure scenario)', async () => {
@@ -87,6 +87,6 @@ describe('Bug 127 — staff.deleteRole soft delete + audit', () => {
       { match: /INSERT INTO admin_actions/, throwError: auditErr },
     ]));
 
-    await expect(deleteRole(ROLE_ID, ADMIN_ID, 'reason')).rejects.toThrow(/simulated audit failure/);
+    await expect(deleteRole(ROLE_ID, ADMIN_ID, 'Role profile is no longer required.')).rejects.toThrow(/simulated audit failure/);
   });
 });
