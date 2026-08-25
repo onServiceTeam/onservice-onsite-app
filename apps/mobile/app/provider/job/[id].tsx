@@ -61,7 +61,7 @@ const NEXT_STATUS: Record<string, { status: string; label: string; confirm?: str
   paid: { status: 'provider_en_route', label: 'Start Navigation', confirm: 'Are you heading to the job location?' },
   provider_en_route: { status: 'provider_arrived', label: 'I\'ve Arrived', confirm: 'Confirm you\'ve arrived at the location?' },
   provider_arrived: { status: 'in_progress', label: 'Start Service', confirm: 'Begin the service now?' },
-  in_progress: { status: 'completed_by_provider', label: 'Mark Complete', confirm: 'Mark this job as complete? The customer will be asked to confirm.' },
+  in_progress: { status: 'completed_by_provider', label: 'Review & Complete' },
 };
 
 export default function ProviderJobDetailScreen(): React.ReactElement {
@@ -168,6 +168,11 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
     if (!booking) return;
     const next = NEXT_STATUS[booking.status];
     if (!next) return;
+
+    if (next.status === 'completed_by_provider') {
+      router.push(buildRoute(Routes.PROVIDER.JOB_COMPLETE, { id: booking.id }) as never);
+      return;
+    }
 
     const submitNextStatus = async (): Promise<void> => {
       let location: { latitude: number; longitude: number } | undefined;
@@ -290,10 +295,10 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
       {canSubmitQuote && (
         <Button
           title="Submit Quote"
-          onPress={() => router.push(`/provider/job/${booking.id}/quote`)}
+          onPress={() => router.push(buildRoute(Routes.PROVIDER.QUOTE_BUILDER, { id: booking.id }) as never)}
         />
       )}
-      {nextAction && (
+      {nextAction && booking.status !== 'in_progress' && (
         <Button
           title={isGettingLocation ? 'Getting location...' : statusMutation.isPending ? 'Updating...' : nextAction.label}
           onPress={handleNextStatus}
@@ -305,7 +310,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
         <>
           <Button
             title="Submit Change Order (Parts / Materials)"
-            onPress={() => router.push(`/provider/job/${booking.id}/change-order`)}
+            onPress={() => router.push(buildRoute(Routes.PROVIDER.JOB_CHANGE_ORDER, { id: booking.id }) as never)}
             variant="outline"
           />
           <Text style={styles.changeOrderNote}>
@@ -317,15 +322,22 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
         <>
           <Button
             title="Job Checklist"
-            onPress={() => router.push(`/provider/job/${booking.id}/checklist`)}
+            onPress={() => router.push(buildRoute(Routes.PROVIDER.JOB_CHECKLIST, { id: booking.id }) as never)}
             variant="outline"
           />
           <Button
             title="Upload Before/After Photos"
-            onPress={() => router.push(`/provider/job/${booking.id}/photos`)}
+            onPress={() => router.push(buildRoute(Routes.PROVIDER.JOB_PHOTOS, { id: booking.id }) as never)}
             variant="outline"
           />
         </>
+      )}
+      {nextAction && booking.status === 'in_progress' && (
+        <Button
+          title={nextAction.label}
+          onPress={handleNextStatus}
+          disabled={statusMutation.isPending || cancelMutation.isPending}
+        />
       )}
       {isActiveJob && (
         <Button

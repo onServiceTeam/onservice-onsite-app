@@ -159,18 +159,26 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         />
       }
     >
-      {/* Phase 14 Remediation #5 — Bug 1234 NBI lifecycle banner */}
-      <NbiStatusBanner onTap={() => router.push(Routes.PROVIDER.ACCOUNT_MANAGEMENT)} />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Hello, {user?.firstName ?? 'Provider'}</Text>
-          {profile && (
-            <Badge
-              label={TIER_LABELS[profile.tier] ?? profile.tier}
-              backgroundColor={TIER_COLORS[profile.tier] ?? colors.textTertiary}
-              size="sm"
-            />
-          )}
+          <View
+            accessibilityLabel={`Provider account ${user?.firstName ?? 'Provider'}`}
+            style={styles.providerAvatar}
+          >
+            <Text style={styles.providerAvatarText}>
+              {(user?.firstName ?? 'Provider').charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.headerCopy}>
+            <Text style={styles.greeting}>Hello, {user?.firstName ?? 'Provider'}</Text>
+            {profile && (
+              <Badge
+                label={TIER_LABELS[profile.tier] ?? profile.tier}
+                backgroundColor={TIER_COLORS[profile.tier] ?? colors.textTertiary}
+                size="sm"
+              />
+            )}
+          </View>
         </View>
         <TouchableOpacity
           style={styles.notifButton}
@@ -189,6 +197,9 @@ export default function ProviderDashboardScreen(): React.ReactElement {
         </TouchableOpacity>
       </View>
 
+      {/* Phase 14 Remediation #5 — Bug 1234 NBI lifecycle banner */}
+      <NbiStatusBanner onTap={() => router.push(Routes.PROVIDER.ACCOUNT_MANAGEMENT)} />
+
       {profile && (
         <View style={styles.availabilityCard}>
           <View style={styles.availabilityInfo}>
@@ -205,6 +216,8 @@ export default function ProviderDashboardScreen(): React.ReactElement {
             trackColor={{ false: colors.border, true: colors.secondary }}
             thumbColor={colors.white}
             disabled={availabilityMutation.isPending}
+            accessibilityLabel="Accepting new job requests"
+            accessibilityHint="Turn availability on or off"
           />
         </View>
       )}
@@ -240,8 +253,13 @@ export default function ProviderDashboardScreen(): React.ReactElement {
             style={styles.leadsCard}
             activeOpacity={0.85}
             onPress={() => router.push(Routes.PROVIDER.LEADS)}
+            accessibilityRole="button"
+            accessibilityLabel="Open job requests"
           >
-            <View style={{ flex: 1 }}>
+            <View style={styles.leadsIcon}>
+              <Inbox size={22} color={colors.accent} />
+            </View>
+            <View style={styles.leadsCopy}>
               <Text style={styles.leadsTitle}>Job Requests</Text>
               <Text style={styles.leadsSubtitle}>
                 Browse open custom-quote requests in your area and send a quote.
@@ -275,6 +293,8 @@ export default function ProviderDashboardScreen(): React.ReactElement {
                   style={styles.jobCard}
                   onPress={() => router.push(`/provider/job/${job.id}`)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${job.serviceName ?? job.categoryName ?? 'service'} job`}
                 >
                   <View style={styles.jobCardTop}>
                     <StatusBadge status={job.status} size="sm" />
@@ -295,7 +315,9 @@ export default function ProviderDashboardScreen(): React.ReactElement {
                      job appeared at two different prices). The job detail
                      screen shows the full net-of-commission breakdown. */}
                     <Text style={styles.jobPrice}>{formatPHP(job.servicePrice)}</Text>
-                    <Text style={styles.jobArrow}>›</Text>
+                    <View style={styles.jobViewButton}>
+                      <Text style={styles.jobViewButtonText}>View</Text>
+                    </View>
                   </View>
                 </TouchableOpacity>
               ))
@@ -384,7 +406,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.base,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 },
+  providerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.secondary,
+  },
+  providerAvatarText: { ...typography.h3, color: colors.white, fontWeight: '700' },
+  headerCopy: { alignItems: 'flex-start', gap: 2, flex: 1, minWidth: 0 },
   greeting: { ...typography.h2, color: colors.text },
   notifButton: {
     padding: spacing.sm,
@@ -449,14 +481,26 @@ const styles = StyleSheet.create({
   leadsCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    padding: spacing.base,
     marginBottom: spacing.lg,
   },
-  leadsTitle: { ...typography.h3, color: colors.white },
-  leadsSubtitle: { ...typography.bodySmall, color: '#CBD5E1', marginTop: 2 },
-  leadsArrow: { fontSize: 28, color: colors.white, marginLeft: spacing.sm },
+  leadsIcon: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.warningLight,
+    marginRight: spacing.md,
+  },
+  leadsCopy: { flex: 1, minWidth: 0 },
+  leadsTitle: { ...typography.h3, color: colors.text },
+  leadsSubtitle: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },
+  leadsArrow: { fontSize: 28, color: colors.textTertiary, marginLeft: spacing.sm },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -506,7 +550,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   jobPrice: { ...typography.priceSmall, color: colors.secondary },
-  jobArrow: { fontSize: 22, color: colors.textTertiary },
+  jobViewButton: {
+    minWidth: 96,
+    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.secondary,
+  },
+  jobViewButtonText: { ...typography.button, color: colors.white },
 
   servicesChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   serviceChip: {

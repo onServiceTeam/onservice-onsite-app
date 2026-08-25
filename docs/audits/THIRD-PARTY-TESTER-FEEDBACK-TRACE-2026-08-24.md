@@ -18,6 +18,8 @@ The review covered:
 
 All 10 production rows were still in `new` status at review time. The previous system had no admin queue, owner, decision note, or dismissal state. One submission is clearly stress/junk input. It is useful as abuse-validation evidence but not as product research. The other nine vary in depth and credibility. High NPS values in this small, mixed-quality sample do not override specific reproducible problems.
 
+A read-only production recheck on 2026-08-25 found the same 10 rows, the same 2026-06-16 through 2026-06-30 date range, and no later submissions. All 10 remain `new`. No tester payload, screenshot, contact value, or production row was changed during that check.
+
 ## Screenshot findings
 
 The six files separate into:

@@ -27,6 +27,7 @@ import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Wrench, X } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 function servicePriceLabel(service: ProviderServiceItem): string {
   if (service.pricingType === 'hourly' && service.hourlyRate != null) {
@@ -47,6 +48,7 @@ export default function ManageServicesScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { isPhone } = useResponsive();
 
   const [showAdd, setShowAdd] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -63,7 +65,7 @@ export default function ManageServicesScreen(): React.ReactElement {
     queryKey: ['categories'],
     queryFn: getCategories,
     staleTime: 24 * 60 * 60 * 1000,
-    enabled: showAdd,
+    enabled: showAdd || !isPhone,
   });
   const { isError: categoriesError } = categoriesQuery;
 
@@ -116,6 +118,13 @@ export default function ManageServicesScreen(): React.ReactElement {
   const services = servicesQuery.data ?? [];
   const categories = categoriesQuery.data ?? [];
   const subcategories = subcategoriesQuery.data?.subcategories ?? [];
+  const showAddWorkspace = showAdd || !isPhone;
+
+  const clearAddForm = (): void => {
+    setShowAdd(false);
+    setSelectedCategory(null);
+    setSelectedSubcategory(null);
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -136,58 +145,70 @@ export default function ManageServicesScreen(): React.ReactElement {
             You can add or remove services here. Personal price changes are paused while the platform completes its pricing-policy review, so customers always see the same price they are charged.
           </Text>
         </View>
-        {servicesError && (
-          <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: 12 }}>
-            <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load your services. Pull to refresh.</Text>
-          </View>
-        )}
-        {servicesQuery.isLoading ? (
-          <>
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </>
-        ) : services.length === 0 ? (
-          // BUG-PHASE183-01 — empty state has an embedded "Add Your First
-          // Service" CTA so a provider sees a clear next step.
-          <EmptyState
-            icon={<Wrench size={48} color={colors.textTertiary} />}
-            title="No services added yet"
-            description="Add services you can offer to customers."
-            actionLabel={!showAdd ? 'Add Your First Service' : undefined}
-            onAction={!showAdd ? () => setShowAdd(true) : undefined}
-          />
-        ) : (
-          services.map((svc) => (
-            <View key={svc.id}>
-              <View style={styles.serviceCard}>
-                <View style={styles.serviceInfo}>
-                  <Text style={styles.serviceName}>{svc.subcategoryName}</Text>
-                  <Text style={styles.servicePrice}>{servicePriceLabel(svc)}</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.removeButton}
-                  onPress={() => handleRemove(svc)}
-                  disabled={removeMutation.isPending}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${svc.subcategoryName}`}
-                >
-                  <X size={16} color={colors.error} />
-                </TouchableOpacity>
-              </View>
+        <View
+          accessibilityLabel={!isPhone ? 'Tablet and desktop service management workspace' : undefined}
+          style={[styles.servicesWorkspace, !isPhone && styles.servicesWorkspaceWide]}
+        >
+          <View accessibilityLabel="Services on your profile" style={styles.servicesPanel}>
+            <View style={styles.panelHeading}>
+              <Text style={styles.panelTitle}>Services on your profile</Text>
+              <Text style={styles.serviceCount}>{services.length}</Text>
             </View>
-          ))
-        )}
+            {servicesError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>Failed to load your services. Pull to refresh.</Text>
+              </View>
+            )}
+            {servicesQuery.isLoading ? (
+              <>
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+              </>
+            ) : services.length === 0 ? (
+              // BUG-PHASE183-01 — empty state has an embedded "Add Your First
+              // Service" CTA so a provider sees a clear next step.
+              <EmptyState
+                icon={<Wrench size={48} color={colors.textTertiary} />}
+                title="No services added yet"
+                description="Add services you can offer to customers."
+                actionLabel={isPhone && !showAdd ? 'Add Your First Service' : undefined}
+                onAction={isPhone && !showAdd ? () => setShowAdd(true) : undefined}
+              />
+            ) : (
+              services.map((svc) => (
+                <View key={svc.id}>
+                  <View style={styles.serviceCard}>
+                    <View style={styles.serviceInfo}>
+                      <Text style={styles.serviceName}>{svc.subcategoryName}</Text>
+                      <Text style={styles.servicePrice}>{servicePriceLabel(svc)}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => handleRemove(svc)}
+                      disabled={removeMutation.isPending}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${svc.subcategoryName}`}
+                    >
+                      <X size={16} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            )}
 
-        {!showAdd ? (
-          <Button
-            title="+ Add Service"
-            onPress={() => setShowAdd(true)}
-            variant="outline"
-            style={styles.addButton}
-          />
-        ) : (
-          <View style={styles.addForm}>
+            {!showAddWorkspace && (
+              <Button
+                title="+ Add Service"
+                onPress={() => setShowAdd(true)}
+                variant="outline"
+                style={styles.addButton}
+              />
+            )}
+          </View>
+
+        {showAddWorkspace && (
+          <View style={[styles.addForm, !isPhone && styles.addFormWide]}>
             <Text style={styles.addTitle}>Add a Service</Text>
 
             <Text style={styles.formLabel}>Category</Text>
@@ -249,17 +270,14 @@ export default function ManageServicesScreen(): React.ReactElement {
                 disabled={!selectedSubcategory || addMutation.isPending}
               />
               <Button
-                title="Cancel"
-                onPress={() => {
-                  setShowAdd(false);
-                  setSelectedCategory(null);
-                  setSelectedSubcategory(null);
-                }}
+                title={isPhone ? 'Cancel' : 'Clear selection'}
+                onPress={clearAddForm}
                 variant="ghost"
               />
             </View>
           </View>
         )}
+        </View>
         </View>
       </ScrollView>
     </View>
@@ -282,6 +300,14 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 100 },
   contentColumn: { width: '100%', maxWidth: 920, alignSelf: 'center' },
+  servicesWorkspace: { width: '100%' },
+  servicesWorkspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  servicesPanel: { flex: 1, minWidth: 0 },
+  panelHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
+  panelTitle: { ...typography.h3, color: colors.text },
+  serviceCount: { ...typography.caption, color: colors.primary, backgroundColor: colors.primaryLight, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: borderRadius.full },
+  errorBanner: { backgroundColor: colors.errorLight, padding: spacing.md, borderRadius: borderRadius.lg, marginBottom: spacing.md },
+  errorBannerText: { ...typography.bodySmall, color: colors.error, textAlign: 'center' },
   pricingNotice: {
     backgroundColor: colors.primaryLight,
     borderRadius: borderRadius.lg,
@@ -335,13 +361,13 @@ const styles = StyleSheet.create({
   addButton: { marginTop: spacing.lg },
 
   addForm: {
-    marginTop: spacing.lg,
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.base,
   },
+  addFormWide: { flex: 1, minWidth: 0 },
   addTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
   formLabel: {
     ...typography.bodySmall,

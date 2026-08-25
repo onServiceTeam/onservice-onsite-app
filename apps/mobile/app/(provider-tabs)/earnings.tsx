@@ -40,6 +40,7 @@ import {
 } from '@/components/icons';
 import type { ComponentType } from 'react';
 import { useResponsive } from '@/hooks/useResponsive';
+import { getEarningsSummary } from '@/services/provider-tools.service';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -80,6 +81,12 @@ export default function EarningsScreen(): React.ReactElement {
   const walletQuery = useQuery({
     queryKey: ['wallet'],
     queryFn: getWalletBalance,
+    staleTime: 60 * 1000,
+  });
+
+  const summaryQuery = useQuery({
+    queryKey: ['providerEarningsSummary'],
+    queryFn: getEarningsSummary,
     staleTime: 60 * 1000,
   });
 
@@ -130,15 +137,17 @@ export default function EarningsScreen(): React.ReactElement {
     staleTime: 60 * 1000,
   });
 
-  const isRefreshing = walletQuery.isRefetching || transactionsQuery.isRefetching || trendsQuery.isRefetching;
+  const isRefreshing = walletQuery.isRefetching || summaryQuery.isRefetching || transactionsQuery.isRefetching || trendsQuery.isRefetching;
   const isError = walletQuery.isError || transactionsQuery.isError;
   const onRefresh = useCallback(() => {
     void walletQuery.refetch();
+    void summaryQuery.refetch();
     void transactionsQuery.refetch();
     void trendsQuery.refetch();
-  }, [walletQuery, transactionsQuery, trendsQuery]);
+  }, [walletQuery, summaryQuery, transactionsQuery, trendsQuery]);
 
   const wallet = walletQuery.data;
+  const summary = summaryQuery.data;
   const transactions = transactionsQuery.data ?? [];
   const sevenDayTotals = (trendsQuery.data ?? []).reduce(
     (total, row) => ({
@@ -159,10 +168,10 @@ export default function EarningsScreen(): React.ReactElement {
         <View style={!isPhone ? styles.wideSummary : undefined}>
           <View style={styles.earningsCard}>
             {walletQuery.isLoading ? (
-              <ActivityIndicator size="large" color={colors.white} />
+              <ActivityIndicator size="large" color={colors.primary} />
             ) : (
               <>
-                <Text style={styles.earningsLabel}>Available Balance</Text>
+                <Text style={styles.earningsLabel}>AVAILABLE BALANCE</Text>
                 <Text style={styles.earningsAmount}>
                   {wallet ? formatPHP(wallet.availableBalance) : formatPHP(0)}
                 </Text>
@@ -171,18 +180,31 @@ export default function EarningsScreen(): React.ReactElement {
                     {formatPHP(wallet.pendingBalance)} reserved for a payout in progress
                   </Text>
                 )}
+                <Text style={styles.balanceNote}>Available to request through the manual payout workflow.</Text>
                 <View style={styles.earningsActions}>
                   <TouchableOpacity
                     style={styles.withdrawButton}
                     onPress={() => router.push(Routes.PROVIDER.WITHDRAW)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Withdraw available funds"
                   >
                     <Text style={styles.withdrawText}>Withdraw Funds</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.withdrawButton, { marginTop: spacing.sm }]}
-                    onPress={() => router.push(Routes.PROVIDER.PAYOUTS)}
+                    style={styles.manageAccountsButton}
+                    onPress={() => router.push(Routes.PROVIDER.PAYOUT_SETTINGS)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Manage payout accounts"
                   >
-                    <Text style={styles.withdrawText}>Payout History</Text>
+                    <Text style={styles.manageAccountsText}>Manage Accounts</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.historyButton}
+                    onPress={() => router.push(Routes.PROVIDER.PAYOUTS)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open payout history"
+                  >
+                    <Text style={styles.historyText}>View payout history</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -191,17 +213,24 @@ export default function EarningsScreen(): React.ReactElement {
 
           <View style={styles.infoRow}>
             <View style={styles.infoCard}>
-              <Coins size={22} color={colors.primary} style={styles.infoIconImg} />
-              <Text style={styles.infoLabel}>Min Withdrawal</Text>
+              <Lock size={22} color={colors.accent} style={styles.infoIconImg} />
+              <Text style={styles.infoLabel}>Pending job earnings</Text>
               <Text style={styles.infoValue}>
-                {formatPHP(platformConfig.minimumWithdrawalAmount)}
+                {summaryQuery.isError ? 'Unavailable' : formatPHP(summary?.pendingEscrow ?? 0)}
               </Text>
             </View>
             <View style={styles.infoCard}>
               <BarChart3 size={22} color={colors.primary} style={styles.infoIconImg} />
-              <Text style={styles.infoLabel}>7-day net</Text>
+              <Text style={styles.infoLabel}>This month</Text>
               <Text style={styles.infoValue}>
-                {trendsQuery.isError ? 'Unavailable' : formatPHP(sevenDayTotals.net)}
+                {summaryQuery.isError ? 'Unavailable' : formatPHP(summary?.earnedThisMonth ?? 0)}
+              </Text>
+            </View>
+            <View style={styles.infoCard}>
+              <Coins size={22} color={colors.primary} style={styles.infoIconImg} />
+              <Text style={styles.infoLabel}>Minimum withdrawal</Text>
+              <Text style={styles.infoValue}>
+                {formatPHP(platformConfig.minimumWithdrawalAmount)}
               </Text>
             </View>
           </View>
@@ -267,8 +296,8 @@ export default function EarningsScreen(): React.ReactElement {
 
   const renderTransaction = ({ item }: { item: Transaction }): React.ReactElement => {
     const Icon = TRANSACTION_ICONS[item.type] ?? FALLBACK_ICON;
-    return (
-      <View style={styles.txRow}>
+    const content = (
+      <>
         <View style={styles.txIconWrap}>
           <Icon size={20} color={colors.primary} />
         </View>
@@ -282,8 +311,21 @@ export default function EarningsScreen(): React.ReactElement {
           {item.amount >= 0 ? '+' : ''}
           {formatPHP(Math.abs(item.amount))}
         </Text>
-      </View>
+      </>
     );
+    if (item.bookingId) {
+      return (
+        <TouchableOpacity
+          style={styles.txRow}
+          onPress={() => router.push(`/provider/job/${item.bookingId}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`Open job for ${item.description}`}
+        >
+          {content}
+        </TouchableOpacity>
+      );
+    }
+    return <View style={styles.txRow}>{content}</View>;
   };
 
   return (
@@ -352,27 +394,46 @@ const styles = StyleSheet.create({
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.lg },
 
   earningsCard: {
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: borderRadius.xl,
     padding: spacing.xl,
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
-  earningsLabel: { ...typography.body, color: 'rgba(255,255,255,0.7)', marginBottom: spacing.sm },
-  earningsAmount: { fontSize: 36, fontWeight: '800', color: colors.white, lineHeight: 44 },
-  pendingText: { ...typography.bodySmall, color: 'rgba(255,255,255,0.6)', marginTop: spacing.sm },
-  earningsActions: { marginTop: spacing.lg },
+  earningsLabel: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '700', letterSpacing: 0.6, marginBottom: spacing.sm },
+  earningsAmount: { fontSize: 36, fontWeight: '800', color: colors.text, lineHeight: 44 },
+  pendingText: { ...typography.bodySmall, color: colors.warning, marginTop: spacing.sm, textAlign: 'center' },
+  balanceNote: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.sm, textAlign: 'center' },
+  earningsActions: { marginTop: spacing.lg, width: '100%' },
   withdrawButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: colors.secondary,
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: borderRadius.full,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.md,
   },
   withdrawText: { ...typography.button, color: colors.white },
+  manageAccountsButton: {
+    minHeight: 44,
+    marginTop: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.textTertiary,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+  },
+  manageAccountsText: { ...typography.button, color: colors.text },
+  historyButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xs },
+  historyText: { ...typography.bodySmall, color: colors.secondary, fontWeight: '700' },
 
-  infoRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+  infoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg },
   infoCard: {
     flex: 1,
+    minWidth: 150,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,

@@ -296,7 +296,12 @@ export function WebAppFrame({ children }: { children: React.ReactNode }): React.
     if (getForcedView() === 'mobile') {
       return (
         <View style={styles.backdrop}>
-          <View style={[styles.column, { maxWidth: PHONE_COLUMN_MAX_WIDTH }]}>{children}</View>
+          <View
+            accessibilityLabel="Forced phone preview surface"
+            style={StyleSheet.flatten([styles.column, { maxWidth: PHONE_COLUMN_MAX_WIDTH }])}
+          >
+            {children}
+          </View>
         </View>
       );
     }
@@ -314,7 +319,10 @@ export function WebAppFrame({ children }: { children: React.ReactNode }): React.
     const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Account';
     return (
       <View style={styles.surfaceBackdrop}>
-        <View style={[styles.desktopShell, { maxWidth: DESKTOP_SHELL_MAX_WIDTH }]}>
+        <View
+          accessibilityLabel="Desktop app workspace"
+          style={StyleSheet.flatten([styles.desktopShell, { maxWidth: DESKTOP_SHELL_MAX_WIDTH }])}
+        >
           <DesktopNavigation role={user.role} pathname={pathname} displayName={displayName} />
           <View style={styles.desktopContent}>{children}</View>
         </View>
@@ -325,7 +333,12 @@ export function WebAppFrame({ children }: { children: React.ReactNode }): React.
   // Tablet / compact desktop: a centered app surface sized to the breakpoint.
   return (
     <View style={styles.surfaceBackdrop}>
-      <View style={[styles.column, { maxWidth: layout.width }]}>{children}</View>
+      <View
+        accessibilityLabel="Tablet app surface"
+        style={StyleSheet.flatten([styles.column, { maxWidth: layout.width }])}
+      >
+        {children}
+      </View>
     </View>
   );
 }
@@ -335,12 +348,12 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: '#0f1b24',
+    backgroundColor: colors.text,
   },
   surfaceBackdrop: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: '#E7EBF5',
+    backgroundColor: colors.backgroundSecondary,
   },
   column: {
     flex: 1,
@@ -348,10 +361,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     position: 'relative',
     overflow: 'hidden',
-    ...Platform.select({
-      web: { boxShadow: '0 0 32px rgba(5, 26, 62, 0.16)' },
-      default: {},
-    }),
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   desktopShell: {
     flex: 1,
@@ -359,10 +371,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.background,
     overflow: 'hidden',
-    ...Platform.select({
-      web: { boxShadow: '0 0 32px rgba(5, 26, 62, 0.16)' },
-      default: {},
-    }),
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   desktopContent: {
     flex: 1,

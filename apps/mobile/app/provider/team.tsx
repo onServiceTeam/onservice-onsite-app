@@ -12,11 +12,15 @@ import {
 } from '@/services/provider-staff.service';
 import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft, Plus, Trash2, Star, Phone, Mail, Users } from '@/components/icons';
+import { ChevronLeft, Plus, Trash2, Star, Phone, Mail, Users, ClipboardList } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { useResponsive } from '@/hooks/useResponsive';
+import { getProviderBookings } from '@/services/provider-api.service';
+import type { Booking } from '@/services/booking.service';
+import { formatRelative } from '@/utils/date';
+import { Routes } from '@/config/navigation';
 
 const PH_MOBILE_E164 = /^\+639\d{9}$/;
 const BASIC_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -62,6 +66,15 @@ export default function ProviderTeamScreen(): React.ReactElement {
   const { data: staff, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['providerStaff'],
     queryFn: getMyStaff,
+    staleTime: 30 * 1000,
+  });
+
+  const members = (staff ?? []).filter((m) => m.status !== 'deactivated');
+  const hasAssignableMember = members.some((member) => member.isAssignable);
+  const assignmentsQuery = useQuery({
+    queryKey: ['providerJobs', 'active', 'team-assignments'],
+    queryFn: () => getProviderBookings('active', 1, 50),
+    enabled: hasAssignableMember,
     staleTime: 30 * 1000,
   });
 
@@ -117,7 +130,14 @@ export default function ProviderTeamScreen(): React.ReactElement {
     });
   }
 
-  const members = (staff ?? []).filter((m) => m.status !== 'deactivated');
+  const activeAssignments = (assignmentsQuery.data?.bookings ?? []).filter(
+    (booking) => booking.performerStaffId,
+  );
+  const memberById = new Map(members.map((member) => [member.id, member]));
+
+  function assignmentMember(booking: Booking): ProviderStaffMember | undefined {
+    return booking.performerStaffId ? memberById.get(booking.performerStaffId) : undefined;
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -132,7 +152,7 @@ export default function ProviderTeamScreen(): React.ReactElement {
       <ScrollView
         style={styles.body}
         contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={colors.primary} colors={[colors.primary]} />}
+        refreshControl={<RefreshControl refreshing={isRefetching || assignmentsQuery.isRefetching} onRefresh={() => { void refetch(); if (hasAssignableMember) void assignmentsQuery.refetch(); }} tintColor={colors.primary} colors={[colors.primary]} />}
       >
         <Text style={styles.intro}>
           Add the people who work with you. onService reviews each one before they can be
@@ -188,6 +208,8 @@ export default function ProviderTeamScreen(): React.ReactElement {
             onPress={submitInvite}
             disabled={invite.isPending}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Send team invitation"
           >
             {invite.isPending ? (
               <ActivityIndicator size="small" color={colors.white} />
@@ -260,6 +282,8 @@ export default function ProviderTeamScreen(): React.ReactElement {
                   style={styles.submitBtn}
                   disabled={submit.isPending}
                   activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Submit ${m.userName || m.roleTitle || 'team member'} for review`}
                 >
                   <Text style={styles.submitBtnText}>Submit for review</Text>
                 </TouchableOpacity>
@@ -269,12 +293,66 @@ export default function ProviderTeamScreen(): React.ReactElement {
                 style={styles.removeBtn}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 disabled={remove.isPending}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${m.userName || m.roleTitle || 'team member'}`}
               >
                 <Trash2 size={18} color={colors.error} />
               </TouchableOpacity>
             </View>
           </View>
         ))}
+
+        <View style={styles.assignmentsHeader}>
+          <View style={styles.assignmentsHeaderCopy}>
+            <Text style={styles.sectionLabel}>Active assignments</Text>
+            <Text style={styles.assignmentHint}>Assign approved team members from each job record.</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.openJobsButton}
+            onPress={() => router.push(Routes.PROVIDER_TABS.JOBS)}
+            accessibilityRole="button"
+            accessibilityLabel="Open provider jobs to manage assignments"
+          >
+            <Text style={styles.openJobsText}>Open Jobs</Text>
+          </TouchableOpacity>
+        </View>
+
+        {hasAssignableMember && assignmentsQuery.isLoading ? (
+          <SkeletonCard />
+        ) : assignmentsQuery.isError ? (
+          <ErrorState
+            compact
+            message="We couldn't load active team assignments."
+            onRetry={() => void assignmentsQuery.refetch()}
+          />
+        ) : activeAssignments.length === 0 ? (
+          <View style={styles.assignmentEmpty}>
+            <ClipboardList size={32} color={colors.textTertiary} />
+            <Text style={styles.assignmentEmptyTitle}>No active team assignments</Text>
+            <Text style={styles.assignmentEmptyText}>Jobs performed by you remain in Jobs and are not listed here.</Text>
+          </View>
+        ) : (
+          activeAssignments.map((booking) => {
+            const member = assignmentMember(booking);
+            return (
+              <TouchableOpacity
+                key={booking.id}
+                style={styles.assignmentCard}
+                onPress={() => router.push(`/provider/job/${booking.id}`)}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${booking.serviceName ?? booking.categoryName ?? 'service'} assignment`}
+              >
+                <View style={styles.assignmentTopRow}>
+                  <Text style={styles.assignmentService}>{booking.serviceName ?? booking.categoryName ?? 'Service job'}</Text>
+                  <Text style={styles.assignmentTime}>{formatRelative(booking.scheduledAt)}</Text>
+                </View>
+                <Text style={styles.assignmentMember}>Assigned to {member?.userName || member?.roleTitle || 'approved team member'}</Text>
+                <Text style={styles.assignmentAddress} numberOfLines={2}>{[booking.address, booking.barangay, booking.city].filter(Boolean).join(', ')}</Text>
+                <Text style={styles.assignmentView}>View job details</Text>
+              </TouchableOpacity>
+            );
+          })
+        )}
         </View>
         </View>
       </ScrollView>
@@ -349,4 +427,49 @@ const styles = StyleSheet.create({
   },
   submitBtnText: { ...typography.caption, color: colors.primary, fontWeight: '700' },
   removeBtn: { padding: spacing.xs },
+  assignmentsHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  assignmentsHeaderCopy: { flex: 1, minWidth: 0 },
+  assignmentHint: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  openJobsButton: {
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+  },
+  openJobsText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
+  assignmentEmpty: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+  },
+  assignmentEmptyTitle: { ...typography.body, color: colors.text, fontWeight: '600', marginTop: spacing.sm },
+  assignmentEmptyText: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xs },
+  assignmentCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.sm,
+  },
+  assignmentTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm },
+  assignmentService: { ...typography.body, color: colors.text, fontWeight: '700', flex: 1 },
+  assignmentTime: { ...typography.caption, color: colors.warning },
+  assignmentMember: { ...typography.bodySmall, color: colors.primary, fontWeight: '600', marginTop: spacing.sm },
+  assignmentAddress: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
+  assignmentView: { ...typography.bodySmall, color: colors.secondary, fontWeight: '700', marginTop: spacing.md },
 });

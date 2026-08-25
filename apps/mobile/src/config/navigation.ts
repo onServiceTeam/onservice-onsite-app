@@ -114,6 +114,9 @@ export const Routes = {
     // D27 Phase 1 — open custom-quote requests (leads) the provider can quote.
     LEADS: '/provider/leads',
     JOB_COMPLETE: '/provider/job/[id]/complete',
+    JOB_CHECKLIST: '/provider/job/[id]/checklist',
+    JOB_PHOTOS: '/provider/job/[id]/photos',
+    JOB_CHANGE_ORDER: '/provider/job/[id]/change-order',
     QUOTE_BUILDER: '/provider/job/[id]/quote',
     // BUG-PHASE82-01 fix — pre-fix the path was '/provider/job/[id]/active'
     // but the actual file is /provider/job/active.tsx (a literal route,

@@ -8,6 +8,7 @@ import { getCategories, type Category } from '@/services/catalog.service';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 import { Input, Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
+import { useResponsive } from '@/hooks/useResponsive';
 import type { ComponentType } from 'react';
 import { Sparkles, Wrench, Zap, Paintbrush2, Snowflake, Bug, Package, Hammer, Plug, AlertTriangle, Check } from '@/components/icons';
 
@@ -24,9 +25,11 @@ const CATEGORY_ICONS: Record<string, IconComponent> = {
 
 export default function CategoriesScreen(): React.ReactElement {
   const router = useRouter();
+  const { isPhone, isTablet } = useResponsive();
   const { businessName, categoryIds, setBusinessName, setCategories } = useOnboardingStore();
   const [selected, setSelected] = useState<Set<string>>(new Set(categoryIds));
   const [name, setName] = useState(businessName);
+  const categoryColumns = isPhone ? 2 : isTablet ? 3 : 4;
 
   const { data: categories = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['categories'],
@@ -64,9 +67,16 @@ export default function CategoriesScreen(): React.ReactElement {
     const tint = getCategoryTint(item.slug);
     return (
       <TouchableOpacity
-        style={[styles.catItem, isSelected && styles.catItemSelected]}
+        style={[
+          styles.catItem,
+          isPhone ? styles.catItemPhone : isTablet ? styles.catItemTablet : styles.catItemDesktop,
+          isSelected && styles.catItemSelected,
+        ]}
         onPress={() => toggleCategory(item.id)}
         activeOpacity={0.7}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: isSelected }}
+        accessibilityLabel={`${item.name} service category`}
       >
         <View style={[styles.catIconWrap, { backgroundColor: tint.bg }]}><Icon size={28} color={isSelected ? colors.primary : tint.fg} /></View>
         <Text style={[styles.catLabel, isSelected && styles.catLabelSelected]} numberOfLines={2}>
@@ -94,51 +104,62 @@ export default function CategoriesScreen(): React.ReactElement {
         <Text style={styles.step}>1 / 6</Text>
       </View>
 
-      <Text style={styles.title}>Your Services</Text>
-      <Text style={styles.subtitle}>Enter your business name and select the services you offer.</Text>
+      <View
+        accessibilityLabel={!isPhone ? 'Tablet and desktop provider category selection workspace' : undefined}
+        style={[styles.contentColumn, !isPhone && styles.wideContentColumn]}
+      >
+        <Text style={styles.title}>Your Services</Text>
+        <Text style={styles.subtitle}>Enter your business name and select the services you offer.</Text>
 
-      {/* BUG-PHASE149-01 fix — pre-fix businessName input had no
-          maxLength. Server's providerApplicationSchema caps at
-          max(200) (provider.validators.ts:24). */}
-      <View style={styles.nameInput}>
-        <Input
-          label="Business / Professional Name"
-          placeholder="e.g. Juan's Plumbing"
-          value={name}
-          onChangeText={setName}
-          autoCapitalize="words"
-          maxLength={200}
-        />
-      </View>
-
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        {/* BUG-PHASE149-01 fix — pre-fix businessName input had no
+            maxLength. Server's providerApplicationSchema caps at
+            max(200) (provider.validators.ts:24). */}
+        <View style={styles.nameInput}>
+          <Input
+            label="Business / Professional Name"
+            placeholder="e.g. Juan's Plumbing"
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+            maxLength={200}
+          />
         </View>
-      ) : isError ? (
-        <View style={styles.loadingContainer}>
-          <View style={{ marginBottom: 12, alignItems: 'center' }}><AlertTriangle size={48} color={colors.error} /></View>
-          <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Something went wrong</Text>
-          <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 16 }}>Failed to load categories. Please try again.</Text>
-          <TouchableOpacity onPress={() => void refetch()} style={{ backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: borderRadius.md }}>
-            <Text style={{ color: colors.white, fontWeight: '600' }}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={categories}
-          renderItem={renderCategory}
-          keyExtractor={(item) => item.id}
-          numColumns={3}
-          columnWrapperStyle={styles.catRow}
-          contentContainerStyle={styles.catList}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
 
-      <View style={styles.footer}>
-        <Text style={styles.selectedCount}>{selected.size} selected</Text>
-        <Button title="Next" onPress={handleNext} disabled={selected.size === 0 || name.trim().length < 2} />
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : isError ? (
+          <View style={styles.loadingContainer}>
+            <View style={styles.errorIcon}><AlertTriangle size={48} color={colors.error} /></View>
+            <Text style={styles.errorTitle}>Something went wrong</Text>
+            <Text style={styles.errorText}>Failed to load categories. Please try again.</Text>
+            <TouchableOpacity onPress={() => void refetch()} style={styles.retryButton}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View
+            accessibilityLabel={`${categoryColumns}-column service category grid`}
+            style={styles.categoryGrid}
+          >
+            <FlatList
+              key={`category-grid-${categoryColumns}`}
+              data={categories}
+              renderItem={renderCategory}
+              keyExtractor={(item) => item.id}
+              numColumns={categoryColumns}
+              columnWrapperStyle={styles.catRow}
+              contentContainerStyle={styles.catList}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        )}
+
+        <View style={styles.footer}>
+          <Text style={styles.selectedCount}>{selected.size} selected</Text>
+          <Button title="Next" onPress={handleNext} disabled={selected.size === 0 || name.trim().length < 2} />
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -146,6 +167,8 @@ export default function CategoriesScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
+  contentColumn: { flex: 1, width: '100%', alignSelf: 'center' },
+  wideContentColumn: { maxWidth: 960 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -167,10 +190,18 @@ const styles = StyleSheet.create({
   },
   nameInput: { paddingHorizontal: spacing.base, marginBottom: spacing.sm },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorIcon: { marginBottom: spacing.md, alignItems: 'center' },
+  errorTitle: { ...typography.body, color: colors.text, fontWeight: '600', marginBottom: spacing.sm },
+  errorText: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.base },
+  retryButton: { backgroundColor: colors.primary, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: borderRadius.md, minHeight: 44, justifyContent: 'center' },
+  retryText: { ...typography.button, color: colors.white },
+  categoryGrid: { flex: 1 },
   catList: { paddingHorizontal: spacing.base, paddingBottom: spacing.base },
   catRow: { gap: spacing.sm, marginBottom: spacing.sm },
   catItem: {
-    flex: 1,
+    flexGrow: 0,
+    minWidth: 0,
+    minHeight: 112,
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
@@ -180,6 +211,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     position: 'relative' as const,
   },
+  catItemPhone: { width: '48.5%' },
+  catItemTablet: { width: '32%' },
+  catItemDesktop: { width: '24%' },
   catItemSelected: {
     borderWidth: 2,
     borderColor: colors.primary,
