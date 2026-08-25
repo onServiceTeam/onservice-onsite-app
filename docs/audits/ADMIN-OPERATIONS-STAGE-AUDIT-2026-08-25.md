@@ -113,4 +113,16 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 - Admin and API TypeScript passed. Admin lint passed. Both production builds passed; admin transformed 2,839 modules.
 - Gate A, Gate C, and all six gate self-tests passed. Gate D and Gate E correctly reported their configured observational mode.
 - `git diff --check` passed.
-- GitHub CI, production backup, deployment, live nginx validation, health, exact artifact hashes, and post-deploy browser evidence remain required and are not claimed by this local checkpoint.
+- GitHub CI, production backup, deployment, live nginx validation, health, exact artifact hashes, and post-deploy browser evidence were subsequently completed as recorded below.
+
+## W2 GitHub and production evidence
+
+- GitHub revision `18eb063be40072a125ca31524a4f73c7c18aaedf` passed CI run `32851713070` and Gates run `32851713166`. API TypeScript/tests, mobile TypeScript/full tests, admin TypeScript/build/full tests, API image build/boot, Gate A, Gate C, the gate self-tests, and the all-gates summary were green.
+- The shared server aliases `/opt/onservice` and `/opt/onservice-onsite-app` resolved to the same exact onService repository. It was clean at W1, fast-forwarded only to `18eb063be40072a125ca31524a4f73c7c18aaedf`, and remained clean after deployment.
+- Pre-deploy backups were `onservice-20260825-091543.sql.gz` (148K), the matching uploads archive (4.3M), config archive (28K), Git bundle (29M), and `frontends-before-admin-w2-cc15c61-20260825-091543.tgz` (1.8M).
+- Only the onService API image and admin web artifact changed. No database migration, seed, mobile artifact change, Postgres/Redis/pgBouncer recreation, or shared-nginx recreation occurred. The built API image was `sha256:d1389471b726c00d17700fd52ad3075ca9f8a3ef9902db94b0f6e7f4be737359`.
+- Admin entry `index-BeOYcOta.js`, CSS `index-CRABuTuJ.css`, Support `SupportTicketsPage-D9utzU8n.js`, Feedback `FeedbackPage-DptCq5O4.js`, and Communications `CommunicationsPage-BVdGdloJ.js` matched local SHA-256 values exactly. The public login returned 200 and referenced the new entry.
+- API readiness returned 200 inside the container with Postgres and Redis `ok`; the API container reached healthy. `nginx -t` passed. All 25 shared containers were running with zero unhealthy or exited containers. The uploads volume remained read/write in API and read-only in nginx.
+- The public API hostname retained its expected edge-level 403 behavior for direct config and protected support-summary requests. The protected response contained only the generic nginx rejection page.
+- The read-only feedback recheck remained 10 submissions, 5 issue items, all `new`, and 0 assigned. No production feedback content or personal data was printed or changed.
+- Clean browser geometry/DOM checks at 390×844, 1024×768, and 1440×900 showed no horizontal overflow. Phone showed only the single-column authentication workspace; tablet split 435/589 pixels; desktop split 612/828 pixels. All three had zero captured console warnings or errors, confirming that Bug UX-415 removed W1's first-visit authentication noise. The browser screenshot capture API failed, so no new image artifact is claimed for this evidence.
