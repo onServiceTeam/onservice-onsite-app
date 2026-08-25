@@ -296,11 +296,17 @@ router.get(
       const page = Number(req.query.page) || 1;
       const pageSize = Math.min(Number(req.query.pageSize) || 20, 100);
       const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+      const sort = typeof req.query.sort === 'string'
+        && ['newest', 'oldest', 'highest_pay'].includes(req.query.sort)
+        ? req.query.sort as 'newest' | 'oldest' | 'highest_pay'
+        : undefined;
+      const parsedPeriodDays = Number(req.query.periodDays);
+      const periodDays = ([7, 30, 90] as const).find((days) => days === parsedPeriodDays);
 
       const result = await bookingService.listBookings(
         req.user!.userId,
         req.user!.role,
-        { page, pageSize, status },
+        { page, pageSize, status, sort, periodDays },
       );
 
       res.json({

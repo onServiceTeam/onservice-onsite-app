@@ -509,9 +509,15 @@ export async function getBookingByIdAdmin(bookingId: string): Promise<BookingRow
 export async function listBookings(
   userId: string,
   role: string,
-  filters: { page: number; pageSize: number; status?: string },
+  filters: {
+    page: number;
+    pageSize: number;
+    status?: string;
+    sort?: 'newest' | 'oldest' | 'highest_pay';
+    periodDays?: 7 | 30 | 90;
+  },
 ): Promise<{ bookings: BookingRow[]; total: number; page: number; pageSize: number }> {
-  const { page, pageSize, status } = filters;
+  const { page, pageSize, status, sort, periodDays } = filters;
   const offset = (page - 1) * pageSize;
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -523,13 +529,18 @@ export async function listBookings(
   } else if (role === 'provider') {
     conditions.push(`p.user_id = $${paramIdx++}`);
     params.push(userId);
+  } else {
+    // This participant endpoint is deliberately not an admin or staff listing.
+    // Both roles have separately scoped routes. Falling through with no owner
+    // predicate would expose every booking to any authenticated unsupported role.
+    throw createAppError('This booking list is available only to customers and providers.', 403);
   }
 
   const ACTIVE_STATUSES = [
     'requested', 'quoted', 'matched', 'payment_pending', 'paid',
-    'provider_en_route', 'provider_arrived', 'in_progress', 'completed_by_provider',
+    'provider_en_route', 'provider_arrived', 'in_progress', 'completed_by_provider', 'disputed',
   ];
-  const COMPLETED_STATUSES = ['confirmed', 'payout_ready', 'paid_out'];
+  const COMPLETED_STATUSES = ['confirmed', 'resolved', 'payout_ready', 'paid_out'];
   const CANCELLED_STATUSES = ['cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin'];
 
   if (status === 'active') {
@@ -552,7 +563,19 @@ export async function listBookings(
     params.push(status);
   }
 
+  if (periodDays) {
+    conditions.push(`b.scheduled_at >= NOW() - ($${paramIdx++}::int * INTERVAL '1 day')`);
+    params.push(periodDays);
+  }
+
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const orderBy = sort === 'oldest'
+    ? 'b.scheduled_at ASC, b.created_at ASC'
+    : sort === 'highest_pay'
+      ? 'b.service_price DESC, b.created_at DESC'
+      : sort === 'newest'
+        ? 'b.scheduled_at DESC, b.created_at DESC'
+        : 'b.created_at DESC';
 
   const countResult = await db.query<CountRow>(
     `SELECT COUNT(*)::text as count FROM bookings b
@@ -582,7 +605,7 @@ export async function listBookings(
      LEFT JOIN service_categories c ON b.category_id = c.id
      LEFT JOIN service_subcategories sc ON b.subcategory_id = sc.id
      ${whereClause}
-     ORDER BY b.created_at DESC
+     ORDER BY ${orderBy}
      LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
     dataParams,
   );

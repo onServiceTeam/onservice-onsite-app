@@ -8,9 +8,9 @@
  *   - Delete my account   (request_type='erasure', requires typed "DELETE")
  *
  * Submission writes a data_subject_requests row server-side; the API computes
- * the 15-day SLA. The UI shows the most recent submission's confirmation
- * locally (a customer-side "list my requests" endpoint is deferred — see
- * LAUNCH-LIMITATIONS.md). Form inputs include accessibility labels.
+ * the 15-day SLA. The customer can review prior requests through the scoped
+ * /api/v1/compliance/my-requests endpoint. Form inputs include accessibility
+ * labels.
  */
 
 // LAUNCH-LIMITATIONS #3 fix — wired to the new
@@ -35,6 +35,7 @@ import {
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Shield, FileText, AlertTriangle, CheckCircle2, ChevronLeft } from '@/components/icons';
 import { getErrorMessage } from '@/utils/errors';
+import { useResponsive } from '@/hooks/useResponsive';
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
 
@@ -90,6 +91,7 @@ interface SubmissionResult {
 
 export default function DataRightsScreen(): React.ReactElement {
   const router = useRouter();
+  const { isPhone } = useResponsive();
   const [activeFlow, setActiveFlow] = useState<FlowKey | null>(null);
   const [message, setMessage] = useState('');
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -276,21 +278,25 @@ export default function DataRightsScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backBtn}
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-        >
-          <ChevronLeft size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Data Rights</Text>
-        <View style={styles.placeholder} />
+        <View style={[styles.headerInner, !isPhone && styles.headerInnerWide]}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+          >
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.headerTitle}>Data Rights</Text>
+            <Text style={styles.headerSubtitle}>Requests and privacy acknowledgements</Text>
+          </View>
+        </View>
       </View>
 
       <ScrollView
         style={styles.body}
-        contentContainerStyle={styles.bodyContent}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
         refreshControl={
           <RefreshControl
             refreshing={myRequestsQuery.isRefetching}
@@ -310,9 +316,17 @@ export default function DataRightsScreen(): React.ReactElement {
           </Text>
         </View>
 
-        {lastResult ? renderConfirmation(lastResult) : null}
+        {lastResult ? (
+          <View style={!isPhone ? styles.focusedPanelWide : undefined}>
+            {renderConfirmation(lastResult)}
+          </View>
+        ) : null}
 
-        {!lastResult && activeFlow ? renderFlow(FLOWS.find((f) => f.key === activeFlow)!) : null}
+        {!lastResult && activeFlow ? (
+          <View style={!isPhone ? styles.focusedPanelWide : undefined}>
+            {renderFlow(FLOWS.find((f) => f.key === activeFlow)!)}
+          </View>
+        ) : null}
 
         {/* LAUNCH-LIMITATIONS #5 fix — pending material re-consents.
             Surfaced above the action cards so the user sees them on
@@ -357,40 +371,47 @@ export default function DataRightsScreen(): React.ReactElement {
         )}
 
         {!lastResult && !activeFlow && (
-          <View>
-            {FLOWS.map((flow) => (
-              <TouchableOpacity
-                key={flow.key}
-                style={styles.optionCard}
-                onPress={() => openFlow(flow.key)}
-                accessibilityLabel={flow.title}
-                accessibilityHint={flow.shortDescription}
-                accessibilityRole="button"
-              >
-                <View style={styles.optionIcon}>
-                  {flow.key === 'erasure' ? (
-                    <AlertTriangle size={22} color={colors.error} />
-                  ) : (
-                    <FileText size={22} color={colors.primary} />
-                  )}
-                </View>
-                <View style={styles.optionBody}>
-                  <Text style={[
-                    styles.optionTitle,
-                    flow.key === 'erasure' ? { color: colors.error } : null,
-                  ]}>{flow.title}</Text>
-                  <Text style={styles.optionDescription}>{flow.shortDescription}</Text>
-                </View>
-                <Text style={styles.optionChevron}>›</Text>
-              </TouchableOpacity>
-            ))}
-            <Text style={styles.footerNote}>
-              For questions about your data rights, contact our Data Protection Officer at
-              dpo@onservice.ph.
-            </Text>
+          <View
+            style={!isPhone ? styles.desktopWorkspace : undefined}
+            accessibilityLabel={!isPhone ? 'Tablet and desktop data rights workspace' : undefined}
+          >
+            <View style={!isPhone ? styles.actionPanel : undefined}>
+              <Text style={styles.panelEyebrow}>MAKE A REQUEST</Text>
+              <Text style={styles.panelTitle}>Choose what you need</Text>
+              {FLOWS.map((flow) => (
+                <TouchableOpacity
+                  key={flow.key}
+                  style={styles.optionCard}
+                  onPress={() => openFlow(flow.key)}
+                  accessibilityLabel={flow.title}
+                  accessibilityHint={flow.shortDescription}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.optionIcon}>
+                    {flow.key === 'erasure' ? (
+                      <AlertTriangle size={22} color={colors.error} />
+                    ) : (
+                      <FileText size={22} color={colors.primary} />
+                    )}
+                  </View>
+                  <View style={styles.optionBody}>
+                    <Text style={[
+                      styles.optionTitle,
+                      flow.key === 'erasure' ? { color: colors.error } : null,
+                    ]}>{flow.title}</Text>
+                    <Text style={styles.optionDescription}>{flow.shortDescription}</Text>
+                  </View>
+                  <Text style={styles.optionChevron}>›</Text>
+                </TouchableOpacity>
+              ))}
+              <Text style={styles.footerNote}>
+                For questions about your data rights, contact our Data Protection Officer at
+                dpo@onservice.ph.
+              </Text>
+            </View>
 
             {/* LAUNCH-LIMITATIONS #3 fix — past DSR history. */}
-            <View style={styles.historySection}>
+            <View style={[styles.historySection, !isPhone && styles.historyPanel]}>
               <Text style={styles.historyHeader}>My past requests</Text>
               {myRequestsQuery.isLoading ? (
                 <ActivityIndicator size="small" color={colors.primary} style={styles.historyLoader} />
@@ -442,17 +463,20 @@ export default function DataRightsScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
     backgroundColor: colors.surface,
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
+  headerInner: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
+  },
+  headerInnerWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', paddingHorizontal: spacing.xl },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
-  backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
-  placeholder: { width: 30 },
+  headerSubtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 60 },
+  bodyContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.xl, paddingBottom: 64 },
 
   intro: {
     backgroundColor: colors.surface,
@@ -466,6 +490,12 @@ const styles = StyleSheet.create({
   introIcon: { marginBottom: spacing.sm },
   introTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs, textAlign: 'center' },
   introBody: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, textAlign: 'center' },
+
+  desktopWorkspace: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  actionPanel: { flex: 1, minWidth: 0 },
+  focusedPanelWide: { width: '100%', maxWidth: 760, alignSelf: 'center' },
+  panelEyebrow: { ...typography.caption, color: colors.primary, fontWeight: '700', letterSpacing: 1, marginBottom: spacing.xs },
+  panelTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.md },
 
   optionCard: {
     flexDirection: 'row',
@@ -566,6 +596,17 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  historyPanel: {
+    flex: 1,
+    minWidth: 0,
+    marginTop: 0,
+    paddingTop: 0,
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
   },
   historyHeader: {
     ...typography.h3,

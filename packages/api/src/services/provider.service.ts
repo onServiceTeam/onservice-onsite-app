@@ -2,6 +2,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as uploadService from './upload.service';
+import * as settingsService from './settings.service';
 
 interface ProviderRow {
   id: string;
@@ -989,8 +990,10 @@ export function formatUpcomingJob(j: UpcomingJobRow): Record<string, unknown> {
 
 // --- Tier Progression (US-P016) ---
 
+type ProviderTier = 'founding' | 'new' | 'verified' | 'pro' | 'elite';
+
 interface TierRequirement {
-  tier: string;
+  tier: ProviderTier;
   minJobs: number;
   minRating: number;
   requiresCertification: boolean;
@@ -999,49 +1002,80 @@ interface TierRequirement {
   benefits: string[];
 }
 
-// MED-N22 fix: 'founding' tier added at the front of the ladder so
-// `getTierProgression` reports the correct currentTier for founding
-// providers. Founding is a parallel invite-only tier (NOT a step in
-// the standard new→verified→pro→elite progression), so the
-// `getTierProgression` function below special-cases it to return
-// nextTier=null and requirements=null. The ladder still includes it
-// so the UI can render all 5 tiers in `allTiers`.
-const TIER_LADDER: TierRequirement[] = [
+type TierDefinition = Omit<TierRequirement, 'commission' | 'benefits'>;
+
+// Criteria live on the server. Commission does not: the current rates are
+// resolved from Admin-controlled platform settings for every response below.
+const TIER_DEFINITIONS: readonly TierDefinition[] = [
   {
     tier: 'founding',
     minJobs: 0, minRating: 0, requiresCertification: false, requiresZeroDisputes: false,
-    commission: 10,
-    benefits: ['Invite-only founding-batch tier', 'Lowest commission rate (10%)', 'Featured launch placement', 'Priority customer support'],
   },
   {
     tier: 'new',
     minJobs: 0, minRating: 0, requiresCertification: false, requiresZeroDisputes: false,
-    commission: 15,
-    benefits: ['Access to job marketplace', 'Secure escrow payments', 'Basic profile listing'],
   },
   {
     tier: 'verified',
     minJobs: 5, minRating: 4.0, requiresCertification: false, requiresZeroDisputes: false,
-    commission: 13,
-    benefits: ['Priority in search results', 'Verified badge on profile', 'Lower commission rate (13%)', 'Access to premium customers'],
   },
   {
     tier: 'pro',
     minJobs: 25, minRating: 4.5, requiresCertification: false, requiresZeroDisputes: true,
-    commission: 11,
-    benefits: ['Top search placement', 'Pro badge on profile', 'Lower commission rate (11%)', 'Featured in Suki recommendations', 'Surge pricing access'],
   },
   {
     tier: 'elite',
     minJobs: 100, minRating: 4.7, requiresCertification: true, requiresZeroDisputes: true,
-    commission: 9,
-    benefits: ['Highest search priority', 'Elite badge and premium profile', 'Lowest commission rate (9%)', 'Priority customer support', 'Exclusive high-value jobs', 'Featured provider placement'],
   },
 ];
 
+const STANDARD_TIER_NAMES: readonly ProviderTier[] = ['new', 'verified', 'pro', 'elite'];
+
+function percentageFromDecimal(rate: number): number {
+  return Number((rate * 100).toFixed(2));
+}
+
+function tierFacts(tier: ProviderTier, commission: number): string[] {
+  if (tier === 'founding') {
+    return [
+      'Invite-only status assigned by a super-admin',
+      'Parallel to the New to Elite progression ladder',
+      `Live commission rate: ${commission}%`,
+    ];
+  }
+
+  const label = tier.charAt(0).toUpperCase() + tier.slice(1);
+  return [
+    `${label} status is displayed on your provider profile`,
+    `Live commission rate: ${commission}%`,
+    tier === 'new'
+      ? 'Starting point for admin-reviewed progression'
+      : 'Tier contributes to the provider-matching score',
+  ];
+}
+
+async function resolveTierLadder(): Promise<TierRequirement[]> {
+  const commissions = await Promise.all(
+    TIER_DEFINITIONS.map(async ({ tier }) => percentageFromDecimal(
+      await settingsService.getCommissionRate(tier),
+    )),
+  );
+
+  return TIER_DEFINITIONS.map((definition, index) => {
+    const commission = commissions[index]!;
+    return {
+      ...definition,
+      commission,
+      benefits: tierFacts(definition.tier, commission),
+    };
+  });
+}
+
 export interface TierProgressionData {
-  currentTier: string;
+  currentTier: ProviderTier;
   currentCommission: number;
+  progressionTrack: 'founding' | 'standard';
+  promotionMode: 'admin_review';
   nextTier: TierRequirement | null;
   progress: {
     totalJobs: number;
@@ -1056,18 +1090,47 @@ export interface TierProgressionData {
     disputes: { required: boolean; current: number; met: boolean };
   } | null;
   allTiers: TierRequirement[];
+  progressionTiers: TierRequirement[];
 }
 
 export async function getTierProgression(providerId: string): Promise<TierProgressionData> {
-  const provider = await db.query<{ tier: string; total_jobs: number; rating: string | null }>(
-    `SELECT tier, total_jobs, rating FROM providers WHERE id = $1`,
-    [providerId],
-  );
+  const [provider, certResult, disputeResult, tierLadder] = await Promise.all([
+    db.query<{ tier: ProviderTier; completed_jobs: number; rating: string | null }>(
+      `SELECT p.tier, p.rating,
+              COUNT(b.id) FILTER (
+                WHERE b.status IN ('confirmed', 'resolved', 'payout_ready', 'paid_out')
+              )::int AS completed_jobs
+         FROM providers p
+         LEFT JOIN bookings b ON b.provider_id = p.id
+        WHERE p.id = $1
+        GROUP BY p.id, p.tier, p.rating`,
+      [providerId],
+    ),
+    db.query<{ count: string }>(
+      `SELECT COUNT(*)::text as count
+         FROM provider_certifications
+        WHERE provider_id = $1
+          AND is_verified = TRUE
+          AND is_active = TRUE
+          AND (expiry_date IS NULL OR expiry_date >= (NOW() AT TIME ZONE 'Asia/Manila')::date)`,
+      [providerId],
+    ),
+    db.query<{ count: string }>(
+      `SELECT COUNT(*)::text as count
+         FROM disputes d
+         JOIN bookings b ON b.id = d.booking_id
+        WHERE b.provider_id = $1
+          AND d.status <> 'resolved'`,
+      [providerId],
+    ),
+    resolveTierLadder(),
+  ]);
   if (!provider.rows[0]) throw createAppError('Provider not found.', 404);
 
   const row = provider.rows[0];
-  const currentTierIdx = TIER_LADDER.findIndex((t) => t.tier === row.tier);
-  const currentTier = TIER_LADDER[currentTierIdx] ?? TIER_LADDER[0]!;
+  const currentTier = tierLadder.find((tier) => tier.tier === row.tier);
+  if (!currentTier) throw createAppError('Provider tier is invalid.', 500);
+  const progressionTiers = tierLadder.filter((tier) => STANDARD_TIER_NAMES.includes(tier.tier));
 
   // MED-N22 fix: 'founding' is a parallel tier with no upward
   // progression target (it would be a downgrade in commission to
@@ -1078,65 +1141,36 @@ export async function getTierProgression(providerId: string): Promise<TierProgre
   // (founding) so progression goes new→verified→pro→elite.
   let nextTier: TierRequirement | null = null;
   if (row.tier !== 'founding') {
-    // Standard ladder starts at the 'new' index.
-    const standardLadder = TIER_LADDER.filter((t) => t.tier !== 'founding');
-    const standardIdx = standardLadder.findIndex((t) => t.tier === row.tier);
-    nextTier = standardIdx >= 0 && standardIdx < standardLadder.length - 1
-      ? standardLadder[standardIdx + 1]!
+    const standardIdx = progressionTiers.findIndex((tier) => tier.tier === row.tier);
+    nextTier = standardIdx >= 0 && standardIdx < progressionTiers.length - 1
+      ? progressionTiers[standardIdx + 1]!
       : null;
   }
-
-  const certResult = await db.query<{ count: string }>(
-    `SELECT COUNT(*)::text as count
-       FROM provider_certifications
-      WHERE provider_id = $1
-        AND is_verified = TRUE
-        AND is_active = TRUE
-        AND (expiry_date IS NULL OR expiry_date >= (NOW() AT TIME ZONE 'Asia/Manila')::date)`,
-    [providerId],
-  );
   const hasCert = Number(certResult.rows[0]?.count ?? 0) > 0;
-
-  const disputeResult = await db.query<{ count: string }>(
-    // MED-N24 fix: pre-fix listed 'dismissed' which is NOT a valid
-    // value in the disputes.status enum (migration 014 defines:
-    // 'open', 'under_review', 'escalated', 'resolved'). The filter
-    // accidentally excluded nothing extra but signaled developer
-    // confusion about the enum. Now: only the actual terminal status.
-    //
-    // BUG-PHASE18-08 fix: disputes table has NO provider_id column.
-    // It links to providers via bookings.provider_id. Pre-fix the
-    // direct WHERE provider_id = $1 returned 500 ("column does not
-    // exist") on every tier-progression call from the mobile provider
-    // tab. Joining through bookings is the correct path.
-    `SELECT COUNT(*)::text as count
-       FROM disputes d
-       JOIN bookings b ON b.id = d.booking_id
-      WHERE b.provider_id = $1
-        AND d.status NOT IN ('resolved')`,
-    [providerId],
-  );
   const openDisputes = Number(disputeResult.rows[0]?.count ?? 0);
-
   const rating = row.rating ? Number(row.rating) : null;
+  const completedJobs = Number(row.completed_jobs ?? 0);
 
   return {
     currentTier: row.tier,
     currentCommission: currentTier.commission,
+    progressionTrack: row.tier === 'founding' ? 'founding' : 'standard',
+    promotionMode: 'admin_review',
     nextTier,
     progress: {
-      totalJobs: row.total_jobs,
+      totalJobs: completedJobs,
       rating,
       hasCertification: hasCert,
       openDisputeCount: openDisputes,
     },
     requirements: nextTier ? {
-      jobs: { current: row.total_jobs, required: nextTier.minJobs, met: row.total_jobs >= nextTier.minJobs },
+      jobs: { current: completedJobs, required: nextTier.minJobs, met: completedJobs >= nextTier.minJobs },
       rating: { current: rating, required: nextTier.minRating, met: (rating ?? 0) >= nextTier.minRating },
       certification: { required: nextTier.requiresCertification, met: !nextTier.requiresCertification || hasCert },
       disputes: { required: nextTier.requiresZeroDisputes, current: openDisputes, met: !nextTier.requiresZeroDisputes || openDisputes === 0 },
     } : null,
-    allTiers: TIER_LADDER,
+    allTiers: tierLadder,
+    progressionTiers,
   };
 }
 

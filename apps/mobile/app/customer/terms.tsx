@@ -10,6 +10,7 @@ import { ScrollText, Lock } from '@/components/icons';
 // Bug 834.
 import { fetchCancellationPolicy, policyToTermsText } from '@/utils/cancellation-policy';
 import { platformConfig } from '@/config/platform.config';
+import { useResponsive } from '@/hooks/useResponsive';
 
 interface Section {
   title: string;
@@ -187,6 +188,7 @@ type Tab = 'terms' | 'privacy';
 
 export default function TermsScreen(): React.ReactElement {
   const router = useRouter();
+  const { isPhone } = useResponsive();
   // BUG-PHASE63-01 fix — accept ?tab=privacy so login/register/checkout
   // can deep-link to the Privacy Policy tab from their inline legal lines.
   // Pre-fix the screen always opened on the Terms tab even if the caller
@@ -212,7 +214,16 @@ export default function TermsScreen(): React.ReactElement {
 
   const sections = useMemo(() => {
     const baseline = activeTab === 'terms' ? TOS_SECTIONS : PRIVACY_SECTIONS;
-    if (activeTab !== 'terms' || !policyQuery.data) return baseline;
+    if (activeTab !== 'terms') return baseline;
+    if (policyQuery.isError) {
+      return baseline.map((section) => /cancellation/i.test(section.title)
+        ? {
+            ...section,
+            content: 'The current cancellation policy could not be loaded. Use the retry action above before relying on this section.',
+          }
+        : section);
+    }
+    if (!policyQuery.data) return baseline;
     // Substitute the live cancellation policy by matching the section title
     // (robust if the Terms are re-numbered), not a hardcoded index.
     return baseline.map((s) =>
@@ -220,7 +231,7 @@ export default function TermsScreen(): React.ReactElement {
         ? { ...s, content: policyToTermsText(policyQuery.data) }
         : s,
     );
-  }, [activeTab, policyQuery.data]);
+  }, [activeTab, policyQuery.data, policyQuery.isError]);
 
   const toggleSection = (index: number): void => {
     setExpandedIndex(expandedIndex === index ? null : index);
@@ -229,17 +240,24 @@ export default function TermsScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Legal</Text>
-        <View style={styles.placeholder} />
+        <View style={[styles.headerInner, !isPhone && styles.headerInnerWide]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
+            <Text style={styles.backText}>←</Text>
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.headerTitle}>Legal &amp; Privacy</Text>
+            <Text style={styles.headerSubtitle}>Review the current customer documents</Text>
+          </View>
+        </View>
       </View>
 
-      <View style={styles.tabRow}>
+      <View style={styles.tabBar}>
+      <View style={[styles.tabRow, !isPhone && styles.tabRowWide]}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'terms' && styles.tabActive]}
           onPress={() => { setActiveTab('terms'); setExpandedIndex(null); }}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'terms' }}
         >
           <Text style={[styles.tabText, activeTab === 'terms' && styles.tabTextActive]}>
             Terms of Service
@@ -248,14 +266,17 @@ export default function TermsScreen(): React.ReactElement {
         <TouchableOpacity
           style={[styles.tab, activeTab === 'privacy' && styles.tabActive]}
           onPress={() => { setActiveTab('privacy'); setExpandedIndex(null); }}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'privacy' }}
         >
           <Text style={[styles.tabText, activeTab === 'privacy' && styles.tabTextActive]}>
             Privacy Policy
           </Text>
         </TouchableOpacity>
       </View>
+      </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      <ScrollView style={styles.body} contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}>
         <View style={styles.introCard}>
           <View style={styles.introEmojiWrap}>
             {activeTab === 'terms'
@@ -268,29 +289,70 @@ export default function TermsScreen(): React.ReactElement {
           <Text style={styles.introDate}>Interim text updated: August 24, 2026</Text>
         </View>
 
-        {sections.map((section, index) => (
+        {activeTab === 'terms' && policyQuery.isError ? (
+          <View style={styles.policyError} accessibilityRole="alert">
+            <View style={styles.policyErrorCopy}>
+              <Text style={styles.policyErrorTitle}>Current cancellation policy unavailable</Text>
+              <Text style={styles.policyErrorText}>This document remains readable, but the live policy section did not load.</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => void policyQuery.refetch()}
+              disabled={policyQuery.isFetching}
+              accessibilityRole="button"
+              accessibilityLabel="Retry cancellation policy"
+            >
+              <Text style={styles.retryButtonText}>{policyQuery.isFetching ? 'Retrying…' : 'Retry'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {isPhone ? sections.map((section, index) => (
           <TouchableOpacity
-            key={index}
+            key={section.title}
             style={styles.sectionCard}
             onPress={() => toggleSection(index)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: expandedIndex === index }}
           >
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{section.title}</Text>
               <Text style={styles.chevron}>{expandedIndex === index ? '▲' : '▼'}</Text>
             </View>
-            {expandedIndex === index && (
-              <Text style={styles.sectionContent}>{section.content}</Text>
-            )}
+            {expandedIndex === index ? <Text style={styles.sectionContent}>{section.content}</Text> : null}
           </TouchableOpacity>
-        ))}
+        )) : (
+          <View style={styles.desktopWorkspace} accessibilityLabel="Tablet and desktop legal document workspace">
+            <View style={styles.sectionRail} accessibilityRole="tablist">
+              {sections.map((section, index) => {
+                const selected = (expandedIndex ?? 0) === index;
+                return (
+                  <TouchableOpacity
+                    key={section.title}
+                    style={[styles.railItem, selected && styles.railItemSelected]}
+                    onPress={() => setExpandedIndex(index)}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected }}
+                  >
+                    <Text style={[styles.railItemText, selected && styles.railItemTextSelected]}>{section.title}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={styles.documentPanel}>
+              <Text style={styles.documentTitle}>{sections[expandedIndex ?? 0]?.title}</Text>
+              <Text style={styles.documentContent}>{sections[expandedIndex ?? 0]?.content}</Text>
+            </View>
+          </View>
+        )}
 
         <View style={styles.contactCard}>
           <Text style={styles.contactTitle}>Questions?</Text>
           <Text style={styles.contactDesc}>
             If you have questions about our terms or privacy practices, contact us.
           </Text>
-          <TouchableOpacity onPress={() => void Linking.openURL('mailto:support@onservice.ph')}>
+          <TouchableOpacity onPress={() => void Linking.openURL('mailto:support@onservice.ph')} accessibilityRole="link" accessibilityLabel="Email onService support">
             <Text style={styles.contactLink}>support@onservice.ph</Text>
           </TouchableOpacity>
         </View>
@@ -302,21 +364,22 @@ export default function TermsScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: spacing.base, paddingVertical: spacing.md,
     backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
+  headerInner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.base, paddingVertical: spacing.md },
+  headerInnerWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: spacing.xl },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
+  headerSubtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   placeholder: { width: 30 },
 
+  tabBar: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   tabRow: {
     flexDirection: 'row', paddingHorizontal: spacing.base,
     paddingTop: spacing.md, gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
+  tabRowWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: spacing.xl },
   tab: {
     flex: 1, paddingVertical: spacing.md, alignItems: 'center',
     borderBottomWidth: 2, borderBottomColor: 'transparent',
@@ -327,6 +390,7 @@ const styles = StyleSheet.create({
 
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  bodyContentWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl, paddingBottom: 56 },
 
   introCard: {
     alignItems: 'center', paddingVertical: spacing.lg,
@@ -352,6 +416,26 @@ const styles = StyleSheet.create({
     marginTop: spacing.md, paddingTop: spacing.md,
     borderTopWidth: 1, borderTopColor: colors.divider,
   },
+  policyError: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.errorLight, borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.error,
+    padding: spacing.base, marginBottom: spacing.base,
+  },
+  policyErrorCopy: { flex: 1 },
+  policyErrorTitle: { ...typography.body, color: colors.error, fontWeight: '700', marginBottom: 2 },
+  policyErrorText: { ...typography.caption, color: colors.textSecondary },
+  retryButton: { backgroundColor: colors.error, borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.sm, minHeight: 44, justifyContent: 'center' },
+  retryButtonText: { ...typography.bodySmall, color: colors.white, fontWeight: '700' },
+  desktopWorkspace: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg, minHeight: 520 },
+  sectionRail: { width: 320, backgroundColor: colors.surface, borderRadius: borderRadius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, padding: spacing.sm },
+  railItem: { paddingHorizontal: spacing.md, paddingVertical: spacing.md, borderRadius: borderRadius.md, marginBottom: 2 },
+  railItemSelected: { backgroundColor: colors.primaryLight },
+  railItemText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' },
+  railItemTextSelected: { color: colors.primary },
+  documentPanel: { flex: 1, minWidth: 0, backgroundColor: colors.surface, borderRadius: borderRadius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, padding: spacing.xl },
+  documentTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.base },
+  documentContent: { ...typography.body, color: colors.textSecondary, lineHeight: 24 },
 
   contactCard: {
     backgroundColor: colors.primaryLight, borderRadius: borderRadius.lg,

@@ -306,6 +306,8 @@ export interface TierRequirement {
 export interface TierProgressionData {
   currentTier: string;
   currentCommission: number;
+  progressionTrack: 'founding' | 'standard';
+  promotionMode: 'admin_review';
   nextTier: TierRequirement | null;
   progress: {
     totalJobs: number;
@@ -320,6 +322,7 @@ export interface TierProgressionData {
     disputes: { required: boolean; current: number; met: boolean };
   } | null;
   allTiers: TierRequirement[];
+  progressionTiers: TierRequirement[];
 }
 
 export async function getTierProgression(): Promise<TierProgressionData> {
@@ -333,12 +336,13 @@ export async function getProviderBookings(
   status: string,
   page: number,
   pageSize: number,
+  filters?: { sort?: 'newest' | 'oldest' | 'highest_pay'; periodDays?: 7 | 30 | 90 },
 ): Promise<{ bookings: Booking[]; total: number; page: number; pageSize: number }> {
   const res = await api.get<{
     success: boolean;
     data: Booking[];
     meta: { total: number; page: number; pageSize: number };
-  }>('/api/v1/bookings', { params: { status, page, pageSize } });
+  }>('/api/v1/bookings', { params: { status, page, pageSize, ...filters } });
   return {
     bookings: res.data.data,
     total: res.data.meta.total,
