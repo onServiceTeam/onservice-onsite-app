@@ -27,6 +27,15 @@ export interface AdminStaff {
   role_name?: string;
 }
 
+export interface StaffCandidate {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string;
+  role: 'admin' | 'super_admin' | 'dpo';
+}
+
 export async function listRoles(): Promise<AdminRole[]> {
   // Phase 14 Dispatch 06 — Bug 127: filter soft-deleted roles.
   const result = await db.query<AdminRole>(
@@ -52,20 +61,47 @@ export async function createRole(params: {
   name: string;
   description?: string;
   permissions: string[];
+  createdByAdminId: string;
+  reason: string;
 }): Promise<AdminRole> {
+  const name = params.name.trim();
+  const reason = params.reason.trim();
+  if (!name) throw createAppError('Role name is required.', 400);
+  if (reason.length < 10) throw createAppError('Reason must be at least 10 characters.', 400);
   validatePermissions(params.permissions);
-  if (params.name.length > 50) throw createAppError('Role name must be 50 characters or fewer.', 400);
+  if (name.length > 50) throw createAppError('Role name must be 50 characters or fewer.', 400);
   try {
-    const result = await db.query<AdminRole>(
-      `INSERT INTO admin_roles (name, description, permissions)
-       VALUES ($1, $2, $3)
-       RETURNING *`,
-      [params.name, params.description ?? null, params.permissions],
-    );
-    logger.info('Admin role created', { roleId: result.rows[0]?.id, name: params.name });
-    const role = result.rows[0];
-    if (!role) throw new Error('Failed to create role.');
-    return role;
+    return await db.transaction(async (client) => {
+      const result = await client.query<AdminRole>(
+        `INSERT INTO admin_roles (name, description, permissions)
+         VALUES ($1, $2, $3)
+         RETURNING *`,
+        [name, params.description?.trim() || null, params.permissions],
+      );
+      const role = result.rows[0];
+      if (!role) throw new Error('Failed to create role.');
+
+      await client.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+         VALUES ($1, 'config_changed', 'admin_role', $2, $3::jsonb, $4, $5)`,
+        [
+          params.createdByAdminId,
+          role.id,
+          JSON.stringify({
+            changeKind: 'admin_role_profile_created',
+            roleName: role.name,
+            description: role.description,
+            permissions: role.permissions,
+            accessSource: 'users.role and route RBAC',
+          }),
+          reason.slice(0, 500),
+          reason,
+        ],
+      );
+      logger.info('Admin role profile created', { roleId: role.id, name, createdByAdminId: params.createdByAdminId });
+      return role;
+    });
   } catch (err: unknown) {
     if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === '23505') {
       throw createAppError('A role with this name already exists.', 409);
@@ -77,41 +113,81 @@ export async function createRole(params: {
 export async function updateRole(
   roleId: string,
   params: { name?: string; description?: string; permissions?: string[] },
+  updatedByAdminId: string,
+  reason: string,
 ): Promise<AdminRole> {
-  const existing = await getRoleById(roleId);
-  if (!existing) throw createAppError('Role not found.', 404);
-  if (existing.name === 'super_admin') {
-    throw createAppError('The super_admin role cannot be modified.', 403);
+  const trimmedReason = reason.trim();
+  if (trimmedReason.length < 10) throw createAppError('Reason must be at least 10 characters.', 400);
+  if (params.name === undefined && params.description === undefined && params.permissions === undefined) {
+    throw createAppError('At least one role profile field is required.', 400);
   }
   if (params.permissions !== undefined) validatePermissions(params.permissions);
-  if (params.name !== undefined && params.name.length > 50) {
+  const nextName = params.name?.trim();
+  if (params.name !== undefined && !nextName) throw createAppError('Role name is required.', 400);
+  if (nextName !== undefined && nextName.length > 50) {
     throw createAppError('Role name must be 50 characters or fewer.', 400);
   }
-  const sets: string[] = ['updated_at = NOW()'];
-  const values: unknown[] = [roleId];
-  let idx = 2;
+  try {
+    return await db.transaction(async (client) => {
+      const current = await client.query<AdminRole>(
+        `SELECT * FROM admin_roles WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [roleId],
+      );
+      const existing = current.rows[0];
+      if (!existing) throw createAppError('Role not found.', 404);
+      if (existing.name === 'super_admin') {
+        throw createAppError('The super_admin role cannot be modified.', 403);
+      }
 
-  if (params.name !== undefined) {
-    sets.push(`name = $${idx++}`);
-    values.push(params.name);
-  }
-  if (params.description !== undefined) {
-    sets.push(`description = $${idx++}`);
-    values.push(params.description);
-  }
-  if (params.permissions !== undefined) {
-    sets.push(`permissions = $${idx}`);
-    values.push(params.permissions);
-  }
+      const sets: string[] = ['updated_at = NOW()'];
+      const values: unknown[] = [roleId];
+      let idx = 2;
+      if (nextName !== undefined) {
+        sets.push(`name = $${idx++}`);
+        values.push(nextName);
+      }
+      if (params.description !== undefined) {
+        sets.push(`description = $${idx++}`);
+        values.push(params.description.trim() || null);
+      }
+      if (params.permissions !== undefined) {
+        sets.push(`permissions = $${idx}`);
+        values.push(params.permissions);
+      }
 
-  const result = await db.query<AdminRole>(
-    `UPDATE admin_roles SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
-    values,
-  );
-  logger.info('Admin role updated', { roleId });
-  const role = result.rows[0];
-  if (!role) throw new Error('Role not found.');
-  return role;
+      const result = await client.query<AdminRole>(
+        `UPDATE admin_roles SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+        values,
+      );
+      const role = result.rows[0];
+      if (!role) throw new Error('Role not found.');
+
+      await client.query(
+        `INSERT INTO admin_actions
+           (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+         VALUES ($1, 'config_changed', 'admin_role', $2, $3::jsonb, $4, $5)`,
+        [
+          updatedByAdminId,
+          roleId,
+          JSON.stringify({
+            changeKind: 'admin_role_profile_updated',
+            before: { name: existing.name, description: existing.description, permissions: existing.permissions },
+            after: { name: role.name, description: role.description, permissions: role.permissions },
+            accessSource: 'users.role and route RBAC',
+          }),
+          trimmedReason.slice(0, 500),
+          trimmedReason,
+        ],
+      );
+      logger.info('Admin role profile updated', { roleId, updatedByAdminId });
+      return role;
+    });
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === '23505') {
+      throw createAppError('A role with this name already exists.', 409);
+    }
+    throw err;
+  }
 }
 
 export async function deleteRole(
@@ -119,6 +195,8 @@ export async function deleteRole(
   adminUserId: string,
   reason?: string,
 ): Promise<void> {
+  const trimmedReason = (reason ?? '').trim();
+  if (trimmedReason.length < 10) throw createAppError('Reason must be at least 10 characters.', 400);
   // Phase 14 Dispatch 06 — Bug 127. Pre-D06 this was a hard DELETE with
   // NO admin_actions audit. Now: soft delete (deleted_at column from
   // migration 076) + audit row in ONE transaction. The audit row's
@@ -143,7 +221,6 @@ export async function deleteRole(
       throw createAppError('Cannot archive a role that has active staff members assigned.', 409);
     }
 
-    const trimmedReason = (reason ?? '').trim();
     await client.query(
       `UPDATE admin_roles
           SET deleted_at = NOW(),
@@ -151,7 +228,7 @@ export async function deleteRole(
               deleted_reason = $3,
               updated_at = NOW()
         WHERE id = $1 AND deleted_at IS NULL`,
-      [roleId, adminUserId, trimmedReason || null],
+      [roleId, adminUserId, trimmedReason],
     );
 
     const auditResult = await client.query<{ id: string }>(
@@ -162,8 +239,8 @@ export async function deleteRole(
         adminUserId,
         roleId,
         JSON.stringify({ roleName: row.name }),
-        trimmedReason ? trimmedReason.slice(0, 500) : `Role ${row.name} archived`,
-        trimmedReason || null,
+        trimmedReason.slice(0, 500),
+        trimmedReason,
       ],
     );
     if (!auditResult.rows[0]?.id) {
@@ -219,10 +296,64 @@ export async function listStaff(params: {
   return { staff: result.rows, total: parseInt(countResult.rows[0]?.count ?? '0', 10) };
 }
 
+export async function searchStaffCandidates(search: string, limit = 20): Promise<StaffCandidate[]> {
+  const term = search.trim();
+  if (term.length < 2) {
+    throw createAppError('Search must contain at least 2 characters.', 400);
+  }
+  const safeLimit = Math.min(20, Math.max(1, limit));
+  const escaped = term.replace(/[\\%_]/g, '\\$&');
+  const pattern = `%${escaped}%`;
+  const result = await db.query<StaffCandidate>(
+    `SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.role
+       FROM users u
+      WHERE u.is_active = TRUE
+        AND u.role IN ('admin', 'super_admin', 'dpo')
+        AND NOT EXISTS (
+          SELECT 1 FROM admin_staff ast WHERE ast.user_id = u.id
+        )
+        AND (
+          u.first_name ILIKE $1 ESCAPE '\\'
+          OR u.last_name ILIKE $1 ESCAPE '\\'
+          OR COALESCE(u.email, '') ILIKE $1 ESCAPE '\\'
+          OR u.phone ILIKE $1 ESCAPE '\\'
+        )
+      ORDER BY u.first_name, u.last_name, u.id
+      LIMIT $2`,
+    [pattern, safeLimit],
+  );
+  return result.rows;
+}
+
+export async function searchDpoCandidates(search: string, limit = 20): Promise<StaffCandidate[]> {
+  const term = search.trim();
+  if (term.length < 2) {
+    throw createAppError('Search must contain at least 2 characters.', 400);
+  }
+  const safeLimit = Math.min(20, Math.max(1, limit));
+  const escaped = term.replace(/[\\%_]/g, '\\$&');
+  const pattern = `%${escaped}%`;
+  const result = await db.query<StaffCandidate>(
+    `SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.role
+       FROM users u
+      WHERE u.is_active = TRUE
+        AND u.role = 'admin'
+        AND (
+          CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $1 ESCAPE '\\'
+          OR COALESCE(u.email, '') ILIKE $1 ESCAPE '\\'
+          OR u.phone ILIKE $1 ESCAPE '\\'
+        )
+      ORDER BY u.first_name, u.last_name, u.id
+      LIMIT $2`,
+    [pattern, safeLimit],
+  );
+  return result.rows;
+}
+
 // MED-N129 fix — pre-fix INSERT INTO admin_staff happened with no
-// admin_actions audit. Adding a staff member is a privileged action
-// (the new staff member can sign in to the admin panel from then on)
-// and the trail is required for forensics + compliance.
+// admin_actions audit. This table is an operations-directory profile;
+// admin login and API access remain controlled by users.role + route RBAC.
+// The trail is still required because the profile is used by admin workflows.
 //
 // Post-fix: INSERT + audit row run in a single transaction. The
 // caller now passes addedByAdminId so the audit attributes the
@@ -235,9 +366,26 @@ export async function addStaffMember(params: {
   userId: string;
   roleId: string;
   addedByAdminId: string;
+  reason?: string;
 }): Promise<AdminStaff> {
   try {
     return await db.transaction(async (client) => {
+      const reason = (params.reason ?? '').trim();
+      const candidate = await client.query<{ id: string; role: string; is_active: boolean }>(
+        `SELECT id, role, is_active FROM users WHERE id = $1 FOR SHARE`,
+        [params.userId],
+      );
+      const candidateRow = candidate.rows[0];
+      if (!candidateRow || !candidateRow.is_active || !['admin', 'super_admin', 'dpo'].includes(candidateRow.role)) {
+        throw createAppError('Select an active admin-tier account.', 400);
+      }
+      const roleRow = await client.query<{ name: string }>(
+        `SELECT name FROM admin_roles WHERE id = $1 AND deleted_at IS NULL`,
+        [params.roleId],
+      );
+      if (!roleRow.rows[0]) {
+        throw createAppError('Selected staff profile is not active.', 400);
+      }
       const result = await client.query<AdminStaff>(
         `INSERT INTO admin_staff (user_id, role_id)
          VALUES ($1, $2)
@@ -247,17 +395,10 @@ export async function addStaffMember(params: {
       const member = result.rows[0];
       if (!member) throw new Error('Failed to add staff member.');
 
-      // Look up the role name for the audit details so the trail
-      // surfaces "added as super_admin" not "added with role-uuid-xyz".
-      const roleRow = await client.query<{ name: string }>(
-        `SELECT name FROM admin_roles WHERE id = $1`,
-        [params.roleId],
-      );
-
       await client.query(
         `INSERT INTO admin_actions
-           (admin_id, action_type, target_type, target_id, details)
-         VALUES ($1, 'staff_added', 'admin_staff', $2, $3::jsonb)`,
+           (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+         VALUES ($1, 'staff_added', 'admin_staff', $2, $3::jsonb, $4, $5)`,
         [
           params.addedByAdminId,
           member.id,
@@ -265,7 +406,10 @@ export async function addStaffMember(params: {
             addedUserId: params.userId,
             addedRole: roleRow.rows[0]?.name ?? params.roleId,
             addedRoleId: params.roleId,
+            accessSource: 'users.role and route RBAC',
           }),
+          reason || 'Staff directory profile added.',
+          reason || null,
         ],
       );
       logger.info('Admin staff member added', {
@@ -289,28 +433,75 @@ export async function addStaffMember(params: {
 export async function updateStaffMember(
   staffId: string,
   params: { roleId?: string; isActive?: boolean },
+  updatedByAdminId: string,
+  reason: string,
 ): Promise<AdminStaff> {
-  const sets: string[] = ['updated_at = NOW()'];
-  const values: unknown[] = [staffId];
-  let idx = 2;
-
-  if (params.roleId !== undefined) {
-    sets.push(`role_id = $${idx++}`);
-    values.push(params.roleId);
+  const trimmedReason = reason.trim();
+  if (trimmedReason.length < 10) {
+    throw createAppError('Reason must be at least 10 characters.', 400);
   }
-  if (params.isActive !== undefined) {
-    sets.push(`is_active = $${idx}`);
-    values.push(params.isActive);
+  if (params.roleId === undefined && params.isActive === undefined) {
+    throw createAppError('Role or active status is required.', 400);
   }
 
-  const result = await db.query<AdminStaff>(
-    `UPDATE admin_staff SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
-    values,
-  );
-  logger.info('Admin staff updated', { staffId });
-  const member = result.rows[0];
-  if (!member) throw new Error('Staff member not found.');
-  return member;
+  return db.transaction(async (client) => {
+    const current = await client.query<AdminStaff & { role_name: string }>(
+      `SELECT ast.*, ar.name AS role_name
+         FROM admin_staff ast
+         JOIN admin_roles ar ON ar.id = ast.role_id
+        WHERE ast.id = $1
+        FOR UPDATE`,
+      [staffId],
+    );
+    const before = current.rows[0];
+    if (!before) throw createAppError('Staff member not found.', 404);
+
+    let nextRoleName = before.role_name;
+    if (params.roleId !== undefined) {
+      const nextRole = await client.query<{ name: string }>(
+        `SELECT name FROM admin_roles WHERE id = $1 AND deleted_at IS NULL`,
+        [params.roleId],
+      );
+      if (!nextRole.rows[0]) throw createAppError('Selected staff profile is not active.', 400);
+      nextRoleName = nextRole.rows[0].name;
+    }
+
+    const result = await client.query<AdminStaff>(
+      `UPDATE admin_staff
+          SET role_id = COALESCE($2::uuid, role_id),
+              is_active = COALESCE($3::boolean, is_active),
+              removed_at = CASE WHEN $3::boolean IS TRUE THEN NULL ELSE removed_at END,
+              removed_by = CASE WHEN $3::boolean IS TRUE THEN NULL ELSE removed_by END,
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING *`,
+      [staffId, params.roleId ?? null, params.isActive ?? null],
+    );
+    const member = result.rows[0];
+    if (!member) throw createAppError('Staff member not found.', 404);
+
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'config_changed', 'admin_staff', $2, $3::jsonb, $4, $5)`,
+      [
+        updatedByAdminId,
+        staffId,
+        JSON.stringify({
+          changeKind: 'staff_directory_profile_updated',
+          previousRole: before.role_name,
+          newRole: nextRoleName,
+          previousActive: before.is_active,
+          newActive: params.isActive ?? before.is_active,
+          accessSource: 'users.role and route RBAC',
+        }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
+      ],
+    );
+    logger.info('Admin staff directory profile updated', { staffId, updatedByAdminId });
+    return member;
+  });
 }
 
 // MED-N128 fix — pre-fix removeStaffMember did a hard DELETE with no
@@ -332,7 +523,13 @@ export async function updateStaffMember(
 // The removeStaffMember signature now takes the actor's adminId. The
 // route passes req.user!.userId. The new admin_staff columns
 // removed_at + removed_by come from migration 100.
-export async function removeStaffMember(staffId: string, removedByAdminId: string): Promise<void> {
+export async function removeStaffMember(
+  staffId: string,
+  removedByAdminId: string,
+  reason?: string,
+): Promise<void> {
+  const trimmedReason = (reason ?? '').trim();
+  if (trimmedReason.length < 10) throw createAppError('Reason must be at least 10 characters.', 400);
   return db.transaction(async (client) => {
     // Prevent removing the last active super_admin (unchanged invariant).
     const staffRow = await client.query<{ role_name: string; is_active: boolean }>(
@@ -376,8 +573,8 @@ export async function removeStaffMember(staffId: string, removedByAdminId: strin
     // Audit row.
     await client.query(
       `INSERT INTO admin_actions
-         (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, 'staff_removed', 'admin_staff', $2, $3::jsonb)`,
+         (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'staff_removed', 'admin_staff', $2, $3::jsonb, $4, $5)`,
       [
         removedByAdminId,
         staffId,
@@ -385,6 +582,8 @@ export async function removeStaffMember(staffId: string, removedByAdminId: strin
           removedRole: staffRow.rows[0]!.role_name,
           softDeleted: true,
         }),
+        trimmedReason || 'Staff directory profile archived.',
+        trimmedReason || null,
       ],
     );
 
@@ -414,8 +613,11 @@ function validatePermissions(permissions: string[]): void {
 export async function promoteToDpo(
   targetUserId: string,
   promotedByAdminId: string,
+  reason: string,
 ): Promise<{ userId: string; previousRole: string; newRole: 'dpo' }> {
   if (!targetUserId) throw createAppError('Target user ID is required.', 400);
+  const trimmedReason = reason.trim();
+  if (trimmedReason.length < 10) throw createAppError('Reason must be at least 10 characters.', 400);
 
   return db.transaction(async (client) => {
     const target = await client.query<{ id: string; role: string; is_active: boolean }>(
@@ -440,6 +642,16 @@ export async function promoteToDpo(
       return { userId: prev.id, previousRole: 'dpo', newRole: 'dpo' as const };
     }
 
+    // Serialize the singleton DPO seat without locking unrelated user rows.
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext('onservice:dpo-seat'))`);
+    const currentDpo = await client.query<{ id: string }>(
+      `SELECT id FROM users WHERE role = 'dpo' AND is_active = TRUE AND id != $1 LIMIT 1`,
+      [prev.id],
+    );
+    if (currentDpo.rows[0]) {
+      throw createAppError('An active DPO is already assigned. Complete the documented handover first.', 409);
+    }
+
     await client.query(
       `UPDATE users SET role = 'dpo', updated_at = NOW() WHERE id = $1`,
       [prev.id],
@@ -447,12 +659,14 @@ export async function promoteToDpo(
 
     await client.query(
       `INSERT INTO admin_actions
-         (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, 'staff_role_promoted_dpo', 'user', $2, $3::jsonb)`,
+         (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'staff_role_promoted_dpo', 'user', $2, $3::jsonb, $4, $5)`,
       [
         promotedByAdminId,
         prev.id,
         JSON.stringify({ previousRole: prev.role, newRole: 'dpo' }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
       ],
     );
 
@@ -472,9 +686,12 @@ export async function promoteToDpo(
 export async function demoteFromDpo(
   targetUserId: string,
   demotedByAdminId: string,
+  reason: string,
   demoteTo: 'admin' | 'customer' | 'provider' = 'admin',
 ): Promise<{ userId: string; previousRole: 'dpo'; newRole: typeof demoteTo }> {
   if (!targetUserId) throw createAppError('Target user ID is required.', 400);
+  const trimmedReason = reason.trim();
+  if (trimmedReason.length < 10) throw createAppError('Reason must be at least 10 characters.', 400);
   if (!['admin', 'customer', 'provider'].includes(demoteTo)) {
     throw createAppError('Invalid demoteTo role.', 400);
   }
@@ -499,12 +716,14 @@ export async function demoteFromDpo(
 
     await client.query(
       `INSERT INTO admin_actions
-         (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, 'staff_role_demoted_from_dpo', 'user', $2, $3::jsonb)`,
+         (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'staff_role_demoted_from_dpo', 'user', $2, $3::jsonb, $4, $5)`,
       [
         demotedByAdminId,
         prev.id,
         JSON.stringify({ previousRole: 'dpo', newRole: demoteTo }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
       ],
     );
 

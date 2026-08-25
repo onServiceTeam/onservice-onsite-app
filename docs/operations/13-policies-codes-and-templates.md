@@ -241,7 +241,7 @@ OPEN DISPUTES (tier / age):
 - [#disputeID] - tier [n] - [next action, who owns it]
 
 PAYOUTS PENDING APPROVAL:
-- [provider] - ₱[amount] - [AML review? yes/no]
+- [provider] - ₱[amount] - [internal large-payout review? yes/no]
 
 INCIDENTS / ESCALATIONS:
 - [link to incident report if any]

@@ -1617,7 +1617,12 @@ router.get(
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
       const riskLevel = typeof req.query.riskLevel === 'string' ? req.query.riskLevel : undefined;
-      const result = await adminAnalyticsService.getChurnPrediction(page, pageSize, riskLevel);
+      const result = await adminAnalyticsService.getChurnPrediction(
+        page,
+        pageSize,
+        riskLevel,
+        req.user!.role === 'super_admin' ? 'super_admin' : 'admin',
+      );
       res.json({
         success: true,
         data: result.items,

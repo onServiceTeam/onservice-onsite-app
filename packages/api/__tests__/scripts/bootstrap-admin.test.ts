@@ -94,18 +94,18 @@ describe('bootstrap-admin (Bug 1235 — admin password seed deletion + CLI boots
   });
 
   describe('roleIsAllowed', () => {
-    it('accepts the 6 documented admin roles', () => {
+    it('accepts only the 3 real admin-tier login roles', () => {
       expect(roleIsAllowed('super_admin')).toBe(true);
       expect(roleIsAllowed('admin')).toBe(true);
       expect(roleIsAllowed('dpo')).toBe(true);
-      expect(roleIsAllowed('finance')).toBe(true);
-      expect(roleIsAllowed('support')).toBe(true);
-      expect(roleIsAllowed('dispatcher')).toBe(true);
     });
 
     it('rejects undocumented roles', () => {
       expect(roleIsAllowed('customer')).toBe(false);
       expect(roleIsAllowed('provider')).toBe(false);
+      expect(roleIsAllowed('finance')).toBe(false);
+      expect(roleIsAllowed('support')).toBe(false);
+      expect(roleIsAllowed('dispatcher')).toBe(false);
       expect(roleIsAllowed('Super_Admin')).toBe(false); // case-sensitive
       expect(roleIsAllowed('')).toBe(false);
     });

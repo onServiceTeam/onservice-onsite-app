@@ -24,10 +24,12 @@ on/off switches and seeds that are correct for testing and wrong for launch.
    (nginx/nginx.conf). At cutover, either rely on real SMS OTP + admin 2FA being
    on, or restore the Basic Auth gate. Also re-check the api.onservice.ph
    `allow … deny all` IP lock.
-2. **RESOLVED 2026-08-24 — Dev OTP bypass** via `ALLOW_DEV_OTP=1` + `DEV_OTP_CODE` in the
-   server `.env` — lets anyone log in as any phone with no SMS. Setting
-   `NODE_ENV=production` alone disables it; also remove the env vars and wire a
-   real SMS provider.
+2. **RESOLVED 2026-08-24; hardened 2026-08-25 — Dev OTP bypass** requires
+   `ALLOW_DEV_OTP=1`, an explicit `DEV_OTP_CODE`, and
+   `DEV_OTP_ALLOWED_PHONES`. It can authenticate only the listed synthetic or
+   seeded audit accounts and skips SMS for those phones. Production refuses to
+   boot with the flag. Remove all three values at cutover and wire a real SMS
+   provider.
 3. **RESOLVED 2026-08-24 — Admin 2FA disabled** via `ADMIN_DISABLE_2FA` makes any admin password a
    full back-office key. Production now refuses to boot with that flag. Build
    admin without `VITE_DEMO_MODE=1`, and rotate every historical/demo credential.

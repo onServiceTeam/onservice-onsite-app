@@ -187,7 +187,7 @@ describe('MED-N128 — removeStaffMember soft-deletes + writes audit', () => {
     // INSERT INTO admin_actions.
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-    await removeStaffMember('staff-1', 'super-1');
+    await removeStaffMember('staff-1', 'super-1', 'Archive this obsolete staff directory profile.');
 
     expect(dbTransactionMock).toHaveBeenCalledTimes(1);
     expect(dbQueryMock).toHaveBeenCalledTimes(3);
@@ -216,7 +216,11 @@ describe('MED-N128 — removeStaffMember soft-deletes + writes audit', () => {
     // count of OTHER active super_admins = 0
     dbQueryMock.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 });
 
-    await expect(removeStaffMember('only-super', 'only-super')).rejects.toThrow(/last active super admin/i);
+    await expect(removeStaffMember(
+      'only-super',
+      'only-super',
+      'Archive this obsolete staff directory profile.',
+    )).rejects.toThrow(/last active super admin/i);
 
     // No UPDATE / INSERT happened.
     const updateCall = dbQueryMock.mock.calls.find(
@@ -231,7 +235,11 @@ describe('MED-N128 — removeStaffMember soft-deletes + writes audit', () => {
       rowCount: 1,
     });
 
-    await expect(removeStaffMember('staff-1', 'super-1')).resolves.toBeUndefined();
+    await expect(removeStaffMember(
+      'staff-1',
+      'super-1',
+      'Archive this obsolete staff directory profile.',
+    )).resolves.toBeUndefined();
 
     // Only the SELECT ran. No UPDATE, no INSERT.
     expect(dbQueryMock).toHaveBeenCalledTimes(1);

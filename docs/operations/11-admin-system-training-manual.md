@@ -318,7 +318,13 @@ When a user replies to a waiting case, it returns to the active queue. Automated
 
 ### 2.26 Staff & Roles (`/staff`)
 
-Super_admin only. Plain admins get an "access required" notice. 2 tabs: Staff (add staff by user ID, change role, activate/deactivate, remove) and Roles & Permissions (create/edit/delete custom roles by checking permission boxes). The `super_admin` role can not be deleted, you can not remove the last super_admin, and you can not delete a role that still has active staff. Remember the caveat from Section 1: these named roles are organizational metadata; the live access gate is the single account role.
+Super_admin only. Plain admins get an "access required" notice. There are three tabs:
+
+- **Staff:** search and select an existing active admin-tier account by name, email, or phone; attach an operations-directory profile; and activate, deactivate, or archive that profile. Every write requires a reason. Never paste a raw user ID. These profiles do not grant or revoke panel access.
+- **Role Profiles:** create, edit, or archive organizational role metadata. Every change requires a reason and records before/after values. The `super_admin` profile cannot be edited or archived, and a profile with active staff cannot be archived. Permission labels here remain metadata; `users.role` and server route checks are the live access source.
+- **DPO Management:** inspect the actual Data Protection Officer seat, assign one active admin account when vacant, or complete a reasoned handover. This is a real account-role change. The server serializes assignment and refuses a second active DPO.
+
+The last-active-super-admin check on this page protects the directory profile only; it does not replace governance of the real account role. Use the Audit Log after any staff, profile, or DPO change.
 
 ### 2.27 Settings / Platform Settings (`/settings`)
 

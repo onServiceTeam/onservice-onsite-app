@@ -97,7 +97,7 @@ Payout playbook:
    - Payout shows rejected: read the rejection reason; the amount was rebated to available balance. Provider can re-request.
    - Payout shows aml_review_pending: internal large-transaction hold. Escalate to Finance for review. The super_admin records either a clearance reason (moves it to pending without sending money) or a rejection reason (returns the reserved balance).
    - Payout shows completed but provider says not received: confirm the destination account number on file matches what the provider expects. If it matches and money is missing past 3 business days, escalate to Finance with the payout ID and PayMongo transfer ID.
-4. For AML clearance or any approve/reject/complete action, escalate to Finance. Every decision requires a written audit reason. You cannot move payouts yourself.
+4. For internal large-payout review clearance or any approve/reject/complete action, escalate to Finance. Every decision requires a written audit reason. You cannot move payouts yourself.
 5. If a provider expected a daily/weekly/bi-weekly/monthly automatic payout, explain the manual-only launch mode, confirm no payout was silently created, and help them submit from Earnings. Do not rewrite their stored historical cadence unless the provider explicitly chooses manual through an approved account flow.
 
 Macro: payout timing

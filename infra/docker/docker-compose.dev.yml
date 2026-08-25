@@ -192,6 +192,7 @@ services:
       # Local demo/testing conveniences (ignored when NODE_ENV=production).
       ALLOW_DEV_OTP: ${ALLOW_DEV_OTP:-1}
       DEV_OTP_CODE: ${DEV_OTP_CODE:-000000}
+      DEV_OTP_ALLOWED_PHONES: ${DEV_OTP_ALLOWED_PHONES:-+639171234567,+639181234567,+639191234567,+639201234567,+639211234567,+639221234567,+639231234567,+639241234567,+639251234567,+639261234567}
       ENABLE_TEST_FIXTURES: ${ENABLE_TEST_FIXTURES:-1}
       # 8081 = Expo web dev server (npx expo start --web) — without it the
       # browser app can't call the local API (CORS).

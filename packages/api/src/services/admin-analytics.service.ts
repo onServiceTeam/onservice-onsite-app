@@ -2,6 +2,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
+import { maskPhilippinePhone } from '../utils/pii-mask';
 import * as settingsService from './settings.service';
 
 // ────────────────────────────────────────────────────────────────────
@@ -362,10 +363,11 @@ interface ChurnRiskCustomer {
   userId: string;
   name: string;
   phone: string;
+  contactMasked: boolean;
   lastBookingDate: string | null;
   daysSinceLastBooking: number;
   totalBookings: number;
-  totalSpent: number;
+  totalBookedValue: number;
   riskScore: number;
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
 }
@@ -374,6 +376,7 @@ export async function getChurnPrediction(
   page = 1,
   pageSize = 20,
   riskLevel?: string,
+  viewerRole: 'admin' | 'super_admin' = 'admin',
 ): Promise<{ items: ChurnRiskCustomer[]; total: number }> {
   const safePageSize = Math.min(pageSize, platformConfig.maxPageSize);
   const offset = (page - 1) * safePageSize;
@@ -473,11 +476,15 @@ export async function getChurnPrediction(
   const items: ChurnRiskCustomer[] = dataResult.rows.map((row) => ({
     userId: row.user_id,
     name: row.name,
-    phone: row.phone,
+    phone: viewerRole === 'super_admin' ? row.phone : maskPhilippinePhone(row.phone),
+    contactMasked: viewerRole !== 'super_admin',
     lastBookingDate: row.last_booking_date?.toISOString() ?? null,
     daysSinceLastBooking: Number(row.days_since_last),
     totalBookings: Number(row.total_bookings),
-    totalSpent: Number(row.total_spent),
+    // This query rolls up booking face values for non-cancelled records. It is
+    // not a settled-payment or net-spend ledger, so name the response for what
+    // it actually measures instead of presenting it as customer spend.
+    totalBookedValue: Number(row.total_spent),
     riskScore: Number(row.risk_score),
     riskLevel: row.risk_level,
   }));
@@ -755,6 +762,8 @@ export async function getCommissionOptimizationSuggestions(): Promise<Array<{
   currentRate: number;
   suggestedRate: number;
   providerCount: number;
+  qualitySampleCount: number;
+  averageCompletedBookings: number;
   avgQualityScore: number;
   avgRevenue: number;
   rationale: string;
@@ -771,6 +780,7 @@ export async function getCommissionOptimizationSuggestions(): Promise<Array<{
   const aggregated = await db.query<{
     tier: string;
     provider_count: string;
+    quality_sample_count: string;
     avg_quality: string;
     avg_revenue: string;
     avg_bookings: string;
@@ -778,7 +788,8 @@ export async function getCommissionOptimizationSuggestions(): Promise<Array<{
     `SELECT
        p.tier,
        COUNT(DISTINCT p.id)::text AS provider_count,
-       COALESCE(AVG(pqs.overall_score), 50)::text AS avg_quality,
+       COUNT(pqs.overall_score)::text AS quality_sample_count,
+       COALESCE(AVG(pqs.overall_score), 0)::text AS avg_quality,
        COALESCE(AVG(bm.total_revenue), 0)::text AS avg_revenue,
        COALESCE(AVG(bm.booking_count), 0)::text AS avg_bookings
      FROM providers p
@@ -804,6 +815,7 @@ export async function getCommissionOptimizationSuggestions(): Promise<Array<{
 
   const byTier = new Map<string, {
     provider_count: string;
+    quality_sample_count: string;
     avg_quality: string;
     avg_revenue: string;
     avg_bookings: string;
@@ -817,6 +829,8 @@ export async function getCommissionOptimizationSuggestions(): Promise<Array<{
     currentRate: number;
     suggestedRate: number;
     providerCount: number;
+    qualitySampleCount: number;
+    averageCompletedBookings: number;
     avgQualityScore: number;
     avgRevenue: number;
     rationale: string;
@@ -842,27 +856,29 @@ export async function getCommissionOptimizationSuggestions(): Promise<Array<{
     }
     const row = byTier.get(tier) ?? {
       provider_count: '0',
-      avg_quality: '50',
+      quality_sample_count: '0',
+      avg_quality: '0',
       avg_revenue: '0',
       avg_bookings: '0',
     };
 
     const providerCount = Number(row.provider_count);
+    const qualitySampleCount = Number(row.quality_sample_count);
+    const averageCompletedBookings = Number(row.avg_bookings);
     const avgQuality = Number(row.avg_quality);
     const avgRevenue = Number(row.avg_revenue);
 
     let suggestedRate = currentRate;
     let rationale = 'Current rate is appropriate.';
 
-    if (avgQuality >= 85 && avgRevenue > 500000) {
+    if (providerCount < 5 || qualitySampleCount < 5 || averageCompletedBookings < 5) {
+      rationale = `Insufficient sample for a rate signal (${providerCount} approved providers, ${qualitySampleCount} quality scores, ${averageCompletedBookings.toFixed(1)} average completed bookings).`;
+    } else if (avgQuality >= 85 && avgRevenue > 500000) {
       suggestedRate = Math.max(currentRate - 0.02, 0.08);
       rationale = `High quality (${avgQuality.toFixed(1)}) and strong revenue suggest a rate decrease to retain top providers.`;
     } else if (avgQuality < 60) {
       suggestedRate = Math.min(currentRate + 0.02, 0.25);
       rationale = `Below-average quality (${avgQuality.toFixed(1)}) suggests increasing the rate to fund quality improvement programs.`;
-    } else if (providerCount < 5) {
-      suggestedRate = Math.max(currentRate - 0.01, 0.08);
-      rationale = `Low provider count (${providerCount}) — consider reducing rate to attract more providers to this tier.`;
     }
 
     suggestedRate = Math.round(suggestedRate * 100) / 100;
@@ -872,6 +888,8 @@ export async function getCommissionOptimizationSuggestions(): Promise<Array<{
       currentRate,
       suggestedRate,
       providerCount,
+      qualitySampleCount,
+      averageCompletedBookings,
       avgQualityScore: Math.round(avgQuality * 100) / 100,
       avgRevenue: Math.round(avgRevenue),
       rationale,

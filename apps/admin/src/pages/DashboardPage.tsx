@@ -183,22 +183,16 @@ export default function DashboardPage(): React.ReactElement {
   // Phase 11: prepend overdue/near-due DSRs as alert rows (compliance dashboard wiring).
   const dsrAlerts = useQuery({
     queryKey: ['dashboard-dsr-alerts'],
-    queryFn: async () => {
-      try {
-        return await fetchJson<
-          Array<{
-            id: string;
-            requestType: string;
-            userEmail: string | null;
-            dueAt: string;
-            daysUntilDue: number;
-            isOverdue: boolean;
-          }>
-        >('/api/v1/admin/compliance/dsr-alerts');
-      } catch {
-        return [];
-      }
-    },
+    queryFn: () => fetchJson<
+      Array<{
+        id: string;
+        requestType: string;
+        userEmail: string | null;
+        dueAt: string;
+        daysUntilDue: number;
+        isOverdue: boolean;
+      }>
+    >('/api/v1/admin/compliance/dsr-alerts'),
     refetchInterval: 60_000,
   });
 
@@ -214,8 +208,31 @@ export default function DashboardPage(): React.ReactElement {
       action_url: '/compliance',
       created_at: new Date().toISOString(),
     }));
-    return [...dsrRows, ...alertData];
-  }, [dsrAlerts.data, alerts.data]);
+    const unavailableRows: OperationalAlert[] = [];
+    if (alerts.isError) {
+      unavailableRows.push({
+        id: 'operational-alerts-unavailable',
+        type: 'source_unavailable',
+        severity: 'danger',
+        title: 'Operational alert source unavailable',
+        description: 'Provider, dispute, payment, credential, capacity, and fund alerts could not be checked. Retry before treating the queue as clear.',
+        action_url: null,
+        created_at: new Date().toISOString(),
+      });
+    }
+    if (dsrAlerts.isError) {
+      unavailableRows.push({
+        id: 'dsr-alerts-unavailable',
+        type: 'source_unavailable',
+        severity: 'danger',
+        title: 'Data-rights deadline source unavailable',
+        description: 'Privacy request deadlines could not be checked. Open the Data Protection Log and verify the queue directly.',
+        action_url: '/data-protection-log',
+        created_at: new Date().toISOString(),
+      });
+    }
+    return [...unavailableRows, ...dsrRows, ...alertData];
+  }, [dsrAlerts.data, dsrAlerts.isError, alerts.data, alerts.isError]);
 
   const cities = useQuery({
     queryKey: ['dashboard-cities'],
@@ -258,7 +275,12 @@ export default function DashboardPage(): React.ReactElement {
   }
 
   const k = kpis.data;
-  const refreshedAt = new Date().toLocaleTimeString('en-PH');
+  const refreshedAt = new Date(kpis.dataUpdatedAt).toLocaleTimeString('en-PH', {
+    timeZone: 'Asia/Manila',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 
   return (
     <div className="space-y-6">
@@ -267,14 +289,14 @@ export default function DashboardPage(): React.ReactElement {
         <div>
           <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
             <span className="h-2 w-2 rounded-full bg-emerald-600" aria-hidden="true" />
-            Live operations
+            Operational data
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-[var(--color-text)]">
             Command Center
           </h1>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            What needs attention, what is at risk, and what changed. Auto-refresh 60s · Last:{' '}
-            {refreshedAt}
+            What needs attention, what is at risk, and what changed. Core metrics refreshed at{' '}
+            {refreshedAt} Manila time. Queue sources refresh every 30–60 seconds; acquisition refreshes every 5 minutes.
           </p>
         </div>
         <div className="flex gap-2 items-center">
@@ -354,7 +376,7 @@ export default function DashboardPage(): React.ReactElement {
             className="block rounded-lg focus-visible:outline-offset-4"
           >
             <KpiCard
-              title="Stale disputes (48h+)"
+              title="Open disputes (48h+)"
               value={k.staleDisputes}
               icon={
                 <Clock
@@ -365,6 +387,9 @@ export default function DashboardPage(): React.ReactElement {
             />
           </Link>
         </div>
+        <p className="mt-2 text-xs text-[var(--color-text-secondary)]">
+          The 48-hour dispute card is an internal attention threshold, not a promised resolution SLA.
+        </p>
       </section>
 
       {/* Marketplace pulse */}
@@ -377,7 +402,7 @@ export default function DashboardPage(): React.ReactElement {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
-            title="Revenue"
+            title="Platform fee revenue"
             value={formatCurrency(k.revenue)}
             icon={<Coins size={20} className="text-emerald-600" />}
             trendPct={k.revenueTrendPct}
@@ -536,8 +561,8 @@ export default function DashboardPage(): React.ReactElement {
           <CardContent>
             {mergedAlerts.length === 0 ? (
               <EmptyState
-                title="No alerts"
-                description="All systems healthy. Nothing requires intervention right now."
+                title="No detected alerts"
+                description="The currently available alert sources returned no actionable records. This is not a full system-health guarantee."
                 icon={<AlertCircle size={28} className="text-slate-400" />}
               />
             ) : (

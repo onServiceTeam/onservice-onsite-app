@@ -11,6 +11,7 @@ export default [
       '**/node_modules/**',
       '**/dist/**',
       '**/dist-web/**',
+      '**/dist-web*/**',
       '**/build/**',
       '**/.expo/**',
       '**/coverage/**',

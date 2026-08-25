@@ -34,7 +34,7 @@ const problems = [];
 
 const requiredServerKeys = [
   'NODE_ENV', 'PORT', 'APP_VERSION', 'APP_URL', 'ADMIN_URL', 'API_URL', 'TRUST_PROXY_HOPS',
-  'ADMIN_DISABLE_2FA', 'ALLOW_DEV_OTP', 'DEV_OTP_CODE', 'ENABLE_TEST_FIXTURES',
+  'ADMIN_DISABLE_2FA', 'ALLOW_DEV_OTP', 'DEV_OTP_CODE', 'DEV_OTP_ALLOWED_PHONES', 'ENABLE_TEST_FIXTURES',
   'BIR_DOCUMENT_ISSUANCE_ENABLED', 'EXTERNAL_PAYMENT_AUTHORIZATION_ENABLED',
   'DISPUTE_PARTY_SETTLEMENT_ENABLED',
   'RATE_LIMITS_RELAXED', 'DATABASE_URL', 'DATABASE_DIRECT_URL', 'DB_NAME', 'DB_USER',
@@ -82,6 +82,9 @@ for (const key of [
 }
 if (production.values.get('DEV_OTP_CODE') !== '') {
   problems.push('production template must leave DEV_OTP_CODE empty');
+}
+if (production.values.get('DEV_OTP_ALLOWED_PHONES') !== '') {
+  problems.push('production template must leave DEV_OTP_ALLOWED_PHONES empty');
 }
 if (production.values.get('DB_SSL_MODE') !== 'disable') {
   problems.push('current self-hosted production template must set DB_SSL_MODE=disable');

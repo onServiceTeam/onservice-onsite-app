@@ -74,7 +74,8 @@ services:
     environment:
       # Defaults to production. Set NODE_ENV=staging in .env to run a staging
       # deployment that boots without live payment/SMS/captcha keys (and, with
-      # ALLOW_DEV_OTP=1, accepts the demo login code for testing). Flip back to
+      # ALLOW_DEV_OTP=1 plus DEV_OTP_ALLOWED_PHONES, accepts a protected demo
+      # login code only for named test accounts). Flip back to
       # production once the real secrets are in place.
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 7381

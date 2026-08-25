@@ -35,15 +35,14 @@ const ROLE_RAW = process.env.ADMIN_BOOTSTRAP_ROLE;
 const ROLE = ROLE_RAW ? ROLE_RAW.toLowerCase() : '';
 const email = process.argv[2];
 const HAS_SUPER_ADMIN_CONFIRM = process.argv.includes('--confirm-super-admin');
+const FIRST_NAME = process.env.ADMIN_BOOTSTRAP_FIRST_NAME?.trim() || 'onService';
+const LAST_NAME = process.env.ADMIN_BOOTSTRAP_LAST_NAME?.trim() || 'Administrator';
 
-const ALLOWED_ROLES = new Set([
-  'super_admin',
-  'admin',
-  'dpo',
-  'finance',
-  'support',
-  'dispatcher',
-]);
+// These are the real admin-tier login roles accepted by users_role_check and
+// /auth/admin/login. Finance/support/dispatcher are admin_roles profile names,
+// not users.role values; accepting them here created accounts that could not
+// pass the database constraint or sign in.
+const ALLOWED_ROLES = new Set(['super_admin', 'admin', 'dpo']);
 
 interface StrengthResult {
   ok: boolean;
@@ -75,6 +74,54 @@ export function emailLooksValid(s: string | undefined): s is string {
 
 export function roleIsAllowed(role: string): boolean {
   return ALLOWED_ROLES.has(role);
+}
+
+type BootstrapAdminInput = {
+  email: string;
+  passwordHash: string;
+  role: string;
+  phone: string;
+  firstName: string;
+  lastName: string;
+};
+
+export async function upsertBootstrapAdmin(input: BootstrapAdminInput): Promise<string> {
+  const existing = await db.query<{ id: string; role: string }>(
+    `SELECT id, role FROM users WHERE email = $1`,
+    [input.email],
+  );
+
+  if (existing.rows.length > 0) {
+    const row = existing.rows[0]!;
+    await db.query(
+      `UPDATE users
+       SET password_hash = $1,
+           role = $2,
+           is_active = true,
+           is_verified = true,
+           updated_at = NOW()
+       WHERE id = $3`,
+      [input.passwordHash, input.role, row.id],
+    );
+    return `Updated password and role for existing user: ${input.email} (id=${row.id}, role=${input.role})`;
+  }
+
+  await db.query(
+    `INSERT INTO users (
+       email, password_hash, role, phone, first_name, last_name,
+       is_active, is_verified, created_at, updated_at
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, true, true, NOW(), NOW())`,
+    [
+      input.email,
+      input.passwordHash,
+      input.role,
+      input.phone,
+      input.firstName,
+      input.lastName,
+    ],
+  );
+  return `Created ${input.role} user: ${input.email} (phone=${input.phone})`;
 }
 
 async function main(): Promise<void> {
@@ -121,38 +168,20 @@ async function main(): Promise<void> {
 
   const hash = hashPassword(PWD);
 
-  const existing = await db.query<{ id: string; role: string }>(
-    `SELECT id, role FROM users WHERE email = $1`,
-    [email],
-  );
-
-  if (existing.rows.length > 0) {
-    const row = existing.rows[0]!;
-    await db.query(
-      `UPDATE users
-       SET password_hash = $1,
-           role = $2,
-           is_active = true,
-           is_verified = true,
-           updated_at = NOW()
-       WHERE id = $3`,
-      [hash, ROLE, row.id],
-    );
-    process.stdout.write(`Updated password and role for existing user: ${email} (id=${row.id}, role=${ROLE})\n`);
-  } else {
-    // users.phone is NOT NULL + UNIQUE. Admins sign in by email, but the column
-    // is required, so use ADMIN_BOOTSTRAP_PHONE if given, else a synthetic
-    // unique placeholder (PH-shaped) so the INSERT doesn't violate NOT NULL.
-    const phone =
-      process.env.ADMIN_BOOTSTRAP_PHONE ||
-      `+639${Math.floor(100000000 + Math.random() * 900000000)}`;
-    await db.query(
-      `INSERT INTO users (email, password_hash, role, phone, is_active, is_verified, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, true, true, NOW(), NOW())`,
-      [email, hash, ROLE, phone],
-    );
-    process.stdout.write(`Created ${ROLE} user: ${email} (phone=${phone})\n`);
-  }
+  // users.phone, first_name, and last_name are NOT NULL. Admins sign in by
+  // email, but all three identity columns still need valid values.
+  const phone =
+    process.env.ADMIN_BOOTSTRAP_PHONE ||
+    `+639${Math.floor(100000000 + Math.random() * 900000000)}`;
+  const resultMessage = await upsertBootstrapAdmin({
+    email,
+    passwordHash: hash,
+    role: ROLE,
+    phone,
+    firstName: FIRST_NAME,
+    lastName: LAST_NAME,
+  });
+  process.stdout.write(`${resultMessage}\n`);
 
   process.stdout.write('Bootstrap complete. Sign in via /login with the provided password.\n');
   process.stdout.write('IMPORTANT: enroll TOTP 2FA on first login.\n');

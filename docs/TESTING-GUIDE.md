@@ -52,8 +52,8 @@ it finishes it prints the addresses. The server runs at `http://localhost:7381`.
   `./scripts/dev/up.ps1` again.
 
 > The demo OTP login (Step 3) and the test fixtures are turned ON by default
-> in this local setup. They are physically impossible to turn on in
-> production, so this is safe.
+> in this local setup. The code works only for the seeded phone allowlist and
+> is rejected at production startup.
 
 ---
 
@@ -89,9 +89,9 @@ and `superadmin@onservice.ph`. These have **no password yet** — see Step 4.
 ## 3. The phone login code (important)
 
 Real logins send a 6-digit code by SMS. On your own computer there is no SMS,
-so we added a **demo code that only works locally**: type **`000000`** as the
-code for any phone number, and you're in. (This never works on the real
-production app.)
+so we added a **demo code that only works locally**: type **`000000`** for one
+of the seeded phone numbers listed above. It does not work for arbitrary phone
+numbers, and production refuses to boot with the bypass enabled.
 
 So the mobile login is: enter a phone number from the table above → tap send →
 enter `000000` → you're logged in as that person.
@@ -157,19 +157,13 @@ them live.
 
 ## 6. The support / back-office roles
 
-Beyond `admin` and `super_admin`, the system supports `dpo` (data-privacy
-officer), `finance`, `support`, and `dispatcher`. Create one the same way as in
-Step 4, changing the role, e.g.:
-```
-ADMIN_BOOTSTRAP_PASSWORD='YourStrongPassw0rd!' ADMIN_BOOTSTRAP_ROLE='support' npx tsx packages/api/scripts/bootstrap-admin.ts support@onservice.ph
-```
-The admin website has the support tools (support tickets, disputes,
-compliance/DPO, financials).
-
-> Note: today the admin website's login only admits `admin`, `super_admin`,
-> and `dpo`. A pure `support`/`finance`/`dispatcher` account is a valid role in
-> the database but may not be able to sign in to the admin site yet. If you
-> want those staff to log in, tell me and I'll open the login to them.
+The real admin-tier login roles are `admin`, `super_admin`, and `dpo`
+(data-protection officer). Finance, support-agent, moderator, and similar names
+are staff-directory profiles attached to an `admin` account; they are not login
+roles and do not currently enforce route permissions. Do not use those profile
+names with `bootstrap-admin.ts`. Until fine-grained staff authorization is
+implemented, an `admin` account has the route-level access documented by the
+admin application, regardless of its directory profile.
 
 ---
 
