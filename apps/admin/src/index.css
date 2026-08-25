@@ -50,6 +50,17 @@ input,
 select,
 textarea {
   font: inherit;
+  touch-action: manipulation;
+}
+
+button:not([role='switch']) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+input:not([type='checkbox']):not([type='radio']),
+select {
+  min-height: 44px;
 }
 
 button,

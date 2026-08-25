@@ -556,7 +556,7 @@ export default function DispatchConsolePage(): React.ReactElement {
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] gap-3 p-4">
       {/* ── Header ──────────────────────────────────────────────────── */}
-      <header className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-lg px-4 py-3 shadow-sm">
+      <header className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-white px-4 py-3">
         <div className="flex items-center gap-3">
           <Activity size={22} className="text-[var(--color-primary)]" />
           <div>
@@ -612,7 +612,7 @@ export default function DispatchConsolePage(): React.ReactElement {
       </header>
 
       {/* ── Map ─────────────────────────────────────────────────────── */}
-      <section className="flex-1 min-h-[280px] bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+      <section className="min-h-[280px] flex-1 overflow-hidden rounded-lg border border-[var(--color-border)] bg-white">
         {mapKey === null ? (
           <div className="h-full w-full flex items-center justify-center text-sm text-slate-500">
             Loading map…
@@ -671,7 +671,7 @@ export default function DispatchConsolePage(): React.ReactElement {
       {/* ── Bottom panels ───────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 h-[260px]">
         {/* Active bookings list */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden">
+        <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-white lg:col-span-2">
           <div className="px-4 py-2 border-b border-slate-200 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-700">Active Bookings</h2>
             <span className="text-xs text-slate-500">
@@ -769,7 +769,7 @@ export default function DispatchConsolePage(): React.ReactElement {
         </div>
 
         {/* Alert tail */}
-        <div className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden">
+        <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-white">
           <div className="px-4 py-2 border-b border-slate-200 flex items-center gap-2">
             <AlertCircle size={14} className="text-amber-500" />
             <h2 className="text-sm font-semibold text-slate-700">Live Alerts</h2>
@@ -804,7 +804,11 @@ export default function DispatchConsolePage(): React.ReactElement {
 
       {/* ── Detail side-panel (overlay) ─────────────────────────────── */}
       {selectedBooking && (
-        <div className="fixed top-0 right-0 bottom-0 w-80 bg-white border-l border-slate-200 shadow-lg z-30 flex flex-col">
+        <div
+          role="complementary"
+          aria-label="Selected booking details"
+          className="fixed bottom-0 right-0 top-0 z-40 flex w-[min(24rem,100vw)] flex-col border-l border-[var(--color-border-strong)] bg-white"
+        >
           <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MapPin size={16} className="text-slate-500" />

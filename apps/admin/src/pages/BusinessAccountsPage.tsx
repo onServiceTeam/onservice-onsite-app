@@ -5,7 +5,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
-import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import {
+  DataTable,
+  Badge,
+  Pagination,
+  useConfirmationDialog,
+  type Column,
+} from '@/components/ui';
 
 interface BusinessAccount {
   id: string;
@@ -65,6 +71,7 @@ function parseStatus(value: string | null): string {
 }
 
 export default function BusinessAccountsPage(): React.ReactElement {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
   const statusFilter = parseStatus(searchParams.get('status'));
@@ -146,8 +153,13 @@ export default function BusinessAccountsPage(): React.ReactElement {
     });
   }
 
-  function approveAccount(account: BusinessAccount): void {
-    if (!window.confirm(`Approve business account "${account.companyName}"?`)) return;
+  async function approveAccount(account: BusinessAccount): Promise<void> {
+    const accepted = await confirm({
+      title: 'Approve business account?',
+      description: `“${account.companyName}” will receive active business-account access under ${account.paymentTerms.replace('_', ' ')} payment terms and a ${formatCurrency(account.monthlyCreditLimit)} monthly credit limit.`,
+      confirmLabel: 'Approve account',
+    });
+    if (!accepted) return;
     approveMutation.mutate(account.id);
   }
 
@@ -164,7 +176,6 @@ export default function BusinessAccountsPage(): React.ReactElement {
       setActionError('Suspension reason must be at least 10 characters.');
       return;
     }
-    if (!window.confirm(`Suspend business account "${suspendTarget.companyName}"?`)) return;
     suspendMutation.mutate({ id: suspendTarget.id, reason });
   }
 
@@ -236,7 +247,7 @@ export default function BusinessAccountsPage(): React.ReactElement {
             <button
               type="button"
               aria-label={`Approve business account ${r.companyName}`}
-              onClick={() => approveAccount(r)}
+              onClick={() => void approveAccount(r)}
               disabled={approveMutation.isPending}
               className="text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
             >
@@ -328,6 +339,10 @@ export default function BusinessAccountsPage(): React.ReactElement {
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
               {suspendTarget.companyName} ({TYPE_LABELS[suspendTarget.businessType] ?? suspendTarget.businessType})
             </p>
+            <p className="mb-4 rounded-lg border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] p-3 text-sm text-[var(--color-text)]">
+              This blocks new scheduled bookings and credit-line invoicing. The reason is recorded
+              in the audit log and sent to the business contact.
+            </p>
             <label htmlFor="business-suspend-reason" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Suspension reason *</label>
             <textarea
               id="business-suspend-reason"
@@ -357,6 +372,7 @@ export default function BusinessAccountsPage(): React.ReactElement {
           </div>
         </div>
       )}
+      {confirmationDialog}
     </div>
   );
 }

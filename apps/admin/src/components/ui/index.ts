@@ -28,6 +28,10 @@ export {
   DialogTitle,
   DialogDescription,
 } from './Dialog';
+export { ConfirmationDialog, useConfirmationDialog } from './ConfirmationDialog';
+export type { ConfirmationRequest } from './ConfirmationDialog';
+export { ReasonDialog, useReasonDialog } from './ReasonDialog';
+export type { ReasonRequest } from './ReasonDialog';
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './Tabs';
 export {
   Select,

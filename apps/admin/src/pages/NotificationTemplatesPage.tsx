@@ -4,7 +4,13 @@ import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
-import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import {
+  DataTable,
+  Badge,
+  Pagination,
+  useConfirmationDialog,
+  type Column,
+} from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 
 interface Template {
@@ -51,6 +57,7 @@ function parseChannel(value: string | null): string {
 
 export default function NotificationTemplatesPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   // Delete is super_admin-only on the server (notification-template.routes DELETE
   // → requireSuperAdmin). Gate the button so a regular admin doesn't hit a 403.
   const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
@@ -185,20 +192,44 @@ export default function NotificationTemplatesPage(): React.ReactElement {
     });
   }
 
-  function submitSave(): void {
+  async function submitSave(): Promise<void> {
     if (!formSlug.trim() || !formTitle.trim() || !formBody.trim()) {
       setFormError('Slug, title template, and body template are required.');
       return;
     }
     const action = editing ? 'Update' : 'Create';
-    if (!window.confirm(`${action} notification template "${formSlug.trim()}"?`)) return;
+    const accepted = await confirm({
+      title: `${action} notification template?`,
+      description: `This will ${action.toLowerCase()} “${formSlug.trim()}” for ${formChannel.replace('_', '-')} delivery. Review all variables before continuing.`,
+      confirmLabel: action,
+    });
+    if (!accepted) return;
     saveMutation.mutate();
   }
 
-  function toggleTemplate(template: Template): void {
+  async function toggleTemplate(template: Template): Promise<void> {
     const nextActive = !template.isActive;
-    if (!window.confirm(`${nextActive ? 'Activate' : 'Deactivate'} template "${template.slug}"?`)) return;
+    const action = nextActive ? 'Activate' : 'Deactivate';
+    const accepted = await confirm({
+      title: `${action} notification template?`,
+      description: nextActive
+        ? `“${template.slug}” will become available to customer and provider messaging workflows.`
+        : `“${template.slug}” will stop being available to customer and provider messaging workflows.`,
+      confirmLabel: action,
+      tone: nextActive ? 'default' : 'destructive',
+    });
+    if (!accepted) return;
     toggleMutation.mutate({ id: template.id, isActive: nextActive });
+  }
+
+  async function deleteTemplate(template: Template): Promise<void> {
+    const accepted = await confirm({
+      title: 'Delete notification template?',
+      description: `“${template.slug}” will be permanently removed. Deactivate it instead if its history must remain available.`,
+      confirmLabel: 'Delete template',
+      tone: 'destructive',
+    });
+    if (accepted) deleteMutation.mutate(template.id);
   }
 
   const columns: Column<Template>[] = [
@@ -236,7 +267,10 @@ export default function NotificationTemplatesPage(): React.ReactElement {
       render: (r) => (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); toggleTemplate(r); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            void toggleTemplate(r);
+          }}
           aria-label={`Toggle template ${r.slug} ${r.isActive ? 'inactive' : 'active'}`}
           aria-pressed={r.isActive}
           className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${r.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
@@ -278,7 +312,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
               aria-label={`Delete template ${r.slug}`}
               onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm(`Delete template "${r.slug}"?`)) deleteMutation.mutate(r.id);
+                void deleteTemplate(r);
               }}
               className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
             >
@@ -469,7 +503,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
               </button>
               <button
                 type="button"
-                onClick={submitSave}
+                onClick={() => void submitSave()}
                 disabled={saveMutation.isPending || !formSlug.trim() || !formTitle.trim() || !formBody.trim()}
                 className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
               >
@@ -479,6 +513,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
           </div>
         </div>
       )}
+      {confirmationDialog}
     </div>
   );
 }

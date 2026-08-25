@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
-import { Label, Input, Textarea } from '@/components/ui';
+import { Label, Input, Textarea, useConfirmationDialog } from '@/components/ui';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 
 type TabId = 'ab-tests' | 'cohorts' | 'churn' | 'quality' | 'commission';
@@ -43,6 +43,7 @@ interface AbTest {
 
 function AbTestsTab(): React.ReactElement {
   const queryClient = useQueryClient();
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', targetMetric: 'conversion_rate', trafficSplit: 0.5 });
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
@@ -89,7 +90,7 @@ function AbTestsTab(): React.ReactElement {
   if (isLoading) return <p className="text-sm text-slate-500">Loading...</p>;
   if (isError) return <p role="alert" className="text-sm text-red-600">Failed to load A/B tests. Please try again.</p>;
 
-  function createTest(): void {
+  async function createTest(): Promise<void> {
     const name = form.name.trim();
     if (!name) {
       setActionError('Test name is required.');
@@ -99,13 +100,29 @@ function AbTestsTab(): React.ReactElement {
       setActionError('Traffic split must be between 0.1 and 0.9.');
       return;
     }
-    if (!window.confirm(`Create A/B test "${name}"?`)) return;
+    const accepted = await confirm({
+      title: 'Create A/B test?',
+      description: `Create “${name}” as a draft with ${Math.round(form.trafficSplit * 100)}% of enrolled traffic assigned to variant B. No customer is enrolled until the test is started.`,
+      confirmLabel: 'Create draft',
+    });
+    if (!accepted) return;
     setActionError('');
     createMut.mutate({ ...form, name });
   }
 
-  function updateStatus(test: AbTest, status: string): void {
-    if (!window.confirm(`${status === 'active' ? 'Start or resume' : status === 'paused' ? 'Pause' : 'End'} A/B test "${test.name}"?`)) return;
+  async function updateStatus(test: AbTest, status: string): Promise<void> {
+    const action = status === 'active' ? 'Start or resume' : status === 'paused' ? 'Pause' : 'End';
+    const accepted = await confirm({
+      title: `${action} A/B test?`,
+      description: status === 'active'
+        ? `“${test.name}” will begin assigning eligible users between its configured variants and recording ${test.targetMetric.replaceAll('_', ' ')}.`
+        : status === 'paused'
+          ? `“${test.name}” will stop new variant assignment until resumed. Existing results remain available.`
+          : `“${test.name}” will stop permanently. Existing results remain available for review.`,
+      confirmLabel: action,
+      tone: status === 'completed' ? 'destructive' : 'default',
+    });
+    if (!accepted) return;
     statusMut.mutate({ testId: test.id, status });
   }
 
@@ -129,7 +146,7 @@ function AbTestsTab(): React.ReactElement {
             <Label htmlFor="ab-test-desc">Description</Label>
             <Textarea id="ab-test-desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What hypothesis are you testing?" rows={2} />
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <div className="space-y-1">
               <Label htmlFor="ab-test-metric">Target metric</Label>
               <select id="ab-test-metric" className="px-3 py-2 border rounded text-sm" value={form.targetMetric} onChange={(e) => setForm({ ...form, targetMetric: e.target.value })}>
@@ -144,7 +161,7 @@ function AbTestsTab(): React.ReactElement {
               <Input id="ab-test-split" type="number" step="0.05" min="0.1" max="0.9" className="w-32" value={form.trafficSplit} onChange={(e) => setForm({ ...form, trafficSplit: Number(e.target.value) })} />
             </div>
           </div>
-          <button type="button" onClick={createTest} disabled={!form.name.trim() || createMut.isPending} className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
+          <button type="button" onClick={() => void createTest()} disabled={!form.name.trim() || createMut.isPending} className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
             {createMut.isPending ? 'Creating...' : 'Create Test'}
           </button>
           {createMut.isError && <p role="alert" className="text-red-600 text-xs">{getErrorMessage(createMut.error)}</p>}
@@ -164,17 +181,26 @@ function AbTestsTab(): React.ReactElement {
           </thead>
           <tbody>
             {data?.data.map((test) => (
-              <tr key={test.id} className="border-t hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedTestId(test.id === selectedTestId ? null : test.id)}>
-                <td className="px-3 py-2 font-medium">{test.name}</td>
+              <tr key={test.id} className="border-t hover:bg-slate-50">
+                <td className="px-3 py-2 font-medium">
+                  <button
+                    type="button"
+                    aria-expanded={selectedTestId === test.id}
+                    onClick={() => setSelectedTestId(test.id === selectedTestId ? null : test.id)}
+                    className="rounded-md px-2 text-left font-medium text-[var(--color-primary)] hover:underline"
+                  >
+                    {test.name}
+                  </button>
+                </td>
                 <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs font-medium ${test.status === 'active' ? 'bg-green-100 text-green-700' : test.status === 'completed' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>{test.status}</span></td>
                 <td className="px-3 py-2 text-slate-600">{test.targetMetric}</td>
                 <td className="px-3 py-2 text-slate-600">{Math.round(test.trafficSplit * 100)}%</td>
                 <td className="px-3 py-2">
-                  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                    {test.status === 'draft' && <button type="button" onClick={() => updateStatus(test, 'active')} className="px-2 py-1 text-xs bg-green-500 text-white rounded">Start</button>}
-                    {test.status === 'active' && <button type="button" onClick={() => updateStatus(test, 'paused')} className="px-2 py-1 text-xs bg-yellow-500 text-white rounded">Pause</button>}
-                    {test.status === 'active' && <button type="button" onClick={() => updateStatus(test, 'completed')} className="px-2 py-1 text-xs bg-blue-500 text-white rounded">End</button>}
-                    {test.status === 'paused' && <button type="button" onClick={() => updateStatus(test, 'active')} className="px-2 py-1 text-xs bg-green-500 text-white rounded">Resume</button>}
+                  <div className="flex gap-1">
+                    {test.status === 'draft' && <button type="button" onClick={() => void updateStatus(test, 'active')} className="px-2 py-1 text-xs bg-green-500 text-white rounded">Start</button>}
+                    {test.status === 'active' && <button type="button" onClick={() => void updateStatus(test, 'paused')} className="px-2 py-1 text-xs bg-yellow-500 text-white rounded">Pause</button>}
+                    {test.status === 'active' && <button type="button" onClick={() => void updateStatus(test, 'completed')} className="px-2 py-1 text-xs bg-blue-500 text-white rounded">End</button>}
+                    {test.status === 'paused' && <button type="button" onClick={() => void updateStatus(test, 'active')} className="px-2 py-1 text-xs bg-green-500 text-white rounded">Resume</button>}
                   </div>
                 </td>
               </tr>
@@ -210,6 +236,7 @@ function AbTestsTab(): React.ReactElement {
           </div>
         </div>
       )}
+      {confirmationDialog}
     </div>
   );
 }
@@ -450,6 +477,7 @@ interface QualityScore {
 
 function QualityTab(): React.ReactElement {
   const queryClient = useQueryClient();
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [searchParams, setSearchParams] = useSearchParams();
   const sortParam = searchParams.get('qualitySort');
   const sortBy = ['overall', 'rating', 'completion', 'timeliness'].includes(sortParam ?? '') ? sortParam ?? 'overall' : 'overall';
@@ -477,8 +505,13 @@ function QualityTab(): React.ReactElement {
     });
   }
 
-  function recomputeScores(): void {
-    if (!window.confirm('Recompute provider quality scores for the last 90 days?')) return;
+  async function recomputeScores(): Promise<void> {
+    const accepted = await confirm({
+      title: 'Recompute provider quality scores?',
+      description: 'Recalculate the last 90 days of rating, completion, timeliness, cancellation, and response evidence for every eligible provider. This replaces the current score snapshot.',
+      confirmLabel: 'Recompute scores',
+    });
+    if (!accepted) return;
     computeMut.mutate();
   }
 
@@ -501,7 +534,7 @@ function QualityTab(): React.ReactElement {
             <option value="timeliness">Sort by Timeliness</option>
           </select>
         </div>
-        <button type="button" onClick={recomputeScores} disabled={computeMut.isPending} className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
+        <button type="button" onClick={() => void recomputeScores()} disabled={computeMut.isPending} className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
           {computeMut.isPending ? 'Computing...' : 'Recompute Scores'}
         </button>
       </div>
@@ -509,7 +542,8 @@ function QualityTab(): React.ReactElement {
       {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load quality scores. Please try again.</p> : data?.data.length === 0 ? (
         <p className="text-sm text-slate-500 py-4">No providers have quality scores yet. Click &ldquo;Recompute Scores&rdquo; to generate them.</p>
       ) : (
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-lg border border-[var(--color-border)]">
+        <table className="w-full min-w-[880px] text-sm">
           <thead className="bg-slate-50">
             <tr>
               <th className="text-left px-3 py-2 font-medium text-slate-600">Provider</th>
@@ -540,7 +574,9 @@ function QualityTab(): React.ReactElement {
             ))}
           </tbody>
         </table>
+        </div>
       )}
+      {confirmationDialog}
     </div>
   );
 }
@@ -650,7 +686,7 @@ export default function AnalyticsPage(): React.ReactElement {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Analytics sections" className="flex gap-1 border-b mb-6">
+      <div role="tablist" aria-label="Analytics sections" className="mb-6 flex gap-1 overflow-x-auto border-b">
         {TABS.map((tab) => (
           <button
             key={tab.id}

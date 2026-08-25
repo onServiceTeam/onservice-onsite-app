@@ -30,8 +30,15 @@ export default function DataTable<T>({
 }: DataTableProps<T>): React.ReactElement {
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl border border-[var(--color-border)] p-12 text-center">
-        <div className="animate-spin h-6 w-6 border-3 border-[var(--color-secondary)] border-t-transparent rounded-full mx-auto" />
+      <div
+        role="status"
+        aria-live="polite"
+        className="rounded-xl border border-[var(--color-border)] bg-white p-12 text-center"
+      >
+        <div
+          className="mx-auto h-6 w-6 animate-spin rounded-full border-3 border-[var(--color-secondary)] border-t-transparent"
+          aria-hidden="true"
+        />
         <p className="text-sm text-[var(--color-text-secondary)] mt-3">Loading...</p>
       </div>
     );

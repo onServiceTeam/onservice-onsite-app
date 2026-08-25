@@ -1,6 +1,6 @@
 import * as React from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown } from '@/components/icons';
 
 export const Select = SelectPrimitive.Root;
 export const SelectGroup = SelectPrimitive.Group;
@@ -12,7 +12,7 @@ export const SelectTrigger = React.forwardRef<
 >(({ className = '', children, ...props }, ref) => (
   <SelectPrimitive.Trigger
     ref={ref}
-    className={`flex h-9 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    className={`flex min-h-11 w-full items-center justify-between rounded-md border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     {...props}
   >
     {children}
@@ -30,7 +30,7 @@ export const SelectContent = React.forwardRef<
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
-      className={`relative z-50 min-w-[8rem] overflow-hidden rounded-md border border-slate-200 bg-white text-slate-900 shadow-md ${className}`}
+      className={`relative z-50 min-w-[8rem] overflow-hidden rounded-md border border-[var(--color-border-strong)] bg-white text-[var(--color-text)] ${className}`}
       position={position}
       {...props}
     >

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useAuthStore } from '@/stores/auth.store';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Menu, Search } from '@/components/icons';
+import { ArrowRight, Bell, ChevronDown, Key, Menu, Search, Settings } from '@/components/icons';
 import { visibleAdminNavItems } from '@/config/admin-navigation';
 
 interface HeaderProps {
@@ -13,8 +13,11 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
+  const accountRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [now, setNow] = useState(() => new Date());
   const navItems = useMemo(() => visibleAdminNavItems(user?.role), [user?.role]);
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -31,18 +34,26 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
         target?.tagName === 'INPUT' ||
         target?.tagName === 'TEXTAREA' ||
         target?.tagName === 'SELECT';
-      if (event.key === '/' && !isTyping) {
+      const commandShortcut =
+        event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey);
+      if ((event.key === '/' && !isTyping) || commandShortcut) {
         event.preventDefault();
         searchRef.current?.focus();
         setSearchOpen(true);
       }
       if (event.key === 'Escape') {
         setSearchOpen(false);
+        setAccountOpen(false);
         searchRef.current?.blur();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const handleLogout = async (): Promise<void> => {
@@ -54,6 +65,7 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
     navigate(to);
     setQuery('');
     setSearchOpen(false);
+    setAccountOpen(false);
   };
 
   const handleSearchSubmit = (event: FormEvent): void => {
@@ -68,6 +80,14 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
     .join('')
     .slice(0, 2)
     .toUpperCase();
+  const manilaTime = new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Manila',
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(now);
 
   return (
     <header className="sticky top-0 z-30 flex min-h-18 items-center gap-3 border-b border-[var(--color-border)] bg-white px-4 py-3 sm:px-6">
@@ -105,13 +125,13 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
           placeholder="Jump to a page or workspace..."
         />
         <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-[var(--color-border)] bg-white px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-text-secondary)] sm:block">
-          /
+          Ctrl K
         </kbd>
 
         {searchOpen && (
           <div
             id="admin-command-results"
-            className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-lg border border-[var(--color-border)] bg-white shadow-xl"
+            className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-lg border border-[var(--color-border-strong)] bg-white"
           >
             <div className="border-b border-[var(--color-border)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--color-text-tertiary)]">
               Page and workspace search
@@ -145,12 +165,21 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
               </ul>
             )}
             <p className="border-t border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-[11px] text-[var(--color-text-secondary)]">
-              Record-level search by booking, person, ticket, or payout ID is tracked separately and
-              is not simulated here.
+              Page search only. Record search by booking, person, ticket, dispute, or payout is
+              not yet available.
             </p>
           </div>
         )}
       </form>
+
+      <time
+        dateTime={now.toISOString()}
+        className="hidden whitespace-nowrap text-right text-xs font-semibold text-[var(--color-text-secondary)] 2xl:block"
+        aria-label={`Philippine time ${manilaTime}`}
+      >
+        <span className="block text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-tertiary)]">Philippine time</span>
+        {manilaTime}
+      </time>
 
       <button
         type="button"
@@ -161,27 +190,49 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
         <Bell size={20} />
       </button>
 
-      <div className="hidden items-center gap-3 border-l border-[var(--color-border)] pl-4 sm:flex">
-        <div
-          className="flex h-9 w-9 items-center justify-center rounded-md bg-[var(--color-primary)] text-xs font-bold text-white"
-          aria-hidden="true"
-        >
-          {initials || 'A'}
-        </div>
-        <div className="hidden text-right xl:block">
-          <p className="max-w-36 truncate text-sm font-semibold text-[var(--color-text)]">
-            {displayName}
-          </p>
-          <p className="text-xs capitalize text-[var(--color-text-secondary)]">
-            {user?.role?.replace('_', ' ') ?? 'admin'}
-          </p>
-        </div>
+      <div
+        ref={accountRef}
+        className="relative border-l border-[var(--color-border)] pl-2 sm:pl-3"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setAccountOpen(false);
+        }}
+      >
         <button
-          onClick={() => void handleLogout()}
-          className="min-h-11 rounded-md px-3 text-xs font-semibold text-red-700 hover:bg-red-50"
+          type="button"
+          onClick={() => setAccountOpen((value) => !value)}
+          className="flex min-h-11 items-center gap-2 rounded-md px-2 text-left hover:bg-[var(--color-surface-hover)]"
+          aria-label="Open admin account menu"
+          aria-expanded={accountOpen}
         >
-          Log out
+          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-[var(--color-primary)] text-xs font-bold text-white" aria-hidden="true">
+            {initials || 'A'}
+          </span>
+          <span className="hidden min-w-0 xl:block">
+            <span className="block max-w-36 truncate text-sm font-semibold text-[var(--color-text)]">{displayName}</span>
+            <span className="block text-xs capitalize text-[var(--color-text-secondary)]">{user?.role?.replace('_', ' ') ?? 'admin'}</span>
+          </span>
+          <ChevronDown size={16} className="hidden text-[var(--color-text-secondary)] xl:block" />
         </button>
+
+        {accountOpen && (
+          <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-64 rounded-lg border border-[var(--color-border-strong)] bg-white p-2">
+            <div className="border-b border-[var(--color-border)] px-3 py-2">
+              <p className="truncate text-sm font-semibold text-[var(--color-text)]">{displayName}</p>
+              <p className="truncate text-xs text-[var(--color-text-secondary)]">{user?.email ?? user?.phone}</p>
+            </div>
+            {user?.role !== 'dpo' && (
+              <button type="button" onClick={() => chooseResult('/settings')} className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]">
+                <Settings size={17} /> System settings
+              </button>
+            )}
+            <button type="button" onClick={() => chooseResult('/change-password')} className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]">
+              <Key size={17} /> Change password
+            </button>
+            <button type="button" onClick={() => void handleLogout()} className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-[var(--color-danger)] hover:bg-[var(--color-danger-bg)]">
+              <ArrowRight size={17} aria-hidden="true" /> Log out
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

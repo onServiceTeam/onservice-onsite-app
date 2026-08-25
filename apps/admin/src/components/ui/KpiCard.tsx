@@ -27,7 +27,7 @@ export default function KpiCard({ title, value, icon, change, changeType = 'neut
     : 'text-slate-500';
 
   return (
-    <div className="bg-white rounded-xl border border-[var(--color-border)] p-5 hover:shadow-sm transition-shadow">
+    <div className="rounded-xl border border-[var(--color-border)] bg-white p-5 transition-colors hover:border-[var(--color-border-strong)]">
       <div className="flex items-center justify-between mb-3">
         {icon ? (
           <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#E6EEF1] text-[var(--color-primary)]">{icon}</span>

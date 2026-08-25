@@ -34,7 +34,7 @@ describe('admin operations shell', () => {
 
     expect(screen.getByRole('button', { name: /Support Queue/i })).toBeTruthy();
     expect(
-      screen.getByText(/Record-level search by booking, person, ticket, or payout ID/i),
+      screen.getByText(/Page search only\. Record search by booking, person, ticket, dispute, or payout/i),
     ).toBeTruthy();
   });
 });

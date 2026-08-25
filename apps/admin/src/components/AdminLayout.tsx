@@ -3,6 +3,7 @@ import { Outlet, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import AdminBreadcrumbs from './AdminBreadcrumbs';
 
 function PageLoader(): React.ReactElement {
   return (
@@ -15,6 +16,7 @@ function PageLoader(): React.ReactElement {
 export default function AdminLayout(): React.ReactElement {
   const { isAuthenticated, isLoading } = useAuthStore();
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [navigationCollapsed, setNavigationCollapsed] = useState(false);
 
   if (isLoading) {
     return (
@@ -30,13 +32,21 @@ export default function AdminLayout(): React.ReactElement {
 
   return (
     <div className="flex min-h-screen bg-[var(--color-bg)]">
-      <Sidebar mobileOpen={mobileNavigationOpen} onClose={() => setMobileNavigationOpen(false)} />
+      <Sidebar
+        mobileOpen={mobileNavigationOpen}
+        onClose={() => setMobileNavigationOpen(false)}
+        collapsed={navigationCollapsed}
+        onToggleCollapsed={() => setNavigationCollapsed((value) => !value)}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header onOpenNavigation={() => setMobileNavigationOpen(true)} />
         <main className="flex-1 p-4 sm:p-6 xl:p-8">
-          <Suspense fallback={<PageLoader />}>
-            <Outlet />
-          </Suspense>
+          <div className="mx-auto w-full max-w-[1600px]">
+            <AdminBreadcrumbs />
+            <Suspense fallback={<PageLoader />}>
+              <Outlet />
+            </Suspense>
+          </div>
         </main>
       </div>
     </div>

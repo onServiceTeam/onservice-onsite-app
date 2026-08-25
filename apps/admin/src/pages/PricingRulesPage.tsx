@@ -357,7 +357,7 @@ export default function PricingRulesPage(): React.ReactElement {
 
       {/* Create / Edit Form */}
       {(showCreate || editing) && (
-        <div className="bg-white border border-[var(--color-border)] rounded-xl p-6 shadow-sm">
+        <div className="rounded-xl border border-[var(--color-border)] bg-white p-6">
           <h2 className="text-lg font-semibold text-[var(--color-text)] mb-4">
             {editing ? 'Edit Pricing Rule' : 'Create Pricing Rule'}
           </h2>
@@ -582,7 +582,7 @@ export default function PricingRulesPage(): React.ReactElement {
           <p className="text-sm mt-1">Create one to enable surge pricing for rush hours, holidays, or peak periods.</p>
         </div>
       ) : (
-        <div className="bg-white border border-[var(--color-border)] rounded-xl overflow-hidden shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-white">
           <table className="w-full text-sm">
             <thead className="bg-[var(--color-surface-hover)] border-b border-[var(--color-border)]">
               <tr>

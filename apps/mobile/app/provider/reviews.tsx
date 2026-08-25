@@ -360,7 +360,7 @@ export default function ProviderReviewsScreen(): React.ReactElement {
               </View>
             ) : (
               <EmptyState
-                icon="⭐"
+                icon={<Star size={48} color={colors.textTertiary} />}
                 title="No reviews yet"
                 description="Reviews from customers will appear here."
               />

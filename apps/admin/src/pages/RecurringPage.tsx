@@ -143,7 +143,6 @@ export default function RecurringPage(): React.ReactElement {
       setActionError('Cancellation reason must be at least 10 characters.');
       return;
     }
-    if (!window.confirm(`Cancel recurring booking ${cancelTarget.id.slice(0, 8)} for ${cancelTarget.customerName ?? 'this customer'}?`)) return;
     cancelMutation.mutate({ id: cancelTarget.id, reason });
   }
 
@@ -296,6 +295,10 @@ export default function RecurringPage(): React.ReactElement {
             <h3 id="cancel-recurring-title" className="text-lg font-semibold text-[var(--color-text)] mb-1">Cancel recurring booking</h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
               {cancelTarget.customerName ?? '(unknown customer)'} — {FREQUENCY_LABELS[cancelTarget.frequency] ?? cancelTarget.frequency}
+            </p>
+            <p className="mb-4 rounded-lg border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] p-3 text-sm text-[var(--color-text)]">
+              This stops future bookings in the series. Existing bookings remain unchanged. The
+              reason is recorded in the audit log and sent to the customer.
             </p>
             <label htmlFor="recurring-cancel-reason" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Cancellation reason *</label>
             <textarea

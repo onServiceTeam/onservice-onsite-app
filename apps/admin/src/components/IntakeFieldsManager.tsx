@@ -6,7 +6,7 @@ import React, { useState, type FormEvent } from 'react';
 // job-request screen renders these dynamically.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
-import { Badge, Label, Input, Textarea } from '@/components/ui';
+import { Badge, Label, Input, Textarea, useConfirmationDialog } from '@/components/ui';
 
 export type IntakeFieldType = 'number' | 'text' | 'choice' | 'boolean';
 
@@ -66,6 +66,7 @@ export function IntakeFieldsManager({
   readOnly?: boolean;
 }): React.ReactElement {
   const queryClient = useQueryClient();
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const queryKey = ['adminIntakeFields', subcategoryId];
 
   const [showForm, setShowForm] = useState(false);
@@ -194,6 +195,16 @@ export function IntakeFieldsManager({
     }));
   }
 
+  async function deleteField(field: IntakeField): Promise<void> {
+    const accepted = await confirm({
+      title: 'Permanently delete intake field?',
+      description: `“${field.label}” will no longer appear on new customer job requests for ${subcategoryName}. Providers may receive less scoping information. This field cannot be restored.`,
+      confirmLabel: 'Delete field',
+      tone: 'destructive',
+    });
+    if (accepted) deleteMutation.mutate(field.id);
+  }
+
   const fields = data ?? [];
 
   return (
@@ -204,6 +215,7 @@ export function IntakeFieldsManager({
         </span>
         {!readOnly && !showForm && (
           <button
+            type="button"
             onClick={openAdd}
             aria-label={`Add intake field to ${subcategoryName}`}
             className="px-2 py-1 text-xs font-medium text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-md transition-colors"
@@ -253,6 +265,7 @@ export function IntakeFieldsManager({
               </div>
               {!readOnly && <div className="flex items-center gap-2 shrink-0">
                 <button
+                  type="button"
                   onClick={() => openEdit(f)}
                   aria-label={`Edit intake field ${f.label}`}
                   className="px-2 py-0.5 text-xs text-sky-700 bg-sky-50 rounded hover:bg-sky-100 transition-colors"
@@ -260,13 +273,12 @@ export function IntakeFieldsManager({
                   Edit
                 </button>
                 <button
-                  onClick={() => {
-                    if (window.confirm(`Remove intake field "${f.label}"?`)) deleteMutation.mutate(f.id);
-                  }}
-                  aria-label={`Remove intake field ${f.label}`}
+                  type="button"
+                  onClick={() => void deleteField(f)}
+                  aria-label={`Delete intake field ${f.label}`}
                   className="px-2 py-0.5 text-xs text-red-700 bg-red-50 rounded hover:bg-red-100 transition-colors"
                 >
-                  Remove
+                  Delete
                 </button>
               </div>}
             </div>
@@ -435,6 +447,7 @@ export function IntakeFieldsManager({
           </div>
         </form>
       )}
+      {confirmationDialog}
     </div>
   );
 }

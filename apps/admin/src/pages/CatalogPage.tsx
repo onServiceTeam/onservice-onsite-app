@@ -3,8 +3,8 @@ import React, { useState, Fragment, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
-import { Badge, Label, Input, Textarea } from '@/components/ui';
-import { Package } from '@/components/icons';
+import { Badge, Label, Input, Textarea, useReasonDialog } from '@/components/ui';
+import { ChevronDown, ChevronRight, Package } from '@/components/icons';
 import { IntakeFieldsManager } from '@/components/IntakeFieldsManager';
 import { useAuthStore } from '@/stores/auth.store';
 
@@ -54,6 +54,7 @@ type ModalMode = null | 'addCategory' | 'editCategory' | 'addSubcategory' | 'edi
 
 export default function CatalogPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const { requestReason, reasonDialog } = useReasonDialog();
   const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [serviceFilter, setServiceFilter] = useState<'all' | 'needsScope'>('all');
@@ -203,7 +204,8 @@ export default function CatalogPage(): React.ReactElement {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/api/v1/catalog/admin/subcategories/${id}`),
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api.delete(`/api/v1/catalog/admin/subcategories/${id}`, { body: { reason } }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['adminCatalog'] }),
     onError: (err) => setError(getErrorMessage(err)),
   });
@@ -247,7 +249,8 @@ export default function CatalogPage(): React.ReactElement {
   });
 
   const deleteAddonMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/api/v1/catalog/admin/addons/${id}`),
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api.delete(`/api/v1/catalog/admin/addons/${id}`, { body: { reason } }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['adminAddons', expandedAddons] }),
     onError: (err) => setError(getErrorMessage(err)),
   });
@@ -337,6 +340,30 @@ export default function CatalogPage(): React.ReactElement {
     setModal('editAddon');
   }
 
+  async function deactivateService(service: Subcategory): Promise<void> {
+    const reason = await requestReason({
+      title: 'Deactivate customer service?',
+      description: `“${service.name}” will stop appearing in customer booking and cannot receive new bookings. Historical bookings and their pricing evidence remain available.`,
+      confirmLabel: 'Deactivate service',
+      reasonLabel: 'Deactivation reason',
+      minLength: 10,
+      maxLength: 2000,
+    });
+    if (reason) deleteMutation.mutate({ id: service.id, reason });
+  }
+
+  async function deactivateAddon(addon: Addon): Promise<void> {
+    const reason = await requestReason({
+      title: 'Deactivate customer add-on?',
+      description: `“${addon.name}” will stop appearing as an option on new customer bookings. Historical booking selections remain available.`,
+      confirmLabel: 'Deactivate add-on',
+      reasonLabel: 'Deactivation reason',
+      minLength: 10,
+      maxLength: 2000,
+    });
+    if (reason) deleteAddonMutation.mutate({ id: addon.id, reason });
+  }
+
   const handleSubmit = (e: FormEvent): void => {
     e.preventDefault();
     const validationError = validateForm();
@@ -394,6 +421,7 @@ export default function CatalogPage(): React.ReactElement {
           <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">Publish the service scope, pricing, intake questions, and add-ons customers use to book.</p>
         </div>
         {isSuperAdmin ? <button
+          type="button"
           onClick={openAddCategory}
           className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
         >
@@ -450,31 +478,30 @@ export default function CatalogPage(): React.ReactElement {
           const categoryExpanded = serviceFilter === 'needsScope' || expandedCategory === cat.id;
           return (
           <div key={cat.id} className="bg-white rounded-xl border border-[var(--color-border)] overflow-hidden">
-            <div
-              role="button"
-              tabIndex={0}
-              aria-expanded={categoryExpanded}
-              aria-label={`${categoryExpanded ? 'Collapse' : 'Expand'} ${cat.name} services`}
-              className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors"
-              onClick={() => { if (serviceFilter === 'all') setExpandedCategory(expandedCategory === cat.id ? null : cat.id); }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  if (serviceFilter === 'all') setExpandedCategory(expandedCategory === cat.id ? null : cat.id);
-                }
-              }}
-            >
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between gap-3 px-3 py-2 sm:px-5 sm:py-3">
+              <button
+                type="button"
+                aria-expanded={categoryExpanded}
+                aria-label={`${categoryExpanded ? 'Collapse' : 'Expand'} ${cat.name} services`}
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-2 text-left hover:bg-[var(--color-surface-hover)]"
+                onClick={() => {
+                  if (serviceFilter === 'all') {
+                    setExpandedCategory(expandedCategory === cat.id ? null : cat.id);
+                  }
+                }}
+              >
                 {cat.iconUrl && <img src={cat.iconUrl} alt="" className="w-8 h-8 rounded-lg object-cover" />}
-                <div>
+                <span className="min-w-0 flex-1">
                   <p className="font-medium text-[var(--color-text)]">{cat.name}</p>
                   <p className="text-xs text-[var(--color-text-secondary)]">
                     {cat.subcategories.length} service{cat.subcategories.length !== 1 ? 's' : ''} — Order: {cat.displayOrder}
                   </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
+                </span>
+                {categoryExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+              </button>
+              <div className="flex shrink-0 items-center gap-2">
                 {isSuperAdmin && <button
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); openEditCategory(cat); }}
                   aria-label={`Edit category ${cat.name}`}
                   className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
@@ -482,15 +509,13 @@ export default function CatalogPage(): React.ReactElement {
                   Edit
                 </button>}
                 {isSuperAdmin && <button
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); openAddSubcategory(cat.id); }}
                   aria-label={`Add service to ${cat.name}`}
                   className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
                 >
                   + Service
                 </button>}
-                <span className="text-[var(--color-text-secondary)] text-lg" aria-hidden="true">
-                  {categoryExpanded ? '▾' : '▸'}
-                </span>
               </div>
             </div>
 
@@ -566,6 +591,7 @@ export default function CatalogPage(): React.ReactElement {
                           <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)]">{sub.displayOrder}</td>
                           <td className="px-5 py-3 text-right">
                             <button
+                              type="button"
                               onClick={() => setExpandedAddons(expandedAddons === sub.id ? null : sub.id)}
                               aria-expanded={expandedAddons === sub.id}
                               aria-label={`${expandedAddons === sub.id ? 'Hide' : 'Show'} add-ons for ${sub.name}`}
@@ -574,6 +600,7 @@ export default function CatalogPage(): React.ReactElement {
                               Add-ons
                             </button>
                             <button
+                              type="button"
                               onClick={() => setExpandedIntake(expandedIntake === sub.id ? null : sub.id)}
                               aria-expanded={expandedIntake === sub.id}
                               aria-label={`${expandedIntake === sub.id ? 'Hide' : 'Show'} intake fields for ${sub.name}`}
@@ -582,6 +609,7 @@ export default function CatalogPage(): React.ReactElement {
                               Intake
                             </button>
                             {isSuperAdmin && <button
+                              type="button"
                               onClick={() => openEditSubcategory(sub)}
                               aria-label={`Edit service ${sub.name}`}
                               className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors mr-1"
@@ -589,13 +617,12 @@ export default function CatalogPage(): React.ReactElement {
                               Edit
                             </button>}
                             {isSuperAdmin && <button
-                              onClick={() => {
-                                if (window.confirm(`Deactivate "${sub.name}"?`)) deleteMutation.mutate(sub.id);
-                              }}
-                              aria-label={`Remove service ${sub.name}`}
+                              type="button"
+                              onClick={() => void deactivateService(sub)}
+                              aria-label={`Deactivate service ${sub.name}`}
                               className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
                             >
-                              Remove
+                              Deactivate
                             </button>}
                           </td>
                         </tr>
@@ -607,6 +634,7 @@ export default function CatalogPage(): React.ReactElement {
                                   Add-ons for {sub.name}
                                 </span>
                                 {isSuperAdmin && <button
+                                  type="button"
                                   onClick={() => openAddAddon(sub.id)}
                                   aria-label={`Add add-on to ${sub.name}`}
                                   className="px-2 py-1 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-md transition-colors"
@@ -634,6 +662,7 @@ export default function CatalogPage(): React.ReactElement {
                                         <span className="text-sm font-medium text-[var(--color-text)]">{formatCurrency(addon.price)}</span>
                                         {!addon.isActive && <span className="text-xs text-red-600">(inactive)</span>}
                                         {isSuperAdmin && <button
+                                          type="button"
                                           onClick={() => openEditAddon(addon)}
                                           aria-label={`Edit add-on ${addon.name}`}
                                           className="px-2 py-0.5 text-xs text-sky-700 bg-sky-50 rounded hover:bg-sky-100 transition-colors"
@@ -641,11 +670,12 @@ export default function CatalogPage(): React.ReactElement {
                                           Edit
                                         </button>}
                                         {isSuperAdmin && <button
-                                          onClick={() => { if (window.confirm(`Remove "${addon.name}"?`)) deleteAddonMutation.mutate(addon.id); }}
-                                          aria-label={`Remove add-on ${addon.name}`}
+                                          type="button"
+                                          onClick={() => void deactivateAddon(addon)}
+                                          aria-label={`Deactivate add-on ${addon.name}`}
                                           className="px-2 py-0.5 text-xs text-red-700 bg-red-50 rounded hover:bg-red-100 transition-colors"
                                         >
-                                          Remove
+                                          Deactivate
                                         </button>}
                                       </div>
                                     </div>
@@ -973,6 +1003,7 @@ export default function CatalogPage(): React.ReactElement {
           </div>
         </div>
       )}
+      {reasonDialog}
     </div>
   );
 }

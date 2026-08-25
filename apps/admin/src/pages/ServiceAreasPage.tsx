@@ -4,7 +4,13 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
-import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import {
+  DataTable,
+  Badge,
+  Pagination,
+  useConfirmationDialog,
+  type Column,
+} from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 
 interface ServiceArea {
@@ -106,6 +112,7 @@ const EMPTY_FORM: CreateAreaForm = {
 };
 
 export default function ServiceAreasPage(): React.ReactElement {
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
@@ -322,30 +329,51 @@ export default function ServiceAreasPage(): React.ReactElement {
     return null;
   }
 
-  const handleCreateSubmit = (e: FormEvent): void => {
+  const handleCreateSubmit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
     const validationError = validateCreateForm(form);
     if (validationError) {
       setFormError(validationError);
       return;
     }
-    if (!window.confirm(`Create service area "${form.name.trim()}"?`)) return;
+    const accepted = await confirm({
+      title: 'Create service area?',
+      description: `Create “${form.name.trim()}” in ${form.city.trim()}, ${form.province.trim()} with a ${form.radiusKm} km matching radius. It will not accept customer bookings until activated.`,
+      confirmLabel: 'Create area',
+    });
+    if (!accepted) return;
     setFormError('');
     createMutation.mutate(form);
   };
 
-  function activateArea(area: ServiceArea): void {
-    if (!window.confirm(`Activate service area "${area.name}"?`)) return;
+  async function activateArea(area: ServiceArea): Promise<void> {
+    const accepted = await confirm({
+      title: 'Activate service area?',
+      description: `“${area.name}” will begin accepting customer bookings and provider matching. ${area.activeProviderCount} active providers are available against a configured minimum of ${area.minProvidersToLaunch}. Waitlisted users will be notified.`,
+      confirmLabel: 'Activate area',
+    });
+    if (!accepted) return;
     activateMutation.mutate(area.id);
   }
 
-  function pauseArea(area: ServiceArea): void {
-    if (!window.confirm(`Pause service area "${area.name}"?`)) return;
+  async function pauseArea(area: ServiceArea): Promise<void> {
+    const accepted = await confirm({
+      title: 'Pause service area?',
+      description: `“${area.name}” will stop accepting new customer bookings and provider service-area requests. Existing bookings are not cancelled by this action.`,
+      confirmLabel: 'Pause area',
+      tone: 'destructive',
+    });
+    if (!accepted) return;
     pauseMutation.mutate(area.id);
   }
 
-  function setDefaultArea(area: ServiceArea): void {
-    if (!window.confirm(`Make "${area.name}" the default city? The mobile apps will center their map and default their location pickers here.`)) return;
+  async function setDefaultArea(area: ServiceArea): Promise<void> {
+    const accepted = await confirm({
+      title: 'Change the app default city?',
+      description: `Customer and provider maps and location pickers will default to “${area.name}”. This changes the starting market, not a user’s saved address or an existing booking.`,
+      confirmLabel: 'Set as default',
+    });
+    if (!accepted) return;
     setDefaultMutation.mutate(area.id);
   }
 
@@ -461,7 +489,7 @@ export default function ServiceAreasPage(): React.ReactElement {
             <button
               type="button"
               aria-label={`Activate service area ${r.name}`}
-              onClick={() => activateArea(r)}
+              onClick={() => void activateArea(r)}
               disabled={activateMutation.isPending}
               className="text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
             >
@@ -472,7 +500,7 @@ export default function ServiceAreasPage(): React.ReactElement {
             <button
               type="button"
               aria-label={`Pause service area ${r.name}`}
-              onClick={() => pauseArea(r)}
+              onClick={() => void pauseArea(r)}
               disabled={pauseMutation.isPending}
               className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
             >
@@ -483,7 +511,7 @@ export default function ServiceAreasPage(): React.ReactElement {
             <button
               type="button"
               aria-label={`Set ${r.name} as the default city`}
-              onClick={() => setDefaultArea(r)}
+              onClick={() => void setDefaultArea(r)}
               disabled={setDefaultMutation.isPending}
               className="text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
             >
@@ -736,7 +764,7 @@ export default function ServiceAreasPage(): React.ReactElement {
 
       {decisionTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div role="dialog" aria-modal="true" aria-labelledby="area-change-decision-title" className="w-full max-w-lg rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl">
+          <div role="dialog" aria-modal="true" aria-labelledby="area-change-decision-title" className="w-full max-w-lg rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-6">
             <h3 id="area-change-decision-title" className="text-lg font-semibold text-[var(--color-text)]">
               {decisionTarget.decision === 'approved' ? 'Approve' : 'Reject'} provider service-area change
             </h3>
@@ -815,6 +843,7 @@ export default function ServiceAreasPage(): React.ReactElement {
           </div>
         </div>
       )}
+      {confirmationDialog}
     </div>
   );
 }
