@@ -45,6 +45,7 @@ import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Camera } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
+import { Routes } from '@/config/navigation';
 
 type ModalMode = 'add' | 'edit' | null;
 
@@ -245,11 +246,21 @@ export default function PortfolioScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={styles.headerInner}>
-          <TouchableOpacity onPress={(): void => { router.back(); }} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={(): void => { router.back(); }}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Back to provider profile"
+          >
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Portfolio Photos</Text>
-          <TouchableOpacity onPress={handleAdd} style={styles.addButton}>
+          <Text style={styles.title}>Work Portfolio</Text>
+          <TouchableOpacity
+            onPress={handleAdd}
+            style={styles.addButton}
+            accessibilityRole="button"
+            accessibilityLabel="Add a public work photo"
+          >
             <Text style={styles.addButtonText}>+ Add</Text>
           </TouchableOpacity>
         </View>
@@ -265,7 +276,14 @@ export default function PortfolioScreen(): React.ReactElement {
               {pendingLocalUri ? (
                 <View style={styles.previewWrap}>
                   <Image source={{ uri: pendingLocalUri }} style={styles.previewImg} resizeMode="cover" />
-                  <TouchableOpacity onPress={showPickerOptions} style={styles.changeBtn} disabled={isPending}>
+                  <TouchableOpacity
+                    onPress={showPickerOptions}
+                    style={styles.changeBtn}
+                    disabled={isPending}
+                    accessibilityRole="button"
+                    accessibilityLabel="Choose a different work photo"
+                    accessibilityState={{ disabled: isPending }}
+                  >
                     <Text style={styles.changeBtnText}>Change</Text>
                   </TouchableOpacity>
                 </View>
@@ -275,6 +293,9 @@ export default function PortfolioScreen(): React.ReactElement {
                   style={styles.pickerCard}
                   activeOpacity={0.8}
                   disabled={isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel="Choose a work photo from camera or photo library"
+                  accessibilityState={{ disabled: isPending }}
                 >
                   <Camera size={40} color={colors.textTertiary} style={styles.pickerIcon} />
                   <Text style={styles.pickerTitle}>Tap to add photo</Text>
@@ -296,6 +317,7 @@ export default function PortfolioScreen(): React.ReactElement {
             placeholderTextColor={colors.textTertiary}
             editable={!isPending}
             maxLength={500}
+            accessibilityLabel="Public work photo caption, optional"
           />
           <View style={styles.formActions}>
             <Button title="Cancel" onPress={resetForm} variant="ghost" />
@@ -312,6 +334,41 @@ export default function PortfolioScreen(): React.ReactElement {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.secondary} />}
       >
+        <View
+          style={[styles.portfolioSummary, !isPhone && styles.portfolioSummaryWide]}
+          accessibilityRole="summary"
+          accessibilityLabel={`${portfolio.length} public work ${portfolio.length === 1 ? 'photo' : 'photos'}. Portfolio trust workspace.`}
+        >
+          <View style={styles.summaryCopy}>
+            <Text style={styles.summaryEyebrow}>PUBLIC WORK PROOF</Text>
+            <Text style={styles.summaryTitle}>
+              {portfolio.length} public work {portfolio.length === 1 ? 'photo' : 'photos'}
+            </Text>
+            <Text style={styles.summaryText}>
+              Customers use this gallery alongside your verified credentials and reviews when choosing a provider.
+            </Text>
+          </View>
+          <View style={styles.trustLinks}>
+            <TouchableOpacity
+              style={styles.trustLink}
+              onPress={() => router.push(Routes.PROVIDER.CERTIFICATIONS)}
+              accessibilityRole="button"
+              accessibilityLabel="Manage provider certifications"
+            >
+              <Text style={styles.trustLinkLabel}>Certifications</Text>
+              <Text style={styles.trustLinkHint}>Manage verified credentials</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.trustLink}
+              onPress={() => router.push(Routes.PROVIDER.REVIEWS)}
+              accessibilityRole="button"
+              accessibilityLabel="View provider reviews"
+            >
+              <Text style={styles.trustLinkLabel}>Reviews</Text>
+              <Text style={styles.trustLinkHint}>See customer feedback</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
         <View style={[styles.publicNotice, !isPhone && styles.publicNoticeWide]}>
           <Text style={styles.publicNoticeTitle}>Visible to customers</Text>
           <Text style={styles.publicNoticeText}>
@@ -336,7 +393,12 @@ export default function PortfolioScreen(): React.ReactElement {
                   { width: (isPhone ? '48%' : isTablet ? '31.5%' : '23.5%') as DimensionValue },
                 ]}
               >
-                <Image source={{ uri: item.imageUrl }} style={styles.photo} resizeMode="cover" />
+                <Image
+                  source={{ uri: item.imageUrl }}
+                  style={styles.photo}
+                  resizeMode="cover"
+                  accessibilityLabel={item.caption ? `Portfolio photo: ${item.caption}` : 'Portfolio work photo'}
+                />
                 {item.caption ? (
                   <Text style={styles.photoCaption} numberOfLines={2}>{item.caption}</Text>
                 ) : null}
@@ -344,12 +406,16 @@ export default function PortfolioScreen(): React.ReactElement {
                   <TouchableOpacity
                     onPress={(): void => { handleEdit(item); }}
                     style={styles.photoActionBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Edit caption for ${item.caption || 'portfolio work photo'}`}
                   >
                     <Text style={styles.editText}>Edit</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={(): void => { handleRemove(item); }}
                     style={styles.photoActionBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${item.caption || 'portfolio work photo'}`}
                   >
                     <Text style={styles.removeText}>Remove</Text>
                   </TouchableOpacity>
@@ -387,6 +453,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   addButtonText: { ...typography.bodySmall, color: colors.white, fontWeight: '600' },
 
@@ -420,6 +488,33 @@ const styles = StyleSheet.create({
 
   scroll: { flex: 1 },
   scrollContent: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.base },
+  portfolioSummary: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.base,
+    gap: spacing.base,
+  },
+  portfolioSummaryWide: { flexDirection: 'row', alignItems: 'stretch', padding: spacing.lg },
+  summaryCopy: { flex: 1, minWidth: 0 },
+  summaryEyebrow: { ...typography.caption, color: colors.accent, fontWeight: '800', marginBottom: spacing.xs },
+  summaryTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
+  summaryText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, maxWidth: 560 },
+  trustLinks: { flex: 1, flexDirection: 'row', gap: spacing.sm },
+  trustLink: {
+    flex: 1,
+    minHeight: 72,
+    justifyContent: 'center',
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+  },
+  trustLinkLabel: { ...typography.body, color: colors.primary, fontWeight: '700', marginBottom: 2 },
+  trustLinkHint: { ...typography.caption, color: colors.textSecondary, lineHeight: 16 },
   publicNotice: {
     backgroundColor: colors.primaryLight,
     borderWidth: 1,
@@ -505,7 +600,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: spacing.sm,
     right: spacing.sm,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: colors.text,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,

@@ -49,7 +49,7 @@ export default function PayoutSettingsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const { isDesktop } = useResponsive();
+  const { isPhone } = useResponsive();
 
   const [frequency, setFrequency] = useState('manual');
   const [method, setMethod] = useState<PayoutMethod>('gcash');
@@ -162,8 +162,8 @@ export default function PayoutSettingsScreen(): React.ReactElement {
         showsVerticalScrollIndicator={false}
       >
         <View
-          style={[styles.workspace, isDesktop && styles.desktopWorkspace]}
-          accessibilityLabel={isDesktop ? 'Desktop withdrawal preferences workspace' : undefined}
+          style={[styles.workspace, !isPhone && styles.wideWorkspace]}
+          accessibilityLabel={!isPhone ? 'Tablet and desktop withdrawal preferences workspace' : undefined}
         >
           <View style={styles.guidanceColumn}>
             <View style={styles.noticeCard}>
@@ -226,6 +226,7 @@ export default function PayoutSettingsScreen(): React.ReactElement {
                     setDirty(true);
                   }}
                   accessibilityRole="radio"
+                  accessibilityLabel={`${item.label} payout method`}
                   accessibilityState={{ checked: method === item.value }}
                 >
                   <Text style={[styles.methodText, method === item.value && styles.methodTextActive]}>
@@ -260,6 +261,7 @@ export default function PayoutSettingsScreen(): React.ReactElement {
               onPress={handleSave}
               disabled={!dirty || updateMutation.isPending}
               accessibilityRole="button"
+              accessibilityState={{ disabled: !dirty || updateMutation.isPending }}
             >
               <Text style={styles.saveButtonText}>
                 {updateMutation.isPending ? 'Saving…' : 'Save withdrawal details'}
@@ -296,7 +298,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 80 },
   workspace: { width: '100%', maxWidth: 980, alignSelf: 'center', gap: spacing.base },
-  desktopWorkspace: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  wideWorkspace: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
   guidanceColumn: { flex: 1, minWidth: 0, gap: spacing.base },
   noticeCard: {
     backgroundColor: colors.primary,
@@ -307,7 +309,7 @@ const styles = StyleSheet.create({
   },
   noticeEyebrow: {
     ...typography.caption,
-    color: 'rgba(255,255,255,0.75)',
+    color: colors.white,
     fontWeight: '700',
     letterSpacing: 0.8,
   },

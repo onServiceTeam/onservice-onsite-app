@@ -71,6 +71,7 @@ export default function DocumentsScreen(): React.ReactElement {
 
   const allUploaded =
     !!store.governmentIdFrontUri && !!store.governmentIdBackUri && !!store.nbiClearanceUri;
+  const uploadedCount = DOC_SLOTS.filter(({ field }) => !!store[field]).length;
 
   const handleNext = (): void => {
     if (!allUploaded) {
@@ -108,7 +109,12 @@ export default function DocumentsScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Back to provider onboarding categories"
+        >
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
         <View style={styles.progress}>
@@ -130,80 +136,110 @@ export default function DocumentsScreen(): React.ReactElement {
         <Text style={styles.title}>Verification Documents</Text>
         <Text style={styles.subtitle}>
           Upload your government ID and NBI clearance for identity verification.
-          Documents are encrypted and stored securely.
+          These files stay in the private verification area and are available only through authorized review.
         </Text>
 
-        {DOC_SLOTS.map(({ field, label, hint }) => {
-          const uri = store[field];
-          const localPreview = localPreviews[field];
-          const isLoading = uploading === field;
+        <View
+          style={styles.readinessCard}
+          accessibilityRole="summary"
+          accessibilityLabel={`${uploadedCount} of 3 verification documents ready. Review has not started.`}
+        >
+          <View style={styles.readinessCount}>
+            <Text style={styles.readinessNumber}>{uploadedCount} / 3</Text>
+            <Text style={styles.readinessLabel}>documents ready</Text>
+          </View>
+          <View style={styles.readinessCopy}>
+            <Text style={styles.readinessTitle}>{allUploaded ? 'Ready for the next step' : 'Finish all required uploads'}</Text>
+            <Text style={styles.readinessText}>
+              Review has not started. Your application is submitted only after you finish all six onboarding steps.
+            </Text>
+          </View>
+        </View>
 
-          return (
-            <TouchableOpacity
-              key={field}
-              style={[styles.docSlot, uri && styles.docSlotDone]}
-              onPress={() => pickAndUpload(field)}
-              activeOpacity={0.7}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : localPreview ? (
-                <Image
-                  source={{ uri: localPreview }}
-                  style={styles.docThumb}
-                  testID={`document-preview-${field}`}
-                />
-              ) : (
-                <View style={[styles.docPlaceholder, uri && styles.docPlaceholderDone]}>
-                  <FileText size={20} color={uri ? colors.success : colors.textTertiary} />
-                </View>
-              )}
-              <View style={styles.docInfo}>
-                <Text style={styles.docLabel}>{label}</Text>
-                <Text style={styles.docHint}>{hint}</Text>
-              </View>
-              {uri
-                ? <View style={styles.uploadedStatus}>
-                    <Text style={styles.onFileText}>On file</Text>
-                    <Check size={20} color={colors.success} accessibilityLabel="Uploaded securely" />
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={isPhone ? 'Phone verification document workspace' : 'Tablet and desktop verification document workspace'}
+        >
+          <View style={styles.documentsColumn}>
+            <Text style={styles.sectionTitle}>Required documents</Text>
+            <Text style={styles.sectionHint}>Tap any row to choose or replace that file.</Text>
+            {DOC_SLOTS.map(({ field, label, hint }) => {
+              const uri = store[field];
+              const localPreview = localPreviews[field];
+              const isLoading = uploading === field;
+
+              return (
+                <TouchableOpacity
+                  key={field}
+                  style={[styles.docSlot, uri && styles.docSlotDone]}
+                  onPress={() => pickAndUpload(field)}
+                  activeOpacity={0.7}
+                  disabled={isLoading}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${label}. ${isLoading ? 'Uploading' : uri ? 'On file. Tap to replace' : 'Required. Tap to upload'}`}
+                  accessibilityState={{ disabled: isLoading, busy: isLoading }}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : localPreview ? (
+                    <Image
+                      source={{ uri: localPreview }}
+                      style={styles.docThumb}
+                      testID={`document-preview-${field}`}
+                      accessibilityLabel={`${label} local preview`}
+                    />
+                  ) : (
+                    <View style={[styles.docPlaceholder, uri && styles.docPlaceholderDone]}>
+                      <FileText size={20} color={uri ? colors.success : colors.textTertiary} />
+                    </View>
+                  )}
+                  <View style={styles.docInfo}>
+                    <Text style={styles.docLabel}>{label}</Text>
+                    <Text style={styles.docHint}>{hint}</Text>
                   </View>
-                : <Text style={styles.docStatus}>Upload</Text>}
-            </TouchableOpacity>
-          );
-        })}
+                  {uri
+                    ? <View style={styles.uploadedStatus}>
+                        <Text style={styles.onFileText}>On file</Text>
+                        <Check size={20} color={colors.success} accessibilityLabel="Uploaded and on file" />
+                      </View>
+                    : <Text style={styles.docStatus}>Upload</Text>}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-        {/* Phase K MED-K07 fix — optional NBI expiry + ID number. */}
-        {/* BUG-PHASE198-01 fix — pre-fix neither input had maxLength.
-            Server caps:
-            - nbiExpiryDate: ISO date string (10 chars: YYYY-MM-DD)
-            - governmentIdNumber: max(64) (provider.validators.ts:38)
-            A provider typing past those caps got a 400 with no
-            field-level guidance. Same Phase 145/194/195/197
-            maxLength-sweep family. */}
-        <Text style={styles.fieldLabel}>NBI Expiry Date (optional)</Text>
-        <Text style={styles.fieldHint}>Format: YYYY-MM-DD. Helps us warn you before it lapses.</Text>
-        <TextInput
-          style={styles.input}
-          value={store.nbiExpiryDate ?? ''}
-          onChangeText={(v) => store.setNbiExpiryDate(v.length === 0 ? null : v)}
-          placeholder="2027-01-15"
-          placeholderTextColor={colors.textTertiary}
-          autoCapitalize="none"
-          keyboardType="numbers-and-punctuation"
-          maxLength={10}
-        />
-        <Text style={styles.fieldLabel}>Government ID Number (optional)</Text>
-        <Text style={styles.fieldHint}>Speeds up admin review. Stored alongside the ID image.</Text>
-        <TextInput
-          style={styles.input}
-          value={store.governmentIdNumber ?? ''}
-          onChangeText={(v) => store.setGovernmentIdNumber(v.length === 0 ? null : v)}
-          placeholder="e.g. 1234-5678-9012"
-          placeholderTextColor={colors.textTertiary}
-          autoCapitalize="characters"
-          maxLength={64}
-        />
+          <View style={styles.detailsCard}>
+            <Text style={styles.sectionTitle}>Document details</Text>
+            <Text style={styles.sectionHint}>Optional details help reviewers match the uploaded files.</Text>
+            {/* Phase K MED-K07 fix — optional NBI expiry + ID number. */}
+            {/* BUG-PHASE198-01 fix — pre-fix neither input had maxLength. */}
+            <Text style={styles.fieldLabel}>NBI Expiry Date (optional)</Text>
+            <Text style={styles.fieldHint}>Format: YYYY-MM-DD. Helps us warn you before it lapses.</Text>
+            <TextInput
+              style={styles.input}
+              value={store.nbiExpiryDate ?? ''}
+              onChangeText={(v) => store.setNbiExpiryDate(v.length === 0 ? null : v)}
+              placeholder="2027-01-15"
+              placeholderTextColor={colors.textTertiary}
+              autoCapitalize="none"
+              keyboardType="numbers-and-punctuation"
+              maxLength={10}
+              accessibilityLabel="NBI expiry date, optional"
+            />
+            <Text style={styles.fieldLabel}>Government ID Number (optional)</Text>
+            <Text style={styles.fieldHint}>Speeds up admin review. Stored alongside the ID image.</Text>
+            <TextInput
+              style={styles.input}
+              value={store.governmentIdNumber ?? ''}
+              onChangeText={(v) => store.setGovernmentIdNumber(v.length === 0 ? null : v)}
+              placeholder="e.g. 1234-5678-9012"
+              placeholderTextColor={colors.textTertiary}
+              autoCapitalize="characters"
+              maxLength={64}
+              accessibilityLabel="Government ID number, optional"
+            />
+          </View>
+        </View>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -237,7 +273,7 @@ const styles = StyleSheet.create({
   },
   bodyContent: {
     width: '100%',
-    maxWidth: 840,
+    maxWidth: 1180,
     alignSelf: 'center',
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
@@ -272,6 +308,44 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: spacing.base,
   },
+  readinessCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.lg,
+    gap: spacing.base,
+  },
+  readinessCount: {
+    minWidth: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+  },
+  readinessNumber: { ...typography.h3, color: colors.primary },
+  readinessLabel: { ...typography.caption, color: colors.textSecondary, textAlign: 'center' },
+  readinessCopy: { flex: 1 },
+  readinessTitle: { ...typography.body, color: colors.text, fontWeight: '700', marginBottom: spacing.xs },
+  readinessText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20 },
+  workspace: { width: '100%', gap: spacing.base },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  documentsColumn: { flex: 1.2, minWidth: 0 },
+  detailsCard: {
+    flex: 0.8,
+    minWidth: 0,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+  },
+  sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
+  sectionHint: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.base },
   docPlaceholderDone: { backgroundColor: colors.successLight },
   docPlaceholderIcon: { fontSize: 20 },
   docInfo: { flex: 1 },
@@ -286,7 +360,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
   },
-  footerInner: { width: '100%', maxWidth: 840, alignSelf: 'center', paddingHorizontal: spacing.base, paddingVertical: spacing.md },
+  footerInner: { width: '100%', maxWidth: 1180, alignSelf: 'center', paddingHorizontal: spacing.base, paddingVertical: spacing.md },
   // Phase K MED-K07 styles.
   fieldLabel: { ...typography.body, fontWeight: '600', color: colors.text, marginTop: spacing.md, marginBottom: 2 },
   fieldHint: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.sm },

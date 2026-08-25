@@ -12,7 +12,11 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
-import { getMyProfile, updateMyProfile } from '@/services/provider-api.service';
+import {
+  getMyProfile,
+  updateMyProfile,
+  type ProviderServiceItem,
+} from '@/services/provider-api.service';
 // A7 — shared UI kit for loading/error states + toast feedback.
 import { Badge, Button, Input, SkeletonCard, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
@@ -59,11 +63,26 @@ const TIER_LABELS: Record<string, string> = {
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+function servicePriceLabel(service: ProviderServiceItem): string {
+  if (service.pricingType === 'hourly' && service.hourlyRate != null) {
+    return `Customer price ${formatPHP(service.hourlyRate)}/hour`;
+  }
+  if (service.pricingType === 'per_unit' && service.unitPrice != null) {
+    return `Customer price ${formatPHP(service.unitPrice)}/${service.unitLabel || 'unit'}`;
+  }
+  if (service.pricingType === 'range' && service.minPrice != null && service.maxPrice != null) {
+    return `Customer range ${formatPHP(service.minPrice)}–${formatPHP(service.maxPrice)}`;
+  }
+  if (service.pricingType === 'quote') return 'Quote after assessment';
+  if (service.basePrice != null) return `Customer price ${formatPHP(service.basePrice)}`;
+  return 'Catalog price pending';
+}
+
 export default function ProviderProfileScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const { isPhone, isDesktop } = useResponsive();
+  const { isPhone, isTablet, isDesktop } = useResponsive();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
@@ -163,13 +182,17 @@ export default function ProviderProfileScreen(): React.ReactElement {
       showsVerticalScrollIndicator={false}
     >
       <View
-        style={[styles.workspace, isDesktop && styles.workspaceDesktop]}
+        style={[styles.workspace, !isPhone && styles.workspaceWide]}
         accessibilityLabel={isPhone ? 'Provider profile' : 'Tablet and desktop provider profile workspace'}
       >
-      <View style={[styles.profileColumn, isDesktop && styles.profileColumnDesktop]}>
-      <Text style={styles.title}>Profile</Text>
+      <View
+        style={[styles.profileColumn, !isPhone && styles.profileColumnWide]}
+        accessibilityLabel={!isPhone ? 'Wide provider customer-facing profile column' : undefined}
+      >
+      <Text style={styles.title}>Your Provider Profile</Text>
+      <Text style={styles.pageSubtitle}>Keep the details customers use to understand your experience, services, and availability up to date.</Text>
 
-      <View style={styles.profileCard}>
+      <View style={styles.profileCard} accessibilityLabel="Provider identity and tier summary">
         <View style={styles.avatarLarge}>
           <Text style={styles.avatarText}>
             {user?.firstName?.[0]?.toUpperCase() ?? '?'}
@@ -178,7 +201,8 @@ export default function ProviderProfileScreen(): React.ReactElement {
         <Text style={styles.userName}>
           {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Provider'}
         </Text>
-        <Text style={styles.userPhone}>{user?.phone}</Text>
+        <Text style={styles.userPhone}>Account phone: {user?.phone}</Text>
+        <Text style={styles.privatePhoneNote}>Used for your account and operations. It is not shown as a public contact action.</Text>
         {profile && (
           <TouchableOpacity onPress={(): void => { router.push(Routes.PROVIDER.TIER_PROGRESSION); }}>
             <Badge
@@ -304,9 +328,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
             profile.services.map((svc) => (
               <View key={svc.id} style={styles.serviceRow}>
                 <Text style={styles.serviceName}>{svc.subcategoryName}</Text>
-                {svc.basePrice != null && (
-                  <Text style={styles.servicePrice}>{formatPHP(svc.basePrice)}</Text>
-                )}
+                <Text style={styles.servicePrice}>{servicePriceLabel(svc)}</Text>
               </View>
             ))
           )}
@@ -314,9 +336,12 @@ export default function ProviderProfileScreen(): React.ReactElement {
       )}
       </View>
 
-      <View style={[styles.toolsColumn, isDesktop && styles.toolsColumnDesktop]}>
-      <Text style={styles.toolsTitle}>Business tools</Text>
-      <View style={styles.section}>
+      <View
+        style={[styles.toolsColumn, !isPhone && styles.toolsColumnWide, isTablet && styles.toolsColumnTablet, isDesktop && styles.toolsColumnDesktop]}
+        accessibilityLabel={!isPhone ? 'Wide provider business tools column' : undefined}
+      >
+      <Text style={styles.toolsTitle}>Manage Your Business</Text>
+      <View style={styles.section} accessibilityLabel="Provider business tools">
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push(Routes.PROVIDER.SERVICE_AREA)}>
           <MapPin size={22} color={colors.primary} style={styles.menuIconImg} />
           <Text style={styles.menuLabel}>Service Area</Text>
@@ -421,15 +446,26 @@ const styles = StyleSheet.create({
   stateContent: { padding: spacing.base, gap: spacing.md },
   stateContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.xl },
   workspace: { width: '100%' },
-  workspaceDesktop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
   profileColumn: { minWidth: 0 },
-  profileColumnDesktop: { flex: 1 },
+  profileColumnWide: { flex: 1 },
   toolsColumn: { minWidth: 0 },
+  toolsColumnWide: { width: 340, paddingTop: 3 },
+  toolsColumnTablet: { width: 320 },
   toolsColumnDesktop: { width: 380, paddingTop: 3 },
   toolsTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
-  title: { ...typography.h1, color: colors.text, marginBottom: spacing.lg },
+  title: { ...typography.h1, color: colors.text, marginBottom: spacing.xs },
+  pageSubtitle: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.lg, maxWidth: 640 },
 
-  profileCard: { alignItems: 'center', marginBottom: spacing.xl },
+  profileCard: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+  },
   avatarLarge: {
     width: 80,
     height: 80,
@@ -442,6 +478,7 @@ const styles = StyleSheet.create({
   avatarText: { color: colors.white, fontWeight: '800', fontSize: 32 },
   userName: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
   userPhone: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.sm },
+  privatePhoneNote: { ...typography.caption, color: colors.textTertiary, textAlign: 'center', maxWidth: 360, marginBottom: spacing.md },
   tierProgressLink: { ...typography.caption, color: colors.primary, fontWeight: '600', marginTop: spacing.xs, textAlign: 'center' },
 
   section: {

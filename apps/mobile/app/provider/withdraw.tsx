@@ -172,7 +172,12 @@ export default function WithdrawScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Back to provider earnings"
+        >
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Withdraw Funds</Text>
@@ -217,6 +222,7 @@ export default function WithdrawScreen(): React.ReactElement {
 
         <Text style={styles.sectionTitle}>Amount ({platformConfig.currencySymbol})</Text>
         <Input
+          label="Withdrawal amount"
           placeholder={`Min ${formatPHP(minWithdraw)}`}
           value={amount}
           onChangeText={setAmount}
@@ -226,6 +232,8 @@ export default function WithdrawScreen(): React.ReactElement {
         <TouchableOpacity
           style={styles.maxButton}
           onPress={() => setAmount((availableBalance / 100).toFixed(2))}
+          accessibilityRole="button"
+          accessibilityLabel="Use the full available balance"
         >
           <Text style={styles.maxText}>Withdraw Max</Text>
         </TouchableOpacity>
@@ -235,8 +243,11 @@ export default function WithdrawScreen(): React.ReactElement {
           {PAYOUT_METHODS.map((m) => (
             <TouchableOpacity
               key={m.id}
-              style={[styles.methodCard, method === m.id && styles.methodCardActive]}
+              style={[styles.methodCard, isPhone && styles.methodCardPhone, method === m.id && styles.methodCardActive]}
               onPress={() => setMethod(m.id)}
+              accessibilityRole="radio"
+              accessibilityLabel={`${m.label} payout method`}
+              accessibilityState={{ selected: method === m.id }}
             >
               <m.Icon size={28} color={method === m.id ? colors.secondary : colors.textSecondary} style={styles.methodIcon} />
               <Text style={[styles.methodLabel, method === m.id && styles.methodLabelActive]}>
@@ -256,6 +267,7 @@ export default function WithdrawScreen(): React.ReactElement {
                 destinationAccount at 255 (wallet.validators.ts:16).
                 Match the cap. Same fix shape as Phase 145-150. */}
             <Input
+              label={method.startsWith('bank_') ? 'Bank account number' : 'Payout phone number'}
               placeholder={method.startsWith('bank_') ? 'Account number' : '09XX XXX XXXX'}
               value={account}
               onChangeText={setAccount}
@@ -321,7 +333,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
-  balanceLabel: { ...typography.body, color: 'rgba(255,255,255,0.7)', marginBottom: spacing.xs },
+  balanceLabel: { ...typography.body, color: colors.white, opacity: 0.8, marginBottom: spacing.xs },
   balanceAmount: { fontSize: 28, fontWeight: '800', color: colors.white },
 
   sectionTitle: {
@@ -336,7 +348,7 @@ const styles = StyleSheet.create({
   maxButton: { alignSelf: 'flex-end', marginTop: spacing.xs },
   maxText: { ...typography.bodySmall, color: colors.secondary, fontWeight: '600' },
 
-  methodGrid: { flexDirection: 'row', gap: spacing.sm },
+  methodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   // App design refresh — white surface tiles with a hairline border so they
   // lift off the soft canvas. The active state below overrides the border.
   methodCard: {
@@ -348,6 +360,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.border,
   },
+  methodCardPhone: { minWidth: '47%' },
   methodCardActive: { borderColor: colors.secondary, backgroundColor: colors.successLight },
   methodIcon: { marginBottom: spacing.xs },
   methodLabel: { ...typography.bodySmall, color: colors.text, fontWeight: '600' },

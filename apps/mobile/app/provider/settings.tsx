@@ -43,7 +43,12 @@ export default function ProviderSettingsScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Back to provider profile"
+        >
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Settings</Text>
@@ -55,6 +60,12 @@ export default function ProviderSettingsScreen(): React.ReactElement {
         showsVerticalScrollIndicator={false}
         accessibilityLabel={!isPhone ? 'Wide provider settings workspace' : undefined}
       >
+        <Text style={styles.pageSubtitle}>Manage account details, customer-facing operations, notifications, payouts, and support from one place.</Text>
+        <View
+          style={[styles.settingsGrid, !isPhone && styles.settingsGridWide]}
+          accessibilityLabel={!isPhone ? 'Tablet and desktop provider settings columns' : 'Provider settings sections'}
+        >
+        <View style={styles.settingsColumn}>
         <Text style={styles.sectionLabel}>ACCOUNT</Text>
         <View style={styles.section}>
           <View style={styles.row}>
@@ -103,7 +114,10 @@ export default function ProviderSettingsScreen(): React.ReactElement {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionLabel}>PROFILE</Text>
+        </View>
+
+        <View style={styles.settingsColumn}>
+        <Text style={styles.sectionLabel}>BUSINESS & PAYOUTS</Text>
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.row}
@@ -199,6 +213,9 @@ export default function ProviderSettingsScreen(): React.ReactElement {
           </TouchableOpacity>
         </View>
 
+        </View>
+        </View>
+
         <View style={styles.dangerSection}>
           <TouchableOpacity style={styles.logoutRow} onPress={handleLogout}>
             <Text style={styles.logoutText}>Log Out</Text>
@@ -230,7 +247,11 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base },
-  scrollContentWide: { width: '100%', maxWidth: 900, alignSelf: 'center', paddingHorizontal: spacing.xl },
+  scrollContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', paddingHorizontal: spacing.xl },
+  pageSubtitle: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: spacing.base, marginBottom: spacing.sm, maxWidth: 720 },
+  settingsGrid: { width: '100%' },
+  settingsGridWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  settingsColumn: { flex: 1, minWidth: 0 },
 
   sectionLabel: {
     ...typography.caption,

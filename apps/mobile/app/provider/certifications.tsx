@@ -346,6 +346,9 @@ export default function CertificationsScreen(): React.ReactElement {
 
   const isPending = addMutation.isPending || updateMutation.isPending || isUploading;
   const todayManila = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  const verifiedCount = certifications.filter((cert) => cert.isVerified && (!cert.expiryDate || cert.expiryDate >= todayManila)).length;
+  const pendingReviewCount = certifications.filter((cert) => cert.hasDocument && !cert.isVerified && (!cert.expiryDate || cert.expiryDate >= todayManila)).length;
+  const needsAttentionCount = certifications.filter((cert) => !cert.hasDocument || Boolean(cert.expiryDate && cert.expiryDate < todayManila)).length;
 
   if (isLoading) {
     return (
@@ -375,11 +378,21 @@ export default function CertificationsScreen(): React.ReactElement {
       {/* Phase 14 R5-complete — NbiStatusBanner (auto-hides when valid) */}
       <NbiStatusBanner onTap={() => router.push(Routes.PROVIDER.ACCOUNT_MANAGEMENT)} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={(): void => { router.back(); }} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={(): void => { router.back(); }}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Back to provider profile"
+        >
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Certifications</Text>
-        <TouchableOpacity onPress={handleAdd} style={styles.addButton}>
+        <TouchableOpacity
+          onPress={handleAdd}
+          style={styles.addButton}
+          accessibilityRole="button"
+          accessibilityLabel="Add provider certification"
+        >
           <Text style={styles.addButtonText}>+ Add</Text>
         </TouchableOpacity>
       </View>
@@ -390,6 +403,24 @@ export default function CertificationsScreen(): React.ReactElement {
         <View style={styles.introCard}>
           <Text style={styles.introTitle}>Build trust with verified credentials</Text>
           <Text style={styles.introText}>Add TESDA certificates, professional licenses, and training credentials. Only current credentials verified by onService appear to customers. Editing a verified credential returns it for review.</Text>
+        </View>
+        <View
+          style={styles.credentialSummary}
+          accessibilityRole="summary"
+          accessibilityLabel={`${verifiedCount} verified certifications, ${pendingReviewCount} pending review, ${needsAttentionCount} need attention`}
+        >
+          <View style={styles.summaryMetric}>
+            <Text style={[styles.summaryNumber, styles.verifiedSummary]}>{verifiedCount}</Text>
+            <Text style={styles.summaryLabel}>Verified</Text>
+          </View>
+          <View style={styles.summaryMetric}>
+            <Text style={[styles.summaryNumber, styles.pendingSummary]}>{pendingReviewCount}</Text>
+            <Text style={styles.summaryLabel}>In review</Text>
+          </View>
+          <View style={styles.summaryMetric}>
+            <Text style={[styles.summaryNumber, styles.attentionSummary]}>{needsAttentionCount}</Text>
+            <Text style={styles.summaryLabel}>Needs attention</Text>
+          </View>
         </View>
         <View
           style={[styles.workspace, !isPhone && styles.workspaceWide]}
@@ -434,12 +465,24 @@ export default function CertificationsScreen(): React.ReactElement {
                 {pendingLocalUri ? (
                   <View style={styles.previewWrap}>
                     <Image source={{ uri: pendingLocalUri }} style={styles.previewImg} resizeMode="cover" />
-                    <TouchableOpacity onPress={showPickerOptions} style={styles.changeBtn} disabled={isPending}>
+                    <TouchableOpacity
+                      onPress={showPickerOptions}
+                      style={styles.changeBtn}
+                      disabled={isPending}
+                      accessibilityRole="button"
+                      accessibilityLabel="Choose a different certification photo"
+                    >
                       <Text style={styles.changeBtnText}>Change</Text>
                     </TouchableOpacity>
                   </View>
                 ) : editTarget?.hasDocument ? (
-                  <TouchableOpacity onPress={showPickerOptions} style={styles.documentOnFile} disabled={isPending}>
+                  <TouchableOpacity
+                    onPress={showPickerOptions}
+                    style={styles.documentOnFile}
+                    disabled={isPending}
+                    accessibilityRole="button"
+                    accessibilityLabel="Certification photo on file. Choose a replacement"
+                  >
                     <Check size={20} color={colors.success} />
                     <View style={styles.documentOnFileCopy}>
                       <Text style={styles.pickerTitle}>Certificate photo on file</Text>
@@ -448,7 +491,14 @@ export default function CertificationsScreen(): React.ReactElement {
                     <Text style={styles.replaceText}>Replace</Text>
                   </TouchableOpacity>
                 ) : (
-                  <TouchableOpacity onPress={showPickerOptions} style={styles.pickerCard} activeOpacity={0.8} disabled={isPending}>
+                  <TouchableOpacity
+                    onPress={showPickerOptions}
+                    style={styles.pickerCard}
+                    activeOpacity={0.8}
+                    disabled={isPending}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add required certification photo"
+                  >
                     <ScrollText size={36} color={colors.textTertiary} style={styles.pickerIcon} />
                     <Text style={styles.pickerTitle}>Add certificate photo</Text>
                     <Text style={styles.pickerHint}>Required before onService can verify this credential</Text>
@@ -493,7 +543,9 @@ export default function CertificationsScreen(): React.ReactElement {
                           <Text style={styles.certName}>{cert.name}</Text>
                           <Text style={styles.certIssuer}>{cert.issuingBody}</Text>
                         </View>
-                        {expired ? (
+                        {!cert.hasDocument ? (
+                          <View style={styles.missingBadge}><Text style={styles.missingText}>Needs Photo</Text></View>
+                        ) : expired ? (
                           <View style={styles.expiredBadge}><Text style={styles.expiredText}>Expired</Text></View>
                         ) : cert.isVerified ? (
                           <View style={styles.verifiedBadge}><Check size={13} color={colors.success} /><Text style={styles.verifiedText}>Verified</Text></View>
@@ -596,6 +648,13 @@ const styles = StyleSheet.create({
   },
   introTitle: { ...typography.body, color: colors.primary, fontWeight: '700' },
   introText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: spacing.xs },
+  credentialSummary: { flexDirection: 'row', gap: spacing.sm },
+  summaryMetric: { flex: 1, minHeight: 72, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: borderRadius.lg, padding: spacing.md, justifyContent: 'center' },
+  summaryNumber: { ...typography.h2, marginBottom: 2 },
+  summaryLabel: { ...typography.caption, color: colors.textSecondary },
+  verifiedSummary: { color: colors.success },
+  pendingSummary: { color: colors.warning },
+  attentionSummary: { color: colors.error },
   workspace: { width: '100%', gap: spacing.base },
   workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
   formColumn: { flex: 1, minWidth: 300 },
@@ -656,6 +715,13 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
   },
   expiredText: { ...typography.caption, color: colors.error, fontWeight: '600' },
+  missingBadge: {
+    backgroundColor: colors.warningLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: borderRadius.sm,
+  },
+  missingText: { ...typography.caption, color: colors.warningDark, fontWeight: '600' },
   certDetail: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.xs },
   certDates: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.base, marginBottom: spacing.sm },
   certDateText: { ...typography.caption, color: colors.textTertiary },
@@ -714,7 +780,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: spacing.sm,
     right: spacing.sm,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: colors.text,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,

@@ -15,7 +15,7 @@ import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 export default function ProviderClientsScreen(): React.ReactElement {
   const router = useRouter();
   const q = useQuery({ queryKey: ['provider-clients'], queryFn: getProviderClients, staleTime: 60 * 1000 });
-  const { breakpoint } = useResponsive();
+  const { breakpoint, isPhone } = useResponsive();
   const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 2 });
 
   const renderItem = ({ item }: { item: ProviderClient }): React.ReactElement => (
@@ -23,6 +23,8 @@ export default function ProviderClientsScreen(): React.ReactElement {
       style={[styles.card, numColumns > 1 && styles.cardGrid]}
       activeOpacity={0.7}
       onPress={() => router.push(`/provider/clients/${item.customerId}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`Open client ${item.customerName}. ${item.jobCount} jobs, ${item.completedCount} completed.`}
     >
       <View style={styles.cardTop}>
         <Text style={styles.name} numberOfLines={1}>{item.customerName}</Text>
@@ -40,23 +42,32 @@ export default function ProviderClientsScreen(): React.ReactElement {
         ) : null}
       </View>
       {item.jobCount > 1 ? <Text style={styles.repeat}>Repeat client</Text> : null}
+      <Text style={styles.cta}>View relationship ›</Text>
     </TouchableOpacity>
   );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <ChevronLeft size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>My Clients</Text>
-        <View style={{ width: 24 }} />
+        <View style={styles.headerInner}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Back to provider profile"
+          >
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.title}>My Clients</Text>
+          <View style={{ width: 44 }} />
+        </View>
       </View>
 
       {q.isLoading ? (
-        <View style={styles.body}><SkeletonCard /><SkeletonCard /></View>
+        <View style={[styles.body, !isPhone && styles.bodyWide]}><SkeletonCard /><SkeletonCard /></View>
       ) : q.isError ? (
-        <View style={styles.body}><ErrorState message={getErrorMessage(q.error, 'Could not load your clients.')} onRetry={() => q.refetch()} /></View>
+        <View style={[styles.body, !isPhone && styles.bodyWide]}><ErrorState message={getErrorMessage(q.error, 'Could not load your clients.')} onRetry={() => q.refetch()} /></View>
       ) : (
         <FlatList
           data={q.data ?? []}
@@ -89,6 +100,8 @@ export default function ProviderClientsScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  headerInner: { width: '100%', maxWidth: 1120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  backButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   title: { ...typography.h3, color: colors.text },
   body: { padding: spacing.base, paddingBottom: 40, gap: spacing.md, flexGrow: 1 },
   bodyWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl },
@@ -103,4 +116,5 @@ const styles = StyleSheet.create({
   stat: { ...typography.caption, color: colors.textSecondary },
   statDot: { ...typography.caption, color: colors.textTertiary },
   repeat: { ...typography.caption, color: colors.success, fontWeight: '700', marginTop: spacing.xs },
+  cta: { ...typography.bodySmall, color: colors.primary, fontWeight: '700', marginTop: spacing.md },
 });

@@ -29,7 +29,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
     items: [
       {
         q: 'How do I receive job requests?',
-        a: 'When a customer books a service in your area and category, a job offer pops up in the app (and as a notification) with about a minute to Accept or Decline. Accept it and the job moves into your Jobs tab under Active. If you miss it, it is offered to the next available provider.',
+        a: 'When a matching request is offered to you, the app shows the live acceptance countdown. A device alert is also attempted when you have that channel enabled. Accepting assigns the work and moves it into Jobs; an expired offer can move to another eligible provider.',
       },
       {
         q: 'How does the quoting system work?',
@@ -37,7 +37,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'Can I cancel an accepted job?',
-        a: 'Yes, but repeated cancellations affect your rating and may result in temporary suspension. Cancel only if absolutely necessary and contact support if you have a genuine emergency.',
+        a: 'Use the job cancellation action when it is available and give the exact reason. Repeated provider cancellations can affect account standing and may be reviewed under the provider standards. Contact support when an emergency or safety issue prevents the work.',
       },
       {
         q: 'How do I manage my availability?',
@@ -53,17 +53,11 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
         a: 'For a booking that shows paid and held, release follows customer confirmation or the platform completion timer. The resulting balance appears in Earnings. Withdrawal requests are manual and remain under review until the app records a completed transfer.',
       },
       {
-        // BUG-PHASE89-01 fix — pre-fix this answer described commission
-        // as ranges per tier (e.g. "Pro pays X to Y percent"). The actual
-        // rates in platformConfig.commissionRates are flat per tier (no
-        // within-tier variability) and the FAQ also omitted the verified
-        // tier entirely. Pre-fix providers reading this would expect their
-        // commission to drop within a tier as their rating climbed — it
-        // doesn't, only crossing into the next tier changes the rate.
-        // Updated to match the live config: flat rates per tier, all
-        // five tiers listed, plus a note that founding is invite-only.
+        // Bug UX-368 — commission is an admin-controlled live value. Help
+        // points to Tier Progression and Earnings instead of maintaining a
+        // second table that can drift from the provider's recorded rate.
         q: 'What is the platform commission?',
-        a: 'Commission is a flat percent per tier — it does not move within a tier, only when you cross into the next one. New providers pay 15%. Verified (5+ jobs, 4.0+ rating) pays 13%. Pro (25+ jobs, 4.5+ rating, no open disputes) pays 11%. Elite (100+ jobs, 4.7+ rating, TESDA-certified, no open disputes) pays 9%. Founding-batch providers — invite-only — pay 10%.',
+        a: 'Commission is a tier-specific rate. It does not move within a tier, only when your recorded tier changes. Open Tier Progression or your Earnings breakdown to see the current live rate and the signals used for tier review; this Help page does not keep a second hardcoded rate table.',
       },
       {
         q: 'How do withdrawals work?',
@@ -71,7 +65,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'What is a change order?',
-        a: 'If you discover additional work is needed during a job, submit a change order with the extra amount. The customer must approve it before you proceed. This protects both parties.',
+        a: 'If you discover additional work during a job, submit a change order with the reason and itemized amount. Continue with that extra work only after the customer approves it and the booking records the added charge as paid and held.',
       },
       {
         q: 'How do I charge for extra parts or materials?',
@@ -84,7 +78,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
     items: [
       {
         q: 'How are ratings calculated?',
-        a: 'Your overall rating is the average of all customer reviews. Only completed bookings can be reviewed. Ratings are visible to customers when they browse providers.',
+        a: 'Your displayed rating is based on visible customer reviews from completed bookings. Reviews hidden after support review are excluded from the public and provider-facing average.',
       },
       {
         // BUG-PHASE61-02 fix — pre-fix this answer said "Currently,
@@ -107,7 +101,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'How do I benefit from Suki?',
-        a: 'Suki builds customer loyalty. Repeat customers are more reliable, leave better reviews, and provide steady income. You can view your repeat customers in the Suki Customers section.',
+        a: 'Suki Customers keeps repeat-booking history and relationship details visible inside the app. Use that workspace to open the customer record and follow up through the supported provider tools; it does not promise future jobs or ratings.',
       },
     ],
   },
@@ -120,7 +114,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'How do I update my services?',
-        a: 'Go to Settings > Manage Services to add or remove service categories, update your pricing, and adjust your service descriptions.',
+        a: 'Go to Settings > Manage Services to add or remove services from the live onService catalog. Customer prices and published scope come from the catalog, so this screen does not let an individual provider override them.',
       },
     ],
   },
@@ -138,7 +132,12 @@ export default function ProviderHelpScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Help & Support</Text>
@@ -170,6 +169,9 @@ export default function ProviderHelpScreen(): React.ReactElement {
                   style={styles.faqItem}
                   onPress={() => toggleFAQ(key)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.q}
+                  accessibilityState={{ expanded: isOpen }}
                 >
                   <View style={styles.faqHeader}>
                     <Text style={styles.faqQuestion}>{item.q}</Text>

@@ -84,7 +84,7 @@ export default function ProviderLeadsScreen(): React.ReactElement {
   }, [refetch]);
 
   // Reflow the leads into 2 columns on tablet/desktop.
-  const { breakpoint } = useResponsive();
+  const { breakpoint, isPhone } = useResponsive();
   const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 2 });
 
   const renderItem = useCallback(
@@ -97,6 +97,8 @@ export default function ProviderLeadsScreen(): React.ReactElement {
           style={[styles.card, numColumns > 1 && styles.cardGrid]}
           activeOpacity={0.7}
           onPress={() => router.push(`/provider/job/${item.id}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${item.categoryName} job request and prepare a quote`}
         >
           <View style={styles.cardTop}>
             <Text style={styles.category}>{item.categoryName}</Text>
@@ -131,20 +133,28 @@ export default function ProviderLeadsScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <ChevronLeft size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Job Requests</Text>
-        <View style={{ width: 24 }} />
+        <View style={styles.headerInner}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Back to provider dashboard"
+          >
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Job Requests</Text>
+          <View style={{ width: 44 }} />
+        </View>
       </View>
 
       {q.isLoading ? (
-        <View style={styles.body}>
+        <View style={[styles.body, !isPhone && styles.bodyWide]}>
           <SkeletonCard />
           <SkeletonCard />
         </View>
       ) : q.isError ? (
-        <View style={styles.body}>
+        <View style={[styles.body, !isPhone && styles.bodyWide]}>
           <ErrorState message={getErrorMessage(q.error, 'Could not load job requests.')} onRetry={() => q.refetch()} />
         </View>
       ) : (
@@ -155,11 +165,15 @@ export default function ProviderLeadsScreen(): React.ReactElement {
           columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.body}
+          contentContainerStyle={[styles.body, !isPhone && styles.bodyWide]}
+          accessibilityLabel={numColumns > 1 ? 'Tablet and desktop provider job request grid' : 'Provider job request list'}
           refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} />}
           ListHeaderComponent={
             (q.data?.total ?? 0) > 0 ? (
-              <Text style={styles.count}>{q.data?.total} open request{(q.data?.total ?? 0) > 1 ? 's' : ''} in your area</Text>
+              <View style={styles.requestSummary}>
+                <Text style={styles.count}>{q.data?.total} open request{(q.data?.total ?? 0) > 1 ? 's' : ''} in your area</Text>
+                <Text style={styles.summaryText}>A request stays open to eligible providers until a customer accepts a quote or the request closes.</Text>
+              </View>
             ) : null
           }
           ListEmptyComponent={
@@ -183,13 +197,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  headerInner: { width: '100%', maxWidth: 1120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  backButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   title: { ...typography.h3, color: colors.text },
   body: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
-  count: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs },
+  bodyWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl },
+  requestSummary: { backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.sm },
+  count: { ...typography.body, color: colors.text, fontWeight: '700', marginBottom: spacing.xs },
+  summaryText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20 },
   card: {
     backgroundColor: colors.background,
     borderRadius: borderRadius.lg,

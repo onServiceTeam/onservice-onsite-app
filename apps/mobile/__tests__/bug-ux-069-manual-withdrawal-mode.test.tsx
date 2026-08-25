@@ -41,5 +41,5 @@ it('Bug UX-069 — provider payout settings honestly present manual-only launch 
   expect(screen.queryByText('Automatic payout every day')).toBeNull();
   expect(screen.queryByText('Automatic payout every Monday')).toBeNull();
   expect(screen.getByText('Save withdrawal details')).toBeTruthy();
-  expect(screen.getByLabelText('Desktop withdrawal preferences workspace')).toBeTruthy();
+  expect(screen.getByLabelText('Tablet and desktop withdrawal preferences workspace')).toBeTruthy();
 });

@@ -150,7 +150,12 @@ export default function ActiveJobScreen(): React.ReactElement {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Active Job</Text>
@@ -165,6 +170,7 @@ export default function ActiveJobScreen(): React.ReactElement {
           ref={mapRef}
           style={[styles.map, !isPhone && styles.mapWide]}
           initialRegion={bookingRegion}
+          accessibilityLabel="Verified job location map"
         >
           <Marker
             coordinate={{ latitude: bookingRegion.latitude, longitude: bookingRegion.longitude }}
@@ -173,7 +179,10 @@ export default function ActiveJobScreen(): React.ReactElement {
           />
         </MapView>
       ) : (
-        <View style={[styles.map, styles.mapUnavailable, !isPhone && styles.mapWide]}>
+        <View
+          style={[styles.map, styles.mapUnavailable, !isPhone && styles.mapWide]}
+          accessibilityLabel="Job location map unavailable"
+        >
           <MapIcon size={42} color={colors.textTertiary} />
           <Text style={styles.mapUnavailableTitle}>Job coordinates unavailable</Text>
           <Text style={styles.mapUnavailableText}>Use the address-based Directions action. No map pin or route is shown until the booking has verified coordinates.</Text>
@@ -227,7 +236,9 @@ export default function ActiveJobScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.chatRow}
-          onPress={() => router.push(`/provider/chat/${booking.id}`)}
+          onPress={() => router.push(buildRoute(Routes.PROVIDER.CHAT, { id: booking.id }) as never)}
+          accessibilityRole="button"
+          accessibilityLabel="Chat with customer"
         >
           <MessageSquare size={18} color={colors.secondary} style={styles.chatIcon} />
           <Text style={styles.chatText}>Chat with Customer</Text>
@@ -235,12 +246,15 @@ export default function ActiveJobScreen(): React.ReactElement {
 
         {approvedStaff.length > 0 && (
           <View style={styles.assignSection}>
-            <Text style={styles.assignLabel}>Who's doing this job?</Text>
+            <Text style={styles.assignLabel}>Who is doing this job?</Text>
             <View style={styles.assignChips}>
               <TouchableOpacity
                 style={[styles.assignChip, !booking.performerStaffId && styles.assignChipActive]}
                 onPress={() => assignMutation.mutate(null)}
                 disabled={assignMutation.isPending}
+                accessibilityRole="radio"
+                accessibilityLabel="Assign this job to me"
+                accessibilityState={{ checked: !booking.performerStaffId, disabled: assignMutation.isPending }}
               >
                 <Text style={[styles.assignChipText, !booking.performerStaffId && styles.assignChipTextActive]}>Me</Text>
               </TouchableOpacity>
@@ -252,6 +266,9 @@ export default function ActiveJobScreen(): React.ReactElement {
                     style={[styles.assignChip, active && styles.assignChipActive]}
                     onPress={() => assignMutation.mutate(m.id)}
                     disabled={assignMutation.isPending}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`Assign this job to ${m.userName || m.roleTitle || 'team member'}`}
+                    accessibilityState={{ checked: active, disabled: assignMutation.isPending }}
                   >
                     <Text style={[styles.assignChipText, active && styles.assignChipTextActive]}>
                       {m.userName || m.roleTitle || 'Team member'}
@@ -281,7 +298,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingBottom: spacing.sm,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   backIcon: { fontSize: 24, color: colors.text },
@@ -316,11 +335,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     padding: spacing.base,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   bottomSheetWide: { minHeight: '100%', borderRadius: borderRadius.lg },
   statusRow: {

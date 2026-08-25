@@ -651,44 +651,40 @@ later delegated decision and shipped implementation.
 
 ---
 
-## 25. In-app chat photo + message sending broken in v1.0 (Phase 14 Dispatch 07)
+## 25. In-app chat delivery evidence (Phase 14 Dispatch 07; code remediated 2026-08-25)
 
-**Bug 38** (audit reference) — provider/customer chat threads display
-correctly but photo attachments and outbound messages from the mobile
-chat screens are broken. The chat data model + admin moderation tools
-work; the mobile send path needs rebuild.
+**Bug 38** (audit reference) originally recorded provider/customer chat
+threads as readable while mobile outbound text and photo delivery was
+unreliable. That historical launch limitation is now **code-resolved**:
 
-**v1.0 server behavior:** the existing /api/v1/messaging endpoints
-operate normally for messages sent from server-driven flows (system
-notifications, admin-to-customer messages from the dispatch console).
-Mobile-initiated chat messages in the customer ↔ provider thread are
-unreliable. Specifically:
+- Both customer and provider chat use the canonical messaging REST send path.
+- Chat photos upload first and are then sent as image messages containing the
+  returned URL.
+- Socket room subscriptions receive newly delivered messages without requiring
+  an app restart.
+- Provider job-context navigation now uses the route registry instead of a
+  hand-built route.
+- Real rendered behavior coverage exercises provider text and uploaded-photo
+  sends in `bug-ux-372-provider-chat-send-paths.real.test.tsx`; the surrounding
+  chat workspace, support-record, truth, and screen suites remain green.
 
-- Mobile photo-attachment in chat: photos go to `/api/v1/uploads` but
-  the message payload's `attachments` field doesn't always reach the
-  recipient device — investigation deferred to v1.1+.
-- Mobile outbound messages: occasionally don't appear on the recipient
-  side until app restart — likely a socket subscription regression.
+**Remaining release evidence:** this code result does not substitute for a
+two-device production delivery exercise. Before launch sign-off, send customer
+→ provider and provider → customer text and photo messages on two real devices,
+confirm foreground and background receipt, and retain the evidence with F#3.
 
-**Operator obligation:** support agents should advise users to use the
-"Call provider" button (existing flow, works correctly) for time-
-sensitive coordination. Photo-evidence is captured via the **provider
-job photos** flow (Bug 36/461 fix in this same dispatch — provider
-uploads to S3-backed booking_photos), NOT chat. Disputes use the
-**dispute evidence upload** flow (existing, works) NOT chat.
-
-**v1.1+ scope:**
-- Mobile chat send-path rebuild (likely a rewrite onto the existing
-  socket service used elsewhere).
-- Photo attachment flow in chat using the booking_photos table model
-  introduced in D07.
-- Real-time delivery confirmation in the chat UI.
+**Operator obligation:** support should treat in-app chat as the normal
+coordination record. Job proof still belongs in the provider job-photo flow,
+and dispute evidence still belongs in the dispute evidence flow, because those
+surfaces have the correct retention and case linkage. Escalate a delivery issue
+with booking, conversation, sender, recipient, timestamp, and app-version data;
+do not direct users to an undocumented `Call provider` workaround.
 
 **Source decision:** D07 plan + `.ai-coder/dispatches/D07-closeout.md` —
 chat scoped out of D07's provider-job-execution-trust focus per spec
 (line 873: `Bug 38 — chat deferred to v1.1`).
 
-**Source:** Phase 14 Dispatch 07.
+**Source:** Phase 14 Dispatch 07; UX-031, UX-032, UX-227, and UX-372 remediation.
 
 ---
 
@@ -752,8 +748,10 @@ v1.0 launch ships with **manual admin review** of every provider
 application. No automated liveness vendor (Onfido / Persona / similar)
 is contracted at launch.
 
-**v1.0 flow (Bug 1194 + 1195 deferral path):**
-1. Provider completes the 10-screen onboarding flow.
+**Current flow (Bug 1194 + 1195 deferral path):**
+1. Provider completes seven application steps plus the appropriate status
+   screens. Identity verification delegates to the canonical Documents step
+   instead of maintaining a second upload path.
 2. Documents (NBI clearance, government ID front/back, proof of address,
    selfie, optional certifications) upload via multipart to S3 + KMS.
 3. Provider submits application.
@@ -765,13 +763,17 @@ is contracted at launch.
 8. Sent-back applications unlock for provider to amend + resubmit.
 
 **Operator obligation:**
-- Boracay launch volume: ~5 new provider applications/day expected.
-  Estimated review time per application: 5-10 minutes including
-  document review + selfie comparison + audit row write.
+- Capacity planning must use actual application volume across enabled service
+  areas. The platform is city-agnostic and the first/default market is Metro
+  Cebu; the historical Boracay estimate is not a current operating assumption.
 - Admin Provider Review queue surface (D10 admin dispatch console
   wire-up) presents the queue with applications sorted oldest-first.
-- 72h SLA: every application has `estimated_review_hours = 72` baked
-  in; provider sees `estimatedDecisionAt` in their app.
+- Pending applicants retain customer access while manual review is underway.
+- Do not promise a review SLA that operations has not approved. The API retains
+  legacy `estimated_review_hours` / `estimatedDecisionAt` fields for backward
+  compatibility, but the provider app does not present them as a product
+  promise. Current status copy says that the team will notify the applicant
+  after review.
 
 **v1.1+ scope:**
 - Onfido / Persona integration for automated liveness check (selfie
@@ -839,23 +841,28 @@ D12 ships the **provider-specific cross-cutting infrastructure**:
 - CommissionBreakdown (gross→fee→commission→net disclosure with help modal)
 
 Plus the bridge test for all 64 provider bug numbers and the
-provider.* i18n namespace. What is **deferred to v1.1**:
+provider.* i18n namespace.
 
-- Per-screen application of the 18 patterns to all 39 provider screens
-  (mirror of §28 deferral). Screens consume the new components when
-  next edited; no screen is broken today.
-- 39 Maestro flow files in `apps/mobile/.maestro/visual/provider/`.
-  Maestro CLI is not in CI yet (deferred to v1.2).
-- Per-screen Jest snapshot tests.
+**Current correction (2026-08-25):** the historical per-screen deferral below
+is no longer the current state. The permanent screen ledger accounts for all 62
+provider, provider-onboarding, and provider-staff route files. The staged Stitch
+and responsive audit through UX-353–UX-372 has applied tablet/desktop workspace
+layouts, accessibility controls, live-contract wording, pricing-model display,
+and behavior tests to the provider operating surfaces. The repository contains
+89 Maestro flows across roles; F#3 device baseline capture, not flow authoring,
+is still pending. Provider public review replies have also shipped.
+
+The remaining provider limitations are:
+
+- F#3 real-device/emulator visual-baseline capture for the authored Maestro
+  flows. Rendered behavior tests remain the regression gate; source-content
+  checks and snapshots are not accepted as substitutes.
 - **Per-area pricing** (Bug 1231) — providers cannot set different
   rates for different service areas in v1.0. Single base rate per
   service. v1.1 adds area-modifier table.
 - **Suki custom discount** (Bug 1245) — providers cannot set custom
   discount codes for repeat customers in v1.0. v1.1 ships the
   redemption pipeline as part of the promo-code v1.1 work.
-- **Reviews reply** (Bug 1249) — providers cannot publicly reply to
-  customer reviews in v1.0. Bug 1250 (flag inappropriate review) IS
-  shipped as the v1.0 mitigation; admin can intervene.
 - **Background-location store privacy disclosures** — Apple Privacy
   Manifest entry + Google Play "Background location" justification
   submission must accompany the first store release that uses
@@ -880,9 +887,8 @@ provider.* i18n namespace. What is **deferred to v1.1**:
 - Monitor `gps-update` endpoint volume in Grafana — sudden spike or
   drop signals a hook lifecycle bug.
 
-**v1.1+ scope:** Maestro flows, snapshot tests, per-area pricing,
-suki custom discount, reviews reply, victory-native chart upgrade,
-store privacy disclosure submission.
+**v1.1+ scope:** F#3 device baselines, per-area pricing, Suki custom discount,
+victory-native chart upgrade, and store privacy disclosure submission.
 
 **Source:** Phase 14 Dispatch 12 + spec PART-3 §"Dispatch 12" lines 1043, 1361-1363.
 

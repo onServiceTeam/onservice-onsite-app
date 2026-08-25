@@ -44,6 +44,7 @@ import { MessageSquare, Camera, Check, CheckCheck, Send, ChevronLeft } from '@/c
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
 import { useResponsive } from '@/hooks/useResponsive';
+import { buildRoute, Routes } from '@/config/navigation';
 
 import * as ImagePicker from 'expo-image-picker';
 
@@ -376,6 +377,9 @@ export default function ProviderChatScreen(): React.ReactElement {
           style={styles.photoButton}
           onPress={handlePhotoSend}
           disabled={uploadingPhoto || sending}
+          accessibilityRole="button"
+          accessibilityLabel="Send a photo to customer"
+          accessibilityState={{ disabled: uploadingPhoto || sending }}
         >
           {uploadingPhoto ? (
             <ActivityIndicator size="small" color={colors.secondary} />
@@ -391,11 +395,15 @@ export default function ProviderChatScreen(): React.ReactElement {
           placeholderTextColor={colors.textTertiary}
           multiline
           maxLength={2000}
+          accessibilityLabel="Message to customer"
         />
         <TouchableOpacity
           style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
           onPress={handleSend}
           disabled={!inputText.trim() || sending}
+          accessibilityRole="button"
+          accessibilityLabel="Send message to customer"
+          accessibilityState={{ disabled: !inputText.trim() || sending }}
         >
           <Send size={20} color={colors.white} />
         </TouchableOpacity>
@@ -427,8 +435,9 @@ export default function ProviderChatScreen(): React.ReactElement {
               </View>
               <TouchableOpacity
                 style={styles.contextAction}
-                onPress={() => router.push(`/provider/job/${bookingId}`)}
+                onPress={() => router.push(buildRoute(Routes.PROVIDER.JOB_DETAIL, { id: bookingId }) as never)}
                 accessibilityRole="button"
+                accessibilityLabel="Open job details"
               >
                 <Text style={styles.contextActionText}>Open job details</Text>
               </TouchableOpacity>
