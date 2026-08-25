@@ -220,14 +220,7 @@ async function attemptAutoResolution(
         // `noshow_auto_resolve_window_minutes` setting (default 30,
         // up from the hardcoded 5 that auto-flagged real providers
         // doing legitimate quick repairs).
-        let noShowWindowMinutes = 30;
-        try {
-          noShowWindowMinutes = await settingsService.getSettingInteger('noshow_auto_resolve_window_minutes');
-        } catch (err) {
-          logger.debug('noshow_auto_resolve_window_minutes setting unreadable; using default 30', {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+        const noShowWindowMinutes = await resolveNoShowAutoResolutionWindowMinutes();
 
         if (minutesBetween < noShowWindowMinutes) {
           const totalAmount = Number(booking.total_amount);
@@ -268,6 +261,17 @@ async function attemptAutoResolution(
   }
 
   return false;
+}
+
+export async function resolveNoShowAutoResolutionWindowMinutes(): Promise<number> {
+  try {
+    return await settingsService.getSettingInteger('noshow_auto_resolve_window_minutes');
+  } catch (err) {
+    logger.debug('noshow_auto_resolve_window_minutes setting unreadable; using default 30', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return 30;
+  }
 }
 
 export async function addProviderResponse(

@@ -39,12 +39,22 @@ const STATUS_FILTERS = [
 export default function ProviderJobsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { breakpoint } = useResponsive();
+  const { breakpoint, isPhone } = useResponsive();
   const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 2 });
   const [filter, setFilter] = useState<string>('active');
   // Phase 14 R5-complete — FilterModal for advanced job filters.
   const [advancedFiltersVisible, setAdvancedFiltersVisible] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<Record<string, string[]>>({});
+  const sort = advancedFilters.sort?.[0] as 'newest' | 'oldest' | 'highest_pay' | undefined;
+  const period = advancedFilters.period?.[0];
+  const periodDays: 7 | 30 | 90 | undefined = period === '7d'
+    ? 7
+    : period === '30d'
+      ? 30
+      : period === '90d'
+        ? 90
+        : undefined;
+  const serverFilters = sort || periodDays ? { sort, periodDays } : undefined;
 
   const {
     data,
@@ -56,8 +66,10 @@ export default function ProviderJobsScreen(): React.ReactElement {
     isError,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ['providerJobs', filter],
-    queryFn: ({ pageParam = 1 }) => getProviderBookings(filter, pageParam as number, 15),
+    queryKey: ['providerJobs', filter, sort ?? null, periodDays ?? null],
+    queryFn: ({ pageParam = 1 }) => serverFilters
+      ? getProviderBookings(filter, pageParam as number, 15, serverFilters)
+      : getProviderBookings(filter, pageParam as number, 15),
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
       const totalPages = Math.ceil(lastPage.total / lastPage.pageSize);
@@ -66,37 +78,17 @@ export default function ProviderJobsScreen(): React.ReactElement {
     staleTime: 30 * 1000,
   });
 
-  const rawJobs = data?.pages.flatMap((p) => p.bookings) ?? [];
+  const jobs = data?.pages.flatMap((p) => p.bookings) ?? [];
 
-  // BUG-PHASE64-03 fix — pre-fix the FilterModal rendered at line 185+
+  // BUG-PHASE64-03 fix — pre-fix the FilterModal rendered below
   // had no trigger button anywhere on the screen, so the user could
   // never open it (Phase 14 R5 dead-wire pattern). Even if they could
   // open it, the captured `advancedFilters` state was set into local
   // state and then discarded — never applied to the data. Now: a Filter
   // icon next to the title opens the modal, and the advancedFilters
-  // are applied client-side to sort and date-restrict the list (the
-  // bookings API doesn't accept sort/period params, so this is the
-  // only honest place to do the work).
-  const jobs = (() => {
-    let list = [...rawJobs];
-    const period = advancedFilters.period?.[0];
-    if (period) {
-      const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 0;
-      if (days > 0) {
-        const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
-        list = list.filter((j) => new Date(j.scheduledAt).getTime() >= cutoffMs);
-      }
-    }
-    const sort = advancedFilters.sort?.[0];
-    if (sort === 'oldest') {
-      list.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
-    } else if (sort === 'highest_pay') {
-      list.sort((a, b) => b.servicePrice - a.servicePrice);
-    } else if (sort === 'newest') {
-      list.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
-    }
-    return list;
-  })();
+  // Bug UX-331 — sort and period now travel with the paginated server query.
+  // Applying them to only the pages already loaded could falsely show no jobs
+  // or label a partial page's amount as the highest pay.
 
   const advancedFilterCount =
     (advancedFilters.sort?.length ?? 0) + (advancedFilters.period?.length ?? 0);
@@ -118,6 +110,7 @@ export default function ProviderJobsScreen(): React.ReactElement {
         <Text style={styles.jobId}>#{formatBookingRef(item.id, item.createdAt)}</Text>
       </View>
       <Text style={styles.jobService}>{item.serviceName ?? item.categoryName ?? 'Service'}</Text>
+      {item.customerName ? <Text style={styles.jobCustomer}>Customer: {item.customerName}</Text> : null}
       <View style={styles.jobAddressRow}>
         <MapPin size={13} color={colors.textTertiary} />
         <Text style={styles.jobAddress} numberOfLines={1}>
@@ -135,10 +128,17 @@ export default function ProviderJobsScreen(): React.ReactElement {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
+      <View
+        style={[styles.workspace, !isPhone && styles.workspaceWide]}
+        accessibilityLabel={!isPhone ? 'Tablet and desktop provider jobs workspace' : undefined}
+      >
       {/* Phase 14 R5-complete — NbiStatusBanner above the jobs list */}
       <NbiStatusBanner onTap={() => router.push(Routes.PROVIDER.ACCOUNT_MANAGEMENT)} />
       <View style={styles.titleRow}>
-        <Text style={styles.title}>My Jobs</Text>
+        <View>
+          <Text style={styles.title}>My Jobs</Text>
+          <Text style={styles.subtitle}>Schedule, scope, customer, and work status</Text>
+        </View>
         {/* BUG-PHASE64-03 fix — actual trigger for FilterModal. */}
         <TouchableOpacity
           style={styles.advFilterBtn}
@@ -259,12 +259,15 @@ export default function ProviderJobsScreen(): React.ReactElement {
         }}
         onClose={() => setAdvancedFiltersVisible(false)}
       />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
+  container: { flex: 1, backgroundColor: colors.surfaceMuted },
+  workspace: { flex: 1, width: '100%', paddingHorizontal: spacing.base },
+  workspaceWide: { maxWidth: 1180, alignSelf: 'center', paddingHorizontal: spacing.xl },
   titleRow: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
@@ -272,6 +275,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   title: { ...typography.h1, color: colors.text },
+  subtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   advFilterBtn: {
     padding: spacing.sm,
     minWidth: 44,
@@ -324,6 +328,7 @@ const styles = StyleSheet.create({
   },
   jobId: { ...typography.caption, color: colors.textTertiary, fontWeight: '600' },
   jobService: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
+  jobCustomer: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.xs },
   jobAddressRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.sm },
   jobAddress: { ...typography.bodySmall, color: colors.textSecondary, flex: 1 },
   jobBottom: {
