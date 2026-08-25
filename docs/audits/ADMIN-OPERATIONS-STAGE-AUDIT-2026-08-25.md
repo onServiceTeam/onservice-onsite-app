@@ -4,7 +4,8 @@
 
 This is the durable route-by-route control ledger for the admin overhaul requested by Ken. It is intentionally incomplete. `W1` means the current stage inspected and changed the named surface with rendered behavior tests. It does not mean every state on that page has been manually exercised. `NEXT` means the page remains in the active screen-by-screen pass. `HOLD` means money, compliance, legal, or policy behavior cannot be changed autonomously even though safe visual and accessibility work may continue.
 
-Current code checkpoint: `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`.
+Current audited code checkpoint: `6a7bcc696071338aeb96c6476075a17332f12a45`.
+The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its documentation and production-evidence checkpoint was `cc15c61b7cacad2911e6bae97fe48d4e43179df7`.
 
 ## Shared admin contract established in W1
 
@@ -22,7 +23,7 @@ Current code checkpoint: `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`.
 
 | Route | Company/support purpose | Stage | Current boundary or next check |
 | --- | --- | --- | --- |
-| `/login` | Admin authentication | PRIOR | Dedicated operations context exists. Recheck current Stitch visual states with the final shell release. |
+| `/login` | Admin authentication | W2 | A first-time visit without the readable admin session hint now settles signed out without generating expected `/auth/me` and refresh 401s. Returning sessions still hydrate normally. |
 | `/change-password` | Credential rotation | W1/PREVIOUS | Account menu now reaches it at all widths. Existing forced-rotation behavior remains unchanged. |
 | `/` | Command center | NEXT | Re-audit every queue, metric definition, source failure, and cross-link after shell release. |
 | `/providers` | Provider queue | NEXT | Recheck application filters, bulk support workflow, capacity context, and Provider 360 exits. |
@@ -44,23 +45,37 @@ Current code checkpoint: `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`.
 | `/service-areas` | Market, coverage, and provider-capacity control | W1 | Activation/default/pause/create decisions now state cross-role effects. Continue create/edit responsive layout and provider-request decision states. |
 | `/analytics` | Decision support | W1 | A/B and quality actions are accessible and explicit; retention and commission remain truth-labeled. Continue complete tab state visuals. |
 | `/audit-log` | Operator accountability | NEXT | Recheck actor, target, reason, before/after detail, filters, export, and links back to source records. |
-| `/support-tickets` | Support case queue | NEXT | Recheck SLA truth, assignment, private/public notes, customer/provider/booking linkage, and all empty/error states. |
+| `/support-tickets` | Support case queue | W2 | Queue-wide active signals, unassigned filtering, persona-correct waiting states, reopening, required workflow notes, success feedback, and visible append-only manual status history are implemented. No SLA is invented. |
 | `/staff` | Company access and responsibility | NEXT | Recheck role truth, candidate selection, DPO segregation, account status, and support-team workflow. |
 | `/settings` | Platform configuration | HOLD/NEXT | Live, held, and unconnected classifications exist. Money/security settings need source-specific review and rollback preview. |
 | `/settings/cancellation-policy` | Customer cancellation presentation | HOLD | E09 blocks changing policy/money semantics until display and refund math have one authority. |
 | `/pricing-rules` | Surge and revenue-share control | HOLD | E28 records the missing server-authoritative preview/staged publication decision. Only safe Stitch surface cleanup occurred in W1. |
 | `/marketing` | Promotions, referrals, campaigns | NEXT | Recheck feature flags, audience truth, delivery state, redemption linkage, and held payment claims. |
 | `/dispatch` | Live assignment and coverage | W1 PARTIAL/HOLD | Decorative shadows and fixed drawer width were corrected. Reassignment/cancellation remain booking and refund-path controlled. |
-| `/communications` | Cross-role message operations | NEXT | Recheck conversation ownership, delivery state, participant/booking linkage, escalation, and privacy boundaries. |
-| `/feedback` | Third-party tester feedback queue | NEXT | Trace every production submission to owner, decision, linked screen, implementation, and closure evidence. |
+| `/communications` | Cross-role message operations | W2 | Review queue is first, lists paginate, search is submitted rather than per-keystroke, exact message focus is preserved, participant/booking links remain visible, and moderation states participant impact plus audited success. Delivery-state evidence remains a later check. |
+| `/feedback` | Third-party tester feedback queue | W2 | Original evidence, named ownership, decision notes, no-op protection, explicit search, and visible append-only owner/status history are implemented. Production still has 10 new and 0 assigned submissions, so operational triage remains real company work rather than a code claim. |
 | `/compliance` | Regulatory and tax controls | HOLD | Dedicated compliance review required. No regulatory meaning or status behavior changed in W1. |
 | `/data-protection-log` | DSR operations | HOLD | E21 retention matrix and DPO process remain authoritative blockers for semantic changes. |
 | `/consent-versions` | Legal-document publication history | HOLD | F#10/E26 legal-source conflict remains open. Safe layout work only until attorney-approved wording/status is reconciled. |
 | `*` | Safe route recovery | PRIOR | Existing rendered recovery remains. Recheck final shell breadcrumb behavior after all routes settle. |
 
-## Remaining browser-native confirmations after W1
+## W2 support, feedback, and communications contract
 
-W1 reduced the count from 44 to 31. The remaining prompts are deliberately visible here rather than being hidden by a false completion claim.
+- Tester Feedback no longer overwrites the only visible decision record. The current state remains editable, while up to 100 earlier owner, status, actor, and evidence-note decisions are read from the append-only audit log. Identical submissions are rejected server-side instead of creating duplicate audit events.
+- Feedback and conversation search now runs on submission or clear, not on every keystroke. Communications and moderation queues page through the complete server result instead of silently stopping at 50 rows.
+- Support queue cards use whole-queue counts. Urgent and unassigned cards open matching active-case filters, and the filter state is visible and removable.
+- Every manual support status decision requires a 10-character workflow note and writes the before/after state, acting administrator, reason, owner, and resolution inside one database transaction. The status history is visible in the case workspace.
+- Reopening a resolved or closed case clears stale terminal timestamps and current resolution text. The earlier outcome remains in append-only history.
+- Waiting states follow the private case owner. Customer-owned cases can wait on the customer; provider and provider-staff cases can wait on the provider. The UI hides impossible states and the API rejects a crafted invalid transition.
+- Support replies, internal notes, assignment, case creation, status decisions, redaction, and report review now return explicit outcome text. Internal notes state that the user cannot see them; moderation explains whether content remains participant-visible or is hidden.
+- First-time admin login no longer creates expected unauthenticated `/auth/me` and refresh failures when no session hint exists. A returning admin with the session hint still uses normal hydration and refresh behavior.
+- Shared pagination now wraps at narrow widths, exposes current-page semantics, and keeps 44-pixel action targets across every admin list that uses it.
+
+These changes are Bugs UX-415 through UX-428. They do not alter money, dispute, cancellation, legal, privacy-retention, or pricing-rule behavior held by the existing escalation records.
+
+## Remaining browser-native confirmations after W2
+
+W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. The count therefore remains 31. They are deliberately visible here rather than being hidden by a false completion claim.
 
 | Screen | Count | Reason not converted in W1 |
 | --- | ---: | --- |
@@ -87,5 +102,15 @@ W1 reduced the count from 44 to 31. The remaining prompts are deliberately visib
 - Focused mobile provider-review behavior test passed.
 - Icon governance passed with no emoji used as interface iconography.
 - `git diff --check` passed.
-- GitHub CI and production deployment are separate required evidence and are not claimed by this local record.
+- GitHub independently passed all CI and governance jobs for W1.
+- Production source and admin/mobile artifacts were deployed from exact checkpoint `cc15c61b7cacad2911e6bae97fe48d4e43179df7` after database, uploads, config, Git, and prior-frontend backups. Admin entry `index-AkDHKtUG.js`, CSS `index-CgvxNk4_.css`, and mobile entry `entry-53a2562ea4e4c3513c97a498ec695af3.js` matched local hashes. API readiness, protected rejection, nginx validation, upload mounts, settings drift, and the shared containers passed.
+- Public admin login rendered the intended one-column phone and split tablet/desktop compositions at 390, 1024, and 1440 pixels. The two unauthenticated bootstrap 401 console requests found in that evidence are the specific W2 defect addressed by Bug UX-415.
 
+## W2 local verification
+
+- Admin: 110 test files passed, 1 skipped; 223 tests passed, 3 explicit todos.
+- API: all 449 locally runnable suites passed, 1 suite remained intentionally skipped; 3,093 tests passed. The separate production-nginx certificate test requires a running Docker engine and could not start because Docker Desktop was off. This is an environment prerequisite, not counted as a pass; live `nginx -t` remains required after deployment.
+- Admin and API TypeScript passed. Admin lint passed. Both production builds passed; admin transformed 2,839 modules.
+- Gate A, Gate C, and all six gate self-tests passed. Gate D and Gate E correctly reported their configured observational mode.
+- `git diff --check` passed.
+- GitHub CI, production backup, deployment, live nginx validation, health, exact artifact hashes, and post-deploy browser evidence remain required and are not claimed by this local checkpoint.

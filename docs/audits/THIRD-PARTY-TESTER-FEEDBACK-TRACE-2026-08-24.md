@@ -78,6 +78,9 @@ The admin now needs one dedicated Tester Feedback workspace under Support & Trus
 4. Require an active named admin owner before status can become `triaged` or `done`.
 5. Require a written note for every status change, including `dismissed` spam or non-actionable input.
 6. Write status, owner, and note changes to the audit log in the same transaction.
+7. Keep every earlier decision visible in the admin case instead of replacing the only operator-visible note.
+
+The 2026-08-25 read-only production recheck found 10 submissions, all still `new`, with 5 logged issue items and 0 assigned owners across customer, provider, and admin areas. No feedback content or personal data was printed or changed. Bugs UX-416/417/423 now expose the append-only decision history and reject no-op duplicate decisions; assigning and closing the existing submissions remains an operational support-team task.
 
 The secret export remains available for private analysis and backup. It is not the day-to-day company workflow.
 
